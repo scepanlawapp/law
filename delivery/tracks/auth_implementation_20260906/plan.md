@@ -1,13 +1,13 @@
 # Authentication Implementation Plan
 
-- [x] Define the conductor track and security contract.
-- [x] Add Prisma models for users, workspaces, memberships, sessions, tokens, and audit events.
-- [x] Add Prisma module and initial migration workflow.
-- [x] Implement invite, login, logout, refresh, current-user, and password-reset use cases.
-- [x] Add cookie/session security guards and configuration validation.
-- [x] Add Angular auth state, interceptor, guards, and auth routes.
-- [~] Add API, frontend, and Playwright coverage.
-- [~] Verify CSRF/CORS, rate limiting, replay detection, workspace isolation, and secret handling.
+- [x] 4ab07ac Define the conductor track and security contract.
+- [x] 4ab07ac Add Prisma models for users, workspaces, memberships, sessions, tokens, and audit events.
+- [x] 4ab07ac Add Prisma module and initial migration workflow.
+- [x] 4ab07ac Implement invite, login, logout, refresh, current-user, and password-reset use cases.
+- [x] 4ab07ac Add cookie/session security guards and configuration validation.
+- [x] 4ab07ac Add Angular auth state, interceptor, guards, and auth routes.
+- [x] 057d271 Add API and frontend auth coverage; defer full authenticated Playwright journeys.
+- [x] 4ab07ac Verify CSRF/CORS, in-process rate limiting, replay detection, configuration, and secret handling; defer distributed throttling and future resource isolation.
 
 ## Implemented in the current hardening slice
 
@@ -24,12 +24,12 @@
 - Startup validation for API origin, ports, and production SMTP requirements.
 - Reusable workspace membership and role guard for future domain controllers.
 
-## Remaining before completion
+## Deferred by scope decision
 
-- Add full authenticated API E2E coverage against a disposable database.
-- Add frontend unit coverage for the interceptor and reset forms.
-- Verify workspace isolation against domain resources as those resources are implemented.
-- Add distributed rate limiting for multi-instance production deployments.
+- Full authenticated Playwright journeys and mail-capture browser fixtures.
+- Disposable-database infrastructure for authenticated API E2E runs.
+- Distributed Redis-backed rate limiting for multi-instance production deployments.
+- Workspace isolation tests for future case/document resources.
 
 ## Status convention
 
