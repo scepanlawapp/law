@@ -6,3 +6,113 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  LAWYER
+  MEMBER
+}
+
+enum WorkspaceMemberStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum AuthTokenPurpose {
+  INVITATION
+  PASSWORD_RESET
+}
+
+model User {
+  id              String            @id @default(uuid())
+  email           String            @unique
+  passwordHash    String?
+  status          UserStatus        @default(INVITED)
+  passwordChangedAt DateTime?         @db.Timestamptz(3)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+  memberships     WorkspaceMember[]
+  sessions        AuthSession[]
+  tokens          AuthToken[]
+  auditEvents     AuditEvent[]
+}
+
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+  memberships WorkspaceMember[]
+  auditEvents AuditEvent[]
+}
+
+model WorkspaceMember {
+  userId      String
+  workspaceId String
+  role        WorkspaceRole       @default(MEMBER)
+  status      WorkspaceMemberStatus @default(INVITED)
+  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
+  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, workspaceId])
+  @@index([workspaceId, status])
+}
+
+model AuthSession {
+  id             String    @id @default(uuid())
+  userId         String
+  tokenFamily    String
+  refreshTokenHash String
+  expiresAt       DateTime  @db.Timestamptz(3)
+  revokedAt       DateTime? @db.Timestamptz(3)
+  replacedAt      DateTime? @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt      DateTime? @db.Timestamptz(3)
+  userAgent      String?
+  ipAddress      String?
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([tokenFamily])
+}
+
+model AuthToken {
+  id          String          @id @default(uuid())
+  userId      String
+  purpose     AuthTokenPurpose
+  tokenHash   String
+  expiresAt   DateTime        @db.Timestamptz(3)
+  consumedAt  DateTime?       @db.Timestamptz(3)
+  createdAt   DateTime        @default(now()) @db.Timestamptz(3)
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([purpose, tokenHash])
+  @@index([userId, purpose])
+}
+
+model AuditEvent {
+  id          String     @id @default(uuid())
+  userId      String?
+  workspaceId String?
+  eventType   String
+  outcome     String
+  requestId   String?
+  metadata    Json?
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([eventType, createdAt])
+}
