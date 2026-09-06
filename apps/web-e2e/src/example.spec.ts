@@ -1,8 +1,16 @@
 import { test, expect } from '@playwright/test';
 
-test('has title', async ({ page }) => {
+test('shows the sign-in screen for anonymous users', async ({ page }) => {
   await page.goto('/');
 
-  // Expect h1 to contain a substring.
-  expect(await page.locator('h1').innerText()).toContain('Welcome');
+  await expect(page.locator('h1')).toHaveText('Sign in');
+  await expect(page.getByLabel('Email')).toBeVisible();
+  await expect(page.getByLabel('Password')).toBeVisible();
+});
+
+test('exposes password recovery without authentication', async ({ page }) => {
+  await page.goto('/forgot-password');
+
+  await expect(page.locator('h1')).toHaveText('Reset password');
+  await expect(page.getByRole('button', { name: 'Send reset link' })).toBeVisible();
 });

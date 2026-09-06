@@ -1,13 +1,20 @@
-import { Body, Controller, Get, Post, Req, Res } from "@nestjs/common";
-import { Request, Response } from "express";
+import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
+import { Response } from "express";
 import { AuthService } from "./auth.service";
 import {
-  InvitationAcceptRequest,
-  InvitationCreateRequest,
-  LoginRequest,
-  PasswordForgotRequest,
-  PasswordResetRequest,
-} from "@law/api-interfaces";
+  AuthenticatedRequest,
+  AuthGuard,
+  sessionToken,
+} from "./auth.guard";
+import { CsrfOriginGuard } from "./csrf.guard";
+import { AuthRateLimitGuard } from "./rate-limit.guard";
+import {
+  InvitationAcceptDto,
+  InvitationCreateDto,
+  LoginDto,
+  PasswordForgotDto,
+  PasswordResetDto,
+} from "./auth.dto";
 
 const SESSION_COOKIE = "law_session";
 const cookieOptions = {
@@ -17,20 +24,15 @@ const cookieOptions = {
   path: "/",
 };
 
-function sessionToken(request: Request): string | undefined {
-  const header = request.headers.cookie
-    ?.split(";")
-    .find((part) => part.trim().startsWith(`${SESSION_COOKIE}=`));
-  return header?.trim().slice(SESSION_COOKIE.length + 1);
-}
-
 @Controller("auth")
+@UseGuards(CsrfOriginGuard)
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post("login")
+  @UseGuards(AuthRateLimitGuard)
   async login(
-    @Body() body: LoginRequest,
+    @Body() body: LoginDto,
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.authService.login(body.email, body.password);
@@ -43,7 +45,7 @@ export class AuthController {
 
   @Post("invitations/accept")
   async acceptInvitation(
-    @Body() body: InvitationAcceptRequest,
+    @Body() body: InvitationAcceptDto,
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.authService.acceptInvitation(
@@ -58,9 +60,10 @@ export class AuthController {
   }
 
   @Post("invitations")
+  @UseGuards(AuthGuard)
   async createInvitation(
-    @Body() body: InvitationCreateRequest,
-    @Req() request: Request,
+    @Body() body: InvitationCreateDto,
+    @Req() request: AuthenticatedRequest,
   ) {
     await this.authService.createInvitation(
       sessionToken(request),
@@ -71,13 +74,15 @@ export class AuthController {
   }
 
   @Get("me")
-  me(@Req() request: Request) {
+  @UseGuards(AuthGuard)
+  me(@Req() request: AuthenticatedRequest) {
     return this.authService.currentUser(sessionToken(request));
   }
 
   @Post("refresh")
+  @UseGuards(AuthGuard)
   async refresh(
-    @Req() request: Request,
+    @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.authService.refresh(sessionToken(request));
@@ -89,8 +94,9 @@ export class AuthController {
   }
 
   @Post("logout")
+  @UseGuards(AuthGuard)
   async logout(
-    @Req() request: Request,
+    @Req() request: AuthenticatedRequest,
     @Res({ passthrough: true }) response: Response,
   ) {
     await this.authService.logout(sessionToken(request));
@@ -99,13 +105,14 @@ export class AuthController {
   }
 
   @Post("password/forgot")
-  async forgotPassword(@Body() body: PasswordForgotRequest) {
+  @UseGuards(AuthRateLimitGuard)
+  async forgotPassword(@Body() body: PasswordForgotDto) {
     await this.authService.requestPasswordReset(body.email);
     return { success: true };
   }
 
   @Post("password/reset")
-  async resetPassword(@Body() body: PasswordResetRequest) {
+  async resetPassword(@Body() body: PasswordResetDto) {
     await this.authService.resetPassword(body.token, body.password);
     return { success: true };
   }

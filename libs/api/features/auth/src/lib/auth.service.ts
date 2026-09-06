@@ -87,6 +87,12 @@ export class AuthService {
       },
     });
     await this.mail.sendInvitation(normalizedEmail, token);
+    await this.audit({
+      eventType: "INVITATION_CREATED",
+      outcome: "SUCCESS",
+      userId: actor.id,
+      workspaceId,
+    });
   }
 
   async login(
@@ -107,10 +113,13 @@ export class AuthService {
       user.status !== "ACTIVE" ||
       !(await verifyPassword(password, user.passwordHash))
     ) {
+      await this.audit({ eventType: "LOGIN", outcome: "FAILURE" });
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    return this.createSession(user.id, this.toResponse(user));
+    const result = await this.createSession(user.id, this.toResponse(user));
+    await this.audit({ eventType: "LOGIN", outcome: "SUCCESS", userId: user.id });
+    return result;
   }
 
   async acceptInvitation(
@@ -150,6 +159,11 @@ export class AuthService {
         data: { status: "ACTIVE" },
       }),
     ]);
+    await this.audit({
+      eventType: "INVITATION_ACCEPTED",
+      outcome: "SUCCESS",
+      userId: user.id,
+    });
     return this.createSession(user.id, this.toResponse(user));
   }
 
@@ -164,6 +178,7 @@ export class AuthService {
       where: { refreshTokenHash: hashToken(token), revokedAt: null },
       data: { revokedAt: new Date() },
     });
+    await this.audit({ eventType: "LOGOUT", outcome: "SUCCESS" });
   }
 
   async refresh(
@@ -173,9 +188,6 @@ export class AuthService {
     const current = await this.prisma.authSession.findFirst({
       where: {
         refreshTokenHash: hashToken(token),
-        revokedAt: null,
-        expiresAt: { gt: new Date() },
-        user: { status: "ACTIVE" },
       },
       include: {
         user: {
@@ -188,7 +200,20 @@ export class AuthService {
         },
       },
     });
-    if (!current) throw new UnauthorizedException("Authentication required");
+    if (!current || current.revokedAt || current.expiresAt <= new Date() || current.user.status !== "ACTIVE") {
+      if (current?.tokenFamily) {
+        await this.prisma.authSession.updateMany({
+          where: { tokenFamily: current.tokenFamily, revokedAt: null },
+          data: { revokedAt: new Date() },
+        });
+        await this.audit({
+          eventType: "SESSION_REUSE_DETECTED",
+          outcome: "FAILURE",
+          userId: current.userId,
+        });
+      }
+      throw new UnauthorizedException("Authentication required");
+    }
 
     const nextToken = randomBytes(32).toString("base64url");
     await this.prisma.$transaction([
@@ -205,6 +230,11 @@ export class AuthService {
         },
       }),
     ]);
+    await this.audit({
+      eventType: "SESSION_REFRESHED",
+      outcome: "SUCCESS",
+      userId: current.userId,
+    });
     return { token: nextToken, session: this.toResponse(current.user) };
   }
 
@@ -223,6 +253,11 @@ export class AuthService {
       },
     });
     await this.mail.sendPasswordReset(user.email, token);
+    await this.audit({
+      eventType: "PASSWORD_RESET_REQUESTED",
+      outcome: "SUCCESS",
+      userId: user.id,
+    });
   }
 
   async resetPassword(token: string, password: string): Promise<void> {
@@ -253,6 +288,11 @@ export class AuthService {
         data: { revokedAt: new Date() },
       }),
     ]);
+    await this.audit({
+      eventType: "PASSWORD_RESET_COMPLETED",
+      outcome: "SUCCESS",
+      userId: reset.userId,
+    });
   }
 
   private async createSession(
@@ -321,5 +361,14 @@ export class AuthService {
         role: membership.role as WorkspaceRole,
       })),
     };
+  }
+
+  private async audit(input: {
+    eventType: string;
+    outcome: string;
+    userId?: string;
+    workspaceId?: string;
+  }): Promise<void> {
+    await this.prisma.auditEvent.create({ data: input });
   }
 }

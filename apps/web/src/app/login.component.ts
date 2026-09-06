@@ -1,11 +1,11 @@
 import { Component, inject, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
-import { Router } from "@angular/router";
+import { Router, RouterLink } from "@angular/router";
 import { AuthState } from "@law/security";
 
 @Component({
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, RouterLink],
   template: `
     <main class="auth-shell">
       <section class="auth-panel">
@@ -37,6 +37,7 @@ import { AuthState } from "@law/security";
           <button type="submit" [disabled]="submitting()">
             {{ submitting() ? "Signing in..." : "Sign in" }}
           </button>
+          <a routerLink="/forgot-password">Forgot password?</a>
         </form>
       </section>
     </main>

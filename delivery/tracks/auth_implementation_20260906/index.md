@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-The Prisma identity, workspace membership, session, token, and audit model is in place. The next checkpoint is the NestJS auth module and its cookie/session lifecycle.
+The Prisma identity, workspace membership, session, token, and audit model, the NestJS cookie-session lifecycle, API guards, throttling, replay detection, and Angular invitation/reset flows are implemented. The track remains in progress while authenticated E2E coverage and production hardening are completed.
