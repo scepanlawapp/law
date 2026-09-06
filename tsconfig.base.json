@@ -17,7 +17,9 @@
     "paths": {
       "@law/api-interfaces": ["./libs/api/api-interfaces/src/index.ts"],
       "@law/auth": ["./libs/api/features/auth/src/index.ts"],
+      "@law/chat": ["./libs/api/features/chat/src/index.ts"],
       "@law/core": ["./libs/api/core/src/index.ts"],
+      "@law/llm": ["./libs/api/ai/llm/src/index.ts"],
       "@law/contracts": ["./libs/api/ai/contracts/src/index.ts"],
       "@law/n8n": ["./libs/api/ai/n8n/src/index.ts"],
       "@law/ollama": ["./libs/api/ai/ollama/src/index.ts"],

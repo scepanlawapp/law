@@ -24,17 +24,15 @@ async function main() {
 
   const prisma = new PrismaClient();
   try {
+    // Must be RFC 4122: class-validator @IsUUID() rejects nil-like ids.
+    const workspaceId =
+      process.env.AUTH_BOOTSTRAP_WORKSPACE_ID ??
+      "11111111-1111-4111-a111-111111111111";
     const workspace = await prisma.workspace.upsert({
-      where: {
-        id:
-          process.env.AUTH_BOOTSTRAP_WORKSPACE_ID ??
-          "00000000-0000-0000-0000-000000000001",
-      },
+      where: { id: workspaceId },
       update: { name: workspaceName },
       create: {
-        id:
-          process.env.AUTH_BOOTSTRAP_WORKSPACE_ID ??
-          "00000000-0000-0000-0000-000000000001",
+        id: workspaceId,
         name: workspaceName,
       },
     });

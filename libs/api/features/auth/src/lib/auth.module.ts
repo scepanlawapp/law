@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Global, Module } from "@nestjs/common";
 import { AuthController } from "./auth.controller";
 import { AuthService } from "./auth.service";
 import { AuthMailService } from "./mail.service";
@@ -7,6 +7,7 @@ import { CsrfOriginGuard } from "./csrf.guard";
 import { AuthRateLimitGuard } from "./rate-limit.guard";
 import { AuthRuntimeConfig } from "./auth.config";
 
+@Global()
 @Module({
   controllers: [AuthController],
   providers: [
@@ -17,6 +18,12 @@ import { AuthRuntimeConfig } from "./auth.config";
     AuthRateLimitGuard,
     AuthRuntimeConfig,
   ],
-  exports: [AuthGuard],
+  exports: [
+    AuthService,
+    AuthMailService,
+    AuthGuard,
+    CsrfOriginGuard,
+    AuthRuntimeConfig,
+  ],
 })
 export class AuthModule {}

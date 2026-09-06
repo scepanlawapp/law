@@ -1,0 +1,18 @@
+{
+  "track_id": "chat_portir_phase1_20260906",
+  "parent_track_id": "auth_implementation_20260906",
+  "type": "feature",
+  "status": "in_progress",
+  "prd_reference": null,
+  "created_at": "2026-09-06T00:00:00Z",
+  "updated_at": "2026-09-06T00:00:00Z",
+  "keywords": [
+    "chat",
+    "portir",
+    "openrouter",
+    "langgraph",
+    "sse",
+    "attachments"
+  ],
+  "priority": "high"
+}

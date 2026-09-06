@@ -31,4 +31,16 @@ describe("validateEnvironment", () => {
       }),
     ).toThrow("AUTH_FRONTEND_ORIGIN must be a valid URL");
   });
+
+  it("rejects production without an OpenRouter key", () => {
+    expect(() =>
+      validateEnvironment({
+        NODE_ENV: "production",
+        PORT: "3000",
+        AUTH_FRONTEND_ORIGIN: "https://law.example.com",
+        SMTP_HOST: "smtp.example.com",
+        SMTP_FROM: "no-reply@example.com",
+      }),
+    ).toThrow("OPENROUTER_API_KEY is required in production");
+  });
 });

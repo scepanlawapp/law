@@ -31,6 +31,36 @@ enum AuthTokenPurpose {
   PASSWORD_RESET
 }
 
+enum ChatSessionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ChatMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum ChatMessageStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum TriageDecision {
+  LEGAL
+  NON_LEGAL
+  UNCLEAR
+}
+
+enum WorkflowJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 model User {
   id              String            @id @default(uuid())
   email           String            @unique
@@ -43,6 +73,7 @@ model User {
   sessions        AuthSession[]
   tokens          AuthToken[]
   auditEvents     AuditEvent[]
+  chatSessions    ChatSession[]     @relation("ChatSessionCreator")
 }
 
 model Workspace {
@@ -50,8 +81,11 @@ model Workspace {
   name        String
   createdAt   DateTime          @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
-  memberships WorkspaceMember[]
-  auditEvents AuditEvent[]
+  memberships     WorkspaceMember[]
+  auditEvents     AuditEvent[]
+  chatSessions    ChatSession[]
+  chatAttachments ChatAttachment[]
+  workflowJobs    WorkflowJob[]
 }
 
 model WorkspaceMember {
@@ -115,4 +149,77 @@ model AuditEvent {
   @@index([userId, createdAt])
   @@index([workspaceId, createdAt])
   @@index([eventType, createdAt])
+}
+
+model ChatSession {
+  id              String            @id @default(uuid())
+  workspaceId     String
+  createdByUserId String
+  title           String?
+  status          ChatSessionStatus @default(ACTIVE)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
+  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy       User              @relation("ChatSessionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  messages        ChatMessage[]
+  attachments     ChatAttachment[]
+  workflowJobs    WorkflowJob[]
+
+  @@index([workspaceId, updatedAt])
+  @@index([createdByUserId, createdAt])
+}
+
+model ChatMessage {
+  id              String            @id @default(uuid())
+  sessionId       String
+  role            ChatMessageRole
+  content         String
+  status          ChatMessageStatus @default(COMPLETED)
+  triageDecision  TriageDecision?
+  correlationId   String?
+  metadata        Json?
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  session         ChatSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attachments     ChatAttachment[]
+
+  @@index([sessionId, createdAt])
+  @@index([correlationId])
+}
+
+model ChatAttachment {
+  id           String       @id @default(uuid())
+  workspaceId  String
+  sessionId    String
+  messageId    String?
+  originalName String
+  storedName   String
+  mimeType     String
+  sizeBytes    Int
+  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session      ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message      ChatMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, sessionId])
+  @@index([messageId])
+}
+
+model WorkflowJob {
+  id            String            @id @default(uuid())
+  workspaceId   String
+  sessionId     String
+  workflowName  String
+  status        WorkflowJobStatus @default(QUEUED)
+  correlationId String
+  input         Json?
+  output        Json?
+  errorCode     String?
+  createdAt     DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime          @updatedAt @db.Timestamptz(3)
+  workspace     Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session       ChatSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([correlationId])
 }
