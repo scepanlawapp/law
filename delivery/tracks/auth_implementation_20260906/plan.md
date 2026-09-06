@@ -19,13 +19,15 @@
 - Sanitized audit events for authentication lifecycle operations.
 - Invitation acceptance, password reset, and forgot-password screens.
 - API guard tests and anonymous auth E2E coverage.
+- Angular `AuthState` unit coverage for bootstrap, login, and logout.
+- Opt-in authenticated API E2E coverage for session restoration, rotation, replay rejection, and logout.
 - Startup validation for API origin, ports, and production SMTP requirements.
 - Reusable workspace membership and role guard for future domain controllers.
 
 ## Remaining before completion
 
 - Add full authenticated API E2E coverage against a disposable database.
-- Add frontend unit coverage for auth state/interceptor and reset forms.
+- Add frontend unit coverage for the interceptor and reset forms.
 - Verify workspace isolation against domain resources as those resources are implemented.
 - Add distributed rate limiting for multi-instance production deployments.
 

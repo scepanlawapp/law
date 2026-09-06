@@ -6,6 +6,12 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
+    "@angular/common": "~22.1.0",
+    "@angular/core": "~22.1.0",
+    "@angular/router": "~22.1.0",
+    "@law/api-clients": "0.0.1",
+    "@law/api-interfaces": "0.0.1",
+    "rxjs": "^7.8.0",
     "tslib": "^2.3.0"
   }
 }
