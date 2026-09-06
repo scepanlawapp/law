@@ -1,0 +1,25 @@
+{
+  "name": "api-interfaces",
+  "$schema": "../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/api-interfaces/src",
+  "projectType": "library",
+  "tags": [
+    "scope:api"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/api-interfaces",
+        "main": "libs/api/api-interfaces/src/index.ts",
+        "tsConfig": "libs/api/api-interfaces/tsconfig.lib.json",
+        "assets": [
+          "libs/api/api-interfaces/*.md"
+        ]
+      }
+    }
+  }
+}

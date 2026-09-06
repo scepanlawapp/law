@@ -1,0 +1,26 @@
+{
+  "name": "n8n",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/n8n/src",
+  "projectType": "library",
+  "tags": [
+    "scope:ai",
+    "type:ai"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/ai/n8n",
+        "main": "libs/api/ai/n8n/src/index.ts",
+        "tsConfig": "libs/api/ai/n8n/tsconfig.lib.json",
+        "assets": [
+          "libs/api/ai/n8n/*.md"
+        ]
+      }
+    }
+  }
+}

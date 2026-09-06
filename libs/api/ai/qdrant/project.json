@@ -1,0 +1,26 @@
+{
+  "name": "qdrant",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/qdrant/src",
+  "projectType": "library",
+  "tags": [
+    "scope:ai",
+    "type:ai"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/ai/qdrant",
+        "main": "libs/api/ai/qdrant/src/index.ts",
+        "tsConfig": "libs/api/ai/qdrant/tsconfig.lib.json",
+        "assets": [
+          "libs/api/ai/qdrant/*.md"
+        ]
+      }
+    }
+  }
+}

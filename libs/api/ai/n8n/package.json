@@ -1,0 +1,12 @@
+{
+  "name": "@law/n8n",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "@law/contracts": "0.0.1",
+    "tslib": "^2.3.0"
+  }
+}

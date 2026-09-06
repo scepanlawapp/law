@@ -1,0 +1,72 @@
+{
+  "compileOnSave": false,
+  "compilerOptions": {
+    "rootDir": ".",
+    "sourceMap": true,
+    "declaration": false,
+    "moduleResolution": "bundler",
+    "emitDecoratorMetadata": true,
+    "experimentalDecorators": true,
+    "importHelpers": true,
+    "target": "es2015",
+    "module": "esnext",
+    "lib": [
+      "es2020",
+      "dom"
+    ],
+    "skipLibCheck": true,
+    "skipDefaultLibCheck": true,
+    "strict": false,
+    "paths": {
+      "@law/api-interfaces": [
+        "./libs/api/api-interfaces/src/index.ts"
+      ],
+      "@law/core": [
+        "./libs/api/core/src/index.ts"
+      ],
+      "@law/contracts": [
+        "./libs/api/ai/contracts/src/index.ts"
+      ],
+      "@law/n8n": [
+        "./libs/api/ai/n8n/src/index.ts"
+      ],
+      "@law/ollama": [
+        "./libs/api/ai/ollama/src/index.ts"
+      ],
+      "@law/qdrant": [
+        "./libs/api/ai/qdrant/src/index.ts"
+      ],
+      "@law/api-clients": [
+        "./libs/shared/frontend/api-clients/src/index.ts"
+      ],
+      "@law/security": [
+        "./libs/shared/frontend/security/src/index.ts"
+      ],
+      "@law/ts": [
+        "./libs/shared/ts/src/index.ts"
+      ],
+      "@law/triage": [
+        "./libs/api/ai/workflows/triage/src/index.ts"
+      ],
+      "@law/brief-extraction": [
+        "./libs/api/ai/workflows/brief-extraction/src/index.ts"
+      ],
+      "@law/template-retrieval": [
+        "./libs/api/ai/workflows/template-retrieval/src/index.ts"
+      ],
+      "@law/drafting": [
+        "./libs/api/ai/workflows/drafting/src/index.ts"
+      ],
+      "@law/evaluation": [
+        "./libs/api/ai/workflows/evaluation/src/index.ts"
+      ],
+      "@law/review": [
+        "./libs/api/ai/workflows/review/src/index.ts"
+      ]
+    }
+  },
+  "exclude": [
+    "node_modules",
+    "tmp"
+  ]
+}

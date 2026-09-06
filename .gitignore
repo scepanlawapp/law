@@ -1,40 +1,59 @@
-# Nx
-.nx/cache
-.nx/workspace-data
-.nx/installation
-nx-cloud.env
+# See https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
 
-# Node / Angular / NestJS
-node_modules/
-dist/
-tmp/
-out-tsc/
-.angular/cache
-coverage/
-*.tsbuildinfo
-npm-debug.log*
-yarn-error.log*
-.pnpm-debug.log*
+# compiled output
+dist
+tmp
+out-tsc
 
-# Env / secrets
-.env
-.env.*
-!.env.example
+# dependencies
+node_modules
 
-# LangChain.js / LangGraph.js local state
-.langgraph_api/
-.cache/
-*.langgraph_checkpoint
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
 
-# Editor / OS
+# IDE - VSCode
 .vscode/*
-!.vscode/extensions.json
 !.vscode/settings.json
-.idea/
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
 .DS_Store
 Thumbs.db
 
-# Build / misc
-*.log
-dist-*
-build/
+.nx/cache
+.nx/workspace-data
+.nx/migrate-runs
+.claude/worktrees
+.claude/settings.local.json
+
+.angular
+
+# Local runtime configuration and secrets
+.env
+.env.*
+!.env.example
+apps/web/public/config.local.json
+
+# Local runtime configuration and secrets
+.env
+.env.*
+!.env.example
+apps/web/public/config.local.json

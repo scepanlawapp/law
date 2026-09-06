@@ -1,0 +1,26 @@
+{
+  "name": "template-retrieval",
+  "$schema": "../../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/workflows/template-retrieval/src",
+  "projectType": "library",
+  "tags": [
+    "scope:ai",
+    "type:workflow"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/ai/workflows/template-retrieval",
+        "main": "libs/api/ai/workflows/template-retrieval/src/index.ts",
+        "tsConfig": "libs/api/ai/workflows/template-retrieval/tsconfig.lib.json",
+        "assets": [
+          "libs/api/ai/workflows/template-retrieval/*.md"
+        ]
+      }
+    }
+  }
+}

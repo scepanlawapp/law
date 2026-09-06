@@ -1,0 +1,25 @@
+{
+  "name": "api-clients",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/frontend/api-clients/src",
+  "projectType": "library",
+  "tags": [
+    "scope:shared"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/shared/frontend/api-clients",
+        "main": "libs/shared/frontend/api-clients/src/index.ts",
+        "tsConfig": "libs/shared/frontend/api-clients/tsconfig.lib.json",
+        "assets": [
+          "libs/shared/frontend/api-clients/*.md"
+        ]
+      }
+    }
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "name": "security",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/shared/frontend/security/src",
+  "projectType": "library",
+  "tags": [
+    "scope:shared"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/shared/frontend/security",
+        "main": "libs/shared/frontend/security/src/index.ts",
+        "tsConfig": "libs/shared/frontend/security/tsconfig.lib.json",
+        "assets": [
+          "libs/shared/frontend/security/*.md"
+        ]
+      }
+    }
+  }
+}

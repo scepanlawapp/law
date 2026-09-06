@@ -1,0 +1,26 @@
+{
+  "name": "evaluation",
+  "$schema": "../../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/workflows/evaluation/src",
+  "projectType": "library",
+  "tags": [
+    "scope:ai",
+    "type:workflow"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/ai/workflows/evaluation",
+        "main": "libs/api/ai/workflows/evaluation/src/index.ts",
+        "tsConfig": "libs/api/ai/workflows/evaluation/tsconfig.lib.json",
+        "assets": [
+          "libs/api/ai/workflows/evaluation/*.md"
+        ]
+      }
+    }
+  }
+}
