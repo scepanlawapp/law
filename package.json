@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "api:serve": "npx nx serve api",
-    "web:serve": "npx nx serve web",
+    "api:serve": "PORT=3000 npx nx serve api",
+    "web:serve": "PORT=4200 npx nx serve web --port=4200",
     "lint": "npx nx run-many -t lint",
     "test": "npx nx run-many -t test",
     "build": "npx nx run-many -t build",
