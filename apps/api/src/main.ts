@@ -1,4 +1,5 @@
 import { Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { NestFactory } from "@nestjs/core";
 import { ValidationPipe } from "@nestjs/common";
 import { AppModule } from "./app/app.module";
@@ -8,13 +9,18 @@ async function bootstrap(): Promise<void> {
   const globalPrefix = "api";
   app.setGlobalPrefix(globalPrefix);
   app.useGlobalPipes(
-    new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }),
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+    }),
   );
+  const config = app.get(ConfigService);
   app.enableCors({
-    origin: process.env.AUTH_FRONTEND_ORIGIN ?? "http://localhost:4200",
+    origin: config.get<string>("AUTH_FRONTEND_ORIGIN"),
     credentials: true,
   });
-  const port = Number(process.env.PORT ?? 3000);
+  const port = config.get<number>("PORT", 3000);
   await app.listen(port);
   Logger.log(
     `Application is running on: http://localhost:${port}/${globalPrefix}`,

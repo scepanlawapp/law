@@ -1,8 +1,19 @@
-import { ExecutionContext, ForbiddenException, UnauthorizedException } from "@nestjs/common";
+import {
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import { AuthGuard } from "@law/auth";
-import { AuthRateLimitGuard, CsrfOriginGuard } from "@law/auth";
+import {
+  AuthRateLimitGuard,
+  AuthRuntimeConfig,
+  CsrfOriginGuard,
+} from "@law/auth";
 
-function contextFor(request: { method: string; headers: Record<string, string> }): ExecutionContext {
+function contextFor(request: {
+  method: string;
+  headers: Record<string, string>;
+}): ExecutionContext {
   return {
     switchToHttp: () => ({ getRequest: () => request }),
   } as ExecutionContext;
@@ -33,7 +44,7 @@ describe("authentication guards", () => {
 
   it("rejects state-changing requests from another origin", () => {
     process.env.AUTH_FRONTEND_ORIGIN = "http://localhost:4200";
-    const guard = new CsrfOriginGuard();
+    const guard = new CsrfOriginGuard(new AuthRuntimeConfig());
 
     expect(() =>
       guard.canActivate(
@@ -47,7 +58,12 @@ describe("authentication guards", () => {
 
   it("throttles repeated attempts from the same client and route", () => {
     const guard = new AuthRateLimitGuard();
-    const request = { method: "POST", path: "/auth/login", ip: "127.0.0.1", headers: {} };
+    const request = {
+      method: "POST",
+      path: "/auth/login",
+      ip: "127.0.0.1",
+      headers: {},
+    };
     const context = contextFor(request);
 
     for (let attempt = 0; attempt < 5; attempt += 1) {

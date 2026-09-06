@@ -29,7 +29,10 @@ export class AuthRateLimitGuard implements CanActivate {
     }
     window.count += 1;
     if (window.count > this.limit) {
-      throw new HttpException("Too many attempts", HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        "Too many attempts",
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
     return true;
   }

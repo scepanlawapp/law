@@ -118,7 +118,11 @@ export class AuthService {
     }
 
     const result = await this.createSession(user.id, this.toResponse(user));
-    await this.audit({ eventType: "LOGIN", outcome: "SUCCESS", userId: user.id });
+    await this.audit({
+      eventType: "LOGIN",
+      outcome: "SUCCESS",
+      userId: user.id,
+    });
     return result;
   }
 
@@ -200,7 +204,12 @@ export class AuthService {
         },
       },
     });
-    if (!current || current.revokedAt || current.expiresAt <= new Date() || current.user.status !== "ACTIVE") {
+    if (
+      !current ||
+      current.revokedAt ||
+      current.expiresAt <= new Date() ||
+      current.user.status !== "ACTIVE"
+    ) {
       if (current?.tokenFamily) {
         await this.prisma.authSession.updateMany({
           where: { tokenFamily: current.tokenFamily, revokedAt: null },

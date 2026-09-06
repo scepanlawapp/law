@@ -1,18 +1,19 @@
 import { Injectable, Logger } from "@nestjs/common";
 import nodemailer, { Transporter } from "nodemailer";
+import { AuthRuntimeConfig } from "./auth.config";
 
 @Injectable()
 export class AuthMailService {
   private readonly logger = new Logger(AuthMailService.name);
   private readonly transporter: Transporter;
 
-  constructor() {
+  constructor(private readonly config: AuthRuntimeConfig) {
     this.transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST ?? "localhost",
-      port: Number(process.env.SMTP_PORT ?? 1025),
-      secure: process.env.SMTP_SECURE === "true",
-      auth: process.env.SMTP_USER
-        ? { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD }
+      host: this.config.smtpHost,
+      port: this.config.smtpPort,
+      secure: this.config.smtpSecure,
+      auth: this.config.smtpUser
+        ? { user: this.config.smtpUser, pass: this.config.smtpPassword }
         : undefined,
     });
   }
@@ -36,7 +37,7 @@ export class AuthMailService {
   private async send(to: string, subject: string, text: string): Promise<void> {
     try {
       await this.transporter.sendMail({
-        from: process.env.SMTP_FROM ?? "no-reply@law.local",
+        from: this.config.smtpFrom,
         to,
         subject,
         text,
@@ -47,6 +48,6 @@ export class AuthMailService {
   }
 
   private frontendUrl(): string {
-    return process.env.AUTH_FRONTEND_ORIGIN ?? "http://localhost:4200";
+    return this.config.frontendOrigin;
   }
 }

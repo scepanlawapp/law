@@ -5,10 +5,18 @@ import { AuthMailService } from "./mail.service";
 import { AuthGuard } from "./auth.guard";
 import { CsrfOriginGuard } from "./csrf.guard";
 import { AuthRateLimitGuard } from "./rate-limit.guard";
+import { AuthRuntimeConfig } from "./auth.config";
 
 @Module({
   controllers: [AuthController],
-  providers: [AuthService, AuthMailService, AuthGuard, CsrfOriginGuard, AuthRateLimitGuard],
+  providers: [
+    AuthService,
+    AuthMailService,
+    AuthGuard,
+    CsrfOriginGuard,
+    AuthRateLimitGuard,
+    AuthRuntimeConfig,
+  ],
   exports: [AuthGuard],
 })
 export class AuthModule {}

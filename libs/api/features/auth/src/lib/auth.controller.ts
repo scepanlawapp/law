@@ -1,13 +1,18 @@
-import { Body, Controller, Get, Post, Req, Res, UseGuards } from "@nestjs/common";
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  Req,
+  Res,
+  UseGuards,
+} from "@nestjs/common";
 import { Response } from "express";
 import { AuthService } from "./auth.service";
-import {
-  AuthenticatedRequest,
-  AuthGuard,
-  sessionToken,
-} from "./auth.guard";
+import { AuthenticatedRequest, AuthGuard, sessionToken } from "./auth.guard";
 import { CsrfOriginGuard } from "./csrf.guard";
 import { AuthRateLimitGuard } from "./rate-limit.guard";
+import { AuthRuntimeConfig } from "./auth.config";
 import {
   InvitationAcceptDto,
   InvitationCreateDto,
@@ -17,17 +22,22 @@ import {
 } from "./auth.dto";
 
 const SESSION_COOKIE = "law_session";
-const cookieOptions = {
-  httpOnly: true,
-  sameSite: "lax" as const,
-  secure: process.env.NODE_ENV === "production",
-  path: "/",
-};
-
 @Controller("auth")
 @UseGuards(CsrfOriginGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly config: AuthRuntimeConfig,
+  ) {}
+
+  private cookieOptions() {
+    return {
+      httpOnly: true,
+      sameSite: "lax" as const,
+      secure: this.config.production,
+      path: "/",
+    };
+  }
 
   @Post("login")
   @UseGuards(AuthRateLimitGuard)
@@ -37,7 +47,7 @@ export class AuthController {
   ) {
     const result = await this.authService.login(body.email, body.password);
     response.cookie(SESSION_COOKIE, result.token, {
-      ...cookieOptions,
+      ...this.cookieOptions(),
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
     return result.session;
@@ -53,7 +63,7 @@ export class AuthController {
       body.password,
     );
     response.cookie(SESSION_COOKIE, result.token, {
-      ...cookieOptions,
+      ...this.cookieOptions(),
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
     return result.session;
@@ -87,7 +97,7 @@ export class AuthController {
   ) {
     const result = await this.authService.refresh(sessionToken(request));
     response.cookie(SESSION_COOKIE, result.token, {
-      ...cookieOptions,
+      ...this.cookieOptions(),
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
     return result.session;
@@ -100,7 +110,7 @@ export class AuthController {
     @Res({ passthrough: true }) response: Response,
   ) {
     await this.authService.logout(sessionToken(request));
-    response.clearCookie(SESSION_COOKIE, cookieOptions);
+    response.clearCookie(SESSION_COOKIE, this.cookieOptions());
     return { success: true };
   }
 

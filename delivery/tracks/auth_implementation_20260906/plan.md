@@ -4,7 +4,7 @@
 - [x] Add Prisma models for users, workspaces, memberships, sessions, tokens, and audit events.
 - [x] Add Prisma module and initial migration workflow.
 - [x] Implement invite, login, logout, refresh, current-user, and password-reset use cases.
-- [~] Add cookie/session security guards and configuration validation.
+- [x] Add cookie/session security guards and configuration validation.
 - [x] Add Angular auth state, interceptor, guards, and auth routes.
 - [~] Add API, frontend, and Playwright coverage.
 - [~] Verify CSRF/CORS, rate limiting, replay detection, workspace isolation, and secret handling.
@@ -19,13 +19,15 @@
 - Sanitized audit events for authentication lifecycle operations.
 - Invitation acceptance, password reset, and forgot-password screens.
 - API guard tests and anonymous auth E2E coverage.
+- Startup validation for API origin, ports, and production SMTP requirements.
+- Reusable workspace membership and role guard for future domain controllers.
 
 ## Remaining before completion
 
 - Add full authenticated API E2E coverage against a disposable database.
 - Add frontend unit coverage for auth state/interceptor and reset forms.
 - Verify workspace isolation against domain resources as those resources are implemented.
-- Add production configuration validation and distributed rate limiting.
+- Add distributed rate limiting for multi-instance production deployments.
 
 ## Status convention
 
