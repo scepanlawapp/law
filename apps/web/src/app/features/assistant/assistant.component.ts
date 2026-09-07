@@ -154,6 +154,31 @@ export class AssistantComponent implements OnInit {
       accepted.push(file);
     }
 
+    if (!accepted.length) {
+      if (rejected.length) this.error.set(rejected[0]);
+      input.value = "";
+      return;
+    }
+
+    const workspaceId = this.workspaceId();
+    const hasSelectedSession = Boolean(this.selectedSessionId());
+    if (!hasSelectedSession && workspaceId) {
+      this.chat.createSession({ workspaceId }).subscribe({
+        next: (session) => {
+          this.sessions.update((items) => [session, ...items]);
+          this.selectedSessionId.set(session.id);
+          this.pendingFiles.set(accepted);
+          this.error.set("");
+          this.loadSessions();
+        },
+        error: () => {
+          this.error.set("Unable to create a conversation.");
+        },
+      });
+      input.value = "";
+      return;
+    }
+
     this.pendingFiles.set(accepted);
     if (rejected.length) this.error.set(rejected[0]);
     input.value = "";
