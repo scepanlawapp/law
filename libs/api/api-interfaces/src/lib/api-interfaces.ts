@@ -53,12 +53,19 @@ export type ChatMessageRole = "USER" | "ASSISTANT" | "SYSTEM";
 export type ChatMessageStatus = "PENDING" | "COMPLETED" | "FAILED";
 export type TriageDecision = "LEGAL" | "NON_LEGAL" | "UNCLEAR";
 export type WorkflowJobStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+export type ChatAttachmentExtractionStatus =
+  | "PENDING"
+  | "RUNNING"
+  | "COMPLETED"
+  | "FAILED"
+  | "UNSUPPORTED";
 
 export type ChatEventType =
   | "message.created"
   | "triage.started"
   | "triage.completed"
   | "job.queued"
+  | "job.updated"
   | "error";
 
 export interface ChatAttachmentSummary {
@@ -67,6 +74,7 @@ export interface ChatAttachmentSummary {
   mimeType: string;
   sizeBytes: number;
   createdAt: string;
+  extractionStatus?: ChatAttachmentExtractionStatus;
 }
 
 export interface ChatMessageResponse {

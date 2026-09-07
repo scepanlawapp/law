@@ -1,0 +1,26 @@
+{
+  "name": "extraction",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/extraction/src",
+  "projectType": "library",
+  "tags": [
+    "scope:ai",
+    "type:ai"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/ai/extraction",
+        "main": "libs/api/ai/extraction/src/index.ts",
+        "tsConfig": "libs/api/ai/extraction/tsconfig.lib.json",
+        "assets": [
+          "libs/api/ai/extraction/*.md"
+        ]
+      }
+    }
+  }
+}

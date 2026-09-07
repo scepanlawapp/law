@@ -19,6 +19,7 @@ import {
 import { PrismaService } from "@law/core";
 import { ChatModelProvider, OpenRouterChatModelProvider } from "@law/llm";
 import { runPortirGraph } from "@law/triage";
+import { extractAttachmentText } from "@law/extraction";
 import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
@@ -121,6 +122,7 @@ export class ChatService {
       mimeType: string;
       sizeBytes: number;
       createdAt: Date;
+      extractionStatus?: ChatAttachmentSummary["extractionStatus"];
     }> = [];
     for (const file of params.files) {
       const attachmentId = randomUUID();
@@ -308,6 +310,131 @@ export class ChatService {
       createdAt: job.createdAt.toISOString(),
       job: this.toJob(job),
     });
+
+    await this.runBriefExtraction({
+      workspaceId: params.workspaceId,
+      sessionId: params.sessionId,
+      jobId: job.id,
+      userText: params.content,
+      attachmentIds: params.attachments.map((attachment) => attachment.id),
+    });
+  }
+
+  private async runBriefExtraction(params: {
+    workspaceId: string;
+    sessionId: string;
+    jobId: string;
+    userText: string;
+    attachmentIds: string[];
+  }): Promise<void> {
+    try {
+      await this.prisma.workflowJob.update({
+        where: { id: params.jobId },
+        data: { status: "RUNNING" },
+      });
+
+      const attachments = params.attachmentIds.length
+        ? await this.prisma.chatAttachment.findMany({
+            where: { id: { in: params.attachmentIds } },
+          })
+        : [];
+
+      const extractedAttachments = [];
+      for (const attachment of attachments) {
+        const result = await this.extractAttachment(attachment);
+        extractedAttachments.push({
+          attachmentId: attachment.id,
+          originalName: attachment.originalName,
+          mimeType: attachment.mimeType,
+          status: result.status,
+          text: this.truncateForJobOutput(result.text),
+        });
+      }
+
+      const job = await this.prisma.workflowJob.update({
+        where: { id: params.jobId },
+        data: {
+          status: "COMPLETED",
+          output: JSON.parse(
+            JSON.stringify({
+              userText: params.userText,
+              attachments: extractedAttachments,
+            }),
+          ),
+        },
+      });
+      this.emit({
+        type: "job.updated",
+        sessionId: params.sessionId,
+        createdAt: job.updatedAt.toISOString(),
+        job: this.toJob(job),
+      });
+    } catch (error) {
+      const job = await this.prisma.workflowJob.update({
+        where: { id: params.jobId },
+        data: { status: "FAILED", errorCode: "EXTRACTION_FAILED" },
+      });
+      this.logger.error(
+        error instanceof Error ? error.message : "Brief extraction failed",
+      );
+      this.emit({
+        type: "job.updated",
+        sessionId: params.sessionId,
+        createdAt: job.updatedAt.toISOString(),
+        job: this.toJob(job),
+      });
+    }
+  }
+
+  private async extractAttachment(attachment: {
+    id: string;
+    workspaceId: string;
+    sessionId: string;
+    storedName: string;
+    mimeType: string;
+  }): Promise<{
+    status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
+    text?: string;
+  }> {
+    try {
+      const buffer = await this.storage.read({
+        workspaceId: attachment.workspaceId,
+        sessionId: attachment.sessionId,
+        storedName: attachment.storedName,
+      });
+      const result = await extractAttachmentText({
+        mimeType: attachment.mimeType,
+        buffer,
+      });
+      await this.prisma.chatAttachment.update({
+        where: { id: attachment.id },
+        data: {
+          extractionStatus: result.status,
+          extractedText: result.text ?? null,
+          extractionError: result.error ?? null,
+          extractedAt: new Date(),
+        },
+      });
+      return result;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Extraction failed";
+      await this.prisma.chatAttachment.update({
+        where: { id: attachment.id },
+        data: {
+          extractionStatus: "FAILED",
+          extractionError: message,
+          extractedAt: new Date(),
+        },
+      });
+      return { status: "FAILED", text: undefined };
+    }
+  }
+
+  private truncateForJobOutput(text: string | undefined): string | undefined {
+    if (!text) return text;
+    const max = this.config.extractionTextMaxChars;
+    return text.length > max ? `${text.slice(0, max)}…` : text;
   }
 
   private resolveProvider(): ChatModelProvider {
@@ -416,6 +543,7 @@ export class ChatService {
     mimeType: string;
     sizeBytes: number;
     createdAt: Date;
+    extractionStatus?: ChatAttachmentSummary["extractionStatus"];
   }): ChatAttachmentSummary {
     return {
       id: attachment.id,
@@ -423,6 +551,7 @@ export class ChatService {
       mimeType: attachment.mimeType,
       sizeBytes: attachment.sizeBytes,
       createdAt: attachment.createdAt.toISOString(),
+      extractionStatus: attachment.extractionStatus,
     };
   }
 

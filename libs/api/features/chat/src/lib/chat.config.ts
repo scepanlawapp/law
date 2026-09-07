@@ -25,4 +25,7 @@ export class ChatRuntimeConfig {
     process.env.CHAT_MAX_FILES_PER_MESSAGE ?? 5,
   );
   readonly allowedMimeTypes = CHAT_ALLOWED_MIME_TYPES;
+  readonly extractionTextMaxChars = Number(
+    process.env.CHAT_EXTRACTION_TEXT_MAX_CHARS ?? 50_000,
+  );
 }
