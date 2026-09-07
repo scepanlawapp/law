@@ -144,6 +144,15 @@ export class ChatApiClient {
     );
   }
 
+  downloadUrl(workspaceId: string, attachmentId: string): string {
+    const config = getRuntimeConfig();
+    const url = new URL(
+      `${config.apiUrl}${config.apiPrefix}/chat/attachments/${attachmentId}`,
+    );
+    url.searchParams.set("workspaceId", workspaceId);
+    return url.toString();
+  }
+
   eventsUrl(workspaceId: string, sessionId: string, after?: string): string {
     const config = getRuntimeConfig();
     return chatEventsUrl(

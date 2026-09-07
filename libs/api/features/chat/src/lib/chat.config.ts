@@ -6,6 +6,8 @@ export const CHAT_ALLOWED_MIME_TYPES = [
   "image/png",
   "image/webp",
   "text/plain",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
 ] as const;
 
