@@ -5,7 +5,7 @@
 			<p>Ask questions, get insights, analyze documents and work with your cases — powered by AI.</p>
 		</div>
 
-		<button type="button" class="new-conversation">
+		<button type="button" class="new-conversation" (click)="createSession()">
 			<mat-icon aria-hidden="true">add</mat-icon>
 			<span>New conversation</span>
 		</button>
@@ -60,44 +60,51 @@
 		</header>
 
 		<div class="messages">
-			@for (message of messages; track $index) {
-				<article class="message" [class.user-message]="message.author === 'user'">
+			@for (message of messages(); track message.id) {
+				<article class="message" [class.user-message]="message.role === 'USER'">
 					<span class="message-avatar">
-						<mat-icon>{{ message.author === "user" ? "person" : "smart_toy" }}</mat-icon>
+						<mat-icon>{{ message.role === "USER" ? "person" : "smart_toy" }}</mat-icon>
 					</span>
 					<div class="message-content">
-						@if (message.title) {
-							<strong>{{ message.title }}</strong>
+						<p>{{ message.content }}</p>
+						@if (message.attachments.length) {
+							<ul class="message-attachments">
+								@for (file of message.attachments; track file.id) {
+									<li>{{ file.originalName }}</li>
+								}
+							</ul>
 						}
-						@if (message.text) {
-							<p>{{ message.text }}</p>
-						}
-						@if (message.sections) {
-							@for (section of message.sections; track section.heading) {
-								<div class="message-section">
-									<strong>{{ section.heading }}</strong>
-									@if (section.items.length === 1) {
-										<p>{{ section.items[0] }}</p>
-									} @else {
-										<ul>
-											@for (item of section.items; track item) {
-												<li>{{ item }}</li>
-											}
-										</ul>
-									}
-								</div>
-							}
-						}
-						<time>{{ message.time }}</time>
+						<time>{{ message.createdAt | date: "HH:mm" }}</time>
 					</div>
 				</article>
 			}
+			@if (classifying()) {
+				<p class="status">The assistant is reviewing your request...</p>
+			}
+			@if (error()) {
+				<p class="error" role="alert">{{ error() }}</p>
+			}
 		</div>
-
-		<div class="composer" aria-label="Ask the assistant">
+		<form class="composer" aria-label="Ask the assistant" (ngSubmit)="send()">
 			<mat-icon aria-hidden="true">attach_file</mat-icon>
-			<span>Ask anything about your cases, documents or legal matters...</span>
-			<button type="button" aria-label="Send message"><mat-icon>arrow_upward</mat-icon></button>
-		</div>
+			<textarea
+				name="draft"
+				rows="1"
+				[(ngModel)]="draft"
+				placeholder="Ask anything about your cases, documents or legal matters..."
+				[disabled]="sending() || !selectedSessionId()"
+			></textarea>
+			<label class="attach-file" aria-label="Attach files">
+				<input type="file" multiple (change)="onFiles($event)" />
+				<mat-icon>attach_file</mat-icon>
+			</label>
+			<button
+				type="submit"
+				aria-label="Send message"
+				[disabled]="sending() || classifying() || !selectedSessionId() || !canSend()"
+			>
+				<mat-icon>arrow_upward</mat-icon>
+			</button>
+		</form>
 	</section>
 </section>

@@ -1,5 +1,13 @@
-import { Component } from "@angular/core";
+import { DatePipe } from "@angular/common";
+import { Component, DestroyRef, OnInit, inject, signal } from "@angular/core";
+import { FormsModule } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
+import { ChatApiClient } from "@law/api-clients";
+import {
+  ChatMessageResponse,
+  ChatStreamEvent,
+} from "@law/api-interfaces";
+import { AuthState } from "@law/security";
 
 interface Conversation {
   title: string;
@@ -10,22 +18,19 @@ interface Conversation {
   active?: boolean;
 }
 
-interface AssistantMessage {
-  author: "assistant" | "user";
-  time: string;
-  text?: string;
-  title?: string;
-  sections?: { heading: string; items: string[] }[];
-}
-
 @Component({
   selector: "app-assistant",
   standalone: true,
-  imports: [MatIconModule],
+  imports: [DatePipe, FormsModule, MatIconModule],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
 })
-export class AssistantComponent {
+export class AssistantComponent implements OnInit {
+  private readonly authState = inject(AuthState);
+  private readonly chat = inject(ChatApiClient);
+  private readonly destroyRef = inject(DestroyRef);
+  private source: EventSource | null = null;
+
   readonly conversations: Conversation[] = [
     {
       title: "Analysis of case P-123/2026",
@@ -93,58 +98,132 @@ export class AssistantComponent {
     },
   ];
 
-  readonly messages: AssistantMessage[] = [
-    {
-      author: "assistant",
-      time: "10:24",
-      title: "Good morning, Scepane. 👋",
-      text: "How can I help you today?",
-    },
-    {
-      author: "user",
-      time: "10:26",
-      text: "Can you analyze case P-123/2026 and give me a summary of the key points, risks and next steps?",
-    },
-    {
-      author: "assistant",
-      time: "10:28",
-      title: "Case Analysis - P-123/2026",
-      sections: [
-        {
-          heading: "Summary",
-          items: [
-            "This is a civil case filed by Marko Petrović against the opposing party regarding a contractual dispute related to non-payment.",
-          ],
-        },
-        {
-          heading: "Key Points",
-          items: [
-            "Case type: Civil dispute",
-            "Court: Basic Court in Subotica",
-            "Opposing party: Adriatic d.o.o.",
-            "Last action: Submission of response (Aug 28, 2026)",
-            "Next hearing: September 14, 2026",
-          ],
-        },
-        {
-          heading: "Potential Risks",
-          items: [
-            "Risk of unfavorable decision if key evidence is not presented",
-            "Possible delay due to court backlog",
-            "Opposing party may file a counterclaim",
-          ],
-        },
-        {
-          heading: "Next Steps",
-          items: [
-            "Prepare for the upcoming hearing (September 14, 2026)",
-            "Review and organize all relevant documents",
-            "Consider filing additional evidence before the hearing",
-          ],
-        },
-      ],
-    },
-  ];
+  protected draft = "";
+  protected readonly messages = signal<ChatMessageResponse[]>([]);
+  protected readonly selectedSessionId = signal<string | null>(null);
+  protected readonly pendingFiles = signal<File[]>([]);
+  protected readonly sending = signal(false);
+  protected readonly classifying = signal(false);
+  protected readonly error = signal("");
 
   readonly conversationGroups = ["Today", "Yesterday", "This week"] as const;
+
+  ngOnInit(): void {
+    this.destroyRef.onDestroy(() => this.source?.close());
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+
+    this.chat.listSessions(workspaceId).subscribe({
+      next: (sessions) => {
+        const firstSession = sessions[0];
+        if (firstSession) this.selectSession(firstSession.id);
+      },
+      error: () => this.error.set("Unable to load chats."),
+    });
+  }
+
+  protected workspaceId(): string | undefined {
+    return this.authState.session()?.memberships[0]?.workspaceId;
+  }
+
+  protected canSend(): boolean {
+    return Boolean(this.draft.trim() || this.pendingFiles().length);
+  }
+
+  protected createSession(): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+
+    this.chat.createSession({ workspaceId }).subscribe({
+      next: (session) => this.selectSession(session.id),
+      error: () => this.error.set("Unable to create a conversation."),
+    });
+  }
+
+  protected selectSession(sessionId: string): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+
+    this.selectedSessionId.set(sessionId);
+    this.error.set("");
+    this.classifying.set(false);
+    this.chat.getSession(workspaceId, sessionId).subscribe({
+      next: (detail) => {
+        this.messages.set(detail.messages);
+        const lastMessage = detail.messages[detail.messages.length - 1];
+        this.listen(sessionId, lastMessage?.createdAt);
+      },
+      error: () => this.error.set("Unable to load this conversation."),
+    });
+  }
+
+  protected onFiles(event: Event): void {
+    const input = event.target as HTMLInputElement;
+    this.pendingFiles.set(Array.from(input.files ?? []));
+  }
+
+  protected send(): void {
+    const workspaceId = this.workspaceId();
+    const sessionId = this.selectedSessionId();
+    if (!workspaceId || !sessionId || !this.canSend()) return;
+
+    this.sending.set(true);
+    this.error.set("");
+    this.chat
+      .sendMessage(workspaceId, sessionId, this.draft, this.pendingFiles())
+      .subscribe({
+        next: (response) => {
+          this.upsertMessage(response.userMessage);
+          this.draft = "";
+          this.pendingFiles.set([]);
+          this.sending.set(false);
+          this.classifying.set(true);
+        },
+        error: () => {
+          this.sending.set(false);
+          this.error.set("Unable to send that message.");
+        },
+      });
+  }
+
+  private listen(sessionId: string, after?: string): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+
+    this.source?.close();
+    this.source = new EventSource(
+      this.chat.eventsUrl(workspaceId, sessionId, after),
+      { withCredentials: true },
+    );
+    this.source.onmessage = (event) => {
+      try {
+        this.handleEvent(JSON.parse(event.data) as ChatStreamEvent);
+      } catch {
+        this.error.set("Received an unreadable chat event.");
+      }
+    };
+    this.source.onerror = () => this.classifying.set(false);
+  }
+
+  private handleEvent(event: ChatStreamEvent): void {
+    if (event.type === "message.created" && event.message) {
+      this.upsertMessage(event.message);
+      if (event.message.role === "ASSISTANT") this.classifying.set(false);
+    }
+    if (event.type === "triage.started") this.classifying.set(true);
+    if (event.type === "triage.completed" || event.type === "job.queued") {
+      this.classifying.set(false);
+    }
+    if (event.type === "error") {
+      this.classifying.set(false);
+      this.error.set(event.error ?? "The assistant could not process this message.");
+    }
+  }
+
+  private upsertMessage(message: ChatMessageResponse): void {
+    this.messages.update((items) => {
+      if (items.some((item) => item.id === message.id)) return items;
+      return [...items, message];
+    });
+  }
 }
