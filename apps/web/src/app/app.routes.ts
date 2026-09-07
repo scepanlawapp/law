@@ -1,13 +1,14 @@
 import { Route } from "@angular/router";
 import { AcceptInvitationComponent } from "./accept-invitation.component";
 import { ForgotPasswordComponent } from "./forgot-password.component";
-// import { LoginComponent } from "./login.component";
 import { ResetPasswordComponent } from "./reset-password.component";
-import { LoginComponent } from "./features/login/login.component";
+import { LoginComponent } from "./auth/login/login.component";
 import { authGuard } from "@law/security";
+import { DashboardComponent } from "./features/dashboard/dashboard.component";
+import { AssistantComponent } from "./features/assistant/assistant.component";
+import { MainLayoutComponent } from "./layout/main-layout/main-layout.component";
 
 export const appRoutes: Route[] = [
-  // { path: "login", component: LoginComponent },
   { path: "login", component: LoginComponent },
   { path: "accept-invitation", component: AcceptInvitationComponent },
   { path: "forgot-password", component: ForgotPasswordComponent },
@@ -15,10 +16,14 @@ export const appRoutes: Route[] = [
   {
     path: "",
     canActivate: [authGuard],
-    loadComponent: () =>
-      import("./authenticated.component").then(
-        (module) => module.AuthenticatedComponent,
-      ),
+    loadComponent: () => MainLayoutComponent,
+    children: [
+      { path: "dashboard", component: DashboardComponent },
+      {
+        path: "assistant",
+        component: AssistantComponent,
+      },
+    ],
   },
   { path: "**", redirectTo: "" },
 ];
