@@ -54,6 +54,14 @@ enum TriageDecision {
   UNCLEAR
 }
 
+enum ChatAttachmentExtractionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  UNSUPPORTED
+}
+
 enum WorkflowJobStatus {
   QUEUED
   RUNNING
@@ -62,25 +70,25 @@ enum WorkflowJobStatus {
 }
 
 model User {
-  id              String            @id @default(uuid())
-  email           String            @unique
-  passwordHash    String?
-  status          UserStatus        @default(INVITED)
+  id                String            @id @default(uuid())
+  email             String            @unique
+  passwordHash      String?
+  status            UserStatus        @default(INVITED)
   passwordChangedAt DateTime?         @db.Timestamptz(3)
-  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
-  memberships     WorkspaceMember[]
-  sessions        AuthSession[]
-  tokens          AuthToken[]
-  auditEvents     AuditEvent[]
-  chatSessions    ChatSession[]     @relation("ChatSessionCreator")
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @db.Timestamptz(3)
+  memberships       WorkspaceMember[]
+  sessions          AuthSession[]
+  tokens            AuthToken[]
+  auditEvents       AuditEvent[]
+  chatSessions      ChatSession[]     @relation("ChatSessionCreator")
 }
 
 model Workspace {
-  id          String            @id @default(uuid())
-  name        String
-  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+  id              String            @id @default(uuid())
+  name            String
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
   memberships     WorkspaceMember[]
   auditEvents     AuditEvent[]
   chatSessions    ChatSession[]
@@ -91,44 +99,44 @@ model Workspace {
 model WorkspaceMember {
   userId      String
   workspaceId String
-  role        WorkspaceRole       @default(MEMBER)
+  role        WorkspaceRole         @default(MEMBER)
   status      WorkspaceMemberStatus @default(INVITED)
-  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
-  user        User                @relation(fields: [userId], references: [id], onDelete: Cascade)
-  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdAt   DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime              @updatedAt @db.Timestamptz(3)
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
 
   @@id([userId, workspaceId])
   @@index([workspaceId, status])
 }
 
 model AuthSession {
-  id             String    @id @default(uuid())
-  userId         String
-  tokenFamily    String
+  id               String    @id @default(uuid())
+  userId           String
+  tokenFamily      String
   refreshTokenHash String
-  expiresAt       DateTime  @db.Timestamptz(3)
-  revokedAt       DateTime? @db.Timestamptz(3)
-  replacedAt      DateTime? @db.Timestamptz(3)
-  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
-  lastUsedAt      DateTime? @db.Timestamptz(3)
-  userAgent      String?
-  ipAddress      String?
-  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt        DateTime  @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  replacedAt       DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt       DateTime? @db.Timestamptz(3)
+  userAgent        String?
+  ipAddress        String?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, revokedAt])
   @@index([tokenFamily])
 }
 
 model AuthToken {
-  id          String          @id @default(uuid())
-  userId      String
-  purpose     AuthTokenPurpose
-  tokenHash   String
-  expiresAt   DateTime        @db.Timestamptz(3)
-  consumedAt  DateTime?       @db.Timestamptz(3)
-  createdAt   DateTime        @default(now()) @db.Timestamptz(3)
-  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id         String           @id @default(uuid())
+  userId     String
+  purpose    AuthTokenPurpose
+  tokenHash  String
+  expiresAt  DateTime         @db.Timestamptz(3)
+  consumedAt DateTime?        @db.Timestamptz(3)
+  createdAt  DateTime         @default(now()) @db.Timestamptz(3)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([purpose, tokenHash])
   @@index([userId, purpose])
@@ -170,35 +178,39 @@ model ChatSession {
 }
 
 model ChatMessage {
-  id              String            @id @default(uuid())
-  sessionId       String
-  role            ChatMessageRole
-  content         String
-  status          ChatMessageStatus @default(COMPLETED)
-  triageDecision  TriageDecision?
-  correlationId   String?
-  metadata        Json?
-  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
-  session         ChatSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  attachments     ChatAttachment[]
+  id             String            @id @default(uuid())
+  sessionId      String
+  role           ChatMessageRole
+  content        String
+  status         ChatMessageStatus @default(COMPLETED)
+  triageDecision TriageDecision?
+  correlationId  String?
+  metadata       Json?
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  session        ChatSession       @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attachments    ChatAttachment[]
 
   @@index([sessionId, createdAt])
   @@index([correlationId])
 }
 
 model ChatAttachment {
-  id           String       @id @default(uuid())
-  workspaceId  String
-  sessionId    String
-  messageId    String?
-  originalName String
-  storedName   String
-  mimeType     String
-  sizeBytes    Int
-  createdAt    DateTime     @default(now()) @db.Timestamptz(3)
-  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  session      ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  message      ChatMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  id               String                         @id @default(uuid())
+  workspaceId      String
+  sessionId        String
+  messageId        String?
+  originalName     String
+  storedName       String
+  mimeType         String
+  sizeBytes        Int
+  extractionStatus ChatAttachmentExtractionStatus @default(PENDING)
+  extractedText    String?                        @db.Text
+  extractionError  String?
+  extractedAt      DateTime?                      @db.Timestamptz(3)
+  createdAt        DateTime                       @default(now()) @db.Timestamptz(3)
+  workspace        Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session          ChatSession                    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message          ChatMessage?                   @relation(fields: [messageId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, sessionId])
   @@index([messageId])

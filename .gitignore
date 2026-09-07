@@ -5,6 +5,9 @@ dist
 tmp
 out-tsc
 
+# Tesseract OCR language data (downloaded via scripts/download-tessdata.sh)
+/tessdata
+
 # dependencies
 node_modules
 
