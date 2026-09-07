@@ -17,6 +17,8 @@ import {
   ChatStreamEvent,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
+import { finalize } from "rxjs";
+import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
@@ -47,7 +49,13 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
 @Component({
   selector: "app-assistant",
   standalone: true,
-  imports: [DatePipe, MatIconModule, ReactiveFormsModule, TranslatePipe],
+  imports: [
+    BottomReachedDirective,
+    DatePipe,
+    MatIconModule,
+    ReactiveFormsModule,
+    TranslatePipe,
+  ],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
 })
@@ -69,6 +77,13 @@ export class AssistantComponent implements OnInit {
   protected readonly messages = signal<ChatMessageResponse[]>([]);
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly pendingFiles = signal<File[]>([]);
+  protected readonly sessionPage = signal(1);
+  protected readonly sessionPageSize = signal(20);
+  protected readonly sessionSearch = signal("");
+  protected readonly sessionSortField = signal("updatedAt");
+  protected readonly sessionSortDirection = signal<"asc" | "desc">("desc");
+  protected readonly sessionTotalPages = signal(0);
+  protected readonly loadingSessions = signal(false);
   protected readonly sending = signal(false);
   protected readonly classifying = signal(false);
   protected readonly error = signal("");
@@ -111,25 +126,83 @@ export class AssistantComponent implements OnInit {
       textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }
 
-  protected loadSessions(): void {
+  protected loadSessions(append = false): void {
     const workspaceId = this.workspaceId();
-    if (!workspaceId) return;
+    if (!workspaceId || this.loadingSessions()) return;
 
-    this.chat.listSessions(workspaceId).subscribe({
-      next: (sessions) => {
-        this.sessions.set(sessions);
-        const selectedSessionId = this.selectedSessionId();
-        if (selectedSessionId) {
-          const exists = sessions.some(
-            (session) => session.id === selectedSessionId,
+    const page = append ? this.sessionPage() + 1 : this.sessionPage();
+    if (append && page > this.sessionTotalPages()) return;
+
+    this.loadingSessions.set(true);
+
+    this.chat
+      .listSessions(workspaceId, {
+        page,
+        pageSize: this.sessionPageSize(),
+        search: this.sessionSearch(),
+        sort: [
+          {
+            field: this.sessionSortField(),
+            direction: this.sessionSortDirection(),
+          },
+        ],
+      })
+      .pipe(finalize(() => this.loadingSessions.set(false)))
+      .subscribe({
+        next: (response) => {
+          this.sessions.update((sessions) =>
+            append ? [...sessions, ...response.items] : response.items,
           );
-          if (exists) return;
-        }
-        const firstSession = sessions[0];
-        if (firstSession) this.selectSession(firstSession.id);
-      },
-      error: () => this.error.set("Unable to load chats."),
-    });
+          this.sessionPage.set(page);
+          this.sessionTotalPages.set(response.meta.totalPages);
+          if (!append) {
+            const selectedSessionId = this.selectedSessionId();
+            if (selectedSessionId) {
+              const exists = response.items.some(
+                (session) => session.id === selectedSessionId,
+              );
+              if (exists) return;
+            }
+            const firstSession = response.items[0];
+            if (firstSession) this.selectSession(firstSession.id);
+          }
+        },
+        error: () => this.error.set("Unable to load chats."),
+      });
+  }
+
+  protected loadNextSessionPage(): void {
+    this.loadSessions(true);
+  }
+
+  protected onSessionSearch(event: Event): void {
+    this.sessionSearch.set((event.target as HTMLInputElement).value);
+    this.sessionPage.set(1);
+    this.sessions.set([]);
+    this.loadSessions();
+  }
+
+  protected onSessionSort(event: Event): void {
+    this.sessionSortField.set((event.target as HTMLSelectElement).value);
+    this.sessionPage.set(1);
+    this.sessions.set([]);
+    this.loadSessions();
+  }
+
+  protected onSessionSortDirection(event: Event): void {
+    this.sessionSortDirection.set(
+      (event.target as HTMLSelectElement).value as "asc" | "desc",
+    );
+    this.sessionPage.set(1);
+    this.sessions.set([]);
+    this.loadSessions();
+  }
+
+  protected onSessionPageSize(event: Event): void {
+    this.sessionPageSize.set(Number((event.target as HTMLSelectElement).value));
+    this.sessionPage.set(1);
+    this.sessions.set([]);
+    this.loadSessions();
   }
 
   protected createSession(): void {
@@ -138,7 +211,9 @@ export class AssistantComponent implements OnInit {
 
     this.chat.createSession({ workspaceId }).subscribe({
       next: (session) => {
-        this.sessions.update((items) => [session, ...items]);
+        this.sessionPage.set(1);
+        this.sessions.set([]);
+        this.loadSessions();
         this.selectSession(session.id);
       },
       error: () => this.error.set("Unable to create a conversation."),

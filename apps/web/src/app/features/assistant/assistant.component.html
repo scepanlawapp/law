@@ -15,13 +15,47 @@
       <input
         type="search"
         [placeholder]="'assistant.searchPlaceholder' | translate"
+        [value]="sessionSearch()"
+        (input)="onSessionSearch($event)"
       />
-      <button type="button" aria-label="Filter conversations">
-        <mat-icon>tune</mat-icon>
-      </button>
     </label>
 
-    <div class="conversation-list">
+    <div class="conversation-options">
+      <select [value]="sessionSortField()" (change)="onSessionSort($event)">
+        <option value="updatedAt">
+          {{ "assistant.sortUpdated" | translate }}
+        </option>
+        <option value="createdAt">
+          {{ "assistant.sortCreated" | translate }}
+        </option>
+        <option value="title">{{ "assistant.sortTitle" | translate }}</option>
+      </select>
+      <select
+        [value]="sessionSortDirection()"
+        (change)="onSessionSortDirection($event)"
+        [attr.aria-label]="'assistant.sortDirection' | translate"
+      >
+        <option value="desc">
+          {{ "assistant.sortDescending" | translate }}
+        </option>
+        <option value="asc">{{ "assistant.sortAscending" | translate }}</option>
+      </select>
+      <select
+        [value]="sessionPageSize()"
+        (change)="onSessionPageSize($event)"
+        [attr.aria-label]="'assistant.pageSize' | translate"
+      >
+        <option value="20">20</option>
+        <option value="50">50</option>
+        <option value="100">100</option>
+      </select>
+    </div>
+
+    <div
+      class="conversation-list"
+      appBottomReached
+      (bottomReached)="loadNextSessionPage()"
+    >
       @for (session of sessions(); track session.id) {
         <button
           type="button"

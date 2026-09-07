@@ -115,12 +115,6 @@ button {
   color: #66809a;
 }
 
-.conversation-search > mat-icon {
-  width: 0.85rem;
-  height: 0.85rem;
-  font-size: 0.85rem;
-}
-
 .conversation-search input {
   width: 100%;
   min-width: 0;
@@ -130,10 +124,6 @@ button {
   font-size: 1rem;
 }
 
-.conversation-search input::placeholder {
-  color: #8ba0b3;
-}
-
 .conversation-search button {
   display: grid;
   place-items: center;
@@ -141,12 +131,6 @@ button {
   border: 0;
   background: transparent;
   color: #587793;
-}
-
-.conversation-search button mat-icon {
-  width: 0.85rem;
-  height: 0.85rem;
-  font-size: 0.85rem;
 }
 
 .conversation-list {

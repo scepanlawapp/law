@@ -268,7 +268,7 @@ export class AuthenticatedComponent implements OnInit {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
     this.chat.listSessions(workspaceId).subscribe({
-      next: (sessions) => this.sessions.set(sessions),
+      next: (response) => this.sessions.set(response.items),
       error: () => this.error.set("Unable to load chats."),
     });
   }
