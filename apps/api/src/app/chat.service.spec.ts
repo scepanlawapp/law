@@ -48,6 +48,62 @@ describe("ChatService", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it("accepts Excel workbook attachments", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue(session);
+    prisma.chatMessage.create.mockResolvedValue({
+      id: "msg-user",
+      sessionId: session.id,
+      role: "USER",
+      content: "Tužba",
+      status: "COMPLETED",
+      triageDecision: null,
+      correlationId: "corr-1",
+      createdAt: now,
+    });
+    prisma.chatAttachment.create.mockResolvedValue({
+      id: "attachment-1",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      messageId: "msg-user",
+      originalName: "budget.xlsx",
+      storedName: "budget.xlsx",
+      mimeType:
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      sizeBytes: 128,
+      createdAt: now,
+    });
+
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({ decision: "NON_LEGAL", reason: "ok" }),
+    );
+
+    await expect(
+      service.sendMessage({
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+        userId: "user-1",
+        content: "Tužba",
+        files: [
+          {
+            originalname: "budget.xlsx",
+            mimetype:
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            size: 128,
+            buffer: Buffer.from("xlsx"),
+          },
+        ],
+      }),
+    ).resolves.toMatchObject({
+      userMessage: { attachments: [{ originalName: "budget.xlsx" }] },
+    });
+  });
+
   it("rejects unsupported attachment types", async () => {
     const prisma = prismaMock();
     prisma.chatSession.findFirst.mockResolvedValue(session);

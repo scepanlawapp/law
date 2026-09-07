@@ -3,17 +3,37 @@ import { Component, DestroyRef, OnInit, inject, signal } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
 import { ChatApiClient } from "@law/api-clients";
-import { ChatMessageResponse, ChatStreamEvent } from "@law/api-interfaces";
+import {
+  ChatMessageResponse,
+  ChatSessionSummary,
+  ChatStreamEvent,
+} from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 
-interface Conversation {
-  title: string;
-  preview: string;
-  time: string;
-  icon: string;
-  group: "Today" | "Yesterday" | "This week";
-  active?: boolean;
-}
+const MAX_UPLOAD_BYTES = 25_000_000;
+const ALLOWED_FILE_MIME_TYPES = [
+  "application/pdf",
+  "application/vnd.ms-excel",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "text/plain",
+] as const;
+
+const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
+  ".pdf": "application/pdf",
+  ".xls": "application/vnd.ms-excel",
+  ".xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  ".docx":
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".txt": "text/plain",
+};
 
 @Component({
   selector: "app-assistant",
@@ -28,76 +48,10 @@ export class AssistantComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private source: EventSource | null = null;
 
-  readonly conversations: Conversation[] = [
-    {
-      title: "Analysis of case P-123/2026",
-      preview: "Here is a summary of the key points in this case...",
-      time: "10:24",
-      icon: "balance",
-      group: "Today",
-      active: true,
-    },
-    {
-      title: "Contract analysis",
-      preview: "The contract appears to be valid, but there are...",
-      time: "09:17",
-      icon: "balance",
-      group: "Today",
-    },
-    {
-      title: "Client overview - Marko Petrović",
-      preview: "Marko Petrović has 4 active cases and 12 total...",
-      time: "08:42",
-      icon: "group",
-      group: "Today",
-    },
-    {
-      title: "Legal research - Commercial disputes",
-      preview: "Here are the main legal grounds for a commercial...",
-      time: "Yesterday",
-      icon: "lightbulb",
-      group: "Today",
-    },
-    {
-      title: "Document analysis - Ugovor.pdf",
-      preview: "I analyzed the document and extracted the following...",
-      time: "16:32",
-      icon: "description",
-      group: "Yesterday",
-    },
-    {
-      title: "Case strategy - P-124/2026",
-      preview: "Based on the available information, I recommend...",
-      time: "14:11",
-      icon: "balance",
-      group: "Yesterday",
-    },
-    {
-      title: "Deadline check",
-      preview: "You have 3 upcoming deadlines in the next 7 days...",
-      time: "11:03",
-      icon: "calendar_month",
-      group: "Yesterday",
-    },
-    {
-      title: "Court practice - Appeals",
-      preview: "Here are some relevant court decisions for similar cases...",
-      time: "Sep 5",
-      icon: "balance",
-      group: "This week",
-    },
-    {
-      title: "Client communication",
-      preview: "Drafted a response to the client regarding the case status...",
-      time: "Sep 4",
-      icon: "group",
-      group: "This week",
-    },
-  ];
-
   protected readonly composerForm = new FormGroup({
     draft: new FormControl("", { nonNullable: true }),
   });
+  protected readonly sessions = signal<ChatSessionSummary[]>([]);
   protected readonly messages = signal<ChatMessageResponse[]>([]);
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly pendingFiles = signal<File[]>([]);
@@ -105,20 +59,9 @@ export class AssistantComponent implements OnInit {
   protected readonly classifying = signal(false);
   protected readonly error = signal("");
 
-  readonly conversationGroups = ["Today", "Yesterday", "This week"] as const;
-
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.source?.close());
-    const workspaceId = this.workspaceId();
-    if (!workspaceId) return;
-
-    this.chat.listSessions(workspaceId).subscribe({
-      next: (sessions) => {
-        const firstSession = sessions[0];
-        if (firstSession) this.selectSession(firstSession.id);
-      },
-      error: () => this.error.set("Unable to load chats."),
-    });
+    this.loadSessions();
   }
 
   protected workspaceId(): string | undefined {
@@ -139,12 +82,36 @@ export class AssistantComponent implements OnInit {
     this.send();
   }
 
+  protected loadSessions(): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+
+    this.chat.listSessions(workspaceId).subscribe({
+      next: (sessions) => {
+        this.sessions.set(sessions);
+        const selectedSessionId = this.selectedSessionId();
+        if (selectedSessionId) {
+          const exists = sessions.some(
+            (session) => session.id === selectedSessionId,
+          );
+          if (exists) return;
+        }
+        const firstSession = sessions[0];
+        if (firstSession) this.selectSession(firstSession.id);
+      },
+      error: () => this.error.set("Unable to load chats."),
+    });
+  }
+
   protected createSession(): void {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
 
     this.chat.createSession({ workspaceId }).subscribe({
-      next: (session) => this.selectSession(session.id),
+      next: (session) => {
+        this.sessions.update((items) => [session, ...items]);
+        this.selectSession(session.id);
+      },
       error: () => this.error.set("Unable to create a conversation."),
     });
   }
@@ -168,13 +135,90 @@ export class AssistantComponent implements OnInit {
 
   protected onFiles(event: Event): void {
     const input = event.target as HTMLInputElement;
-    this.pendingFiles.set(Array.from(input.files ?? []));
+    const files = Array.from(input.files ?? []);
+    const accepted: File[] = [];
+    const rejected: string[] = [];
+
+    for (const file of files) {
+      if (file.size > MAX_UPLOAD_BYTES) {
+        rejected.push(`File exceeds the 25 MB limit: ${file.name}`);
+        continue;
+      }
+
+      const mimeType = this.resolveMimeType(file);
+      if (!this.isAllowedMimeType(mimeType)) {
+        rejected.push(`Unsupported file type: ${file.name}`);
+        continue;
+      }
+
+      accepted.push(file);
+    }
+
+    if (!accepted.length) {
+      if (rejected.length) this.error.set(rejected[0]);
+      input.value = "";
+      return;
+    }
+
+    const workspaceId = this.workspaceId();
+    const hasSelectedSession = Boolean(this.selectedSessionId());
+    if (!hasSelectedSession && workspaceId) {
+      this.chat.createSession({ workspaceId }).subscribe({
+        next: (session) => {
+          this.sessions.update((items) => [session, ...items]);
+          this.selectedSessionId.set(session.id);
+          this.pendingFiles.set(accepted);
+          this.error.set("");
+          this.loadSessions();
+        },
+        error: () => {
+          this.error.set("Unable to create a conversation.");
+        },
+      });
+      input.value = "";
+      return;
+    }
+
+    this.pendingFiles.set(accepted);
+    if (rejected.length) this.error.set(rejected[0]);
+    input.value = "";
+  }
+
+  protected removePendingFile(file: File): void {
+    this.pendingFiles.update((items) => items.filter((item) => item !== file));
+  }
+
+  protected attachmentUrl(attachmentId: string): string {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return "";
+    return this.chat.downloadUrl(workspaceId, attachmentId);
   }
 
   protected send(): void {
     const workspaceId = this.workspaceId();
+    if (!workspaceId || !this.canSend()) return;
+
     const sessionId = this.selectedSessionId();
-    if (!workspaceId || !sessionId || !this.canSend()) return;
+    if (sessionId) {
+      this.sendMessage(sessionId);
+      return;
+    }
+
+    this.chat.createSession({ workspaceId }).subscribe({
+      next: (session) => {
+        this.sessions.update((items) => [session, ...items]);
+        this.selectedSessionId.set(session.id);
+        this.sendMessage(session.id);
+      },
+      error: () => {
+        this.error.set("Unable to create a conversation.");
+      },
+    });
+  }
+
+  private sendMessage(sessionId: string): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
 
     this.sending.set(true);
     this.error.set("");
@@ -192,6 +236,7 @@ export class AssistantComponent implements OnInit {
           this.pendingFiles.set([]);
           this.sending.set(false);
           this.classifying.set(true);
+          this.loadSessions();
         },
         error: () => {
           this.sending.set(false);
@@ -241,5 +286,22 @@ export class AssistantComponent implements OnInit {
       if (items.some((item) => item.id === message.id)) return items;
       return [...items, message];
     });
+  }
+
+  private isAllowedMimeType(mimeType: string): boolean {
+    return ALLOWED_FILE_MIME_TYPES.includes(
+      mimeType as (typeof ALLOWED_FILE_MIME_TYPES)[number],
+    );
+  }
+
+  private resolveMimeType(file: File): string {
+    const mimeType = file.type?.trim();
+    if (mimeType) return mimeType;
+
+    const lowerName = file.name.toLowerCase();
+    const extension = Object.keys(FILE_EXTENSION_MIME_TYPES).find((candidate) =>
+      lowerName.endsWith(candidate),
+    );
+    return extension ? FILE_EXTENSION_MIME_TYPES[extension] : "";
   }
 }

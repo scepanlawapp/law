@@ -374,6 +374,15 @@ button {
   font-size: 1rem;
 }
 
+.message-attachments a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.message-attachments a:hover {
+  text-decoration: underline;
+}
+
 .message-content time {
   display: block;
   margin-top: 0.35rem;
@@ -414,6 +423,43 @@ button {
   border-radius: 0.4rem;
   color: #91a5b7;
   font-size: 1rem;
+}
+
+.pending-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+}
+
+.pending-file-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid #dfeaf4;
+  border-radius: 999px;
+  background: #f3f8fe;
+  color: #36526d;
+  font-size: 0.52rem;
+}
+
+.pending-file-chip button {
+  display: grid;
+  place-items: center;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-left: 0.1rem;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: #5d7891;
+}
+
+.pending-file-chip button mat-icon {
+  width: 0.75rem;
+  height: 0.75rem;
+  font-size: 0.75rem;
 }
 
 .composer > mat-icon {

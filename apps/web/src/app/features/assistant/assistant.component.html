@@ -34,33 +34,23 @@
     </label>
 
     <div class="conversation-list">
-      @for (group of conversationGroups; track group) {
-        <section class="conversation-group">
-          <h2>{{ group }}</h2>
-          @for (conversation of conversations; track conversation.title) {
-            @if (conversation.group === group) {
-              <button
-                type="button"
-                class="conversation-item"
-                [class.active]="conversation.active"
-              >
-                <span class="conversation-icon"
-                  ><mat-icon>{{ conversation.icon }}</mat-icon></span
-                >
-                <span class="conversation-copy">
-                  <strong>{{ conversation.title }}</strong>
-                  <small>{{ conversation.preview }}</small>
-                </span>
-                <time>{{ conversation.time }}</time>
-                @if (conversation.active) {
-                  <mat-icon class="pin">push_pin</mat-icon>
-                } @else {
-                  <mat-icon class="more">more_vert</mat-icon>
-                }
-              </button>
-            }
-          }
-        </section>
+      @for (session of sessions(); track session.id) {
+        <button
+          type="button"
+          class="conversation-item"
+          [class.active]="session.id === selectedSessionId()"
+          (click)="selectSession(session.id)"
+        >
+          <span class="conversation-icon"
+            ><mat-icon>chat_bubble</mat-icon></span
+          >
+          <span class="conversation-copy">
+            <strong>{{ session.title || "New chat" }}</strong>
+            <small>Updated {{ session.updatedAt | date: "shortTime" }}</small>
+          </span>
+          <time>{{ session.updatedAt | date: "MMM d" }}</time>
+          <mat-icon class="more">more_vert</mat-icon>
+        </button>
       }
     </div>
   </aside>
@@ -92,7 +82,15 @@
             @if (message.attachments.length) {
               <ul class="message-attachments">
                 @for (file of message.attachments; track file.id) {
-                  <li>{{ file.originalName }}</li>
+                  <li>
+                    <a
+                      [href]="attachmentUrl(file.id)"
+                      target="_blank"
+                      rel="noreferrer noopener"
+                    >
+                      {{ file.originalName }}
+                    </a>
+                  </li>
                 }
               </ul>
             }
@@ -113,23 +111,43 @@
       [formGroup]="composerForm"
       (ngSubmit)="send()"
     >
+      <mat-icon aria-hidden="true">attach_file</mat-icon>
+      @if (pendingFiles().length) {
+        <div class="pending-files">
+          @for (file of pendingFiles(); track file.name + file.size) {
+            <span class="pending-file-chip">
+              {{ file.name }}
+              <button
+                type="button"
+                (click)="removePendingFile(file)"
+                aria-label="Remove file"
+              >
+                <mat-icon>close</mat-icon>
+              </button>
+            </span>
+          }
+        </div>
+      }
       <textarea
         formControlName="draft"
         rows="3"
         placeholder="Ask anything about your cases, documents or legal matters..."
-        [disabled]="sending() || !selectedSessionId()"
+        [disabled]="sending()"
         (keydown.enter)="onComposerKeydown($event)"
       ></textarea>
       <label class="attach-file" aria-label="Attach files">
-        <input type="file" multiple (change)="onFiles($event)" />
+        <input
+          type="file"
+          multiple
+          accept=".pdf,.txt,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
+          (change)="onFiles($event)"
+        />
         <mat-icon>attach_file</mat-icon>
       </label>
       <button
         type="submit"
         aria-label="Send message"
-        [disabled]="
-          sending() || classifying() || !selectedSessionId() || !canSend()
-        "
+        [disabled]="sending() || classifying() || !canSend()"
       >
         <mat-icon>arrow_upward</mat-icon>
       </button>
