@@ -58,6 +58,7 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-family-base);
   line-height: var(--line-height-body);
+  overflow-y: hidden;
 }
 
 button,

@@ -1,6 +1,7 @@
 :host {
   display: block;
-  min-height: calc(100vh - 3.65rem);
+  height: calc(100vh - 3.65rem);
+  min-height: 0;
   color: #1f3b59;
 }
 
@@ -15,8 +16,10 @@ button {
 
 .assistant-page {
   display: grid;
-  grid-template-columns: 17.5rem minmax(0, 1fr);
-  min-height: calc(100vh - 3.65rem);
+  grid-template-columns: 20rem minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
   background: var(--color-background);
 }
 
@@ -24,6 +27,8 @@ button {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   padding: 0.8rem 0.75rem 0.5rem;
   border-right: 1px solid var(--color-border-subtle);
   background: var(--color-surface-subtle);
@@ -110,12 +115,6 @@ button {
   color: #66809a;
 }
 
-.conversation-search > mat-icon {
-  width: 0.85rem;
-  height: 0.85rem;
-  font-size: 0.85rem;
-}
-
 .conversation-search input {
   width: 100%;
   min-width: 0;
@@ -123,10 +122,6 @@ button {
   outline: 0;
   color: #24425f;
   font-size: 1rem;
-}
-
-.conversation-search input::placeholder {
-  color: #8ba0b3;
 }
 
 .conversation-search button {
@@ -138,14 +133,11 @@ button {
   color: #587793;
 }
 
-.conversation-search button mat-icon {
-  width: 0.85rem;
-  height: 0.85rem;
-  font-size: 0.85rem;
-}
-
 .conversation-list {
-  overflow: auto;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 .conversation-group h2 {
@@ -243,8 +235,14 @@ button {
   display: grid;
   grid-template-rows: auto 1fr auto;
   min-width: 0;
+  min-height: 0;
   min-height: calc(100vh - 3.65rem);
   background: var(--color-surface);
+}
+
+.chat-panel.empty-state {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
 }
 
 .chat-heading {
@@ -290,6 +288,11 @@ button {
   padding: 1rem;
   overflow: auto;
   background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+}
+
+.messages.empty-state {
+  grid-column: 1;
+  grid-row: 2;
 }
 
 .message {
@@ -415,68 +418,98 @@ button {
 
 .composer {
   display: flex;
-  align-items: center;
-  gap: 0.55rem;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.45rem;
   margin: 0 1rem 1rem;
-  padding: 0.45rem 0.6rem;
+  padding: 0.55rem 0.7rem 0.6rem;
   border: 1px solid #dce7f0;
-  border-radius: 0.4rem;
+  border-radius: 0.7rem;
+  background: #ffffff;
   color: #91a5b7;
   font-size: 1rem;
+}
+
+.chat-panel.empty-state .composer {
+  grid-column: 1;
+  grid-row: 2;
+  align-self: center;
+  justify-self: center;
+  min-width: 0;
+  width: calc(100% - 2rem);
+  max-width: 54rem;
+  box-sizing: border-box;
+  margin: 0 auto;
+}
+
+.composer-input-row {
+  display: flex;
+  align-items: flex-end;
+}
+
+.composer-input-row-button {
+  display: flex;
+  align-items: center;
+  width: 3rem;
+  height: 3rem;
 }
 
 .pending-files {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.3rem;
+  gap: 0.45rem;
+  order: -1;
+  padding-bottom: 0.1rem;
 }
 
 .pending-file-chip {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-  padding: 0.2rem 0.35rem;
+  gap: 0.45rem;
+  max-width: 22rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.7rem;
   border: 1px solid #dfeaf4;
-  border-radius: 999px;
-  background: #f3f8fe;
+  border-radius: 0.75rem;
+  background: #f5f7f9;
   color: #36526d;
-  font-size: 0.52rem;
+  font-size: 0.72rem;
 }
 
 .pending-file-chip button {
   display: grid;
   place-items: center;
-  width: 0.9rem;
-  height: 0.9rem;
+  flex: 0 0 auto;
+  width: 1.15rem;
+  height: 1.15rem;
   margin-left: 0.1rem;
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: transparent;
-  color: #5d7891;
+  background: #17212b;
+  color: #ffffff;
 }
 
 .pending-file-chip button mat-icon {
-  width: 0.75rem;
-  height: 0.75rem;
-  font-size: 0.75rem;
-}
-
-.composer > mat-icon {
-  width: 1rem;
-  height: 1rem;
-  font-size: 1rem;
+  width: 0.7rem;
+  height: 0.7rem;
+  font-size: 0.7rem;
 }
 
 .composer textarea {
   flex: 1;
   min-width: 0;
+  min-height: 2.7rem;
+  max-height: 18.75rem;
+  box-sizing: border-box;
   resize: none;
   border: 0;
   outline: 0;
   background: transparent;
   color: #36526d;
   font-size: 1rem;
+  line-height: 1.4;
+  padding: 0.65rem 0;
+  overflow-y: hidden;
 }
 
 .composer textarea::placeholder {
@@ -486,8 +519,13 @@ button {
 .attach-file {
   display: grid;
   place-items: center;
+  align-self: flex-start;
+  width: 3rem;
+  height: 3rem;
+  font-size: 3rem;
   color: #66819a;
   cursor: pointer;
+  align-self: flex-end;
 }
 
 .attach-file input {
@@ -495,22 +533,33 @@ button {
 }
 
 .attach-file mat-icon {
-  width: 1rem;
-  height: 1rem;
-  font-size: 1rem;
+  width: 2.25rem;
+  height: 2.25rem;
+  font-size: 2.25rem;
 }
 
 .composer button {
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 1.5rem;
-  height: 1.5rem;
+  width: 2.35rem;
+  height: 2.35rem;
   padding: 0;
   border: 0;
   border-radius: 50%;
   background: #1760ac;
   color: #ffffff;
+}
+
+.composer .microphone {
+  width: 2rem;
+  height: 2rem;
+  background: transparent;
+  color: #647d93;
+}
+
+.composer .send-button {
+  margin-left: auto;
 }
 
 .status,
@@ -539,9 +588,9 @@ button {
 }
 
 .composer button mat-icon {
-  width: 0.85rem;
-  height: 0.85rem;
-  font-size: 0.85rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 1.75rem;
 }
 
 @media (max-width: 800px) {

@@ -20,10 +20,11 @@ import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   ChatSendMessageResponse,
   ChatSessionDetail,
+  ChatSessionListResponse,
   ChatSessionSummary,
   ChatStreamEvent,
 } from "@law/api-interfaces";
-import { CreateChatSessionDto } from "./chat.dto";
+import { ChatSessionListQueryDto, CreateChatSessionDto } from "./chat.dto";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
 interface WorkspaceRequest extends AuthenticatedRequest {
@@ -39,8 +40,9 @@ export class ChatController {
   @Get("sessions")
   listSessions(
     @Req() request: WorkspaceRequest,
-  ): Promise<ChatSessionSummary[]> {
-    return this.chat.listSessions(request.workspace!.workspaceId);
+    @Query() query: ChatSessionListQueryDto,
+  ): Promise<ChatSessionListResponse> {
+    return this.chat.listSessions(request.workspace!.workspaceId, query);
   }
 
   @Post("sessions")

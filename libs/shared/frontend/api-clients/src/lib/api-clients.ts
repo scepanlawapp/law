@@ -1,12 +1,14 @@
 import { inject, Injectable } from "@angular/core";
-import { HttpClient } from "@angular/common/http";
+import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import {
   AuthSessionResponse,
   ChatSendMessageResponse,
   ChatSessionCreateRequest,
   ChatSessionDetail,
+  ChatSessionListResponse,
   ChatSessionSummary,
+  PaginationQuery,
   InvitationAcceptRequest,
   LoginRequest,
   PasswordForgotRequest,
@@ -99,10 +101,25 @@ export class ChatApiClient {
     };
   }
 
-  listSessions(workspaceId: string): Observable<ChatSessionSummary[]> {
-    return this.http.get<ChatSessionSummary[]>(
+  listSessions(
+    workspaceId: string,
+    query: PaginationQuery = {},
+  ): Observable<ChatSessionListResponse> {
+    let params = new HttpParams();
+    if (query.page) params = params.set("page", query.page);
+    if (query.pageSize) params = params.set("pageSize", query.pageSize);
+    if (query.sort?.length) {
+      params = params.set(
+        "sort",
+        query.sort.map((item) => `${item.field}:${item.direction}`).join(","),
+      );
+    }
+    if (query.search) params = params.set("search", query.search);
+    if (query.from) params = params.set("from", query.from);
+    if (query.to) params = params.set("to", query.to);
+    return this.http.get<ChatSessionListResponse>(
       this.endpoint("/chat/sessions"),
-      this.workspaceOptions(workspaceId),
+      { ...this.workspaceOptions(workspaceId), params },
     );
   }
 

@@ -22,7 +22,19 @@ describe("AuthenticatedComponent", () => {
         {
           provide: ChatApiClient,
           useValue: {
-            listSessions: () => of([]),
+            listSessions: () =>
+              of({
+                items: [],
+                meta: {
+                  page: 1,
+                  pageSize: 20,
+                  totalItems: 0,
+                  totalPages: 0,
+                  hasPreviousPage: false,
+                  hasNextPage: false,
+                  sort: [],
+                },
+              }),
             createSession: jest.fn(),
             getSession: jest.fn(),
             sendMessage: jest.fn(),

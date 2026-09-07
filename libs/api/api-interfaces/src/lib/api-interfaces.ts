@@ -99,6 +99,39 @@ export interface ChatSessionSummary {
   updatedAt: string;
 }
 
+export type SortDirection = "asc" | "desc";
+
+export interface PaginationSort {
+  field: string;
+  direction: SortDirection;
+}
+
+export interface PaginationQuery {
+  page?: number;
+  pageSize?: number;
+  sort?: PaginationSort[];
+  search?: string;
+  from?: string;
+  to?: string;
+}
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  totalItems: number;
+  totalPages: number;
+  hasPreviousPage: boolean;
+  hasNextPage: boolean;
+  sort: PaginationSort[];
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  meta: PaginationMeta;
+}
+
+export type ChatSessionListResponse = PaginatedResponse<ChatSessionSummary>;
+
 export interface ChatSessionDetail extends ChatSessionSummary {
   messages: ChatMessageResponse[];
 }

@@ -10,13 +10,20 @@ import { randomUUID } from "node:crypto";
 import {
   ChatAttachmentSummary,
   ChatMessageResponse,
+  ChatSessionListResponse,
   ChatSendMessageResponse,
   ChatSessionDetail,
   ChatSessionSummary,
   ChatStreamEvent,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
-import { PrismaService } from "@law/core";
+import {
+  paginationMeta,
+  PaginationQueryDto,
+  parseSort,
+  PrismaService,
+} from "@law/core";
+import { Prisma } from "@prisma/client";
 import { ChatModelProvider, OpenRouterChatModelProvider } from "@law/llm";
 import { runPortirGraph } from "@law/triage";
 import { extractAttachmentText } from "@law/extraction";
@@ -47,12 +54,49 @@ export class ChatService {
     private readonly provider?: ChatModelProvider,
   ) {}
 
-  async listSessions(workspaceId: string): Promise<ChatSessionSummary[]> {
-    const sessions = await this.prisma.chatSession.findMany({
-      where: { workspaceId, status: "ACTIVE" },
-      orderBy: { updatedAt: "desc" },
-    });
-    return sessions.map((session) => this.toSessionSummary(session));
+  async listSessions(
+    workspaceId: string,
+    query: PaginationQueryDto,
+  ): Promise<ChatSessionListResponse> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const sort = parseSort(
+      query.sort,
+      ["title", "createdAt", "updatedAt", "status"],
+      [{ field: "updatedAt", direction: "desc" }],
+    );
+    const where: Prisma.ChatSessionWhereInput = {
+      workspaceId,
+      status: "ACTIVE",
+      ...(query.search?.trim()
+        ? { title: { contains: query.search.trim(), mode: "insensitive" } }
+        : {}),
+      ...(query.from || query.to
+        ? {
+            updatedAt: {
+              ...(query.from ? { gte: new Date(query.from) } : {}),
+              ...(query.to ? { lte: new Date(query.to) } : {}),
+            },
+          }
+        : {}),
+    };
+    const orderBy: Prisma.ChatSessionOrderByWithRelationInput[] = [
+      ...sort.map((item) => ({ [item.field]: item.direction })),
+      { id: "asc" },
+    ];
+    const [sessions, totalItems] = await Promise.all([
+      this.prisma.chatSession.findMany({
+        where,
+        orderBy,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+      this.prisma.chatSession.count({ where }),
+    ]);
+    return {
+      items: sessions.map((session) => this.toSessionSummary(session)),
+      meta: paginationMeta(page, pageSize, totalItems, sort),
+    };
   }
 
   async createSession(
