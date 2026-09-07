@@ -2,10 +2,10 @@
   "track_id": "brief_agent_extraction_20260907",
   "parent_track_id": "chat_upload_completeness_20260907",
   "type": "feature",
-  "status": "not_started",
+  "status": "done",
   "prd_reference": null,
   "created_at": "2026-09-07T00:00:00Z",
-  "updated_at": "2026-09-07T00:00:00Z",
+  "updated_at": "2026-09-07T23:00:00Z",
   "keywords": [
     "chat",
     "attachments",

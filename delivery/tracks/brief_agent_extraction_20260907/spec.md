@@ -48,7 +48,8 @@
   → extract raw text (`mammoth`).
 - `application/vnd.ms-excel`,
   `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` →
-  concatenate cell text across all sheets (`exceljs`).
+  concatenate cell text across all sheets (`xlsx`/SheetJS; chosen over
+  `exceljs`, which cannot read legacy `.xls` workbooks).
 - `image/jpeg`, `image/png`, `image/webp` → OCR with `tesseract.js` using
   `eng` + `srp` + `srp_latn` language data, resolved from a local,
   pre-downloaded language-data directory (no network calls at runtime).
