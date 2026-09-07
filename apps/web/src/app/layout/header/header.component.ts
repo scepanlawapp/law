@@ -1,7 +1,9 @@
-import { Component } from "@angular/core";
+import { Component, inject } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";
 import { MatMenuModule } from "@angular/material/menu";
 import { RouterLink } from "@angular/router";
+import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
+import { AuthState } from "@law/security";
 
 interface HeaderNotification {
   title: string;
@@ -16,9 +18,12 @@ interface HeaderNotification {
   standalone: true,
   templateUrl: "./header.component.html",
   styleUrl: "./header.component.scss",
-  imports: [MatIconModule, MatMenuModule, RouterLink],
+  imports: [MatIconModule, MatMenuModule, RouterLink, UserMenuComponent],
 })
 export class HeaderComponent {
+  private readonly authState = inject(AuthState);
+  readonly session = this.authState.session;
+
   readonly notifications: HeaderNotification[] = [
     {
       title: "New document uploaded",
@@ -91,4 +96,8 @@ export class HeaderComponent {
       tone: "blue",
     },
   ];
+
+  logout(): void {
+    this.authState.logout().subscribe();
+  }
 }

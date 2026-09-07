@@ -51,14 +51,8 @@
         >View all notifications <mat-icon>arrow_forward</mat-icon></a
       >
     </mat-menu>
-    <span
-      class="grid h-7 w-7 place-items-center rounded-full bg-[#132a43] text-base font-bold text-white"
-      aria-hidden="true"
-      >SP</span
-    >
-    <span class="max-[700px]:hidden">Scepane</span>
-    <mat-icon class="h-4 w-4 text-base max-[700px]:hidden" aria-hidden="true"
-      >expand_more</mat-icon
-    >
+    @if (session()?.user; as user) {
+      <app-user-menu [user]="user" (logoutRequested)="logout()" />
+    }
   </div>
 </header>

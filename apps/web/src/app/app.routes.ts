@@ -9,6 +9,7 @@ import { AssistantComponent } from "./features/assistant/assistant.component";
 import { MainLayoutComponent } from "./layout/main-layout/main-layout.component";
 import { CalendarComponent } from "./features/calendar/calendar.component";
 import { NotificationsComponent } from "./features/notifications/notifications.component";
+import { SettingsComponent } from "./features/settings/settings.component";
 
 export const appRoutes: Route[] = [
   { path: "login", component: LoginComponent },
@@ -24,6 +25,7 @@ export const appRoutes: Route[] = [
       { path: "dashboard", component: DashboardComponent },
       { path: "calendar", component: CalendarComponent },
       { path: "notifications", component: NotificationsComponent },
+      { path: "settings", component: SettingsComponent },
       {
         path: "assistant",
         component: AssistantComponent,

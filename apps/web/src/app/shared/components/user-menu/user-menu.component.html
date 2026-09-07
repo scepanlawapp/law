@@ -1,0 +1,59 @@
+<button
+  type="button"
+  class="flex cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-base text-[#263e55]"
+  [matMenuTriggerFor]="userMenu"
+  (menuOpened)="menuOpen.set(true)"
+  (menuClosed)="menuOpen.set(false)"
+  aria-label="Open user menu"
+>
+  @if (user().avatarUrl; as avatarUrl) {
+    <img class="h-7 w-7 rounded-full object-cover" [src]="avatarUrl" alt="" />
+  } @else {
+    <span
+      class="grid h-7 w-7 place-items-center rounded-full bg-[#132a43] text-base font-bold text-white"
+      aria-hidden="true"
+      >{{ initials() }}</span
+    >
+  }
+  <span class="max-[700px]:hidden">{{ displayName() }}</span>
+  <mat-icon class="h-4 w-4 text-base max-[700px]:hidden" aria-hidden="true">
+    {{ menuOpen() ? "expand_less" : "expand_more" }}
+  </mat-icon>
+</button>
+
+<mat-menu
+  #userMenu="matMenu"
+  class="user-menu"
+  panelClass="user-menu-panel"
+  aria-label="User menu"
+>
+  <div class="user-menu-heading">
+    @if (user().avatarUrl; as avatarUrl) {
+      <img class="user-menu-avatar" [src]="avatarUrl" alt="" />
+    } @else {
+      <span
+        class="user-menu-avatar user-menu-avatar-fallback"
+        aria-hidden="true"
+      >
+        {{ initials() }}
+      </span>
+    }
+    <div class="user-menu-identity">
+      <strong>{{ displayName() }}</strong>
+      <small>{{ user().email }}</small>
+    </div>
+  </div>
+  <a class="user-menu-action" mat-menu-item routerLink="/settings">
+    <span class="user-menu-action-icon"><mat-icon>settings</mat-icon></span>
+    <span>Change settings</span>
+  </a>
+  <button
+    class="user-menu-action"
+    mat-menu-item
+    type="button"
+    (click)="logoutRequested.emit()"
+  >
+    <span class="user-menu-action-icon"><mat-icon>logout</mat-icon></span>
+    <span>Logout</span>
+  </button>
+</mat-menu>

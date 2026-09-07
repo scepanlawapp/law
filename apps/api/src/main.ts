@@ -16,8 +16,20 @@ async function bootstrap(): Promise<void> {
     }),
   );
   const config = app.get(ConfigService);
+  const frontendOrigin =
+    config.get<string>("AUTH_FRONTEND_ORIGIN") ?? "http://localhost:4200";
+  const allowedOrigins = [frontendOrigin];
+  const frontendUrl = new URL(frontendOrigin);
+  if (
+    frontendUrl.hostname === "localhost" ||
+    frontendUrl.hostname === "127.0.0.1"
+  ) {
+    frontendUrl.hostname =
+      frontendUrl.hostname === "localhost" ? "127.0.0.1" : "localhost";
+    allowedOrigins.push(frontendUrl.origin);
+  }
   app.enableCors({
-    origin: config.get<string>("AUTH_FRONTEND_ORIGIN"),
+    origin: allowedOrigins,
     credentials: true,
   });
   const port = config.get<number>("PORT", 3000);

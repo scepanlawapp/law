@@ -9,6 +9,8 @@ export interface AuthUser {
   id: string;
   email: string;
   status: "INVITED" | "ACTIVE" | "DISABLED";
+  name?: string;
+  avatarUrl?: string;
 }
 
 export interface AuthWorkspaceMembership {
