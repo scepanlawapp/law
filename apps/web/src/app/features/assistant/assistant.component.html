@@ -1,1 +1,103 @@
-Assistant
+<section class="assistant-page">
+	<aside class="conversation-panel">
+		<div class="assistant-heading">
+			<h1>AI Assistant</h1>
+			<p>Ask questions, get insights, analyze documents and work with your cases — powered by AI.</p>
+		</div>
+
+		<button type="button" class="new-conversation">
+			<mat-icon aria-hidden="true">add</mat-icon>
+			<span>New conversation</span>
+		</button>
+
+		<div class="conversation-tabs" aria-label="Assistant context">
+			<button type="button" class="selected"><mat-icon>chat_bubble_outline</mat-icon>Conversations</button>
+			<button type="button"><mat-icon>folder_open</mat-icon>Case context</button>
+			<button type="button"><mat-icon>description</mat-icon>Document context</button>
+		</div>
+
+		<label class="conversation-search">
+			<mat-icon aria-hidden="true">search</mat-icon>
+			<input type="search" placeholder="Search conversations..." />
+			<button type="button" aria-label="Filter conversations"><mat-icon>tune</mat-icon></button>
+		</label>
+
+		<div class="conversation-list">
+			@for (group of conversationGroups; track group) {
+				<section class="conversation-group">
+					<h2>{{ group }}</h2>
+					@for (conversation of conversations; track conversation.title) {
+						@if (conversation.group === group) {
+							<button type="button" class="conversation-item" [class.active]="conversation.active">
+								<span class="conversation-icon"><mat-icon>{{ conversation.icon }}</mat-icon></span>
+								<span class="conversation-copy">
+									<strong>{{ conversation.title }}</strong>
+									<small>{{ conversation.preview }}</small>
+								</span>
+								<time>{{ conversation.time }}</time>
+								@if (conversation.active) {
+									<mat-icon class="pin">push_pin</mat-icon>
+								} @else {
+									<mat-icon class="more">more_vert</mat-icon>
+								}
+							</button>
+						}
+					}
+				</section>
+			}
+		</div>
+	</aside>
+
+	<section class="chat-panel">
+		<header class="chat-heading">
+			<div class="chat-title">
+				<span class="assistant-icon"><mat-icon>auto_awesome</mat-icon></span>
+				<div>
+					<h2>AI Assistant</h2>
+					<p>Your legal AI assistant. Ask anything, get insights, analyze documents and more.</p>
+				</div>
+			</div>
+		</header>
+
+		<div class="messages">
+			@for (message of messages; track $index) {
+				<article class="message" [class.user-message]="message.author === 'user'">
+					<span class="message-avatar">
+						<mat-icon>{{ message.author === "user" ? "person" : "smart_toy" }}</mat-icon>
+					</span>
+					<div class="message-content">
+						@if (message.title) {
+							<strong>{{ message.title }}</strong>
+						}
+						@if (message.text) {
+							<p>{{ message.text }}</p>
+						}
+						@if (message.sections) {
+							@for (section of message.sections; track section.heading) {
+								<div class="message-section">
+									<strong>{{ section.heading }}</strong>
+									@if (section.items.length === 1) {
+										<p>{{ section.items[0] }}</p>
+									} @else {
+										<ul>
+											@for (item of section.items; track item) {
+												<li>{{ item }}</li>
+											}
+										</ul>
+									}
+								</div>
+							}
+						}
+						<time>{{ message.time }}</time>
+					</div>
+				</article>
+			}
+		</div>
+
+		<div class="composer" aria-label="Ask the assistant">
+			<mat-icon aria-hidden="true">attach_file</mat-icon>
+			<span>Ask anything about your cases, documents or legal matters...</span>
+			<button type="button" aria-label="Send message"><mat-icon>arrow_upward</mat-icon></button>
+		</div>
+	</section>
+</section>
