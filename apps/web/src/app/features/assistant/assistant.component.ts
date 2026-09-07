@@ -132,6 +132,13 @@ export class AssistantComponent implements OnInit {
     );
   }
 
+  protected onComposerKeydown(event: Event): void {
+    if ((event as KeyboardEvent).shiftKey) return;
+
+    event.preventDefault();
+    this.send();
+  }
+
   protected createSession(): void {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;

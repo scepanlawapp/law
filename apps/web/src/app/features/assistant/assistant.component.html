@@ -119,6 +119,7 @@
         rows="1"
         placeholder="Ask anything about your cases, documents or legal matters..."
         [disabled]="sending() || !selectedSessionId()"
+        (keydown.enter)="onComposerKeydown($event)"
       ></textarea>
       <label class="attach-file" aria-label="Attach files">
         <input type="file" multiple (change)="onFiles($event)" />
