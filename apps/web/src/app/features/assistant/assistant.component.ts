@@ -1,5 +1,13 @@
 import { DatePipe } from "@angular/common";
-import { Component, DestroyRef, OnInit, inject, signal } from "@angular/core";
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  OnInit,
+  ViewChild,
+  inject,
+  signal,
+} from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
 import { ChatApiClient } from "@law/api-clients";
@@ -49,6 +57,11 @@ export class AssistantComponent implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
   private source: EventSource | null = null;
 
+  @ViewChild("messagesContainer")
+  private messagesContainer?: ElementRef<HTMLDivElement>;
+  @ViewChild("draftTextarea")
+  private draftTextarea?: ElementRef<HTMLTextAreaElement>;
+
   protected readonly composerForm = new FormGroup({
     draft: new FormControl("", { nonNullable: true }),
   });
@@ -81,6 +94,21 @@ export class AssistantComponent implements OnInit {
 
     event.preventDefault();
     this.send();
+  }
+
+  protected resizeTextarea(event: Event): void {
+    this.resizeTextareaElement(event.target as HTMLTextAreaElement);
+  }
+
+  private resizeTextareaElement(textarea: HTMLTextAreaElement): void {
+    const maxHeight = 300;
+
+    textarea.style.height = "auto";
+    textarea.style.overflowY = "hidden";
+    const height = Math.min(textarea.scrollHeight, maxHeight);
+    textarea.style.height = `${height}px`;
+    textarea.style.overflowY =
+      textarea.scrollHeight > maxHeight ? "auto" : "hidden";
   }
 
   protected loadSessions(): void {
@@ -127,6 +155,7 @@ export class AssistantComponent implements OnInit {
     this.chat.getSession(workspaceId, sessionId).subscribe({
       next: (detail) => {
         this.messages.set(detail.messages);
+        this.scheduleMessagesScroll();
         const lastMessage = detail.messages[detail.messages.length - 1];
         this.listen(sessionId, lastMessage?.createdAt);
       },
@@ -136,7 +165,44 @@ export class AssistantComponent implements OnInit {
 
   protected onFiles(event: Event): void {
     const input = event.target as HTMLInputElement;
-    const files = Array.from(input.files ?? []);
+    this.addFiles(Array.from(input.files ?? []));
+    input.value = "";
+  }
+
+  protected onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (event.dataTransfer) event.dataTransfer.dropEffect = "copy";
+  }
+
+  protected onDrop(event: DragEvent): void {
+    event.preventDefault();
+    this.addFiles(Array.from(event.dataTransfer?.files ?? []));
+  }
+
+  protected onPaste(event: ClipboardEvent, target: EventTarget | null): void {
+    const clipboardData = event.clipboardData;
+    if (!clipboardData) return;
+
+    const files = Array.from(clipboardData.files);
+    if (files.length) {
+      event.preventDefault();
+      this.addFiles(files);
+    }
+
+    const text = clipboardData.getData("text");
+    if (text && !files.length) {
+      event.preventDefault();
+      const draft = this.composerForm.controls.draft.value;
+      this.composerForm.controls.draft.setValue(`${draft}${text}`);
+      requestAnimationFrame(() => {
+        if (target instanceof HTMLTextAreaElement) {
+          this.resizeTextareaElement(target);
+        }
+      });
+    }
+  }
+
+  private addFiles(files: File[]): void {
     const accepted: File[] = [];
     const rejected: string[] = [];
 
@@ -157,7 +223,6 @@ export class AssistantComponent implements OnInit {
 
     if (!accepted.length) {
       if (rejected.length) this.error.set(rejected[0]);
-      input.value = "";
       return;
     }
 
@@ -176,13 +241,11 @@ export class AssistantComponent implements OnInit {
           this.error.set("Unable to create a conversation.");
         },
       });
-      input.value = "";
       return;
     }
 
-    this.pendingFiles.set(accepted);
+    this.pendingFiles.update((current) => [...current, ...accepted]);
     if (rejected.length) this.error.set(rejected[0]);
-    input.value = "";
   }
 
   protected removePendingFile(file: File): void {
@@ -234,6 +297,7 @@ export class AssistantComponent implements OnInit {
         next: (response) => {
           this.upsertMessage(response.userMessage);
           this.composerForm.reset();
+          this.resetTextarea();
           this.pendingFiles.set([]);
           this.sending.set(false);
           this.classifying.set(true);
@@ -287,6 +351,22 @@ export class AssistantComponent implements OnInit {
       if (items.some((item) => item.id === message.id)) return items;
       return [...items, message];
     });
+    this.scheduleMessagesScroll();
+  }
+
+  private scheduleMessagesScroll(): void {
+    requestAnimationFrame(() => {
+      const messagesContainer = this.messagesContainer?.nativeElement;
+      if (!messagesContainer) return;
+      messagesContainer.scrollTop = messagesContainer.scrollHeight;
+    });
+  }
+
+  private resetTextarea(): void {
+    const textarea = this.draftTextarea?.nativeElement;
+    if (!textarea) return;
+    textarea.style.height = "";
+    textarea.style.overflowY = "hidden";
   }
 
   private isAllowedMimeType(mimeType: string): boolean {

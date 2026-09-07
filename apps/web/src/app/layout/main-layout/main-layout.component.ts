@@ -8,7 +8,7 @@ import { RouterModule } from "@angular/router";
   standalone: true,
   host: {
     class:
-      "grid min-h-screen grid-cols-[13rem_minmax(0,1fr)] bg-[var(--color-background)] max-[700px]:grid-cols-[4.25rem_minmax(0,1fr)]",
+      "grid min-h-screen grid-cols-[15rem_minmax(0,1fr)] bg-[var(--color-background)] max-[700px]:grid-cols-[4.25rem_minmax(0,1fr)]",
   },
   templateUrl: "./main-layout.component.html",
   imports: [HeaderComponent, SidebarComponent, RouterModule],
