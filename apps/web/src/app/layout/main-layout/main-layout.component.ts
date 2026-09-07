@@ -6,8 +6,11 @@ import { RouterModule } from "@angular/router";
 @Component({
   selector: "app-main-layout",
   standalone: true,
+  host: {
+    class:
+      "grid min-h-screen grid-cols-[13rem_minmax(0,1fr)] bg-[var(--color-background)] max-[700px]:grid-cols-[4.25rem_minmax(0,1fr)]",
+  },
   templateUrl: "./main-layout.component.html",
-  styleUrl: "./main-layout.component.scss",
   imports: [HeaderComponent, SidebarComponent, RouterModule],
 })
 export class MainLayoutComponent {}

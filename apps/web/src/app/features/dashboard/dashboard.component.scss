@@ -21,7 +21,7 @@ a {
   box-sizing: border-box;
   min-height: calc(100vh - 3.65rem);
   padding: 1rem 1.15rem 1.25rem;
-  background: #f7fafd;
+  background: var(--color-background);
 }
 
 .dashboard-intro {
@@ -31,7 +31,7 @@ a {
 .dashboard-intro > p {
   margin: 0 0 0.25rem;
   color: #3b5b7c;
-  font-size: 0.68rem;
+  font-size: 1rem;
 }
 
 .dashboard-intro h1 {
@@ -48,12 +48,12 @@ a {
   height: 2.2rem;
   box-sizing: border-box;
   padding: 0 0.65rem;
-  border: 1px solid #dce8f3;
-  border-radius: 0.45rem;
-  background: #ffffff;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
   box-shadow: 0 3px 10px rgba(38, 77, 112, 0.04);
   color: #8aa0b5;
-  font-size: 0.65rem;
+  font-size: 1rem;
 }
 
 .assistant-prompt > mat-icon {
@@ -70,8 +70,8 @@ a {
   padding: 0;
   border: 0;
   border-radius: 50%;
-  background: #1e65b2;
-  color: #ffffff;
+  background: var(--color-brand);
+  color: var(--color-text-inverse);
 }
 
 .assistant-prompt button mat-icon {
@@ -95,9 +95,9 @@ a {
   padding: 0.34rem 0.55rem;
   border: 0;
   border-radius: 1rem;
-  background: #eef4fa;
-  color: #3f5f7e;
-  font-size: 0.55rem;
+  background: var(--color-surface-accent);
+  color: var(--color-text-secondary);
+  font-size: 1rem;
   white-space: nowrap;
 }
 
@@ -109,10 +109,10 @@ a {
 
 .assistant-card,
 .panel {
-  border: 1px solid #e0e9f2;
-  border-radius: 0.35rem;
-  background: #ffffff;
-  box-shadow: 0 2px 8px rgba(35, 68, 101, 0.025);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .assistant-card {
@@ -152,7 +152,7 @@ a {
   max-width: 13rem;
   margin: 0.55rem 0 0.85rem;
   color: #627b94;
-  font-size: 0.59rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -163,7 +163,7 @@ a {
   align-items: center;
   gap: 0.25rem;
   color: #2168b4;
-  font-size: 0.56rem;
+  font-size: 1rem;
   text-decoration: none;
 }
 
@@ -210,7 +210,7 @@ a {
   justify-content: space-between;
   min-height: 2.35rem;
   padding: 0 0.8rem;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .panel-heading button {
@@ -244,7 +244,7 @@ a {
 .event-row > time {
   width: 2.45rem;
   color: #4f7191;
-  font-size: 0.57rem;
+  font-size: 1rem;
 }
 
 .round-icon {
@@ -291,7 +291,7 @@ a {
 .row-copy strong {
   overflow: hidden;
   color: #294663;
-  font-size: 0.58rem;
+  font-size: 1rem;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -302,7 +302,7 @@ a {
 .notification-row time {
   overflow: hidden;
   color: #8297ab;
-  font-size: 0.51rem;
+  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -312,7 +312,7 @@ a {
   border-radius: 0.7rem;
   background: #eef5fc;
   color: #3a73ad;
-  font-size: 0.49rem;
+  font-size: 1rem;
   white-space: nowrap;
 }
 
@@ -336,7 +336,7 @@ table {
   width: 100%;
   border-collapse: collapse;
   color: #4f6c87;
-  font-size: 0.53rem;
+  font-size: 1rem;
   white-space: nowrap;
 }
 
@@ -351,7 +351,7 @@ td {
 th {
   height: 1.8rem;
   color: #57718b;
-  font-size: 0.49rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -367,7 +367,7 @@ td:first-child {
   border-radius: 0.7rem;
   background: #e9f9f0;
   color: #159b64;
-  font-size: 0.48rem;
+  font-size: 1rem;
 }
 
 .status i {
@@ -401,7 +401,7 @@ td:first-child {
   border-bottom: 1px solid #f0f4f8;
   background: transparent;
   color: #4f6c87;
-  font-size: 0.54rem;
+  font-size: 1rem;
   text-align: left;
 }
 

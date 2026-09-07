@@ -1,14 +1,22 @@
-<aside class="sidebar">
-  <a class="brand" routerLink="/dashboard" aria-label="LegalAI">
-    <span class="brand-mark" aria-hidden="true"
+<aside
+  class="box-border flex h-full w-52 flex-col bg-[#10243a] px-2.5 pb-3 pt-4 text-[#d9e5f2] max-[700px]:w-[4.25rem] max-[700px]:items-center"
+>
+  <a
+    class="flex items-center gap-2 px-1 pb-5 text-base font-bold text-white no-underline max-[700px]:px-0"
+    routerLink="/dashboard"
+    aria-label="LegalAI"
+  >
+    <span
+      class="flex h-[1.45rem] w-[1.45rem] items-center justify-center"
+      aria-hidden="true"
       ><mat-icon>balance</mat-icon></span
     >
     <span>LegalAI</span>
   </a>
 
-  <nav aria-label="Main navigation">
+  <nav class="grid gap-1" aria-label="Main navigation">
     <a
-      class="nav-item assistant-link"
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white [&.active]:bg-[var(--color-brand-strong)] [&.active]:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       routerLink="/assistant"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
@@ -17,7 +25,7 @@
       <span>AI Assistant</span>
     </a>
     <a
-      class="nav-item"
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white [&.active]:bg-[var(--color-brand-strong)] [&.active]:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       routerLink="/dashboard"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
@@ -26,43 +34,71 @@
     </a>
   </nav>
 
-  <section class="nav-section" aria-label="Workspace">
-    <p>Workspace</p>
-    <a class="nav-item" href="#"
+  <section class="mt-5 grid gap-1" aria-label="Workspace">
+    <p
+      class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
+    >
+      Workspace
+    </p>
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>group</mat-icon><span>Clients</span></a
     >
-    <a class="nav-item" href="#"
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>folder</mat-icon><span>Cases</span></a
     >
-    <a class="nav-item" href="#"
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>description</mat-icon><span>Documents</span></a
     >
   </section>
 
-  <section class="nav-section" aria-label="Work">
-    <p>Work</p>
-    <a class="nav-item" href="#"
+  <section class="mt-5 grid gap-1" aria-label="Work">
+    <p
+      class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
+    >
+      Work
+    </p>
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>check_box</mat-icon><span>Tasks &amp; Deadlines</span></a
     >
-    <a class="nav-item" href="#"
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>calendar_month</mat-icon><span>Calendar</span></a
     >
   </section>
 
-  <section class="nav-section" aria-label="Business">
-    <p>Business</p>
-    <a class="nav-item" href="#"
+  <section class="mt-5 grid gap-1" aria-label="Business">
+    <p
+      class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
+    >
+      Business
+    </p>
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>account_balance</mat-icon><span>Finance</span></a
     >
-    <a class="nav-item" href="#"
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>bar_chart</mat-icon><span>Reports</span></a
     >
   </section>
 
-  <div class="sidebar-bottom">
-    <a class="nav-item" href="#"
+  <div class="mt-auto grid gap-5 border-t border-[rgba(190,211,232,0.2)] pt-4">
+    <a
+      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      href="#"
       ><mat-icon>settings</mat-icon><span>Settings</span></a
     >
-    <small>v1.0.0</small>
+    <small class="pl-1 text-[#8fa4b9] max-[700px]:hidden">v1.0.0</small>
   </div>
 </aside>

@@ -106,8 +106,8 @@ import { AuthState } from "@law/security";
       :host {
         display: block;
         min-height: 100vh;
-        background: #f3f0e8;
-        color: #1e2a28;
+        background: var(--color-background);
+        color: var(--color-text-primary);
       }
       .chat-shell {
         display: grid;
@@ -119,11 +119,11 @@ import { AuthState } from "@law/security";
         flex-direction: column;
         gap: 1rem;
         padding: 1.5rem;
-        border-right: 1px solid #d8d2c5;
-        background: #fffdf8;
+        border-right: 1px solid var(--color-border);
+        background: var(--color-surface);
       }
       .eyebrow {
-        color: #9a4f2f;
+        color: var(--color-brand);
         font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.12em;
@@ -152,13 +152,13 @@ import { AuthState } from "@law/security";
       form button {
         padding: 0.75rem 1rem;
         border: 0;
-        background: #1e2a28;
-        color: white;
+        background: var(--color-text-primary);
+        color: var(--color-text-inverse);
         font-weight: 700;
       }
       .ghost {
         padding: 0.7rem 1rem;
-        border: 1px solid #1e2a28;
+        border: 1px solid var(--color-text-primary);
         background: transparent;
         font-weight: 700;
       }
@@ -170,13 +170,13 @@ import { AuthState } from "@law/security";
         background: transparent;
       }
       .session.active {
-        border-color: #d8d2c5;
-        background: #f3f0e8;
+        border-color: var(--color-border);
+        background: var(--color-background);
       }
       .muted,
       .empty,
       .status {
-        color: #62706d;
+        color: var(--color-text-muted);
       }
       .transcript-pane {
         display: grid;
@@ -193,12 +193,12 @@ import { AuthState } from "@law/security";
       article {
         max-width: 42rem;
         padding: 1rem 1.1rem;
-        border: 1px solid #d8d2c5;
-        background: white;
+        border: 1px solid var(--color-border);
+        background: var(--color-surface);
       }
       article.user {
         justify-self: end;
-        background: #fffdf8;
+        background: var(--color-surface);
       }
       article p {
         margin: 0;
@@ -212,21 +212,21 @@ import { AuthState } from "@law/security";
       }
       .chips li {
         padding: 0.2rem 0.5rem;
-        border: 1px solid #d8d2c5;
+        border: 1px solid var(--color-border);
         font-size: 0.8rem;
       }
       form {
         display: grid;
         gap: 0.75rem;
         padding: 1.5rem 2rem 2rem;
-        border-top: 1px solid #d8d2c5;
-        background: #fffdf8;
+        border-top: 1px solid var(--color-border);
+        background: var(--color-surface);
       }
       textarea {
         width: 100%;
         box-sizing: border-box;
         padding: 0.8rem;
-        border: 1px solid #b9b4a9;
+        border: 1px solid var(--color-border-strong);
         font: inherit;
       }
       .composer-actions {
@@ -238,7 +238,7 @@ import { AuthState } from "@law/security";
         display: none;
       }
       .error {
-        color: #a32626;
+        color: var(--color-danger);
       }
       button:disabled {
         opacity: 0.6;

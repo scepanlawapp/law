@@ -1,18 +1,29 @@
-<header class="header">
-  <label class="search-box">
-    <mat-icon aria-hidden="true">search</mat-icon>
-    <input type="search" placeholder="Search clients, cases, documents..." />
+<header
+  class="flex min-h-[3.65rem] items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-[1.15rem] max-[700px]:px-3"
+>
+  <label
+    class="flex h-[1.8rem] w-full max-w-[19.5rem] items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-2.5 text-[#28527a]"
+  >
+    <mat-icon class="h-4 w-4 text-base" aria-hidden="true">search</mat-icon>
+    <input
+      class="min-w-0 w-full border-0 bg-transparent text-base text-[#1a3854] outline-none placeholder:text-[#8296aa]"
+      type="search"
+      placeholder="Search clients, cases, documents..."
+    />
   </label>
 
-  <div class="header-actions">
+  <div class="flex items-center gap-2.5 text-base text-[#263e55]">
     <button
-      class="icon-button notification-button"
+      class="relative grid h-8 w-8 cursor-pointer place-items-center rounded-full border-0 bg-[var(--color-surface-muted)] p-0 text-[#27445f]"
       type="button"
       aria-label="Notifications"
       [matMenuTriggerFor]="notificationMenu"
     >
-      <mat-icon>notifications_none</mat-icon>
-      <span class="notification-count">3</span>
+      <mat-icon class="text-[1.15rem]">notifications_none</mat-icon>
+      <span
+        class="absolute -right-0.5 -top-0.5 grid h-3.5 w-3.5 place-items-center rounded-full bg-[var(--color-danger)] text-[0.65rem] font-bold text-white"
+        >3</span
+      >
     </button>
     <mat-menu
       #notificationMenu="matMenu"
@@ -40,8 +51,14 @@
         >View all notifications <mat-icon>arrow_forward</mat-icon></a
       >
     </mat-menu>
-    <span class="avatar" aria-hidden="true">SP</span>
-    <span class="user-name">Scepane</span>
-    <mat-icon class="chevron" aria-hidden="true">expand_more</mat-icon>
+    <span
+      class="grid h-7 w-7 place-items-center rounded-full bg-[#132a43] text-base font-bold text-white"
+      aria-hidden="true"
+      >SP</span
+    >
+    <span class="max-[700px]:hidden">Scepane</span>
+    <mat-icon class="h-4 w-4 text-base max-[700px]:hidden" aria-hidden="true"
+      >expand_more</mat-icon
+    >
   </div>
 </header>

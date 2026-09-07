@@ -1,11 +1,68 @@
 @use "./app/layout/header/notification-menu";
+@use "tailwindcss";
 
-html,
-body {
-  min-height: 100%;
+:root {
+  --color-background: #f7fafd;
+  --color-surface: #ffffff;
+  --color-surface-subtle: #f8fbfe;
+  --color-surface-muted: #f1f5f9;
+  --color-surface-accent: #edf5fd;
+  --color-text-primary: #183758;
+  --color-text-secondary: #3f5f7e;
+  --color-text-muted: #8297ab;
+  --color-text-inverse: #ffffff;
+  --color-brand: #1760ac;
+  --color-brand-strong: #1456a0;
+  --color-success: #12a36a;
+  --color-warning: #ed941e;
+  --color-danger: #e53935;
+  --color-border: #e0e9f2;
+  --color-border-subtle: #edf2f7;
+  --color-border-strong: #dce6ef;
+
+  --font-family-base: "Segoe UI", Arial, sans-serif;
+  --font-size-base: 0.8rem;
+  --font-size-lg: 1rem;
+  --font-size-xl: 1.15rem;
+  --font-size-display: clamp(2.4rem, 4vw, 5rem);
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --line-height-body: 1.5;
+  --line-height-tight: 1.15;
+
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+
+  --radius-sm: 0.25rem;
+  --radius-md: 0.35rem;
+  --radius-lg: 0.45rem;
+  --radius-pill: 999px;
+  --shadow-sm: 0 2px 8px rgba(35, 68, 101, 0.03);
+  --shadow-md: 0 12px 32px rgba(31, 61, 92, 0.16);
+}
+
+html {
+  @apply text-base;
+  font-size: var(--font-size-base);
 }
 
 body {
-  margin: 0;
-  font-family: "Segoe UI", Arial, sans-serif;
+  @apply m-0 min-h-full text-base;
+  color: var(--color-text-primary);
+  font-family: var(--font-family-base);
+  line-height: var(--line-height-body);
+}
+
+button,
+input,
+textarea,
+select {
+  @apply text-base;
 }

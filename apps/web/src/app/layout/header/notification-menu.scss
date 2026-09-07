@@ -5,10 +5,11 @@
   width: min(23rem, calc(100vw - 1.5rem));
   max-width: calc(100vw - 1.5rem);
   padding: 0;
-  border: 1px solid #dfe9f2;
-  border-radius: 0.45rem;
-  background: #ffffff;
-  box-shadow: 0 12px 32px rgba(31, 61, 92, 0.16);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-md);
+  font-family: var(--font-family-base);
 }
 
 .notification-menu-panel .mat-mdc-menu-content,
@@ -16,6 +17,7 @@
 .notification-menu .mat-mdc-menu-content,
 .notification-menu .mat-menu-content {
   padding: 0;
+  font-family: var(--font-family-base);
 }
 
 .notification-heading {
@@ -23,18 +25,19 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.8rem 0.95rem;
-  border-bottom: 1px solid #edf2f7;
+  border-bottom: 1px solid var(--color-border-subtle);
+  font-family: var(--font-family-base);
 }
 
 .notification-heading h2 {
   margin: 0;
   color: #183758;
-  font-size: 0.78rem;
+  font-size: 1rem;
 }
 
 .notification-heading span {
   color: #62809d;
-  font-size: 0.58rem;
+  font-size: 1rem;
 }
 
 .notification-row {
@@ -47,11 +50,12 @@
   padding: 0.38rem 0.95rem;
   border-bottom: 1px solid #f0f4f8;
   line-height: normal;
+  font-family: var(--font-family-base);
 }
 
 .notification-row:hover,
 .notification-row:focus-visible {
-  background: #f7fafd;
+  background: var(--color-background);
 }
 
 .notification-icon {
@@ -100,14 +104,14 @@
 
 .notification-copy strong {
   color: #294663;
-  font-size: 0.59rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 
 .notification-copy small,
 .notification-row time {
   color: #8297ab;
-  font-size: 0.52rem;
+  font-size: 1rem;
 }
 
 .notification-row time {
@@ -125,8 +129,9 @@
   gap: 0.25rem;
   min-height: 2.45rem;
   color: #2168b4;
-  font-size: 0.6rem;
+  font-size: 1rem;
   font-weight: 600;
+  font-family: var(--font-family-base);
   text-decoration: none;
 }
 
