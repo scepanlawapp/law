@@ -40,8 +40,8 @@ import { AuthApiClient } from "@law/api-clients";
       :host {
         display: block;
         min-height: 100vh;
-        background: #f3f0e8;
-        color: #1e2a28;
+        background: var(--color-background);
+        color: var(--color-text-primary);
       }
       .auth-shell {
         display: grid;
@@ -52,13 +52,13 @@ import { AuthApiClient } from "@law/api-clients";
       .auth-panel {
         width: min(100%, 28rem);
         padding: 3rem;
-        background: #fffdf8;
-        border: 1px solid #d8d2c5;
-        box-shadow: 12px 12px 0 #d8d2c5;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        box-shadow: 12px 12px 0 var(--color-border);
       }
       .eyebrow {
-        color: #9a4f2f;
-        font-size: 0.75rem;
+        color: var(--color-brand);
+        font-size: 1rem;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -82,19 +82,19 @@ import { AuthApiClient } from "@law/api-clients";
         box-sizing: border-box;
         width: 100%;
         padding: 0.8rem;
-        border: 1px solid #b9b4a9;
+        border: 1px solid var(--color-border-strong);
         font: inherit;
       }
       button {
         padding: 0.85rem 1rem;
         border: 0;
-        background: #1e2a28;
-        color: white;
+        background: var(--color-text-primary);
+        color: var(--color-text-inverse);
         font: inherit;
         font-weight: 700;
       }
       .error {
-        color: #a32626;
+        color: var(--color-danger);
       }
     `,
   ],

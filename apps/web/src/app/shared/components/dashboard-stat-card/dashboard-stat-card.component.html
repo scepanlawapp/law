@@ -1,16 +1,25 @@
-<article class="stat-card">
-  <div class="stat-icon">
-    <mat-icon>{{ icon() }}</mat-icon>
+<article
+  class="relative flex min-h-[4.95rem] box-border items-start gap-[0.7rem] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]"
+>
+  <div
+    class="grid h-[2.05rem] w-[2.05rem] shrink-0 place-items-center rounded-full bg-[var(--color-surface-accent)] text-[var(--color-brand)]"
+  >
+    <mat-icon class="h-[1.1rem] w-[1.1rem] text-[1.1rem]">{{
+      icon()
+    }}</mat-icon>
   </div>
-  <div class="stat-copy">
-    <span class="stat-title">{{ title() }}</span>
-    <strong>{{ value() }}</strong>
+  <div class="grid min-w-0 gap-px">
+    <span class="text-base text-[var(--color-text-muted)]">{{ title() }}</span>
+    <strong
+      class="text-[1.15rem] leading-[1.15] text-[var(--color-text-primary)]"
+      >{{ value() }}</strong
+    >
     <span
-      class="stat-trend"
+      class="flex items-center gap-px whitespace-nowrap text-base text-[var(--color-success)] [&.down]:text-[#ee4d55] [&.neutral]:text-[#6d8298]"
       [class.down]="trendDirection() === 'down'"
       [class.neutral]="trendDirection() === 'neutral'"
     >
-      <mat-icon>{{
+      <mat-icon class="h-[0.7rem] w-[0.7rem] text-[0.7rem]">{{
         trendDirection() === "down"
           ? "south"
           : trendDirection() === "neutral"
@@ -18,13 +27,19 @@
             : "north"
       }}</mat-icon>
       {{ trend() }}
-      <small>{{ trendDetail() }}</small>
+      <small class="text-inherit">{{ trendDetail() }}</small>
     </span>
   </div>
   @if (chart().length) {
-    <div class="mini-chart" aria-hidden="true">
+    <div
+      class="ml-auto mt-auto flex h-[1.55rem] w-12 items-end gap-[0.14rem] pb-px"
+      aria-hidden="true"
+    >
       @for (point of chart(); track $index) {
-        <span [style.height.%]="point"></span>
+        <span
+          class="min-h-[0.18rem] flex-1 rounded-t-[0.15rem] bg-[#70acf0]"
+          [style.height.%]="point"
+        ></span>
       }
     </div>
   }

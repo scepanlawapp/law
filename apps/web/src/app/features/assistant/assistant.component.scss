@@ -17,7 +17,7 @@ button {
   display: grid;
   grid-template-columns: 17.5rem minmax(0, 1fr);
   min-height: calc(100vh - 3.65rem);
-  background: #f7fafd;
+  background: var(--color-background);
 }
 
 .conversation-panel {
@@ -25,8 +25,8 @@ button {
   flex-direction: column;
   min-width: 0;
   padding: 0.8rem 0.75rem 0.5rem;
-  border-right: 1px solid #e4ebf2;
-  background: #f8fbfe;
+  border-right: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-subtle);
 }
 
 .assistant-heading {
@@ -42,7 +42,7 @@ button {
 .assistant-heading p {
   margin: 0.25rem 0 0;
   color: #6d8298;
-  font-size: 0.62rem;
+  font-size: 1rem;
   line-height: 1.45;
 }
 
@@ -54,10 +54,10 @@ button {
   margin: 0.85rem 0 0.75rem;
   padding: 0.48rem;
   border: 0;
-  border-radius: 0.32rem;
-  background: #1760ac;
-  color: #ffffff;
-  font-size: 0.7rem;
+  border-radius: var(--radius-md);
+  background: var(--color-brand);
+  color: var(--color-text-inverse);
+  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -83,7 +83,7 @@ button {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: #7990a6;
-  font-size: 0.56rem;
+  font-size: 1rem;
 }
 
 .conversation-tabs button.selected {
@@ -122,7 +122,7 @@ button {
   border: 0;
   outline: 0;
   color: #24425f;
-  font-size: 0.61rem;
+  font-size: 1rem;
 }
 
 .conversation-search input::placeholder {
@@ -152,7 +152,7 @@ button {
   margin: 0.45rem 0 0.25rem;
   padding-left: 0.2rem;
   color: #71879c;
-  font-size: 0.6rem;
+  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -207,18 +207,18 @@ button {
 }
 
 .conversation-copy strong {
-  font-size: 0.61rem;
+  font-size: 1rem;
   font-weight: 700;
 }
 
 .conversation-copy small {
   color: #7b91a5;
-  font-size: 0.52rem;
+  font-size: 1rem;
 }
 
 .conversation-item time {
   color: #8095a8;
-  font-size: 0.48rem;
+  font-size: 1rem;
 }
 
 .conversation-item .pin,
@@ -244,12 +244,12 @@ button {
   grid-template-rows: auto 1fr auto;
   min-width: 0;
   min-height: calc(100vh - 3.65rem);
-  background: #ffffff;
+  background: var(--color-surface);
 }
 
 .chat-heading {
   padding: 0.85rem 1rem;
-  border-bottom: 1px solid #edf1f5;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .chat-title {
@@ -273,13 +273,13 @@ button {
 .chat-title h2 {
   margin: 0;
   color: #173b61;
-  font-size: 0.9rem;
+  font-size: 1rem;
 }
 
 .chat-title p {
   margin: 0.2rem 0 0;
   color: #8094a8;
-  font-size: 0.58rem;
+  font-size: 1rem;
 }
 
 .messages {
@@ -332,7 +332,7 @@ button {
   border-radius: 0.45rem;
   background: #f5f9fd;
   color: #36526d;
-  font-size: 0.63rem;
+  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -346,7 +346,7 @@ button {
   display: block;
   margin-bottom: 0.3rem;
   color: #183b61;
-  font-size: 0.66rem;
+  font-size: 1rem;
 }
 
 .user-message .message-content > strong {
@@ -371,14 +371,14 @@ button {
   border: 1px solid #d8e4ee;
   border-radius: 0.25rem;
   color: #52718d;
-  font-size: 0.52rem;
+  font-size: 1rem;
 }
 
 .message-content time {
   display: block;
   margin-top: 0.35rem;
   color: #8aa0b4;
-  font-size: 0.5rem;
+  font-size: 1rem;
   text-align: right;
 }
 
@@ -392,7 +392,7 @@ button {
 
 .message-section > strong {
   color: #183b61;
-  font-size: 0.61rem;
+  font-size: 1rem;
 }
 
 .message-section ul {
@@ -413,7 +413,7 @@ button {
   border: 1px solid #dce7f0;
   border-radius: 0.4rem;
   color: #91a5b7;
-  font-size: 0.62rem;
+  font-size: 1rem;
 }
 
 .composer > mat-icon {
@@ -430,7 +430,7 @@ button {
   outline: 0;
   background: transparent;
   color: #36526d;
-  font-size: 0.62rem;
+  font-size: 1rem;
 }
 
 .composer textarea::placeholder {

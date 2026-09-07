@@ -113,10 +113,9 @@
       [formGroup]="composerForm"
       (ngSubmit)="send()"
     >
-      <mat-icon aria-hidden="true">attach_file</mat-icon>
       <textarea
         formControlName="draft"
-        rows="1"
+        rows="3"
         placeholder="Ask anything about your cases, documents or legal matters..."
         [disabled]="sending() || !selectedSessionId()"
         (keydown.enter)="onComposerKeydown($event)"
