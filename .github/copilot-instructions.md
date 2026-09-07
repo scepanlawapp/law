@@ -19,3 +19,4 @@
 * Keep business logic out of templates.
 * Use TypeScript strict typing; avoid `any` unless absolutely necessary.
 * Write clean, readable, maintainable code. Avoid unnecessary complexity.
+* Use Reactive Forms for form handling. Avoid Template-driven forms.

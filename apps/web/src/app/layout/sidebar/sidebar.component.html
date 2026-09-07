@@ -1,43 +1,68 @@
 <aside class="sidebar">
-	<div class="brand" aria-label="LegalAI">
-		<span class="brand-mark" aria-hidden="true"><mat-icon>balance</mat-icon></span>
-		<span>LegalAI</span>
-	</div>
+  <a class="brand" routerLink="/dashboard" aria-label="LegalAI">
+    <span class="brand-mark" aria-hidden="true"
+      ><mat-icon>balance</mat-icon></span
+    >
+    <span>LegalAI</span>
+  </a>
 
-	<nav aria-label="Main navigation">
-		<a
-			class="nav-item assistant-link"
-			routerLink="/assistant"
-			routerLinkActive="active"
-			[routerLinkActiveOptions]="{ exact: true }"
-		>
-			<mat-icon aria-hidden="true">smart_toy</mat-icon>
-			<span>AI Assistant</span>
-		</a>
-		<a class="nav-item" href="#"><mat-icon>home</mat-icon><span>Dashboard</span></a>
-	</nav>
+  <nav aria-label="Main navigation">
+    <a
+      class="nav-item assistant-link"
+      routerLink="/assistant"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >
+      <mat-icon aria-hidden="true">smart_toy</mat-icon>
+      <span>AI Assistant</span>
+    </a>
+    <a
+      class="nav-item"
+      routerLink="/dashboard"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
+    >
+      <mat-icon>home</mat-icon><span>Dashboard</span>
+    </a>
+  </nav>
 
-	<section class="nav-section" aria-label="Workspace">
-		<p>Workspace</p>
-		<a class="nav-item" href="#"><mat-icon>group</mat-icon><span>Clients</span></a>
-		<a class="nav-item" href="#"><mat-icon>folder</mat-icon><span>Cases</span></a>
-		<a class="nav-item" href="#"><mat-icon>description</mat-icon><span>Documents</span></a>
-	</section>
+  <section class="nav-section" aria-label="Workspace">
+    <p>Workspace</p>
+    <a class="nav-item" href="#"
+      ><mat-icon>group</mat-icon><span>Clients</span></a
+    >
+    <a class="nav-item" href="#"
+      ><mat-icon>folder</mat-icon><span>Cases</span></a
+    >
+    <a class="nav-item" href="#"
+      ><mat-icon>description</mat-icon><span>Documents</span></a
+    >
+  </section>
 
-	<section class="nav-section" aria-label="Work">
-		<p>Work</p>
-		<a class="nav-item" href="#"><mat-icon>check_box</mat-icon><span>Tasks &amp; Deadlines</span></a>
-		<a class="nav-item" href="#"><mat-icon>calendar_month</mat-icon><span>Calendar</span></a>
-	</section>
+  <section class="nav-section" aria-label="Work">
+    <p>Work</p>
+    <a class="nav-item" href="#"
+      ><mat-icon>check_box</mat-icon><span>Tasks &amp; Deadlines</span></a
+    >
+    <a class="nav-item" href="#"
+      ><mat-icon>calendar_month</mat-icon><span>Calendar</span></a
+    >
+  </section>
 
-	<section class="nav-section" aria-label="Business">
-		<p>Business</p>
-		<a class="nav-item" href="#"><mat-icon>account_balance</mat-icon><span>Finance</span></a>
-		<a class="nav-item" href="#"><mat-icon>bar_chart</mat-icon><span>Reports</span></a>
-	</section>
+  <section class="nav-section" aria-label="Business">
+    <p>Business</p>
+    <a class="nav-item" href="#"
+      ><mat-icon>account_balance</mat-icon><span>Finance</span></a
+    >
+    <a class="nav-item" href="#"
+      ><mat-icon>bar_chart</mat-icon><span>Reports</span></a
+    >
+  </section>
 
-	<div class="sidebar-bottom">
-		<a class="nav-item" href="#"><mat-icon>settings</mat-icon><span>Settings</span></a>
-		<small>v1.0.0</small>
-	</div>
+  <div class="sidebar-bottom">
+    <a class="nav-item" href="#"
+      ><mat-icon>settings</mat-icon><span>Settings</span></a
+    >
+    <small>v1.0.0</small>
+  </div>
 </aside>

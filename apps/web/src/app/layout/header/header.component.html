@@ -1,16 +1,47 @@
 <header class="header">
-	<label class="search-box">
-		<mat-icon aria-hidden="true">search</mat-icon>
-		<input type="search" placeholder="Search clients, cases, documents..." />
-	</label>
+  <label class="search-box">
+    <mat-icon aria-hidden="true">search</mat-icon>
+    <input type="search" placeholder="Search clients, cases, documents..." />
+  </label>
 
-	<div class="header-actions">
-		<button class="icon-button notification-button" type="button" aria-label="Notifications">
-			<mat-icon>notifications_none</mat-icon>
-			<span class="notification-count">3</span>
-		</button>
-		<span class="avatar" aria-hidden="true">SP</span>
-		<span class="user-name">Scepane</span>
-		<mat-icon class="chevron" aria-hidden="true">expand_more</mat-icon>
-	</div>
+  <div class="header-actions">
+    <button
+      class="icon-button notification-button"
+      type="button"
+      aria-label="Notifications"
+      [matMenuTriggerFor]="notificationMenu"
+    >
+      <mat-icon>notifications_none</mat-icon>
+      <span class="notification-count">3</span>
+    </button>
+    <mat-menu
+      #notificationMenu="matMenu"
+      class="notification-menu"
+      panelClass="notification-menu-panel"
+      aria-label="Recent notifications"
+    >
+      <div class="notification-heading">
+        <h2>Notifications</h2>
+        <span>10 new</span>
+      </div>
+      @for (notification of notifications; track notification.title) {
+        <div class="notification-row" role="menuitem" tabindex="0">
+          <span class="notification-icon" [class]="notification.tone"
+            ><mat-icon>{{ notification.icon }}</mat-icon></span
+          >
+          <span class="notification-copy"
+            ><strong>{{ notification.title }}</strong
+            ><small>{{ notification.detail }}</small></span
+          >
+          <time>{{ notification.time }}</time>
+        </div>
+      }
+      <a mat-menu-item routerLink="/notifications"
+        >View all notifications <mat-icon>arrow_forward</mat-icon></a
+      >
+    </mat-menu>
+    <span class="avatar" aria-hidden="true">SP</span>
+    <span class="user-name">Scepane</span>
+    <mat-icon class="chevron" aria-hidden="true">expand_more</mat-icon>
+  </div>
 </header>

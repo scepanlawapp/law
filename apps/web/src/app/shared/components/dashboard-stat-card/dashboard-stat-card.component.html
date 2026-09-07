@@ -1,0 +1,31 @@
+<article class="stat-card">
+  <div class="stat-icon">
+    <mat-icon>{{ icon() }}</mat-icon>
+  </div>
+  <div class="stat-copy">
+    <span class="stat-title">{{ title() }}</span>
+    <strong>{{ value() }}</strong>
+    <span
+      class="stat-trend"
+      [class.down]="trendDirection() === 'down'"
+      [class.neutral]="trendDirection() === 'neutral'"
+    >
+      <mat-icon>{{
+        trendDirection() === "down"
+          ? "south"
+          : trendDirection() === "neutral"
+            ? "remove"
+            : "north"
+      }}</mat-icon>
+      {{ trend() }}
+      <small>{{ trendDetail() }}</small>
+    </span>
+  </div>
+  @if (chart().length) {
+    <div class="mini-chart" aria-hidden="true">
+      @for (point of chart(); track $index) {
+        <span [style.height.%]="point"></span>
+      }
+    </div>
+  }
+</article>

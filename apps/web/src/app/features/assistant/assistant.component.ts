@@ -1,12 +1,9 @@
 import { DatePipe } from "@angular/common";
 import { Component, DestroyRef, OnInit, inject, signal } from "@angular/core";
-import { FormsModule } from "@angular/forms";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
 import { ChatApiClient } from "@law/api-clients";
-import {
-  ChatMessageResponse,
-  ChatStreamEvent,
-} from "@law/api-interfaces";
+import { ChatMessageResponse, ChatStreamEvent } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 
 interface Conversation {
@@ -21,7 +18,7 @@ interface Conversation {
 @Component({
   selector: "app-assistant",
   standalone: true,
-  imports: [DatePipe, FormsModule, MatIconModule],
+  imports: [DatePipe, MatIconModule, ReactiveFormsModule],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
 })
@@ -98,7 +95,9 @@ export class AssistantComponent implements OnInit {
     },
   ];
 
-  protected draft = "";
+  protected readonly composerForm = new FormGroup({
+    draft: new FormControl("", { nonNullable: true }),
+  });
   protected readonly messages = signal<ChatMessageResponse[]>([]);
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly pendingFiles = signal<File[]>([]);
@@ -127,7 +126,10 @@ export class AssistantComponent implements OnInit {
   }
 
   protected canSend(): boolean {
-    return Boolean(this.draft.trim() || this.pendingFiles().length);
+    return Boolean(
+      this.composerForm.controls.draft.value.trim() ||
+      this.pendingFiles().length,
+    );
   }
 
   protected createSession(): void {
@@ -170,11 +172,16 @@ export class AssistantComponent implements OnInit {
     this.sending.set(true);
     this.error.set("");
     this.chat
-      .sendMessage(workspaceId, sessionId, this.draft, this.pendingFiles())
+      .sendMessage(
+        workspaceId,
+        sessionId,
+        this.composerForm.controls.draft.value,
+        this.pendingFiles(),
+      )
       .subscribe({
         next: (response) => {
           this.upsertMessage(response.userMessage);
-          this.draft = "";
+          this.composerForm.reset();
           this.pendingFiles.set([]);
           this.sending.set(false);
           this.classifying.set(true);
@@ -216,7 +223,9 @@ export class AssistantComponent implements OnInit {
     }
     if (event.type === "error") {
       this.classifying.set(false);
-      this.error.set(event.error ?? "The assistant could not process this message.");
+      this.error.set(
+        event.error ?? "The assistant could not process this message.",
+      );
     }
   }
 

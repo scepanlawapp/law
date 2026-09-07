@@ -1,1 +1,178 @@
-Dashboard
+<section class="dashboard-page">
+  <div class="dashboard-intro">
+    <p>Good morning, Scepane <span aria-hidden="true">👋</span></p>
+    <h1>What can I help you with today?</h1>
+    <div class="assistant-prompt">
+      <mat-icon aria-hidden="true">auto_awesome</mat-icon>
+      <span>Ask AI anything...</span>
+      <button
+        type="button"
+        aria-label="Ask the assistant"
+        routerLink="/assistant"
+      >
+        <mat-icon>arrow_forward</mat-icon>
+      </button>
+    </div>
+    <div class="prompt-actions">
+      <button type="button">
+        <mat-icon>auto_awesome</mat-icon>Summarize this case
+      </button>
+      <button type="button"><mat-icon>gavel</mat-icon>Analyze document</button>
+      <button type="button">
+        <mat-icon>folder_open</mat-icon>Find similar cases
+      </button>
+      <button type="button">
+        <mat-icon>description</mat-icon>Draft a response
+      </button>
+    </div>
+  </div>
+
+  <a class="assistant-card" routerLink="/assistant">
+    <span class="assistant-card-icon"><mat-icon>smart_toy</mat-icon></span>
+    <div>
+      <h2>AI Assistant</h2>
+      <p>
+        Your legal AI assistant can help you with case analysis, document
+        review, research and more.
+      </p>
+      <span class="text-link"
+        >Start a conversation <mat-icon>arrow_forward</mat-icon></span
+      >
+    </div>
+  </a>
+
+  <div class="stat-grid">
+    @for (stat of stats; track stat.title) {
+      <app-dashboard-stat-card
+        [title]="stat.title"
+        [value]="stat.value"
+        [trend]="stat.trend"
+        [trendDirection]="stat.trendDirection"
+        [trendDetail]="stat.trendDetail"
+        [icon]="stat.icon"
+        [chart]="stat.chart"
+      />
+    }
+  </div>
+
+  <div class="dashboard-columns">
+    <section class="panel upcoming-panel">
+      <div class="panel-heading">
+        <h2>Upcoming</h2>
+        <a routerLink="/calendar"
+          >View calendar <mat-icon>arrow_forward</mat-icon></a
+        >
+      </div>
+      <div class="event-list">
+        @for (event of upcomingEvents; track event.time + event.title) {
+          <div class="event-row">
+            <time>{{ event.time }}</time>
+            <span class="round-icon"
+              ><mat-icon>{{ event.icon }}</mat-icon></span
+            >
+            <div class="row-copy">
+              <strong>{{ event.title }}</strong
+              ><small>{{ event.detail }}</small>
+            </div>
+            <span class="row-tag">{{ event.tag }}</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="panel activity-panel">
+      <div class="panel-heading"><h2>Recent activity</h2></div>
+      <div class="activity-list">
+        @for (activity of recentActivity; track activity.title) {
+          <div class="activity-row">
+            <span class="round-icon" [class]="activity.tone"
+              ><mat-icon>{{ activity.icon }}</mat-icon></span
+            >
+            <div class="row-copy">
+              <strong>{{ activity.title }}</strong
+              ><small>{{ activity.detail }}</small>
+            </div>
+            <time>{{ activity.time }}</time>
+          </div>
+        }
+      </div>
+    </section>
+
+    <section class="panel notifications-panel">
+      <div class="panel-heading">
+        <h2>Notifications</h2>
+        <a routerLink="/notifications"
+          >View all <mat-icon>arrow_forward</mat-icon></a
+        >
+      </div>
+      <div class="notification-list">
+        @for (notification of notifications; track notification.title) {
+          <div class="notification-row">
+            <span class="round-icon" [class]="notification.tone"
+              ><mat-icon>{{ notification.icon }}</mat-icon></span
+            >
+            <div class="row-copy">
+              <strong>{{ notification.title }}</strong
+              ><small>{{ notification.detail }}</small>
+            </div>
+            <time>{{ notification.time }}</time>
+          </div>
+        }
+      </div>
+    </section>
+  </div>
+
+  <div class="dashboard-bottom">
+    <section class="panel cases-panel">
+      <div class="panel-heading">
+        <h2>Cases overview</h2>
+        <button type="button">
+          View all cases <mat-icon>arrow_forward</mat-icon>
+        </button>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Case number</th>
+              <th>Client</th>
+              <th>Type</th>
+              <th>Status</th>
+              <th>Court</th>
+              <th>Deadline</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (caseItem of cases; track caseItem.number) {
+              <tr>
+                <td>{{ caseItem.number }}</td>
+                <td>{{ caseItem.client }}</td>
+                <td>{{ caseItem.type }}</td>
+                <td>
+                  <span class="status" [class]="caseItem.status.toLowerCase()"
+                    ><i></i>{{ caseItem.status }}</span
+                  >
+                </td>
+                <td>{{ caseItem.court }}</td>
+                <td>{{ caseItem.deadline }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel quick-actions-panel">
+      <div class="panel-heading"><h2>Quick actions</h2></div>
+      <div class="quick-actions">
+        @for (action of quickActions; track action.title) {
+          <button type="button">
+            <mat-icon>{{ action.icon }}</mat-icon
+            ><span>{{ action.title }}</span
+            ><mat-icon class="arrow">chevron_right</mat-icon>
+          </button>
+        }
+      </div>
+    </section>
+  </div>
+</section>

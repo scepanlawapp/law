@@ -10,5 +10,4 @@ import { RouterModule } from "@angular/router";
   styleUrl: "./main-layout.component.scss",
   imports: [HeaderComponent, SidebarComponent, RouterModule],
 })
-export class MainLayoutComponent {
-}
+export class MainLayoutComponent {}

@@ -7,6 +7,8 @@ import { authGuard } from "@law/security";
 import { DashboardComponent } from "./features/dashboard/dashboard.component";
 import { AssistantComponent } from "./features/assistant/assistant.component";
 import { MainLayoutComponent } from "./layout/main-layout/main-layout.component";
+import { CalendarComponent } from "./features/calendar/calendar.component";
+import { NotificationsComponent } from "./features/notifications/notifications.component";
 
 export const appRoutes: Route[] = [
   { path: "login", component: LoginComponent },
@@ -18,7 +20,10 @@ export const appRoutes: Route[] = [
     canActivate: [authGuard],
     loadComponent: () => MainLayoutComponent,
     children: [
+      { path: "", pathMatch: "full", redirectTo: "dashboard" },
       { path: "dashboard", component: DashboardComponent },
+      { path: "calendar", component: CalendarComponent },
+      { path: "notifications", component: NotificationsComponent },
       {
         path: "assistant",
         component: AssistantComponent,
