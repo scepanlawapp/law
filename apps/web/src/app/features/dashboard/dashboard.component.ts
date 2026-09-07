@@ -2,6 +2,7 @@ import { Component } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";
 import { RouterLink } from "@angular/router";
 import { DashboardStatCardComponent } from "../../shared/components/dashboard-stat-card/dashboard-stat-card.component";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 interface DashboardEvent {
   time: string;
@@ -44,7 +45,12 @@ interface QuickAction {
 @Component({
   selector: "app-dashboard",
   standalone: true,
-  imports: [DashboardStatCardComponent, MatIconModule, RouterLink],
+  imports: [
+    DashboardStatCardComponent,
+    MatIconModule,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: "./dashboard.component.html",
   styleUrl: "./dashboard.component.scss",
 })

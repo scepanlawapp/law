@@ -8,7 +8,7 @@
     <input
       class="min-w-0 w-full border-0 bg-transparent text-base text-[#1a3854] outline-none placeholder:text-[#8296aa]"
       type="search"
-      placeholder="Search clients, cases, documents..."
+      [placeholder]="'header.searchPlaceholder' | translate"
     />
   </label>
 
@@ -32,8 +32,8 @@
       aria-label="Recent notifications"
     >
       <div class="notification-heading">
-        <h2>Notifications</h2>
-        <span>10 new</span>
+        <h2>{{ "header.notifications" | translate }}</h2>
+        <span>{{ "header.newNotifications" | translate: { count: 10 } }}</span>
       </div>
       @for (notification of notifications; track notification.title) {
         <div class="notification-row" role="menuitem" tabindex="0">
@@ -48,7 +48,8 @@
         </div>
       }
       <a mat-menu-item routerLink="/notifications"
-        >View all notifications <mat-icon>arrow_forward</mat-icon></a
+        >{{ "header.viewAllNotifications" | translate }}
+        <mat-icon>arrow_forward</mat-icon></a
       >
     </mat-menu>
     @if (session()?.user; as user) {

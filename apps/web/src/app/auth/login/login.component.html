@@ -1,19 +1,25 @@
 <main class="login-page">
-  <section class="promo-panel" aria-label="Legal platform overview">
-  </section>
+  <section class="promo-panel" aria-label="Legal platform overview"></section>
 
   <aside class="auth-panel" aria-label="Sign in form">
     <header class="topbar">
-      <a href="#" class="help-link">Need help?<span>?</span></a>
+      <a href="#" class="help-link"
+        >{{ "auth.needHelp" | translate }}<span>?</span></a
+      >
     </header>
 
     <div class="auth-card">
-      <h3>Welcome back</h3>
-      <p>Sign in to your account to continue</p>
+      <h3>{{ "auth.welcomeBack" | translate }}</h3>
+      <p>{{ "auth.signInDescription" | translate }}</p>
 
-      <form class="login-form" [formGroup]="loginForm" (ngSubmit)="login()" novalidate>
+      <form
+        class="login-form"
+        [formGroup]="loginForm"
+        (ngSubmit)="login()"
+        novalidate
+      >
         <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Email address</mat-label>
+          <mat-label>{{ "auth.emailAddress" | translate }}</mat-label>
           <mat-icon matPrefix>mail</mat-icon>
           <input
             matInput
@@ -21,12 +27,12 @@
             formControlName="email"
             required
             autocomplete="email"
-            placeholder="you@company.com"
+            [placeholder]="'auth.emailPlaceholder' | translate"
           />
         </mat-form-field>
 
         <mat-form-field appearance="outline" class="full-width">
-          <mat-label>Password</mat-label>
+          <mat-label>{{ "auth.password" | translate }}</mat-label>
           <mat-icon matPrefix>lock</mat-icon>
           <input
             matInput
@@ -34,17 +40,19 @@
             formControlName="password"
             required
             autocomplete="current-password"
-            placeholder="Enter your password"
+            [placeholder]="'auth.passwordPlaceholder' | translate"
           />
 
           <button
             mat-icon-button
             matSuffix
             type="button"
-            aria-label="Toggle password visibility"
+            [attr.aria-label]="'auth.togglePassword' | translate"
             (click)="togglePasswordVisibility()"
           >
-            <mat-icon>{{ showPassword ? "visibility_off" : "visibility" }}</mat-icon>
+            <mat-icon>{{
+              showPassword ? "visibility_off" : "visibility"
+            }}</mat-icon>
           </button>
         </mat-form-field>
 
@@ -52,18 +60,27 @@
           <p class="error-message" role="alert">{{ error }}</p>
         }
 
-        <a href="#" class="forgot-password">Forgot password?</a>
+        <a href="#" class="forgot-password">{{
+          "auth.forgotPassword" | translate
+        }}</a>
 
-        <button mat-flat-button class="sign-in-button" type="submit" [disabled]="submitting">
-          <span>{{ submitting ? "Signing in..." : "Sign in" }}</span>
+        <button
+          mat-flat-button
+          class="sign-in-button"
+          type="submit"
+          [disabled]="submitting"
+        >
+          <span>{{
+            (submitting ? "auth.signingIn" : "auth.signIn") | translate
+          }}</span>
           <mat-icon aria-hidden="true">arrow_forward</mat-icon>
         </button>
       </form>
     </div>
 
     <footer class="auth-footer">
-      <span>Don't have an account?</span>
-      <a href="#">Contact your administrator</a>
+      <span>{{ "auth.dontHaveAccount" | translate }}</span>
+      <a href="#">{{ "auth.contactAdministrator" | translate }}</a>
     </footer>
   </aside>
 </main>

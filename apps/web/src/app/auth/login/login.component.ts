@@ -11,6 +11,7 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
 import { AuthState } from "@law/security";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 interface FeatureItem {
   title: string;
@@ -27,6 +28,7 @@ interface FeatureItem {
     MatFormFieldModule,
     MatInputModule,
     MatIconModule,
+    TranslatePipe,
   ],
   templateUrl: "./login.component.html",
   styleUrl: "./login.component.scss",
@@ -38,7 +40,8 @@ export class LoginComponent {
   readonly features: FeatureItem[] = [
     {
       title: "AI Assistant",
-      description: "Get instant answers, analyze documents, and get legal insights.",
+      description:
+        "Get instant answers, analyze documents, and get legal insights.",
       icon: "smart_toy",
     },
     {
@@ -53,7 +56,8 @@ export class LoginComponent {
     },
     {
       title: "Stay Organized",
-      description: "Manage tasks, calendar and never miss an important deadline.",
+      description:
+        "Manage tasks, calendar and never miss an important deadline.",
       icon: "event",
     },
   ];

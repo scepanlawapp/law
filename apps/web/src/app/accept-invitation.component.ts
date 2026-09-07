@@ -2,15 +2,16 @@ import { Component, inject, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { AuthApiClient } from "@law/api-clients";
+import { TranslatePipe } from "./core/localization/translate.pipe";
 
 @Component({
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, TranslatePipe],
   template: `
     <main class="auth-shell">
       <section class="auth-panel">
         <p class="eyebrow">Law workspace</p>
-        <h1>Accept invitation</h1>
+        <h1>{{ "auth.acceptInvitation" | translate }}</h1>
         <form (ngSubmit)="submit()">
           <label
             >Password
@@ -26,10 +27,13 @@ import { AuthApiClient } from "@law/api-clients";
             <p class="error" role="alert">{{ error() }}</p>
           }
           @if (complete()) {
-            <p role="status">Your account is ready. Redirecting to sign in.</p>
+            <p role="status">{{ "auth.accountReady" | translate }}</p>
           }
           <button type="submit" [disabled]="submitting() || complete()">
-            {{ submitting() ? "Activating..." : "Set password" }}
+            {{
+              (submitting() ? "auth.activating" : "auth.setPassword")
+                | translate
+            }}
           </button>
         </form>
       </section>

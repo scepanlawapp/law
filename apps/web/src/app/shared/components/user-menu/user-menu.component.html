@@ -4,7 +4,7 @@
   [matMenuTriggerFor]="userMenu"
   (menuOpened)="menuOpen.set(true)"
   (menuClosed)="menuOpen.set(false)"
-  aria-label="Open user menu"
+  [attr.aria-label]="'header.userMenu' | translate"
 >
   @if (user().avatarUrl; as avatarUrl) {
     <img class="h-7 w-7 rounded-full object-cover" [src]="avatarUrl" alt="" />
@@ -45,7 +45,7 @@
   </div>
   <a class="user-menu-action" mat-menu-item routerLink="/settings">
     <span class="user-menu-action-icon"><mat-icon>settings</mat-icon></span>
-    <span>Change settings</span>
+    <span>{{ "userMenu.changeSettings" | translate }}</span>
   </a>
   <button
     class="user-menu-action"
@@ -54,6 +54,6 @@
     (click)="logoutRequested.emit()"
   >
     <span class="user-menu-action-icon"><mat-icon>logout</mat-icon></span>
-    <span>Logout</span>
+    <span>{{ "userMenu.logout" | translate }}</span>
   </button>
 </mat-menu>

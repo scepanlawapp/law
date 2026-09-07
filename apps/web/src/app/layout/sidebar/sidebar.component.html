@@ -11,7 +11,7 @@
       aria-hidden="true"
       ><mat-icon>balance</mat-icon></span
     >
-    <span>LegalAI</span>
+    <span>{{ "brand.legalAi" | translate }}</span>
   </a>
 
   <nav class="grid gap-1" aria-label="Main navigation">
@@ -22,7 +22,7 @@
       [routerLinkActiveOptions]="{ exact: true }"
     >
       <mat-icon aria-hidden="true">smart_toy</mat-icon>
-      <span>AI Assistant</span>
+      <span>{{ "nav.aiAssistant" | translate }}</span>
     </a>
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white [&.active]:bg-[var(--color-brand-strong)] [&.active]:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
@@ -30,7 +30,7 @@
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
     >
-      <mat-icon>home</mat-icon><span>Dashboard</span>
+      <mat-icon>home</mat-icon><span>{{ "nav.dashboard" | translate }}</span>
     </a>
   </nav>
 
@@ -38,22 +38,23 @@
     <p
       class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
     >
-      Workspace
+      {{ "nav.workspace" | translate }}
     </p>
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       href="#"
-      ><mat-icon>group</mat-icon><span>Clients</span></a
+      ><mat-icon>group</mat-icon><span>{{ "nav.clients" | translate }}</span></a
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       href="#"
-      ><mat-icon>folder</mat-icon><span>Cases</span></a
+      ><mat-icon>folder</mat-icon><span>{{ "nav.cases" | translate }}</span></a
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       href="#"
-      ><mat-icon>description</mat-icon><span>Documents</span></a
+      ><mat-icon>description</mat-icon
+      ><span>{{ "nav.documents" | translate }}</span></a
     >
   </section>
 
@@ -61,17 +62,19 @@
     <p
       class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
     >
-      Work
+      {{ "nav.work" | translate }}
     </p>
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       href="#"
-      ><mat-icon>check_box</mat-icon><span>Tasks &amp; Deadlines</span></a
+      ><mat-icon>check_box</mat-icon
+      ><span>{{ "nav.tasksDeadlines" | translate }}</span></a
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       href="#"
-      ><mat-icon>calendar_month</mat-icon><span>Calendar</span></a
+      ><mat-icon>calendar_month</mat-icon
+      ><span>{{ "nav.calendar" | translate }}</span></a
     >
   </section>
 
@@ -79,17 +82,19 @@
     <p
       class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
     >
-      Business
+      {{ "nav.business" | translate }}
     </p>
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       href="#"
-      ><mat-icon>account_balance</mat-icon><span>Finance</span></a
+      ><mat-icon>account_balance</mat-icon
+      ><span>{{ "nav.finance" | translate }}</span></a
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       href="#"
-      ><mat-icon>bar_chart</mat-icon><span>Reports</span></a
+      ><mat-icon>bar_chart</mat-icon
+      ><span>{{ "nav.reports" | translate }}</span></a
     >
   </section>
 
@@ -97,7 +102,8 @@
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       routerLink="/settings"
-      ><mat-icon>settings</mat-icon><span>Settings</span></a
+      ><mat-icon>settings</mat-icon
+      ><span>{{ "nav.settings" | translate }}</span></a
     >
     <small class="pl-1 text-[#8fa4b9] max-[700px]:hidden">v1.0.0</small>
   </div>

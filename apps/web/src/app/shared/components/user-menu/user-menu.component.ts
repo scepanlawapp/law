@@ -3,11 +3,12 @@ import { AuthUser } from "@law/api-interfaces";
 import { MatIconModule } from "@angular/material/icon";
 import { MatMenuModule } from "@angular/material/menu";
 import { RouterLink } from "@angular/router";
+import { TranslatePipe } from "../../../core/localization/translate.pipe";
 
 @Component({
   selector: "app-user-menu",
   standalone: true,
-  imports: [MatIconModule, MatMenuModule, RouterLink],
+  imports: [MatIconModule, MatMenuModule, RouterLink, TranslatePipe],
   templateUrl: "./user-menu.component.html",
   styleUrl: "./user-menu.component.scss",
 })

@@ -2,15 +2,16 @@ import { Component, inject, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { AuthApiClient } from "@law/api-clients";
+import { TranslatePipe } from "./core/localization/translate.pipe";
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, TranslatePipe],
   template: `
     <main class="auth-shell">
       <section class="auth-panel">
         <p class="eyebrow">Law workspace</p>
-        <h1>Reset password</h1>
+        <h1>{{ "auth.forgotPassword" | translate }}</h1>
         <form (ngSubmit)="submit()">
           <label
             >Email
@@ -23,16 +24,18 @@ import { AuthApiClient } from "@law/api-clients";
           /></label>
           @if (sent()) {
             <p role="status">
-              If the account exists, a reset link has been sent.
+              {{ "auth.resetLinkSent" | translate }}
             </p>
           }
           @if (error()) {
             <p class="error" role="alert">{{ error() }}</p>
           }
           <button type="submit" [disabled]="submitting()">
-            {{ submitting() ? "Sending..." : "Send reset link" }}
+            {{
+              (submitting() ? "auth.sending" : "auth.sendResetLink") | translate
+            }}
           </button>
-          <a routerLink="/login">Return to sign in</a>
+          <a routerLink="/login">{{ "auth.returnToSignIn" | translate }}</a>
         </form>
       </section>
     </main>

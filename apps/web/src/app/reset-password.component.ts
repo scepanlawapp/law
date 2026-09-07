@@ -2,18 +2,19 @@ import { Component, inject, signal } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { AuthApiClient } from "@law/api-clients";
+import { TranslatePipe } from "./core/localization/translate.pipe";
 
 @Component({
   standalone: true,
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, TranslatePipe],
   template: `
     <main class="auth-shell">
       <section class="auth-panel">
         <p class="eyebrow">Law workspace</p>
-        <h1>Choose a new password</h1>
+        <h1>{{ "auth.resetPassword" | translate }}</h1>
         <form (ngSubmit)="submit()">
           <label
-            >New password
+            >{{ "auth.password" | translate }}
             <input
               name="password"
               type="password"
@@ -24,14 +25,18 @@ import { AuthApiClient } from "@law/api-clients";
           /></label>
           @if (complete()) {
             <p role="status">
-              Password updated. <a routerLink="/login">Sign in</a>
+              {{ "auth.passwordUpdated" | translate }}
+              <a routerLink="/login">{{ "auth.signIn" | translate }}</a>
             </p>
           }
           @if (error()) {
             <p class="error" role="alert">{{ error() }}</p>
           }
           <button type="submit" [disabled]="submitting() || complete()">
-            {{ submitting() ? "Updating..." : "Update password" }}
+            {{
+              (submitting() ? "auth.updating" : "auth.updatePassword")
+                | translate
+            }}
           </button>
         </form>
       </section>

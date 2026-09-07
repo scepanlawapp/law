@@ -2,8 +2,9 @@ import { Component, inject } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";
 import { MatMenuModule } from "@angular/material/menu";
 import { RouterLink } from "@angular/router";
-import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { AuthState } from "@law/security";
+import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
 interface HeaderNotification {
   title: string;
@@ -18,7 +19,13 @@ interface HeaderNotification {
   standalone: true,
   templateUrl: "./header.component.html",
   styleUrl: "./header.component.scss",
-  imports: [MatIconModule, MatMenuModule, RouterLink, UserMenuComponent],
+  imports: [
+    MatIconModule,
+    MatMenuModule,
+    RouterLink,
+    UserMenuComponent,
+    TranslatePipe,
+  ],
 })
 export class HeaderComponent {
   private readonly authState = inject(AuthState);

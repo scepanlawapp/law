@@ -1,33 +1,36 @@
 <section class="assistant-page">
   <aside class="conversation-panel">
     <div class="assistant-heading">
-      <h1>AI Assistant</h1>
-      <p>
-        Ask questions, get insights, analyze documents and work with your cases
-        — powered by AI.
-      </p>
+      <h1>{{ "assistant.title" | translate }}</h1>
+      <p>{{ "assistant.sidebarDescription" | translate }}</p>
     </div>
 
     <button type="button" class="new-conversation" (click)="createSession()">
       <mat-icon aria-hidden="true">add</mat-icon>
-      <span>New conversation</span>
+      <span>{{ "assistant.newConversation" | translate }}</span>
     </button>
 
     <div class="conversation-tabs" aria-label="Assistant context">
       <button type="button" class="selected">
-        <mat-icon>chat_bubble_outline</mat-icon>Conversations
+        <mat-icon>chat_bubble_outline</mat-icon
+        >{{ "assistant.conversations" | translate }}
       </button>
       <button type="button">
-        <mat-icon>folder_open</mat-icon>Case context
+        <mat-icon>folder_open</mat-icon
+        >{{ "assistant.caseContext" | translate }}
       </button>
       <button type="button">
-        <mat-icon>description</mat-icon>Document context
+        <mat-icon>description</mat-icon
+        >{{ "assistant.documentContext" | translate }}
       </button>
     </div>
 
     <label class="conversation-search">
       <mat-icon aria-hidden="true">search</mat-icon>
-      <input type="search" placeholder="Search conversations..." />
+      <input
+        type="search"
+        [placeholder]="'assistant.searchPlaceholder' | translate"
+      />
       <button type="button" aria-label="Filter conversations">
         <mat-icon>tune</mat-icon>
       </button>
@@ -60,11 +63,8 @@
       <div class="chat-title">
         <span class="assistant-icon"><mat-icon>auto_awesome</mat-icon></span>
         <div>
-          <h2>AI Assistant</h2>
-          <p>
-            Your legal AI assistant. Ask anything, get insights, analyze
-            documents and more.
-          </p>
+          <h2>{{ "assistant.title" | translate }}</h2>
+          <p>{{ "assistant.description" | translate }}</p>
         </div>
       </div>
     </header>
@@ -99,7 +99,7 @@
         </article>
       }
       @if (classifying()) {
-        <p class="status">The assistant is reviewing your request...</p>
+        <p class="status">{{ "assistant.reviewing" | translate }}</p>
       }
       @if (error()) {
         <p class="error" role="alert">{{ error() }}</p>
@@ -107,7 +107,7 @@
     </div>
     <form
       class="composer"
-      aria-label="Ask the assistant"
+      [attr.aria-label]="'assistant.title' | translate"
       [formGroup]="composerForm"
       (ngSubmit)="send()"
     >
@@ -131,11 +131,14 @@
       <textarea
         formControlName="draft"
         rows="3"
-        placeholder="Ask anything about your cases, documents or legal matters..."
+        [placeholder]="'assistant.askPlaceholder' | translate"
         [disabled]="sending()"
         (keydown.enter)="onComposerKeydown($event)"
       ></textarea>
-      <label class="attach-file" aria-label="Attach files">
+      <label
+        class="attach-file"
+        [attr.aria-label]="'assistant.attachFiles' | translate"
+      >
         <input
           type="file"
           multiple

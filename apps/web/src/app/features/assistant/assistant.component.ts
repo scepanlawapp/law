@@ -9,6 +9,7 @@ import {
   ChatStreamEvent,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
 const ALLOWED_FILE_MIME_TYPES = [
@@ -38,7 +39,7 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
 @Component({
   selector: "app-assistant",
   standalone: true,
-  imports: [DatePipe, MatIconModule, ReactiveFormsModule],
+  imports: [DatePipe, MatIconModule, ReactiveFormsModule, TranslatePipe],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
 })
