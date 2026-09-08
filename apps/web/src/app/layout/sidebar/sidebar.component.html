@@ -42,17 +42,23 @@
     </p>
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
-      href="#"
+      routerLink="/clients"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>group</mat-icon><span>{{ "nav.clients" | translate }}</span></a
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
-      href="#"
+      routerLink="/cases"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>folder</mat-icon><span>{{ "nav.cases" | translate }}</span></a
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
-      href="#"
+      routerLink="/documents"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>description</mat-icon
       ><span>{{ "nav.documents" | translate }}</span></a
     >
@@ -72,7 +78,9 @@
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
-      href="#"
+      routerLink="/calendar"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>calendar_month</mat-icon
       ><span>{{ "nav.calendar" | translate }}</span></a
     >
@@ -86,13 +94,17 @@
     </p>
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
-      href="#"
+      routerLink="/finance"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>account_balance</mat-icon
       ><span>{{ "nav.finance" | translate }}</span></a
     >
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
-      href="#"
+      routerLink="/reports"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>bar_chart</mat-icon
       ><span>{{ "nav.reports" | translate }}</span></a
     >
@@ -102,6 +114,8 @@
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
       routerLink="/settings"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>settings</mat-icon
       ><span>{{ "nav.settings" | translate }}</span></a
     >

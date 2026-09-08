@@ -14,6 +14,9 @@ import { ProfileSettingsComponent } from "./features/settings/profile-settings.c
 import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
 import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
 import { DataSettingsComponent } from "./features/settings/data-settings.component";
+import { ClientsComponent } from "./features/clients/clients.component";
+import { CasesComponent } from "./features/cases/cases.component";
+import { DocumentsComponent } from "./features/documents/documents.component";
 
 export const appRoutes: Route[] = [
   { path: "login", component: LoginComponent },
@@ -27,6 +30,9 @@ export const appRoutes: Route[] = [
     children: [
       { path: "", pathMatch: "full", redirectTo: "dashboard" },
       { path: "dashboard", component: DashboardComponent },
+      { path: "clients", component: ClientsComponent },
+      { path: "cases", component: CasesComponent },
+      { path: "documents", component: DocumentsComponent },
       { path: "calendar", component: CalendarComponent },
       { path: "notifications", component: NotificationsComponent },
       {
