@@ -6,7 +6,9 @@ import { MatSelectModule } from "@angular/material/select";
 import { MatSlideToggleModule } from "@angular/material/slide-toggle";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { UserSettingsDateTimeFormat } from "@law/api-interfaces";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ToastService } from "../../shared/ui/toast/toast.service";
 
 @Component({
   selector: "app-workspace-settings",
@@ -24,10 +26,10 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 })
 export class WorkspaceSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);
+  private readonly localization = inject(LocalizationService);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly saving = signal(false);
-  readonly message = signal("");
-  readonly error = signal("");
   readonly form = new FormGroup({
     workspaceNotifications: new FormControl(true, { nonNullable: true }),
     dateTimeFormat: new FormControl<UserSettingsDateTimeFormat>(
@@ -43,7 +45,9 @@ export class WorkspaceSettingsComponent {
         this.loading.set(false);
       },
       error: () => {
-        this.error.set("settings.workspaceLoadError");
+        this.toast.error(
+          this.localization.translate("settings.workspaceLoadError"),
+        );
         this.loading.set(false);
       },
     });
@@ -52,11 +56,15 @@ export class WorkspaceSettingsComponent {
     this.saving.set(true);
     this.api.update({ preferences: this.form.getRawValue() }).subscribe({
       next: () => {
-        this.message.set("settings.workspaceSaved");
+        this.toast.success(
+          this.localization.translate("settings.workspaceSaved"),
+        );
         this.saving.set(false);
       },
       error: () => {
-        this.error.set("settings.workspaceSaveError");
+        this.toast.error(
+          this.localization.translate("settings.workspaceSaveError"),
+        );
         this.saving.set(false);
       },
     });

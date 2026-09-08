@@ -9,11 +9,11 @@ import { MatButtonModule } from "@angular/material/button";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { AuthApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ToastService } from "../../shared/ui/toast/toast.service";
 
 @Component({
   selector: "app-profile-settings",
@@ -24,7 +24,6 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
-    MatSnackBarModule,
     TranslatePipe,
   ],
   templateUrl: "./profile-settings.component.html",
@@ -34,7 +33,7 @@ export class ProfileSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);
   private readonly authApi = inject(AuthApiClient);
   private readonly localization = inject(LocalizationService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly form = new FormGroup({
@@ -71,7 +70,9 @@ export class ProfileSettingsComponent {
         this.loading.set(false);
       },
       error: () => {
-        this.showToast("settings.profileLoadError");
+        this.toast.error(
+          this.localization.translate("settings.profileLoadError"),
+        );
         this.loading.set(false);
       },
     });
@@ -93,11 +94,15 @@ export class ProfileSettingsComponent {
       })
       .subscribe({
         next: () => {
-          this.showToast("settings.profileSaved");
+          this.toast.success(
+            this.localization.translate("settings.profileSaved"),
+          );
           this.saving.set(false);
         },
         error: () => {
-          this.showToast("settings.profileSaveError");
+          this.toast.error(
+            this.localization.translate("settings.profileSaveError"),
+          );
           this.saving.set(false);
         },
       });
@@ -112,15 +117,14 @@ export class ProfileSettingsComponent {
     this.authApi.changePassword(currentPassword, newPassword).subscribe({
       next: () => {
         this.passwordForm.reset();
-        this.showToast("settings.passwordChanged");
+        this.toast.success(
+          this.localization.translate("settings.passwordChanged"),
+        );
       },
-      error: () => this.showToast("settings.passwordChangeError"),
-    });
-  }
-
-  private showToast(key: string): void {
-    this.snackBar.open(this.localization.translate(key), undefined, {
-      duration: 4000,
+      error: () =>
+        this.toast.error(
+          this.localization.translate("settings.passwordChangeError"),
+        ),
     });
   }
 }
