@@ -491,19 +491,22 @@ button {
   align-self: flex-start;
   width: 3rem;
   height: 3rem;
+  margin-right: 0.15rem;
   color: #66819a;
-  cursor: pointer;
   align-self: flex-end;
 }
 
-.attach-file input {
-  display: none;
+.composer .attach-file {
+  width: 2.35rem;
+  height: 2.35rem;
+  background: transparent;
+  color: #647d93;
 }
 
 .attach-file mat-icon {
-  width: 2.25rem;
-  height: 2.25rem;
-  font-size: 2.25rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  font-size: 1.75rem;
 }
 
 .composer button {

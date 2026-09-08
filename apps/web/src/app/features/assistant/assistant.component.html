@@ -20,37 +20,6 @@
       />
     </label>
 
-    <div class="conversation-options">
-      <select [value]="sessionSortField()" (change)="onSessionSort($event)">
-        <option value="updatedAt">
-          {{ "assistant.sortUpdated" | translate }}
-        </option>
-        <option value="createdAt">
-          {{ "assistant.sortCreated" | translate }}
-        </option>
-        <option value="title">{{ "assistant.sortTitle" | translate }}</option>
-      </select>
-      <select
-        [value]="sessionSortDirection()"
-        (change)="onSessionSortDirection($event)"
-        [attr.aria-label]="'assistant.sortDirection' | translate"
-      >
-        <option value="desc">
-          {{ "assistant.sortDescending" | translate }}
-        </option>
-        <option value="asc">{{ "assistant.sortAscending" | translate }}</option>
-      </select>
-      <select
-        [value]="sessionPageSize()"
-        (change)="onSessionPageSize($event)"
-        [attr.aria-label]="'assistant.pageSize' | translate"
-      >
-        <option value="20">20</option>
-        <option value="50">50</option>
-        <option value="100">100</option>
-      </select>
-    </div>
-
     <div
       class="conversation-list"
       appBottomReached
@@ -135,6 +104,8 @@
       [class.empty-composer]="!messages().length"
       [attr.aria-label]="'assistant.title' | translate"
       [formGroup]="composerForm"
+      (dragover)="onDragOver($event)"
+      (drop)="onDrop($event)"
       (ngSubmit)="send()"
     >
       @if (pendingFiles().length) {
@@ -154,15 +125,22 @@
         </div>
       }
       <div class="composer-input-row">
-        <div class="attach-file">
-          <input
-            type="file"
-            multiple
-            accept=".pdf,.txt,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
-            (change)="onFiles($event)"
-          />
-          <mat-icon>add</mat-icon>
-        </div>
+        <button
+          type="button"
+          class="attach-file"
+          [attr.aria-label]="'assistant.attachFiles' | translate"
+          (click)="fileInput.click()"
+        >
+          <mat-icon aria-hidden="true">add</mat-icon>
+        </button>
+        <input
+          #fileInput
+          type="file"
+          hidden
+          multiple
+          accept=".pdf,.txt,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
+          (change)="onFiles($event)"
+        />
         <textarea
           #draftTextarea
           formControlName="draft"

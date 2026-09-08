@@ -78,10 +78,7 @@ export class AssistantComponent implements OnInit {
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly pendingFiles = signal<File[]>([]);
   protected readonly sessionPage = signal(1);
-  protected readonly sessionPageSize = signal(20);
   protected readonly sessionSearch = signal("");
-  protected readonly sessionSortField = signal("updatedAt");
-  protected readonly sessionSortDirection = signal<"asc" | "desc">("desc");
   protected readonly sessionTotalPages = signal(0);
   protected readonly loadingSessions = signal(false);
   protected readonly sending = signal(false);
@@ -138,14 +135,7 @@ export class AssistantComponent implements OnInit {
     this.chat
       .listSessions(workspaceId, {
         page,
-        pageSize: this.sessionPageSize(),
         search: this.sessionSearch(),
-        sort: [
-          {
-            field: this.sessionSortField(),
-            direction: this.sessionSortDirection(),
-          },
-        ],
       })
       .pipe(finalize(() => this.loadingSessions.set(false)))
       .subscribe({
@@ -177,29 +167,6 @@ export class AssistantComponent implements OnInit {
 
   protected onSessionSearch(event: Event): void {
     this.sessionSearch.set((event.target as HTMLInputElement).value);
-    this.sessionPage.set(1);
-    this.sessions.set([]);
-    this.loadSessions();
-  }
-
-  protected onSessionSort(event: Event): void {
-    this.sessionSortField.set((event.target as HTMLSelectElement).value);
-    this.sessionPage.set(1);
-    this.sessions.set([]);
-    this.loadSessions();
-  }
-
-  protected onSessionSortDirection(event: Event): void {
-    this.sessionSortDirection.set(
-      (event.target as HTMLSelectElement).value as "asc" | "desc",
-    );
-    this.sessionPage.set(1);
-    this.sessions.set([]);
-    this.loadSessions();
-  }
-
-  protected onSessionPageSize(event: Event): void {
-    this.sessionPageSize.set(Number((event.target as HTMLSelectElement).value));
     this.sessionPage.set(1);
     this.sessions.set([]);
     this.loadSessions();
