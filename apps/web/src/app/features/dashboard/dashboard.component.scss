@@ -31,13 +31,11 @@ a {
 .dashboard-intro > p {
   margin: 0 0 0.25rem;
   color: #3b5b7c;
-  font-size: 1rem;
 }
 
 .dashboard-intro h1 {
   margin: 0 0 0.7rem;
   color: #183758;
-  font-size: 1.27rem;
   line-height: 1.15;
 }
 
@@ -53,12 +51,10 @@ a {
   background: var(--color-surface);
   box-shadow: 0 3px 10px rgba(38, 77, 112, 0.04);
   color: #8aa0b5;
-  font-size: 1rem;
 }
 
 .assistant-prompt > mat-icon {
   color: #3175c5;
-  font-size: 1rem;
 }
 
 .assistant-prompt button {
@@ -77,7 +73,6 @@ a {
 .assistant-prompt button mat-icon {
   width: 0.9rem;
   height: 0.9rem;
-  font-size: 0.9rem;
 }
 
 .prompt-actions {
@@ -97,14 +92,12 @@ a {
   border-radius: 1rem;
   background: var(--color-surface-accent);
   color: var(--color-text-secondary);
-  font-size: 1rem;
   white-space: nowrap;
 }
 
 .prompt-actions mat-icon {
   width: 0.72rem;
   height: 0.72rem;
-  font-size: 0.72rem;
 }
 
 .assistant-card,
@@ -138,21 +131,18 @@ a {
 }
 
 .assistant-card-icon mat-icon {
-  font-size: 1rem;
 }
 
 .assistant-card h2,
 .panel-heading h2 {
   margin: 0;
   color: #183758;
-  font-size: 0.72rem;
 }
 
 .assistant-card p {
   max-width: 13rem;
   margin: 0.55rem 0 0.85rem;
   color: #627b94;
-  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -163,7 +153,6 @@ a {
   align-items: center;
   gap: 0.25rem;
   color: #2168b4;
-  font-size: 1rem;
   text-decoration: none;
 }
 
@@ -177,7 +166,6 @@ a {
 .panel-heading mat-icon {
   width: 0.72rem;
   height: 0.72rem;
-  font-size: 0.72rem;
 }
 
 .stat-grid {
@@ -244,7 +232,6 @@ a {
 .event-row > time {
   width: 2.45rem;
   color: #4f7191;
-  font-size: 1rem;
 }
 
 .round-icon {
@@ -261,7 +248,6 @@ a {
 .round-icon mat-icon {
   width: 0.85rem;
   height: 0.85rem;
-  font-size: 0.85rem;
 }
 
 .round-icon.orange {
@@ -291,7 +277,6 @@ a {
 .row-copy strong {
   overflow: hidden;
   color: #294663;
-  font-size: 1rem;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -302,7 +287,6 @@ a {
 .notification-row time {
   overflow: hidden;
   color: #8297ab;
-  font-size: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -312,7 +296,6 @@ a {
   border-radius: 0.7rem;
   background: #eef5fc;
   color: #3a73ad;
-  font-size: 1rem;
   white-space: nowrap;
 }
 
@@ -336,7 +319,6 @@ table {
   width: 100%;
   border-collapse: collapse;
   color: #4f6c87;
-  font-size: 1rem;
   white-space: nowrap;
 }
 
@@ -351,7 +333,6 @@ td {
 th {
   height: 1.8rem;
   color: #57718b;
-  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -367,7 +348,6 @@ td:first-child {
   border-radius: 0.7rem;
   background: #e9f9f0;
   color: #159b64;
-  font-size: 1rem;
 }
 
 .status i {
@@ -401,7 +381,6 @@ td:first-child {
   border-bottom: 1px solid #f0f4f8;
   background: transparent;
   color: #4f6c87;
-  font-size: 1rem;
   text-align: left;
 }
 
@@ -413,7 +392,6 @@ td:first-child {
   width: 0.85rem;
   height: 0.85rem;
   color: #4d7396;
-  font-size: 0.85rem;
 }
 
 .quick-actions .arrow {
@@ -421,7 +399,6 @@ td:first-child {
   height: 0.8rem;
   margin-left: auto;
   color: #8aa0b5;
-  font-size: 0.8rem;
 }
 
 @media (max-width: 1050px) {

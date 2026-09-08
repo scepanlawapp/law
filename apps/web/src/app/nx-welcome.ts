@@ -45,7 +45,6 @@ import { CommonModule } from '@angular/common';
       }
       h1,
       h2 {
-        font-size: inherit;
         font-weight: inherit;
       }
       a {
@@ -97,14 +96,12 @@ import { CommonModule } from '@angular/common';
         margin-top: 2.5rem;
       }
       #welcome h1 {
-        font-size: 3rem;
         font-weight: 500;
         letter-spacing: -0.025em;
         line-height: 1;
       }
       #welcome span {
         display: block;
-        font-size: 1.875rem;
         font-weight: 300;
         line-height: 2.25rem;
         margin-bottom: 0.5rem;
@@ -124,7 +121,6 @@ import { CommonModule } from '@angular/common';
         padding: 3rem 2rem;
       }
       #hero .text-container h2 {
-        font-size: 1.5rem;
         line-height: 2rem;
         position: relative;
       }
@@ -174,7 +170,6 @@ import { CommonModule } from '@angular/common';
       }
       #learning-materials h2 {
         font-weight: 500;
-        font-size: 1.25rem;
         letter-spacing: -0.025em;
         line-height: 1.75rem;
         padding-left: 1rem;
@@ -215,7 +210,6 @@ import { CommonModule } from '@angular/common';
         color: rgba(107, 114, 128, 1);
         display: block;
         flex-grow: 1;
-        font-size: 0.75rem;
         font-weight: 300;
         line-height: 1rem;
         transition-property: background-color, border-color, color, fill, stroke,
@@ -265,14 +259,12 @@ import { CommonModule } from '@angular/common';
       .button-pill > span {
         letter-spacing: -0.025em;
         font-weight: 400;
-        font-size: 1.125rem;
         line-height: 1.75rem;
         padding-left: 1rem;
         padding-right: 1rem;
       }
       .button-pill span span {
         display: block;
-        font-size: 0.875rem;
         font-weight: 300;
         line-height: 1.25rem;
       }
@@ -316,7 +308,6 @@ import { CommonModule } from '@angular/common';
         width: 3rem;
       }
       #nx-cloud > div h2 {
-        font-size: 1.125rem;
         font-weight: 400;
         letter-spacing: -0.025em;
         line-height: 1.75rem;
@@ -325,12 +316,10 @@ import { CommonModule } from '@angular/common';
       }
       #nx-cloud > div h2 span {
         display: block;
-        font-size: 0.875rem;
         font-weight: 300;
         line-height: 1.25rem;
       }
       #nx-cloud p {
-        font-size: 1rem;
         line-height: 1.5rem;
         margin-top: 1rem;
       }
@@ -340,7 +329,6 @@ import { CommonModule } from '@angular/common';
       #nx-cloud a {
         color: rgba(107, 114, 128, 1);
         display: block;
-        font-size: 0.875rem;
         line-height: 1.25rem;
         margin-top: 1.5rem;
         text-align: right;
@@ -353,7 +341,6 @@ import { CommonModule } from '@angular/common';
         margin-top: 3.5rem;
       }
       #commands h2 {
-        font-size: 1.25rem;
         font-weight: 400;
         letter-spacing: -0.025em;
         line-height: 1.75rem;
@@ -361,7 +348,6 @@ import { CommonModule } from '@angular/common';
         padding-right: 1rem;
       }
       #commands p {
-        font-size: 1rem;
         font-weight: 300;
         line-height: 1.5rem;
         margin-top: 1rem;
@@ -401,7 +387,6 @@ import { CommonModule } from '@angular/common';
       }
       #love {
         color: rgba(107, 114, 128, 1);
-        font-size: 0.875rem;
         line-height: 1.25rem;
         margin-top: 3.5rem;
         opacity: 0.6;

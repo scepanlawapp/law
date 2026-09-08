@@ -1,1 +1,31 @@
-Settings
+<section class="settings-page">
+  <header class="settings-heading">
+    <div>
+      <p class="settings-eyebrow">{{ "settings.eyebrow" | translate }}</p>
+      <h1>{{ "settings.title" | translate }}</h1>
+      <p>{{ "settings.description" | translate }}</p>
+    </div>
+  </header>
+
+  <div class="settings-layout">
+    <nav
+      class="settings-nav"
+      [attr.aria-label]="'settings.navigation' | translate"
+    >
+      @for (item of menu; track item.path) {
+        <a
+          class="settings-nav-item"
+          [routerLink]="item.path"
+          routerLinkActive="settings-nav-item-active"
+          [routerLinkActiveOptions]="{ exact: true }"
+        >
+          <mat-icon>{{ item.icon }}</mat-icon>
+          <span>{{ item.label | translate }}</span>
+          <mat-icon class="settings-nav-arrow">chevron_right</mat-icon>
+        </a>
+      }
+    </nav>
+
+    <div class="settings-content"><router-outlet /></div>
+  </div>
+</section>

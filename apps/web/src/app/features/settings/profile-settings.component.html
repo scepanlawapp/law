@@ -1,0 +1,103 @@
+<div class="settings-section-header">
+  <div>
+    <h2>{{ "settings.profile" | translate }}</h2>
+    <p>{{ "settings.profileDescription" | translate }}</p>
+  </div>
+</div>
+@if (loading()) {
+  <p class="settings-state">{{ "settings.loading" | translate }}</p>
+} @else {
+  <form class="settings-form" [formGroup]="form" (ngSubmit)="save()" novalidate>
+    <div class="profile-avatar">
+      @if (form.controls.avatarUrl.value) {
+        <img
+          [src]="form.controls.avatarUrl.value"
+          [alt]="'settings.profilePhoto' | translate"
+        />
+      } @else {
+        <span
+          >{{ (form.controls.firstName.value || "L").charAt(0)
+          }}{{ (form.controls.lastName.value || "A").charAt(0) }}</span
+        >
+      }
+      <div>
+        <strong>{{ "settings.profilePhoto" | translate }}</strong
+        ><small>{{ "settings.profilePhotoHint" | translate }}</small>
+      </div>
+    </div>
+    <div class="settings-form-grid">
+      <mat-form-field appearance="outline"
+        ><mat-label>{{ "settings.firstName" | translate }}</mat-label
+        ><input matInput formControlName="firstName"
+      /></mat-form-field>
+      <mat-form-field appearance="outline"
+        ><mat-label>{{ "settings.lastName" | translate }}</mat-label
+        ><input matInput formControlName="lastName"
+      /></mat-form-field>
+      <mat-form-field appearance="outline"
+        ><mat-label>{{ "settings.username" | translate }}</mat-label
+        ><input matInput formControlName="username"
+      /></mat-form-field>
+      <mat-form-field appearance="outline"
+        ><mat-label>{{ "settings.phone" | translate }}</mat-label
+        ><input matInput formControlName="phone"
+      /></mat-form-field>
+      <mat-form-field appearance="outline" class="settings-form-wide"
+        ><mat-label>{{ "settings.jobTitle" | translate }}</mat-label
+        ><input matInput formControlName="jobTitle"
+      /></mat-form-field>
+      <mat-form-field appearance="outline" class="settings-form-wide"
+        ><mat-label>{{ "settings.profilePhotoUrl" | translate }}</mat-label
+        ><input matInput type="url" formControlName="avatarUrl"
+      /></mat-form-field>
+    </div>
+    <div class="settings-actions">
+      <span class="settings-success">{{ message() | translate }}</span
+      ><span class="settings-error">{{ error() | translate }}</span
+      ><button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        [disabled]="saving()"
+      >
+        {{
+          (saving() ? "settings.saving" : "settings.saveChanges") | translate
+        }}
+      </button>
+    </div>
+  </form>
+  <form
+    class="settings-form password-section"
+    [formGroup]="passwordForm"
+    (ngSubmit)="changePassword()"
+    novalidate
+  >
+    <div class="settings-section-header">
+      <div>
+        <h3>{{ "settings.changePassword" | translate }}</h3>
+        <p>{{ "settings.passwordHint" | translate }}</p>
+      </div>
+    </div>
+    <mat-form-field appearance="outline"
+      ><mat-label>{{ "settings.currentPassword" | translate }}</mat-label
+      ><input
+        matInput
+        type="password"
+        formControlName="currentPassword"
+        autocomplete="current-password"
+    /></mat-form-field>
+    <mat-form-field appearance="outline"
+      ><mat-label>{{ "settings.newPassword" | translate }}</mat-label
+      ><input
+        matInput
+        type="password"
+        formControlName="newPassword"
+        autocomplete="new-password"
+    /></mat-form-field>
+    <div class="settings-actions">
+      <button mat-stroked-button type="submit">
+        {{ "settings.changePassword" | translate }}
+      </button>
+    </div>
+  </form>
+}

@@ -13,6 +13,38 @@ export interface AuthUser {
   avatarUrl?: string;
 }
 
+export type UserSettingsTheme = "SYSTEM" | "LIGHT" | "DARK";
+export type UserSettingsLanguage = "SR" | "EN";
+export type UserSettingsDateTimeFormat = "TWELVE_HOUR" | "TWENTY_FOUR_HOUR";
+
+export interface UserSettingsProfile {
+  firstName: string | null;
+  lastName: string | null;
+  username: string | null;
+  phone: string | null;
+  jobTitle: string | null;
+  avatarUrl: string | null;
+}
+
+export interface UserSettingsPreferences {
+  theme: UserSettingsTheme;
+  language: UserSettingsLanguage;
+  accentColor: string;
+  workspaceNotifications: boolean;
+  dateTimeFormat: UserSettingsDateTimeFormat;
+  timeZone: string;
+}
+
+export interface UserSettingsResponse {
+  profile: UserSettingsProfile;
+  preferences: UserSettingsPreferences;
+}
+
+export interface UserSettingsUpdateRequest {
+  profile?: Partial<UserSettingsProfile>;
+  preferences?: Partial<UserSettingsPreferences>;
+}
+
 export interface AuthWorkspaceMembership {
   workspaceId: string;
   workspaceName: string;

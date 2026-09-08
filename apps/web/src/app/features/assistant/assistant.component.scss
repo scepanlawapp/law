@@ -41,13 +41,11 @@ button {
 .assistant-heading h1 {
   margin: 0;
   color: #183b61;
-  font-size: 1rem;
 }
 
 .assistant-heading p {
   margin: 0.25rem 0 0;
   color: #6d8298;
-  font-size: 1rem;
   line-height: 1.45;
 }
 
@@ -62,14 +60,12 @@ button {
   border-radius: var(--radius-md);
   background: var(--color-brand);
   color: var(--color-text-inverse);
-  font-size: 1rem;
   font-weight: 600;
 }
 
 .new-conversation mat-icon {
   width: 0.95rem;
   height: 0.95rem;
-  font-size: 0.95rem;
 }
 
 .conversation-tabs {
@@ -88,7 +84,6 @@ button {
   border-bottom: 2px solid transparent;
   background: transparent;
   color: #7990a6;
-  font-size: 1rem;
 }
 
 .conversation-tabs button.selected {
@@ -100,7 +95,6 @@ button {
 .conversation-tabs mat-icon {
   width: 0.75rem;
   height: 0.75rem;
-  font-size: 0.75rem;
 }
 
 .conversation-search {
@@ -121,7 +115,6 @@ button {
   border: 0;
   outline: 0;
   color: #24425f;
-  font-size: 1rem;
 }
 
 .conversation-search button {
@@ -144,7 +137,6 @@ button {
   margin: 0.45rem 0 0.25rem;
   padding-left: 0.2rem;
   color: #71879c;
-  font-size: 1rem;
   font-weight: 600;
 }
 
@@ -182,7 +174,6 @@ button {
 .conversation-icon mat-icon {
   width: 0.8rem;
   height: 0.8rem;
-  font-size: 0.8rem;
 }
 
 .conversation-copy {
@@ -199,18 +190,15 @@ button {
 }
 
 .conversation-copy strong {
-  font-size: 1rem;
   font-weight: 700;
 }
 
 .conversation-copy small {
   color: #7b91a5;
-  font-size: 1rem;
 }
 
 .conversation-item time {
   color: #8095a8;
-  font-size: 1rem;
 }
 
 .conversation-item .pin,
@@ -220,7 +208,6 @@ button {
   bottom: 0.4rem;
   width: 0.65rem;
   height: 0.65rem;
-  font-size: 0.65rem;
 }
 
 .conversation-item .pin {
@@ -265,19 +252,16 @@ button {
 }
 
 .assistant-icon mat-icon {
-  font-size: 1.35rem;
 }
 
 .chat-title h2 {
   margin: 0;
   color: #173b61;
-  font-size: 1rem;
 }
 
 .chat-title p {
   margin: 0.2rem 0 0;
   color: #8094a8;
-  font-size: 1rem;
 }
 
 .messages {
@@ -326,7 +310,6 @@ button {
 .message-avatar mat-icon {
   width: 0.95rem;
   height: 0.95rem;
-  font-size: 0.95rem;
 }
 
 .message-content {
@@ -335,7 +318,6 @@ button {
   border-radius: 0.45rem;
   background: #f5f9fd;
   color: #36526d;
-  font-size: 1rem;
   line-height: 1.5;
 }
 
@@ -349,7 +331,6 @@ button {
   display: block;
   margin-bottom: 0.3rem;
   color: #183b61;
-  font-size: 1rem;
 }
 
 .user-message .message-content > strong {
@@ -374,7 +355,6 @@ button {
   border: 1px solid #d8e4ee;
   border-radius: 0.25rem;
   color: #52718d;
-  font-size: 1rem;
 }
 
 .message-attachments a {
@@ -390,7 +370,6 @@ button {
   display: block;
   margin-top: 0.35rem;
   color: #8aa0b4;
-  font-size: 1rem;
   text-align: right;
 }
 
@@ -404,7 +383,6 @@ button {
 
 .message-section > strong {
   color: #183b61;
-  font-size: 1rem;
 }
 
 .message-section ul {
@@ -427,7 +405,6 @@ button {
   border-radius: 0.7rem;
   background: #ffffff;
   color: #91a5b7;
-  font-size: 1rem;
 }
 
 .chat-panel.empty-state .composer {
@@ -472,7 +449,6 @@ button {
   border-radius: 0.75rem;
   background: #f5f7f9;
   color: #36526d;
-  font-size: 0.72rem;
 }
 
 .pending-file-chip button {
@@ -492,7 +468,6 @@ button {
 .pending-file-chip button mat-icon {
   width: 0.7rem;
   height: 0.7rem;
-  font-size: 0.7rem;
 }
 
 .composer textarea {
@@ -506,7 +481,6 @@ button {
   outline: 0;
   background: transparent;
   color: #36526d;
-  font-size: 1rem;
   line-height: 1.4;
   padding: 0.65rem 0;
   overflow-y: hidden;
@@ -522,7 +496,6 @@ button {
   align-self: flex-start;
   width: 3rem;
   height: 3rem;
-  font-size: 3rem;
   color: #66819a;
   cursor: pointer;
   align-self: flex-end;
@@ -535,7 +508,6 @@ button {
 .attach-file mat-icon {
   width: 2.25rem;
   height: 2.25rem;
-  font-size: 2.25rem;
 }
 
 .composer button {
@@ -566,7 +538,6 @@ button {
 .error {
   margin: 0;
   padding: 0.5rem 0.75rem;
-  font-size: 0.62rem;
 }
 
 .status {
@@ -590,7 +561,6 @@ button {
 .composer button mat-icon {
   width: 1.75rem;
   height: 1.75rem;
-  font-size: 1.75rem;
 }
 
 @media (max-width: 800px) {

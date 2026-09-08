@@ -124,7 +124,6 @@ import { AuthState } from "@law/security";
       }
       .eyebrow {
         color: var(--color-brand);
-        font-size: 0.75rem;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;
@@ -213,7 +212,6 @@ import { AuthState } from "@law/security";
       .chips li {
         padding: 0.2rem 0.5rem;
         border: 1px solid var(--color-border);
-        font-size: 0.8rem;
       }
       form {
         display: grid;

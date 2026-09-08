@@ -1,9 +1,9 @@
-<app-sidebar />
+<app-sidebar class="min-h-0 overflow-y-auto" />
 
-<div class="min-w-0">
+<div class="flex min-h-0 min-w-0 flex-col overflow-hidden">
   <app-header />
 
-  <main class="min-w-0">
+  <main class="min-h-0 min-w-0 flex-1 overflow-y-auto">
     <router-outlet />
   </main>
 </div>

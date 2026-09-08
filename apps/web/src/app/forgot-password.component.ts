@@ -63,7 +63,6 @@ import { TranslatePipe } from "./core/localization/translate.pipe";
       }
       .eyebrow {
         color: var(--color-brand);
-        font-size: 1rem;
         font-weight: 700;
         letter-spacing: 0.12em;
         text-transform: uppercase;

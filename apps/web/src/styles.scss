@@ -21,7 +21,7 @@
   --color-border-strong: #dce6ef;
 
   --font-family-base: "Segoe UI", Arial, sans-serif;
-  --font-size-base: 0.8rem;
+  --font-size-base: 0.9rem;
   --font-size-lg: 1rem;
   --font-size-xl: 1.15rem;
   --font-size-display: clamp(2.4rem, 4vw, 5rem);
@@ -58,7 +58,7 @@ body {
   color: var(--color-text-primary);
   font-family: var(--font-family-base);
   line-height: var(--line-height-body);
-  overflow-y: hidden;
+  overflow-y: auto;
 }
 
 button,

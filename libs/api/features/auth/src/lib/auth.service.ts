@@ -304,6 +304,32 @@ export class AuthService {
     });
   }
 
+  async changePassword(
+    token: string | undefined,
+    currentPassword: string,
+    newPassword: string,
+  ): Promise<void> {
+    const user = await this.userForToken(token);
+    if (
+      !user.passwordHash ||
+      !(await verifyPassword(currentPassword, user.passwordHash))
+    ) {
+      throw new UnauthorizedException("Current password is incorrect");
+    }
+    await this.prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash: await hashPassword(newPassword),
+        passwordChangedAt: new Date(),
+      },
+    });
+    await this.audit({
+      eventType: "PASSWORD_CHANGED",
+      outcome: "SUCCESS",
+      userId: user.id,
+    });
+  }
+
   private async createSession(
     userId: string,
     session: AuthSessionResponse,

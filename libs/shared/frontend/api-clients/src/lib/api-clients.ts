@@ -13,6 +13,8 @@ import {
   LoginRequest,
   PasswordForgotRequest,
   PasswordResetRequest,
+  UserSettingsResponse,
+  UserSettingsUpdateRequest,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl } from "./chat-events-url";
@@ -81,6 +83,17 @@ export class AuthApiClient {
     return this.http.post<{ success: boolean }>(
       this.endpoint("/auth/password/reset"),
       request,
+    );
+  }
+
+  changePassword(
+    currentPassword: string,
+    newPassword: string,
+  ): Observable<{ success: boolean }> {
+    return this.http.post<{ success: boolean }>(
+      this.endpoint("/auth/password/change"),
+      { currentPassword, newPassword },
+      { withCredentials: true },
     );
   }
 }
@@ -178,6 +191,38 @@ export class ChatApiClient {
       workspaceId,
       sessionId,
       after,
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class UserSettingsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  get(): Observable<UserSettingsResponse> {
+    return this.http.get<UserSettingsResponse>(
+      this.endpoint("/users/me/settings"),
+      { withCredentials: true },
+    );
+  }
+
+  update(request: UserSettingsUpdateRequest): Observable<UserSettingsResponse> {
+    return this.http.patch<UserSettingsResponse>(
+      this.endpoint("/users/me/settings"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  clearConversationHistory(): Observable<{ deleted: number }> {
+    return this.http.delete<{ deleted: number }>(
+      this.endpoint("/users/me/conversations"),
+      { withCredentials: true },
     );
   }
 }

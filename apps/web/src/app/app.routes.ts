@@ -10,6 +10,10 @@ import { MainLayoutComponent } from "./layout/main-layout/main-layout.component"
 import { CalendarComponent } from "./features/calendar/calendar.component";
 import { NotificationsComponent } from "./features/notifications/notifications.component";
 import { SettingsComponent } from "./features/settings/settings.component";
+import { ProfileSettingsComponent } from "./features/settings/profile-settings.component";
+import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
+import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
+import { DataSettingsComponent } from "./features/settings/data-settings.component";
 
 export const appRoutes: Route[] = [
   { path: "login", component: LoginComponent },
@@ -25,7 +29,17 @@ export const appRoutes: Route[] = [
       { path: "dashboard", component: DashboardComponent },
       { path: "calendar", component: CalendarComponent },
       { path: "notifications", component: NotificationsComponent },
-      { path: "settings", component: SettingsComponent },
+      {
+        path: "settings",
+        component: SettingsComponent,
+        children: [
+          { path: "", pathMatch: "full", redirectTo: "profile" },
+          { path: "profile", component: ProfileSettingsComponent },
+          { path: "appearance", component: AppearanceSettingsComponent },
+          { path: "workspace", component: WorkspaceSettingsComponent },
+          { path: "data", component: DataSettingsComponent },
+        ],
+      },
       {
         path: "assistant",
         component: AssistantComponent,

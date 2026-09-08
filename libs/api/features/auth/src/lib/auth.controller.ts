@@ -18,6 +18,7 @@ import {
   InvitationCreateDto,
   LoginDto,
   PasswordForgotDto,
+  PasswordChangeDto,
   PasswordResetDto,
 } from "./auth.dto";
 
@@ -124,6 +125,20 @@ export class AuthController {
   @Post("password/reset")
   async resetPassword(@Body() body: PasswordResetDto) {
     await this.authService.resetPassword(body.token, body.password);
+    return { success: true };
+  }
+
+  @Post("password/change")
+  @UseGuards(AuthGuard)
+  async changePassword(
+    @Req() request: AuthenticatedRequest,
+    @Body() body: PasswordChangeDto,
+  ) {
+    await this.authService.changePassword(
+      sessionToken(request),
+      body.currentPassword,
+      body.newPassword,
+    );
     return { success: true };
   }
 }

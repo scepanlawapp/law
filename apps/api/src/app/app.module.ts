@@ -5,6 +5,7 @@ import { AppService } from "./app.service";
 import { CoreModule } from "@law/core";
 import { AuthModule } from "@law/auth";
 import { ChatModule } from "@law/chat";
+import { UserSettingsModule } from "@law/user-settings";
 import { validateEnvironment } from "./config.validation";
 
 @Module({
@@ -13,6 +14,7 @@ import { validateEnvironment } from "./config.validation";
     CoreModule,
     AuthModule,
     ChatModule,
+    UserSettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

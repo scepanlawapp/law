@@ -65,7 +65,6 @@
 //       }
 //       .eyebrow {
 //         color: #9a4f2f;
-//         font-size: 0.75rem;
 //         font-weight: 700;
 //         letter-spacing: 0.12em;
 //         text-transform: uppercase;

@@ -1,0 +1,73 @@
+<div class="settings-section-header">
+  <div>
+    <h2>{{ "settings.appearance" | translate }}</h2>
+    <p>{{ "settings.appearanceDescription" | translate }}</p>
+  </div>
+</div>
+@if (loading()) {
+  <p class="settings-state">{{ "settings.loading" | translate }}</p>
+} @else {
+  <form class="settings-form" [formGroup]="form" (ngSubmit)="save()">
+    <mat-form-field appearance="outline"
+      ><mat-label>{{ "settings.theme" | translate }}</mat-label
+      ><mat-select formControlName="theme"
+        ><mat-option value="SYSTEM">{{
+          "settings.system" | translate
+        }}</mat-option
+        ><mat-option value="LIGHT">{{
+          "settings.light" | translate
+        }}</mat-option
+        ><mat-option value="DARK">{{
+          "settings.dark" | translate
+        }}</mat-option></mat-select
+      ></mat-form-field
+    ><mat-form-field appearance="outline"
+      ><mat-label>{{ "settings.language" | translate }}</mat-label
+      ><mat-select formControlName="language"
+        ><mat-option value="SR">{{ "settings.serbian" | translate }}</mat-option
+        ><mat-option value="EN">{{
+          "settings.english" | translate
+        }}</mat-option></mat-select
+      ></mat-form-field
+    >
+    <fieldset>
+      <legend>{{ "settings.accentColor" | translate }}</legend>
+      <div class="accent-options">
+        @for (
+          color of [
+            { name: "BLUE", value: "#1760ac" },
+            { name: "TEAL", value: "#168c8c" },
+            { name: "CORAL", value: "#d76551" },
+            { name: "VIOLET", value: "#7256a6" },
+          ];
+          track color.name
+        ) {
+          <label class="accent-option"
+            ><input
+              type="radio"
+              formControlName="accentColor"
+              [value]="color.name"
+            /><span [style.backgroundColor]="color.value"></span
+            ><strong>{{
+              "settings.accent." + color.name | translate
+            }}</strong></label
+          >
+        }
+      </div>
+    </fieldset>
+    <div class="settings-actions">
+      <span class="settings-success">{{ message() | translate }}</span
+      ><span class="settings-error">{{ error() | translate }}</span
+      ><button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        [disabled]="saving()"
+      >
+        {{
+          (saving() ? "settings.saving" : "settings.saveChanges") | translate
+        }}
+      </button>
+    </div>
+  </form>
+}

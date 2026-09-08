@@ -29,7 +29,6 @@
   gap: 0.8rem;
   color: #1f3d5e;
   font-weight: 700;
-  font-size: 2.1rem;
   line-height: 1;
 }
 
@@ -39,7 +38,6 @@
   justify-content: center;
   width: 2.4rem;
   height: 2.4rem;
-  font-size: 2rem;
   font-weight: 700;
 }
 
@@ -55,7 +53,6 @@
 .eyebrow {
   margin: 0 0 2rem;
   color: #4a6480;
-  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.2em;
 }
@@ -63,7 +60,6 @@
 h1 {
   margin: 0;
   max-width: 12ch;
-  font-size: clamp(3rem, 4vw, 5rem);
   line-height: 0.98;
   letter-spacing: -0.06em;
   color: #1f3650;
@@ -73,7 +69,6 @@ h1 {
   max-width: 32rem;
   margin-top: 1.8rem;
   color: #40556d;
-  font-size: 1.15rem;
   line-height: 1.7;
 }
 
@@ -110,7 +105,6 @@ h1 {
 
 .feature-copy h2 {
   margin: 0;
-  font-size: 1.05rem;
   font-weight: 700;
   color: #1f3650;
 }
@@ -118,14 +112,12 @@ h1 {
 .feature-copy p {
   margin: 0;
   color: rgba(31, 54, 80, 0.78);
-  font-size: 1rem;
   line-height: 1.45;
 }
 
 .promo-footer {
   padding-top: 1.5rem;
   color: #526c86;
-  font-size: 1rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
 }
@@ -149,7 +141,6 @@ h1 {
   gap: 0.35rem;
   color: #1f3650;
   text-decoration: none;
-  font-size: 1.02rem;
   font-weight: 500;
 }
 
@@ -161,7 +152,6 @@ h1 {
   height: 1.4rem;
   border: 1px solid rgba(31, 54, 80, 0.45);
   border-radius: 50%;
-  font-size: 1rem;
   line-height: 1;
 }
 
@@ -173,7 +163,6 @@ h1 {
 
 .auth-card h3 {
   margin: 0;
-  font-size: var(--font-size-display);
   line-height: 1.1;
   letter-spacing: -0.05em;
   color: #1f3650;
@@ -182,7 +171,6 @@ h1 {
 .auth-card p {
   margin: 0.7rem 0 2rem;
   color: rgba(31, 54, 80, 0.72);
-  font-size: 1.05rem;
 }
 
 .login-form {
@@ -218,7 +206,6 @@ h1 {
 .error-message {
   margin: -0.25rem 0 0;
   color: #b3261e;
-  font-size: 1rem;
 }
 
 .forgot-password {
@@ -226,7 +213,6 @@ h1 {
   margin-top: -0.25rem;
   color: #1f5b9a;
   text-decoration: none;
-  font-size: 1rem;
   font-weight: 500;
 }
 
@@ -237,7 +223,6 @@ h1 {
   padding: 1.25rem 1.5rem;
   background: #1d3958 !important;
   color: #f6f9fb !important;
-  font-size: 1.05rem;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -252,7 +237,6 @@ h1 {
   margin-top: 4rem;
   padding-top: 1rem;
   color: rgba(31, 54, 80, 0.8);
-  font-size: 1rem;
 }
 
 .auth-footer a {

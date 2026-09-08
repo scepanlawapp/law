@@ -32,12 +32,10 @@
 .notification-heading h2 {
   margin: 0;
   color: #183758;
-  font-size: 1rem;
 }
 
 .notification-heading span {
   color: #62809d;
-  font-size: 1rem;
 }
 
 .notification-row {
@@ -72,7 +70,6 @@
 .notification-icon mat-icon {
   width: 0.85rem;
   height: 0.85rem;
-  font-size: 0.85rem;
 }
 
 .notification-icon.orange {
@@ -104,14 +101,12 @@
 
 .notification-copy strong {
   color: #294663;
-  font-size: 1rem;
   font-weight: 600;
 }
 
 .notification-copy small,
 .notification-row time {
   color: #8297ab;
-  font-size: 1rem;
 }
 
 .notification-row time {
@@ -129,7 +124,6 @@
   gap: 0.25rem;
   min-height: 2.45rem;
   color: #2168b4;
-  font-size: 1rem;
   font-weight: 600;
   font-family: var(--font-family-base);
   text-decoration: none;
@@ -179,7 +173,6 @@
 .user-menu-avatar-fallback {
   background: #132a43;
   color: var(--color-text-inverse);
-  font-size: 0.85rem;
   font-weight: var(--font-weight-bold);
 }
 
@@ -198,13 +191,11 @@
 
 .user-menu-identity strong {
   color: var(--color-text-primary);
-  font-size: 1rem;
   font-weight: var(--font-weight-semibold);
 }
 
 .user-menu-identity small {
   color: var(--color-text-muted);
-  font-size: 0.85rem;
 }
 
 .user-menu-panel .user-menu-action.mat-mdc-menu-item,
@@ -220,7 +211,6 @@
   padding: 0 0.95rem !important;
   color: var(--color-text-secondary) !important;
   font-family: var(--font-family-base) !important;
-  font-size: 1rem !important;
   line-height: 1.25 !important;
   text-align: left !important;
   white-space: nowrap;
@@ -249,7 +239,6 @@
 .user-menu-panel .user-menu-action-icon mat-icon {
   width: 0.95rem;
   height: 0.95rem;
-  font-size: 0.95rem;
 }
 
 .user-menu-panel .user-menu-action > span:last-child {
@@ -264,6 +253,10 @@
     align-items: center;
     font-family: var(--font-family-base) !important;
   }
+
+  .mat-mdc-menu-item {
+    min-height: 0;
+  }
 }
 
 .notification-menu-panel a.mat-mdc-menu-item mat-icon,
@@ -272,5 +265,4 @@
 .notification-menu a.mat-menu-item mat-icon {
   width: 0.75rem;
   height: 0.75rem;
-  font-size: 0.75rem;
 }

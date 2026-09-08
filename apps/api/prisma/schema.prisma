@@ -69,10 +69,32 @@ enum WorkflowJobStatus {
   FAILED
 }
 
+enum ThemePreference {
+  SYSTEM
+  LIGHT
+  DARK
+}
+
+enum LanguagePreference {
+  SR
+  EN
+}
+
+enum DateTimeFormatPreference {
+  TWELVE_HOUR
+  TWENTY_FOUR_HOUR
+}
+
 model User {
   id                String            @id @default(uuid())
   email             String            @unique
   passwordHash      String?
+  firstName         String?
+  lastName          String?
+  username          String?           @unique
+  phone             String?
+  jobTitle          String?
+  avatarUrl         String?
   status            UserStatus        @default(INVITED)
   passwordChangedAt DateTime?         @db.Timestamptz(3)
   createdAt         DateTime          @default(now()) @db.Timestamptz(3)
@@ -82,6 +104,20 @@ model User {
   tokens            AuthToken[]
   auditEvents       AuditEvent[]
   chatSessions      ChatSession[]     @relation("ChatSessionCreator")
+  settings          UserSettings?
+}
+
+model UserSettings {
+  userId                 String                   @id
+  theme                  ThemePreference          @default(SYSTEM)
+  language               LanguagePreference       @default(SR)
+  accentColor            String                   @default("BLUE")
+  workspaceNotifications Boolean                  @default(true)
+  dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
+  timeZone               String                   @default("Europe/Belgrade")
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+  user                   User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Workspace {

@@ -1,0 +1,60 @@
+<div class="settings-section-header">
+  <div>
+    <h2>{{ "settings.workspace" | translate }}</h2>
+    <p>{{ "settings.workspaceDescription" | translate }}</p>
+  </div>
+</div>
+@if (loading()) {
+  <p class="settings-state">{{ "settings.loading" | translate }}</p>
+} @else {
+  <form class="settings-form" [formGroup]="form" (ngSubmit)="save()">
+    <div class="settings-toggle-row">
+      <div>
+        <strong>{{ "settings.workspaceNotifications" | translate }}</strong>
+        <p>{{ "settings.workspaceNotificationsHint" | translate }}</p>
+      </div>
+      <mat-slide-toggle
+        formControlName="workspaceNotifications"
+        [attr.aria-label]="'settings.workspaceNotifications' | translate"
+      ></mat-slide-toggle>
+    </div>
+    <mat-form-field appearance="outline"
+      ><mat-label>{{ "settings.dateTimeFormat" | translate }}</mat-label
+      ><mat-select formControlName="dateTimeFormat"
+        ><mat-option value="TWENTY_FOUR_HOUR">{{
+          "settings.twentyFourHour" | translate
+        }}</mat-option
+        ><mat-option value="TWELVE_HOUR">{{
+          "settings.twelveHour" | translate
+        }}</mat-option></mat-select
+      ></mat-form-field
+    ><mat-form-field appearance="outline"
+      ><mat-label>{{ "settings.timeZone" | translate }}</mat-label
+      ><mat-select formControlName="timeZone"
+        ><mat-option value="Europe/Belgrade">{{
+          "settings.belgrade" | translate
+        }}</mat-option
+        ><mat-option value="Europe/London">{{
+          "settings.london" | translate
+        }}</mat-option
+        ><mat-option value="America/New_York">{{
+          "settings.newYork" | translate
+        }}</mat-option></mat-select
+      ></mat-form-field
+    >
+    <div class="settings-actions">
+      <span class="settings-success">{{ message() | translate }}</span
+      ><span class="settings-error">{{ error() | translate }}</span
+      ><button
+        mat-flat-button
+        color="primary"
+        type="submit"
+        [disabled]="saving()"
+      >
+        {{
+          (saving() ? "settings.saving" : "settings.saveChanges") | translate
+        }}
+      </button>
+    </div>
+  </form>
+}
