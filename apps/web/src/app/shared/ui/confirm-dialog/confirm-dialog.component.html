@@ -1,0 +1,31 @@
+<div
+  class="confirm-dialog"
+  [class]="'confirm-dialog confirm-dialog--' + data.variant"
+>
+  <div class="confirm-dialog__heading">
+    <span class="confirm-dialog__icon" aria-hidden="true">
+      <mat-icon>{{
+        data.variant === "default" ? "help_outline" : "warning"
+      }}</mat-icon>
+    </span>
+    <h2 mat-dialog-title>{{ data.title }}</h2>
+  </div>
+
+  <mat-dialog-content>
+    <p>{{ data.message }}</p>
+  </mat-dialog-content>
+
+  <mat-dialog-actions align="end">
+    <button mat-button type="button" (click)="cancel()">
+      {{ data.cancelText }}
+    </button>
+    <button
+      mat-flat-button
+      type="button"
+      class="confirm-dialog__confirm"
+      (click)="confirm()"
+    >
+      {{ data.confirmText }}
+    </button>
+  </mat-dialog-actions>
+</div>

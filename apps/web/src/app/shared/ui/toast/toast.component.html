@@ -1,0 +1,9 @@
+<div class="toast" [class]="'toast toast--' + data.type" role="status">
+  <mat-icon aria-hidden="true">{{ data.icon }}</mat-icon>
+  <span class="toast__message">{{ data.message }}</span>
+  @if (data.action) {
+    <button mat-button type="button" class="toast__action" (click)="dismiss()">
+      {{ data.action }}
+    </button>
+  }
+</div>

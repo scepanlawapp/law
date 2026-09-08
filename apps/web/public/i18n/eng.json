@@ -136,6 +136,8 @@
   "settings.clearHistory": "Clear conversation history",
   "settings.clearHistoryHint": "Permanently removes all your conversations and messages. This does not affect other users.",
   "settings.deleting": "Deleting...",
+  "settings.clearHistoryAction": "Clear",
+  "settings.cancel": "Cancel",
   "settings.clearHistoryConfirm": "Are you sure you want to clear your entire conversation history? This action cannot be undone.",
   "settings.historyDeleted": "Conversation history was deleted.",
   "settings.historyDeleteError": "Conversation history could not be deleted.",

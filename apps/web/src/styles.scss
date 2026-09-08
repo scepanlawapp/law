@@ -13,15 +13,21 @@
   --color-text-inverse: #ffffff;
   --color-brand: #1760ac;
   --color-brand-strong: #1456a0;
+  --color-brand-action: #0a66c2;
   --color-success: #12a36a;
+  --color-success-soft: #a7f3d0;
   --color-warning: #ed941e;
+  --color-warning-soft: #fde68a;
   --color-danger: #e53935;
+  --color-danger-soft: #fecaca;
+  --color-info-soft: #bae6fd;
   --color-border: #e0e9f2;
   --color-border-subtle: #edf2f7;
   --color-border-strong: #dce6ef;
 
   --font-family-base: "Segoe UI", Arial, sans-serif;
   --font-size-base: 0.9rem;
+  --font-size-md: 0.9375rem;
   --font-size-lg: 1rem;
   --font-size-xl: 1.15rem;
   --font-size-display: clamp(2.4rem, 4vw, 5rem);
@@ -43,9 +49,14 @@
   --radius-sm: 0.25rem;
   --radius-md: 0.35rem;
   --radius-lg: 0.45rem;
+  --radius-button: 0.5625rem;
+  --radius-xl: 1.125rem;
+  --radius-circle: 50%;
   --radius-pill: 999px;
   --shadow-sm: 0 2px 8px rgba(35, 68, 101, 0.03);
   --shadow-md: 0 12px 32px rgba(31, 61, 92, 0.16);
+  --shadow-dialog: 0 12px 32px rgba(31, 61, 92, 0.12);
+  --overlay-dialog: rgba(15, 35, 55, 0.45);
 }
 
 html {
@@ -59,6 +70,66 @@ body {
   font-family: var(--font-family-base);
   line-height: var(--line-height-body);
   overflow-y: auto;
+}
+
+.confirm-dialog-backdrop {
+  background: var(--overlay-dialog);
+}
+
+.confirm-dialog-panel .mat-mdc-dialog-container {
+  padding: 0;
+  border-radius: var(--radius-xl);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-dialog);
+}
+
+.confirm-dialog-panel .mat-mdc-dialog-surface {
+  padding: 0;
+  border-radius: var(--radius-xl);
+}
+
+.confirm-dialog-panel .mat-mdc-dialog-content {
+  padding: var(--space-5) var(--space-8) var(--space-4);
+}
+
+.confirm-dialog-panel .mat-mdc-dialog-title {
+  padding: 0;
+}
+
+.confirm-dialog-panel .mat-mdc-dialog-actions {
+  min-height: 0;
+  padding: 0 var(--space-8) var(--space-6);
+  gap: var(--space-2);
+}
+
+.app-toast-panel {
+  max-width: min(32rem, calc(100vw - 2rem)) !important;
+  margin: var(--space-4) !important;
+  border-radius: var(--radius-md) !important;
+}
+
+.app-toast-panel .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: var(--color-text-primary);
+  --mdc-snackbar-supporting-text-color: var(--color-text-inverse);
+  --mat-snack-bar-button-color: var(--color-text-inverse);
+  min-width: 0;
+  padding: var(--space-3) var(--space-4);
+}
+
+.app-toast-panel--success .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #166534;
+}
+
+.app-toast-panel--error .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #991b1b;
+}
+
+.app-toast-panel--warning .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #92400e;
+}
+
+.app-toast-panel--info .mat-mdc-snack-bar-container {
+  --mdc-snackbar-container-color: #075985;
 }
 
 button,

@@ -136,6 +136,8 @@
   "settings.clearHistory": "Obriši istoriju razgovora",
   "settings.clearHistoryHint": "Trajno uklanja sve vaše razgovore i poruke. Ova radnja ne utiče na druge korisnike.",
   "settings.deleting": "Brisanje...",
+  "settings.clearHistoryAction": "Obriši",
+  "settings.cancel": "Otkaži",
   "settings.clearHistoryConfirm": "Da li ste sigurni da želite da obrišete celu istoriju razgovora? Ova radnja se ne može opozvati.",
   "settings.historyDeleted": "Istorija razgovora je obrisana.",
   "settings.historyDeleteError": "Istorija razgovora nije mogla biti obrisana.",

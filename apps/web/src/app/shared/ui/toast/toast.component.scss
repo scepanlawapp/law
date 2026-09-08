@@ -1,0 +1,36 @@
+:host {
+  display: block;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: min(20rem, 100%);
+  color: var(--color-text-inverse);
+}
+
+.toast__message {
+  flex: 1;
+}
+
+.toast__action {
+  flex: 0 0 auto;
+  color: var(--color-text-inverse);
+}
+
+.toast--success mat-icon {
+  color: var(--color-success-soft);
+}
+
+.toast--error mat-icon {
+  color: var(--color-danger-soft);
+}
+
+.toast--warning mat-icon {
+  color: var(--color-warning-soft);
+}
+
+.toast--info mat-icon {
+  color: var(--color-info-soft);
+}
