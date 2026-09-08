@@ -28,4 +28,10 @@ export class ChatRuntimeConfig {
   readonly extractionTextMaxChars = Number(
     process.env.CHAT_EXTRACTION_TEXT_MAX_CHARS ?? 50_000,
   );
+  readonly briefPerDocMaxChars = Number(
+    process.env.BRIEF_PER_DOC_MAX_CHARS ?? 15_000,
+  );
+  readonly briefTotalMaxChars = Number(
+    process.env.BRIEF_TOTAL_MAX_CHARS ?? 60_000,
+  );
 }

@@ -11,7 +11,8 @@
     "services:config": "docker compose -f infra/docker/compose.yml config",
     "services:up": "docker compose -f infra/docker/compose.yml up -d",
     "db:seed:auth": "node apps/api/prisma/seed.cjs",
-    "tessdata:download": "bash scripts/download-tessdata.sh"
+    "tessdata:download": "bash scripts/download-tessdata.sh",
+    "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma"
   },
   "private": true,
   "devDependencies": {

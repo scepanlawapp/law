@@ -1,0 +1,13 @@
+# Brief LLM Context Plan
+
+- [x] 7e5aef2 Add `BriefExtractionResult` Prisma model (`id`, `jobId UNIQUE`, `workspaceId`, `sessionId`, `messageId`, `brief Json`, `confidence Float?`, `missingFields String[]`, `promptChars Int`, `truncated Boolean`, `model String`, `errorCode?`, `createdAt`); generate the migration.
+- [x] 7e5aef2 Add `BriefResult` / brief DTO types in `libs/api/api-interfaces` for the expanded tužba schema (`jobType`, `plaintiff`, `defendant`, `competentCourt`, `claimValue`, `legalBasis`, `factualDescription`, `evidence`, `reliefSought`, `missingFields`, `confidence`, `warnings`) — English camelCase keys, Serbian Latin values, mirroring `missingFields` naming already used on the `BriefExtractionResult` Prisma model.
+- [x] 7e5aef2 Replace the `@law/brief-extraction` stub (`libs/api/ai/workflows/brief-extraction/src/lib/brief-extraction.ts`) with a real chain mirroring `@law/triage`: `schema.ts` (zod brief schema), `prompts.ts` (`BRIEF_SYSTEM_PROMPT`, Serbian Latin, ZPP/ZOO grounding, JSON-only, never invent JMBG/addresses — use null + `missingFields`), `context.ts` (`buildBriefUserPrompt()` combining `userText` + per-document sections with status lines), `runner.ts` (`runBriefExtractionLlm()` via `ChatModelProvider.completeStructured`).
+- [x] 7e5aef2 Add new prompt-budget config to `ChatRuntimeConfig` (`briefPerDocMaxChars` default 15000, `briefTotalMaxChars` default 60000 via `BRIEF_PER_DOC_MAX_CHARS` / `BRIEF_TOTAL_MAX_CHARS`); truncate per-doc first, then drop/head-truncate lowest-priority docs, and expose `truncated` flags. Keep existing `extractionTextMaxChars` (50k) for storage/job-output only.
+- [x] 7e5aef2 Extend `ChatService.runBriefExtraction` to a two-phase flow inside the same `RUNNING` job: (1) unchanged raw extraction + `ChatAttachment` persistence, (2) LLM phase via resolved OpenRouter provider; skip LLM on empty context (`userText` empty/`(attachment)` with zero successful texts) and record `empty` outcome.
+- [x] 7e5aef2 Persist the LLM result to `BriefExtractionResult`, mirror a `brief` summary into `WorkflowJob.output.brief`, and emit `job.updated`; on LLM/zod failure keep `COMPLETED` with `output.briefError` + `errorCode BRIEF_LLM_FAILED` (reserve `FAILED` for unexpected infra exceptions), logging with `jobId` and `sessionId`.
+- [x] 7e5aef2 Cover: LLM success persists brief row + `COMPLETED`; LLM throw records `briefError` without losing raw texts; empty context skips `completeStructured`; multi-attachment budget truncation (Serbian Latin + Cyrillic fixtures); `FAILED`/`UNSUPPORTED` attachments appear as status-only context lines.
+
+## Status convention
+
+`[ ]` not started, `[~]` in progress, `[x] <7-character commit>` completed.

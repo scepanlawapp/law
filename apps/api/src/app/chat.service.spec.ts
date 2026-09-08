@@ -2,6 +2,21 @@ import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { FakeChatModelProvider } from "@law/llm";
 import { ChatEventBus, ChatRuntimeConfig, ChatService } from "@law/chat";
 
+const fakeBrief = {
+  jobType: "lawsuit",
+  plaintiff: { name: "Petar Petrović", address: null },
+  defendant: { name: "Marko Marković", address: null },
+  competentCourt: null,
+  claimValue: null,
+  legalBasis: [],
+  factualDescription: null,
+  evidence: [],
+  reliefSought: null,
+  missingFields: ["competentCourt"],
+  confidence: 0.6,
+  warnings: [],
+};
+
 function prismaMock() {
   return {
     chatSession: {
@@ -19,6 +34,9 @@ function prismaMock() {
     workflowJob: {
       create: jest.fn(),
       update: jest.fn(),
+    },
+    briefExtractionResult: {
+      create: jest.fn(),
     },
   };
 }
@@ -194,10 +212,10 @@ describe("ChatService", () => {
       events,
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
-      new FakeChatModelProvider({
-        decision: "LEGAL",
-        reason: "Lawsuit intake",
-      }),
+      new FakeChatModelProvider([
+        { decision: "LEGAL", reason: "Lawsuit intake" },
+        fakeBrief,
+      ]),
     );
 
     await service.sendMessage({
@@ -219,10 +237,23 @@ describe("ChatService", () => {
         "job.updated",
       ]),
     );
+    expect(prisma.briefExtractionResult.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          jobId: "job-1",
+          messageId: "msg-assistant",
+          confidence: fakeBrief.confidence,
+          missingFields: fakeBrief.missingFields,
+        }),
+      }),
+    );
     expect(prisma.workflowJob.update).toHaveBeenCalledWith(
       expect.objectContaining({
         where: { id: "job-1" },
-        data: expect.objectContaining({ status: "COMPLETED" }),
+        data: expect.objectContaining({
+          status: "COMPLETED",
+          output: expect.objectContaining({ brief: fakeBrief }),
+        }),
       }),
     );
   });
@@ -301,10 +332,10 @@ describe("ChatService", () => {
         read: jest.fn().mockResolvedValue(Buffer.from("hello world")),
       } as never,
       new ChatRuntimeConfig(),
-      new FakeChatModelProvider({
-        decision: "LEGAL",
-        reason: "Lawsuit intake",
-      }),
+      new FakeChatModelProvider([
+        { decision: "LEGAL", reason: "Lawsuit intake" },
+        fakeBrief,
+      ]),
     );
 
     await service.sendMessage({
@@ -387,5 +418,205 @@ describe("ChatService", () => {
     await new Promise((resolve) => setImmediate(resolve));
 
     expect(prisma.workflowJob.create).not.toHaveBeenCalled();
+  });
+
+  it("records a brief error without losing raw texts when the LLM throws", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue(session);
+    prisma.chatMessage.create
+      .mockResolvedValueOnce({
+        id: "msg-user",
+        sessionId: session.id,
+        role: "USER",
+        content: "Tužba za naknadu štete",
+        status: "COMPLETED",
+        triageDecision: null,
+        correlationId: "corr-3",
+        createdAt: now,
+      })
+      .mockResolvedValueOnce({
+        id: "msg-assistant",
+        sessionId: session.id,
+        role: "ASSISTANT",
+        content: "accepted",
+        status: "COMPLETED",
+        triageDecision: "LEGAL",
+        correlationId: "corr-3",
+        createdAt: now,
+      });
+    prisma.workflowJob.create.mockResolvedValue({
+      id: "job-3",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      workflowName: "brief-extraction",
+      status: "QUEUED",
+      correlationId: "corr-3",
+      createdAt: now,
+      updatedAt: now,
+    });
+    prisma.workflowJob.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: "job-3",
+          workspaceId: session.workspaceId,
+          sessionId: session.id,
+          workflowName: "brief-extraction",
+          correlationId: "corr-3",
+          createdAt: now,
+          updatedAt: now,
+          ...data,
+        }),
+    );
+
+    let calls = 0;
+    const provider = {
+      completeStructured: jest.fn().mockImplementation(async () => {
+        calls += 1;
+        if (calls === 1) return { decision: "LEGAL", reason: "Lawsuit" };
+        throw new Error("OpenRouter timed out");
+      }),
+    };
+
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      provider as never,
+    );
+
+    await service.sendMessage({
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      userId: "user-1",
+      content: "Tužba za naknadu štete",
+      files: [],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(prisma.briefExtractionResult.create).not.toHaveBeenCalled();
+    expect(prisma.workflowJob.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "job-3" },
+        data: expect.objectContaining({
+          status: "COMPLETED",
+          errorCode: "BRIEF_LLM_FAILED",
+          output: expect.objectContaining({
+            userText: "Tužba za naknadu štete",
+            briefError: "OpenRouter timed out",
+          }),
+        }),
+      }),
+    );
+  });
+
+  it("skips the LLM call and records an empty outcome when there is no context", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue(session);
+    prisma.chatMessage.create
+      .mockResolvedValueOnce({
+        id: "msg-user",
+        sessionId: session.id,
+        role: "USER",
+        content: "(attachment)",
+        status: "COMPLETED",
+        triageDecision: null,
+        correlationId: "corr-4",
+        createdAt: now,
+      })
+      .mockResolvedValueOnce({
+        id: "msg-assistant",
+        sessionId: session.id,
+        role: "ASSISTANT",
+        content: "accepted",
+        status: "COMPLETED",
+        triageDecision: "LEGAL",
+        correlationId: "corr-4",
+        createdAt: now,
+      });
+    prisma.chatAttachment.create.mockResolvedValue({
+      id: "att-2",
+      originalName: "scan.png",
+      mimeType: "image/png",
+      sizeBytes: 5,
+      createdAt: now,
+    });
+    prisma.chatAttachment.findMany.mockResolvedValue([
+      {
+        id: "att-2",
+        workspaceId: session.workspaceId,
+        sessionId: session.id,
+        storedName: "att-2",
+        originalName: "scan.png",
+        mimeType: "image/png",
+      },
+    ]);
+    prisma.workflowJob.create.mockResolvedValue({
+      id: "job-4",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      workflowName: "brief-extraction",
+      status: "QUEUED",
+      correlationId: "corr-4",
+      createdAt: now,
+      updatedAt: now,
+    });
+    prisma.workflowJob.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: "job-4",
+          workspaceId: session.workspaceId,
+          sessionId: session.id,
+          workflowName: "brief-extraction",
+          correlationId: "corr-4",
+          createdAt: now,
+          updatedAt: now,
+          ...data,
+        }),
+    );
+
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      {
+        save: jest.fn(),
+        read: jest.fn().mockRejectedValue(new Error("file missing")),
+      } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({ decision: "LEGAL", reason: "Lawsuit" }),
+    );
+
+    await service.sendMessage({
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      userId: "user-1",
+      content: "",
+      files: [
+        {
+          originalname: "scan.png",
+          mimetype: "image/png",
+          size: 5,
+          buffer: Buffer.from("hello"),
+        },
+      ],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(prisma.briefExtractionResult.create).not.toHaveBeenCalled();
+    expect(prisma.workflowJob.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "job-4" },
+        data: expect.objectContaining({
+          status: "COMPLETED",
+          errorCode: null,
+          output: expect.objectContaining({
+            brief: null,
+            briefOutcome: "empty",
+          }),
+        }),
+      }),
+    );
   });
 });

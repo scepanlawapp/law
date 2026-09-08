@@ -27,6 +27,11 @@ import { Prisma } from "@prisma/client";
 import { ChatModelProvider, OpenRouterChatModelProvider } from "@law/llm";
 import { runPortirGraph } from "@law/triage";
 import { extractAttachmentText } from "@law/extraction";
+import {
+  BriefDocumentInput,
+  buildBriefUserPrompt,
+  runBriefExtractionLlm,
+} from "@law/brief-extraction";
 import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
@@ -359,6 +364,7 @@ export class ChatService {
       workspaceId: params.workspaceId,
       sessionId: params.sessionId,
       jobId: job.id,
+      messageId: mapped.id,
       userText: params.content,
       attachmentIds: params.attachments.map((attachment) => attachment.id),
     });
@@ -368,6 +374,7 @@ export class ChatService {
     workspaceId: string;
     sessionId: string;
     jobId: string;
+    messageId: string;
     userText: string;
     attachmentIds: string[];
   }): Promise<void> {
@@ -384,6 +391,7 @@ export class ChatService {
         : [];
 
       const extractedAttachments = [];
+      const briefDocuments: BriefDocumentInput[] = [];
       for (const attachment of attachments) {
         const result = await this.extractAttachment(attachment);
         extractedAttachments.push({
@@ -393,18 +401,74 @@ export class ChatService {
           status: result.status,
           text: this.truncateForJobOutput(result.text),
         });
+        briefDocuments.push({
+          id: attachment.id,
+          name: attachment.originalName,
+          mimeType: attachment.mimeType,
+          status: result.status,
+          text: result.text,
+        });
+      }
+
+      const hasUserText =
+        params.userText.trim().length > 0 && params.userText !== "(attachment)";
+      const hasContext =
+        hasUserText ||
+        briefDocuments.some((doc) => doc.status === "COMPLETED" && !!doc.text);
+
+      let output: Record<string, unknown> = {
+        userText: params.userText,
+        attachments: extractedAttachments,
+      };
+      let errorCode: string | null = null;
+
+      if (!hasContext) {
+        output = { ...output, brief: null, briefOutcome: "empty" };
+      } else {
+        try {
+          const provider = this.resolveProvider();
+          const { prompt, promptChars, truncated } = buildBriefUserPrompt(
+            { userText: params.userText, documents: briefDocuments },
+            {
+              perDocMaxChars: this.config.briefPerDocMaxChars,
+              totalMaxChars: this.config.briefTotalMaxChars,
+            },
+          );
+          const brief = await runBriefExtractionLlm(provider, prompt);
+
+          await this.prisma.briefExtractionResult.create({
+            data: {
+              jobId: params.jobId,
+              workspaceId: params.workspaceId,
+              sessionId: params.sessionId,
+              messageId: params.messageId,
+              brief: JSON.parse(JSON.stringify(brief)),
+              confidence: brief.confidence,
+              missingFields: brief.missingFields,
+              promptChars,
+              truncated,
+              model: this.config.openRouterModel,
+            },
+          });
+
+          output = { ...output, brief };
+        } catch (error) {
+          const message =
+            error instanceof Error ? error.message : "Brief LLM failed";
+          this.logger.error(
+            `Brief LLM failed for job ${params.jobId} (session ${params.sessionId}): ${message}`,
+          );
+          output = { ...output, briefError: message };
+          errorCode = "BRIEF_LLM_FAILED";
+        }
       }
 
       const job = await this.prisma.workflowJob.update({
         where: { id: params.jobId },
         data: {
           status: "COMPLETED",
-          output: JSON.parse(
-            JSON.stringify({
-              userText: params.userText,
-              attachments: extractedAttachments,
-            }),
-          ),
+          errorCode,
+          output: JSON.parse(JSON.stringify(output)),
         },
       });
       this.emit({
