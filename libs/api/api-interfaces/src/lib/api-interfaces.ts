@@ -198,3 +198,41 @@ export interface ChatStreamEvent {
   reason?: string;
   error?: string;
 }
+
+export type BriefJobType = "lawsuit" | "contract" | "other";
+
+export interface BriefParty {
+  name: string | null;
+  address: string | null;
+}
+
+export interface BriefResult {
+  jobType: BriefJobType | null;
+  plaintiff: BriefParty;
+  defendant: BriefParty;
+  competentCourt: string | null;
+  claimValue: string | null;
+  legalBasis: string[];
+  factualDescription: string | null;
+  evidence: string[];
+  reliefSought: string | null;
+  missingFields: string[];
+  confidence: number;
+  warnings: string[];
+}
+
+export interface BriefExtractionResultResponse {
+  id: string;
+  jobId: string;
+  workspaceId: string;
+  sessionId: string;
+  messageId: string | null;
+  brief: BriefResult;
+  confidence: number | null;
+  missingFields: string[];
+  promptChars: number;
+  truncated: boolean;
+  model: string;
+  errorCode?: string | null;
+  createdAt: string;
+}

@@ -15,12 +15,19 @@ export interface ChatModelProvider {
 }
 
 export class FakeChatModelProvider implements ChatModelProvider {
-  constructor(private readonly output: unknown) {}
+  private readonly outputs: unknown[];
+  private callCount = 0;
+
+  constructor(output: unknown) {
+    this.outputs = Array.isArray(output) ? output : [output];
+  }
 
   async completeStructured<T>(
     request: CompleteStructuredRequest<T>,
   ): Promise<T> {
-    return request.schema.parse(this.output);
+    const index = Math.min(this.callCount, this.outputs.length - 1);
+    this.callCount += 1;
+    return request.schema.parse(this.outputs[index]);
   }
 }
 
