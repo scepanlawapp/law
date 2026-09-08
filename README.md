@@ -21,6 +21,7 @@ The browser-safe runtime settings are in `apps/web/public/config.json`. Use `con
 
 ```bash
 npm run services:up
+npm run db:migrate
 npm run api:serve
 npm run web:serve
 ```

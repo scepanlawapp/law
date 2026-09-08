@@ -1,86 +1,82 @@
-<main class="login-page">
-  <section class="promo-panel" aria-label="Legal platform overview"></section>
+<main class="login-content" aria-label="Sign in form">
+  <header class="topbar">
+    <a href="#" class="help-link"
+      >{{ "auth.needHelp" | translate }}<span>?</span></a
+    >
+  </header>
 
-  <aside class="auth-panel" aria-label="Sign in form">
-    <header class="topbar">
-      <a href="#" class="help-link"
-        >{{ "auth.needHelp" | translate }}<span>?</span></a
-      >
-    </header>
+  <div class="auth-card">
+    <h3>{{ "auth.welcomeBack" | translate }}</h3>
+    <p>{{ "auth.signInDescription" | translate }}</p>
 
-    <div class="auth-card">
-      <h3>{{ "auth.welcomeBack" | translate }}</h3>
-      <p>{{ "auth.signInDescription" | translate }}</p>
+    <form
+      class="login-form"
+      [formGroup]="loginForm"
+      (ngSubmit)="login()"
+      novalidate
+    >
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>{{ "auth.emailAddress" | translate }}</mat-label>
+        <mat-icon matPrefix>mail</mat-icon>
+        <input
+          matInput
+          type="email"
+          formControlName="email"
+          required
+          autocomplete="email"
+          [placeholder]="'auth.emailPlaceholder' | translate"
+        />
+      </mat-form-field>
 
-      <form
-        class="login-form"
-        [formGroup]="loginForm"
-        (ngSubmit)="login()"
-        novalidate
-      >
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>{{ "auth.emailAddress" | translate }}</mat-label>
-          <mat-icon matPrefix>mail</mat-icon>
-          <input
-            matInput
-            type="email"
-            formControlName="email"
-            required
-            autocomplete="email"
-            [placeholder]="'auth.emailPlaceholder' | translate"
-          />
-        </mat-form-field>
-
-        <mat-form-field appearance="outline" class="full-width">
-          <mat-label>{{ "auth.password" | translate }}</mat-label>
-          <mat-icon matPrefix>lock</mat-icon>
-          <input
-            matInput
-            [type]="showPassword ? 'text' : 'password'"
-            formControlName="password"
-            required
-            autocomplete="current-password"
-            [placeholder]="'auth.passwordPlaceholder' | translate"
-          />
-
-          <button
-            mat-icon-button
-            matSuffix
-            type="button"
-            [attr.aria-label]="'auth.togglePassword' | translate"
-            (click)="togglePasswordVisibility()"
-          >
-            <mat-icon>{{
-              showPassword ? "visibility_off" : "visibility"
-            }}</mat-icon>
-          </button>
-        </mat-form-field>
-
-        @if (error) {
-          <p class="error-message" role="alert">{{ error }}</p>
-        }
-
-        <a href="#" class="forgot-password">{{
-          "auth.forgotPassword" | translate
-        }}</a>
+      <mat-form-field appearance="outline" class="full-width">
+        <mat-label>{{ "auth.password" | translate }}</mat-label>
+        <mat-icon matPrefix>lock</mat-icon>
+        <input
+          matInput
+          [type]="showPassword ? 'text' : 'password'"
+          formControlName="password"
+          required
+          autocomplete="current-password"
+          [placeholder]="'auth.passwordPlaceholder' | translate"
+        />
 
         <button
-          mat-flat-button
-          class="sign-in-button"
-          type="submit"
-          [disabled]="submitting"
+          mat-icon-button
+          matSuffix
+          type="button"
+          [attr.aria-label]="'auth.togglePassword' | translate"
+          (click)="togglePasswordVisibility()"
         >
-          <span>{{
-            (submitting ? "auth.signingIn" : "auth.signIn") | translate
-          }}</span>
-          <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+          <mat-icon>{{
+            showPassword ? "visibility_off" : "visibility"
+          }}</mat-icon>
         </button>
-      </form>
-    </div>
+      </mat-form-field>
 
-    <footer class="auth-footer">
-      <span>{{ "auth.dontHaveAccount" | translate }}</span>
-      <a href="#">{{ "auth.contactAdministrator" | translate }}</a>
-    </footer>
-  </aside>
+      @if (error) {
+        <p class="error-message" role="alert">{{ error }}</p>
+      }
+
+      <a routerLink="/forgot-password" class="forgot-password">{{
+        "auth.forgotPassword" | translate
+      }}</a>
+
+      <button
+        mat-flat-button
+        class="sign-in-button"
+        type="submit"
+        [disabled]="submitting"
+      >
+        <span>{{
+          (submitting ? "auth.signingIn" : "auth.signIn") | translate
+        }}</span>
+        <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+      </button>
+    </form>
+  </div>
+
+  <footer class="auth-footer">
+    <span>{{ "auth.dontHaveAccount" | translate }}</span>
+    <a href="#">{{ "auth.contactAdministrator" | translate }}</a>
+  </footer>
 </main>

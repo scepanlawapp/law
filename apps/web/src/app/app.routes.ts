@@ -1,8 +1,9 @@
 import { Route } from "@angular/router";
 import { AcceptInvitationComponent } from "./accept-invitation.component";
-import { ForgotPasswordComponent } from "./forgot-password.component";
-import { ResetPasswordComponent } from "./reset-password.component";
+import { ForgotPasswordComponent } from "./auth/forgot-password/forgot-password.component";
+import { ResetPasswordComponent } from "./auth/reset-password/reset-password.component";
 import { LoginComponent } from "./auth/login/login.component";
+import { AuthLayoutComponent } from "./auth/auth-layout/auth-layout.component";
 import { authGuard } from "@law/security";
 import { DashboardComponent } from "./features/dashboard/dashboard.component";
 import { AssistantComponent } from "./features/assistant/assistant.component";
@@ -19,10 +20,16 @@ import { CasesComponent } from "./features/cases/cases.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
 
 export const appRoutes: Route[] = [
-  { path: "login", component: LoginComponent },
+  {
+    path: "",
+    component: AuthLayoutComponent,
+    children: [
+      { path: "login", component: LoginComponent },
+      { path: "forgot-password", component: ForgotPasswordComponent },
+      { path: "reset-password", component: ResetPasswordComponent },
+    ],
+  },
   { path: "accept-invitation", component: AcceptInvitationComponent },
-  { path: "forgot-password", component: ForgotPasswordComponent },
-  { path: "reset-password", component: ResetPasswordComponent },
   {
     path: "",
     canActivate: [authGuard],

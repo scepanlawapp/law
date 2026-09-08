@@ -5,7 +5,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { Router } from "@angular/router";
+import { Router, RouterLink } from "@angular/router";
 import { MatButtonModule } from "@angular/material/button";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
@@ -29,6 +29,7 @@ interface FeatureItem {
     MatInputModule,
     MatIconModule,
     TranslatePipe,
+    RouterLink,
   ],
   templateUrl: "./login.component.html",
   styleUrl: "./login.component.scss",
