@@ -9,7 +9,7 @@
       <span>{{ "dashboard.askAi" | translate }}</span>
       <button
         type="button"
-        aria-label="Ask the assistant"
+        [attr.aria-label]="'dashboard.askAssistant' | translate"
         routerLink="/assistant"
       >
         <mat-icon>arrow_forward</mat-icon>
@@ -37,11 +37,8 @@
   <a class="assistant-card" routerLink="/assistant">
     <span class="assistant-card-icon"><mat-icon>smart_toy</mat-icon></span>
     <div>
-      <h2>AI Assistant</h2>
-      <p>
-        Your legal AI assistant can help you with case analysis, document
-        review, research and more.
-      </p>
+      <h2>{{ "dashboard.assistantTitle" | translate }}</h2>
+      <p>{{ "dashboard.assistantDescription" | translate }}</p>
       <span class="text-link"
         >{{ "dashboard.startConversation" | translate }}
         <mat-icon>arrow_forward</mat-icon></span
@@ -75,15 +72,15 @@
       <div class="event-list">
         @for (event of upcomingEvents; track event.time + event.title) {
           <div class="event-row">
-            <time>{{ event.time }}</time>
+            <time>{{ event.time | translate }}</time>
             <span class="round-icon"
               ><mat-icon>{{ event.icon }}</mat-icon></span
             >
             <div class="row-copy">
-              <strong>{{ event.title }}</strong
-              ><small>{{ event.detail }}</small>
+              <strong>{{ event.title | translate }}</strong
+              ><small>{{ event.detail | translate }}</small>
             </div>
-            <span class="row-tag">{{ event.tag }}</span>
+            <span class="row-tag">{{ event.tag | translate }}</span>
           </div>
         }
       </div>
@@ -100,10 +97,10 @@
               ><mat-icon>{{ activity.icon }}</mat-icon></span
             >
             <div class="row-copy">
-              <strong>{{ activity.title }}</strong
-              ><small>{{ activity.detail }}</small>
+              <strong>{{ activity.title | translate }}</strong
+              ><small>{{ activity.detail | translate }}</small>
             </div>
-            <time>{{ activity.time }}</time>
+            <time>{{ activity.time | translate }}</time>
           </div>
         }
       </div>
@@ -124,10 +121,10 @@
               ><mat-icon>{{ notification.icon }}</mat-icon></span
             >
             <div class="row-copy">
-              <strong>{{ notification.title }}</strong
-              ><small>{{ notification.detail }}</small>
+              <strong>{{ notification.title | translate }}</strong
+              ><small>{{ notification.detail | translate }}</small>
             </div>
-            <time>{{ notification.time }}</time>
+            <time>{{ notification.time | translate }}</time>
           </div>
         }
       </div>
@@ -139,7 +136,8 @@
       <div class="panel-heading">
         <h2>{{ "dashboard.casesOverview" | translate }}</h2>
         <button type="button">
-          View all cases <mat-icon>arrow_forward</mat-icon>
+          {{ "dashboard.viewAllCases" | translate }}
+          <mat-icon>arrow_forward</mat-icon>
         </button>
       </div>
       <div class="table-wrap">
@@ -159,13 +157,13 @@
               <tr>
                 <td>{{ caseItem.number }}</td>
                 <td>{{ caseItem.client }}</td>
-                <td>{{ caseItem.type }}</td>
+                <td>{{ caseItem.type | translate }}</td>
                 <td>
-                  <span class="status" [class]="caseItem.status.toLowerCase()"
-                    ><i></i>{{ caseItem.status }}</span
+                  <span class="status" [class]="caseItem.statusClass"
+                    ><i></i>{{ translateStatus(caseItem.status) }}</span
                   >
                 </td>
-                <td>{{ caseItem.court }}</td>
+                <td>{{ caseItem.court | translate }}</td>
                 <td>{{ caseItem.deadline }}</td>
               </tr>
             }
@@ -182,7 +180,7 @@
         @for (action of quickActions; track action.title) {
           <button type="button">
             <mat-icon>{{ action.icon }}</mat-icon
-            ><span>{{ action.title }}</span
+            ><span>{{ action.title | translate }}</span
             ><mat-icon class="arrow">chevron_right</mat-icon>
           </button>
         }

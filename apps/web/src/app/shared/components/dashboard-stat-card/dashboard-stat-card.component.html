@@ -9,7 +9,7 @@
     }}</mat-icon>
   </div>
   <div class="grid min-w-0 gap-px">
-    <span class="text-base text-[var(--color-text-muted)]">{{ title() }}</span>
+    <span class="text-base text-[var(--color-text-muted)]">{{ title() | translate }}</span>
     <strong
       class="text-[1.15rem] leading-[1.15] text-[var(--color-text-primary)]"
       >{{ value() }}</strong
@@ -27,7 +27,7 @@
             : "north"
       }}</mat-icon>
       {{ trend() }}
-      <small class="text-inherit">{{ trendDetail() }}</small>
+      <small class="text-inherit">{{ trendDetail() | translate }}</small>
     </span>
   </div>
   @if (chart().length) {

@@ -1,4 +1,4 @@
-import { Component, inject } from "@angular/core";
+import { Component, inject, signal } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";
 import { MatMenuModule } from "@angular/material/menu";
 import { RouterLink } from "@angular/router";
@@ -13,6 +13,14 @@ interface HeaderNotification {
   icon: string;
   tone: "blue" | "orange" | "red" | "purple";
 }
+
+const LEGAL_QUOTE_KEYS = [
+  "header.quoteJustice",
+  "header.quoteClarity",
+  "header.quotePreparation",
+  "header.quoteTrust",
+  "header.quoteTruth",
+] as const;
 
 @Component({
   selector: "app-header",
@@ -30,6 +38,9 @@ interface HeaderNotification {
 export class HeaderComponent {
   private readonly authState = inject(AuthState);
   readonly session = this.authState.session;
+  readonly quoteKey = signal(
+    LEGAL_QUOTE_KEYS[Math.floor(Math.random() * LEGAL_QUOTE_KEYS.length)],
+  );
 
   readonly notifications: HeaderNotification[] = [
     {

@@ -1,8 +1,11 @@
-import { Component } from "@angular/core";
+import { Component, inject } from "@angular/core";
 import { MatIconModule } from "@angular/material/icon";
 import { RouterLink } from "@angular/router";
 import { DashboardStatCardComponent } from "../../shared/components/dashboard-stat-card/dashboard-stat-card.component";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { LocalizationService } from "../../core/localization/localization.service";
+
+type CaseStatus = "Active" | "Pending" | "Closed";
 
 interface DashboardEvent {
   time: string;
@@ -32,7 +35,8 @@ interface CaseOverview {
   number: string;
   client: string;
   type: string;
-  status: "Active" | "Pending" | "Closed";
+  status: CaseStatus;
+  statusClass: Lowercase<CaseStatus>;
   court: string;
   deadline: string;
 }
@@ -55,39 +59,45 @@ interface QuickAction {
   styleUrl: "./dashboard.component.scss",
 })
 export class DashboardComponent {
+  private readonly localization = inject(LocalizationService);
+
+  translateStatus(status: CaseStatus): string {
+    return this.localization.translate(`dashboard.${status.toLowerCase()}`);
+  }
+
   readonly stats = [
     {
-      title: "Active cases",
+      title: "dashboard.statActiveCases",
       value: "24",
       trend: "2",
-      trendDetail: "this month",
+      trendDetail: "dashboard.thisMonth",
       trendDirection: "up" as const,
       icon: "folder_open",
       chart: [25, 40, 35, 55, 48, 68, 58, 75],
     },
     {
-      title: "Upcoming hearings",
+      title: "dashboard.statUpcomingHearings",
       value: "5",
       trend: "Next:",
-      trendDetail: "Tomorrow",
+      trendDetail: "dashboard.tomorrow",
       trendDirection: "neutral" as const,
       icon: "calendar_month",
       chart: [],
     },
     {
-      title: "Pending tasks",
+      title: "dashboard.statPendingTasks",
       value: "12",
       trend: "4",
-      trendDetail: "due today",
+      trendDetail: "dashboard.dueToday",
       trendDirection: "down" as const,
       icon: "check_box",
       chart: [36, 45, 30, 58, 48, 67, 54, 80],
     },
     {
-      title: "Total documents",
+      title: "dashboard.statTotalDocuments",
       value: "156",
       trend: "12",
-      trendDetail: "this month",
+      trendDetail: "dashboard.thisMonth",
       trendDirection: "up" as const,
       icon: "description",
       chart: [20, 30, 28, 48, 42, 62, 52, 78],
@@ -97,74 +107,74 @@ export class DashboardComponent {
   readonly upcomingEvents: DashboardEvent[] = [
     {
       time: "10:00",
-      title: "Court hearing",
-      detail: "P-123/2026 · Marko Petrović",
+      title: "dashboard.courtHearing",
+      detail: "dashboard.eventCaseMarko",
       icon: "gavel",
-      tag: "Today",
+      tag: "dashboard.today",
     },
     {
       time: "14:30",
-      title: "Client meeting",
-      detail: "Ana Jovanović",
+      title: "dashboard.clientMeeting",
+      detail: "dashboard.eventClientAna",
       icon: "group",
-      tag: "Today",
+      tag: "dashboard.today",
     },
     {
       time: "16:00",
-      title: "Deadline",
-      detail: "Submit appeal",
+      title: "dashboard.deadlineEvent",
+      detail: "dashboard.submitAppeal",
       icon: "description",
-      tag: "Today",
+      tag: "dashboard.today",
     },
     {
-      time: "Sep 14",
-      title: "Court hearing",
-      detail: "P-124/2026 · Milica Jovanović",
+      time: "dashboard.sep14",
+      title: "dashboard.courtHearing",
+      detail: "dashboard.eventCaseMilica",
       icon: "gavel",
-      tag: "Tomorrow",
+      tag: "dashboard.tomorrow",
     },
     {
-      time: "Sep 16",
-      title: "Meeting",
-      detail: "With client · contract review",
+      time: "dashboard.sep16",
+      title: "dashboard.meeting",
+      detail: "dashboard.eventContractReview",
       icon: "calendar_month",
-      tag: "In 2 days",
+      tag: "dashboard.inTwoDays",
     },
   ];
 
   readonly recentActivity: DashboardActivity[] = [
     {
-      title: "Document uploaded",
-      detail: "Ugovor.pdf · P-123/2026",
-      time: "10 minutes ago",
+      title: "dashboard.documentUploaded",
+      detail: "dashboard.activityContract",
+      time: "dashboard.tenMinutesAgo",
       icon: "description",
       tone: "blue",
     },
     {
-      title: "Case updated",
-      detail: "Status changed to Active",
-      time: "1 hour ago",
+      title: "dashboard.caseUpdated",
+      detail: "dashboard.statusChangedActive",
+      time: "dashboard.oneHourAgo",
       icon: "folder_open",
       tone: "orange",
     },
     {
-      title: "New task created",
-      detail: "Prepare response to court",
-      time: "2 hours ago",
+      title: "dashboard.taskCreated",
+      detail: "dashboard.prepareCourtResponse",
+      time: "dashboard.twoHoursAgo",
       icon: "check_box",
       tone: "green",
     },
     {
-      title: "Client added",
-      detail: "Nikola Petrović",
-      time: "3 hours ago",
+      title: "dashboard.clientAdded",
+      detail: "dashboard.activityClientNikola",
+      time: "dashboard.threeHoursAgo",
       icon: "group",
       tone: "purple",
     },
     {
-      title: "Payment received",
-      detail: "Invoice #INV-0042 · 1.250,00 €",
-      time: "5 hours ago",
+      title: "dashboard.paymentReceived",
+      detail: "dashboard.invoiceReceived",
+      time: "dashboard.fiveHoursAgo",
       icon: "account_balance_wallet",
       tone: "orange",
     },
@@ -172,37 +182,37 @@ export class DashboardComponent {
 
   readonly notifications: DashboardNotification[] = [
     {
-      title: "New document uploaded",
-      detail: "Contract.pdf in case P-123/2026",
-      time: "10m",
+      title: "dashboard.newDocumentUploaded",
+      detail: "dashboard.notificationContract",
+      time: "dashboard.tenMinutesShort",
       icon: "description",
       tone: "blue",
     },
     {
-      title: "Hearing reminder",
-      detail: "Court hearing tomorrow at 10:00",
-      time: "1h",
+      title: "dashboard.hearingReminder",
+      detail: "dashboard.notificationHearing",
+      time: "dashboard.oneHourShort",
       icon: "calendar_month",
       tone: "blue",
     },
     {
-      title: "Deadline approaching",
-      detail: "Submit appeal in 2 days",
-      time: "3h",
+      title: "dashboard.deadlineApproaching",
+      detail: "dashboard.notificationDeadline",
+      time: "dashboard.threeHoursShort",
       icon: "warning",
       tone: "red",
     },
     {
-      title: "New message from client",
-      detail: "Ana Jovanović",
-      time: "5h",
+      title: "dashboard.newClientMessage",
+      detail: "dashboard.notificationClientAna",
+      time: "dashboard.fiveHoursShort",
       icon: "chat_bubble_outline",
       tone: "blue",
     },
     {
-      title: "System update",
-      detail: "Backup completed successfully",
-      time: "1d",
+      title: "dashboard.systemUpdate",
+      detail: "dashboard.backupCompleted",
+      time: "dashboard.oneDayShort",
       icon: "info",
       tone: "purple",
     },
@@ -212,50 +222,55 @@ export class DashboardComponent {
     {
       number: "P-123/2026",
       client: "Marko Petrović",
-      type: "Civil",
+      type: "dashboard.civil",
       status: "Active",
-      court: "Basic Court Subotica",
+      statusClass: "active",
+      court: "dashboard.basicCourtSubotica",
       deadline: "Sep 14, 2025",
     },
     {
       number: "P-124/2026",
       client: "Ana Jovanović",
-      type: "Criminal",
+      type: "dashboard.criminal",
       status: "Active",
-      court: "High Court Belgrade",
+      statusClass: "active",
+      court: "dashboard.highCourtBelgrade",
       deadline: "Sep 21, 2025",
     },
     {
       number: "P-125/2026",
       client: "Nikola Ilić",
-      type: "Commercial",
+      type: "dashboard.commercial",
       status: "Pending",
-      court: "Commercial Court",
+      statusClass: "pending",
+      court: "dashboard.commercialCourt",
       deadline: "Sep 28, 2025",
     },
     {
       number: "P-126/2026",
       client: "Jelena Stojanović",
-      type: "Family",
+      type: "dashboard.family",
       status: "Closed",
-      court: "Basic Court Novi Sad",
+      statusClass: "closed",
+      court: "dashboard.basicCourtNoviSad",
       deadline: "Aug 30, 2025",
     },
     {
       number: "P-127/2026",
       client: "Petar Marković",
-      type: "Labor",
+      type: "dashboard.labor",
       status: "Active",
-      court: "High Court Belgrade",
+      statusClass: "active",
+      court: "dashboard.highCourtBelgrade",
       deadline: "Oct 05, 2025",
     },
   ];
 
   readonly quickActions: QuickAction[] = [
-    { title: "Create new case", icon: "folder_open" },
-    { title: "Upload document", icon: "upload_file" },
-    { title: "Add client", icon: "group" },
-    { title: "Create task", icon: "check_box" },
-    { title: "Schedule event", icon: "calendar_month" },
+    { title: "dashboard.createNewCase", icon: "folder_open" },
+    { title: "dashboard.uploadDocument", icon: "upload_file" },
+    { title: "dashboard.addClient", icon: "group" },
+    { title: "dashboard.createTask", icon: "check_box" },
+    { title: "dashboard.scheduleEvent", icon: "calendar_month" },
   ];
 }

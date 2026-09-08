@@ -2,7 +2,7 @@
   class="flex min-h-[3.65rem] items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-[1.15rem] max-[700px]:px-3"
 >
   <label
-    class="flex h-[1.8rem] w-full max-w-[19.5rem] items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-2.5 text-[#28527a]"
+    class="flex h-[2.7rem] w-full max-w-[29.25rem] items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-2.5 text-[#28527a]"
   >
     <mat-icon class="h-4 w-4 text-base" aria-hidden="true">search</mat-icon>
     <input
@@ -11,6 +11,11 @@
       [placeholder]="'header.searchPlaceholder' | translate"
     />
   </label>
+
+  <div class="tip" aria-live="polite">
+    <span class="tip__quote-mark" aria-hidden="true">“</span>
+    <span class="tip__text">{{ quoteKey() | translate }}</span>
+  </div>
 
   <div class="flex items-center gap-2.5 text-base text-[#263e55]">
     <button
