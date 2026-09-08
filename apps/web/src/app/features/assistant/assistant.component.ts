@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  AfterViewInit,
   OnInit,
   ViewChild,
   inject,
@@ -59,7 +60,7 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
 })
-export class AssistantComponent implements OnInit {
+export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly authState = inject(AuthState);
   private readonly chat = inject(ChatApiClient);
   private readonly destroyRef = inject(DestroyRef);
@@ -88,6 +89,10 @@ export class AssistantComponent implements OnInit {
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => this.source?.close());
     this.loadSessions();
+  }
+
+  ngAfterViewInit(): void {
+    this.focusDraftTextarea();
   }
 
   protected workspaceId(): string | undefined {
@@ -173,6 +178,8 @@ export class AssistantComponent implements OnInit {
   }
 
   protected createSession(): void {
+    if (this.selectedSessionId() && !this.messages().length) return;
+
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
 
@@ -182,6 +189,7 @@ export class AssistantComponent implements OnInit {
         this.sessions.set([]);
         this.loadSessions();
         this.selectSession(session.id);
+        this.focusDraftTextarea();
       },
       error: () => this.error.set("Unable to create a conversation."),
     });
@@ -409,6 +417,10 @@ export class AssistantComponent implements OnInit {
     if (!textarea) return;
     textarea.style.height = "";
     textarea.style.overflowY = "hidden";
+  }
+
+  private focusDraftTextarea(): void {
+    requestAnimationFrame(() => this.draftTextarea?.nativeElement.focus());
   }
 
   private isAllowedMimeType(mimeType: string): boolean {

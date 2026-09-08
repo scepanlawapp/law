@@ -53,6 +53,29 @@ a {
   color: #8aa0b5;
 }
 
+.assistant-prompt textarea {
+  flex: 1;
+  min-width: 0;
+  height: 1.35rem;
+  padding: 0;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #36526d;
+  font: inherit;
+  line-height: 1.35;
+}
+
+.assistant-prompt textarea::placeholder {
+  color: #8aa0b5;
+}
+
+.assistant-prompt-error {
+  margin: 0.3rem 0 0;
+  color: #b3261e;
+}
+
 .assistant-prompt > mat-icon {
   color: #3175c5;
 }
@@ -70,9 +93,9 @@ a {
   color: var(--color-text-inverse);
 }
 
-.assistant-prompt button mat-icon {
-  width: 0.9rem;
-  height: 0.9rem;
+.assistant-prompt button:disabled {
+  cursor: wait;
+  opacity: 0.55;
 }
 
 .prompt-actions {

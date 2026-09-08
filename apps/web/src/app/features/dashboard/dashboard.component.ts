@@ -1,6 +1,9 @@
-import { Component, inject } from "@angular/core";
+import { Component, inject, signal } from "@angular/core";
+import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
-import { RouterLink } from "@angular/router";
+import { Router, RouterLink } from "@angular/router";
+import { ChatApiClient } from "@law/api-clients";
+import { AuthState } from "@law/security";
 import { DashboardStatCardComponent } from "../../shared/components/dashboard-stat-card/dashboard-stat-card.component";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -52,6 +55,7 @@ interface QuickAction {
   imports: [
     DashboardStatCardComponent,
     MatIconModule,
+    ReactiveFormsModule,
     RouterLink,
     TranslatePipe,
   ],
@@ -60,6 +64,48 @@ interface QuickAction {
 })
 export class DashboardComponent {
   private readonly localization = inject(LocalizationService);
+  private readonly authState = inject(AuthState);
+  private readonly chat = inject(ChatApiClient);
+  private readonly router = inject(Router);
+
+  protected readonly promptForm = new FormGroup({
+    prompt: new FormControl("", { nonNullable: true }),
+  });
+  protected readonly sendingPrompt = signal(false);
+  protected readonly promptError = signal("");
+
+  protected onPromptKeydown(event: Event): void {
+    if ((event as KeyboardEvent).shiftKey) return;
+
+    event.preventDefault();
+    this.submitPrompt();
+  }
+
+  protected submitPrompt(): void {
+    const content = this.promptForm.controls.prompt.value.trim();
+    const workspaceId = this.authState.session()?.memberships[0]?.workspaceId;
+    if (!content || !workspaceId || this.sendingPrompt()) return;
+
+    this.sendingPrompt.set(true);
+    this.promptError.set("");
+    this.chat.createSession({ workspaceId }).subscribe({
+      next: (session) => {
+        this.chat.sendMessage(workspaceId, session.id, content).subscribe({
+          next: () => {
+            this.router.navigateByUrl("/assistant");
+          },
+          error: () => {
+            this.sendingPrompt.set(false);
+            this.promptError.set("Unable to send that message.");
+          },
+        });
+      },
+      error: () => {
+        this.sendingPrompt.set(false);
+        this.promptError.set("Unable to create a conversation.");
+      },
+    });
+  }
 
   translateStatus(status: CaseStatus): string {
     return this.localization.translate(`dashboard.${status.toLowerCase()}`);

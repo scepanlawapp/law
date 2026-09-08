@@ -4,17 +4,30 @@
       {{ "dashboard.greeting" | translate }} <span aria-hidden="true">👋</span>
     </p>
     <h1>{{ "dashboard.heading" | translate }}</h1>
-    <div class="assistant-prompt">
+    <form
+      class="assistant-prompt"
+      [formGroup]="promptForm"
+      (ngSubmit)="submitPrompt()"
+    >
       <mat-icon aria-hidden="true">auto_awesome</mat-icon>
-      <span>{{ "dashboard.askAi" | translate }}</span>
+      <textarea
+        formControlName="prompt"
+        rows="1"
+        [placeholder]="'dashboard.askAi' | translate"
+        [disabled]="sendingPrompt()"
+        (keydown.enter)="onPromptKeydown($event)"
+      ></textarea>
       <button
-        type="button"
+        type="submit"
         [attr.aria-label]="'dashboard.askAssistant' | translate"
-        routerLink="/assistant"
+        [disabled]="sendingPrompt()"
       >
         <mat-icon>arrow_forward</mat-icon>
       </button>
-    </div>
+    </form>
+    @if (promptError()) {
+      <p class="assistant-prompt-error" role="alert">{{ promptError() }}</p>
+    }
     <div class="prompt-actions">
       <button type="button">
         <mat-icon>auto_awesome</mat-icon
