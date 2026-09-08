@@ -57,6 +57,69 @@
   --shadow-md: 0 12px 32px rgba(31, 61, 92, 0.16);
   --shadow-dialog: 0 12px 32px rgba(31, 61, 92, 0.12);
   --overlay-dialog: rgba(15, 35, 55, 0.45);
+  color-scheme: light;
+}
+
+:root[data-theme="DARK"] {
+  color-scheme: dark;
+  --color-background: #101820;
+  --color-surface: #17232e;
+  --color-surface-subtle: #1d2b38;
+  --color-surface-muted: #223342;
+  --color-surface-accent: #203c56;
+  --color-text-primary: #e8f0f7;
+  --color-text-secondary: #b7c8d7;
+  --color-text-muted: #8da3b6;
+  --color-text-inverse: #10202d;
+  --color-brand: #69aee8;
+  --color-brand-strong: #85bff0;
+  --color-brand-action: #5ba8e8;
+  --color-success: #55d49b;
+  --color-success-soft: #1d5945;
+  --color-warning: #f3b64f;
+  --color-warning-soft: #664c1e;
+  --color-danger: #ff8079;
+  --color-danger-soft: #642e31;
+  --color-info-soft: #1c536e;
+  --color-border: #304454;
+  --color-border-subtle: #263947;
+  --color-border-strong: #486174;
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.32);
+  --shadow-dialog: 0 12px 32px rgba(0, 0, 0, 0.38);
+  --overlay-dialog: rgba(0, 0, 0, 0.65);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="LIGHT"]) {
+    color-scheme: dark;
+    --color-background: #101820;
+    --color-surface: #17232e;
+    --color-surface-subtle: #1d2b38;
+    --color-surface-muted: #223342;
+    --color-surface-accent: #203c56;
+    --color-text-primary: #e8f0f7;
+    --color-text-secondary: #b7c8d7;
+    --color-text-muted: #8da3b6;
+    --color-text-inverse: #10202d;
+    --color-brand: #69aee8;
+    --color-brand-strong: #85bff0;
+    --color-brand-action: #5ba8e8;
+    --color-success: #55d49b;
+    --color-success-soft: #1d5945;
+    --color-warning: #f3b64f;
+    --color-warning-soft: #664c1e;
+    --color-danger: #ff8079;
+    --color-danger-soft: #642e31;
+    --color-info-soft: #1c536e;
+    --color-border: #304454;
+    --color-border-subtle: #263947;
+    --color-border-strong: #486174;
+    --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.18);
+    --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.32);
+    --shadow-dialog: 0 12px 32px rgba(0, 0, 0, 0.38);
+    --overlay-dialog: rgba(0, 0, 0, 0.65);
+  }
 }
 
 html {

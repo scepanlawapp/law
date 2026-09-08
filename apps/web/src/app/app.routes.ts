@@ -18,6 +18,9 @@ import { DataSettingsComponent } from "./features/settings/data-settings.compone
 import { ClientsComponent } from "./features/clients/clients.component";
 import { CasesComponent } from "./features/cases/cases.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
+import { FinanceComponent } from "./features/finance/finance.component";
+import { ReportsComponent } from "./features/reports/reports.component";
+import { TasksDeadlinesComponent } from "./features/tasks-deadlines/tasks-deadlines.component";
 
 export const appRoutes: Route[] = [
   {
@@ -48,6 +51,9 @@ export const appRoutes: Route[] = [
       { path: "documents", component: DocumentsComponent },
       { path: "calendar", component: CalendarComponent },
       { path: "notifications", component: NotificationsComponent },
+      { path: "finance", component: FinanceComponent },
+      { path: "reports", component: ReportsComponent },
+      { path: "tasks-deadlines", component: TasksDeadlinesComponent },
       {
         path: "settings",
         component: SettingsComponent,

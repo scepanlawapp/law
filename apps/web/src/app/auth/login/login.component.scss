@@ -19,7 +19,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  color: #1f3650;
+  color: var(--color-text-primary);
   text-decoration: none;
   font-weight: 500;
 }
@@ -30,7 +30,7 @@
   justify-content: center;
   width: 1.4rem;
   height: 1.4rem;
-  border: 1px solid rgba(31, 54, 80, 0.45);
+  border: 1px solid var(--color-border-strong);
   border-radius: 50%;
   line-height: 1;
 }
@@ -45,12 +45,12 @@
   margin: 0;
   line-height: 1.1;
   letter-spacing: -0.05em;
-  color: #1f3650;
+  color: var(--color-text-primary);
 }
 
 .auth-card p {
   margin: 0.7rem 0 2rem;
-  color: rgba(31, 54, 80, 0.72);
+  color: var(--color-text-secondary);
 }
 
 .login-form {
@@ -63,10 +63,10 @@
 }
 
 ::ng-deep .mat-mdc-form-field {
-  --mdc-outlined-text-field-container-color: rgba(255, 255, 255, 0.7);
-  --mdc-outlined-text-field-outline-color: rgba(31, 54, 80, 0.3);
-  --mdc-outlined-text-field-hover-outline-color: rgba(31, 54, 80, 0.5);
-  --mdc-outlined-text-field-focus-outline-color: #1f3d5e;
+  --mdc-outlined-text-field-container-color: var(--color-surface-muted);
+  --mdc-outlined-text-field-outline-color: var(--color-border);
+  --mdc-outlined-text-field-hover-outline-color: var(--color-border-strong);
+  --mdc-outlined-text-field-focus-outline-color: var(--color-brand);
 }
 
 ::ng-deep .mat-mdc-form-field .mat-mdc-text-field-wrapper {
@@ -75,7 +75,7 @@
 
 ::ng-deep .mat-mdc-form-field .mat-mdc-form-field-icon-prefix,
 ::ng-deep .mat-mdc-form-field .mat-mdc-form-field-icon-suffix {
-  color: rgba(31, 54, 80, 0.7);
+  color: var(--color-text-secondary);
 }
 
 ::ng-deep .mat-mdc-form-field button.mat-mdc-icon-button {
@@ -91,7 +91,7 @@
 .forgot-password {
   justify-self: end;
   margin-top: -0.25rem;
-  color: #1f5b9a;
+  color: var(--color-brand);
   text-decoration: none;
   font-weight: 500;
 }
@@ -101,8 +101,8 @@
   margin-top: 0.5rem;
   border-radius: 0.85rem;
   padding: 1.25rem 1.5rem;
-  background: #1d3958 !important;
-  color: #f6f9fb !important;
+  background: var(--color-text-primary) !important;
+  color: var(--color-text-inverse) !important;
   font-weight: 700;
   display: inline-flex;
   align-items: center;
@@ -116,10 +116,10 @@
   gap: 0.45rem;
   margin-top: 4rem;
   padding-top: 1rem;
-  color: rgba(31, 54, 80, 0.8);
+  color: var(--color-text-secondary);
 }
 
 .auth-footer a {
-  color: #1f5b9a;
+  color: var(--color-brand);
   text-decoration: none;
 }

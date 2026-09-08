@@ -2,7 +2,7 @@
   display: block;
   height: calc(100vh - 3.65rem);
   min-height: 0;
-  color: #1f3b59;
+  color: var(--color-text-primary);
 }
 
 button,
@@ -66,7 +66,7 @@ button {
 .conversation-tabs {
   display: flex;
   gap: 0.55rem;
-  border-bottom: 1px solid #e1e9f0;
+  border-bottom: 1px solid var(--color-border-subtle);
   white-space: nowrap;
 }
 
@@ -98,10 +98,10 @@ button {
   gap: 0.35rem;
   margin: 0.7rem 0;
   padding: 0.35rem 0.45rem;
-  border: 1px solid #e0e8ef;
+  border: 1px solid var(--color-border);
   border-radius: 0.3rem;
-  background: #ffffff;
-  color: #66809a;
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
 }
 
 .conversation-search input {
@@ -109,7 +109,7 @@ button {
   min-width: 0;
   border: 0;
   outline: 0;
-  color: #24425f;
+  color: var(--color-text-primary);
 }
 
 .conversation-search button {
@@ -153,7 +153,7 @@ button {
   margin-left: -0.75rem;
   padding-left: 0.75rem;
   border-left-color: #2474c4;
-  background: #edf5fd;
+  background: var(--color-surface-accent);
 }
 
 .conversation-icon {
@@ -162,8 +162,8 @@ button {
   width: 1.35rem;
   height: 1.35rem;
   border-radius: 50%;
-  background: #e9f1f8;
-  color: #365d80;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
 }
 
 .conversation-icon mat-icon {
@@ -266,7 +266,11 @@ button {
   min-height: 0;
   padding: 1rem;
   overflow: auto;
-  background: linear-gradient(180deg, #fbfdff 0%, #ffffff 100%);
+  background: linear-gradient(
+    180deg,
+    var(--color-surface-subtle) 0%,
+    var(--color-surface) 100%
+  );
 }
 
 .messages.empty-state {
@@ -293,8 +297,8 @@ button {
   width: 1.7rem;
   height: 1.7rem;
   border-radius: 50%;
-  background: #edf4fa;
-  color: #294f72;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
 }
 
 .user-message .message-avatar {
@@ -304,10 +308,10 @@ button {
 
 .message-content {
   padding: 0.65rem 0.8rem;
-  border: 1px solid #e6edf3;
+  border: 1px solid var(--color-border-subtle);
   border-radius: 0.45rem;
-  background: #f5f9fd;
-  color: #36526d;
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
   line-height: 1.5;
 }
 
@@ -390,10 +394,10 @@ button {
   gap: 0.45rem;
   margin: 0 1rem 1rem;
   padding: 0.55rem 0.7rem 0.6rem;
-  border: 1px solid #dce7f0;
+  border: 1px solid var(--color-border);
   border-radius: 0.7rem;
-  background: #ffffff;
-  color: #91a5b7;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
 }
 
 .chat-panel.empty-state .composer {
@@ -436,7 +440,7 @@ button {
   padding: 0.45rem 0.5rem 0.45rem 0.7rem;
   border: 1px solid #dfeaf4;
   border-radius: 0.75rem;
-  background: #f5f7f9;
+  background: var(--color-surface-muted);
   color: #36526d;
 }
 
@@ -524,24 +528,12 @@ button {
 }
 
 .composer .microphone.listening {
-  background: #dcecfb;
-  color: #b3261e;
-  animation: microphone-pulse 1.6s ease-in-out infinite;
+  background: var(--color-surface-accent);
+  color: var(--color-danger);
 }
 
 .composer .microphone:disabled {
   cursor: not-allowed;
-}
-
-@keyframes microphone-pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 0 rgba(179, 38, 30, 0.2);
-  }
-
-  50% {
-    box-shadow: 0 0 0 0.35rem rgba(179, 38, 30, 0);
-  }
 }
 
 .composer .send-button {
@@ -599,7 +591,7 @@ button {
   .conversation-panel {
     max-height: 21rem;
     border-right: 0;
-    border-bottom: 1px solid #e4ebf2;
+    border-bottom: 1px solid var(--color-border-subtle);
   }
 
   .chat-panel {

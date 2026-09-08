@@ -31,11 +31,11 @@
 
 .notification-heading h2 {
   margin: 0;
-  color: #183758;
+  color: var(--color-text-primary);
 }
 
 .notification-heading span {
-  color: #62809d;
+  color: var(--color-text-secondary);
 }
 
 .notification-row {
@@ -46,7 +46,7 @@
   height: auto;
   box-sizing: border-box;
   padding: 0.38rem 0.95rem;
-  border-bottom: 1px solid #f0f4f8;
+  border-bottom: 1px solid var(--color-border-subtle);
   line-height: normal;
   font-family: var(--font-family-base);
 }
@@ -63,8 +63,8 @@
   width: 1.6rem;
   height: 1.6rem;
   border-radius: 50%;
-  background: #eef6ff;
-  color: #347ac3;
+  background: var(--color-surface-accent);
+  color: var(--color-brand);
 }
 
 .notification-icon mat-icon {
@@ -73,15 +73,15 @@
 }
 
 .notification-icon.orange {
-  background: #fff5e8;
-  color: #ed941e;
+  background: var(--color-warning-soft);
+  color: var(--color-warning);
 }
 .notification-icon.red {
-  background: #fff0f0;
-  color: #e85252;
+  background: var(--color-danger-soft);
+  color: var(--color-danger);
 }
 .notification-icon.purple {
-  background: #f1edff;
+  background: var(--color-info-soft);
   color: #765ee8;
 }
 
@@ -100,13 +100,13 @@
 }
 
 .notification-copy strong {
-  color: #294663;
+  color: var(--color-text-secondary);
   font-weight: 600;
 }
 
 .notification-copy small,
 .notification-row time {
-  color: #8297ab;
+  color: var(--color-text-muted);
 }
 
 .notification-row time {
@@ -123,7 +123,7 @@
   justify-content: center;
   gap: 0.25rem;
   min-height: 2.45rem;
-  color: #2168b4;
+  color: var(--color-brand);
   font-weight: 600;
   font-family: var(--font-family-base);
   text-decoration: none;

@@ -6,6 +6,7 @@ import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatSelectModule } from "@angular/material/select";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
+import { ThemeService } from "../../core/theme/theme.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 
@@ -25,6 +26,7 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 export class AppearanceSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);
   private readonly localization = inject(LocalizationService);
+  private readonly theme = inject(ThemeService);
   private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly saving = signal(false);
@@ -54,7 +56,10 @@ export class AppearanceSettingsComponent {
     this.api.update({ preferences: this.form.getRawValue() }).subscribe({
       next: async () => {
         await this.localization.setLanguage(this.form.controls.language.value);
-        this.toast.success(this.localization.translate("settings.appearanceSaved"));
+        this.theme.apply(this.form.controls.theme.value);
+        this.toast.success(
+          this.localization.translate("settings.appearanceSaved"),
+        );
         this.saving.set(false);
       },
       error: () => {

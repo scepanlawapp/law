@@ -72,7 +72,9 @@
     </p>
     <a
       class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
-      href="#"
+      routerLink="/tasks-deadlines"
+      routerLinkActive="active"
+      [routerLinkActiveOptions]="{ exact: true }"
       ><mat-icon>check_box</mat-icon
       ><span>{{ "nav.tasksDeadlines" | translate }}</span></a
     >
