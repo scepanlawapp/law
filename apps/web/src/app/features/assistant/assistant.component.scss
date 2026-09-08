@@ -523,6 +523,27 @@ button {
   color: #647d93;
 }
 
+.composer .microphone.listening {
+  background: #dcecfb;
+  color: #b3261e;
+  animation: microphone-pulse 1.6s ease-in-out infinite;
+}
+
+.composer .microphone:disabled {
+  cursor: not-allowed;
+}
+
+@keyframes microphone-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(179, 38, 30, 0.2);
+  }
+
+  50% {
+    box-shadow: 0 0 0 0.35rem rgba(179, 38, 30, 0);
+  }
+}
+
 .composer .send-button {
   margin-left: auto;
 }

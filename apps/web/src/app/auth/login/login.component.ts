@@ -1,4 +1,5 @@
 import { Component, inject } from "@angular/core";
+import { HttpErrorResponse } from "@angular/common/http";
 import {
   FormControl,
   FormGroup,
@@ -10,7 +11,9 @@ import { MatButtonModule } from "@angular/material/button";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
+import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { AuthState } from "@law/security";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 interface FeatureItem {
@@ -28,6 +31,7 @@ interface FeatureItem {
     MatFormFieldModule,
     MatInputModule,
     MatIconModule,
+    MatSnackBarModule,
     TranslatePipe,
     RouterLink,
   ],
@@ -37,6 +41,8 @@ interface FeatureItem {
 export class LoginComponent {
   private readonly auth = inject(AuthState);
   private readonly router = inject(Router);
+  private readonly localization = inject(LocalizationService);
+  private readonly snackBar = inject(MatSnackBar);
 
   readonly features: FeatureItem[] = [
     {
@@ -97,8 +103,17 @@ export class LoginComponent {
       next: () => {
         void this.router.navigate(["/"]);
       },
-      error: () => {
-        this.error = "Unable to sign in with those credentials.";
+      error: (error: HttpErrorResponse) => {
+        if (error.status === 401) {
+          this.error = "";
+          this.snackBar.open(
+            this.localization.translate("auth.invalidCredentials"),
+            undefined,
+            { duration: 4000 },
+          );
+        } else {
+          this.error = "Unable to sign in with those credentials.";
+        }
         this.submitting = false;
       },
       complete: () => {

@@ -20,10 +20,11 @@ The browser-safe runtime settings are in `apps/web/public/config.json`. Use `con
 ## Run
 
 ```bash
-npm run services:up
-npm run db:migrate
-npm run api:serve
-npm run web:serve
+npm run services:up // docker
+npm run db:migrate // database migration
+npm run api:serve // backend
+npm run web:serve // frontend
+npm run db:seed:auth // Insert first user
 ```
 
 The API is available at `http://localhost:3000/api`, with health at `http://localhost:3000/api/health`. The Angular client is available at `http://localhost:4200`.

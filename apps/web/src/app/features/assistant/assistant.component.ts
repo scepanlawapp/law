@@ -1,16 +1,19 @@
 import { DatePipe } from "@angular/common";
 import {
   Component,
+  ChangeDetectionStrategy,
   DestroyRef,
   ElementRef,
   AfterViewInit,
   OnInit,
   ViewChild,
+  effect,
   inject,
   signal,
 } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { MatIconModule } from "@angular/material/icon";
+import { MatTooltipModule } from "@angular/material/tooltip";
 import { ChatApiClient } from "@law/api-clients";
 import {
   ChatMessageResponse,
@@ -21,6 +24,8 @@ import { AuthState } from "@law/security";
 import { finalize } from "rxjs";
 import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
+import { ToastService } from "../../shared/ui/toast/toast.service";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
 const ALLOWED_FILE_MIME_TYPES = [
@@ -54,17 +59,24 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
     BottomReachedDirective,
     DatePipe,
     MatIconModule,
+    MatTooltipModule,
     ReactiveFormsModule,
     TranslatePipe,
   ],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly authState = inject(AuthState);
   private readonly chat = inject(ChatApiClient);
   private readonly destroyRef = inject(DestroyRef);
+  protected readonly speechRecognition = inject(SpeechRecognitionService);
+  private readonly toast = inject(ToastService);
   private source: EventSource | null = null;
+  private speechBaseText = "";
+  private lastSpeechDraft = "";
+  private lastSpeechText = "";
 
   @ViewChild("messagesContainer")
   private messagesContainer?: ElementRef<HTMLDivElement>;
@@ -86,8 +98,25 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly classifying = signal(false);
   protected readonly error = signal("");
 
+  constructor() {
+    effect(() => {
+      const speechError = this.speechRecognition.error();
+      if (speechError) this.toast.error(speechError);
+    });
+
+    effect(() => {
+      const speechText =
+        `${this.speechRecognition.transcript()} ${this.speechRecognition.interimTranscript()}`.trim();
+      if (!speechText || speechText === this.lastSpeechText) return;
+      this.applySpeechText(speechText);
+    });
+  }
+
   ngOnInit(): void {
-    this.destroyRef.onDestroy(() => this.source?.close());
+    this.destroyRef.onDestroy(() => {
+      this.source?.close();
+      this.speechRecognition.reset();
+    });
     this.loadSessions();
   }
 
@@ -115,6 +144,17 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   protected resizeTextarea(event: Event): void {
     this.resizeTextareaElement(event.target as HTMLTextAreaElement);
+  }
+
+  protected toggleSpeechRecognition(): void {
+    if (!this.speechRecognition.isListening()) {
+      const currentDraft = this.composerForm.controls.draft.value;
+      this.speechBaseText = currentDraft.trimEnd();
+      this.lastSpeechDraft = currentDraft;
+      this.lastSpeechText = "";
+    }
+
+    this.speechRecognition.toggle();
   }
 
   private resizeTextareaElement(textarea: HTMLTextAreaElement): void {
@@ -347,6 +387,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         next: (response) => {
           this.upsertMessage(response.userMessage);
           this.composerForm.reset();
+          this.speechRecognition.reset();
           this.resetTextarea();
           this.pendingFiles.set([]);
           this.sending.set(false);
@@ -417,6 +458,37 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (!textarea) return;
     textarea.style.height = "";
     textarea.style.overflowY = "hidden";
+  }
+
+  private applySpeechText(speechText: string): void {
+    const draftControl = this.composerForm.controls.draft;
+    const currentDraft = draftControl.value;
+    let baseText = this.speechBaseText;
+
+    if (currentDraft !== this.lastSpeechDraft) {
+      baseText = currentDraft.trimEnd();
+      if (this.lastSpeechText && baseText.endsWith(this.lastSpeechText)) {
+        baseText = baseText.slice(0, -this.lastSpeechText.length).trimEnd();
+      }
+      this.speechBaseText = baseText;
+    }
+
+    const nextDraft = this.appendText(baseText, speechText);
+    draftControl.setValue(nextDraft, { emitEvent: false });
+    this.lastSpeechDraft = nextDraft;
+    this.lastSpeechText = speechText;
+    requestAnimationFrame(() => {
+      const textarea = this.draftTextarea?.nativeElement;
+      if (textarea) this.resizeTextareaElement(textarea);
+    });
+  }
+
+  private appendText(baseText: string, addition: string): string {
+    const base = baseText.trimEnd();
+    const text = addition.trim();
+    if (!base) return text;
+    if (!text) return base;
+    return `${base} ${text}`;
   }
 
   private focusDraftTextarea(): void {

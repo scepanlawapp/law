@@ -9,8 +9,10 @@ import { MatButtonModule } from "@angular/material/button";
 import { MatFormFieldModule } from "@angular/material/form-field";
 import { MatIconModule } from "@angular/material/icon";
 import { MatInputModule } from "@angular/material/input";
+import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { AuthApiClient } from "@law/api-clients";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
@@ -22,6 +24,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
     MatFormFieldModule,
     MatIconModule,
     MatInputModule,
+    MatSnackBarModule,
     TranslatePipe,
   ],
   templateUrl: "./profile-settings.component.html",
@@ -30,10 +33,10 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 export class ProfileSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);
   private readonly authApi = inject(AuthApiClient);
+  private readonly localization = inject(LocalizationService);
+  private readonly snackBar = inject(MatSnackBar);
   readonly loading = signal(true);
   readonly saving = signal(false);
-  readonly message = signal("");
-  readonly error = signal("");
   readonly form = new FormGroup({
     firstName: new FormControl(""),
     lastName: new FormControl(""),
@@ -68,7 +71,7 @@ export class ProfileSettingsComponent {
         this.loading.set(false);
       },
       error: () => {
-        this.error.set("settings.profileLoadError");
+        this.showToast("settings.profileLoadError");
         this.loading.set(false);
       },
     });
@@ -80,8 +83,6 @@ export class ProfileSettingsComponent {
       return;
     }
     this.saving.set(true);
-    this.message.set("");
-    this.error.set("");
     const profile = this.form.getRawValue();
     this.api
       .update({
@@ -92,11 +93,11 @@ export class ProfileSettingsComponent {
       })
       .subscribe({
         next: () => {
-          this.message.set("settings.profileSaved");
+          this.showToast("settings.profileSaved");
           this.saving.set(false);
         },
         error: () => {
-          this.error.set("settings.profileSaveError");
+          this.showToast("settings.profileSaveError");
           this.saving.set(false);
         },
       });
@@ -110,10 +111,16 @@ export class ProfileSettingsComponent {
     const { currentPassword, newPassword } = this.passwordForm.getRawValue();
     this.authApi.changePassword(currentPassword, newPassword).subscribe({
       next: () => {
-        this.message.set("settings.passwordChanged");
         this.passwordForm.reset();
+        this.showToast("settings.passwordChanged");
       },
-      error: () => this.error.set("settings.passwordChangeError"),
+      error: () => this.showToast("settings.passwordChangeError"),
+    });
+  }
+
+  private showToast(key: string): void {
+    this.snackBar.open(this.localization.translate(key), undefined, {
+      duration: 4000,
     });
   }
 }

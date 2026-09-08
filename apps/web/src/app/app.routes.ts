@@ -21,13 +21,19 @@ import { DocumentsComponent } from "./features/documents/documents.component";
 
 export const appRoutes: Route[] = [
   {
-    path: "",
+    path: "login",
     component: AuthLayoutComponent,
-    children: [
-      { path: "login", component: LoginComponent },
-      { path: "forgot-password", component: ForgotPasswordComponent },
-      { path: "reset-password", component: ResetPasswordComponent },
-    ],
+    children: [{ path: "", component: LoginComponent }],
+  },
+  {
+    path: "forgot-password",
+    component: AuthLayoutComponent,
+    children: [{ path: "", component: ForgotPasswordComponent }],
+  },
+  {
+    path: "reset-password",
+    component: AuthLayoutComponent,
+    children: [{ path: "", component: ResetPasswordComponent }],
   },
   { path: "accept-invitation", component: AcceptInvitationComponent },
   {
@@ -59,5 +65,5 @@ export const appRoutes: Route[] = [
       },
     ],
   },
-  { path: "**", redirectTo: "" },
+  { path: "**", redirectTo: "login" },
 ];

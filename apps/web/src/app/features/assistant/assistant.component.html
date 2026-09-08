@@ -152,8 +152,26 @@
           (paste)="onPaste($event, $event.target)"
         ></textarea>
         <div class="composer-input-row-button">
-          <button type="button" class="microphone" aria-label="Use microphone">
-            <mat-icon>mic</mat-icon>
+          <button
+            type="button"
+            class="microphone"
+            [class.listening]="speechRecognition.isListening()"
+            [disabled]="!speechRecognition.isSupported()"
+            [matTooltip]="
+              (speechRecognition.isListening()
+                ? 'speech.stop'
+                : 'speech.start') | translate
+            "
+            [attr.aria-label]="
+              (speechRecognition.isListening()
+                ? 'speech.stop'
+                : 'speech.start') | translate
+            "
+            (click)="toggleSpeechRecognition()"
+          >
+            <mat-icon>{{
+              speechRecognition.isListening() ? "mic_off" : "mic"
+            }}</mat-icon>
           </button>
         </div>
         <div class="composer-input-row-button">
