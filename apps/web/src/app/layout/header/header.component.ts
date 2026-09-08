@@ -14,13 +14,10 @@ interface HeaderNotification {
   tone: "blue" | "orange" | "red" | "purple";
 }
 
-const LEGAL_QUOTE_KEYS = [
-  "header.quoteJustice",
-  "header.quoteClarity",
-  "header.quotePreparation",
-  "header.quoteTrust",
-  "header.quoteTruth",
-] as const;
+const LEGAL_QUOTE_KEYS = Array.from(
+  { length: 120 },
+  (_, index) => `header.quote${String(index + 1).padStart(2, "0")}`,
+);
 
 @Component({
   selector: "app-header",
