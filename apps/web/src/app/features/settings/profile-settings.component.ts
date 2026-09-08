@@ -35,21 +35,12 @@ export class ProfileSettingsComponent {
   readonly message = signal("");
   readonly error = signal("");
   readonly form = new FormGroup({
-    firstName: new FormControl("", {
-      nonNullable: true,
-      validators: [Validators.maxLength(80)],
-    }),
-    lastName: new FormControl("", {
-      nonNullable: true,
-      validators: [Validators.maxLength(80)],
-    }),
-    username: new FormControl("", {
-      nonNullable: true,
-      validators: [Validators.maxLength(50)],
-    }),
-    phone: new FormControl("", { nonNullable: true }),
-    jobTitle: new FormControl("", { nonNullable: true }),
-    avatarUrl: new FormControl("", { nonNullable: true }),
+    firstName: new FormControl(""),
+    lastName: new FormControl(""),
+    username: new FormControl(""),
+    phone: new FormControl(""),
+    jobTitle: new FormControl(""),
+    avatarUrl: new FormControl(""),
   });
   readonly passwordForm = new FormGroup({
     currentPassword: new FormControl("", {
@@ -91,16 +82,24 @@ export class ProfileSettingsComponent {
     this.saving.set(true);
     this.message.set("");
     this.error.set("");
-    this.api.update({ profile: this.form.getRawValue() }).subscribe({
-      next: () => {
-        this.message.set("settings.profileSaved");
-        this.saving.set(false);
-      },
-      error: () => {
-        this.error.set("settings.profileSaveError");
-        this.saving.set(false);
-      },
-    });
+    const profile = this.form.getRawValue();
+    this.api
+      .update({
+        profile: {
+          ...profile,
+          avatarUrl: profile.avatarUrl?.trim() || undefined,
+        },
+      })
+      .subscribe({
+        next: () => {
+          this.message.set("settings.profileSaved");
+          this.saving.set(false);
+        },
+        error: () => {
+          this.error.set("settings.profileSaveError");
+          this.saving.set(false);
+        },
+      });
   }
 
   changePassword(): void {
@@ -114,10 +113,7 @@ export class ProfileSettingsComponent {
         this.message.set("settings.passwordChanged");
         this.passwordForm.reset();
       },
-      error: () =>
-        this.error.set(
-          "settings.passwordChangeError",
-        ),
+      error: () => this.error.set("settings.passwordChangeError"),
     });
   }
 }
