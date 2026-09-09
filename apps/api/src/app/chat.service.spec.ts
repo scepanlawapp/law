@@ -841,7 +841,14 @@ describe("ChatService", () => {
 
     await expect(
       service.getDraft(session.workspaceId, "job-5-draft"),
-    ).resolves.toMatchObject({ id: "draft-1", documentText: "TUŽBA..." });
+    ).resolves.toMatchObject({
+      id: "draft-1",
+      documentText: "TUŽBA...",
+      script: "latin",
+    });
+    await expect(
+      service.getDraft(session.workspaceId, "job-5-draft", "cyrillic"),
+    ).resolves.toMatchObject({ documentText: "ТУЖБА...", script: "cyrillic" });
   });
 
   it("getDraft throws NotFoundException when no draft exists", async () => {

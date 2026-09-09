@@ -60,4 +60,4 @@ npm run build
 npm run services:config
 ```
 
-This scaffold does not yet implement authentication, OCR, document generation, legal prompts, domain persistence, production TLS, or production zero-leakage controls. Those require separate design and delivery work.
+Implemented so far: authentication and workspaces, chat with uploads and SSE, attachment extraction (PDF/DOCX/XLSX/TXT, image and scanned-PDF OCR) normalized to Serbian Latin, Portir triage, brief extraction and tužba drafting via OpenRouter. Not yet implemented: draft approval UI, DOCX export, evaluation loop, template retrieval (Qdrant), background queue, local Ollama completions, state-portal integrations, production TLS and zero-leakage controls. See [delivery/roadmap.md](delivery/roadmap.md) for the plan.

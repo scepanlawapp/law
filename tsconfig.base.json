@@ -38,7 +38,8 @@
       "@law/drafting": ["./libs/api/ai/workflows/drafting/src/index.ts"],
       "@law/evaluation": ["./libs/api/ai/workflows/evaluation/src/index.ts"],
       "@law/review": ["./libs/api/ai/workflows/review/src/index.ts"],
-      "@law/extraction": ["./libs/api/ai/extraction/src/index.ts"]
+      "@law/extraction": ["./libs/api/ai/extraction/src/index.ts"],
+      "@law/transliteration": ["./libs/api/ai/transliteration/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

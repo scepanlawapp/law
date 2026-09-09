@@ -1,0 +1,19 @@
+{
+  "created_at": "2026-09-09T12:00:00Z",
+  "keywords": [
+    "draft",
+    "approval",
+    "review",
+    "human-in-the-loop",
+    "audit",
+    "angular",
+    "sse"
+  ],
+  "parent_track_id": "script_normalization_20260909",
+  "prd_reference": "delivery/roadmap.md",
+  "priority": "high",
+  "status": "planned",
+  "track_id": "draft_approval_gate_20260909",
+  "type": "feature",
+  "updated_at": "2026-09-09T12:00:00Z"
+}

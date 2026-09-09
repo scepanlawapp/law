@@ -62,6 +62,13 @@ enum ChatAttachmentExtractionStatus {
   UNSUPPORTED
 }
 
+enum ChatAttachmentSourceScript {
+  LATIN
+  CYRILLIC
+  MIXED
+  NONE
+}
+
 enum WorkflowJobStatus {
   QUEUED
   RUNNING
@@ -247,6 +254,7 @@ model ChatAttachment {
   sizeBytes        Int
   extractionStatus ChatAttachmentExtractionStatus @default(PENDING)
   extractedText    String?                        @db.Text
+  sourceScript     ChatAttachmentSourceScript?
   extractionError  String?
   extractedAt      DateTime?                      @db.Timestamptz(3)
   createdAt        DateTime                       @default(now()) @db.Timestamptz(3)

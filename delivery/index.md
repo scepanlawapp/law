@@ -2,6 +2,17 @@
 
 Tracks are organized by implementation area and updated as work progresses.
 
+## Roadmap
+
+- [AI Legal Workflow Optimization Roadmap](./roadmap.md) — analysis and 90-day phases; each phase maps to the tracks below.
+
+## Phase 1 — Quick Wins
+
+- [Script Normalization (Cyrillic/Latin) + Scanned-PDF OCR](./tracks/script_normalization_20260909/index.md)
+- [Workflow Queue (BullMQ)](./tracks/workflow_queue_bullmq_20260909/index.md)
+- [Draft Approval Gate](./tracks/draft_approval_gate_20260909/index.md)
+- [Draft DOCX Export](./tracks/draft_export_docx_20260909/index.md)
+
 ## Active Tracks
 
 - [Drafting Agent (Context-Only)](./tracks/drafting_agent_context_20260909/index.md)

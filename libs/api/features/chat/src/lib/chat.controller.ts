@@ -25,7 +25,11 @@ import {
   ChatStreamEvent,
   DraftResultResponse,
 } from "@law/api-interfaces";
-import { ChatSessionListQueryDto, CreateChatSessionDto } from "./chat.dto";
+import {
+  ChatSessionListQueryDto,
+  CreateChatSessionDto,
+  DraftQueryDto,
+} from "./chat.dto";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
 interface WorkspaceRequest extends AuthenticatedRequest {
@@ -122,7 +126,12 @@ export class ChatController {
   getDraft(
     @Req() request: WorkspaceRequest,
     @Param("jobId") jobId: string,
+    @Query() query: DraftQueryDto,
   ): Promise<DraftResultResponse> {
-    return this.chat.getDraft(request.workspace!.workspaceId, jobId);
+    return this.chat.getDraft(
+      request.workspace!.workspaceId,
+      jobId,
+      query.script ?? "latin",
+    );
   }
 }

@@ -15,6 +15,7 @@ import {
   ChatSessionDetail,
   ChatSessionSummary,
   ChatStreamEvent,
+  DocumentScript,
   DraftResultResponse,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
@@ -28,6 +29,7 @@ import { Prisma } from "@prisma/client";
 import { ChatModelProvider, OpenRouterChatModelProvider } from "@law/llm";
 import { runPortirGraph } from "@law/triage";
 import { extractAttachmentText } from "@law/extraction";
+import { toCyrillic, toLatin } from "@law/transliteration";
 import {
   BriefDocumentInput,
   BriefResult,
@@ -215,12 +217,13 @@ export class ChatService {
       message: mappedUserMessage,
     });
 
+    // Prompts always receive Latin; the stored message keeps the user's script.
     void this.runTriage({
       workspaceId: params.workspaceId,
       sessionId: session.id,
       userId: params.userId,
       correlationId,
-      content: mappedUserMessage.content,
+      content: toLatin(mappedUserMessage.content),
       attachments: mappedUserMessage.attachments,
     }).catch((error: unknown) => {
       this.logger.error(
@@ -253,12 +256,17 @@ export class ChatService {
   async getDraft(
     workspaceId: string,
     jobId: string,
+    script: DocumentScript = "latin",
   ): Promise<DraftResultResponse> {
     const draft = await this.prisma.draftResult.findFirst({
       where: { jobId, workspaceId },
     });
     if (!draft) throw new NotFoundException("Draft not found");
-    return this.toDraft(draft);
+    const response = this.toDraft(draft);
+    if (script === "cyrillic") {
+      response.documentText = toCyrillic(response.documentText);
+    }
+    return { ...response, script };
   }
 
   stream(sessionId: string) {
@@ -660,6 +668,7 @@ export class ChatService {
         data: {
           extractionStatus: result.status,
           extractedText: result.text ?? null,
+          sourceScript: result.sourceScript ?? null,
           extractionError: result.error ?? null,
           extractedAt: new Date(),
         },
@@ -793,6 +802,7 @@ export class ChatService {
     sizeBytes: number;
     createdAt: Date;
     extractionStatus?: ChatAttachmentSummary["extractionStatus"];
+    sourceScript?: ChatAttachmentSummary["sourceScript"];
   }): ChatAttachmentSummary {
     return {
       id: attachment.id,
@@ -801,6 +811,7 @@ export class ChatService {
       sizeBytes: attachment.sizeBytes,
       createdAt: attachment.createdAt.toISOString(),
       extractionStatus: attachment.extractionStatus,
+      sourceScript: attachment.sourceScript ?? null,
     };
   }
 

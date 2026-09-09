@@ -26,7 +26,26 @@ describe("extractAttachmentText", () => {
       mimeType: "text/plain",
       buffer: Buffer.from("hello world", "utf-8"),
     });
-    expect(result).toEqual({ status: "COMPLETED", text: "hello world" });
+    expect(result).toEqual({
+      status: "COMPLETED",
+      text: "hello world",
+      sourceScript: "LATIN",
+    });
+  });
+
+  it("normalizes Cyrillic input to Latin and reports the source script", async () => {
+    (extractPdfText as jest.Mock).mockResolvedValue(
+      "Пресуда Основног суда у Београду",
+    );
+    const result = await extractAttachmentText({
+      mimeType: "application/pdf",
+      buffer: Buffer.from(""),
+    });
+    expect(result).toEqual({
+      status: "COMPLETED",
+      text: "Presuda Osnovnog suda u Beogradu",
+      sourceScript: "CYRILLIC",
+    });
   });
 
   it("delegates PDF extraction to the pdf-parse wrapper", async () => {
@@ -35,7 +54,11 @@ describe("extractAttachmentText", () => {
       mimeType: "application/pdf",
       buffer: Buffer.from(""),
     });
-    expect(result).toEqual({ status: "COMPLETED", text: "pdf text" });
+    expect(result).toEqual({
+      status: "COMPLETED",
+      text: "pdf text",
+      sourceScript: "LATIN",
+    });
   });
 
   it("delegates DOCX extraction to mammoth", async () => {
@@ -45,7 +68,11 @@ describe("extractAttachmentText", () => {
         "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
       buffer: Buffer.from(""),
     });
-    expect(result).toEqual({ status: "COMPLETED", text: "docx text" });
+    expect(result).toEqual({
+      status: "COMPLETED",
+      text: "docx text",
+      sourceScript: "LATIN",
+    });
   });
 
   it("delegates XLS/XLSX extraction to the spreadsheet extractor", async () => {
@@ -59,8 +86,16 @@ describe("extractAttachmentText", () => {
         "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       buffer: Buffer.from(""),
     });
-    expect(xls).toEqual({ status: "COMPLETED", text: "sheet text" });
-    expect(xlsx).toEqual({ status: "COMPLETED", text: "sheet text" });
+    expect(xls).toEqual({
+      status: "COMPLETED",
+      text: "sheet text",
+      sourceScript: "LATIN",
+    });
+    expect(xlsx).toEqual({
+      status: "COMPLETED",
+      text: "sheet text",
+      sourceScript: "LATIN",
+    });
   });
 
   it("delegates image extraction to OCR", async () => {
@@ -69,7 +104,11 @@ describe("extractAttachmentText", () => {
       mimeType: "image/png",
       buffer: Buffer.from(""),
     });
-    expect(result).toEqual({ status: "COMPLETED", text: "ocr text" });
+    expect(result).toEqual({
+      status: "COMPLETED",
+      text: "ocr text",
+      sourceScript: "LATIN",
+    });
   });
 
   it("returns UNSUPPORTED for an unregistered MIME type", async () => {

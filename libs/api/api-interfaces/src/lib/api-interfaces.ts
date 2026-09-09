@@ -91,6 +91,12 @@ export type ChatAttachmentExtractionStatus =
   | "COMPLETED"
   | "FAILED"
   | "UNSUPPORTED";
+export type ChatAttachmentSourceScript =
+  | "LATIN"
+  | "CYRILLIC"
+  | "MIXED"
+  | "NONE";
+export type DocumentScript = "latin" | "cyrillic";
 
 export type ChatEventType =
   | "message.created"
@@ -107,6 +113,7 @@ export interface ChatAttachmentSummary {
   sizeBytes: number;
   createdAt: string;
   extractionStatus?: ChatAttachmentExtractionStatus;
+  sourceScript?: ChatAttachmentSourceScript | null;
 }
 
 export interface ChatMessageResponse {
@@ -251,4 +258,6 @@ export interface DraftResultResponse {
   model: string;
   errorCode?: string | null;
   createdAt: string;
+  // Script of documentText in this response; stored value is always Latin.
+  script?: DocumentScript;
 }
