@@ -35,8 +35,9 @@ export class UserSettingsController {
 
   @Delete("conversations")
   async clearConversationHistory(@Req() request: AuthenticatedRequest) {
-    const result = await this.prisma.chatSession.deleteMany({
+    const result = await this.prisma.chatSession.updateMany({
       where: { createdByUserId: request.auth!.user.id },
+      data: { isDeleted: true },
     });
     return { deleted: result.count };
   }

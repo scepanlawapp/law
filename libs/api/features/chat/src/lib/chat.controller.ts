@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -83,6 +84,17 @@ export class ChatController {
     @Param("sessionId") sessionId: string,
   ): Promise<ChatSessionDetail> {
     return this.chat.getSession(request.workspace!.workspaceId, sessionId);
+  }
+
+  @Delete("sessions/:sessionId")
+  deleteSession(
+    @Req() request: WorkspaceRequest,
+    @Param("sessionId") sessionId: string,
+  ): Promise<ChatSessionSummary> {
+    return this.chat.deleteSession(
+      request.workspace!.workspaceId,
+      sessionId,
+    );
   }
 
   @Post("sessions/:sessionId/messages")

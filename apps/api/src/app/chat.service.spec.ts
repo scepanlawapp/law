@@ -22,6 +22,8 @@ function prismaMock() {
   return {
     chatSession: {
       findFirst: jest.fn(),
+      findMany: jest.fn(),
+      count: jest.fn(),
       update: jest.fn(),
     },
     chatMessage: {
@@ -53,6 +55,7 @@ const session = {
   createdByUserId: "user-1",
   title: "New chat",
   status: "ACTIVE" as const,
+  isDeleted: false,
   createdAt: now,
   updatedAt: now,
 };
@@ -1091,5 +1094,109 @@ describe("ChatService", () => {
     await expect(
       service.updateSession("workspace-1", "session-2", "Ručni naziv"),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("listSessions excludes soft-deleted sessions", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findMany.mockResolvedValue([session]);
+    prisma.chatSession.count.mockResolvedValue(1);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.listSessions(session.workspaceId, { page: 1, pageSize: 20 }),
+    ).resolves.toMatchObject({
+      items: [expect.objectContaining({ id: session.id, isDeleted: false })],
+    });
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isDeleted: false }),
+      }),
+    );
+    expect(prisma.chatSession.count).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ isDeleted: false }) }),
+    );
+  });
+
+  it("deleteSession soft-deletes the session and emits session.deleted", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue({
+      ...session,
+      isDeleted: true,
+    });
+
+    const events = new ChatEventBus();
+    const emitted: ChatStreamEvent[] = [];
+    events.stream(session.id).subscribe((event) => emitted.push(event));
+
+    const service = new ChatService(
+      prisma as never,
+      events,
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.deleteSession(session.workspaceId, session.id),
+    ).resolves.toMatchObject({ id: session.id, isDeleted: true });
+
+    expect(prisma.chatSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: session.id },
+        data: expect.objectContaining({ isDeleted: true }),
+      }),
+    );
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "session.deleted",
+          sessionId: session.id,
+        }),
+      ]),
+    );
+  });
+
+  it("deleteSession throws NotFoundException for sessions outside the workspace", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(null);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.deleteSession("workspace-1", "session-2"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("treats deleted sessions as not found on getSession", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(null);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.getSession(session.workspaceId, session.id),
+    ).rejects.toBeInstanceOf(NotFoundException);
+    expect(prisma.chatSession.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ isDeleted: false }),
+      }),
+    );
   });
 });

@@ -79,6 +79,7 @@ export class ChatService {
     const where: Prisma.ChatSessionWhereInput = {
       workspaceId,
       status: "ACTIVE",
+      isDeleted: false,
       ...(query.search?.trim()
         ? { title: { contains: query.search.trim(), mode: "insensitive" } }
         : {}),
@@ -158,6 +159,23 @@ export class ChatService {
       ...this.toSessionSummary(session),
       messages: messages.map((message) => this.toMessage(message)),
     };
+  }
+
+  async deleteSession(
+    workspaceId: string,
+    sessionId: string,
+  ): Promise<ChatSessionSummary> {
+    const session = await this.requireSession(workspaceId, sessionId);
+    const updated = await this.prisma.chatSession.update({
+      where: { id: session.id },
+      data: { isDeleted: true },
+    });
+    this.emit({
+      type: "session.deleted",
+      sessionId: session.id,
+      createdAt: updated.updatedAt.toISOString(),
+    });
+    return this.toSessionSummary(updated);
   }
 
   async sendMessage(params: {
@@ -823,7 +841,7 @@ export class ChatService {
 
   private async requireSession(workspaceId: string, sessionId: string) {
     const session = await this.prisma.chatSession.findFirst({
-      where: { id: sessionId, workspaceId },
+      where: { id: sessionId, workspaceId, isDeleted: false },
     });
     if (!session) throw new NotFoundException("Chat session not found");
     return session;
@@ -839,6 +857,7 @@ export class ChatService {
     createdByUserId: string;
     title: string | null;
     status: "ACTIVE" | "ARCHIVED";
+    isDeleted: boolean;
     createdAt: Date;
     updatedAt: Date;
   }): ChatSessionSummary {
@@ -848,6 +867,7 @@ export class ChatService {
       createdByUserId: session.createdByUserId,
       title: session.title,
       status: session.status,
+      isDeleted: session.isDeleted,
       createdAt: session.createdAt.toISOString(),
       updatedAt: session.updatedAt.toISOString(),
     };

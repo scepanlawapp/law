@@ -40,7 +40,12 @@
             <small>Updated {{ session.updatedAt | date: "shortTime" }}</small>
           </span>
           <time>{{ session.updatedAt | date: "MMM d" }}</time>
-          <mat-icon class="more">more_vert</mat-icon>
+          <mat-icon
+            class="more"
+            [matTooltip]="'assistant.deleteConversation' | translate"
+            (click)="deleteSession(session.id); $event.stopPropagation()"
+            >delete</mat-icon
+          >
         </button>
       }
     </div>
