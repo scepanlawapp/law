@@ -71,5 +71,5 @@ export const appRoutes: Route[] = [
       },
     ],
   },
-  { path: "**", redirectTo: "login" },
+  { path: "**", redirectTo: "dashboard" },
 ];

@@ -168,6 +168,16 @@ export class ChatApiClient {
     );
   }
 
+  deleteSession(
+    workspaceId: string,
+    sessionId: string,
+  ): Observable<ChatSessionSummary> {
+    return this.http.delete<ChatSessionSummary>(
+      this.endpoint(`/chat/sessions/${sessionId}`),
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
   sendMessage(
     workspaceId: string,
     sessionId: string,

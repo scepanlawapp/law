@@ -105,6 +105,7 @@ export type ChatEventType =
   | "job.queued"
   | "job.updated"
   | "session.title.updated"
+  | "session.deleted"
   | "error";
 
 export interface ChatAttachmentSummary {
@@ -135,6 +136,7 @@ export interface ChatSessionSummary {
   createdByUserId: string;
   title?: string | null;
   status: ChatSessionStatus;
+  isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
 }

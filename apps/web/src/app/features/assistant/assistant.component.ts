@@ -23,8 +23,10 @@ import {
 import { AuthState } from "@law/security";
 import { finalize } from "rxjs";
 import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
+import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
@@ -72,6 +74,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly chat = inject(ChatApiClient);
   private readonly destroyRef = inject(DestroyRef);
   protected readonly speechRecognition = inject(SpeechRecognitionService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
   private source: EventSource | null = null;
   private speechBaseText = "";
@@ -251,6 +255,51 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       },
       error: () => this.error.set("Unable to load this conversation."),
     });
+  }
+
+  protected deleteSession(sessionId: string): void {
+    this.confirmDialog
+      .confirm({
+        title: this.localization.translate("assistant.deleteConversation"),
+        message: this.localization.translate(
+          "assistant.deleteConversationConfirm",
+        ),
+        confirmText: this.localization.translate(
+          "assistant.deleteConversationAction",
+        ),
+        cancelText: this.localization.translate("settings.cancel"),
+        variant: "danger",
+      })
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+
+        const workspaceId = this.workspaceId();
+        if (!workspaceId) return;
+
+        this.chat.deleteSession(workspaceId, sessionId).subscribe({
+          next: () => {
+            this.sessions.update((items) =>
+              items.filter((item) => item.id !== sessionId),
+            );
+            this.toast.success(
+              this.localization.translate("assistant.conversationDeleted"),
+            );
+            if (this.selectedSessionId() === sessionId) {
+              this.selectedSessionId.set(null);
+              this.messages.set([]);
+              this.classifying.set(false);
+              this.source?.close();
+              this.source = null;
+              this.focusDraftTextarea();
+            }
+          },
+          error: () => {
+            this.toast.error(
+              this.localization.translate("assistant.conversationDeleteError"),
+            );
+          },
+        });
+      });
   }
 
   protected onFiles(event: Event): void {
