@@ -36,7 +36,11 @@ function prismaMock() {
       update: jest.fn(),
     },
     briefExtractionResult: {
+      create: jest.fn().mockResolvedValue({ id: "brief-result-1" }),
+    },
+    draftResult: {
       create: jest.fn(),
+      findFirst: jest.fn(),
     },
   };
 }
@@ -618,5 +622,241 @@ describe("ChatService", () => {
         }),
       }),
     );
+  });
+
+  it("auto-chains drafting and persists a DraftResult for a lawsuit brief", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue(session);
+    prisma.chatMessage.create
+      .mockResolvedValueOnce({
+        id: "msg-user",
+        sessionId: session.id,
+        role: "USER",
+        content: "Tužba za naknadu štete",
+        status: "COMPLETED",
+        triageDecision: null,
+        correlationId: "corr-5",
+        createdAt: now,
+      })
+      .mockResolvedValueOnce({
+        id: "msg-assistant",
+        sessionId: session.id,
+        role: "ASSISTANT",
+        content: "accepted",
+        status: "COMPLETED",
+        triageDecision: "LEGAL",
+        correlationId: "corr-5",
+        createdAt: now,
+      });
+    prisma.briefExtractionResult.create.mockResolvedValue({
+      id: "brief-result-5",
+    });
+    prisma.workflowJob.create.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: data["workflowName"] === "drafting" ? "job-5-draft" : "job-5",
+          workspaceId: session.workspaceId,
+          sessionId: session.id,
+          correlationId: "corr-5",
+          createdAt: now,
+          updatedAt: now,
+          ...data,
+        }),
+    );
+    prisma.workflowJob.update.mockImplementation(
+      ({
+        where,
+        data,
+      }: {
+        where: { id: string };
+        data: Record<string, unknown>;
+      }) =>
+        Promise.resolve({
+          id: where.id,
+          workspaceId: session.workspaceId,
+          sessionId: session.id,
+          workflowName:
+            where.id === "job-5-draft" ? "drafting" : "brief-extraction",
+          correlationId: "corr-5",
+          createdAt: now,
+          updatedAt: now,
+          status: "RUNNING",
+          errorCode: null,
+          ...data,
+        }),
+    );
+
+    const fakeDraft = {
+      documentText: "PRVI OSNOVNI SUD U BEOGRADU\n\nTUŽBA...",
+      warnings: [],
+    };
+
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider([
+        { decision: "LEGAL", reason: "Lawsuit intake" },
+        fakeBrief,
+        fakeDraft,
+      ]),
+    );
+
+    await service.sendMessage({
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      userId: "user-1",
+      content: "Tužba za naknadu štete",
+      files: [],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(prisma.workflowJob.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ workflowName: "drafting" }),
+      }),
+    );
+    expect(prisma.draftResult.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          jobId: "job-5-draft",
+          briefResultId: "brief-result-5",
+          documentText: fakeDraft.documentText,
+          warnings: fakeDraft.warnings,
+        }),
+      }),
+    );
+    expect(prisma.workflowJob.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "job-5-draft" },
+        data: expect.objectContaining({ status: "COMPLETED", errorCode: null }),
+      }),
+    );
+  });
+
+  it("does not queue a drafting job for a non-lawsuit brief", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue(session);
+    prisma.chatMessage.create
+      .mockResolvedValueOnce({
+        id: "msg-user",
+        sessionId: session.id,
+        role: "USER",
+        content: "Treba mi ugovor o zakupu",
+        status: "COMPLETED",
+        triageDecision: null,
+        correlationId: "corr-6",
+        createdAt: now,
+      })
+      .mockResolvedValueOnce({
+        id: "msg-assistant",
+        sessionId: session.id,
+        role: "ASSISTANT",
+        content: "accepted",
+        status: "COMPLETED",
+        triageDecision: "LEGAL",
+        correlationId: "corr-6",
+        createdAt: now,
+      });
+    prisma.briefExtractionResult.create.mockResolvedValue({
+      id: "brief-result-6",
+    });
+    prisma.workflowJob.create.mockResolvedValue({
+      id: "job-6",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      workflowName: "brief-extraction",
+      status: "QUEUED",
+      correlationId: "corr-6",
+      createdAt: now,
+      updatedAt: now,
+    });
+    prisma.workflowJob.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: "job-6",
+          workspaceId: session.workspaceId,
+          sessionId: session.id,
+          workflowName: "brief-extraction",
+          correlationId: "corr-6",
+          createdAt: now,
+          updatedAt: now,
+          ...data,
+        }),
+    );
+
+    const contractBrief = { ...fakeBrief, jobType: "contract" };
+
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider([
+        { decision: "LEGAL", reason: "Contract intake" },
+        contractBrief,
+      ]),
+    );
+
+    await service.sendMessage({
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      userId: "user-1",
+      content: "Treba mi ugovor o zakupu",
+      files: [],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(prisma.workflowJob.create).toHaveBeenCalledTimes(1);
+    expect(prisma.draftResult.create).not.toHaveBeenCalled();
+  });
+
+  it("getDraft returns the persisted draft for a job in the workspace", async () => {
+    const prisma = prismaMock();
+    prisma.draftResult.findFirst.mockResolvedValue({
+      id: "draft-1",
+      jobId: "job-5-draft",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      messageId: "msg-assistant",
+      briefResultId: "brief-result-5",
+      documentText: "TUŽBA...",
+      warnings: [],
+      promptChars: 42,
+      truncated: false,
+      model: "openai/gpt-4o-mini",
+      errorCode: null,
+      createdAt: now,
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.getDraft(session.workspaceId, "job-5-draft"),
+    ).resolves.toMatchObject({ id: "draft-1", documentText: "TUŽBA..." });
+  });
+
+  it("getDraft throws NotFoundException when no draft exists", async () => {
+    const prisma = prismaMock();
+    prisma.draftResult.findFirst.mockResolvedValue(null);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.getDraft(session.workspaceId, "job-unknown"),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

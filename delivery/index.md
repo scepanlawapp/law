@@ -4,6 +4,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Drafting Agent (Context-Only)](./tracks/drafting_agent_context_20260909/index.md)
 - [Brief LLM Context](./tracks/brief_llm_context_20260908/index.md)
 - [Brief Agent Attachment Extraction](./tracks/brief_agent_extraction_20260907/index.md)
 - [Chat Upload Completeness](./tracks/chat_upload_completeness_20260907/index.md)

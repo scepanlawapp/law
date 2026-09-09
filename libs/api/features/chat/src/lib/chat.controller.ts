@@ -23,6 +23,7 @@ import {
   ChatSessionListResponse,
   ChatSessionSummary,
   ChatStreamEvent,
+  DraftResultResponse,
 } from "@law/api-interfaces";
 import { ChatSessionListQueryDto, CreateChatSessionDto } from "./chat.dto";
 import { ChatService, UploadedChatFile } from "./chat.service";
@@ -115,5 +116,13 @@ export class ChatController {
     );
     response.setHeader("Content-Length", String(buffer.length));
     response.send(buffer);
+  }
+
+  @Get("jobs/:jobId/draft")
+  getDraft(
+    @Req() request: WorkspaceRequest,
+    @Param("jobId") jobId: string,
+  ): Promise<DraftResultResponse> {
+    return this.chat.getDraft(request.workspace!.workspaceId, jobId);
   }
 }
