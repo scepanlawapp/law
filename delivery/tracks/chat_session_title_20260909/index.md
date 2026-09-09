@@ -2,7 +2,7 @@
 
 - **Track ID:** `chat_session_title_20260909`
 - **Type:** Feature
-- **Status:** Planned
+- **Status:** Completed
 
 ## Documents
 
@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-The `ChatSession.title` field already exists in the DB schema, DTOs, and frontend sidebar display, defaulting to `"New chat"`. No logic currently generates meaningful titles. This track adds an LLM-powered title generation workflow that fires asynchronously after the first user message, plus a PATCH endpoint and UI for manual rename.
+Track complete (commit `c9b7a5c`). A new `@law/title-generation` workflow library (Zod schema, system prompt, `buildTitleUserPrompt`, `generateTitle`) generates concise titles from the first user message plus per-attachment extracted-text previews (`TITLE_CONTENT_MAX_CHARS`). `ChatService.sendMessage` fires it asynchronously when the session title is still `"New chat"`; the title is persisted and pushed to the sidebar via a new `session.title.updated` SSE event handled in `assistant.component.ts`. A `PATCH /chat/sessions/:id` endpoint (`updateSession`) supports manual rename with `ChatApiClient.updateSession`. All unit tests, lint, and api/web builds pass.
