@@ -15,6 +15,7 @@ import {
   ChatSessionDetail,
   ChatSessionSummary,
   ChatStreamEvent,
+  DraftResultResponse,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
 import {
@@ -29,9 +30,11 @@ import { runPortirGraph } from "@law/triage";
 import { extractAttachmentText } from "@law/extraction";
 import {
   BriefDocumentInput,
+  BriefResult,
   buildBriefUserPrompt,
   runBriefExtractionLlm,
 } from "@law/brief-extraction";
+import { buildDraftingUserPrompt, runDraftingLlm } from "@law/drafting";
 import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
@@ -247,6 +250,17 @@ export class ChatService {
     return { attachment, buffer };
   }
 
+  async getDraft(
+    workspaceId: string,
+    jobId: string,
+  ): Promise<DraftResultResponse> {
+    const draft = await this.prisma.draftResult.findFirst({
+      where: { jobId, workspaceId },
+    });
+    if (!draft) throw new NotFoundException("Draft not found");
+    return this.toDraft(draft);
+  }
+
   stream(sessionId: string) {
     return this.events.stream(sessionId);
   }
@@ -421,6 +435,10 @@ export class ChatService {
         attachments: extractedAttachments,
       };
       let errorCode: string | null = null;
+      let draftingTrigger: {
+        briefResultId: string;
+        brief: BriefResult;
+      } | null = null;
 
       if (!hasContext) {
         output = { ...output, brief: null, briefOutcome: "empty" };
@@ -436,7 +454,7 @@ export class ChatService {
           );
           const brief = await runBriefExtractionLlm(provider, prompt);
 
-          await this.prisma.briefExtractionResult.create({
+          const briefResult = await this.prisma.briefExtractionResult.create({
             data: {
               jobId: params.jobId,
               workspaceId: params.workspaceId,
@@ -452,6 +470,9 @@ export class ChatService {
           });
 
           output = { ...output, brief };
+          if (brief.jobType === "lawsuit") {
+            draftingTrigger = { briefResultId: briefResult.id, brief };
+          }
         } catch (error) {
           const message =
             error instanceof Error ? error.message : "Brief LLM failed";
@@ -477,6 +498,39 @@ export class ChatService {
         createdAt: job.updatedAt.toISOString(),
         job: this.toJob(job),
       });
+
+      if (draftingTrigger) {
+        const draftJob = await this.prisma.workflowJob.create({
+          data: {
+            workspaceId: params.workspaceId,
+            sessionId: params.sessionId,
+            workflowName: "drafting",
+            status: "QUEUED",
+            correlationId: job.correlationId,
+            input: JSON.parse(
+              JSON.stringify({
+                briefResultId: draftingTrigger.briefResultId,
+                messageId: params.messageId,
+              }),
+            ),
+          },
+        });
+        this.emit({
+          type: "job.queued",
+          sessionId: params.sessionId,
+          createdAt: draftJob.createdAt.toISOString(),
+          job: this.toJob(draftJob),
+        });
+
+        await this.runDrafting({
+          workspaceId: params.workspaceId,
+          sessionId: params.sessionId,
+          jobId: draftJob.id,
+          messageId: params.messageId,
+          briefResultId: draftingTrigger.briefResultId,
+          brief: draftingTrigger.brief,
+        });
+      }
     } catch (error) {
       const job = await this.prisma.workflowJob.update({
         where: { id: params.jobId },
@@ -484,6 +538,93 @@ export class ChatService {
       });
       this.logger.error(
         error instanceof Error ? error.message : "Brief extraction failed",
+      );
+      this.emit({
+        type: "job.updated",
+        sessionId: params.sessionId,
+        createdAt: job.updatedAt.toISOString(),
+        job: this.toJob(job),
+      });
+    }
+  }
+
+  private async runDrafting(params: {
+    workspaceId: string;
+    sessionId: string;
+    jobId: string;
+    messageId: string;
+    briefResultId: string;
+    brief: BriefResult;
+  }): Promise<void> {
+    try {
+      await this.prisma.workflowJob.update({
+        where: { id: params.jobId },
+        data: { status: "RUNNING" },
+      });
+
+      let output: Record<string, unknown> = {};
+      let errorCode: string | null = null;
+
+      try {
+        const provider = this.resolveProvider();
+        const { prompt, promptChars, truncated } = buildDraftingUserPrompt(
+          params.brief,
+          this.config.draftingPromptMaxChars,
+        );
+        const draft = await runDraftingLlm(provider, prompt);
+
+        await this.prisma.draftResult.create({
+          data: {
+            jobId: params.jobId,
+            workspaceId: params.workspaceId,
+            sessionId: params.sessionId,
+            messageId: params.messageId,
+            briefResultId: params.briefResultId,
+            documentText: draft.documentText,
+            warnings: draft.warnings,
+            promptChars,
+            truncated,
+            model: this.config.openRouterModel,
+          },
+        });
+
+        output = {
+          draft: {
+            documentTextLength: draft.documentText.length,
+            warnings: draft.warnings,
+          },
+        };
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Drafting LLM failed";
+        this.logger.error(
+          `Drafting LLM failed for job ${params.jobId} (session ${params.sessionId}): ${message}`,
+        );
+        output = { draftError: message };
+        errorCode = "DRAFTING_LLM_FAILED";
+      }
+
+      const job = await this.prisma.workflowJob.update({
+        where: { id: params.jobId },
+        data: {
+          status: "COMPLETED",
+          errorCode,
+          output: JSON.parse(JSON.stringify(output)),
+        },
+      });
+      this.emit({
+        type: "job.updated",
+        sessionId: params.sessionId,
+        createdAt: job.updatedAt.toISOString(),
+        job: this.toJob(job),
+      });
+    } catch (error) {
+      const job = await this.prisma.workflowJob.update({
+        where: { id: params.jobId },
+        data: { status: "FAILED", errorCode: "DRAFTING_FAILED" },
+      });
+      this.logger.error(
+        error instanceof Error ? error.message : "Drafting failed",
       );
       this.emit({
         type: "job.updated",
@@ -680,6 +821,38 @@ export class ChatService {
       status: job.status,
       correlationId: job.correlationId,
       createdAt: job.createdAt.toISOString(),
+    };
+  }
+
+  private toDraft(draft: {
+    id: string;
+    jobId: string;
+    workspaceId: string;
+    sessionId: string;
+    messageId: string | null;
+    briefResultId: string | null;
+    documentText: string;
+    warnings: string[];
+    promptChars: number;
+    truncated: boolean;
+    model: string;
+    errorCode: string | null;
+    createdAt: Date;
+  }): DraftResultResponse {
+    return {
+      id: draft.id,
+      jobId: draft.jobId,
+      workspaceId: draft.workspaceId,
+      sessionId: draft.sessionId,
+      messageId: draft.messageId,
+      briefResultId: draft.briefResultId,
+      documentText: draft.documentText,
+      warnings: draft.warnings,
+      promptChars: draft.promptChars,
+      truncated: draft.truncated,
+      model: draft.model,
+      errorCode: draft.errorCode,
+      createdAt: draft.createdAt.toISOString(),
     };
   }
 }

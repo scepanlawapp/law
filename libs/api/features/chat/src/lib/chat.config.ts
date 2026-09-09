@@ -34,4 +34,7 @@ export class ChatRuntimeConfig {
   readonly briefTotalMaxChars = Number(
     process.env.BRIEF_TOTAL_MAX_CHARS ?? 60_000,
   );
+  readonly draftingPromptMaxChars = Number(
+    process.env.DRAFTING_PROMPT_MAX_CHARS ?? 40_000,
+  );
 }

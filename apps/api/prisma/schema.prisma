@@ -131,6 +131,7 @@ model Workspace {
   chatAttachments        ChatAttachment[]
   workflowJobs           WorkflowJob[]
   briefExtractionResults BriefExtractionResult[]
+  draftResults           DraftResult[]
 }
 
 model WorkspaceMember {
@@ -210,6 +211,7 @@ model ChatSession {
   attachments            ChatAttachment[]
   workflowJobs           WorkflowJob[]
   briefExtractionResults BriefExtractionResult[]
+  draftResults           DraftResult[]
 
   @@index([workspaceId, updatedAt])
   @@index([createdByUserId, createdAt])
@@ -228,6 +230,7 @@ model ChatMessage {
   session                ChatSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   attachments            ChatAttachment[]
   briefExtractionResults BriefExtractionResult[]
+  draftResults           DraftResult[]
 
   @@index([sessionId, createdAt])
   @@index([correlationId])
@@ -270,6 +273,7 @@ model WorkflowJob {
   workspace             Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   session               ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   briefExtractionResult BriefExtractionResult?
+  draftResult           DraftResult?
 
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])
@@ -277,23 +281,48 @@ model WorkflowJob {
 }
 
 model BriefExtractionResult {
-  id            String       @id @default(uuid())
-  jobId         String       @unique
+  id            String        @id @default(uuid())
+  jobId         String        @unique
   workspaceId   String
   sessionId     String
   messageId     String?
   brief         Json
   confidence    Float?
-  missingFields String[]     @default([])
+  missingFields String[]      @default([])
   promptChars   Int
-  truncated     Boolean      @default(false)
+  truncated     Boolean       @default(false)
   model         String
   errorCode     String?
-  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
-  job           WorkflowJob  @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  workspace     Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  session       ChatSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  message       ChatMessage? @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  job           WorkflowJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session       ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message       ChatMessage?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  draftResults  DraftResult[]
+
+  @@index([workspaceId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
+model DraftResult {
+  id            String                 @id @default(uuid())
+  jobId         String                 @unique
+  workspaceId   String
+  sessionId     String
+  messageId     String?
+  briefResultId String?
+  documentText  String                 @db.Text
+  warnings      String[]               @default([])
+  promptChars   Int
+  truncated     Boolean                @default(false)
+  model         String
+  errorCode     String?
+  createdAt     DateTime               @default(now()) @db.Timestamptz(3)
+  job           WorkflowJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workspace     Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session       ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message       ChatMessage?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  briefResult   BriefExtractionResult? @relation(fields: [briefResultId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])

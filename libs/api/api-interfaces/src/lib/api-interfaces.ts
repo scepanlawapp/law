@@ -236,3 +236,19 @@ export interface BriefExtractionResultResponse {
   errorCode?: string | null;
   createdAt: string;
 }
+
+export interface DraftResultResponse {
+  id: string;
+  jobId: string;
+  workspaceId: string;
+  sessionId: string;
+  messageId: string | null;
+  briefResultId: string | null;
+  documentText: string;
+  warnings: string[];
+  promptChars: number;
+  truncated: boolean;
+  model: string;
+  errorCode?: string | null;
+  createdAt: string;
+}
