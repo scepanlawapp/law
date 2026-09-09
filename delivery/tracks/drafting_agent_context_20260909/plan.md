@@ -1,0 +1,14 @@
+# Drafting Agent (Context-Only) Plan
+
+- [ ] Add `DraftResult` Prisma model (`id`, `jobId UNIQUE`, `workspaceId`, `sessionId`, `messageId?`, `briefResultId?` FK → `BriefExtractionResult`, `documentText String @db.Text`, `warnings String[]`, `promptChars Int`, `truncated Boolean`, `model String`, `errorCode?`, `createdAt`); add `draftResult` relation on `WorkflowJob`; generate the migration.
+- [ ] Add `DraftResultResponse` DTO in `libs/api/api-interfaces` mirroring `BriefExtractionResultResponse` (id, jobId, workspaceId, sessionId, messageId, briefResultId, documentText, warnings, promptChars, truncated, model, errorCode?, createdAt).
+- [ ] Replace the `@law/drafting` stub (`libs/api/ai/workflows/drafting/src/lib/drafting.ts`) with a real chain mirroring `@law/brief-extraction`: `schema.ts` (`draftResultSchema`: `documentText`, `warnings`), `prompts.ts` (`DRAFTING_SYSTEM_PROMPT`, Serbian Latin, ZPP tužba structure, bracketed placeholders for null/missing fields, JSON-only), `context.ts` (`buildDraftingUserPrompt(brief: BriefResult)` serializing all `BriefResult` fields with a `draftingPromptMaxChars` budget + `truncated` flag), `runner.ts` (`runDraftingLlm(provider, userPrompt): Promise<DraftResult>` via `ChatModelProvider.completeStructured`).
+- [ ] Add `draftingPromptMaxChars` to `ChatRuntimeConfig` (default e.g. 40000 via `DRAFTING_PROMPT_MAX_CHARS`).
+- [ ] Extend `ChatService`: after `runBriefExtraction` persists a `BriefExtractionResult` with no `briefError` and `brief.jobType === "lawsuit"`, create a `WorkflowJob` (`workflowName: "drafting"`, `QUEUED`) and fire-and-forget a new `runDrafting({ workspaceId, sessionId, jobId, messageId, briefResultId, brief })`; skip entirely (no job) for non-`lawsuit`/`empty`/`briefError` outcomes.
+- [ ] `runDrafting`: mark job `RUNNING`, resolve provider, build prompt, call `runDraftingLlm`, persist `DraftResult`, update `WorkflowJob` → `COMPLETED` with an `output.draft` summary, emit `job.updated`; on LLM/zod failure keep `COMPLETED` with `output.draftError` + `errorCode: "DRAFTING_LLM_FAILED"` (reserve `FAILED` for unexpected infra exceptions), logging with `jobId`/`sessionId`.
+- [ ] Add `GET chat/jobs/:jobId/draft` to `ChatController` (existing `CsrfOriginGuard, AuthGuard, WorkspaceAccessGuard`), returning `DraftResultResponse` or 404, workspace-scoped via the job's `workspaceId`.
+- [ ] Cover: `buildDraftingUserPrompt` serialization + truncation; `runDraftingLlm` success/zod-failure via `FakeChatModelProvider`; `ChatService` auto-chain (`lawsuit` triggers drafting and persists `DraftResult`; `contract`/`other`/`null`/`empty`/`briefError` creates no drafting job); LLM throw records `draftError` without failing the job or losing the brief; controller returns 404 for a missing draft and the DTO for a completed one.
+
+## Status convention
+
+`[ ]` not started, `[~]` in progress, `[x] <7-character commit>` completed.
