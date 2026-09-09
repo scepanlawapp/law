@@ -36,6 +36,9 @@
         "./libs/api/ai/workflows/template-retrieval/src/index.ts"
       ],
       "@law/drafting": ["./libs/api/ai/workflows/drafting/src/index.ts"],
+      "@law/title-generation": [
+        "./libs/api/ai/workflows/title-generation/src/index.ts"
+      ],
       "@law/evaluation": ["./libs/api/ai/workflows/evaluation/src/index.ts"],
       "@law/review": ["./libs/api/ai/workflows/review/src/index.ts"],
       "@law/extraction": ["./libs/api/ai/extraction/src/index.ts"],

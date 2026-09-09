@@ -37,6 +37,7 @@ import {
   runBriefExtractionLlm,
 } from "@law/brief-extraction";
 import { buildDraftingUserPrompt, runDraftingLlm } from "@law/drafting";
+import { buildTitleUserPrompt, generateTitle } from "@law/title-generation";
 import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
@@ -122,6 +123,25 @@ export class ChatService {
       },
     });
     return this.toSessionSummary(session);
+  }
+
+  async updateSession(
+    workspaceId: string,
+    sessionId: string,
+    title: string,
+  ): Promise<ChatSessionSummary> {
+    const session = await this.requireSession(workspaceId, sessionId);
+    const updated = await this.prisma.chatSession.update({
+      where: { id: session.id },
+      data: { title: title.trim() || "New chat" },
+    });
+    this.emit({
+      type: "session.title.updated",
+      sessionId: session.id,
+      createdAt: updated.updatedAt.toISOString(),
+      title: updated.title,
+    });
+    return this.toSessionSummary(updated);
   }
 
   async getSession(
@@ -217,6 +237,22 @@ export class ChatService {
       message: mappedUserMessage,
     });
 
+    if (session.title === "New chat") {
+      void this.runTitleGeneration({
+        sessionId: session.id,
+        content: toLatin(mappedUserMessage.content),
+        attachmentIds: mappedUserMessage.attachments.map(
+          (attachment) => attachment.id,
+        ),
+      }).catch((error: unknown) => {
+        this.logger.error(
+          error instanceof Error
+            ? error.message
+            : "Title generation failed",
+        );
+      });
+    }
+
     // Prompts always receive Latin; the stored message keeps the user's script.
     void this.runTriage({
       workspaceId: params.workspaceId,
@@ -307,6 +343,60 @@ export class ChatService {
     return events.sort((left, right) =>
       left.createdAt.localeCompare(right.createdAt),
     );
+  }
+
+  private async runTitleGeneration(params: {
+    sessionId: string;
+    content: string;
+    attachmentIds: string[];
+  }): Promise<void> {
+    const attachments = params.attachmentIds.length
+      ? await this.prisma.chatAttachment.findMany({
+          where: { id: { in: params.attachmentIds } },
+          select: {
+            originalName: true,
+            mimeType: true,
+            extractedText: true,
+          },
+        })
+      : [];
+
+    const { prompt } = buildTitleUserPrompt({
+      messageContent: params.content,
+      attachments: attachments.map((attachment) => ({
+        originalName: attachment.originalName,
+        mimeType: attachment.mimeType,
+        text: attachment.extractedText ?? "",
+      })),
+      perAttachmentMaxChars: this.config.titleContentMaxChars,
+    });
+
+    let title: string;
+    try {
+      const result = await generateTitle(this.resolveProvider(), prompt);
+      title = result.title;
+    } catch (error) {
+      this.logger.error(
+        error instanceof Error
+          ? error.message
+          : "Title generation LLM failed",
+      );
+      if (!params.content.trim() || params.content === "(attachment)") {
+        return;
+      }
+      title = params.content.slice(0, 80);
+    }
+
+    const updated = await this.prisma.chatSession.update({
+      where: { id: params.sessionId },
+      data: { title },
+    });
+    this.emit({
+      type: "session.title.updated",
+      sessionId: params.sessionId,
+      createdAt: updated.updatedAt.toISOString(),
+      title: updated.title,
+    });
   }
 
   private async runTriage(params: {

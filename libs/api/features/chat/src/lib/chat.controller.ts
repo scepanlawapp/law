@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -29,6 +30,7 @@ import {
   ChatSessionListQueryDto,
   CreateChatSessionDto,
   DraftQueryDto,
+  UpdateChatSessionDto,
 } from "./chat.dto";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
@@ -58,6 +60,19 @@ export class ChatController {
     return this.chat.createSession(
       request.workspace!.workspaceId,
       request.auth!.user.id,
+      body.title,
+    );
+  }
+
+  @Patch("sessions/:sessionId")
+  updateSession(
+    @Req() request: WorkspaceRequest,
+    @Param("sessionId") sessionId: string,
+    @Body() body: UpdateChatSessionDto,
+  ): Promise<ChatSessionSummary> {
+    return this.chat.updateSession(
+      request.workspace!.workspaceId,
+      sessionId,
       body.title,
     );
   }
