@@ -156,6 +156,18 @@ export class ChatApiClient {
     );
   }
 
+  updateSession(
+    workspaceId: string,
+    sessionId: string,
+    title: string,
+  ): Observable<ChatSessionSummary> {
+    return this.http.patch<ChatSessionSummary>(
+      this.endpoint(`/chat/sessions/${sessionId}`),
+      { title },
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
   sendMessage(
     workspaceId: string,
     sessionId: string,

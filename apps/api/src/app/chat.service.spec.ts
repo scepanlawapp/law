@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { FakeChatModelProvider } from "@law/llm";
+import type { ChatStreamEvent } from "@law/api-interfaces";
 import { ChatEventBus, ChatRuntimeConfig, ChatService } from "@law/chat";
 
 const fakeBrief = {
@@ -105,7 +106,10 @@ describe("ChatService", () => {
       new ChatEventBus(),
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
-      new FakeChatModelProvider({ decision: "NON_LEGAL", reason: "ok" }),
+      new FakeChatModelProvider([
+        { decision: "NON_LEGAL", reason: "ok" },
+        { title: "Tužba" },
+      ]),
     );
 
     await expect(
@@ -217,6 +221,7 @@ describe("ChatService", () => {
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
       new FakeChatModelProvider([
+        { title: "Tužba za naknadu štete" },
         { decision: "LEGAL", reason: "Lawsuit intake" },
         fakeBrief,
       ]),
@@ -338,6 +343,7 @@ describe("ChatService", () => {
       new ChatRuntimeConfig(),
       new FakeChatModelProvider([
         { decision: "LEGAL", reason: "Lawsuit intake" },
+        { title: "Poruka sa prilogom" },
         fakeBrief,
       ]),
     );
@@ -406,10 +412,10 @@ describe("ChatService", () => {
       new ChatEventBus(),
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
-      new FakeChatModelProvider({
-        decision: "NON_LEGAL",
-        reason: "Weather",
-      }),
+      new FakeChatModelProvider([
+        { title: "Vreme" },
+        { decision: "NON_LEGAL", reason: "Weather" },
+      ]),
     );
 
     await service.sendMessage({
@@ -477,7 +483,7 @@ describe("ChatService", () => {
     const provider = {
       completeStructured: jest.fn().mockImplementation(async () => {
         calls += 1;
-        if (calls === 1) return { decision: "LEGAL", reason: "Lawsuit" };
+        if (calls <= 2) return { decision: "LEGAL", reason: "Lawsuit" };
         throw new Error("OpenRouter timed out");
       }),
     };
@@ -589,7 +595,10 @@ describe("ChatService", () => {
         read: jest.fn().mockRejectedValue(new Error("file missing")),
       } as never,
       new ChatRuntimeConfig(),
-      new FakeChatModelProvider({ decision: "LEGAL", reason: "Lawsuit" }),
+      new FakeChatModelProvider([
+        { decision: "LEGAL", reason: "Lawsuit" },
+        { title: "Poruka" },
+      ]),
     );
 
     await service.sendMessage({
@@ -698,6 +707,7 @@ describe("ChatService", () => {
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
       new FakeChatModelProvider([
+        { title: "Tužba za naknadu štete" },
         { decision: "LEGAL", reason: "Lawsuit intake" },
         fakeBrief,
         fakeDraft,
@@ -796,6 +806,7 @@ describe("ChatService", () => {
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
       new FakeChatModelProvider([
+        { title: "Ugovor o zakupu" },
         { decision: "LEGAL", reason: "Contract intake" },
         contractBrief,
       ]),
@@ -864,6 +875,221 @@ describe("ChatService", () => {
 
     await expect(
       service.getDraft(session.workspaceId, "job-unknown"),
+    ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("auto-generates a session title from the first message and emits it", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ ...session, ...data }),
+    );
+    prisma.chatMessage.create.mockResolvedValue({
+      id: "msg-title",
+      sessionId: session.id,
+      role: "USER",
+      content: "Tužba za naknadu štete",
+      status: "COMPLETED",
+      triageDecision: null,
+      correlationId: "corr-title",
+      createdAt: now,
+    });
+
+    const events = new ChatEventBus();
+    const emitted: Array<{ type: string; title?: string | null }> = [];
+    events.stream(session.id).subscribe((event) => emitted.push(event));
+
+    const service = new ChatService(
+      prisma as never,
+      events,
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider([
+        { title: "Tužba za naknadu štete" },
+        { decision: "NON_LEGAL", reason: "ok" },
+      ]),
+    );
+
+    await service.sendMessage({
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      userId: "user-1",
+      content: "Tužba za naknadu štete",
+      files: [],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(prisma.chatSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: session.id },
+        data: expect.objectContaining({ title: "Tužba za naknadu štete" }),
+      }),
+    );
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "session.title.updated",
+          title: "Tužba za naknadu štete",
+        }),
+      ]),
+    );
+  });
+
+  it("does not auto-generate a title when the session already has one", async () => {
+    const customSession = { ...session, title: "Prvi predmet" };
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(customSession);
+    prisma.chatSession.update.mockResolvedValue(customSession);
+    prisma.chatMessage.create.mockResolvedValue({
+      id: "msg-no-title",
+      sessionId: customSession.id,
+      role: "USER",
+      content: "Tužba za naknadu štete",
+      status: "COMPLETED",
+      triageDecision: null,
+      correlationId: "corr-no-title",
+      createdAt: now,
+    });
+
+    const events = new ChatEventBus();
+    const emitted: string[] = [];
+    events.stream(customSession.id).subscribe((event) =>
+      emitted.push(event.type),
+    );
+
+    const service = new ChatService(
+      prisma as never,
+      events,
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({ decision: "NON_LEGAL", reason: "ok" }),
+    );
+
+    await service.sendMessage({
+      workspaceId: customSession.workspaceId,
+      sessionId: customSession.id,
+      userId: "user-1",
+      content: "Tužba za naknadu štete",
+      files: [],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(emitted).not.toContain("session.title.updated");
+    expect(prisma.chatSession.update).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to truncated message text when title generation fails", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ ...session, ...data }),
+    );
+    prisma.chatMessage.create.mockResolvedValue({
+      id: "msg-fallback",
+      sessionId: session.id,
+      role: "USER",
+      content: "Tužba za naknadu štete zbog prelaska na crveno svetlo",
+      status: "COMPLETED",
+      triageDecision: null,
+      correlationId: "corr-fallback",
+      createdAt: now,
+    });
+
+    let calls = 0;
+    const provider = {
+      completeStructured: jest.fn().mockImplementation(async () => {
+        calls += 1;
+        if (calls === 1) throw new Error("LLM down");
+        return { decision: "NON_LEGAL", reason: "ok" };
+      }),
+    };
+
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      provider as never,
+    );
+
+    await expect(
+      service.sendMessage({
+        workspaceId: session.workspaceId,
+        sessionId: session.id,
+        userId: "user-1",
+        content: "Tužba za naknadu štete zbog prelaska na crveno svetlo",
+        files: [],
+      }),
+    ).resolves.toMatchObject({
+      userMessage: { content: "Tužba za naknadu štete zbog prelaska na crveno svetlo" },
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(prisma.chatSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: session.id },
+        data: expect.objectContaining({
+          title: "Tužba za naknadu štete zbog prelaska na crveno svetlo",
+        }),
+      }),
+    );
+  });
+
+  it("updateSession updates the title and emits session.title.updated", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue({
+      ...session,
+      title: "Ručni naziv",
+    });
+
+    const events = new ChatEventBus();
+    const emitted: ChatStreamEvent[] = [];
+    events.stream(session.id).subscribe((event) => emitted.push(event));
+
+    const service = new ChatService(
+      prisma as never,
+      events,
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.updateSession(session.workspaceId, session.id, "  Ručni naziv  "),
+    ).resolves.toMatchObject({ title: "Ručni naziv" });
+
+    expect(prisma.chatSession.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: session.id },
+        data: expect.objectContaining({ title: "Ručni naziv" }),
+      }),
+    );
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "session.title.updated",
+          title: "Ručni naziv",
+        }),
+      ]),
+    );
+  });
+
+  it("updateSession throws NotFoundException for sessions outside the workspace", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(null);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.updateSession("workspace-1", "session-2", "Ručni naziv"),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });

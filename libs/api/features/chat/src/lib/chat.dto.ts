@@ -19,3 +19,9 @@ export class CreateChatSessionDto {
   @MaxLength(200)
   title?: string;
 }
+
+export class UpdateChatSessionDto {
+  @IsString()
+  @MaxLength(200)
+  title!: string;
+}

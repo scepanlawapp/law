@@ -104,6 +104,7 @@ export type ChatEventType =
   | "triage.completed"
   | "job.queued"
   | "job.updated"
+  | "session.title.updated"
   | "error";
 
 export interface ChatAttachmentSummary {
@@ -203,6 +204,7 @@ export interface ChatStreamEvent {
   job?: WorkflowJobResponse;
   decision?: TriageDecision;
   reason?: string;
+  title?: string | null;
   error?: string;
 }
 

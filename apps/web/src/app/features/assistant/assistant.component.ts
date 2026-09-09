@@ -429,12 +429,23 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (event.type === "triage.completed" || event.type === "job.queued") {
       this.classifying.set(false);
     }
+    if (event.type === "session.title.updated") {
+      this.upsertSessionTitle(event.sessionId, event.title ?? null);
+    }
     if (event.type === "error") {
       this.classifying.set(false);
       this.error.set(
         event.error ?? "The assistant could not process this message.",
       );
     }
+  }
+
+  private upsertSessionTitle(sessionId: string, title: string | null): void {
+    this.sessions.update((items) =>
+      items.map((item) =>
+        item.id === sessionId ? { ...item, title } : item,
+      ),
+    );
   }
 
   private upsertMessage(message: ChatMessageResponse): void {
