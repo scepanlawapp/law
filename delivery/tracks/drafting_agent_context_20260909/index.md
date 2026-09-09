@@ -2,7 +2,7 @@
 
 - **Track ID:** `drafting_agent_context_20260909`
 - **Type:** Feature
-- **Status:** Not started
+- **Status:** Completed
 
 ## Documents
 
@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-Not started. This track adds the `drafting` workflow chain (Phase 4): a completed `lawsuit`-typed `BriefResult` is turned directly into a draft tužba (plain Serbian Latin text/Markdown), auto-chained after `brief-extraction`, with no template retrieval (Phase 3, deferred) or docx/PDF generation. Persists to a new `DraftResult` table and exposes a minimal `GET` endpoint for retrieval.
+Completed (commit `e4e6a39`). The `drafting` workflow chain (`@law/drafting`) turns a `lawsuit`-typed `BriefResult` directly into a draft tužba (plain Serbian Latin text), auto-chained after `brief-extraction` completes. Successful drafts persist to the new `DraftResult` table; LLM/zod failures are recorded as `output.draftError` without failing the job. Retrievable via `GET chat/jobs/:jobId/draft`.
