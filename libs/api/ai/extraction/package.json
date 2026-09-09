@@ -7,6 +7,7 @@
   "types": "./src/index.d.ts",
   "dependencies": {
     "tslib": "^2.3.0",
+    "@law/transliteration": "0.0.1",
     "pdf-parse": "^2.4.5",
     "mammoth": "^1.12.2",
     "xlsx": "^0.18.5",

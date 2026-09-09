@@ -1,3 +1,4 @@
+import { detectScript, toLatin } from "@law/transliteration";
 import { AttachmentExtractionInput, AttachmentExtractionResult } from "./types";
 import { extractPlainText } from "./text-extractor";
 import { extractPdfText } from "./pdf-extractor";
@@ -13,40 +14,35 @@ const SPREADSHEET_MIME_TYPES = new Set([
 ]);
 const IMAGE_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
 
+async function extractRawText(
+  input: AttachmentExtractionInput,
+): Promise<string | null> {
+  if (input.mimeType === "text/plain") return extractPlainText(input.buffer);
+  if (input.mimeType === "application/pdf") return extractPdfText(input.buffer);
+  if (input.mimeType === DOCX_MIME_TYPE) return extractDocxText(input.buffer);
+  if (SPREADSHEET_MIME_TYPES.has(input.mimeType)) {
+    return extractSpreadsheetText(input.buffer);
+  }
+  if (IMAGE_MIME_TYPES.has(input.mimeType))
+    return extractImageText(input.buffer);
+  return null;
+}
+
 export async function extractAttachmentText(
   input: AttachmentExtractionInput,
 ): Promise<AttachmentExtractionResult> {
   try {
-    if (input.mimeType === "text/plain") {
-      return { status: "COMPLETED", text: extractPlainText(input.buffer) };
-    }
-    if (input.mimeType === "application/pdf") {
+    const raw = await extractRawText(input);
+    if (raw === null) {
       return {
-        status: "COMPLETED",
-        text: await extractPdfText(input.buffer),
-      };
-    }
-    if (input.mimeType === DOCX_MIME_TYPE) {
-      return {
-        status: "COMPLETED",
-        text: await extractDocxText(input.buffer),
-      };
-    }
-    if (SPREADSHEET_MIME_TYPES.has(input.mimeType)) {
-      return {
-        status: "COMPLETED",
-        text: extractSpreadsheetText(input.buffer),
-      };
-    }
-    if (IMAGE_MIME_TYPES.has(input.mimeType)) {
-      return {
-        status: "COMPLETED",
-        text: await extractImageText(input.buffer),
+        status: "UNSUPPORTED",
+        error: `No extractor registered for MIME type: ${input.mimeType}`,
       };
     }
     return {
-      status: "UNSUPPORTED",
-      error: `No extractor registered for MIME type: ${input.mimeType}`,
+      status: "COMPLETED",
+      text: toLatin(raw),
+      sourceScript: detectScript(raw),
     };
   } catch (error) {
     return {
