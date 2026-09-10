@@ -2,7 +2,7 @@
 
 - **Track ID:** `draft_approval_gate_20260909`
 - **Type:** Feature
-- **Status:** In progress
+- **Status:** Completed
 
 ## Documents
 
@@ -12,6 +12,4 @@
 
 ## Current checkpoint
 
-Backend state and review endpoints, Prisma migration, shared API contracts, frontend API methods, a dedicated review panel, warnings/missing-field display, server-side Latin/Cyrillic switching, translations, and focused service coverage are implemented locally on `feature/draft_approval_gate_20260910`.
-
-The track remains in progress pending broader RBAC/controller and request-changes queue coverage, plus commit delivery.
+The draft approval gate is implemented and pushed in commit `6c37c90` on `feature/draft_approval_gate_20260910`. It includes the approval state model, Prisma migration, audit events, revision-job regeneration with reviewer feedback, lawyer-only review routes, the dedicated Angular review panel, warnings/missing-field display, Latin/Cyrillic switching, translations, and focused tests.
