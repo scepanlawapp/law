@@ -19,9 +19,9 @@
           routerLinkActive="settings-nav-item-active"
           [routerLinkActiveOptions]="{ exact: true }"
         >
-          <mat-icon>{{ item.icon }}</mat-icon>
+          <ng-icon [name]="item.icon" />
           <span>{{ item.label | translate }}</span>
-          <mat-icon class="settings-nav-arrow">chevron_right</mat-icon>
+          <ng-icon name="lucideChevronRight" class="settings-nav-arrow" />
         </a>
       }
     </nav>

@@ -7,8 +7,7 @@ import { RouterModule } from "@angular/router";
   selector: "app-main-layout",
   standalone: true,
   host: {
-    class:
-      "grid h-screen min-h-0 grid-cols-[15rem_minmax(0,1fr)] overflow-hidden bg-[var(--color-background)] max-[700px]:grid-cols-[4.25rem_minmax(0,1fr)]",
+    class: "grid h-screen min-h-0 grid-cols-[auto_1fr] overflow-hidden",
   },
   templateUrl: "./main-layout.component.html",
   imports: [HeaderComponent, SidebarComponent, RouterModule],

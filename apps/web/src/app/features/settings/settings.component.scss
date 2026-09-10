@@ -1,75 +1,27 @@
 @reference "tailwindcss";
 
-.settings-page {
-  @apply mx-auto min-h-full max-w-6xl px-6 py-8;
-  color: var(--color-text-primary);
-}
-
 .settings-heading {
-  @apply mb-7 flex items-start justify-between;
-}
-
-.settings-heading h1 {
-  @apply m-0 font-semibold;
-  color: var(--color-text-primary);
-}
-
-.settings-heading p:last-child {
-  @apply mt-2 mb-0;
-  color: var(--color-text-secondary);
-}
-
-.settings-eyebrow {
-  @apply mb-2 font-semibold uppercase tracking-widest;
-  color: var(--color-brand);
+  @apply flex items-start justify-between;
 }
 
 .settings-layout {
-  @apply grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)];
+  @apply grid;
 }
 
 .settings-nav {
-  @apply flex h-fit flex-col gap-1 rounded-lg border p-2;
-  background: var(--color-surface);
-  border-color: var(--color-border);
+  @apply flex flex-col;
 }
 
 .settings-nav-item {
-  @apply flex items-center gap-3 rounded-md px-3 py-3 no-underline transition-colors;
-  color: var(--color-text-secondary);
-}
-
-.settings-nav-item:hover,
-.settings-nav-item-active {
-  background: var(--color-surface-accent);
-  color: var(--color-brand);
-}
-
-.settings-nav-item mat-icon {
-  @apply align-middle;
-}
-.settings-nav-arrow {
-  @apply ml-auto;
-}
-
-.settings-content {
-  @apply min-w-0 rounded-lg border p-6;
-  background: var(--color-surface);
-  border-color: var(--color-border);
+  @apply flex items-center;
 }
 
 @media (max-width: 640px) {
-  .settings-page {
-    @apply px-4 py-5;
-  }
-  .settings-layout {
-    @apply gap-4;
-  }
   .settings-nav {
     @apply grid grid-cols-2;
   }
   .settings-nav-item {
-    @apply flex-col gap-1 text-center;
+    @apply flex-col;
   }
   .settings-nav-arrow {
     display: none;

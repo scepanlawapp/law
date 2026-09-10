@@ -1,16 +1,29 @@
 import { Component, computed, input, output, signal } from "@angular/core";
 import { AuthUser } from "@law/api-interfaces";
-import { MatIconModule } from "@angular/material/icon";
-import { MatMenuModule } from "@angular/material/menu";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideChevronDown,
+  lucideChevronUp,
+  lucideLogOut,
+  lucideSettings,
+} from "@ng-icons/lucide";
+import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
 import { RouterLink } from "@angular/router";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 
 @Component({
   selector: "app-user-menu",
   standalone: true,
-  imports: [MatIconModule, MatMenuModule, RouterLink, TranslatePipe],
+  imports: [NgIcon, ...HlmDropdownMenuImports, RouterLink, TranslatePipe],
   templateUrl: "./user-menu.component.html",
-  styleUrl: "./user-menu.component.scss",
+  providers: [
+    provideIcons({
+      lucideChevronDown,
+      lucideChevronUp,
+      lucideLogOut,
+      lucideSettings,
+    }),
+  ],
 })
 export class UserMenuComponent {
   readonly user = input.required<AuthUser>();

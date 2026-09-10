@@ -1,110 +1,35 @@
 @reference "tailwindcss";
 
-.settings-section-header {
-  @apply mb-6 border-b pb-5;
-  border-color: var(--color-border-subtle);
-}
-.settings-section-header h2 {
-  @apply m-0 font-semibold;
-}
-.settings-section-header p {
-  @apply mt-1 mb-0;
-  color: var(--color-text-secondary);
-}
 .settings-form {
-  @apply flex max-w-2xl flex-col gap-4;
-}
-.password-section {
-  @apply mt-8 border-t pt-6;
-  border-color: var(--color-border-subtle);
-}
-.password-section .settings-section-header {
-  @apply border-0 pb-0;
-}
-.password-section h3 {
-  @apply m-0 font-semibold;
+  @apply flex flex-col;
 }
 .settings-form-grid {
-  @apply grid gap-1 sm:grid-cols-2;
-}
-.settings-form-wide {
-  @apply sm:col-span-2;
+  @apply grid;
 }
 .profile-avatar {
-  @apply flex flex-wrap items-center gap-3 border-b pb-5;
-  border-color: var(--color-border-subtle);
+  @apply flex flex-wrap items-center;
 }
 .profile-avatar > span {
-  @apply flex h-14 w-14 items-center justify-center rounded-full font-semibold;
-  background: var(--color-surface-accent);
-  color: var(--color-brand);
-}
-.profile-avatar > img {
-  @apply h-14 w-14 rounded-full object-cover;
+  @apply flex items-center justify-center;
 }
 .profile-avatar div {
-  @apply mr-auto flex flex-col;
-}
-.profile-avatar small {
-  color: var(--color-text-muted);
+  @apply flex flex-col;
 }
 .settings-actions {
-  @apply flex flex-wrap items-center justify-end gap-3 border-t pt-5;
-  border-color: var(--color-border-subtle);
-}
-.settings-success {
-  color: var(--color-success);
-}
-.settings-error {
-  color: var(--color-danger);
-}
-.settings-state {
-  color: var(--color-text-secondary);
-}
-fieldset {
-  @apply border-0 p-0;
-}
-legend {
-  @apply mb-3 font-semibold;
+  @apply flex flex-wrap items-center justify-end;
 }
 .accent-options {
-  @apply flex flex-wrap gap-3;
+  @apply flex flex-wrap;
 }
 .accent-option {
-  @apply flex cursor-pointer items-center gap-2 rounded-md border px-3 py-2;
-  border-color: var(--color-border);
-}
-.accent-option:has(input:checked) {
-  border-color: var(--color-brand);
-  background: var(--color-surface-accent);
+  @apply flex items-center;
 }
 .accent-option input {
   @apply sr-only;
 }
-.accent-option span {
-  @apply h-4 w-4 rounded-full;
-}
 .settings-toggle-row {
-  @apply flex items-center justify-between gap-4 border-b pb-4;
-  border-color: var(--color-border-subtle);
-}
-.settings-toggle-row p {
-  @apply mt-1 mb-0;
-  color: var(--color-text-secondary);
+  @apply flex items-center justify-between;
 }
 .danger-zone {
-  @apply flex flex-wrap items-center justify-between gap-4 rounded-md border p-4;
-  border-color: color-mix(
-    in srgb,
-    var(--color-danger) 35%,
-    var(--color-border)
-  );
-  background: color-mix(in srgb, var(--color-danger) 4%, var(--color-surface));
-}
-.danger-zone h3 {
-  @apply m-0 font-semibold;
-}
-.danger-zone p {
-  @apply mt-1 mb-0 max-w-xl;
-  color: var(--color-text-secondary);
+  @apply flex flex-wrap items-center justify-between;
 }

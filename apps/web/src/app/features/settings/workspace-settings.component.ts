@@ -1,9 +1,9 @@
 import { Component, inject, signal } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
-import { MatButtonModule } from "@angular/material/button";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatSelectModule } from "@angular/material/select";
-import { MatSlideToggleModule } from "@angular/material/slide-toggle";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { UserSettingsDateTimeFormat } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -15,10 +15,11 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
   standalone: true,
   imports: [
     ReactiveFormsModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatSelectModule,
-    MatSlideToggleModule,
+    HlmButton,
+    HlmField,
+    HlmFieldLabel,
+    HlmSelectImports,
+    HlmSwitch,
     TranslatePipe,
   ],
   templateUrl: "./workspace-settings.component.html",

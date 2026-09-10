@@ -7,14 +7,21 @@ import {
   Validators,
 } from "@angular/forms";
 import { Router, RouterLink } from "@angular/router";
-import { MatButtonModule } from "@angular/material/button";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatIconModule } from "@angular/material/icon";
-import { MatInputModule } from "@angular/material/input";
-import { MatSnackBar, MatSnackBarModule } from "@angular/material/snack-bar";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideMail,
+  lucideLock,
+  lucideEye,
+  lucideEyeOff,
+  lucideArrowRight,
+} from "@ng-icons/lucide";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
+import { HlmInput } from "@spartan-ng/helm/input";
 import { AuthState } from "@law/security";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ToastService } from "../../shared/ui/toast/toast.service";
 
 interface FeatureItem {
   title: string;
@@ -27,45 +34,53 @@ interface FeatureItem {
   standalone: true,
   imports: [
     ReactiveFormsModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatInputModule,
-    MatIconModule,
-    MatSnackBarModule,
+    HlmButton,
+    HlmField,
+    HlmFieldLabel,
+    HlmInput,
+    NgIcon,
     TranslatePipe,
     RouterLink,
   ],
   templateUrl: "./login.component.html",
-  styleUrl: "./login.component.scss",
+  providers: [
+    provideIcons({
+      lucideMail,
+      lucideLock,
+      lucideEye,
+      lucideEyeOff,
+      lucideArrowRight,
+    }),
+  ],
 })
 export class LoginComponent {
   private readonly auth = inject(AuthState);
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
-  private readonly snackBar = inject(MatSnackBar);
+  private readonly toast = inject(ToastService);
 
   readonly features: FeatureItem[] = [
     {
       title: "AI Assistant",
       description:
         "Get instant answers, analyze documents, and get legal insights.",
-      icon: "smart_toy",
+      icon: "lucideBot",
     },
     {
       title: "Case Management",
       description: "Keep track of your cases, deadlines, and court hearings.",
-      icon: "folder_open",
+      icon: "lucideFolderOpen",
     },
     {
       title: "Document Intelligence",
       description: "Extract key information and analyze documents with AI.",
-      icon: "description",
+      icon: "lucideFileText",
     },
     {
       title: "Stay Organized",
       description:
         "Manage tasks, calendar and never miss an important deadline.",
-      icon: "event",
+      icon: "lucideCalendar",
     },
   ];
 
@@ -106,10 +121,8 @@ export class LoginComponent {
       error: (error: HttpErrorResponse) => {
         if (error.status === 401) {
           this.error = "";
-          this.snackBar.open(
+          this.toast.error(
             this.localization.translate("auth.invalidCredentials"),
-            undefined,
-            { duration: 4000 },
           );
         } else {
           this.error = "Unable to sign in with those credentials.";

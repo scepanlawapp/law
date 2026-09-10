@@ -5,7 +5,7 @@ description: "Use when: scaffolding, styling, adding, or modifying Spartan/UI co
 
 # Spartan/UI Guidelines & Component Skill
 
-Spartan/UI is the primary UI component library for the AI-powered Law Office application. It provides headless accessible primitives (`@spartan-ui/brain`) styled with Tailwind CSS directives (`@spartan-ui/helm`).
+Spartan/UI is the primary UI component library for the AI-powered Law Office application. It provides headless accessible primitives (`@spartan-ng/brain`, installed as an npm dependency) combined with Tailwind-styled "Helm" component source that the Spartan CLI copies directly into this repo under `libs/shared/frontend/ui/` (import alias `@spartan-ng/helm`). There is no separate `@spartan-ui/helm` npm package to install — Helm code lives in-repo so it can be freely customized.
 
 ---
 
@@ -13,30 +13,38 @@ Spartan/UI is the primary UI component library for the AI-powered Law Office app
 
 Spartan/UI is split into two core layers:
 
-1. **Brain (`@spartan-ui/brain`):** Unstyled, accessible primitives built on top of Angular Signals and Angular CDK. Provides state, keyboard navigation, and ARIA roles.
-2. **Helm (`@spartan-ui/helm`):** Tailwind-styled standalone components and directives. Exposed directly inside the workspace (under UI components or library paths).
+1. **Brain (`@spartan-ng/brain`):** Unstyled, accessible primitives (installed to `node_modules`) built on top of Angular Signals and Angular CDK. Provides state, keyboard navigation, and ARIA roles.
+2. **Helm (`@spartan-ng/helm/*`):** Tailwind-styled standalone components/directives, copied by the CLI into `libs/shared/frontend/ui/<component>/` as buildable Nx libraries. Edit this code directly — it is part of this repo, not a third-party dependency.
+
+Configuration lives in `components.json` at the repo root:
+
+```json
+{
+  "componentsPath": "libs/shared/frontend/ui",
+  "buildable": true,
+  "generateAs": "library",
+  "importAlias": "@spartan-ng/helm",
+  "style": "nova"
+}
+```
 
 ---
 
 ## 2. Adding Spartan Components via CLI
 
-To add new Spartan/UI components or Helm directives to the project:
+This is an Nx workspace (no `angular.json`), so components are added through the Nx generator runner, not the Angular CLI's `ng g` (which errors with "not available outside a workspace"):
 
 ```bash
-npx spartan add
+npx nx g @spartan-ng/cli:ui button
+npx nx g @spartan-ng/cli:ui dialog
+npx nx g @spartan-ng/cli:ui dropdown-menu
+npx nx g @spartan-ng/cli:ui table
+npx nx g @spartan-ng/cli:ui input
 ```
 
-Or target a specific component directly:
+The first run prompts for `buildable`/`generateAs`/`importAlias`/`style` and writes `components.json`; subsequent runs reuse that config. To run fully non-interactively (e.g. in scripts/CI), pass `--buildable=true --generateAs=library --importAlias=@spartan-ng/helm --style=nova --no-interactive` — note these flags only take effect on first use since `components.json` doesn't exist yet; after that, the generator reads from `components.json` directly and does not re-prompt.
 
-```bash
-npx spartan add button
-npx spartan add dialog
-npx spartan add dropdown-menu
-npx spartan add table
-npx spartan add input
-```
-
-When generated, Spartan places Helm directives into the shared UI library folder. Always reuse generated Helm directives rather than writing custom wrapper components from scratch.
+When generated, Spartan places Helm directives into `libs/shared/frontend/ui/<component>/`. Always reuse generated Helm directives rather than writing custom wrapper components from scratch — customize the copied Helm source in place instead.
 
 ---
 
@@ -74,16 +82,16 @@ Do NOT write dark-mode overrides like `dark:bg-slate-900` inside Spartan Helm cl
 
 ## 5. Standard Component Patterns
 
-### Button Component (`HlmButtonDirective`)
+### Button Component (`HlmButton`)
 
 ```typescript
 import { Component } from "@angular/core";
-import { HlmButtonDirective } from "@spartan-ui/helm/button";
+import { HlmButton } from "@spartan-ng/helm/button";
 
 @Component({
   selector: "app-law-case-actions",
   standalone: true,
-  imports: [HlmButtonDirective],
+  imports: [HlmButton],
   template: `
     <div class="flex items-center gap-3">
       <button hlmBtn variant="default" size="default">Create New Case</button>
@@ -96,18 +104,18 @@ import { HlmButtonDirective } from "@spartan-ui/helm/button";
 export class LawCaseActionsComponent {}
 ```
 
-### Dialog Primitive (`HlmDialogComponent` + `@spartan-ui/brain`)
+### Dialog Primitive (`HlmDialogImports` + `@spartan-ng/brain/dialog`)
 
 ```typescript
 import { Component, signal } from "@angular/core";
-import { HlmDialogComponent, HlmDialogContentComponent, HlmDialogHeaderComponent, HlmDialogFooterComponent, HlmDialogTitleDirective, HlmDialogDescriptionDirective } from "@spartan-ui/helm/dialog";
-import { HlmButtonDirective } from "@spartan-ui/helm/button";
-import { BrnDialogContentDirective, BrnDialogTriggerDirective } from "@spartan-ui/brain/dialog";
+import { HlmDialogImports } from "@spartan-ng/helm/dialog";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { BrnDialogImports } from "@spartan-ng/brain/dialog";
 
 @Component({
   selector: "app-create-client-dialog",
   standalone: true,
-  imports: [HlmDialogComponent, HlmDialogContentComponent, HlmDialogHeaderComponent, HlmDialogFooterComponent, HlmDialogTitleDirective, HlmDialogDescriptionDirective, HlmButtonDirective, BrnDialogContentDirective, BrnDialogTriggerDirective],
+  imports: [...HlmDialogImports, HlmButton, ...BrnDialogImports],
   template: `
     <hlm-dialog>
       <button brnDialogTrigger hlmBtn variant="default">Add New Client</button>
@@ -138,11 +146,11 @@ export class CreateClientDialogComponent {
 }
 ```
 
-### Table Component (`HlmTableComponent` + Angular 22 Signals)
+### Table Component (`HlmTable*` + Angular 22 Signals)
 
 ```typescript
 import { Component, computed, signal } from "@angular/core";
-import { HlmTableComponent, HlmTableHeaderDirective, HlmTableRowDirective, HlmTableHeadDirective, HlmTableBodyDirective, HlmTableCellDirective } from "@spartan-ui/helm/table";
+import { HlmTable, HlmTableHeader, HlmTableRow, HlmTableHead, HlmTableBody, HlmTableCell } from "@spartan-ng/helm/table";
 
 interface LegalCase {
   id: string;
@@ -154,7 +162,7 @@ interface LegalCase {
 @Component({
   selector: "app-case-list",
   standalone: true,
-  imports: [HlmTableComponent, HlmTableHeaderDirective, HlmTableRowDirective, HlmTableHeadDirective, HlmTableBodyDirective, HlmTableCellDirective],
+  imports: [HlmTable, HlmTableHeader, HlmTableRow, HlmTableHead, HlmTableBody, HlmTableCell],
   template: `
     <div class="border border-border rounded-md overflow-hidden bg-card text-card-foreground">
       <hlm-table>
@@ -194,8 +202,9 @@ export class CaseListComponent {
 
 ## 6. Spartan/UI Best Practices Checklist
 
-- [ ] **Check Existing Primitives:** Before writing custom UI elements, check if a Spartan component (`npx spartan add <name>`) exists.
+- [ ] **Check Existing Primitives:** Before writing custom UI elements, check if a Spartan component (`npx nx g @spartan-ng/cli:ui <name>`) already exists under `libs/shared/frontend/ui/`.
 - [ ] **Use Angular Signals:** Bind Spartan component inputs and events using Angular 22 Signals (`signal()`, `computed()`).
 - [ ] **Semantic Token Styling:** Ensure all Helm directives use semantic tokens (`bg-primary`, `bg-card`, `text-foreground`, `border-border`, `ring-ring`).
-- [ ] **Accessibility:** Maintain ARIA attributes provided by `@spartan-ui/brain`.
+- [ ] **Accessibility:** Maintain ARIA attributes provided by `@spartan-ng/brain`.
 - [ ] **Modern Control Flow:** Use `@if`, `@for`, and `@switch` inside templates containing Spartan components.
+- [ ] **Icons:** Use `@ng-icons/core` + `@ng-icons/lucide` (`<ng-icon name="lucideX" />`) instead of `mat-icon`; Spartan ships no icon set of its own.

@@ -6,12 +6,12 @@
     </div>
 
     <button type="button" class="new-conversation" (click)="createSession()">
-      <mat-icon aria-hidden="true">add</mat-icon>
+      <ng-icon name="lucidePlus" aria-hidden="true" />
       <span>{{ "assistant.newConversation" | translate }}</span>
     </button>
 
     <label class="conversation-search">
-      <mat-icon aria-hidden="true">search</mat-icon>
+      <ng-icon name="lucideSearch" aria-hidden="true" />
       <input
         type="search"
         [placeholder]="'assistant.searchPlaceholder' | translate"
@@ -33,19 +33,19 @@
           (click)="selectSession(session.id)"
         >
           <span class="conversation-icon"
-            ><mat-icon>chat_bubble</mat-icon></span
-          >
+            ><ng-icon name="lucideMessageCircle"
+          /></span>
           <span class="conversation-copy">
             <strong>{{ session.title || "New chat" }}</strong>
             <small>Updated {{ session.updatedAt | date: "shortTime" }}</small>
           </span>
           <time>{{ session.updatedAt | date: "MMM d" }}</time>
-          <mat-icon
+          <ng-icon
+            name="lucideTrash"
             class="more"
-            [matTooltip]="'assistant.deleteConversation' | translate"
+            [hlmTooltip]="'assistant.deleteConversation' | translate"
             (click)="deleteSession(session.id); $event.stopPropagation()"
-            >delete</mat-icon
-          >
+          />
         </button>
       }
     </div>
@@ -54,7 +54,7 @@
   <section class="chat-panel" [class.empty-state]="!messages().length">
     <header class="chat-heading">
       <div class="chat-title">
-        <span class="assistant-icon"><mat-icon>auto_awesome</mat-icon></span>
+        <span class="assistant-icon"><ng-icon name="lucideSparkles" /></span>
         <div>
           <h2>{{ "assistant.title" | translate }}</h2>
           <p>{{ "assistant.description" | translate }}</p>
@@ -72,9 +72,9 @@
       @for (message of messages(); track message.id) {
         <article class="message" [class.user-message]="message.role === 'USER'">
           <span class="message-avatar">
-            <mat-icon>{{
-              message.role === "USER" ? "person" : "smart_toy"
-            }}</mat-icon>
+            <ng-icon
+              [name]="message.role === 'USER' ? 'lucideUser' : 'lucideBot'"
+            />
           </span>
           <div class="message-content">
             <p>{{ message.content }}</p>
@@ -140,7 +140,7 @@
                 (click)="removePendingFile(file)"
                 aria-label="Remove file"
               >
-                <mat-icon>close</mat-icon>
+                <ng-icon name="lucideX" />
               </button>
             </span>
           }
@@ -153,7 +153,7 @@
           [attr.aria-label]="'assistant.attachFiles' | translate"
           (click)="fileInput.click()"
         >
-          <mat-icon aria-hidden="true">add</mat-icon>
+          <ng-icon name="lucidePaperclip" aria-hidden="true" />
         </button>
         <input
           #fileInput
@@ -179,7 +179,7 @@
             class="microphone"
             [class.listening]="speechRecognition.isListening()"
             [disabled]="!speechRecognition.isSupported()"
-            [matTooltip]="
+            [hlmTooltip]="
               (speechRecognition.isListening() ? 'speech.stop' : 'speech.start')
                 | translate
             "
@@ -189,9 +189,11 @@
             "
             (click)="toggleSpeechRecognition()"
           >
-            <mat-icon>{{
-              speechRecognition.isListening() ? "mic_off" : "mic"
-            }}</mat-icon>
+            <ng-icon
+              [name]="
+                speechRecognition.isListening() ? 'lucideMicOff' : 'lucideMic'
+              "
+            />
           </button>
         </div>
         <div class="composer-input-row-button">
@@ -201,7 +203,7 @@
             aria-label="Send message"
             [disabled]="sending() || classifying() || !canSend()"
           >
-            <mat-icon>arrow_upward</mat-icon>
+            <ng-icon name="lucideArrowUp" />
           </button>
         </div>
       </div>

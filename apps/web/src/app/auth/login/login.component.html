@@ -1,81 +1,78 @@
-<main class="login-content" aria-label="Sign in form">
-  <header class="topbar">
-    <a href="#" class="help-link"
-      >{{ "auth.needHelp" | translate }}<span>?</span></a
-    >
+<main aria-label="Sign in form">
+  <header class="flex">
+    <a href="#">{{ "auth.needHelp" | translate }}<span>?</span></a>
   </header>
 
-  <div class="auth-card">
+  <div>
     <h3>{{ "auth.welcomeBack" | translate }}</h3>
     <p>{{ "auth.signInDescription" | translate }}</p>
 
-    <form
-      class="login-form"
-      [formGroup]="loginForm"
-      (ngSubmit)="login()"
-      novalidate
-    >
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>{{ "auth.emailAddress" | translate }}</mat-label>
-        <mat-icon matPrefix>mail</mat-icon>
-        <input
-          matInput
-          type="email"
-          formControlName="email"
-          required
-          autocomplete="email"
-          [placeholder]="'auth.emailPlaceholder' | translate"
-        />
-      </mat-form-field>
+    <form [formGroup]="loginForm" (ngSubmit)="login()" novalidate>
+      <div hlmField>
+        <label hlmFieldLabel for="email">{{
+          "auth.emailAddress" | translate
+        }}</label>
+        <div class="flex items-center">
+          <ng-icon name="lucideMail" aria-hidden="true" />
+          <input
+            hlmInput
+            id="email"
+            type="email"
+            formControlName="email"
+            required
+            autocomplete="email"
+            [placeholder]="'auth.emailPlaceholder' | translate"
+          />
+        </div>
+      </div>
 
-      <mat-form-field appearance="outline" class="full-width">
-        <mat-label>{{ "auth.password" | translate }}</mat-label>
-        <mat-icon matPrefix>lock</mat-icon>
-        <input
-          matInput
-          [type]="showPassword ? 'text' : 'password'"
-          formControlName="password"
-          required
-          autocomplete="current-password"
-          [placeholder]="'auth.passwordPlaceholder' | translate"
-        />
+      <div hlmField>
+        <label hlmFieldLabel for="password">{{
+          "auth.password" | translate
+        }}</label>
+        <div class="flex items-center">
+          <ng-icon name="lucideLock" aria-hidden="true" />
+          <input
+            hlmInput
+            id="password"
+            [type]="showPassword ? 'text' : 'password'"
+            formControlName="password"
+            required
+            autocomplete="current-password"
+            [placeholder]="'auth.passwordPlaceholder' | translate"
+          />
 
-        <button
-          mat-icon-button
-          matSuffix
-          type="button"
-          [attr.aria-label]="'auth.togglePassword' | translate"
-          (click)="togglePasswordVisibility()"
-        >
-          <mat-icon>{{
-            showPassword ? "visibility_off" : "visibility"
-          }}</mat-icon>
-        </button>
-      </mat-form-field>
+          <button
+            hlmBtn
+            variant="ghost"
+            size="icon"
+            type="button"
+            [attr.aria-label]="'auth.togglePassword' | translate"
+            (click)="togglePasswordVisibility()"
+          >
+            <ng-icon [name]="showPassword ? 'lucideEyeOff' : 'lucideEye'" />
+          </button>
+        </div>
+      </div>
 
       @if (error) {
-        <p class="error-message" role="alert">{{ error }}</p>
+        <p role="alert">{{ error }}</p>
       }
 
-      <a routerLink="/forgot-password" class="forgot-password">{{
+      <a routerLink="/forgot-password">{{
         "auth.forgotPassword" | translate
       }}</a>
 
-      <button
-        mat-flat-button
-        class="sign-in-button"
-        type="submit"
-        [disabled]="submitting"
-      >
+      <button hlmBtn type="submit" [disabled]="submitting">
         <span>{{
           (submitting ? "auth.signingIn" : "auth.signIn") | translate
         }}</span>
-        <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+        <ng-icon name="lucideArrowRight" aria-hidden="true" />
       </button>
     </form>
   </div>
 
-  <footer class="auth-footer">
+  <footer class="flex">
     <span>{{ "auth.dontHaveAccount" | translate }}</span>
     <a href="#">{{ "auth.contactAdministrator" | translate }}</a>
   </footer>

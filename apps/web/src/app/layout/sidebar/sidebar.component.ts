@@ -1,5 +1,18 @@
 import { Component } from "@angular/core";
-import { MatIconModule } from "@angular/material/icon";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideScale,
+  lucideBot,
+  lucideHome,
+  lucideUsers,
+  lucideFolder,
+  lucideFileText,
+  lucideSquareCheck,
+  lucideCalendar,
+  lucideLandmark,
+  lucideChartBar,
+  lucideSettings,
+} from "@ng-icons/lucide";
 import { RouterLink, RouterLinkActive } from "@angular/router";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
@@ -7,7 +20,21 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
   selector: "app-sidebar",
   standalone: true,
   templateUrl: "./sidebar.component.html",
-  styleUrl: "./sidebar.component.scss",
-  imports: [MatIconModule, RouterLink, RouterLinkActive, TranslatePipe],
+  imports: [NgIcon, RouterLink, RouterLinkActive, TranslatePipe],
+  providers: [
+    provideIcons({
+      lucideScale,
+      lucideBot,
+      lucideHome,
+      lucideUsers,
+      lucideFolder,
+      lucideFileText,
+      lucideSquareCheck,
+      lucideCalendar,
+      lucideLandmark,
+      lucideChartBar,
+      lucideSettings,
+    }),
+  ],
 })
 export class SidebarComponent {}

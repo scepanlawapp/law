@@ -1,63 +1,56 @@
-<header
-  class="flex min-h-[3.65rem] items-center justify-between border-b border-[var(--color-border-subtle)] bg-[var(--color-surface)] px-[1.15rem] max-[700px]:px-3"
->
-  <label
-    class="flex h-[2.7rem] w-full max-w-[29.25rem] items-center gap-2 rounded-[var(--radius-md)] border border-[var(--color-border-strong)] px-2.5 text-[#28527a]"
-  >
-    <mat-icon class="h-4 w-4 text-base" aria-hidden="true">search</mat-icon>
+<header class="flex items-center justify-between">
+  <label class="flex items-center">
+    <ng-icon name="lucideSearch" aria-hidden="true" />
     <input
-      class="min-w-0 w-full border-0 bg-transparent text-base text-[#1a3854] outline-none placeholder:text-[#8296aa]"
       type="search"
       [placeholder]="'header.searchPlaceholder' | translate"
     />
   </label>
 
-  <div class="tip" aria-live="polite">
-    <span class="tip__quote-mark" aria-hidden="true">“</span>
-    <span class="tip__text">{{ quoteKey() | translate }}</span>
-    <span class="tip__quote-mark" aria-hidden="true">“</span>
+  <div aria-live="polite">
+    <span aria-hidden="true">“</span>
+    <span>{{ quoteKey() | translate }}</span>
+    <span aria-hidden="true">“</span>
   </div>
 
-  <div class="flex items-center gap-2.5 text-base text-[#263e55]">
+  <div class="flex items-center">
     <button
-      class="relative grid h-8 w-8 cursor-pointer place-items-center rounded-full border-0 bg-[var(--color-surface-muted)] p-0 text-[#27445f]"
+      class="relative"
       type="button"
       aria-label="Notifications"
-      [matMenuTriggerFor]="notificationMenu"
+      [hlmDropdownMenuTrigger]="notificationMenu"
     >
-      <mat-icon class="text-[1.15rem]">notifications_none</mat-icon>
-      <span
-        class="absolute -right-0.5 -top-0.5 grid h-3.5 w-3.5 place-items-center rounded-full bg-[var(--color-danger)] text-[0.65rem] font-bold text-white"
-        >3</span
-      >
+      <ng-icon name="lucideBell" />
+      <span class="absolute">3</span>
     </button>
-    <mat-menu
-      #notificationMenu="matMenu"
-      class="notification-menu"
-      panelClass="notification-menu-panel"
-      aria-label="Recent notifications"
-    >
-      <div class="notification-heading">
-        <h2>{{ "header.notifications" | translate }}</h2>
-        <span>{{ "header.newNotifications" | translate: { count: 10 } }}</span>
-      </div>
-      @for (notification of notifications; track notification.title) {
-        <div class="notification-row" role="menuitem" tabindex="0">
-          <span class="notification-icon" [class]="notification.tone"
-            ><mat-icon>{{ notification.icon }}</mat-icon></span
-          >
-          <span class="notification-copy"
-            ><strong>{{ notification.title }}</strong
-            ><small>{{ notification.detail }}</small></span
-          >
-          <time>{{ notification.time }}</time>
-        </div>
-      }
-      <a mat-menu-item routerLink="/notifications"
-        >{{ "header.viewAllNotifications" | translate }}
-        <mat-icon>arrow_forward</mat-icon></a
-      >
-    </mat-menu>
+    <ng-template #notificationMenu>
+      <hlm-dropdown-menu aria-label="Recent notifications">
+        <hlm-dropdown-menu-group>
+          <div class="flex items-center justify-between">
+            <h2>{{ "header.notifications" | translate }}</h2>
+            <span>{{
+              "header.newNotifications" | translate: { count: 10 }
+            }}</span>
+          </div>
+          @for (notification of notifications; track notification.title) {
+            <div class="flex items-center">
+              <span [class]="notification.tone"
+                ><ng-icon [name]="notification.icon"
+              /></span>
+              <span
+                ><strong>{{ notification.title }}</strong
+                ><small>{{ notification.detail }}</small></span
+              >
+              <time>{{ notification.time }}</time>
+            </div>
+          }
+          <a hlmDropdownMenuItem routerLink="/notifications"
+            >{{ "header.viewAllNotifications" | translate }}
+            <ng-icon name="lucideArrowRight"
+          /></a>
+        </hlm-dropdown-menu-group>
+      </hlm-dropdown-menu>
+    </ng-template>
     @if (session()?.user; as user) {
       <app-user-menu [user]="user" (logoutRequested)="logout()" />
     }

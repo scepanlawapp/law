@@ -12,8 +12,22 @@ import {
   signal,
 } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
-import { MatIconModule } from "@angular/material/icon";
-import { MatTooltipModule } from "@angular/material/tooltip";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideArrowUp,
+  lucideBot,
+  lucideMessageCircle,
+  lucideMic,
+  lucideMicOff,
+  lucidePaperclip,
+  lucidePlus,
+  lucideSearch,
+  lucideSparkles,
+  lucideTrash,
+  lucideUser,
+  lucideX,
+} from "@ng-icons/lucide";
+import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { ChatApiClient } from "@law/api-clients";
 import {
   ChatMessageResponse,
@@ -63,8 +77,8 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
   imports: [
     BottomReachedDirective,
     DatePipe,
-    MatIconModule,
-    MatTooltipModule,
+    NgIcon,
+    HlmTooltipImports,
     ReactiveFormsModule,
     TranslatePipe,
     DraftReviewPanelComponent,
@@ -72,6 +86,22 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    provideIcons({
+      lucideArrowUp,
+      lucideBot,
+      lucideMessageCircle,
+      lucideMic,
+      lucideMicOff,
+      lucidePaperclip,
+      lucidePlus,
+      lucideSearch,
+      lucideSparkles,
+      lucideTrash,
+      lucideUser,
+      lucideX,
+    }),
+  ],
 })
 export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly authState = inject(AuthState);

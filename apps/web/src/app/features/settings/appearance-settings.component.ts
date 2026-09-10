@@ -1,9 +1,9 @@
 import { Component, inject, signal } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { UserSettingsLanguage, UserSettingsTheme } from "@law/api-interfaces";
-import { MatButtonModule } from "@angular/material/button";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatSelectModule } from "@angular/material/select";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ThemeService } from "../../core/theme/theme.service";
@@ -15,9 +15,10 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
   standalone: true,
   imports: [
     ReactiveFormsModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatSelectModule,
+    HlmButton,
+    HlmField,
+    HlmFieldLabel,
+    HlmSelectImports,
     TranslatePipe,
   ],
   templateUrl: "./appearance-settings.component.html",

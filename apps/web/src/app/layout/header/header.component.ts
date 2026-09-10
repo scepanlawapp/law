@@ -1,6 +1,21 @@
 import { Component, inject, signal } from "@angular/core";
-import { MatIconModule } from "@angular/material/icon";
-import { MatMenuModule } from "@angular/material/menu";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideBell,
+  lucideCalendar,
+  lucideCreditCard,
+  lucideFileText,
+  lucideFolderOpen,
+  lucideMessageCircle,
+  lucideSearch,
+  lucideTriangleAlert,
+  lucideUsers,
+  lucideSquareCheck,
+  lucideFileCheck,
+  lucideInfo,
+  lucideArrowRight,
+} from "@ng-icons/lucide";
+import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
 import { RouterLink } from "@angular/router";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { AuthState } from "@law/security";
@@ -23,13 +38,29 @@ const LEGAL_QUOTE_KEYS = Array.from(
   selector: "app-header",
   standalone: true,
   templateUrl: "./header.component.html",
-  styleUrl: "./header.component.scss",
   imports: [
-    MatIconModule,
-    MatMenuModule,
+    NgIcon,
+    ...HlmDropdownMenuImports,
     RouterLink,
     UserMenuComponent,
     TranslatePipe,
+  ],
+  providers: [
+    provideIcons({
+      lucideBell,
+      lucideCalendar,
+      lucideCreditCard,
+      lucideFileText,
+      lucideFolderOpen,
+      lucideMessageCircle,
+      lucideSearch,
+      lucideTriangleAlert,
+      lucideUsers,
+      lucideSquareCheck,
+      lucideFileCheck,
+      lucideInfo,
+      lucideArrowRight,
+    }),
   ],
 })
 export class HeaderComponent {
@@ -44,70 +75,70 @@ export class HeaderComponent {
       title: "New document uploaded",
       detail: "Contract.pdf in case P-123/2026",
       time: "10m",
-      icon: "description",
+      icon: "lucideFileText",
       tone: "blue",
     },
     {
       title: "Hearing reminder",
       detail: "Court hearing tomorrow at 10:00",
       time: "1h",
-      icon: "calendar_month",
+      icon: "lucideCalendar",
       tone: "blue",
     },
     {
       title: "Deadline approaching",
       detail: "Submit appeal in 2 days",
       time: "3h",
-      icon: "warning",
+      icon: "lucideTriangleAlert",
       tone: "red",
     },
     {
       title: "New message from client",
       detail: "Ana Jovanović",
       time: "5h",
-      icon: "chat_bubble_outline",
+      icon: "lucideMessageCircle",
       tone: "blue",
     },
     {
       title: "System update",
       detail: "Backup completed successfully",
       time: "1d",
-      icon: "info",
+      icon: "lucideInfo",
       tone: "purple",
     },
     {
       title: "Payment received",
       detail: "Invoice #INV-0042 was paid",
       time: "1d",
-      icon: "payments",
+      icon: "lucideCreditCard",
       tone: "orange",
     },
     {
       title: "Case status changed",
       detail: "P-124/2026 is now Active",
       time: "2d",
-      icon: "folder_open",
+      icon: "lucideFolderOpen",
       tone: "orange",
     },
     {
       title: "New client added",
       detail: "Nikola Petrović joined your workspace",
       time: "2d",
-      icon: "group",
+      icon: "lucideUsers",
       tone: "blue",
     },
     {
       title: "Task completed",
       detail: "Prepare response to court",
       time: "3d",
-      icon: "check_box",
+      icon: "lucideSquareCheck",
       tone: "purple",
     },
     {
       title: "Document review finished",
       detail: "Ugovor.pdf is ready for review",
       time: "3d",
-      icon: "fact_check",
+      icon: "lucideFileCheck",
       tone: "blue",
     },
   ];

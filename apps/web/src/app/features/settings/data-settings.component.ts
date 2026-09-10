@@ -1,5 +1,5 @@
 import { Component, inject, signal } from "@angular/core";
-import { MatButtonModule } from "@angular/material/button";
+import { HlmButton } from "@spartan-ng/helm/button";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
@@ -9,7 +9,7 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 @Component({
   selector: "app-data-settings",
   standalone: true,
-  imports: [MatButtonModule, TranslatePipe],
+  imports: [HlmButton, TranslatePipe],
   templateUrl: "./data-settings.component.html",
   styleUrl: "./settings-pages.component.scss",
 })

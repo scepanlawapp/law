@@ -1,59 +1,51 @@
 <button
   type="button"
-  class="flex cursor-pointer items-center gap-2 border-0 bg-transparent p-0 text-base text-[#263e55]"
-  [matMenuTriggerFor]="userMenu"
-  (menuOpened)="menuOpen.set(true)"
-  (menuClosed)="menuOpen.set(false)"
+  class="flex items-center"
+  [hlmDropdownMenuTrigger]="userMenu"
+  (hlmDropdownMenuOpened)="menuOpen.set(true)"
+  (hlmDropdownMenuClosed)="menuOpen.set(false)"
   [attr.aria-label]="'header.userMenu' | translate"
 >
   @if (user().avatarUrl; as avatarUrl) {
-    <img class="h-7 w-7 rounded-full object-cover" [src]="avatarUrl" alt="" />
+    <img [src]="avatarUrl" alt="" />
   } @else {
-    <span
-      class="grid h-7 w-7 place-items-center rounded-full bg-[#132a43] text-base font-bold text-white"
-      aria-hidden="true"
-      >{{ initials() }}</span
-    >
+    <span aria-hidden="true">{{ initials() }}</span>
   }
-  <span class="max-[700px]:hidden">{{ displayName() }}</span>
-  <mat-icon class="h-4 w-4 text-base max-[700px]:hidden" aria-hidden="true">
-    {{ menuOpen() ? "expand_less" : "expand_more" }}
-  </mat-icon>
+  <span>{{ displayName() }}</span>
+  <ng-icon
+    [name]="menuOpen() ? 'lucideChevronUp' : 'lucideChevronDown'"
+    aria-hidden="true"
+  />
 </button>
 
-<mat-menu
-  #userMenu="matMenu"
-  class="user-menu"
-  panelClass="user-menu-panel"
-  aria-label="User menu"
->
-  <div class="user-menu-heading">
-    @if (user().avatarUrl; as avatarUrl) {
-      <img class="user-menu-avatar" [src]="avatarUrl" alt="" />
-    } @else {
-      <span
-        class="user-menu-avatar user-menu-avatar-fallback"
-        aria-hidden="true"
+<ng-template #userMenu>
+  <hlm-dropdown-menu aria-label="User menu">
+    <hlm-dropdown-menu-group>
+      <div class="flex items-center">
+        @if (user().avatarUrl; as avatarUrl) {
+          <img [src]="avatarUrl" alt="" />
+        } @else {
+          <span aria-hidden="true">
+            {{ initials() }}
+          </span>
+        }
+        <div>
+          <strong>{{ displayName() }}</strong>
+          <small>{{ user().email }}</small>
+        </div>
+      </div>
+      <a hlmDropdownMenuItem routerLink="/settings">
+        <span><ng-icon name="lucideSettings" /></span>
+        <span>{{ "userMenu.changeSettings" | translate }}</span>
+      </a>
+      <button
+        hlmDropdownMenuItem
+        type="button"
+        (click)="logoutRequested.emit()"
       >
-        {{ initials() }}
-      </span>
-    }
-    <div class="user-menu-identity">
-      <strong>{{ displayName() }}</strong>
-      <small>{{ user().email }}</small>
-    </div>
-  </div>
-  <a class="user-menu-action" mat-menu-item routerLink="/settings">
-    <span class="user-menu-action-icon"><mat-icon>settings</mat-icon></span>
-    <span>{{ "userMenu.changeSettings" | translate }}</span>
-  </a>
-  <button
-    class="user-menu-action"
-    mat-menu-item
-    type="button"
-    (click)="logoutRequested.emit()"
-  >
-    <span class="user-menu-action-icon"><mat-icon>logout</mat-icon></span>
-    <span>{{ "userMenu.logout" | translate }}</span>
-  </button>
-</mat-menu>
+        <span><ng-icon name="lucideLogOut" /></span>
+        <span>{{ "userMenu.logout" | translate }}</span>
+      </button>
+    </hlm-dropdown-menu-group>
+  </hlm-dropdown-menu>
+</ng-template>

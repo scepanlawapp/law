@@ -1,126 +1,124 @@
-<aside
-  class="box-border flex h-full w-60 flex-col bg-[#10243a] px-2.5 pb-3 pt-4 text-[#d9e5f2] max-[700px]:w-[4.25rem] max-[700px]:items-center"
->
-  <a
-    class="flex items-center gap-2 px-1 pb-5 text-base font-bold text-white no-underline max-[700px]:px-0"
-    routerLink="/dashboard"
-    aria-label="LegalAI"
-  >
-    <span
-      class="flex h-[1.45rem] w-[1.45rem] items-center justify-center"
-      aria-hidden="true"
-      ><mat-icon>balance</mat-icon></span
-    >
+<aside class="flex h-full flex-col">
+  <a class="flex items-center" routerLink="/dashboard" aria-label="LegalAI">
+    <span class="flex items-center justify-center" aria-hidden="true"
+      ><ng-icon name="lucideScale"
+    /></span>
     <span>{{ "brand.legalAi" | translate }}</span>
   </a>
 
-  <nav class="grid gap-1" aria-label="Main navigation">
+  <nav class="grid" aria-label="Main navigation">
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white [&.active]:bg-[var(--color-brand-strong)] [&.active]:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/assistant"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
     >
-      <mat-icon aria-hidden="true">smart_toy</mat-icon>
+      <ng-icon name="lucideBot" aria-hidden="true" />
       <span>{{ "nav.aiAssistant" | translate }}</span>
     </a>
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white [&.active]:bg-[var(--color-brand-strong)] [&.active]:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/dashboard"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
     >
-      <mat-icon>home</mat-icon><span>{{ "nav.dashboard" | translate }}</span>
+      <ng-icon name="lucideHome" /><span>{{
+        "nav.dashboard" | translate
+      }}</span>
     </a>
   </nav>
 
-  <section class="mt-5 grid gap-1" aria-label="Workspace">
-    <p
-      class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
-    >
+  <section class="grid" aria-label="Workspace">
+    <p>
       {{ "nav.workspace" | translate }}
     </p>
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/clients"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>group</mat-icon><span>{{ "nav.clients" | translate }}</span></a
+      ><ng-icon name="lucideUsers" /><span>{{
+        "nav.clients" | translate
+      }}</span></a
     >
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/cases"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>folder</mat-icon><span>{{ "nav.cases" | translate }}</span></a
+      ><ng-icon name="lucideFolder" /><span>{{
+        "nav.cases" | translate
+      }}</span></a
     >
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/documents"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>description</mat-icon
-      ><span>{{ "nav.documents" | translate }}</span></a
+      ><ng-icon name="lucideFileText" /><span>{{
+        "nav.documents" | translate
+      }}</span></a
     >
   </section>
 
-  <section class="mt-5 grid gap-1" aria-label="Work">
-    <p
-      class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
-    >
+  <section class="grid" aria-label="Work">
+    <p>
       {{ "nav.work" | translate }}
     </p>
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/tasks-deadlines"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>check_box</mat-icon
-      ><span>{{ "nav.tasksDeadlines" | translate }}</span></a
+      ><ng-icon name="lucideSquareCheck" /><span>{{
+        "nav.tasksDeadlines" | translate
+      }}</span></a
     >
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/calendar"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>calendar_month</mat-icon
-      ><span>{{ "nav.calendar" | translate }}</span></a
+      ><ng-icon name="lucideCalendar" /><span>{{
+        "nav.calendar" | translate
+      }}</span></a
     >
   </section>
 
-  <section class="mt-5 grid gap-1" aria-label="Business">
-    <p
-      class="mb-1 ml-1 text-base font-semibold uppercase tracking-[0.04em] text-[#90a5bb] max-[700px]:hidden"
-    >
+  <section class="grid" aria-label="Business">
+    <p>
       {{ "nav.business" | translate }}
     </p>
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/finance"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>account_balance</mat-icon
-      ><span>{{ "nav.finance" | translate }}</span></a
+      ><ng-icon name="lucideLandmark" /><span>{{
+        "nav.finance" | translate
+      }}</span></a
     >
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/reports"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>bar_chart</mat-icon
-      ><span>{{ "nav.reports" | translate }}</span></a
+      ><ng-icon name="lucideChartBar" /><span>{{
+        "nav.reports" | translate
+      }}</span></a
     >
   </section>
 
-  <div class="mt-auto grid gap-5 border-t border-[rgba(190,211,232,0.2)] pt-4">
+  <div class="mt-auto grid">
     <a
-      class="flex min-h-8 items-center gap-2.5 rounded-[var(--radius-md)] px-2.5 text-base text-[#c5d4e3] no-underline hover:bg-[var(--color-brand-strong)] hover:text-white max-[700px]:w-11 max-[700px]:justify-center max-[700px]:px-0"
+      class="flex items-center"
       routerLink="/settings"
       routerLinkActive="active"
       [routerLinkActiveOptions]="{ exact: true }"
-      ><mat-icon>settings</mat-icon
-      ><span>{{ "nav.settings" | translate }}</span></a
+      ><ng-icon name="lucideSettings" /><span>{{
+        "nav.settings" | translate
+      }}</span></a
     >
-    <small class="pl-1 text-[#8fa4b9] max-[700px]:hidden">v1.0.0</small>
+    <small>v1.0.0</small>
   </div>
 </aside>

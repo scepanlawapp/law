@@ -4,6 +4,5 @@ import { Component } from "@angular/core";
   selector: "app-clients",
   standalone: true,
   templateUrl: "./clients.component.html",
-  styleUrl: "./clients.component.scss",
 })
 export class ClientsComponent {}

@@ -8,9 +8,7 @@
   "targets": {
     "build": {
       "executor": "@angular/build:application",
-      "outputs": [
-        "{options.outputPath}"
-      ],
+      "outputs": ["{options.outputPath}"],
       "defaultConfiguration": "production",
       "options": {
         "outputPath": "dist/apps/web",
@@ -23,10 +21,7 @@
             "input": "apps/web/public"
           }
         ],
-        "styles": [
-          "node_modules/@angular/material/prebuilt-themes/azure-blue.css",
-          "apps/web/src/styles.scss"
-        ]
+        "styles": ["apps/web/src/styles.scss"]
       },
       "configurations": {
         "production": {
@@ -69,9 +64,7 @@
     },
     "test": {
       "executor": "@nx/jest:jest",
-      "outputs": [
-        "{workspaceRoot}/coverage/{projectRoot}"
-      ],
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
       "options": {
         "jestConfig": "apps/web/jest.config.cts",
         "tsConfig": "apps/web/tsconfig.spec.json"

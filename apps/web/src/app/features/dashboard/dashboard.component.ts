@@ -1,6 +1,23 @@
 import { Component, inject, signal } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
-import { MatIconModule } from "@angular/material/icon";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideArrowRight,
+  lucideBot,
+  lucideCalendar,
+  lucideChevronRight,
+  lucideFileText,
+  lucideFolderOpen,
+  lucideGavel,
+  lucideInfo,
+  lucideMessageCircle,
+  lucideSparkles,
+  lucideSquareCheck,
+  lucideTriangleAlert,
+  lucideUpload,
+  lucideUsers,
+  lucideWallet,
+} from "@ng-icons/lucide";
 import { Router, RouterLink } from "@angular/router";
 import { ChatApiClient } from "@law/api-clients";
 import { AuthState } from "@law/security";
@@ -54,13 +71,32 @@ interface QuickAction {
   standalone: true,
   imports: [
     DashboardStatCardComponent,
-    MatIconModule,
+    NgIcon,
     ReactiveFormsModule,
     RouterLink,
     TranslatePipe,
   ],
   templateUrl: "./dashboard.component.html",
   styleUrl: "./dashboard.component.scss",
+  providers: [
+    provideIcons({
+      lucideArrowRight,
+      lucideBot,
+      lucideCalendar,
+      lucideChevronRight,
+      lucideFileText,
+      lucideFolderOpen,
+      lucideGavel,
+      lucideInfo,
+      lucideMessageCircle,
+      lucideSparkles,
+      lucideSquareCheck,
+      lucideTriangleAlert,
+      lucideUpload,
+      lucideUsers,
+      lucideWallet,
+    }),
+  ],
 })
 export class DashboardComponent {
   private readonly localization = inject(LocalizationService);
@@ -118,7 +154,7 @@ export class DashboardComponent {
       trend: "2",
       trendDetail: "dashboard.thisMonth",
       trendDirection: "up" as const,
-      icon: "folder_open",
+      icon: "lucideFolderOpen",
       chart: [25, 40, 35, 55, 48, 68, 58, 75],
     },
     {
@@ -127,7 +163,7 @@ export class DashboardComponent {
       trend: "Next:",
       trendDetail: "dashboard.tomorrow",
       trendDirection: "neutral" as const,
-      icon: "calendar_month",
+      icon: "lucideCalendar",
       chart: [],
     },
     {
@@ -136,7 +172,7 @@ export class DashboardComponent {
       trend: "4",
       trendDetail: "dashboard.dueToday",
       trendDirection: "down" as const,
-      icon: "check_box",
+      icon: "lucideSquareCheck",
       chart: [36, 45, 30, 58, 48, 67, 54, 80],
     },
     {
@@ -145,7 +181,7 @@ export class DashboardComponent {
       trend: "12",
       trendDetail: "dashboard.thisMonth",
       trendDirection: "up" as const,
-      icon: "description",
+      icon: "lucideFileText",
       chart: [20, 30, 28, 48, 42, 62, 52, 78],
     },
   ];
@@ -155,35 +191,35 @@ export class DashboardComponent {
       time: "10:00",
       title: "dashboard.courtHearing",
       detail: "dashboard.eventCaseMarko",
-      icon: "gavel",
+      icon: "lucideGavel",
       tag: "dashboard.today",
     },
     {
       time: "14:30",
       title: "dashboard.clientMeeting",
       detail: "dashboard.eventClientAna",
-      icon: "group",
+      icon: "lucideUsers",
       tag: "dashboard.today",
     },
     {
       time: "16:00",
       title: "dashboard.deadlineEvent",
       detail: "dashboard.submitAppeal",
-      icon: "description",
+      icon: "lucideFileText",
       tag: "dashboard.today",
     },
     {
       time: "dashboard.sep14",
       title: "dashboard.courtHearing",
       detail: "dashboard.eventCaseMilica",
-      icon: "gavel",
+      icon: "lucideGavel",
       tag: "dashboard.tomorrow",
     },
     {
       time: "dashboard.sep16",
       title: "dashboard.meeting",
       detail: "dashboard.eventContractReview",
-      icon: "calendar_month",
+      icon: "lucideCalendar",
       tag: "dashboard.inTwoDays",
     },
   ];
@@ -193,35 +229,35 @@ export class DashboardComponent {
       title: "dashboard.documentUploaded",
       detail: "dashboard.activityContract",
       time: "dashboard.tenMinutesAgo",
-      icon: "description",
+      icon: "lucideFileText",
       tone: "blue",
     },
     {
       title: "dashboard.caseUpdated",
       detail: "dashboard.statusChangedActive",
       time: "dashboard.oneHourAgo",
-      icon: "folder_open",
+      icon: "lucideFolderOpen",
       tone: "orange",
     },
     {
       title: "dashboard.taskCreated",
       detail: "dashboard.prepareCourtResponse",
       time: "dashboard.twoHoursAgo",
-      icon: "check_box",
+      icon: "lucideSquareCheck",
       tone: "green",
     },
     {
       title: "dashboard.clientAdded",
       detail: "dashboard.activityClientNikola",
       time: "dashboard.threeHoursAgo",
-      icon: "group",
+      icon: "lucideUsers",
       tone: "purple",
     },
     {
       title: "dashboard.paymentReceived",
       detail: "dashboard.invoiceReceived",
       time: "dashboard.fiveHoursAgo",
-      icon: "account_balance_wallet",
+      icon: "lucideWallet",
       tone: "orange",
     },
   ];
@@ -231,35 +267,35 @@ export class DashboardComponent {
       title: "dashboard.newDocumentUploaded",
       detail: "dashboard.notificationContract",
       time: "dashboard.tenMinutesShort",
-      icon: "description",
+      icon: "lucideFileText",
       tone: "blue",
     },
     {
       title: "dashboard.hearingReminder",
       detail: "dashboard.notificationHearing",
       time: "dashboard.oneHourShort",
-      icon: "calendar_month",
+      icon: "lucideCalendar",
       tone: "blue",
     },
     {
       title: "dashboard.deadlineApproaching",
       detail: "dashboard.notificationDeadline",
       time: "dashboard.threeHoursShort",
-      icon: "warning",
+      icon: "lucideTriangleAlert",
       tone: "red",
     },
     {
       title: "dashboard.newClientMessage",
       detail: "dashboard.notificationClientAna",
       time: "dashboard.fiveHoursShort",
-      icon: "chat_bubble_outline",
+      icon: "lucideMessageCircle",
       tone: "blue",
     },
     {
       title: "dashboard.systemUpdate",
       detail: "dashboard.backupCompleted",
       time: "dashboard.oneDayShort",
-      icon: "info",
+      icon: "lucideInfo",
       tone: "purple",
     },
   ];
@@ -313,10 +349,10 @@ export class DashboardComponent {
   ];
 
   readonly quickActions: QuickAction[] = [
-    { title: "dashboard.createNewCase", icon: "folder_open" },
-    { title: "dashboard.uploadDocument", icon: "upload_file" },
-    { title: "dashboard.addClient", icon: "group" },
-    { title: "dashboard.createTask", icon: "check_box" },
-    { title: "dashboard.scheduleEvent", icon: "calendar_month" },
+    { title: "dashboard.createNewCase", icon: "lucideFolderOpen" },
+    { title: "dashboard.uploadDocument", icon: "lucideUpload" },
+    { title: "dashboard.addClient", icon: "lucideUsers" },
+    { title: "dashboard.createTask", icon: "lucideSquareCheck" },
+    { title: "dashboard.scheduleEvent", icon: "lucideCalendar" },
   ];
 }

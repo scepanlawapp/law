@@ -1,15 +1,15 @@
-<section class="dashboard-page">
-  <div class="dashboard-intro">
+<section>
+  <div>
     <p>
       {{ "dashboard.greeting" | translate }} <span aria-hidden="true">👋</span>
     </p>
     <h1>{{ "dashboard.heading" | translate }}</h1>
     <form
-      class="assistant-prompt"
+      class="flex items-center"
       [formGroup]="promptForm"
       (ngSubmit)="submitPrompt()"
     >
-      <mat-icon aria-hidden="true">auto_awesome</mat-icon>
+      <ng-icon name="lucideSparkles" aria-hidden="true" />
       <textarea
         formControlName="prompt"
         rows="1"
@@ -22,44 +22,49 @@
         [attr.aria-label]="'dashboard.askAssistant' | translate"
         [disabled]="sendingPrompt()"
       >
-        <mat-icon>arrow_forward</mat-icon>
+        <ng-icon name="lucideArrowRight" />
       </button>
     </form>
     @if (promptError()) {
-      <p class="assistant-prompt-error" role="alert">{{ promptError() }}</p>
+      <p role="alert">{{ promptError() }}</p>
     }
-    <div class="prompt-actions">
+    <div class="flex items-center">
       <button type="button">
-        <mat-icon>auto_awesome</mat-icon
-        >{{ "dashboard.summarizeCase" | translate }}
+        <ng-icon name="lucideSparkles" />{{
+          "dashboard.summarizeCase" | translate
+        }}
       </button>
       <button type="button">
-        <mat-icon>gavel</mat-icon>{{ "dashboard.analyzeDocument" | translate }}
+        <ng-icon name="lucideGavel" />{{
+          "dashboard.analyzeDocument" | translate
+        }}
       </button>
       <button type="button">
-        <mat-icon>folder_open</mat-icon
-        >{{ "dashboard.findSimilarCases" | translate }}
+        <ng-icon name="lucideFolderOpen" />{{
+          "dashboard.findSimilarCases" | translate
+        }}
       </button>
       <button type="button">
-        <mat-icon>description</mat-icon
-        >{{ "dashboard.draftResponse" | translate }}
+        <ng-icon name="lucideFileText" />{{
+          "dashboard.draftResponse" | translate
+        }}
       </button>
     </div>
   </div>
 
-  <a class="assistant-card" routerLink="/assistant">
-    <span class="assistant-card-icon"><mat-icon>smart_toy</mat-icon></span>
+  <a class="flex items-center" routerLink="/assistant">
+    <span><ng-icon name="lucideBot" /></span>
     <div>
       <h2>{{ "dashboard.assistantTitle" | translate }}</h2>
       <p>{{ "dashboard.assistantDescription" | translate }}</p>
-      <span class="text-link"
+      <span
         >{{ "dashboard.startConversation" | translate }}
-        <mat-icon>arrow_forward</mat-icon></span
-      >
+        <ng-icon name="lucideArrowRight"
+      /></span>
     </div>
   </a>
 
-  <div class="stat-grid">
+  <div class="grid">
     @for (stat of stats; track stat.title) {
       <app-dashboard-stat-card
         [title]="stat.title"
@@ -73,43 +78,41 @@
     }
   </div>
 
-  <div class="dashboard-columns">
-    <section class="panel upcoming-panel">
-      <div class="panel-heading">
+  <div class="grid">
+    <section>
+      <div class="flex items-center justify-between">
         <h2>{{ "dashboard.upcoming" | translate }}</h2>
         <a routerLink="/calendar"
           >{{ "dashboard.viewCalendar" | translate }}
-          <mat-icon>arrow_forward</mat-icon></a
-        >
+          <ng-icon name="lucideArrowRight"
+        /></a>
       </div>
-      <div class="event-list">
+      <div>
         @for (event of upcomingEvents; track event.time + event.title) {
-          <div class="event-row">
+          <div class="flex items-center">
             <time>{{ event.time | translate }}</time>
-            <span class="round-icon"
-              ><mat-icon>{{ event.icon }}</mat-icon></span
-            >
-            <div class="row-copy">
+            <span><ng-icon [name]="event.icon" /></span>
+            <div class="flex">
               <strong>{{ event.title | translate }}</strong
               ><small>{{ event.detail | translate }}</small>
             </div>
-            <span class="row-tag">{{ event.tag | translate }}</span>
+            <span>{{ event.tag | translate }}</span>
           </div>
         }
       </div>
     </section>
 
-    <section class="panel activity-panel">
-      <div class="panel-heading">
+    <section>
+      <div class="flex items-center justify-between">
         <h2>{{ "dashboard.recentActivity" | translate }}</h2>
       </div>
-      <div class="activity-list">
+      <div>
         @for (activity of recentActivity; track activity.title) {
-          <div class="activity-row">
-            <span class="round-icon" [class]="activity.tone"
-              ><mat-icon>{{ activity.icon }}</mat-icon></span
-            >
-            <div class="row-copy">
+          <div class="flex items-center">
+            <span [class]="activity.tone"
+              ><ng-icon [name]="activity.icon"
+            /></span>
+            <div class="flex">
               <strong>{{ activity.title | translate }}</strong
               ><small>{{ activity.detail | translate }}</small>
             </div>
@@ -119,21 +122,21 @@
       </div>
     </section>
 
-    <section class="panel notifications-panel">
-      <div class="panel-heading">
+    <section>
+      <div class="flex items-center justify-between">
         <h2>{{ "header.notifications" | translate }}</h2>
         <a routerLink="/notifications"
           >{{ "dashboard.viewAll" | translate }}
-          <mat-icon>arrow_forward</mat-icon></a
-        >
+          <ng-icon name="lucideArrowRight"
+        /></a>
       </div>
-      <div class="notification-list">
+      <div>
         @for (notification of notifications; track notification.title) {
-          <div class="notification-row">
-            <span class="round-icon" [class]="notification.tone"
-              ><mat-icon>{{ notification.icon }}</mat-icon></span
-            >
-            <div class="row-copy">
+          <div class="flex items-center">
+            <span [class]="notification.tone"
+              ><ng-icon [name]="notification.icon"
+            /></span>
+            <div class="flex">
               <strong>{{ notification.title | translate }}</strong
               ><small>{{ notification.detail | translate }}</small>
             </div>
@@ -144,16 +147,16 @@
     </section>
   </div>
 
-  <div class="dashboard-bottom">
-    <section class="panel cases-panel">
-      <div class="panel-heading">
+  <div>
+    <section>
+      <div class="flex items-center justify-between">
         <h2>{{ "dashboard.casesOverview" | translate }}</h2>
         <button type="button" routerLink="/cases">
           {{ "dashboard.viewAllCases" | translate }}
-          <mat-icon>arrow_forward</mat-icon>
+          <ng-icon name="lucideArrowRight" />
         </button>
       </div>
-      <div class="table-wrap">
+      <div>
         <table>
           <thead>
             <tr>
@@ -172,7 +175,7 @@
                 <td>{{ caseItem.client }}</td>
                 <td>{{ caseItem.type | translate }}</td>
                 <td>
-                  <span class="status" [class]="caseItem.statusClass"
+                  <span [class]="caseItem.statusClass"
                     ><i></i>{{ translateStatus(caseItem.status) }}</span
                   >
                 </td>
@@ -185,16 +188,17 @@
       </div>
     </section>
 
-    <section class="panel quick-actions-panel">
-      <div class="panel-heading">
+    <section>
+      <div class="flex items-center justify-between">
         <h2>{{ "dashboard.quickActions" | translate }}</h2>
       </div>
-      <div class="quick-actions">
+      <div>
         @for (action of quickActions; track action.title) {
           <button type="button">
-            <mat-icon>{{ action.icon }}</mat-icon
-            ><span>{{ action.title | translate }}</span
-            ><mat-icon class="arrow">chevron_right</mat-icon>
+            <ng-icon [name]="action.icon" /><span>{{
+              action.title | translate
+            }}</span
+            ><ng-icon name="lucideChevronRight" />
           </button>
         }
       </div>
