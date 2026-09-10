@@ -2,7 +2,7 @@
 
 - **Track ID:** `draft_approval_gate_20260909`
 - **Type:** Feature
-- **Status:** Planned
+- **Status:** Completed
 
 ## Documents
 
@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-Not started. Turns the API-only `DraftResult` into a reviewable artifact: approval state machine, lawyer-only approve/reject/request-changes endpoints with audit events, and a draft review panel in the assistant UI with a Latin/Cyrillic toggle. This is the single remaining human touchpoint in the drafting pipeline.
+The draft approval gate is implemented and pushed in commit `6c37c90` on `feature/draft_approval_gate_20260910`. It includes the approval state model, Prisma migration, audit events, revision-job regeneration with reviewer feedback, lawyer-only review routes, the dedicated Angular review panel, warnings/missing-field display, Latin/Cyrillic switching, translations, and focused tests.

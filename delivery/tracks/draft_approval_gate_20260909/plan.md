@@ -1,13 +1,13 @@
 # Draft Approval Gate Plan
 
-- [ ] Prisma: `DraftApprovalStatus` enum; `DraftResult` fields `approvalStatus`, `finalDocumentText`, `reviewedByUserId`, `reviewedAt`, `reviewNote`, `previousDraftId`; migration.
-- [ ] `DraftResultResponse` gains the new fields; add `DraftUpdateDto`, `DraftReviewDto { note?: string }`; SSE `draft.updated` event type in `ChatStreamEvent`.
-- [ ] `DraftService` (in `libs/api/features/chat`): list/get/update/approve/reject/requestChanges with role checks and `AuditEvent` writes; `requestChanges` creates a new `drafting` `WorkflowJob` with feedback input.
-- [ ] `@law/drafting`: `buildDraftingUserPrompt` accepts optional `{ previousDraft, reviewerNote }` feedback section.
-- [ ] Controller routes; workspace scoping via draft's `workspaceId`.
-- [ ] Angular `DraftApiClient` methods in `libs/shared/frontend/api-clients`; `draft-review-panel` component (ts/html/scss) with signals; wire into assistant page on `job.updated` for `drafting` jobs; i18n keys.
-- [ ] Tests: state transitions and RBAC; request-changes enqueues drafting with feedback; controller 403 for `MEMBER` approve.
+- [x] `6c37c90` Prisma: `DraftApprovalStatus` enum; `DraftResult` fields `approvalStatus`, `finalDocumentText`, `reviewedByUserId`, `reviewedAt`, `reviewNote`, `previousDraftId`; migration created and applied locally.
+- [x] `6c37c90` `DraftResultResponse` gains the new fields; added `DraftUpdateDto`, `DraftReviewDto { note?: string }`, and the SSE `draft.updated` event type.
+- [x] `6c37c90` Chat service list/get/update/approve/reject/request-changes operations, workspace scoping, audit-event writes, and request-changes job regeneration.
+- [x] `6c37c90` `@law/drafting` accepts optional `{ previousDraft, reviewerNote }` feedback in `buildDraftingUserPrompt`.
+- [x] `6c37c90` Controller routes for draft listing, editing, approval, rejection, and change requests with workspace and lawyer-role guards.
+- [x] `6c37c90` Frontend API methods, dedicated `draft-review-panel`, warnings/missing-field display, Latin/Cyrillic server-side toggle, assistant-page wiring, and Serbian/English i18n keys.
+- [x] `6c37c90` Focused coverage: `24/24` chat-service tests and `7/7` drafting tests; web and API lint passed.
 
 ## Status convention
 
-`[ ]` not started, `[~]` in progress, `[x] <7-character commit>` completed.
+`[ ]` not started, `[~]` implemented locally or partially complete, `[x] <7-character commit>` completed and committed.

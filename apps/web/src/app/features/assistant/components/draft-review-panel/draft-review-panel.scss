@@ -1,0 +1,89 @@
+:host {
+  display: block;
+  margin: 0 1rem 1rem;
+}
+
+.draft-review-panel {
+  display: grid;
+  gap: 0.65rem;
+  padding: 0.85rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.7rem;
+  background: var(--color-surface);
+}
+
+.draft-review-header,
+.draft-review-buttons,
+.draft-script-toggle,
+.missing-fields {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+}
+
+.draft-review-header {
+  justify-content: space-between;
+  color: var(--color-text-primary);
+}
+
+.draft-status,
+.missing-fields span {
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.25rem;
+  background: var(--color-surface-muted);
+  color: var(--color-text-secondary);
+  font-size: 0.78rem;
+}
+
+.draft-alerts {
+  padding: 0.55rem 0.65rem;
+  border-left: 3px solid var(--color-warning, #b7791f);
+  background: var(--color-surface-subtle);
+  color: var(--color-text-secondary);
+}
+
+.draft-alerts ul {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+}
+
+.draft-script-toggle button,
+.draft-review-buttons button {
+  padding: 0.45rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.35rem;
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+}
+
+.draft-script-toggle button.selected,
+.draft-review-buttons .primary {
+  border-color: #1760ac;
+  background: #1760ac;
+  color: #ffffff;
+}
+
+.draft-review-buttons .warn {
+  border-color: #b7791f;
+  color: #8a5a00;
+}
+
+.draft-review-buttons .danger {
+  border-color: #b3261e;
+  color: #b3261e;
+}
+
+.draft-editor,
+.review-note {
+  width: 100%;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid var(--color-border);
+  border-radius: 0.35rem;
+  background: var(--color-surface-subtle);
+  color: var(--color-text-primary);
+  font: inherit;
+  line-height: 1.45;
+  padding: 0.65rem;
+}

@@ -8,6 +8,8 @@ import {
   ChatSessionDetail,
   ChatSessionListResponse,
   ChatSessionSummary,
+  DocumentScript,
+  DraftResultResponse,
   PaginationQuery,
   InvitationAcceptRequest,
   LoginRequest,
@@ -203,6 +205,75 @@ export class ChatApiClient {
     );
     url.searchParams.set("workspaceId", workspaceId);
     return url.toString();
+  }
+
+  listDrafts(
+    workspaceId: string,
+    sessionId: string,
+  ): Observable<DraftResultResponse[]> {
+    return this.http.get<DraftResultResponse[]>(
+      this.endpoint(`/chat/drafts?sessionId=${encodeURIComponent(sessionId)}`),
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  getDraft(
+    workspaceId: string,
+    jobId: string,
+    script: DocumentScript = "latin",
+  ): Observable<DraftResultResponse> {
+    return this.http.get<DraftResultResponse>(
+      this.endpoint(`/chat/jobs/${jobId}/draft?script=${script}`),
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  updateDraft(
+    workspaceId: string,
+    draftId: string,
+    finalDocumentText: string,
+  ): Observable<DraftResultResponse> {
+    return this.http.patch<DraftResultResponse>(
+      this.endpoint(`/chat/drafts/${draftId}`),
+      { finalDocumentText },
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  approveDraft(
+    workspaceId: string,
+    draftId: string,
+    note?: string,
+  ): Observable<DraftResultResponse> {
+    return this.http.post<DraftResultResponse>(
+      this.endpoint(`/chat/drafts/${draftId}/approve`),
+      { note: note ?? "" },
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  rejectDraft(
+    workspaceId: string,
+    draftId: string,
+    note?: string,
+  ): Observable<DraftResultResponse> {
+    return this.http.post<DraftResultResponse>(
+      this.endpoint(`/chat/drafts/${draftId}/reject`),
+      { note: note ?? "" },
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  requestChangesDraft(
+    workspaceId: string,
+    draftId: string,
+    note?: string,
+  ): Observable<DraftResultResponse> {
+    return this.http.post<DraftResultResponse>(
+      this.endpoint(`/chat/drafts/${draftId}/request-changes`),
+      { note: note ?? "" },
+      this.workspaceOptions(workspaceId),
+    );
   }
 
   eventsUrl(workspaceId: string, sessionId: string, after?: string): string {

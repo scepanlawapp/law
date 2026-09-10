@@ -97,6 +97,12 @@ export type ChatAttachmentSourceScript =
   | "MIXED"
   | "NONE";
 export type DocumentScript = "latin" | "cyrillic";
+export type DraftApprovalStatus =
+  | "DRAFT"
+  | "READY_FOR_SIGNOFF"
+  | "APPROVED"
+  | "REJECTED"
+  | "CHANGES_REQUESTED";
 
 export type ChatEventType =
   | "message.created"
@@ -104,6 +110,7 @@ export type ChatEventType =
   | "triage.completed"
   | "job.queued"
   | "job.updated"
+  | "draft.updated"
   | "session.title.updated"
   | "session.deleted"
   | "error";
@@ -204,6 +211,7 @@ export interface ChatStreamEvent {
   createdAt: string;
   message?: ChatMessageResponse;
   job?: WorkflowJobResponse;
+  draft?: DraftResultResponse;
   decision?: TriageDecision;
   reason?: string;
   title?: string | null;
@@ -256,10 +264,17 @@ export interface DraftResultResponse {
   messageId: string | null;
   briefResultId: string | null;
   documentText: string;
+  finalDocumentText?: string | null;
   warnings: string[];
+  missingFields?: string[];
   promptChars: number;
   truncated: boolean;
   model: string;
+  approvalStatus?: DraftApprovalStatus;
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  reviewNote?: string | null;
+  previousDraftId?: string | null;
   errorCode?: string | null;
   createdAt: string;
   // Script of documentText in this response; stored value is always Latin.

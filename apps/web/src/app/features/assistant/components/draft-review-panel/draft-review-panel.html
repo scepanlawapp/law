@@ -1,0 +1,79 @@
+<section class="draft-review-panel" aria-labelledby="draft-review-title">
+  <div class="draft-review-header">
+    <strong id="draft-review-title"
+      >{{ "assistant.draftReview" | translate }}</strong
+    >
+    <span class="draft-status"
+      >{{ draft.approvalStatus || "READY_FOR_SIGNOFF" }}</span
+    >
+  </div>
+
+  <div class="draft-review-meta">
+    @if (draft.warnings.length) {
+    <div class="draft-alerts">
+      <strong>{{ "assistant.draftWarnings" | translate }}</strong>
+      <ul>
+        @for (warning of draft.warnings; track warning) {
+        <li>{{ warning }}</li>
+        }
+      </ul>
+    </div>
+    } @if (draft.missingFields?.length) {
+    <div class="draft-alerts">
+      <strong>{{ "assistant.missingFields" | translate }}</strong>
+      <div class="missing-fields">
+        @for (field of draft.missingFields; track field) {
+        <span>{{ field }}</span>
+        }
+      </div>
+    </div>
+    }
+  </div>
+
+  <div
+    class="draft-script-toggle"
+    role="group"
+    [attr.aria-label]="'assistant.script' | translate"
+  >
+    @for (scriptOption of scripts; track scriptOption) {
+    <button
+      type="button"
+      [class.selected]="script === scriptOption"
+      (click)="scriptChange.emit(scriptOption)"
+    >
+      {{ (scriptOption === "latin" ? "assistant.latin" : "assistant.cyrillic") |
+      translate }}
+    </button>
+    }
+  </div>
+
+  <textarea
+    rows="10"
+    class="draft-editor"
+    [ngModel]="text"
+    (ngModelChange)="textChange.emit($event)"
+  ></textarea>
+
+  <textarea
+    rows="2"
+    class="review-note"
+    [ngModel]="note"
+    (ngModelChange)="noteChange.emit($event)"
+    [placeholder]="'assistant.reviewNotePlaceholder' | translate"
+  ></textarea>
+
+  <div class="draft-review-buttons">
+    <button type="button" class="secondary" (click)="save.emit()">
+      {{ "assistant.saveDraft" | translate }}
+    </button>
+    <button type="button" class="primary" (click)="approve.emit()">
+      {{ "assistant.approveDraft" | translate }}
+    </button>
+    <button type="button" class="warn" (click)="requestChanges.emit()">
+      {{ "assistant.requestChanges" | translate }}
+    </button>
+    <button type="button" class="danger" (click)="reject.emit()">
+      {{ "assistant.rejectDraft" | translate }}
+    </button>
+  </div>
+</section>

@@ -25,3 +25,14 @@ export class UpdateChatSessionDto {
   @MaxLength(200)
   title!: string;
 }
+
+export class UpdateDraftDto {
+  @IsString()
+  finalDocumentText!: string;
+}
+
+export class ReviewDraftDto {
+  @IsOptional()
+  @IsString()
+  note?: string;
+}

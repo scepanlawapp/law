@@ -93,6 +93,12 @@ function prismaMock() {
     draftResult: {
       create: jest.fn(),
       findFirst: jest.fn(),
+      findMany: jest.fn(),
+      findUnique: jest.fn(),
+      update: jest.fn(),
+    },
+    auditEvent: {
+      create: jest.fn(),
     },
   };
 }
@@ -295,7 +301,6 @@ describe("ChatService", () => {
       }),
     );
   });
-
 
   it("extracts attachment text and stores it on the attachment", async () => {
     const prisma = prismaMock();
@@ -779,6 +784,159 @@ describe("ChatService", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it("approves a draft and records reviewer metadata", async () => {
+    const prisma = prismaMock();
+    prisma.draftResult.findUnique.mockResolvedValue({
+      id: "draft-1",
+      jobId: "job-5-draft",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      messageId: "msg-assistant",
+      briefResultId: "brief-result-5",
+      documentText: "TUŽBA...",
+      warnings: [],
+      promptChars: 42,
+      truncated: false,
+      model: "openai/gpt-4o-mini",
+      errorCode: null,
+      approvalStatus: "READY_FOR_SIGNOFF",
+      finalDocumentText: null,
+      reviewedByUserId: null,
+      reviewedAt: null,
+      reviewNote: null,
+      previousDraftId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    prisma.draftResult.update.mockResolvedValue({
+      id: "draft-1",
+      jobId: "job-5-draft",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      messageId: "msg-assistant",
+      briefResultId: "brief-result-5",
+      documentText: "TUŽBA...",
+      warnings: [],
+      promptChars: 42,
+      truncated: false,
+      model: "openai/gpt-4o-mini",
+      errorCode: null,
+      approvalStatus: "APPROVED",
+      finalDocumentText: "TUŽBA...",
+      reviewedByUserId: "user-2",
+      reviewedAt: now,
+      reviewNote: "Sve je u redu.",
+      previousDraftId: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.approveDraft(
+        session.workspaceId,
+        "draft-1",
+        "user-2",
+        "Sve je u redu.",
+      ),
+    ).resolves.toMatchObject({
+      id: "draft-1",
+      approvalStatus: "APPROVED",
+      reviewedByUserId: "user-2",
+      reviewNote: "Sve je u redu.",
+    });
+    expect(prisma.draftResult.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "draft-1" },
+        data: expect.objectContaining({
+          approvalStatus: "APPROVED",
+          reviewedByUserId: "user-2",
+          reviewNote: "Sve je u redu.",
+          reviewedAt: expect.any(Date),
+        }),
+      }),
+    );
+  });
+
+  it("requests changes by enqueueing a drafting revision with reviewer feedback", async () => {
+    const prisma = prismaMock();
+    const draft = {
+      id: "draft-2",
+      jobId: "job-5-draft",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      messageId: "msg-assistant",
+      briefResultId: "brief-result-5",
+      documentText: "TUŽBA...",
+      warnings: [],
+      promptChars: 42,
+      truncated: false,
+      model: "openai/gpt-4o-mini",
+      approvalStatus: "READY_FOR_SIGNOFF" as const,
+      finalDocumentText: "TUŽBA...",
+      reviewedByUserId: null,
+      reviewedAt: null,
+      reviewNote: null,
+      previousDraftId: null,
+      createdAt: now,
+      updatedAt: now,
+      briefResult: { missingFields: [] },
+    };
+    prisma.draftResult.findUnique.mockResolvedValue(draft);
+    prisma.draftResult.update.mockResolvedValue({
+      ...draft,
+      approvalStatus: "CHANGES_REQUESTED",
+      reviewNote: "Dodati obrazloženje.",
+    });
+    prisma.workflowJob.findUnique.mockResolvedValue({
+      id: draft.jobId,
+      correlationId: "corr-draft",
+    });
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+      { enqueue } as WorkflowQueuePort,
+    );
+
+    await expect(
+      service.requestChangesDraft(
+        session.workspaceId,
+        draft.id,
+        "user-2",
+        "Dodati obrazloženje.",
+      ),
+    ).resolves.toMatchObject({ approvalStatus: "CHANGES_REQUESTED" });
+
+    expect(prisma.workflowJob.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          workflowName: "drafting",
+          input: expect.objectContaining({
+            briefResultId: draft.briefResultId,
+            previousDraftId: draft.id,
+            reviewerNote: "Dodati obrazloženje.",
+          }),
+        }),
+      }),
+    );
+    expect(enqueue).toHaveBeenCalledWith(
+      "drafting",
+      expect.any(String),
+      expect.objectContaining({ sessionId: session.id }),
+    );
+  });
+
   it("auto-generates a session title from the first message and emits it", async () => {
     const prisma = prismaMock();
     prisma.chatSession.findFirst.mockResolvedValue(session);
@@ -855,9 +1013,9 @@ describe("ChatService", () => {
 
     const events = new ChatEventBus();
     const emitted: string[] = [];
-    events.stream(customSession.id).subscribe((event) =>
-      emitted.push(event.type),
-    );
+    events
+      .stream(customSession.id)
+      .subscribe((event) => emitted.push(event.type));
 
     const service = new ChatService(
       prisma as never,
@@ -924,7 +1082,9 @@ describe("ChatService", () => {
         files: [],
       }),
     ).resolves.toMatchObject({
-      userMessage: { content: "Tužba za naknadu štete zbog prelaska na crveno svetlo" },
+      userMessage: {
+        content: "Tužba za naknadu štete zbog prelaska na crveno svetlo",
+      },
     });
     await new Promise((resolve) => setImmediate(resolve));
 
@@ -1017,7 +1177,9 @@ describe("ChatService", () => {
       }),
     );
     expect(prisma.chatSession.count).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ isDeleted: false }) }),
+      expect.objectContaining({
+        where: expect.objectContaining({ isDeleted: false }),
+      }),
     );
   });
 

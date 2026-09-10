@@ -104,6 +104,22 @@
         <p class="error" role="alert">{{ error() }}</p>
       }
     </div>
+    @if (draft(); as draftItem) {
+      <app-draft-review-panel
+        [draft]="draftItem"
+        [text]="draftText()"
+        [script]="draftScript()"
+        [note]="draftReviewNote()"
+        (textChange)="draftText.set($event)"
+        (noteChange)="draftReviewNote.set($event)"
+        (scriptChange)="onDraftScriptChange($event)"
+        (save)="updateDraft()"
+        (approve)="approveDraft()"
+        (requestChanges)="requestChangesDraft()"
+        (reject)="rejectDraft()"
+      ></app-draft-review-panel>
+    }
+
     <form
       class="composer"
       [class.empty-composer]="!messages().length"
@@ -163,14 +179,12 @@
             [class.listening]="speechRecognition.isListening()"
             [disabled]="!speechRecognition.isSupported()"
             [matTooltip]="
-              (speechRecognition.isListening()
-                ? 'speech.stop'
-                : 'speech.start') | translate
+              (speechRecognition.isListening() ? 'speech.stop' : 'speech.start')
+                | translate
             "
             [attr.aria-label]="
-              (speechRecognition.isListening()
-                ? 'speech.stop'
-                : 'speech.start') | translate
+              (speechRecognition.isListening() ? 'speech.stop' : 'speech.start')
+                | translate
             "
             (click)="toggleSpeechRecognition()"
           >

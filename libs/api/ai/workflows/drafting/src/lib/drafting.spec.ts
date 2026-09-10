@@ -55,6 +55,16 @@ describe("buildDraftingUserPrompt", () => {
     expect(result.truncated).toBe(true);
     expect(result.promptChars).toBeLessThanOrEqual(200);
   });
+
+  it("includes the previous draft and reviewer note when revising", () => {
+    const result = buildDraftingUserPrompt(fullBrief, 10_000, {
+      previousDraft: "Prethodni tekst nacrta",
+      reviewerNote: "Dodati obrazloženje pravnog osnova.",
+    });
+
+    expect(result.prompt).toContain("Prethodni tekst nacrta");
+    expect(result.prompt).toContain("Dodati obrazloženje pravnog osnova.");
+  });
 });
 
 describe("runDraftingLlm", () => {
