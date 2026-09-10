@@ -165,6 +165,7 @@
   "assistant.askPlaceholder": "Ask anything about your cases, documents or legal matters...",
   "assistant.draftReview": "Draft review",
   "assistant.draftWarnings": "Warnings",
+  "assistant.exportDocx": "Download DOCX",
   "assistant.missingFields": "Missing fields",
   "assistant.script": "Document script",
   "assistant.latin": "Latin",

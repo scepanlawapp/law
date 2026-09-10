@@ -296,6 +296,19 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     });
   }
 
+  protected exportDraftDocx(): void {
+    const workspaceId = this.workspaceId();
+    const activeDraft = this.draft();
+    if (!workspaceId || !activeDraft) return;
+
+    const exportUrl = this.chat.exportUrl(
+      workspaceId,
+      activeDraft.id,
+      this.draftScript(),
+    );
+    window.open(exportUrl, "_blank", "noopener,noreferrer");
+  }
+
   protected updateDraft(): void {
     const workspaceId = this.workspaceId();
     const activeDraft = this.draft();

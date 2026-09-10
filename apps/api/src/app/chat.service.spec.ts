@@ -784,6 +784,47 @@ describe("ChatService", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it("exports the final draft text and records the export audit event", async () => {
+    const prisma = prismaMock();
+    prisma.draftResult.findFirst.mockResolvedValue({
+      id: "draft-1",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      documentText: "Pogrešan tekst",
+      finalDocumentText: "Tužilac: Petar Petrović",
+      createdAt: now,
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    const result = await service.exportDraft(
+      session.workspaceId,
+      "draft-1",
+      "user-1",
+      "cyrillic",
+    );
+
+    expect(result.filename).toBe("tuzba-session1-2026-09-06.docx");
+    expect(result.buffer.subarray(0, 2).toString()).toBe("PK");
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workspaceId: session.workspaceId,
+        userId: "user-1",
+        eventType: "draft.exported",
+        metadata: expect.objectContaining({
+          draftId: "draft-1",
+          format: "docx",
+          script: "cyrillic",
+        }),
+      }),
+    });
+  });
+
   it("approves a draft and records reviewer metadata", async () => {
     const prisma = prismaMock();
     prisma.draftResult.findUnique.mockResolvedValue({

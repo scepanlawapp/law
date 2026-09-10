@@ -26,6 +26,7 @@ export class DraftReviewPanelComponent {
   @Output() textChange = new EventEmitter<string>();
   @Output() noteChange = new EventEmitter<string>();
   @Output() scriptChange = new EventEmitter<DocumentScript>();
+  @Output() exportDocx = new EventEmitter<void>();
   @Output() save = new EventEmitter<void>();
   @Output() approve = new EventEmitter<void>();
   @Output() reject = new EventEmitter<void>();

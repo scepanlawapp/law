@@ -10,6 +10,20 @@ export class DraftQueryDto {
   script?: DocumentScript;
 }
 
+export class DraftExportQueryDto {
+  @IsOptional()
+  @IsUUID()
+  workspaceId?: string;
+
+  @IsOptional()
+  @IsIn(["docx"])
+  format?: "docx";
+
+  @IsOptional()
+  @IsIn(["latin", "cyrillic"])
+  script?: DocumentScript;
+}
+
 export class CreateChatSessionDto {
   @IsUUID()
   workspaceId!: string;

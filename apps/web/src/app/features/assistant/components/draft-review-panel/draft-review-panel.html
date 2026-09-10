@@ -63,6 +63,9 @@
   ></textarea>
 
   <div class="draft-review-buttons">
+    <button type="button" class="secondary" (click)="exportDocx.emit()">
+      {{ "assistant.exportDocx" | translate }}
+    </button>
     <button type="button" class="secondary" (click)="save.emit()">
       {{ "assistant.saveDraft" | translate }}
     </button>
