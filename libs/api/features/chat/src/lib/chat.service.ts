@@ -15,6 +15,7 @@ import {
   ChatSessionSummary,
   ChatStreamEvent,
   DocumentScript,
+  DraftApprovalStatus,
   DraftResultResponse,
 } from "@law/api-interfaces";
 import {
@@ -32,17 +33,9 @@ import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
-import {
-  toDraft,
-  toJob,
-  toMessage,
-  toSessionSummary,
-} from "./chat.mappers";
+import { toDraft, toJob, toMessage, toSessionSummary } from "./chat.mappers";
 import { createInlineWorkflowQueue } from "./workflow.runner";
-import {
-  WORKFLOW_QUEUE_PORT,
-  WorkflowQueuePort,
-} from "./workflow-queue.types";
+import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
 
 export { CHAT_MODEL_PROVIDER };
 
@@ -274,9 +267,7 @@ export class ChatService {
         ),
       }).catch((error: unknown) => {
         this.logger.error(
-          error instanceof Error
-            ? error.message
-            : "Title generation failed",
+          error instanceof Error ? error.message : "Title generation failed",
         );
       });
     }
@@ -363,6 +354,7 @@ export class ChatService {
   ): Promise<DraftResultResponse> {
     const draft = await this.prisma.draftResult.findFirst({
       where: { jobId, workspaceId },
+      include: { briefResult: { select: { missingFields: true } } },
     });
     if (!draft) throw new NotFoundException("Draft not found");
     const response = toDraft(draft);
@@ -370,6 +362,214 @@ export class ChatService {
       response.documentText = toCyrillic(response.documentText);
     }
     return { ...response, script };
+  }
+
+  async listDrafts(
+    workspaceId: string,
+    sessionId?: string,
+  ): Promise<DraftResultResponse[]> {
+    const drafts = await this.prisma.draftResult.findMany({
+      where: {
+        workspaceId,
+        ...(sessionId ? { sessionId } : {}),
+      },
+      include: { briefResult: { select: { missingFields: true } } },
+      orderBy: { createdAt: "desc" },
+    });
+    return drafts.map((draft) => toDraft(draft));
+  }
+
+  async updateDraft(
+    workspaceId: string,
+    draftId: string,
+    finalDocumentText: string,
+    reviewedByUserId: string,
+  ): Promise<DraftResultResponse> {
+    const draft = await this.prisma.draftResult.findUnique({
+      where: { id: draftId },
+    });
+    if (!draft || draft.workspaceId !== workspaceId) {
+      throw new NotFoundException("Draft not found");
+    }
+    const next = await this.prisma.draftResult.update({
+      where: { id: draftId },
+      data: {
+        finalDocumentText:
+          toLatin(finalDocumentText.trim()) || toLatin(draft.documentText),
+        approvalStatus: "DRAFT",
+        reviewedByUserId,
+        reviewedAt: new Date(),
+        reviewNote: null,
+      },
+    });
+    await this.prisma.auditEvent.create({
+      data: {
+        workspaceId,
+        userId: reviewedByUserId,
+        eventType: "draft.edited",
+        outcome: "SUCCESS",
+        metadata: { draftId, sessionId: draft.sessionId },
+      },
+    });
+    const response = toDraft(next);
+    this.emit({
+      type: "draft.updated",
+      sessionId: draft.sessionId,
+      createdAt: next.updatedAt.toISOString(),
+      draft: response,
+    });
+    return response;
+  }
+
+  async approveDraft(
+    workspaceId: string,
+    draftId: string,
+    reviewedByUserId: string,
+    note?: string,
+  ): Promise<DraftResultResponse> {
+    return this.setApprovalStatus(
+      workspaceId,
+      draftId,
+      "APPROVED",
+      reviewedByUserId,
+      note,
+    );
+  }
+
+  async rejectDraft(
+    workspaceId: string,
+    draftId: string,
+    reviewedByUserId: string,
+    note?: string,
+  ): Promise<DraftResultResponse> {
+    return this.setApprovalStatus(
+      workspaceId,
+      draftId,
+      "REJECTED",
+      reviewedByUserId,
+      note,
+    );
+  }
+
+  async requestChangesDraft(
+    workspaceId: string,
+    draftId: string,
+    reviewedByUserId: string,
+    note?: string,
+  ): Promise<DraftResultResponse> {
+    return this.setApprovalStatus(
+      workspaceId,
+      draftId,
+      "CHANGES_REQUESTED",
+      reviewedByUserId,
+      note,
+    );
+  }
+
+  private async setApprovalStatus(
+    workspaceId: string,
+    draftId: string,
+    approvalStatus: DraftApprovalStatus,
+    reviewedByUserId: string,
+    note?: string,
+  ): Promise<DraftResultResponse> {
+    const draft = await this.prisma.draftResult.findUnique({
+      where: { id: draftId },
+    });
+    if (!draft || draft.workspaceId !== workspaceId) {
+      throw new NotFoundException("Draft not found");
+    }
+    const updated = await this.prisma.draftResult.update({
+      where: { id: draftId },
+      data: {
+        approvalStatus,
+        reviewedByUserId,
+        reviewedAt: new Date(),
+        reviewNote: note?.trim() ?? null,
+        finalDocumentText: draft.finalDocumentText ?? draft.documentText,
+      },
+    });
+    await this.prisma.auditEvent.create({
+      data: {
+        workspaceId,
+        userId: reviewedByUserId,
+        eventType: `draft.${approvalStatus.toLowerCase()}`,
+        outcome: "SUCCESS",
+        metadata: {
+          draftId,
+          sessionId: draft.sessionId,
+          note: note?.trim() ?? null,
+        },
+      },
+    });
+    if (approvalStatus === "CHANGES_REQUESTED") {
+      await this.enqueueDraftRevision({
+        workspaceId,
+        draft,
+        reviewerNote: note,
+      });
+    }
+    const response = toDraft(updated);
+    this.emit({
+      type: "draft.updated",
+      sessionId: draft.sessionId,
+      createdAt: updated.updatedAt.toISOString(),
+      draft: response,
+    });
+    return response;
+  }
+
+  private async enqueueDraftRevision(input: {
+    workspaceId: string;
+    draft: {
+      id: string;
+      jobId: string;
+      sessionId: string;
+      messageId: string | null;
+      briefResultId: string | null;
+    };
+    reviewerNote?: string;
+  }): Promise<void> {
+    if (!input.draft.briefResultId) {
+      throw new BadRequestException(
+        "Draft cannot be revised without a brief result",
+      );
+    }
+    const sourceJob = await this.prisma.workflowJob.findUnique({
+      where: { id: input.draft.jobId },
+    });
+    if (!sourceJob) throw new NotFoundException("Draft workflow job not found");
+
+    const revisionJob = await this.prisma.workflowJob.create({
+      data: {
+        workspaceId: input.workspaceId,
+        sessionId: input.draft.sessionId,
+        workflowName: "drafting",
+        status: "QUEUED",
+        correlationId: sourceJob.correlationId,
+        input: JSON.parse(
+          JSON.stringify({
+            briefResultId: input.draft.briefResultId,
+            messageId: input.draft.messageId,
+            previousDraftId: input.draft.id,
+            reviewerNote: input.reviewerNote?.trim() || undefined,
+          }),
+        ),
+      },
+    });
+    this.emit({
+      type: "job.queued",
+      sessionId: input.draft.sessionId,
+      createdAt: revisionJob.createdAt.toISOString(),
+      job: toJob(revisionJob),
+    });
+    await this.workflowQueue.enqueue("drafting", revisionJob.id, {
+      workspaceId: input.workspaceId,
+      sessionId: input.draft.sessionId,
+      jobId: revisionJob.id,
+      correlationId: revisionJob.correlationId,
+      messageId: input.draft.messageId ?? undefined,
+    });
   }
 
   stream(sessionId: string) {
@@ -447,9 +647,7 @@ export class ChatService {
       title = result.title;
     } catch (error) {
       this.logger.error(
-        error instanceof Error
-          ? error.message
-          : "Title generation LLM failed",
+        error instanceof Error ? error.message : "Title generation LLM failed",
       );
       if (!params.content.trim() || params.content === "(attachment)") {
         return;

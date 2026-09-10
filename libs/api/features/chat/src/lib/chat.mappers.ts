@@ -113,10 +113,24 @@ export function toDraft(draft: {
   messageId: string | null;
   briefResultId: string | null;
   documentText: string;
+  finalDocumentText?: string | null;
   warnings: string[];
+  missingFields?: string[];
+  briefResult?: { missingFields: string[] } | null;
   promptChars: number;
   truncated: boolean;
   model: string;
+  approvalStatus?:
+    | "DRAFT"
+    | "READY_FOR_SIGNOFF"
+    | "APPROVED"
+    | "REJECTED"
+    | "CHANGES_REQUESTED"
+    | null;
+  reviewedByUserId?: string | null;
+  reviewedAt?: Date | null;
+  reviewNote?: string | null;
+  previousDraftId?: string | null;
   errorCode: string | null;
   createdAt: Date;
 }): DraftResultResponse {
@@ -128,10 +142,18 @@ export function toDraft(draft: {
     messageId: draft.messageId,
     briefResultId: draft.briefResultId,
     documentText: draft.documentText,
+    finalDocumentText: draft.finalDocumentText ?? null,
     warnings: draft.warnings,
+    missingFields:
+      draft.briefResult?.missingFields ?? draft.missingFields ?? [],
     promptChars: draft.promptChars,
     truncated: draft.truncated,
     model: draft.model,
+    approvalStatus: draft.approvalStatus ?? "READY_FOR_SIGNOFF",
+    reviewedByUserId: draft.reviewedByUserId ?? null,
+    reviewedAt: draft.reviewedAt ? draft.reviewedAt.toISOString() : null,
+    reviewNote: draft.reviewNote ?? null,
+    previousDraftId: draft.previousDraftId ?? null,
     errorCode: draft.errorCode,
     createdAt: draft.createdAt.toISOString(),
   };

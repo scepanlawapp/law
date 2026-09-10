@@ -1,8 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import {
-  ChatAttachmentSummary,
-  ChatStreamEvent,
-} from "@law/api-interfaces";
+import { ChatAttachmentSummary, ChatStreamEvent } from "@law/api-interfaces";
 import { PrismaService } from "@law/core";
 import { WorkflowName } from "@law/contracts";
 import { ChatModelProvider } from "@law/llm";
@@ -21,7 +18,11 @@ import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
 import { resolveChatModelProvider } from "./chat-model.util";
 import { toJob, toMessage } from "./chat.mappers";
-import { WORKFLOW_QUEUE_PORT, WorkflowJobPayload, WorkflowQueuePort } from "./workflow-queue.types";
+import {
+  WORKFLOW_QUEUE_PORT,
+  WorkflowJobPayload,
+  WorkflowQueuePort,
+} from "./workflow-queue.types";
 
 interface WorkflowJobRecord {
   id: string;
@@ -51,6 +52,8 @@ interface BriefExtractionInput {
 interface DraftingInput {
   briefResultId: string;
   messageId?: string;
+  previousDraftId?: string;
+  reviewerNote?: string;
 }
 
 /**
@@ -79,7 +82,9 @@ export class WorkflowRunner {
       where: { id: payload.jobId },
     });
     if (!record) {
-      this.logger.warn(`WorkflowJob ${payload.jobId} not found; skipping ${name}`);
+      this.logger.warn(
+        `WorkflowJob ${payload.jobId} not found; skipping ${name}`,
+      );
       return;
     }
     if (record.status === "COMPLETED") return;
@@ -393,6 +398,18 @@ export class WorkflowRunner {
       const { prompt, promptChars, truncated } = buildDraftingUserPrompt(
         brief,
         this.config.draftingPromptMaxChars,
+        input.previousDraftId || input.reviewerNote
+          ? {
+              previousDraft: input.previousDraftId
+                ? ((
+                    await this.prisma.draftResult.findUnique({
+                      where: { id: input.previousDraftId },
+                    })
+                  )?.finalDocumentText ?? undefined)
+                : undefined,
+              reviewerNote: input.reviewerNote,
+            }
+          : undefined,
       );
       const draft = await runDraftingLlm(provider, prompt);
 
@@ -408,6 +425,7 @@ export class WorkflowRunner {
           promptChars,
           truncated,
           model: this.config.openRouterModel,
+          previousDraftId: input.previousDraftId ?? null,
         },
       });
 

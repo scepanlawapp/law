@@ -92,6 +92,14 @@ enum DateTimeFormatPreference {
   TWENTY_FOUR_HOUR
 }
 
+enum DraftApprovalStatus {
+  DRAFT
+  READY_FOR_SIGNOFF
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
 model User {
   id                String            @id @default(uuid())
   email             String            @unique
@@ -314,25 +322,35 @@ model BriefExtractionResult {
 }
 
 model DraftResult {
-  id            String                 @id @default(uuid())
-  jobId         String                 @unique
-  workspaceId   String
-  sessionId     String
-  messageId     String?
-  briefResultId String?
-  documentText  String                 @db.Text
-  warnings      String[]               @default([])
-  promptChars   Int
-  truncated     Boolean                @default(false)
-  model         String
-  errorCode     String?
-  createdAt     DateTime               @default(now()) @db.Timestamptz(3)
-  job           WorkflowJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  workspace     Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  session       ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  message       ChatMessage?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
-  briefResult   BriefExtractionResult? @relation(fields: [briefResultId], references: [id], onDelete: SetNull)
+  id                String                 @id @default(uuid())
+  jobId             String                 @unique
+  workspaceId       String
+  sessionId         String
+  messageId         String?
+  briefResultId     String?
+  documentText      String                 @db.Text
+  finalDocumentText String?                @db.Text
+  warnings          String[]               @default([])
+  promptChars       Int
+  truncated         Boolean                @default(false)
+  model             String
+  approvalStatus    DraftApprovalStatus    @default(READY_FOR_SIGNOFF)
+  reviewedByUserId  String?
+  reviewedAt        DateTime?              @db.Timestamptz(3)
+  reviewNote        String?
+  previousDraftId   String?
+  errorCode         String?
+  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
+  job               WorkflowJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workspace         Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session           ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message           ChatMessage?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  briefResult       BriefExtractionResult? @relation(fields: [briefResultId], references: [id], onDelete: SetNull)
+  previousDraft     DraftResult?           @relation("DraftResultHistory", fields: [previousDraftId], references: [id], onDelete: SetNull)
+  modifiedDrafts    DraftResult[]          @relation("DraftResultHistory")
 
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])
+  @@index([approvalStatus, reviewedAt])
 }

@@ -26,12 +26,15 @@ import {
   ChatSessionSummary,
   ChatStreamEvent,
   DraftResultResponse,
+  WorkspaceRole,
 } from "@law/api-interfaces";
 import {
   ChatSessionListQueryDto,
   CreateChatSessionDto,
   DraftQueryDto,
+  ReviewDraftDto,
   UpdateChatSessionDto,
+  UpdateDraftDto,
 } from "./chat.dto";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
@@ -91,10 +94,7 @@ export class ChatController {
     @Req() request: WorkspaceRequest,
     @Param("sessionId") sessionId: string,
   ): Promise<ChatSessionSummary> {
-    return this.chat.deleteSession(
-      request.workspace!.workspaceId,
-      sessionId,
-    );
+    return this.chat.deleteSession(request.workspace!.workspaceId, sessionId);
   }
 
   @Post("sessions/:sessionId/messages")
@@ -159,6 +159,73 @@ export class ChatController {
       request.workspace!.workspaceId,
       jobId,
       query.script ?? "latin",
+    );
+  }
+
+  @Get("drafts")
+  listDrafts(
+    @Req() request: WorkspaceRequest,
+    @Query("sessionId") sessionId?: string,
+  ): Promise<DraftResultResponse[]> {
+    return this.chat.listDrafts(request.workspace!.workspaceId, sessionId);
+  }
+
+  @Patch("drafts/:draftId")
+  updateDraft(
+    @Req() request: WorkspaceRequest,
+    @Param("draftId") draftId: string,
+    @Body() body: UpdateDraftDto,
+  ): Promise<DraftResultResponse> {
+    return this.chat.updateDraft(
+      request.workspace!.workspaceId,
+      draftId,
+      body.finalDocumentText,
+      request.auth!.user.id,
+    );
+  }
+
+  @Post("drafts/:draftId/approve")
+  @WorkspaceAccess(WorkspaceRole.LAWYER)
+  approveDraft(
+    @Req() request: WorkspaceRequest,
+    @Param("draftId") draftId: string,
+    @Body() body: ReviewDraftDto,
+  ): Promise<DraftResultResponse> {
+    return this.chat.approveDraft(
+      request.workspace!.workspaceId,
+      draftId,
+      request.auth!.user.id,
+      body.note,
+    );
+  }
+
+  @Post("drafts/:draftId/reject")
+  @WorkspaceAccess(WorkspaceRole.LAWYER)
+  rejectDraft(
+    @Req() request: WorkspaceRequest,
+    @Param("draftId") draftId: string,
+    @Body() body: ReviewDraftDto,
+  ): Promise<DraftResultResponse> {
+    return this.chat.rejectDraft(
+      request.workspace!.workspaceId,
+      draftId,
+      request.auth!.user.id,
+      body.note,
+    );
+  }
+
+  @Post("drafts/:draftId/request-changes")
+  @WorkspaceAccess(WorkspaceRole.LAWYER)
+  requestChangesDraft(
+    @Req() request: WorkspaceRequest,
+    @Param("draftId") draftId: string,
+    @Body() body: ReviewDraftDto,
+  ): Promise<DraftResultResponse> {
+    return this.chat.requestChangesDraft(
+      request.workspace!.workspaceId,
+      draftId,
+      request.auth!.user.id,
+      body.note,
     );
   }
 }

@@ -1,13 +1,13 @@
 # Draft Approval Gate Plan
 
-- [ ] Prisma: `DraftApprovalStatus` enum; `DraftResult` fields `approvalStatus`, `finalDocumentText`, `reviewedByUserId`, `reviewedAt`, `reviewNote`, `previousDraftId`; migration.
-- [ ] `DraftResultResponse` gains the new fields; add `DraftUpdateDto`, `DraftReviewDto { note?: string }`; SSE `draft.updated` event type in `ChatStreamEvent`.
-- [ ] `DraftService` (in `libs/api/features/chat`): list/get/update/approve/reject/requestChanges with role checks and `AuditEvent` writes; `requestChanges` creates a new `drafting` `WorkflowJob` with feedback input.
-- [ ] `@law/drafting`: `buildDraftingUserPrompt` accepts optional `{ previousDraft, reviewerNote }` feedback section.
-- [ ] Controller routes; workspace scoping via draft's `workspaceId`.
-- [ ] Angular `DraftApiClient` methods in `libs/shared/frontend/api-clients`; `draft-review-panel` component (ts/html/scss) with signals; wire into assistant page on `job.updated` for `drafting` jobs; i18n keys.
-- [ ] Tests: state transitions and RBAC; request-changes enqueues drafting with feedback; controller 403 for `MEMBER` approve.
+- [~] Prisma: `DraftApprovalStatus` enum; `DraftResult` fields `approvalStatus`, `finalDocumentText`, `reviewedByUserId`, `reviewedAt`, `reviewNote`, `previousDraftId`; migration created and applied locally.
+- [~] `DraftResultResponse` gains the new fields; add `DraftUpdateDto`, `DraftReviewDto { note?: string }`; SSE `draft.updated` event type in `ChatStreamEvent`.
+- [x] Chat service list/get/update/approve/reject/request-changes operations, workspace scoping, audit-event writes, and request-changes job regeneration are implemented locally.
+- [x] `@law/drafting`: `buildDraftingUserPrompt` accepts optional `{ previousDraft, reviewerNote }` feedback section.
+- [x] Controller routes for draft listing, editing, approval, rejection, and change requests are implemented with workspace and lawyer-role guards.
+- [x] Frontend API methods, dedicated `draft-review-panel` component, warnings/missing-field display, Latin/Cyrillic server-side toggle, assistant-page wiring, and Serbian/English i18n keys are implemented locally.
+- [~] Focused service and prompt coverage passes (`23/23` chat-service tests; `7/7` drafting tests). Add dedicated state-transition, RBAC/controller, and request-changes queue assertions.
 
 ## Status convention
 
-`[ ]` not started, `[~]` in progress, `[x] <7-character commit>` completed.
+`[ ]` not started, `[~]` implemented locally or partially complete, `[x] <7-character commit>` completed and committed.

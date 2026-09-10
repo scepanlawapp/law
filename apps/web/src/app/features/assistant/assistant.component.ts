@@ -19,10 +19,13 @@ import {
   ChatMessageResponse,
   ChatSessionSummary,
   ChatStreamEvent,
+  DocumentScript,
+  DraftResultResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { finalize } from "rxjs";
 import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
+import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
@@ -64,6 +67,7 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
     MatTooltipModule,
     ReactiveFormsModule,
     TranslatePipe,
+    DraftReviewPanelComponent,
   ],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
@@ -101,6 +105,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly sending = signal(false);
   protected readonly classifying = signal(false);
   protected readonly error = signal("");
+  protected readonly draft = signal<DraftResultResponse | null>(null);
+  protected readonly draftText = signal("");
+  protected readonly draftScript = signal<DocumentScript>("latin");
+  protected readonly draftReviewNote = signal("");
 
   constructor() {
     effect(() => {
@@ -252,9 +260,95 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         this.scheduleMessagesScroll();
         const lastMessage = detail.messages[detail.messages.length - 1];
         this.listen(sessionId, lastMessage?.createdAt);
+        this.loadDrafts(workspaceId, sessionId);
       },
       error: () => this.error.set("Unable to load this conversation."),
     });
+  }
+
+  protected loadDrafts(workspaceId: string, sessionId: string): void {
+    this.chat.listDrafts(workspaceId, sessionId).subscribe({
+      next: (drafts) => {
+        const draft = drafts[0] ?? null;
+        this.draft.set(draft);
+        this.draftText.set(
+          draft?.finalDocumentText ?? draft?.documentText ?? "",
+        );
+        this.draftScript.set("latin");
+        this.draftReviewNote.set("");
+      },
+      error: () => this.draft.set(null),
+    });
+  }
+
+  protected onDraftScriptChange(script: DocumentScript): void {
+    const workspaceId = this.workspaceId();
+    const activeDraft = this.draft();
+    if (!workspaceId || !activeDraft) return;
+
+    this.chat.getDraft(workspaceId, activeDraft.jobId, script).subscribe({
+      next: (draft) => {
+        this.draft.set(draft);
+        this.draftText.set(draft.documentText);
+        this.draftScript.set(script);
+      },
+      error: () => this.error.set("Unable to change document script."),
+    });
+  }
+
+  protected updateDraft(): void {
+    const workspaceId = this.workspaceId();
+    const activeDraft = this.draft();
+    if (!workspaceId || !activeDraft) return;
+
+    this.chat
+      .updateDraft(workspaceId, activeDraft.id, this.draftText())
+      .subscribe({
+        next: (draft) => {
+          this.draft.set(draft);
+          this.draftText.set(draft.finalDocumentText ?? draft.documentText);
+        },
+        error: () => this.error.set("Unable to update this draft."),
+      });
+  }
+
+  protected approveDraft(): void {
+    const workspaceId = this.workspaceId();
+    const activeDraft = this.draft();
+    if (!workspaceId || !activeDraft) return;
+
+    this.chat
+      .approveDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .subscribe({
+        next: (draft) => this.draft.set(draft),
+        error: () => this.error.set("Unable to approve this draft."),
+      });
+  }
+
+  protected rejectDraft(): void {
+    const workspaceId = this.workspaceId();
+    const activeDraft = this.draft();
+    if (!workspaceId || !activeDraft) return;
+
+    this.chat
+      .rejectDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .subscribe({
+        next: (draft) => this.draft.set(draft),
+        error: () => this.error.set("Unable to reject this draft."),
+      });
+  }
+
+  protected requestChangesDraft(): void {
+    const workspaceId = this.workspaceId();
+    const activeDraft = this.draft();
+    if (!workspaceId || !activeDraft) return;
+
+    this.chat
+      .requestChangesDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .subscribe({
+        next: (draft) => this.draft.set(draft),
+        error: () => this.error.set("Unable to request changes."),
+      });
   }
 
   protected deleteSession(sessionId: string): void {
@@ -491,9 +585,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   private upsertSessionTitle(sessionId: string, title: string | null): void {
     this.sessions.update((items) =>
-      items.map((item) =>
-        item.id === sessionId ? { ...item, title } : item,
-      ),
+      items.map((item) => (item.id === sessionId ? { ...item, title } : item)),
     );
   }
 
