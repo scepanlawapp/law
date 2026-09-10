@@ -58,6 +58,24 @@ export function validateEnvironment(
       "CHAT_MAX_FILES_PER_MESSAGE must be an integer between 1 and 20",
     );
   }
+  const redisUrl = String(environment.REDIS_URL ?? "redis://localhost:6379");
+  try {
+    new URL(redisUrl);
+  } catch {
+    throw new Error("REDIS_URL must be a valid URL");
+  }
+  const workflowQueueAttempts = Number(
+    environment.WORKFLOW_QUEUE_ATTEMPTS ?? 3,
+  );
+  if (
+    !Number.isInteger(workflowQueueAttempts) ||
+    workflowQueueAttempts < 1 ||
+    workflowQueueAttempts > 10
+  ) {
+    throw new Error(
+      "WORKFLOW_QUEUE_ATTEMPTS must be an integer between 1 and 10",
+    );
+  }
   return {
     ...environment,
     NODE_ENV: nodeEnv,
@@ -73,6 +91,8 @@ export function validateEnvironment(
     ),
     UPLOAD_MAX_BYTES: uploadMaxBytes,
     CHAT_MAX_FILES_PER_MESSAGE: maxFiles,
+    REDIS_URL: redisUrl,
+    WORKFLOW_QUEUE_ATTEMPTS: workflowQueueAttempts,
   };
 }
 

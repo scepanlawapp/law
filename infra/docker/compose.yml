@@ -15,17 +15,17 @@ services:
       timeout: 5s
       retries: 10
 
-  # redis:
-  #   image: redis:7-alpine
-  #   ports:
-  #     - "6379:6379"
-  #   volumes:
-  #     - redis-data:/data
-  #   healthcheck:
-  #     test: ["CMD", "redis-cli", "ping"]
-  #     interval: 5s
-  #     timeout: 5s
-  #     retries: 10
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   # qdrant:
   #   image: qdrant/qdrant:v1.15.4
@@ -57,7 +57,7 @@ services:
 
 volumes:
   postgres-data:
-  # redis-data:
+  redis-data:
   # qdrant-data:
   # ollama-data:
   # n8n-data:
