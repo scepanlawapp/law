@@ -1,326 +1,114 @@
-# Angular Development Guidelines
+# Project Development Guidelines
 
-## Core Stack
+## Project Overview
 
-- Use **Angular 22**.
-- Use **standalone components**. Do not use NgModules for new code.
-- Use **Angular Material** for standard UI components whenever a suitable component exists.
-- Use **Signals** for reactive local and application state.
-- Use **TypeScript strict mode**.
-- Avoid `any`. Use explicit types, interfaces, unions, or generics instead.
-- Use **Reactive Forms** for forms. Do not use template-driven forms.
-- Do not create `.spec.ts` files or tests for now unless explicitly requested.
+This project is an AI-powered law office management application built inside an **Nx Monorepo**.
 
-## Angular Templates
+The application combines:
 
-- Use Angular's modern control flow:
-  - `@if`
-  - `@else`
-  - `@for`
-  - `@switch`
-  - `@case`
-  - `@defer`
+- Law office management (Cases, Clients, Documents, Tasks, Deadlines, Calendar)
+- Business & Financial management
+- AI-assisted legal workflows and specialized AI agents
 
-- Do **not** use legacy structural directives such as `*ngIf` or `*ngFor`.
-- Use `track` with `@for` whenever a stable identifier is available.
-- Keep templates declarative and simple.
-- Do not put business logic in templates.
-- Move non-trivial calculations and transformations into TypeScript.
-- Prefer computed Signals for derived state.
-- Avoid unnecessary subscriptions when Signals or Angular's signal-based APIs can be used.
+### Tech Stack
 
-## Component Architecture
+- **Frontend:** Angular 22 (Standalone Components, Signals, Reactive Forms, Tailwind CSS v4, Spartan/UI)
+- **Backend:** NestJS, Prisma ORM, PostgreSQL
+- **Shared Workspace Contracts:** Shared TypeScript API/domain contracts in [libs/api/api-interfaces/src/lib/api-interfaces.ts](libs/api/api-interfaces/src/lib/api-interfaces.ts)
 
-- Every component must have its own folder.
-- Every component must use separate files:
-  - `.ts`
-  - `.html`
-  - `.scss`
+---
 
-- Do not create large "god components".
-- Keep components focused on a single responsibility.
-- Prefer composition of small reusable components over duplicated UI.
-- Reusable components should not contain feature-specific business logic.
-- Container/page components should coordinate data and state.
-- Presentational components should primarily receive data and emit user actions.
-- Keep API calls and domain logic outside presentational components.
-- Use services for shared behavior, API communication, and application-level state.
-- Avoid creating services when simple local component state is sufficient.
+## Workspace Architecture & Path Mappings
 
-## Project Organization
-
-Prefer a feature-oriented structure.
-
-Example:
+Organize the application strictly around feature boundaries and domain models within the Nx monorepo:
 
 ```text
-src/
-├── app/
-│   ├── core/
-│   │   ├── auth/
-│   │   ├── guards/
-│   │   ├── interceptors/
-│   │   └── services/
-│   │
-│   ├── shared/
-│   │   ├── components/
-│   │   ├── directives/
-│   │   └── pipes/
-│   │
-│   ├── features/
-│   │   ├── assistant/
-│   │   │   ├── pages/
-│   │   │   ├── components/
-│   │   │   └── services/
-│   │   ├── auth/
-│   │   └── ...
-│   │
-│   ├── app.component.*
-│   └── app.routes.ts
-│
-└── styles/
-    ├── _tokens.scss
-    ├── _theme.scss
-    └── styles.scss
+UI (Spartan/UI Helm & Primitives)
+  ↓
+Frontend Feature Module (`apps/web/src/app/...`)
+  ↓
+Angular Service / Signal Store
+  ↓
+Shared Contracts (`libs/api/api-interfaces/src/lib/api-interfaces.ts`)
+  ↓
+NestJS Controller (`apps/api/src/app/...`)
+  ↓
+NestJS Application / Service Layer
+  ↓
+Prisma Database ORM / File Storage / AI Workflows
 ```
 
-- Organize code primarily by **feature/domain**, not by technical type alone.
-- `core/` contains application-wide infrastructure.
-- `shared/` contains genuinely reusable UI and utilities.
-- `features/` contains feature-specific pages, components, services, and state.
-- Do not place feature-specific code in `shared/`.
-- Do not create generic abstractions until there is a real need for reuse.
+---
 
-## Routing
+## Workspace Contracts & Type Sharing
 
-- Use Angular Router with standalone components.
-- Lazy-load feature routes whenever appropriate.
-- Keep route configuration close to the feature when practical.
-- Protect authenticated routes with appropriate route guards.
-- Do not put authorization logic directly inside templates.
+- **Shared Types:** All shared TypeScript interfaces, DTOs, type aliases, and enums used across both NestJS backend and Angular 22 frontend MUST be exported from [libs/api/api-interfaces/src/lib/api-interfaces.ts](libs/api/api-interfaces/src/lib/api-interfaces.ts).
+- **Modular File Structure:** Keep domain interfaces in modular files under `libs/api/api-interfaces/src/lib/` (e.g., `case.interface.ts`, `client.interface.ts`, `document.interface.ts`) and re-export them cleanly through `api-interfaces.ts`.
+- **Technology-Specific Types:** Types, classes, or models used exclusively in the frontend (e.g., UI state, form view-models) or backend (e.g., NestJS request context, local ORM helpers) stay inside their respective application or library folders.
 
-## State Management
+---
 
-- Prefer Signals for local component state.
-- Use `computed()` for derived state.
-- Use `effect()` only for genuine side effects.
-- Avoid using `effect()` for state synchronization when `computed()` or explicit event handling is more appropriate.
-- Keep state as local as possible.
-- Do not introduce a global state-management library unless the application actually requires it.
-- Shared state should live in an appropriate service.
+## Angular 22 Best Practices
 
-## HTTP and Backend Communication
+- **Standalone Architecture:** All Angular components, directives, and pipes MUST be `standalone: true`.
+- **Reactivity via Signals:**
+  - Use `signal()` for state management.
+  - Use `computed()` for derived state.
+  - Use `effect()` strictly for side-effects.
+  - Use `toSignal()` and `toObservable()` when bridging RxJS streams (e.g., HTTP requests).
+  - Avoid unnecessary RxJS state subjects when Signals provide a cleaner API.
+- **Dependency Injection:** Use the functional `inject()` syntax over constructor injection for cleaner composition.
+- **Control Flow:** Use modern Angular control flow syntax (`@if`, `@for`, `@switch`, `@defer`) exclusively. Do NOT use `*ngIf` or `*ngFor`.
+- **Forms:** Use typed Reactive Forms for complex legal forms and document inputs.
 
-- Keep HTTP/API communication inside dedicated services.
-- Do not call `HttpClient` directly from presentational components.
-- Define typed request and response models.
-- Do not expose backend implementation details directly to UI components.
-- Keep domain models language-neutral.
-- Never store translated UI strings inside domain models or database entities.
-- Handle API errors consistently through shared mechanisms where appropriate.
+---
 
-# UI and Design System
+## Styling, Semantic Tokens & Tailwind CSS v4
 
-## Angular Material
+To support global design changes, theme switching, and accent color customization, component styling MUST rely on **Semantic Tokens**.
 
-- Prefer Angular Material components over custom implementations when a suitable Material component exists.
-- Use Angular Material for:
-  - buttons
-  - inputs
-  - selects
-  - dialogs
-  - menus
-  - tables
-  - tabs
-  - cards
-  - form controls
-  - icons
-  - navigation
-  - overlays
+### 1. Semantic Tokens Structure
 
-- Use Angular Material's official theming system.
-- Do not globally override Angular Material internals unless absolutely necessary.
-- Avoid brittle selectors targeting Material's internal DOM structure.
-- Do not recreate Material components with custom HTML/CSS without a strong reason.
+Define design choices as CSS custom properties on the root element. Components consume semantic tokens through Tailwind CSS utility classes rather than hardcoding color values.
 
-## Tailwind CSS
+Key semantic token roles:
 
-- Tailwind may be used for **layout and utility-level styling**.
-- Prefer Tailwind for:
-  - flex/grid layouts
-  - alignment
-  - responsive layout
-  - spacing
-  - sizing
-  - positioning
+- `--background` / `--foreground`
+- `--card` / `--card-foreground`
+- `--popover` / `--popover-foreground`
+- `--primary` / `--primary-foreground`
+- `--secondary` / `--secondary-foreground`
+- `--muted` / `--muted-foreground`
+- `--accent` / `--accent-foreground`
+- `--destructive` / `--destructive-foreground`
+- `--border` / `--input` / `--ring`
 
-- Prefer design tokens and component SCSS for:
-  - application-specific visual styling
-  - custom components
-  - complex states
-  - reusable visual patterns
+### 2. Light & Dark Themes
 
-- Do not use arbitrary Tailwind values when an existing design token or utility is appropriate.
-- Do not mix multiple styling approaches unnecessarily.
-- Keep styling predictable and consistent across the application.
+Theming is toggled dynamically via the `data-theme` attribute on the `<html>` root tag:
 
-## Design Tokens
+- `<html data-theme="light">`
+- `<html data-theme="dark">`
 
-- Do not hardcode application-wide colors, font sizes, spacing, border radii, or shadows inside components.
-- Define reusable design tokens as CSS custom properties in:
+All semantic variables adapt automatically under `[data-theme='dark']`. Never use hardcoded dark mode utility classes (e.g., `dark:bg-slate-900`) when semantic tokens handle dark mode natively.
 
-```text
-src/styles/_tokens.scss
-```
+### 3. Customizable Accent Colors
 
-- Organize tokens into:
-  - Colors
-  - Typography
-  - Spacing
-  - Border radius
-  - Shadows
-  - Z-index
-  - Layout dimensions where appropriate
+Users can select their preferred UI accent color: **blue**, **turquoise** (tirkiz), **coral**, or **purple**.
+Accent color switching is driven by the `data-accent` attribute on the `<html>` root tag:
 
-Use semantic names such as:
+- `<html data-accent="blue">`
+- `<html data-accent="turquoise">`
+- `<html data-accent="coral">`
+- `<html data-accent="purple">`
 
-```scss
---color-primary
---color-background
---color-surface
---color-surface-hover
---color-text-primary
---color-text-secondary
---color-text-muted
---color-border
---color-error
---color-success
+Changing `data-accent` overrides the `--primary`, `--primary-foreground`, `--ring`, and `--accent` CSS custom properties globally.
 
---font-size-xs
---font-size-sm
---font-size-md
---font-size-lg
---font-size-xl
+---
 
---space-1
---space-2
---space-4
---space-6
---space-8
+## Spartan/UI Integration
 
---radius-sm
---radius-md
---radius-lg
-
---shadow-sm
---shadow-md
---shadow-lg
-```
-
-- Components must consume tokens using:
-
-```scss
-var(--token-name)
-```
-
-- Avoid arbitrary values such as `17px`, `23px`, or random colors when an existing token can be reused.
-- Before creating a new token, check whether an existing token can be reused.
-- If a genuinely new reusable visual value is required, add a token instead of creating a one-off value.
-- Keep global styles minimal.
-- Feature-specific styles belong to the relevant component or feature.
-
-## Theming
-
-- Use Angular Material's official theme configuration for Material components.
-- Keep application-specific design tokens separate from Angular Material theme configuration.
-- Support light and dark themes through CSS custom properties and theme configuration.
-- Do not duplicate component styles for light/dark mode.
-- Components should consume semantic tokens rather than knowing the actual color values.
-- Never hardcode light-theme or dark-theme colors directly inside individual components.
-
-# Localization
-
-- Use **Angular i18n**.
-- Do not introduce third-party localization libraries unless explicitly requested.
-- All user-visible text must be localizable.
-- Mark static UI text with Angular's `i18n` attribute.
-
-Example:
-
-```html
-<h1 i18n="@@welcomeMessage">Welcome to our application!</h1>
-```
-
-- Use stable, meaningful custom translation IDs such as:
-
-```text
-@@welcomeMessage
-@@loginTitle
-@@assistantPlaceholder
-@@saveButton
-```
-
-- Do not use translated text as identifiers.
-- Do not concatenate translated strings to construct sentences when proper localization requires a complete translatable message.
-- Do not store translated UI text in backend/domain models.
-- Default language: **Serbian (Latin script)**.
-- English must also be supported.
-- New UI text should be written with Serbian Latin as the default user-facing language and have an English translation.
-- Do not leave newly created user-visible text in English only.
-
-# Accessibility
-
-- Build accessible UI by default.
-- Use semantic HTML where appropriate.
-- Prefer native HTML semantics over unnecessary custom behavior.
-- Ensure interactive elements are keyboard accessible.
-- Provide accessible labels for icon-only buttons and controls.
-- Do not rely on color alone to communicate state.
-- Use Angular Material accessibility features where available.
-- Maintain sufficient visual contrast.
-
-# UX Guidelines
-
-- Prefer simple, predictable interactions.
-- Keep visual hierarchy consistent across pages.
-- Use consistent spacing, typography, and component behavior.
-- Provide appropriate loading, empty, success, and error states.
-- Avoid unnecessary animations and visual effects.
-- Do not introduce UI patterns that are inconsistent with the existing application.
-- Reuse existing components and patterns before creating new ones.
-
-# Code Quality
-
-- Prefer readable code over clever code.
-- Keep functions small and focused.
-- Use descriptive names.
-- Avoid unnecessary abstractions.
-- Avoid duplicated business logic.
-- Avoid premature optimization.
-- Remove unused imports, variables, methods, and styles.
-- Do not leave commented-out code.
-- Do not introduce dependencies when the Angular platform or existing project dependencies already provide the required functionality.
-- Follow existing project conventions before introducing a new pattern.
-
-# Before Creating Code
-
-Before implementing a new component, service, page, or styling pattern:
-
-1. Check whether a suitable existing component or service already exists.
-2. Check whether an existing design token can be reused.
-3. Check whether Angular Material already provides the required UI.
-4. Check whether the functionality belongs to an existing feature.
-5. Reuse existing patterns instead of introducing a new architectural approach.
-
-# General Rule
-
-When multiple valid implementations exist, prefer the solution that is:
-
-1. **Simplest**
-2. **Most consistent with Angular 22**
-3. **Most consistent with the existing project**
-4. **Most reusable without unnecessary abstraction**
-5. **Most accessible**
-6. **Most maintainable**
-
-Do not introduce new libraries, architectural patterns, global styles, or abstractions unless there is a clear benefit.
+- **Primary UI Library:** Use **Spartan/UI** primitives and Helm directives as the primary UI library for all frontend components.
+- **Headless + Tailwind:** Spartan/UI provides headless accessibility and state signals (`@spartan-ui/brain`) styled with Tailwind CSS directives (`@spartan-ui/helm`).
+- **Skill Reference:** Refer to [.github/skills/spartan-ui/SKILL.md](.github/skills/spartan-ui/SKILL.md) whenever scaffolding or styling UI components.
+- **Component Reusability:** Keep components small, focused, and token-driven so global theme or accent changes apply seamlessly across the entire legal management platform.
