@@ -31,6 +31,7 @@ import {
 import {
   ChatSessionListQueryDto,
   CreateChatSessionDto,
+  DraftExportQueryDto,
   DraftQueryDto,
   ReviewDraftDto,
   UpdateChatSessionDto,
@@ -168,6 +169,28 @@ export class ChatController {
     @Query("sessionId") sessionId?: string,
   ): Promise<DraftResultResponse[]> {
     return this.chat.listDrafts(request.workspace!.workspaceId, sessionId);
+  }
+
+  @Get("drafts/:draftId/export")
+  async exportDraft(
+    @Req() request: WorkspaceRequest,
+    @Param("draftId") draftId: string,
+    @Query() query: DraftExportQueryDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    const { buffer, filename } = await this.chat.exportDraft(
+      request.workspace!.workspaceId,
+      draftId,
+      request.auth!.user.id,
+      query.script ?? "cyrillic",
+    );
+    response.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
+    response.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    response.setHeader("Content-Length", String(buffer.length));
+    response.send(buffer);
   }
 
   @Patch("drafts/:draftId")

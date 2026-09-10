@@ -228,6 +228,18 @@ export class ChatApiClient {
     );
   }
 
+  exportUrl(
+    workspaceId: string,
+    draftId: string,
+    script: DocumentScript = "cyrillic",
+  ): string {
+    const url = new URL(this.endpoint(`/chat/drafts/${draftId}/export`));
+    url.searchParams.set("workspaceId", workspaceId);
+    url.searchParams.set("format", "docx");
+    url.searchParams.set("script", script);
+    return url.toString();
+  }
+
   updateDraft(
     workspaceId: string,
     draftId: string,

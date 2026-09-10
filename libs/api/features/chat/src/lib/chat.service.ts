@@ -26,6 +26,7 @@ import {
 } from "@law/core";
 import { Prisma } from "@prisma/client";
 import { ChatModelProvider } from "@law/llm";
+import { renderDraftDocx } from "@law/documents";
 import { toCyrillic, toLatin } from "@law/transliteration";
 import { buildTitleUserPrompt, generateTitle } from "@law/title-generation";
 import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
@@ -362,6 +363,38 @@ export class ChatService {
       response.documentText = toCyrillic(response.documentText);
     }
     return { ...response, script };
+  }
+
+  async exportDraft(
+    workspaceId: string,
+    draftId: string,
+    userId: string,
+    script: DocumentScript = "cyrillic",
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const draft = await this.prisma.draftResult.findFirst({
+      where: { id: draftId, workspaceId },
+    });
+    if (!draft) throw new NotFoundException("Draft not found");
+
+    const buffer = await renderDraftDocx({
+      text: draft.finalDocumentText ?? draft.documentText,
+      script,
+    });
+    const date = draft.createdAt.toISOString().slice(0, 10);
+    const sessionToken = draft.sessionId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+    const filename = `tuzba-${sessionToken}-${date}.docx`;
+
+    await this.prisma.auditEvent.create({
+      data: {
+        workspaceId,
+        userId,
+        eventType: "draft.exported",
+        outcome: "SUCCESS",
+        metadata: { draftId, sessionId: draft.sessionId, format: "docx", script },
+      },
+    });
+
+    return { buffer, filename };
   }
 
   async listDrafts(

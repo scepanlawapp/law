@@ -1,10 +1,10 @@
 # Draft DOCX Export Plan
 
-- [ ] Add `docx` dependency; `libs/api/ai/documents` (`@law/documents`) with `renderDraftDocx({ text, script }): Promise<Buffer>` and a small Markdown-to-blocks parser (headings, paragraphs, lists, placeholders).
-- [ ] `DraftExportQueryDto { format: "docx"; script: "latin" | "cyrillic" }`; controller route streaming the buffer with proper headers; workspace scoping.
-- [ ] `AuditEvent` on export.
-- [ ] Angular: "Download DOCX" button in `draft-review-panel` (respects current script toggle); `DraftApiClient.exportUrl()`.
-- [ ] Tests: renderer produces valid zip with `word/document.xml` containing Cyrillic text and highlighted placeholders; controller content-type and filename.
+- [x] 74b1e20 Add `docx` dependency; `libs/api/ai/documents` (`@law/documents`) with `renderDraftDocx({ text, script }): Promise<Buffer>` and a small Markdown-to-blocks parser (headings, paragraphs, lists, placeholders).
+- [x] 74b1e20 `DraftExportQueryDto { format: "docx"; script: "latin" | "cyrillic" }`; controller route streaming the buffer with proper headers; workspace scoping.
+- [x] 74b1e20 `AuditEvent` on export.
+- [x] 74b1e20 Angular: "Download DOCX" button in `draft-review-panel` (respects current script toggle); `DraftApiClient.exportUrl()`.
+- [x] 74b1e20 Tests: renderer, service, and controller cover valid DOCX output with Cyrillic text, highlighted placeholders, final-text precedence, audit metadata, filename, and response headers.
 
 ## Status convention
 

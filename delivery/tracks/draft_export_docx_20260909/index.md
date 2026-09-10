@@ -2,7 +2,7 @@
 
 - **Track ID:** `draft_export_docx_20260909`
 - **Type:** Feature
-- **Status:** Planned
+- **Status:** Completed
 
 ## Documents
 
@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-Not started. Generates a court-ready `.docx` from an approved (or any) `DraftResult` in Cyrillic or Latin, removing the copy-to-Word step.
+Completed on `feature/draft-export-docx`. The `@law/documents` renderer, workspace-scoped API export route, export audit event, draft review-panel download action, and focused renderer/service/controller tests are implemented.
