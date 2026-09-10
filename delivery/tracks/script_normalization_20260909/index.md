@@ -2,7 +2,7 @@
 
 - **Track ID:** `script_normalization_20260909`
 - **Type:** Feature
-- **Status:** In progress
+- **Status:** Completed
 
 ## Documents
 
@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-Started. Introducing `@law/transliteration` (pure-TS Latin↔Cyrillic with digraph handling) and applying Latin normalization at ingestion (attachment extraction, user message text) so every persisted/prompted/embedded string is Serbian Latin. Cyrillic is produced only on draft read (`?script=cyrillic`). Scanned PDFs get an OCR fallback when the text layer is empty.
+Done. `@law/transliteration` (pure-TS Latin↔Cyrillic with digraph handling) is applied at ingestion (attachment extraction, user message text) so every persisted/prompted/embedded string is Serbian Latin. Cyrillic is produced only on draft read (`?script=cyrillic`). Scanned PDFs get an OCR fallback when the text layer is empty.

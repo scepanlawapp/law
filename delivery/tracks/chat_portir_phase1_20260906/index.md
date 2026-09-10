@@ -2,7 +2,7 @@
 
 - **Track ID:** `chat_portir_phase1_20260906`
 - **Type:** Feature
-- **Status:** In progress
+- **Status:** Completed
 
 ## Documents
 
@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-Authenticated lawyer chat, local-disk attachments, OpenRouter-backed Portir classification, SSE status events, and a queued Phase 2 stub are in implementation. n8n, OCR, and local Ollama remain out of scope for this slice.
+Done. Authenticated lawyer chat, local-disk attachments, OpenRouter-backed Portir classification, SSE status events, and the queued Phase 2 stub are implemented. n8n, OCR, and local Ollama remained out of scope for this slice and are covered by later tracks.
