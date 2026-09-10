@@ -40,4 +40,8 @@ export class ChatRuntimeConfig {
   readonly titleContentMaxChars = Number(
     process.env.TITLE_CONTENT_MAX_CHARS ?? 300,
   );
+  readonly redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
+  readonly workflowQueueAttempts = Number(
+    process.env.WORKFLOW_QUEUE_ATTEMPTS ?? 3,
+  );
 }

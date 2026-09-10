@@ -27,6 +27,8 @@ npm run web:serve // frontend
 npm run db:seed:auth // Insert first user
 ```
 
+The chat pipeline (triage -> brief-extraction -> drafting) runs as BullMQ jobs on a Redis-backed `workflow` queue, so `services:up` (which starts Redis) must be running before `api:serve`.
+
 The API is available at `http://localhost:3000/api`, with health at `http://localhost:3000/api/health`. The Angular client is available at `http://localhost:4200`.
 
 ## Workspace layout
