@@ -1,25 +1,35 @@
-<aside class="flex h-full flex-col">
-  <a class="flex items-center" routerLink="/dashboard" aria-label="LegalAI">
-    <span class="flex items-center justify-center" aria-hidden="true"
-      ><ng-icon name="lucideScale"
-    /></span>
-    <span>{{ "brand.legalAi" | translate }}</span>
-  </a>
-
-  <nav class="grid" aria-label="Main navigation">
+<aside class="flex h-full flex-col bg-sidebar text-sidebar-foreground">
+  <header class="flex items-center gap-2 px-4 py-5">
     <a
-      class="flex items-center"
+      class="flex items-center gap-2"
+      routerLink="/dashboard"
+      aria-label="LegalAI"
+    >
+      <span
+        class="flex items-center justify-center text-sidebar-primary"
+        aria-hidden="true"
+        ><ng-icon name="lucideScale" class="size-6"
+      /></span>
+      <span class="text-lg font-semibold">{{
+        "brand.legalAi" | translate
+      }}</span>
+    </a>
+  </header>
+
+  <nav class="flex flex-col gap-1 px-3" aria-label="Main navigation">
+    <a
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/assistant"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
     >
       <ng-icon name="lucideBot" aria-hidden="true" />
       <span>{{ "nav.aiAssistant" | translate }}</span>
     </a>
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/dashboard"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
     >
       <ng-icon name="lucideHome" /><span>{{
@@ -28,32 +38,34 @@
     </a>
   </nav>
 
-  <section class="grid" aria-label="Workspace">
-    <p>
+  <section class="flex flex-col gap-1 px-3" aria-label="Workspace">
+    <p
+      class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
+    >
       {{ "nav.workspace" | translate }}
     </p>
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/clients"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideUsers" /><span>{{
         "nav.clients" | translate
       }}</span></a
     >
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/cases"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideFolder" /><span>{{
         "nav.cases" | translate
       }}</span></a
     >
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/documents"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideFileText" /><span>{{
         "nav.documents" | translate
@@ -61,23 +73,25 @@
     >
   </section>
 
-  <section class="grid" aria-label="Work">
-    <p>
+  <section class="flex flex-col gap-1 px-3" aria-label="Work">
+    <p
+      class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
+    >
       {{ "nav.work" | translate }}
     </p>
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/tasks-deadlines"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideSquareCheck" /><span>{{
         "nav.tasksDeadlines" | translate
       }}</span></a
     >
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/calendar"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideCalendar" /><span>{{
         "nav.calendar" | translate
@@ -85,23 +99,25 @@
     >
   </section>
 
-  <section class="grid" aria-label="Business">
-    <p>
+  <section class="flex flex-col gap-1 px-3" aria-label="Business">
+    <p
+      class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
+    >
       {{ "nav.business" | translate }}
     </p>
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/finance"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideLandmark" /><span>{{
         "nav.finance" | translate
       }}</span></a
     >
     <a
-      class="flex items-center"
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/reports"
-      routerLinkActive="active"
+      routerLinkActive="bg-sidebar-primary text-sidebar-primary-foreground hover:bg-sidebar-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideChartBar" /><span>{{
         "nav.reports" | translate
@@ -109,16 +125,11 @@
     >
   </section>
 
-  <div class="mt-auto grid">
-    <a
-      class="flex items-center"
-      routerLink="/settings"
-      routerLinkActive="active"
-      [routerLinkActiveOptions]="{ exact: true }"
-      ><ng-icon name="lucideSettings" /><span>{{
-        "nav.settings" | translate
-      }}</span></a
-    >
-    <small>v1.0.0</small>
-  </div>
+  <footer
+    class="mt-auto flex items-center gap-3 border-t border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground"
+  >
+    @if (session()?.user; as user) {
+      <app-user-menu [user]="user" (logoutRequested)="logout()" />
+    }
+  </footer>
 </aside>

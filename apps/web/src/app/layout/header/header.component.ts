@@ -1,25 +1,23 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, signal } from "@angular/core";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
+  lucideSearch,
   lucideBell,
-  lucideCalendar,
+  lucideArrowRight,
   lucideCreditCard,
-  lucideFileText,
   lucideFolderOpen,
   lucideMessageCircle,
-  lucideSearch,
   lucideTriangleAlert,
+  lucideFileText,
+  lucideCalendar,
   lucideUsers,
   lucideSquareCheck,
   lucideFileCheck,
   lucideInfo,
-  lucideArrowRight,
 } from "@ng-icons/lucide";
-import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
 import { RouterLink } from "@angular/router";
+import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-import { AuthState } from "@law/security";
-import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
 interface HeaderNotification {
   title: string;
@@ -38,34 +36,26 @@ const LEGAL_QUOTE_KEYS = Array.from(
   selector: "app-header",
   standalone: true,
   templateUrl: "./header.component.html",
-  imports: [
-    NgIcon,
-    ...HlmDropdownMenuImports,
-    RouterLink,
-    UserMenuComponent,
-    TranslatePipe,
-  ],
+  imports: [NgIcon, RouterLink, ...HlmDropdownMenuImports, TranslatePipe],
   providers: [
     provideIcons({
+      lucideSearch,
       lucideBell,
-      lucideCalendar,
+      lucideArrowRight,
       lucideCreditCard,
-      lucideFileText,
       lucideFolderOpen,
       lucideMessageCircle,
-      lucideSearch,
       lucideTriangleAlert,
+      lucideFileText,
+      lucideCalendar,
       lucideUsers,
       lucideSquareCheck,
       lucideFileCheck,
       lucideInfo,
-      lucideArrowRight,
     }),
   ],
 })
 export class HeaderComponent {
-  private readonly authState = inject(AuthState);
-  readonly session = this.authState.session;
   readonly quoteKey = signal(
     LEGAL_QUOTE_KEYS[Math.floor(Math.random() * LEGAL_QUOTE_KEYS.length)],
   );
@@ -142,8 +132,4 @@ export class HeaderComponent {
       tone: "blue",
     },
   ];
-
-  logout(): void {
-    this.authState.logout().subscribe();
-  }
 }

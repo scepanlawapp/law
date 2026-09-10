@@ -51,8 +51,5 @@
         </hlm-dropdown-menu-group>
       </hlm-dropdown-menu>
     </ng-template>
-    @if (session()?.user; as user) {
-      <app-user-menu [user]="user" (logoutRequested)="logout()" />
-    }
   </div>
 </header>
