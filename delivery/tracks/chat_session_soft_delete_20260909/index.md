@@ -2,7 +2,7 @@
 
 - **Track ID:** `chat_session_soft_delete_20260909`
 - **Type:** Feature
-- **Status:** In progress
+- **Status:** Completed
 
 ## Documents
 
@@ -12,4 +12,4 @@
 
 ## Current checkpoint
 
-In progress on branch `feature/session-status`. Adding an `isDeleted` boolean to `ChatSession` so that deleting a conversation or clearing chat history marks the session as deleted while preserving all underlying data. The bulk clear endpoint (`DELETE /users/me/conversations`) switches from a hard `deleteMany` to a soft `updateMany`, a new per-session `DELETE /chat/sessions/:sessionId` endpoint is added, deleted sessions disappear from the list and behave as not-found everywhere else, and the assistant sidebar gains a per-conversation delete action.
+Completed on `main`. Added an `isDeleted` flag and migration, changed bulk history clearing to soft-delete, added per-session deletion, filtered deleted sessions from all chat access paths, emitted `session.deleted`, added API client and assistant sidebar support, and covered the behavior with focused tests.

@@ -4,8 +4,9 @@
   "parent_track_id": "chat_portir_phase1_20260906",
   "prd_reference": null,
   "priority": "medium",
-  "status": "in-progress",
+  "status": "completed",
   "track_id": "chat_session_soft_delete_20260909",
   "type": "feature",
-  "updated_at": "2026-09-09T00:00:00Z"
+  "updated_at": "2026-09-10T00:00:00Z",
+  "completed_at": "2026-09-10T00:00:00Z"
 }
