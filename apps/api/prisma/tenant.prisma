@@ -1,0 +1,229 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/@prisma/tenant-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum ChatSessionStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum ChatMessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+}
+
+enum ChatMessageStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum TriageDecision {
+  LEGAL
+  NON_LEGAL
+  UNCLEAR
+}
+
+enum ChatAttachmentExtractionStatus {
+  PENDING
+  RUNNING
+  COMPLETED
+  FAILED
+  UNSUPPORTED
+}
+
+enum ChatAttachmentSourceScript {
+  LATIN
+  CYRILLIC
+  MIXED
+  NONE
+}
+
+enum WorkflowJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+enum DraftApprovalStatus {
+  DRAFT
+  READY_FOR_SIGNOFF
+  APPROVED
+  REJECTED
+  CHANGES_REQUESTED
+}
+
+enum DateTimeFormatPreference {
+  TWELVE_HOUR
+  TWENTY_FOUR_HOUR
+}
+
+model WorkspaceConfig {
+  workspaceId            String                   @id
+  timeZone               String                   @default("Europe/Belgrade")
+  dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
+  workspaceNotifications Boolean                  @default(true)
+  officeHours            Json?
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+}
+
+model ChatSession {
+  id                     String                  @id @default(uuid())
+  workspaceId            String
+  createdByUserId        String
+  title                  String?
+  status                 ChatSessionStatus       @default(ACTIVE)
+  isDeleted              Boolean                 @default(false)
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
+  messages               ChatMessage[]
+  attachments            ChatAttachment[]
+  workflowJobs           WorkflowJob[]
+  briefExtractionResults BriefExtractionResult[]
+  draftResults           DraftResult[]
+
+  @@index([workspaceId, updatedAt])
+  @@index([createdByUserId, isDeleted, createdAt])
+}
+
+model ChatMessage {
+  id                     String                  @id @default(uuid())
+  sessionId              String
+  role                   ChatMessageRole
+  content                String
+  status                 ChatMessageStatus       @default(COMPLETED)
+  triageDecision         TriageDecision?
+  correlationId          String?
+  metadata               Json?
+  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
+  session                ChatSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  attachments            ChatAttachment[]
+  briefExtractionResults BriefExtractionResult[]
+  draftResults           DraftResult[]
+
+  @@index([sessionId, createdAt])
+  @@index([correlationId])
+}
+
+model ChatAttachment {
+  id               String                         @id @default(uuid())
+  workspaceId      String
+  sessionId        String
+  messageId        String?
+  originalName     String
+  storedName       String
+  mimeType         String
+  sizeBytes        Int
+  extractionStatus ChatAttachmentExtractionStatus @default(PENDING)
+  extractedText    String?                        @db.Text
+  sourceScript     ChatAttachmentSourceScript?
+  extractionError  String?
+  extractedAt      DateTime?                      @db.Timestamptz(3)
+  createdAt        DateTime                       @default(now()) @db.Timestamptz(3)
+  session          ChatSession                    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message          ChatMessage?                   @relation(fields: [messageId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, sessionId])
+  @@index([messageId])
+}
+
+model WorkflowJob {
+  id                    String                 @id @default(uuid())
+  workspaceId           String
+  sessionId             String
+  workflowName          String
+  status                WorkflowJobStatus      @default(QUEUED)
+  correlationId         String
+  input                 Json?
+  output                Json?
+  errorCode             String?
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
+  session               ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  briefExtractionResult BriefExtractionResult?
+  draftResult           DraftResult?
+
+  @@index([workspaceId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([correlationId])
+}
+
+model BriefExtractionResult {
+  id            String        @id @default(uuid())
+  jobId         String        @unique
+  workspaceId   String
+  sessionId     String
+  messageId     String?
+  brief         Json
+  confidence    Float?
+  missingFields String[]      @default([])
+  promptChars   Int
+  truncated     Boolean       @default(false)
+  model         String
+  errorCode     String?
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  job           WorkflowJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  session       ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message       ChatMessage?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  draftResults  DraftResult[]
+
+  @@index([workspaceId, createdAt])
+  @@index([sessionId, createdAt])
+}
+
+model DraftResult {
+  id                String                 @id @default(uuid())
+  jobId             String                 @unique
+  workspaceId       String
+  sessionId         String
+  messageId         String?
+  briefResultId     String?
+  documentText      String                 @db.Text
+  finalDocumentText String?                @db.Text
+  warnings          String[]               @default([])
+  promptChars       Int
+  truncated         Boolean                @default(false)
+  model             String
+  approvalStatus    DraftApprovalStatus    @default(READY_FOR_SIGNOFF)
+  reviewedByUserId  String?
+  reviewedAt        DateTime?              @db.Timestamptz(3)
+  reviewNote        String?
+  previousDraftId   String?
+  errorCode         String?
+  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
+  job               WorkflowJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  session           ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message           ChatMessage?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  briefResult       BriefExtractionResult? @relation(fields: [briefResultId], references: [id], onDelete: SetNull)
+  previousDraft     DraftResult?           @relation("DraftResultHistory", fields: [previousDraftId], references: [id], onDelete: SetNull)
+  modifiedDrafts    DraftResult[]          @relation("DraftResultHistory")
+
+  @@index([workspaceId, createdAt])
+  @@index([sessionId, createdAt])
+  @@index([approvalStatus, reviewedAt])
+}
+
+model TenantAuditEvent {
+  id          String   @id @default(uuid())
+  userId      String?
+  workspaceId String?
+  eventType   String
+  outcome     String
+  requestId   String?
+  metadata    Json?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+
+  @@index([userId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([eventType, createdAt])
+}

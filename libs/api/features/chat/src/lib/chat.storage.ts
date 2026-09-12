@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { ChatRuntimeConfig } from "./chat.config";
 
@@ -15,6 +15,7 @@ export class ChatStorageService {
   }): Promise<string> {
     const directory = join(
       this.config.uploadDir,
+      "tenants",
       params.workspaceId,
       params.sessionId,
     );
@@ -29,13 +30,25 @@ export class ChatStorageService {
     sessionId: string;
     storedName: string;
   }): Promise<Buffer> {
-    return readFile(
-      join(
+    const tenantPath = join(
+      this.config.uploadDir,
+      "tenants",
+      params.workspaceId,
+      params.sessionId,
+      params.storedName,
+    );
+    try {
+      await stat(tenantPath);
+      return await readFile(tenantPath);
+    } catch {
+      // Fallback for legacy un-prefixed storage paths
+      const legacyPath = join(
         this.config.uploadDir,
         params.workspaceId,
         params.sessionId,
         params.storedName,
-      ),
-    );
+      );
+      return await readFile(legacyPath);
+    }
   }
 }

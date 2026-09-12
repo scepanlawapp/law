@@ -22,9 +22,13 @@ import {
   paginationMeta,
   PaginationQueryDto,
   parseSort,
-  PrismaService,
+  PlatformPrismaService,
+  TenantContextService,
 } from "@law/core";
-import { Prisma } from "@prisma/client";
+import {
+  Prisma,
+  PrismaClient as TenantPrismaClient,
+} from "@prisma/tenant-client";
 import { ChatModelProvider } from "@law/llm";
 import { renderDraftDocx } from "@law/documents";
 import { toCyrillic, toLatin } from "@law/transliteration";
@@ -53,7 +57,7 @@ export class ChatService {
   private readonly workflowQueue: WorkflowQueuePort;
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PlatformPrismaService,
     private readonly events: ChatEventBus,
     private readonly storage: ChatStorageService,
     private readonly config: ChatRuntimeConfig,
@@ -69,6 +73,37 @@ export class ChatService {
       createInlineWorkflowQueue(prisma, events, storage, config, provider);
   }
 
+  private get db(): TenantPrismaClient {
+    return (TenantContextService.current?.prisma ??
+      (this.prisma as unknown)) as TenantPrismaClient;
+  }
+
+  private async recordAuditEvent(input: {
+    workspaceId?: string;
+    userId?: string;
+    eventType: string;
+    outcome: string;
+    metadata?: Record<string, unknown>;
+  }): Promise<void> {
+    try {
+      const db = this.db as unknown as {
+        tenantAuditEvent?: {
+          create: (args: { data: unknown }) => Promise<unknown>;
+        };
+        auditEvent?: {
+          create: (args: { data: unknown }) => Promise<unknown>;
+        };
+      };
+      if (db.tenantAuditEvent?.create) {
+        await db.tenantAuditEvent.create({ data: input });
+      } else if (db.auditEvent?.create) {
+        await db.auditEvent.create({ data: input });
+      }
+    } catch {
+      // Safe absorption of audit event failures
+    }
+  }
+
   async listSessions(
     workspaceId: string,
     query: PaginationQueryDto,
@@ -80,6 +115,11 @@ export class ChatService {
       ["title", "createdAt", "updatedAt", "status"],
       [{ field: "updatedAt", direction: "desc" }],
     );
+    const fromDate = query.from ? new Date(query.from) : null;
+    const validFrom = fromDate && !isNaN(fromDate.getTime()) ? fromDate : null;
+    const toDate = query.to ? new Date(query.to) : null;
+    const validTo = toDate && !isNaN(toDate.getTime()) ? toDate : null;
+
     const where: Prisma.ChatSessionWhereInput = {
       workspaceId,
       status: "ACTIVE",
@@ -87,11 +127,11 @@ export class ChatService {
       ...(query.search?.trim()
         ? { title: { contains: query.search.trim(), mode: "insensitive" } }
         : {}),
-      ...(query.from || query.to
+      ...(validFrom || validTo
         ? {
             updatedAt: {
-              ...(query.from ? { gte: new Date(query.from) } : {}),
-              ...(query.to ? { lte: new Date(query.to) } : {}),
+              ...(validFrom ? { gte: validFrom } : {}),
+              ...(validTo ? { lte: validTo } : {}),
             },
           }
         : {}),
@@ -101,13 +141,13 @@ export class ChatService {
       { id: "asc" },
     ];
     const [sessions, totalItems] = await Promise.all([
-      this.prisma.chatSession.findMany({
+      this.db.chatSession.findMany({
         where,
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.prisma.chatSession.count({ where }),
+      this.db.chatSession.count({ where }),
     ]);
     return {
       items: sessions.map((session) => toSessionSummary(session)),
@@ -120,7 +160,7 @@ export class ChatService {
     userId: string,
     title?: string,
   ): Promise<ChatSessionSummary> {
-    const session = await this.prisma.chatSession.create({
+    const session = await this.db.chatSession.create({
       data: {
         workspaceId,
         createdByUserId: userId,
@@ -136,7 +176,7 @@ export class ChatService {
     title: string,
   ): Promise<ChatSessionSummary> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const updated = await this.prisma.chatSession.update({
+    const updated = await this.db.chatSession.update({
       where: { id: session.id },
       data: { title: title.trim() || "New chat" },
     });
@@ -154,7 +194,7 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionDetail> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const messages = await this.prisma.chatMessage.findMany({
+    const messages = await this.db.chatMessage.findMany({
       where: { sessionId },
       include: { attachments: true },
       orderBy: { createdAt: "asc" },
@@ -170,7 +210,7 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionSummary> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const updated = await this.prisma.chatSession.update({
+    const updated = await this.db.chatSession.update({
       where: { id: session.id },
       data: { isDeleted: true },
     });
@@ -202,7 +242,7 @@ export class ChatService {
     }
 
     const correlationId = randomUUID();
-    const userMessage = await this.prisma.chatMessage.create({
+    const userMessage = await this.db.chatMessage.create({
       data: {
         sessionId: session.id,
         role: "USER",
@@ -228,7 +268,7 @@ export class ChatService {
         attachmentId,
         buffer: file.buffer,
       });
-      const saved = await this.prisma.chatAttachment.create({
+      const saved = await this.db.chatAttachment.create({
         data: {
           id: attachmentId,
           workspaceId: params.workspaceId,
@@ -243,7 +283,7 @@ export class ChatService {
       savedAttachments.push(saved);
     }
 
-    await this.prisma.chatSession.update({
+    await this.db.chatSession.update({
       where: { id: session.id },
       data: { updatedAt: new Date() },
     });
@@ -304,7 +344,7 @@ export class ChatService {
     content: string;
     attachments: ChatAttachmentSummary[];
   }): Promise<void> {
-    const job = await this.prisma.workflowJob.create({
+    const job = await this.db.workflowJob.create({
       data: {
         workspaceId: params.workspaceId,
         sessionId: params.sessionId,
@@ -336,7 +376,7 @@ export class ChatService {
   }
 
   async getAttachment(workspaceId: string, attachmentId: string) {
-    const attachment = await this.prisma.chatAttachment.findFirst({
+    const attachment = await this.db.chatAttachment.findFirst({
       where: { id: attachmentId, workspaceId },
     });
     if (!attachment) throw new NotFoundException("Attachment not found");
@@ -353,7 +393,7 @@ export class ChatService {
     jobId: string,
     script: DocumentScript = "latin",
   ): Promise<DraftResultResponse> {
-    const draft = await this.prisma.draftResult.findFirst({
+    const draft = await this.db.draftResult.findFirst({
       where: { jobId, workspaceId },
       include: { briefResult: { select: { missingFields: true } } },
     });
@@ -371,7 +411,7 @@ export class ChatService {
     userId: string,
     script: DocumentScript = "cyrillic",
   ): Promise<{ buffer: Buffer; filename: string }> {
-    const draft = await this.prisma.draftResult.findFirst({
+    const draft = await this.db.draftResult.findFirst({
       where: { id: draftId, workspaceId },
     });
     if (!draft) throw new NotFoundException("Draft not found");
@@ -381,16 +421,21 @@ export class ChatService {
       script,
     });
     const date = draft.createdAt.toISOString().slice(0, 10);
-    const sessionToken = draft.sessionId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+    const sessionToken = draft.sessionId
+      .replace(/[^a-zA-Z0-9]/g, "")
+      .slice(0, 8);
     const filename = `tuzba-${sessionToken}-${date}.docx`;
 
-    await this.prisma.auditEvent.create({
-      data: {
-        workspaceId,
-        userId,
-        eventType: "draft.exported",
-        outcome: "SUCCESS",
-        metadata: { draftId, sessionId: draft.sessionId, format: "docx", script },
+    await this.recordAuditEvent({
+      workspaceId,
+      userId,
+      eventType: "draft.exported",
+      outcome: "SUCCESS",
+      metadata: {
+        draftId,
+        sessionId: draft.sessionId,
+        format: "docx",
+        script,
       },
     });
 
@@ -401,7 +446,7 @@ export class ChatService {
     workspaceId: string,
     sessionId?: string,
   ): Promise<DraftResultResponse[]> {
-    const drafts = await this.prisma.draftResult.findMany({
+    const drafts = await this.db.draftResult.findMany({
       where: {
         workspaceId,
         ...(sessionId ? { sessionId } : {}),
@@ -418,13 +463,13 @@ export class ChatService {
     finalDocumentText: string,
     reviewedByUserId: string,
   ): Promise<DraftResultResponse> {
-    const draft = await this.prisma.draftResult.findUnique({
+    const draft = await this.db.draftResult.findUnique({
       where: { id: draftId },
     });
     if (!draft || draft.workspaceId !== workspaceId) {
       throw new NotFoundException("Draft not found");
     }
-    const next = await this.prisma.draftResult.update({
+    const next = await this.db.draftResult.update({
       where: { id: draftId },
       data: {
         finalDocumentText:
@@ -435,14 +480,12 @@ export class ChatService {
         reviewNote: null,
       },
     });
-    await this.prisma.auditEvent.create({
-      data: {
-        workspaceId,
-        userId: reviewedByUserId,
-        eventType: "draft.edited",
-        outcome: "SUCCESS",
-        metadata: { draftId, sessionId: draft.sessionId },
-      },
+    await this.recordAuditEvent({
+      workspaceId,
+      userId: reviewedByUserId,
+      eventType: "draft.edited",
+      outcome: "SUCCESS",
+      metadata: { draftId, sessionId: draft.sessionId },
     });
     const response = toDraft(next);
     this.emit({
@@ -506,13 +549,13 @@ export class ChatService {
     reviewedByUserId: string,
     note?: string,
   ): Promise<DraftResultResponse> {
-    const draft = await this.prisma.draftResult.findUnique({
+    const draft = await this.db.draftResult.findUnique({
       where: { id: draftId },
     });
     if (!draft || draft.workspaceId !== workspaceId) {
       throw new NotFoundException("Draft not found");
     }
-    const updated = await this.prisma.draftResult.update({
+    const updated = await this.db.draftResult.update({
       where: { id: draftId },
       data: {
         approvalStatus,
@@ -522,17 +565,15 @@ export class ChatService {
         finalDocumentText: draft.finalDocumentText ?? draft.documentText,
       },
     });
-    await this.prisma.auditEvent.create({
-      data: {
-        workspaceId,
-        userId: reviewedByUserId,
-        eventType: `draft.${approvalStatus.toLowerCase()}`,
-        outcome: "SUCCESS",
-        metadata: {
-          draftId,
-          sessionId: draft.sessionId,
-          note: note?.trim() ?? null,
-        },
+    await this.recordAuditEvent({
+      workspaceId,
+      userId: reviewedByUserId,
+      eventType: `draft.${approvalStatus.toLowerCase()}`,
+      outcome: "SUCCESS",
+      metadata: {
+        draftId,
+        sessionId: draft.sessionId,
+        note: note?.trim() ?? null,
       },
     });
     if (approvalStatus === "CHANGES_REQUESTED") {
@@ -568,12 +609,12 @@ export class ChatService {
         "Draft cannot be revised without a brief result",
       );
     }
-    const sourceJob = await this.prisma.workflowJob.findUnique({
+    const sourceJob = await this.db.workflowJob.findUnique({
       where: { id: input.draft.jobId },
     });
     if (!sourceJob) throw new NotFoundException("Draft workflow job not found");
 
-    const revisionJob = await this.prisma.workflowJob.create({
+    const revisionJob = await this.db.workflowJob.create({
       data: {
         workspaceId: input.workspaceId,
         sessionId: input.draft.sessionId,
@@ -616,12 +657,12 @@ export class ChatService {
   ): Promise<ChatStreamEvent[]> {
     await this.requireSession(workspaceId, sessionId);
     const afterDate = after ? new Date(after) : new Date(0);
-    const messages = await this.prisma.chatMessage.findMany({
+    const messages = await this.db.chatMessage.findMany({
       where: { sessionId, createdAt: { gt: afterDate } },
       include: { attachments: true },
       orderBy: { createdAt: "asc" },
     });
-    const jobs = await this.prisma.workflowJob.findMany({
+    const jobs = await this.db.workflowJob.findMany({
       where: { sessionId, createdAt: { gt: afterDate } },
       orderBy: { createdAt: "asc" },
     });
@@ -651,7 +692,7 @@ export class ChatService {
     attachmentIds: string[];
   }): Promise<void> {
     const attachments = params.attachmentIds.length
-      ? await this.prisma.chatAttachment.findMany({
+      ? await this.db.chatAttachment.findMany({
           where: { id: { in: params.attachmentIds } },
           select: {
             originalName: true,
@@ -688,7 +729,7 @@ export class ChatService {
       title = params.content.slice(0, 80);
     }
 
-    const updated = await this.prisma.chatSession.update({
+    const updated = await this.db.chatSession.update({
       where: { id: params.sessionId },
       data: { title },
     });
@@ -723,7 +764,7 @@ export class ChatService {
   }
 
   private async requireSession(workspaceId: string, sessionId: string) {
-    const session = await this.prisma.chatSession.findFirst({
+    const session = await this.db.chatSession.findFirst({
       where: { id: sessionId, workspaceId, isDeleted: false },
     });
     if (!session) throw new NotFoundException("Chat session not found");

@@ -1,9 +1,9 @@
 import { Injectable, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { PrismaClient as PlatformPrismaClient } from "@prisma/platform-client";
 
 @Injectable()
-export class PrismaService
-  extends PrismaClient
+export class PlatformPrismaService
+  extends PlatformPrismaClient
   implements OnModuleInit, OnModuleDestroy
 {
   async onModuleInit(): Promise<void> {
@@ -14,3 +14,6 @@ export class PrismaService
     await this.$disconnect();
   }
 }
+
+// Backwards-compatibility alias for platform services
+export { PlatformPrismaService as PrismaService };
