@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import { ChatAttachmentSummary, ChatStreamEvent } from "@law/api-interfaces";
-import { PrismaService } from "@law/core";
+import { PlatformPrismaService, TenantContextService } from "@law/core";
 import { WorkflowName } from "@law/contracts";
 import { ChatModelProvider } from "@law/llm";
 import { runPortirGraph } from "@law/triage";
@@ -66,7 +66,7 @@ export class WorkflowRunner {
   private readonly logger = new Logger(WorkflowRunner.name);
 
   constructor(
-    private readonly prisma: PrismaService,
+    private readonly prisma: PlatformPrismaService,
     private readonly events: ChatEventBus,
     private readonly storage: ChatStorageService,
     private readonly config: ChatRuntimeConfig,
@@ -77,8 +77,12 @@ export class WorkflowRunner {
     private readonly workflowQueue: WorkflowQueuePort,
   ) {}
 
+  private get db(): any {
+    return TenantContextService.current?.prisma ?? (this.prisma as any);
+  }
+
   async run(name: WorkflowName, payload: WorkflowJobPayload): Promise<void> {
-    const record = await this.prisma.workflowJob.findUnique({
+    const record = await this.db.workflowJob.findUnique({
       where: { id: payload.jobId },
     });
     if (!record) {
@@ -89,7 +93,7 @@ export class WorkflowRunner {
     }
     if (record.status === "COMPLETED") return;
 
-    await this.prisma.workflowJob.update({
+    await this.db.workflowJob.update({
       where: { id: record.id },
       data: { status: "RUNNING" },
     });
@@ -152,7 +156,7 @@ export class WorkflowRunner {
       reason: result.decision.reason,
     });
 
-    const assistant = await this.prisma.chatMessage.create({
+    const assistant = await this.db.chatMessage.create({
       data: {
         sessionId: payload.sessionId,
         role: "ASSISTANT",
@@ -173,7 +177,7 @@ export class WorkflowRunner {
 
     let nextJobId: string | undefined;
     if (result.queueBriefExtraction) {
-      const created = await this.prisma.workflowJob.create({
+      const created = await this.db.workflowJob.create({
         data: {
           workspaceId: payload.workspaceId,
           sessionId: payload.sessionId,
@@ -199,7 +203,7 @@ export class WorkflowRunner {
       nextJobId = created.id;
     }
 
-    const completed = await this.prisma.workflowJob.update({
+    const completed = await this.db.workflowJob.update({
       where: { id: record.id },
       data: {
         status: "COMPLETED",
@@ -241,7 +245,7 @@ export class WorkflowRunner {
 
     const attachmentIds = input.attachments.map((attachment) => attachment.id);
     const attachments = attachmentIds.length
-      ? await this.prisma.chatAttachment.findMany({
+      ? await this.db.chatAttachment.findMany({
           where: { id: { in: attachmentIds } },
         })
       : [];
@@ -293,7 +297,7 @@ export class WorkflowRunner {
         );
         const brief = await runBriefExtractionLlm(provider, prompt);
 
-        const briefResult = await this.prisma.briefExtractionResult.create({
+        const briefResult = await this.db.briefExtractionResult.create({
           data: {
             jobId: record.id,
             workspaceId: payload.workspaceId,
@@ -323,7 +327,7 @@ export class WorkflowRunner {
       }
     }
 
-    const job = await this.prisma.workflowJob.update({
+    const job = await this.db.workflowJob.update({
       where: { id: record.id },
       data: {
         status: "COMPLETED",
@@ -339,7 +343,7 @@ export class WorkflowRunner {
     });
 
     if (draftingTrigger) {
-      const draftJob = await this.prisma.workflowJob.create({
+      const draftJob = await this.db.workflowJob.create({
         data: {
           workspaceId: payload.workspaceId,
           sessionId: payload.sessionId,
@@ -381,7 +385,7 @@ export class WorkflowRunner {
       return;
     }
 
-    const briefResult = await this.prisma.briefExtractionResult.findUnique({
+    const briefResult = await this.db.briefExtractionResult.findUnique({
       where: { id: input.briefResultId },
     });
     if (!briefResult) {
@@ -402,7 +406,7 @@ export class WorkflowRunner {
           ? {
               previousDraft: input.previousDraftId
                 ? ((
-                    await this.prisma.draftResult.findUnique({
+                    await this.db.draftResult.findUnique({
                       where: { id: input.previousDraftId },
                     })
                   )?.finalDocumentText ?? undefined)
@@ -413,7 +417,7 @@ export class WorkflowRunner {
       );
       const draft = await runDraftingLlm(provider, prompt);
 
-      await this.prisma.draftResult.create({
+      await this.db.draftResult.create({
         data: {
           jobId: record.id,
           workspaceId: payload.workspaceId,
@@ -445,7 +449,7 @@ export class WorkflowRunner {
       errorCode = "DRAFTING_LLM_FAILED";
     }
 
-    const job = await this.prisma.workflowJob.update({
+    const job = await this.db.workflowJob.update({
       where: { id: record.id },
       data: {
         status: "COMPLETED",
@@ -481,7 +485,7 @@ export class WorkflowRunner {
         mimeType: attachment.mimeType,
         buffer,
       });
-      await this.prisma.chatAttachment.update({
+      await this.db.chatAttachment.update({
         where: { id: attachment.id },
         data: {
           extractionStatus: result.status,
@@ -495,7 +499,7 @@ export class WorkflowRunner {
     } catch (error) {
       const message =
         error instanceof Error ? error.message : "Extraction failed";
-      await this.prisma.chatAttachment.update({
+      await this.db.chatAttachment.update({
         where: { id: attachment.id },
         data: {
           extractionStatus: "FAILED",
@@ -518,7 +522,7 @@ export class WorkflowRunner {
     payload: WorkflowJobPayload,
     errorCode: string,
   ): Promise<void> {
-    const job = await this.prisma.workflowJob.update({
+    const job = await this.db.workflowJob.update({
       where: { id: jobId },
       data: { status: "FAILED", errorCode },
     });
@@ -541,7 +545,7 @@ export class WorkflowRunner {
  * the workflow synchronously in-process instead of going through BullMQ.
  */
 export function createInlineWorkflowQueue(
-  prisma: PrismaService,
+  prisma: PlatformPrismaService,
   events: ChatEventBus,
   storage: ChatStorageService,
   config: ChatRuntimeConfig,

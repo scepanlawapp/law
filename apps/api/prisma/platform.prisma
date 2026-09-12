@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../../../node_modules/@prisma/platform-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  DISABLED
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  LAWYER
+  MEMBER
+}
+
+enum WorkspaceMemberStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+}
+
+enum TenantStatus {
+  PROVISIONING
+  ACTIVE
+  SUSPENDED
+}
+
+enum AuthTokenPurpose {
+  INVITATION
+  PASSWORD_RESET
+}
+
+enum ThemePreference {
+  SYSTEM
+  LIGHT
+  DARK
+}
+
+enum LanguagePreference {
+  SR
+  EN
+}
+
+enum DateTimeFormatPreference {
+  TWELVE_HOUR
+  TWENTY_FOUR_HOUR
+}
+
+model User {
+  id                String            @id @default(uuid())
+  email             String            @unique
+  passwordHash      String?
+  firstName         String?
+  lastName          String?
+  username          String?           @unique
+  phone             String?
+  jobTitle          String?
+  avatarUrl         String?
+  status            UserStatus        @default(INVITED)
+  passwordChangedAt DateTime?         @db.Timestamptz(3)
+  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime          @updatedAt @db.Timestamptz(3)
+  memberships       WorkspaceMember[]
+  sessions          AuthSession[]
+  tokens            AuthToken[]
+  auditEvents       AuditEvent[]
+  settings          UserSettings?
+}
+
+model UserSettings {
+  userId                 String                   @id
+  theme                  ThemePreference          @default(SYSTEM)
+  language               LanguagePreference       @default(SR)
+  accentColor            String                   @default("BLUE")
+  workspaceNotifications Boolean                  @default(true)
+  dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
+  timeZone               String                   @default("Europe/Belgrade")
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+  user                   User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Tenant {
+  id            String       @id @default(uuid())
+  key           String       @unique
+  name          String
+  schemaName    String       @unique
+  status        TenantStatus @default(ACTIVE)
+  storagePrefix String?
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
+  workspaces    Workspace[]
+}
+
+model Workspace {
+  id          String            @id @default(uuid())
+  name        String
+  tenantId    String?
+  tenant      Tenant?           @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  createdAt   DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
+  memberships WorkspaceMember[]
+  auditEvents AuditEvent[]
+
+  @@index([tenantId])
+}
+
+model WorkspaceMember {
+  userId      String
+  workspaceId String
+  role        WorkspaceRole         @default(MEMBER)
+  status      WorkspaceMemberStatus @default(INVITED)
+  createdAt   DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime              @updatedAt @db.Timestamptz(3)
+  user        User                  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  workspace   Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([userId, workspaceId])
+  @@index([workspaceId, status])
+}
+
+model AuthSession {
+  id               String    @id @default(uuid())
+  userId           String
+  tokenFamily      String
+  refreshTokenHash String
+  expiresAt        DateTime  @db.Timestamptz(3)
+  revokedAt        DateTime? @db.Timestamptz(3)
+  replacedAt       DateTime? @db.Timestamptz(3)
+  createdAt        DateTime  @default(now()) @db.Timestamptz(3)
+  lastUsedAt       DateTime? @db.Timestamptz(3)
+  userAgent        String?
+  ipAddress        String?
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
+  @@index([tokenFamily])
+}
+
+model AuthToken {
+  id         String           @id @default(uuid())
+  userId     String
+  purpose    AuthTokenPurpose
+  tokenHash  String
+  expiresAt  DateTime         @db.Timestamptz(3)
+  consumedAt DateTime?        @db.Timestamptz(3)
+  createdAt  DateTime         @default(now()) @db.Timestamptz(3)
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([purpose, tokenHash])
+  @@index([userId, purpose])
+}
+
+model AuditEvent {
+  id          String     @id @default(uuid())
+  userId      String?
+  workspaceId String?
+  eventType   String
+  outcome     String
+  requestId   String?
+  metadata    Json?
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  user        User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([eventType, createdAt])
+}

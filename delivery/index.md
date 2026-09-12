@@ -15,6 +15,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Platform Multi-Tenant Layer & Schema-per-Tenant Isolation](./tracks/platform_multi_tenant_layer_20260912/index.md)
 - [Drafting Agent (Context-Only)](./tracks/drafting_agent_context_20260909/index.md)
 - [Brief LLM Context](./tracks/brief_llm_context_20260908/index.md)
 - [Brief Agent Attachment Extraction](./tracks/brief_agent_extraction_20260907/index.md)

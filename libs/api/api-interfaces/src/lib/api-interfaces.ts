@@ -5,6 +5,33 @@ export enum WorkspaceRole {
   MEMBER = "MEMBER",
 }
 
+export type TenantStatus = "PROVISIONING" | "ACTIVE" | "SUSPENDED";
+
+export interface TenantSummary {
+  id: string;
+  key: string;
+  name: string;
+  schemaName: string;
+  status: TenantStatus;
+  storagePrefix?: string | null;
+}
+
+export interface WorkspaceSummary {
+  id: string;
+  name: string;
+  tenantId?: string | null;
+  role?: WorkspaceRole;
+}
+
+export interface TenantContextPayload {
+  userId: string;
+  workspaceId: string;
+  tenantId: string;
+  schemaName: string;
+  role: WorkspaceRole;
+  storagePrefix: string;
+}
+
 export interface AuthUser {
   id: string;
   email: string;

@@ -331,3 +331,26 @@ export class UserSettingsApiClient {
     );
   }
 }
+
+@Injectable({ providedIn: "root" })
+export class WorkspacesApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(): Observable<
+    Array<{ id: string; name: string; tenantId?: string | null; role?: string }>
+  > {
+    return this.http.get<
+      Array<{
+        id: string;
+        name: string;
+        tenantId?: string | null;
+        role?: string;
+      }>
+    >(this.endpoint("/workspaces"), { withCredentials: true });
+  }
+}

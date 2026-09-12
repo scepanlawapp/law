@@ -10,10 +10,12 @@
     "build": "npx nx run-many -t build",
     "services:config": "docker compose -f infra/docker/compose.yml config",
     "services:up": "docker compose -f infra/docker/compose.yml up -d",
+    "services:down": "docker compose infra/docker down",
     "db:seed:auth": "node apps/api/prisma/seed.cjs",
     "tessdata:download": "bash scripts/download-tessdata.sh",
-    "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma",
-    "prisma:generate": "npx prisma generate --schema apps/api/prisma/schema.prisma"
+    "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/platform.prisma",
+    "db:migrate:platform": "npx prisma migrate dev --schema apps/api/prisma/platform.prisma",
+    "prisma:generate": "npx prisma generate --schema apps/api/prisma/platform.prisma && npx prisma generate --schema apps/api/prisma/tenant.prisma"
   },
   "private": true,
   "devDependencies": {
