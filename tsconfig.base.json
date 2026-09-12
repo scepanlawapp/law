@@ -18,6 +18,12 @@
     "skipDefaultLibCheck": true,
     "strict": false,
     "paths": {
+      "@prisma/platform-client": [
+        "./node_modules/@prisma/platform-client"
+      ],
+      "@prisma/tenant-client": [
+        "./node_modules/@prisma/tenant-client"
+      ],
       "@law/api-interfaces": [
         "./libs/api/api-interfaces/src/index.ts"
       ],

@@ -32,6 +32,9 @@ interface FeatureItem {
 @Component({
   selector: "app-login",
   standalone: true,
+  host: {
+    class: "block h-full w-full",
+  },
   imports: [
     ReactiveFormsModule,
     HlmButton,
