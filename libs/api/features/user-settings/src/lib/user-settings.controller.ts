@@ -10,14 +10,20 @@ import {
 import { AuthGuard, AuthenticatedRequest, CsrfOriginGuard } from "@law/auth";
 import { UserSettingsService } from "./user-settings.service";
 import { UpdateUserSettingsDto } from "./user-settings.dto";
-import { PrismaService } from "@law/core";
+import {
+  PlatformPrismaService,
+  TenantConnectionManager,
+  TenantRegistryService,
+} from "@law/core";
 
 @Controller("users/me")
 @UseGuards(CsrfOriginGuard, AuthGuard)
 export class UserSettingsController {
   constructor(
     private readonly settings: UserSettingsService,
-    private readonly prisma: PrismaService,
+    private readonly prisma: PlatformPrismaService,
+    private readonly tenantRegistry: TenantRegistryService,
+    private readonly connectionManager: TenantConnectionManager,
   ) {}
 
   @Get("settings")
@@ -35,10 +41,51 @@ export class UserSettingsController {
 
   @Delete("conversations")
   async clearConversationHistory(@Req() request: AuthenticatedRequest) {
-    const result = await this.prisma.chatSession.updateMany({
-      where: { createdByUserId: request.auth!.user.id },
-      data: { isDeleted: true },
-    });
-    return { deleted: result.count };
+    const rawHeader = request.headers["x-workspace-id"];
+    const workspaceId =
+      (Array.isArray(rawHeader) ? rawHeader[0] : rawHeader) ??
+      (request.query as Record<string, string> | undefined)?.["workspaceId"];
+
+    if (workspaceId) {
+      const { tenant } =
+        await this.tenantRegistry.resolveTenantForWorkspace(workspaceId);
+      const tenantPrisma = this.connectionManager.getTenantClient(
+        tenant.schemaName,
+      );
+      const result = await tenantPrisma.chatSession.updateMany({
+        where: {
+          createdByUserId: request.auth!.user.id,
+          workspaceId,
+        },
+        data: { isDeleted: true },
+      });
+      return { deleted: result.count };
+    }
+
+    const workspaces = await this.tenantRegistry.listWorkspacesForUser(
+      request.auth!.user.id,
+    );
+    let totalDeleted = 0;
+    for (const ws of workspaces) {
+      try {
+        const { tenant } = await this.tenantRegistry.resolveTenantForWorkspace(
+          ws.id,
+        );
+        const tenantPrisma = this.connectionManager.getTenantClient(
+          tenant.schemaName,
+        );
+        const result = await tenantPrisma.chatSession.updateMany({
+          where: {
+            createdByUserId: request.auth!.user.id,
+            workspaceId: ws.id,
+          },
+          data: { isDeleted: true },
+        });
+        totalDeleted += result.count;
+      } catch {
+        // Continue across other workspace schemas
+      }
+    }
+    return { deleted: totalDeleted };
   }
 }

@@ -1,16 +1,32 @@
 services:
-  postgres:
+  postgres-platform:
     image: postgres:17-alpine
     environment:
-      POSTGRES_DB: law
+      POSTGRES_DB: law_platform
       POSTGRES_USER: law
       POSTGRES_PASSWORD: law
     ports:
       - "5432:5432"
     volumes:
-      - postgres-data:/var/lib/postgresql/data
+      - postgres-platform-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U law -d law"]
+      test: ["CMD-SHELL", "pg_isready -U law -d law_platform"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  postgres-tenant:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: law_tenant
+      POSTGRES_USER: law
+      POSTGRES_PASSWORD: law
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres-tenant-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U law -d law_tenant"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -52,11 +68,12 @@ services:
   #   volumes:
   #     - n8n-data:/home/node/.n8n
   #   depends_on:
-  #     postgres:
+  #     postgres-platform:
   #       condition: service_healthy
 
 volumes:
-  postgres-data:
+  postgres-platform-data:
+  postgres-tenant-data:
   redis-data:
   # qdrant-data:
   # ollama-data:

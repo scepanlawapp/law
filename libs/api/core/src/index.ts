@@ -3,3 +3,8 @@ export * from "./lib/core.module";
 export * from "./lib/workspace-access.decorator";
 export * from "./lib/workspace-access.guard";
 export * from "./lib/pagination";
+export * from "./lib/tenant-context";
+export * from "./lib/tenant-context.interceptor";
+export * from "./lib/tenant-connection-manager";
+export * from "./lib/tenant-schema-provisioner";
+export * from "./lib/tenant-registry.service";

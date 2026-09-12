@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
+import { WorkspacesController } from "./workspaces.controller";
 import { CoreModule } from "@law/core";
 import { AuthModule } from "@law/auth";
 import { ChatModule } from "@law/chat";
@@ -16,7 +17,7 @@ import { validateEnvironment } from "./config.validation";
     ChatModule,
     UserSettingsModule,
   ],
-  controllers: [AppController],
+  controllers: [AppController, WorkspacesController],
   providers: [AppService],
 })
 export class AppModule {}

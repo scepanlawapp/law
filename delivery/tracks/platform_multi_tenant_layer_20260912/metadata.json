@@ -1,0 +1,18 @@
+{
+  "track_id": "platform_multi_tenant_layer_20260912",
+  "parent_track_id": null,
+  "type": "architecture",
+  "status": "in_progress",
+  "prd_reference": null,
+  "created_at": "2026-09-12T00:00:00Z",
+  "updated_at": "2026-09-12T00:00:00Z",
+  "keywords": [
+    "multi-tenancy",
+    "platform-layer",
+    "tenant-isolation",
+    "schema-per-tenant",
+    "tenant-context",
+    "workspace-authorization"
+  ],
+  "priority": "critical"
+}
