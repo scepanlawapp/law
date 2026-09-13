@@ -1,107 +1,113 @@
-<section class="assistant-page">
-  <aside class="conversation-panel">
-    <div class="assistant-heading">
+<section>
+  <aside>
+    <div>
       <h1>{{ "assistant.title" | translate }}</h1>
       <p>{{ "assistant.sidebarDescription" | translate }}</p>
     </div>
 
-    <button type="button" class="new-conversation" (click)="createSession()">
+    <button hlmBtn type="button" (click)="createSession()">
       <ng-icon name="lucidePlus" aria-hidden="true" />
       <span>{{ "assistant.newConversation" | translate }}</span>
     </button>
 
-    <label class="conversation-search">
-      <ng-icon name="lucideSearch" aria-hidden="true" />
+    <hlm-input-group>
       <input
+        hlmInputGroupInput
         type="search"
         [placeholder]="'assistant.searchPlaceholder' | translate"
         [value]="sessionSearch()"
         (input)="onSessionSearch($event)"
       />
-    </label>
+      <hlm-input-group-addon>
+        <ng-icon name="lucideSearch" aria-hidden="true" />
+      </hlm-input-group-addon>
+    </hlm-input-group>
 
-    <div
-      class="conversation-list"
-      appBottomReached
-      (bottomReached)="loadNextSessionPage()"
-    >
-      @for (session of sessions(); track session.id) {
-        <button
-          type="button"
-          class="conversation-item"
-          [class.active]="session.id === selectedSessionId()"
-          (click)="selectSession(session.id)"
-        >
-          <span class="conversation-icon"
-            ><ng-icon name="lucideMessageCircle"
-          /></span>
-          <span class="conversation-copy">
-            <strong>{{ session.title || "New chat" }}</strong>
-            <small>Updated {{ session.updatedAt | date: "shortTime" }}</small>
-          </span>
-          <time>{{ session.updatedAt | date: "MMM d" }}</time>
-          <ng-icon
-            name="lucideTrash"
-            class="more"
-            [hlmTooltip]="'assistant.deleteConversation' | translate"
-            (click)="deleteSession(session.id); $event.stopPropagation()"
-          />
-        </button>
+    <div appBottomReached (bottomReached)="loadNextSessionPage()">
+      @for (group of sessionGroups(); track group.key) {
+        <h2>
+          {{
+            group.label
+              ? (group.label | translate)
+              : (group.date | date: "MMM d, y")
+          }}
+        </h2>
+        @for (session of group.sessions; track session.id) {
+          <button
+            hlmBtn
+            variant="ghost"
+            class="w-full min-w-0 justify-start"
+            type="button"
+            (click)="selectSession(session.id)"
+          >
+            <span class="flex min-w-0 w-full items-center gap-2 text-left">
+              <span><ng-icon name="lucideMessageCircle" /></span>
+              <span class="min-w-0 flex-1 truncate">
+                <strong class="block truncate">{{
+                  session.title || ("assistant.newChat" | translate)
+                }}</strong>
+              </span>
+              <time class="shrink-0">{{
+                session.updatedAt | date: "shortTime"
+              }}</time>
+            </span>
+          </button>
+        }
       }
     </div>
   </aside>
 
-  <section class="chat-panel" [class.empty-state]="!messages().length">
-    <header class="chat-heading">
-      <div class="chat-title">
-        <span class="assistant-icon"><ng-icon name="lucideSparkles" /></span>
+  <section [attr.data-state]="messages().length ? 'with-messages' : 'empty'">
+    <!-- <header>
+      <div>
+        <span><ng-icon name="lucideSparkles" /></span>
         <div>
           <h2>{{ "assistant.title" | translate }}</h2>
           <p>{{ "assistant.description" | translate }}</p>
         </div>
       </div>
-    </header>
+    </header> -->
 
     <div
       #messagesContainer
-      class="messages"
-      [class.empty-state]="!messages().length"
       (dragover)="onDragOver($event)"
       (drop)="onDrop($event)"
     >
       @for (message of messages(); track message.id) {
-        <article class="message" [class.user-message]="message.role === 'USER'">
-          <span class="message-avatar">
-            <ng-icon
-              [name]="message.role === 'USER' ? 'lucideUser' : 'lucideBot'"
-            />
-          </span>
-          <div class="message-content">
-            <p>{{ message.content }}</p>
-            @if (message.attachments.length) {
-              <ul class="message-attachments">
-                @for (file of message.attachments; track file.id) {
-                  <li>
-                    <a
-                      [href]="attachmentUrl(file.id)"
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      {{ file.originalName }}
-                    </a>
-                  </li>
-                }
-              </ul>
-            }
-            <time>{{ message.createdAt | date: "HH:mm" }}</time>
+        <article [attr.data-role]="message.role">
+          <div class="flex">
+            <span>
+              <ng-icon
+                [name]="message.role === 'USER' ? 'lucideUser' : 'lucideBot'"
+              />
+            </span>
+            <div>
+              <p>{{ message.content }}</p>
+              @if (message.attachments.length) {
+                <ul>
+                  @for (file of message.attachments; track file.id) {
+                    <li>
+                      <a
+                        [href]="attachmentUrl(file.id)"
+                        target="_blank"
+                        rel="noreferrer noopener"
+                      >
+                        {{ file.originalName }}
+                      </a>
+                    </li>
+                  }
+                </ul>
+              }
+              <time>{{ message.createdAt | date: "HH:mm" }}</time>
+            </div>
           </div>
         </article>
       }
       @if (classifying()) {
-        <p class="status">{{ "assistant.reviewing" | translate }}</p>
+        <p>{{ "assistant.reviewing" | translate }}</p>
       }
       @if (error()) {
-        <p class="error" role="alert">{{ error() }}</p>
+        <p role="alert">{{ error() }}</p>
       }
     </div>
     @if (draft(); as draftItem) {
@@ -121,92 +127,104 @@
       ></app-draft-review-panel>
     }
 
-    <form
-      class="composer"
-      [class.empty-composer]="!messages().length"
-      [attr.aria-label]="'assistant.title' | translate"
-      [formGroup]="composerForm"
-      (dragover)="onDragOver($event)"
-      (drop)="onDrop($event)"
-      (ngSubmit)="send()"
-    >
-      @if (pendingFiles().length) {
-        <div class="pending-files">
-          @for (file of pendingFiles(); track file.name + file.size) {
-            <span class="pending-file-chip">
-              {{ file.name }}
-              <button
-                type="button"
-                (click)="removePendingFile(file)"
-                aria-label="Remove file"
-              >
-                <ng-icon name="lucideX" />
-              </button>
-            </span>
-          }
-        </div>
-      }
-      <div class="composer-input-row">
-        <button
-          type="button"
-          class="attach-file"
-          [attr.aria-label]="'assistant.attachFiles' | translate"
-          (click)="fileInput.click()"
-        >
-          <ng-icon name="lucidePaperclip" aria-hidden="true" />
-        </button>
-        <input
-          #fileInput
-          type="file"
-          hidden
-          multiple
-          accept=".pdf,.txt,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
-          (change)="onFiles($event)"
-        />
-        <textarea
-          #draftTextarea
-          formControlName="draft"
-          rows="1"
-          [placeholder]="'assistant.askPlaceholder' | translate"
-          [disabled]="sending()"
-          (keydown.enter)="onComposerKeydown($event)"
-          (input)="resizeTextarea($event)"
-          (paste)="onPaste($event, $event.target)"
-        ></textarea>
-        <div class="composer-input-row-button">
+    <footer>
+      <form
+        [attr.aria-label]="'assistant.title' | translate"
+        [formGroup]="composerForm"
+        (dragover)="onDragOver($event)"
+        (drop)="onDrop($event)"
+        (ngSubmit)="send()"
+      >
+        @if (pendingFiles().length) {
+          <div>
+            @for (file of pendingFiles(); track file.name + file.size) {
+              <span>
+                {{ file.name }}
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="icon"
+                  type="button"
+                  (click)="removePendingFile(file)"
+                  [attr.aria-label]="'assistant.removeFile' | translate"
+                >
+                  <ng-icon name="lucideX" />
+                </button>
+              </span>
+            }
+          </div>
+        }
+        <div class="flex items-center gap-2">
           <button
+            hlmBtn
+            variant="ghost"
+            size="icon"
             type="button"
-            class="microphone"
-            [class.listening]="speechRecognition.isListening()"
-            [disabled]="!speechRecognition.isSupported()"
-            [hlmTooltip]="
-              (speechRecognition.isListening() ? 'speech.stop' : 'speech.start')
-                | translate
-            "
-            [attr.aria-label]="
-              (speechRecognition.isListening() ? 'speech.stop' : 'speech.start')
-                | translate
-            "
-            (click)="toggleSpeechRecognition()"
+            [attr.aria-label]="'assistant.attachFiles' | translate"
+            (click)="fileInput.click()"
           >
-            <ng-icon
-              [name]="
-                speechRecognition.isListening() ? 'lucideMicOff' : 'lucideMic'
+            <ng-icon name="lucidePaperclip" aria-hidden="true" />
+          </button>
+          <input
+            #fileInput
+            type="file"
+            hidden
+            multiple
+            accept=".pdf,.txt,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
+            (change)="onFiles($event)"
+          />
+          <textarea
+            hlmInput
+            #draftTextarea
+            formControlName="draft"
+            rows="1"
+            [placeholder]="'assistant.askPlaceholder' | translate"
+            [disabled]="sending()"
+            (keydown.enter)="onComposerKeydown($event)"
+            (input)="resizeTextarea($event)"
+            (paste)="onPaste($event, $event.target)"
+          ></textarea>
+          <div>
+            <button
+              hlmBtn
+              variant="ghost"
+              size="icon"
+              type="button"
+              [disabled]="!speechRecognition.isSupported()"
+              [hlmTooltip]="
+                (speechRecognition.isListening()
+                  ? 'speech.stop'
+                  : 'speech.start'
+                ) | translate
               "
-            />
-          </button>
+              [attr.aria-label]="
+                (speechRecognition.isListening()
+                  ? 'speech.stop'
+                  : 'speech.start'
+                ) | translate
+              "
+              (click)="toggleSpeechRecognition()"
+            >
+              <ng-icon
+                [name]="
+                  speechRecognition.isListening() ? 'lucideMicOff' : 'lucideMic'
+                "
+              />
+            </button>
+          </div>
+          <div>
+            <button
+              hlmBtn
+              size="icon"
+              type="submit"
+              [attr.aria-label]="'assistant.sendMessage' | translate"
+              [disabled]="sending() || classifying() || !canSend()"
+            >
+              <ng-icon name="lucideArrowUp" />
+            </button>
+          </div>
         </div>
-        <div class="composer-input-row-button">
-          <button
-            type="submit"
-            class="send-button"
-            aria-label="Send message"
-            [disabled]="sending() || classifying() || !canSend()"
-          >
-            <ng-icon name="lucideArrowUp" />
-          </button>
-        </div>
-      </div>
-    </form>
+      </form>
+    </footer>
   </section>
 </section>

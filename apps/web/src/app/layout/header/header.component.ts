@@ -17,6 +17,8 @@ import {
 } from "@ng-icons/lucide";
 import { RouterLink } from "@angular/router";
 import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 interface HeaderNotification {
@@ -36,7 +38,14 @@ const LEGAL_QUOTE_KEYS = Array.from(
   selector: "app-header",
   standalone: true,
   templateUrl: "./header.component.html",
-  imports: [NgIcon, RouterLink, ...HlmDropdownMenuImports, TranslatePipe],
+  imports: [
+    NgIcon,
+    RouterLink,
+    ...HlmDropdownMenuImports,
+    HlmButton,
+    HlmInputGroupImports,
+    TranslatePipe,
+  ],
   providers: [
     provideIcons({
       lucideSearch,

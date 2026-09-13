@@ -1,11 +1,14 @@
 <header class="flex items-center justify-between">
-  <label class="flex items-center">
-    <ng-icon name="lucideSearch" aria-hidden="true" />
+  <hlm-input-group class="w-64">
     <input
+      hlmInputGroupInput
       type="search"
       [placeholder]="'header.searchPlaceholder' | translate"
     />
-  </label>
+    <hlm-input-group-addon>
+      <ng-icon name="lucideSearch" aria-hidden="true" />
+    </hlm-input-group-addon>
+  </hlm-input-group>
 
   <div aria-live="polite">
     <span aria-hidden="true">“</span>
@@ -15,6 +18,9 @@
 
   <div class="flex items-center">
     <button
+      hlmBtn
+      variant="ghost"
+      size="icon"
       class="relative"
       type="button"
       aria-label="Notifications"

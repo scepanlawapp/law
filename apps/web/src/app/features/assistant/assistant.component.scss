@@ -1,151 +1,59 @@
 :host {
+  --sidebar-width: 250px;
   display: block;
+  height: 100%;
 }
 
-.assistant-page {
+:host > section {
   display: grid;
+  grid-template-columns: var(--sidebar-width) minmax(0, 1fr);
+  height: 100%;
 }
 
-.conversation-panel {
-  display: flex;
-  flex-direction: column;
-}
-
-.new-conversation {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.conversation-tabs {
-  display: flex;
-}
-
-.conversation-tabs button {
-  display: inline-flex;
-  align-items: center;
-}
-
-.conversation-search {
-  display: flex;
-  align-items: center;
-}
-
-.conversation-search button {
+:host > section > section {
   display: grid;
-  place-items: center;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
-.conversation-item {
-  position: relative;
-  display: grid;
+:host > section > section > header {
+  grid-row: 1;
 }
 
-.conversation-icon {
-  display: grid;
-  place-items: center;
+:host > section > section > div {
+  grid-row: 2;
+  min-height: 0;
+  overflow-y: auto;
 }
 
-.conversation-copy {
-  display: grid;
-}
-
-.conversation-item .pin,
-.conversation-item .more {
-  position: absolute;
-  right: 0.15rem;
-  bottom: 0.4rem;
-}
-
-.chat-panel {
-  display: grid;
-}
-
-.chat-title {
+:host > section > section > div > article {
   display: flex;
-  align-items: center;
 }
 
-.assistant-icon {
-  display: grid;
-  place-items: center;
-}
-
-.messages {
+:host > section > section > div > article > div {
   display: flex;
-  flex-direction: column;
+  max-width: 80%;
 }
 
-.message {
-  display: flex;
-  align-items: flex-start;
+:host > section > section > div > article[data-role="USER"] {
+  justify-content: flex-end;
 }
 
-.message.user-message {
+:host > section > section > div > article[data-role="USER"] > div {
   flex-direction: row-reverse;
 }
 
-.message-avatar {
-  display: grid;
-  place-items: center;
+:host > section > section > footer {
+  grid-row: 3;
 }
 
-.message-content > strong {
-  display: block;
+:host > section > section[data-state="empty"] > div {
+  display: none;
 }
 
-.message-attachments {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.message-content time {
-  display: block;
-}
-
-.composer {
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-}
-
-.composer-input-row {
-  display: flex;
-  align-items: flex-end;
-}
-
-.composer-input-row-button {
-  display: flex;
-  align-items: center;
-}
-
-.pending-files {
-  display: flex;
-  flex-wrap: wrap;
-}
-
-.pending-file-chip {
-  display: inline-flex;
-  align-items: center;
-}
-
-.pending-file-chip button {
-  display: grid;
-  place-items: center;
-}
-
-.attach-file {
-  display: grid;
-  place-items: center;
-}
-
-.composer button {
-  display: grid;
-  place-items: center;
-}
-
-@media (max-width: 800px) {
-  .conversation-tabs button:nth-child(n + 2) {
-    display: none;
-  }
+:host > section > section[data-state="empty"] > footer {
+  grid-row: 2;
+  align-self: center;
 }

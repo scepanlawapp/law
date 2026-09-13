@@ -8,13 +8,20 @@ import {
   lucideSettings,
 } from "@ng-icons/lucide";
 import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
+import { HlmButton } from "@spartan-ng/helm/button";
 import { RouterLink } from "@angular/router";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 
 @Component({
   selector: "app-user-menu",
   standalone: true,
-  imports: [NgIcon, ...HlmDropdownMenuImports, RouterLink, TranslatePipe],
+  imports: [
+    NgIcon,
+    ...HlmDropdownMenuImports,
+    HlmButton,
+    RouterLink,
+    TranslatePipe,
+  ],
   templateUrl: "./user-menu.component.html",
   providers: [
     provideIcons({

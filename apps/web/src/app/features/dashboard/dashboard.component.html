@@ -11,6 +11,7 @@
     >
       <ng-icon name="lucideSparkles" aria-hidden="true" />
       <textarea
+        hlmInput
         formControlName="prompt"
         rows="1"
         [placeholder]="'dashboard.askAi' | translate"
@@ -18,6 +19,8 @@
         (keydown.enter)="onPromptKeydown($event)"
       ></textarea>
       <button
+        hlmBtn
+        size="icon"
         type="submit"
         [attr.aria-label]="'dashboard.askAssistant' | translate"
         [disabled]="sendingPrompt()"
@@ -29,22 +32,22 @@
       <p role="alert">{{ promptError() }}</p>
     }
     <div class="flex items-center">
-      <button type="button">
+      <button hlmBtn variant="outline" type="button">
         <ng-icon name="lucideSparkles" />{{
           "dashboard.summarizeCase" | translate
         }}
       </button>
-      <button type="button">
+      <button hlmBtn variant="outline" type="button">
         <ng-icon name="lucideGavel" />{{
           "dashboard.analyzeDocument" | translate
         }}
       </button>
-      <button type="button">
+      <button hlmBtn variant="outline" type="button">
         <ng-icon name="lucideFolderOpen" />{{
           "dashboard.findSimilarCases" | translate
         }}
       </button>
-      <button type="button">
+      <button hlmBtn variant="outline" type="button">
         <ng-icon name="lucideFileText" />{{
           "dashboard.draftResponse" | translate
         }}
@@ -151,7 +154,7 @@
     <section>
       <div class="flex items-center justify-between">
         <h2>{{ "dashboard.casesOverview" | translate }}</h2>
-        <button type="button" routerLink="/cases">
+        <button hlmBtn variant="ghost" type="button" routerLink="/cases">
           {{ "dashboard.viewAllCases" | translate }}
           <ng-icon name="lucideArrowRight" />
         </button>
@@ -194,7 +197,7 @@
       </div>
       <div>
         @for (action of quickActions; track action.title) {
-          <button type="button">
+          <button hlmBtn variant="ghost" type="button">
             <ng-icon [name]="action.icon" /><span>{{
               action.title | translate
             }}</span

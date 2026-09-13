@@ -6,13 +6,15 @@ import {
   Output,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmInput } from "@spartan-ng/helm/input";
 import { DraftResultResponse, DocumentScript } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
 
 @Component({
   selector: "app-draft-review-panel",
   standalone: true,
-  imports: [FormsModule, TranslatePipe],
+  imports: [FormsModule, HlmButton, HlmInput, TranslatePipe],
   templateUrl: "./draft-review-panel.html",
   styleUrl: "./draft-review-panel.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,

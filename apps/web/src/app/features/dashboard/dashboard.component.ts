@@ -21,6 +21,8 @@ import {
 import { Router, RouterLink } from "@angular/router";
 import { ChatApiClient } from "@law/api-clients";
 import { AuthState } from "@law/security";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmInput } from "@spartan-ng/helm/input";
 import { DashboardStatCardComponent } from "../../shared/components/dashboard-stat-card/dashboard-stat-card.component";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -71,6 +73,8 @@ interface QuickAction {
   standalone: true,
   imports: [
     DashboardStatCardComponent,
+    HlmButton,
+    HlmInput,
     NgIcon,
     ReactiveFormsModule,
     RouterLink,

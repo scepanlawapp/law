@@ -128,6 +128,12 @@
       ],
       "@spartan-ng/helm/separator": [
         "./libs/shared/frontend/ui/separator/src/index.ts"
+      ],
+      "@spartan-ng/helm/input-group": [
+        "./libs/shared/frontend/ui/input-group/src/index.ts"
+      ],
+      "@spartan-ng/helm/textarea": [
+        "./libs/shared/frontend/ui/textarea/src/index.ts"
       ]
     }
   },
