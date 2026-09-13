@@ -58,16 +58,6 @@
   </aside>
 
   <section [attr.data-state]="messages().length ? 'with-messages' : 'empty'">
-    <!-- <header>
-      <div>
-        <span><ng-icon name="lucideSparkles" /></span>
-        <div>
-          <h2>{{ "assistant.title" | translate }}</h2>
-          <p>{{ "assistant.description" | translate }}</p>
-        </div>
-      </div>
-    </header> -->
-
     <div
       #messagesContainer
       (dragover)="onDragOver($event)"
