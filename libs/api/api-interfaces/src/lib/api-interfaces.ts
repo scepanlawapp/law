@@ -307,3 +307,75 @@ export interface DraftResultResponse {
   // Script of documentText in this response; stored value is always Latin.
   script?: DocumentScript;
 }
+
+export type ClientType = "INDIVIDUAL" | "ORGANIZATION";
+export type ClientStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
+export type CaseStatus = "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED" | "ARCHIVED";
+export type CasePriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
+export type ActivityType =
+  | "NOTE"
+  | "PHONE_CALL"
+  | "MEETING"
+  | "EMAIL"
+  | "OTHER";
+export type ActivitySource = "MANUAL" | "SYSTEM" | "AI";
+
+export interface ReferenceSummary {
+  id: string;
+  name: string;
+  isActive?: boolean;
+}
+
+export interface ClientSummary {
+  id: string;
+  clientNumber: string;
+  type: ClientType;
+  displayName: string;
+  status: ClientStatus;
+  email: string | null;
+  phone: string | null;
+  responsibleUserId: string | null;
+  activeCaseCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ClientDetail extends ClientSummary {
+  firstName: string | null;
+  lastName: string | null;
+  organizationName: string | null;
+  website: string | null;
+  preferredLanguage: string | null;
+  notes: string | null;
+  customFields: Record<string, unknown> | null;
+  tags: ReferenceSummary[];
+}
+
+export type ClientListResponse = PaginatedResponse<ClientSummary>;
+
+export interface CaseSummary {
+  id: string;
+  caseNumber: string;
+  clientId: string;
+  name: string;
+  status: CaseStatus;
+  priority: CasePriority;
+  responsibleUserId: string;
+  openedDate: string | null;
+  closedDate: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CaseDetail extends CaseSummary {
+  description: string | null;
+  caseTypeId: string | null;
+  practiceAreaId: string | null;
+  closingNote: string | null;
+  externalReference: string | null;
+  confidentialityLevel: string | null;
+  customFields: Record<string, unknown> | null;
+  tags: ReferenceSummary[];
+}
+
+export type CaseListResponse = PaginatedResponse<CaseSummary>;

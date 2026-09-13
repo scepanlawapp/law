@@ -96,3 +96,7 @@ Script handling rules (enforced in code, not prompts):
 - **Phase 3 (Full Autonomy, weeks 9–13):** n8n inbox ingestion + court-decision parsing (`inbox_ingestion_n8n_20260909`); Portal Pravosuđa poller (`portal_pravosudja_status_20260909`); eFaktura issuance (`efaktura_integration_20260909`); APR/eKatastar enrichment (`party_enrichment_apr_ekatastar_20260909`); optional Ollama completions flag.
 
 Each track lives under `delivery/tracks/<track_id>/` with `spec.md`, `plan.md`, `metadata.json`.
+
+## Active Tracks
+
+- `clients_cases_backend_20260913`: tenant-scoped Clients and Cases REST domain, lifecycle rules, activities, responsibilities, and configurable reference data.

@@ -15,6 +15,7 @@
     "tessdata:download": "bash scripts/download-tessdata.sh",
     "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/platform.prisma",
     "db:migrate:platform": "npx prisma migrate dev --schema apps/api/prisma/platform.prisma",
+    "db:migrate:tenant": "npx prisma db execute --schema apps/api/prisma/tenant.prisma --file apps/api/prisma/tenant-migrations/20260913000000_clients_cases/migration.sql",
     "prisma:generate": "npx prisma generate --schema apps/api/prisma/platform.prisma && npx prisma generate --schema apps/api/prisma/tenant.prisma"
   },
   "private": true,
