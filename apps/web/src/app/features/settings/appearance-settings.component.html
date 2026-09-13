@@ -12,20 +12,21 @@
       <label hlmFieldLabel for="theme-select">{{
         "settings.theme" | translate
       }}</label>
-      <hlm-select formControlName="theme">
-        <hlm-select-trigger id="theme-select">
+      <hlm-select formControlName="theme" [itemToString]="themeItemToString">
+        <hlm-select-trigger id="theme-select" class="w-full">
           <hlm-select-value />
         </hlm-select-trigger>
-        <hlm-select-content>
-          <hlm-select-item value="SYSTEM">{{
-            "settings.system" | translate
-          }}</hlm-select-item>
-          <hlm-select-item value="LIGHT">{{
-            "settings.light" | translate
-          }}</hlm-select-item>
-          <hlm-select-item value="DARK">{{
-            "settings.dark" | translate
-          }}</hlm-select-item>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            <hlm-select-label>{{
+              "settings.theme" | translate
+            }}</hlm-select-label>
+            @for (option of themeOptions; track option.value) {
+              <hlm-select-item [value]="option.value">{{
+                themeItemToString(option.value)
+              }}</hlm-select-item>
+            }
+          </hlm-select-group>
         </hlm-select-content>
       </hlm-select>
     </div>
@@ -33,17 +34,21 @@
       <label hlmFieldLabel for="language-select">{{
         "settings.language" | translate
       }}</label>
-      <hlm-select formControlName="language">
-        <hlm-select-trigger id="language-select">
+      <hlm-select
+        formControlName="language"
+        [itemToString]="languageItemToString"
+      >
+        <hlm-select-trigger id="language-select" class="w-full">
           <hlm-select-value />
         </hlm-select-trigger>
-        <hlm-select-content>
-          <hlm-select-item value="SR">{{
-            "settings.serbian" | translate
-          }}</hlm-select-item>
-          <hlm-select-item value="EN">{{
-            "settings.english" | translate
-          }}</hlm-select-item>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of languageOptions; track option.value) {
+              <hlm-select-item [value]="option.value">{{
+                languageItemToString(option.value)
+              }}</hlm-select-item>
+            }
+          </hlm-select-group>
         </hlm-select-content>
       </hlm-select>
     </div>

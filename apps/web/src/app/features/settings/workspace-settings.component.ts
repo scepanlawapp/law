@@ -9,6 +9,10 @@ import { UserSettingsDateTimeFormat } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import {
+  createSelectItemToString,
+  type SelectOption,
+} from "../../shared/utils";
 
 @Component({
   selector: "app-workspace-settings",
@@ -31,6 +35,25 @@ export class WorkspaceSettingsComponent {
   private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly saving = signal(false);
+  readonly dateTimeFormatOptions: ReadonlyArray<
+    SelectOption<UserSettingsDateTimeFormat>
+  > = [
+    { value: "TWENTY_FOUR_HOUR", label: "settings.twentyFourHour" },
+    { value: "TWELVE_HOUR", label: "settings.twelveHour" },
+  ];
+  readonly timeZoneOptions: ReadonlyArray<SelectOption<string>> = [
+    { value: "Europe/Belgrade", label: "settings.belgrade" },
+    { value: "Europe/London", label: "settings.london" },
+    { value: "America/New_York", label: "settings.newYork" },
+  ];
+  readonly dateTimeFormatItemToString = createSelectItemToString(
+    this.dateTimeFormatOptions,
+    (key) => this.localization.translate(key),
+  );
+  readonly timeZoneItemToString = createSelectItemToString(
+    this.timeZoneOptions,
+    (key) => this.localization.translate(key),
+  );
   readonly form = new FormGroup({
     workspaceNotifications: new FormControl(true, { nonNullable: true }),
     dateTimeFormat: new FormControl<UserSettingsDateTimeFormat>(
