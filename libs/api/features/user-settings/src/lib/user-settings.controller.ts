@@ -41,51 +41,22 @@ export class UserSettingsController {
 
   @Delete("conversations")
   async clearConversationHistory(@Req() request: AuthenticatedRequest) {
-    const rawHeader = request.headers["x-workspace-id"];
-    const workspaceId =
-      (Array.isArray(rawHeader) ? rawHeader[0] : rawHeader) ??
-      (request.query as Record<string, string> | undefined)?.["workspaceId"];
+    const workspaceId = request.auth!.activeWorkspaceId;
+    if (!workspaceId) return { deleted: 0 };
 
-    if (workspaceId) {
-      const { tenant } =
-        await this.tenantRegistry.resolveTenantForWorkspace(workspaceId);
-      const tenantPrisma = this.connectionManager.getTenantClient(
-        tenant.schemaName,
-      );
-      const result = await tenantPrisma.chatSession.updateMany({
-        where: {
-          createdByUserId: request.auth!.user.id,
-          workspaceId,
-        },
-        data: { isDeleted: true },
-      });
-      return { deleted: result.count };
-    }
-
-    const workspaces = await this.tenantRegistry.listWorkspacesForUser(
-      request.auth!.user.id,
+    const { tenant } =
+      await this.tenantRegistry.resolveTenantForWorkspace(workspaceId);
+    const tenantPrisma = this.connectionManager.getTenantClient(
+      tenant.id,
+      tenant.databaseName!,
     );
-    let totalDeleted = 0;
-    for (const ws of workspaces) {
-      try {
-        const { tenant } = await this.tenantRegistry.resolveTenantForWorkspace(
-          ws.id,
-        );
-        const tenantPrisma = this.connectionManager.getTenantClient(
-          tenant.schemaName,
-        );
-        const result = await tenantPrisma.chatSession.updateMany({
-          where: {
-            createdByUserId: request.auth!.user.id,
-            workspaceId: ws.id,
-          },
-          data: { isDeleted: true },
-        });
-        totalDeleted += result.count;
-      } catch {
-        // Continue across other workspace schemas
-      }
-    }
-    return { deleted: totalDeleted };
+    const result = await tenantPrisma.chatSession.updateMany({
+      where: {
+        createdByUserId: request.auth!.user.id,
+        workspaceId,
+      },
+      data: { isDeleted: true },
+    });
+    return { deleted: result.count };
   }
 }

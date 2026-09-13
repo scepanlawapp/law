@@ -90,7 +90,11 @@
       ],
       "@spartan-ng/helm/textarea": [
         "./libs/shared/frontend/ui/textarea/src/index.ts"
-      ]
+      ],
+      "@spartan-ng/helm/table": [
+        "./libs/shared/frontend/ui/table/src/index.ts"
+      ],
+      "@spartan-ng/helm/tabs": ["./libs/shared/frontend/ui/tabs/src/index.ts"]
     }
   },
   "exclude": ["node_modules", "tmp"]

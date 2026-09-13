@@ -74,8 +74,7 @@ export class ChatService {
   }
 
   private get db(): TenantPrismaClient {
-    return (TenantContextService.current?.prisma ??
-      (this.prisma as unknown)) as TenantPrismaClient;
+    return TenantContextService.required.prisma;
   }
 
   private async recordAuditEvent(input: {

@@ -1,1 +1,76 @@
-Stranica za klijente
+<h1>{{ "clients.title" | translate }}</h1>
+<p>
+  <a hlmBtn routerLink="/clients/new">{{ "clients.create" | translate }}</a>
+</p>
+<label for="client-search">{{ "clients.search" | translate }}</label>
+<input hlmInput id="client-search" [formControl]="search" />
+@if (loading()) {
+  <p>{{ "clients.loading" | translate }}</p>
+}
+@if (error()) {
+  <p>
+    {{ "clients.error" | translate }}
+    <button hlmBtn type="button" (click)="retry()">
+      {{ "clients.retry" | translate }}
+    </button>
+  </p>
+}
+@if (!loading() && !error()) {
+  <div hlmTableContainer>
+    <table hlmTable>
+      <thead hlmTHead>
+        <tr hlmTr>
+          <th hlmTh>{{ "clients.number" | translate }}</th>
+          <th hlmTh>{{ "clients.name" | translate }}</th>
+          <th hlmTh>{{ "clients.type" | translate }}</th>
+          <th hlmTh>{{ "clients.responsible" | translate }}</th>
+          <th hlmTh>{{ "clients.email" | translate }}</th>
+          <th hlmTh>{{ "clients.phone" | translate }}</th>
+          <th hlmTh>{{ "clients.status" | translate }}</th>
+          <th hlmTh>{{ "clients.activeCases" | translate }}</th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @for (client of items(); track client.id) {
+          <tr hlmTr class="cursor-pointer" (click)="openClient(client.id)">
+            <td hlmTd>{{ client.clientNumber }}</td>
+            <td hlmTd>
+              <a
+                [routerLink]="['/clients', client.id]"
+                (click)="$event.stopPropagation()"
+                >{{ client.displayName }}</a
+              >
+            </td>
+            <td hlmTd>{{ client.type }}</td>
+            <td hlmTd>{{ userName(client.responsibleUserId) }}</td>
+            <td hlmTd>{{ client.email }}</td>
+            <td hlmTd>{{ client.phone }}</td>
+            <td hlmTd>{{ client.status }}</td>
+            <td hlmTd>{{ client.activeCaseCount }}</td>
+          </tr>
+        } @empty {
+          <tr hlmTr>
+            <td hlmTd colspan="7">{{ "clients.empty" | translate }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+  <p>{{ "clients.page" | translate: { page: page(), total: pageCount() } }}</p>
+  <button
+    hlmBtn
+    type="button"
+    (click)="changePage(page() - 1)"
+    [disabled]="page() === 1"
+  >
+    {{ "clients.previous" | translate }}
+  </button>
+  <button
+    hlmBtn
+    type="button"
+    (click)="changePage(page() + 1)"
+    [disabled]="page() === pageCount()"
+  >
+    {{ "clients.next" | translate }}
+  </button>
+}

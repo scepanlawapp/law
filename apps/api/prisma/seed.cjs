@@ -10,15 +10,23 @@ function hashPassword(password) {
   return `${salt}:${key}`;
 }
 
-function buildTenantDbUrl(baseDbUrl, schemaName) {
+function buildTenantDbUrl(baseDbUrl, databaseName) {
   if (!baseDbUrl) return "";
   try {
     const url = new URL(baseDbUrl);
-    url.searchParams.set("schema", schemaName);
+    url.pathname = `/${databaseName}`;
+    url.searchParams.delete("schema");
     return url.toString();
   } catch {
-    const separator = baseDbUrl.includes("?") ? "&" : "?";
-    return `${baseDbUrl}${separator}schema=${encodeURIComponent(schemaName)}`;
+    throw new Error("TENANT_DATABASE_URL must be a valid PostgreSQL URL");
+  }
+}
+
+async function createTenantDatabase(adminPrisma, databaseName) {
+  try {
+    await adminPrisma.$executeRawUnsafe(`CREATE DATABASE "${databaseName}"`);
+  } catch (error) {
+    if (!/already exists/i.test(String(error))) throw error;
   }
 }
 
@@ -335,21 +343,27 @@ async function main() {
   }
 
   const platformPrisma = new PlatformPrismaClient();
-  const baseTenantDbUrl =
-    process.env.TENANT_DATABASE_URL ||
-    process.env.DATABASE_URL ||
-    "postgresql://law:law@localhost:5433/law_tenant";
+  const baseTenantDbUrl = process.env.TENANT_DATABASE_URL;
+  if (!baseTenantDbUrl) {
+    throw new Error("TENANT_DATABASE_URL is required");
+  }
 
   let tenantPrisma = null;
+  let tenantAdminPrisma = null;
 
   try {
     // Must be RFC 4122: class-validator @IsUUID() rejects nil-like ids.
     const workspaceId =
       process.env.AUTH_BOOTSTRAP_WORKSPACE_ID ??
       "11111111-1111-4111-a111-111111111111";
-    const schemaName = `tenant_${workspaceId.replace(/[^a-zA-Z0-9]/g, "_")}`;
+    const databaseName = `law_tenant_${workspaceId.replace(/-/g, "_")}`;
 
-    const tenantDbUrl = buildTenantDbUrl(baseTenantDbUrl, schemaName);
+    // `postgres` is a tenant-cluster maintenance database, never a business database.
+    tenantAdminPrisma = new TenantPrismaClient({
+      datasources: { db: { url: baseTenantDbUrl } },
+    });
+    await createTenantDatabase(tenantAdminPrisma, databaseName);
+    const tenantDbUrl = buildTenantDbUrl(baseTenantDbUrl, databaseName);
     tenantPrisma = new TenantPrismaClient({
       datasources: {
         db: {
@@ -358,25 +372,27 @@ async function main() {
       },
     });
 
-    // 1. Provision Tenant schema and tables in the tenant DB
-    await provisionTenantSchema(tenantPrisma, schemaName);
-
-    // 2. Upsert Tenant in Platform DB
+    // 1. Upsert physical Tenant metadata in the platform database.
     const tenant = await platformPrisma.tenant.upsert({
-      where: { schemaName },
+      where: { key: "tenant-default" },
       update: {
         name: `${workspaceName} Tenant`,
+        databaseName,
         status: "ACTIVE",
         storagePrefix: `tenants/${workspaceId}/`,
       },
       create: {
+        id: workspaceId,
         key: "tenant-default",
         name: `${workspaceName} Tenant`,
-        schemaName,
+        databaseName,
         status: "ACTIVE",
         storagePrefix: `tenants/${workspaceId}/`,
       },
     });
+
+    // 2. Apply the canonical tenant schema to the physical tenant database.
+    await provisionTenantSchema(tenantPrisma, "public");
 
     // 3. Upsert Workspace linked to Tenant
     const workspace = await platformPrisma.workspace.upsert({
@@ -427,11 +443,14 @@ async function main() {
     });
 
     console.log(`Bootstrap user ready: ${email}`);
-    console.log(`Bootstrap tenant ready: ${tenant.schemaName}`);
+    console.log(`Bootstrap tenant ready: ${tenant.databaseName}`);
   } finally {
     await platformPrisma.$disconnect();
     if (tenantPrisma) {
       await tenantPrisma.$disconnect();
+    }
+    if (tenantAdminPrisma) {
+      await tenantAdminPrisma.$disconnect();
     }
   }
 }

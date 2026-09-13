@@ -10,7 +10,7 @@
     "build": "npx nx run-many -t build",
     "services:config": "docker compose -f infra/docker/compose.yml config",
     "services:up": "docker compose -f infra/docker/compose.yml up -d",
-    "services:down": "docker compose infra/docker down",
+    "services:down": "docker compose -f infra/docker/compose.yml down",
     "db:seed:auth": "node apps/api/prisma/seed.cjs",
     "tessdata:download": "bash scripts/download-tessdata.sh",
     "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/platform.prisma",

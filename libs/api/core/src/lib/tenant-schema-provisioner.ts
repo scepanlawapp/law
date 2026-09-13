@@ -7,7 +7,29 @@ export class TenantSchemaProvisioner {
 
   constructor(private readonly connectionManager: TenantConnectionManager) {}
 
-  async provisionTenantSchema(schemaName: string): Promise<void> {
+  async provisionTenantDatabase(
+    tenantId: string,
+    databaseName: string,
+  ): Promise<void> {
+    await this.connectionManager.createTenantDatabase(databaseName).catch(
+      (error: unknown) => {
+        if (
+          error instanceof Error &&
+          /already exists/i.test(error.message)
+        ) {
+          return;
+        }
+        throw error;
+      },
+    );
+    await this.provisionTenantSchema("public", tenantId, databaseName);
+  }
+
+  async provisionTenantSchema(
+    schemaName: string,
+    tenantId = schemaName,
+    databaseName = schemaName,
+  ): Promise<void> {
     if (!/^[a-zA-Z0-9_]+$/.test(schemaName)) {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
@@ -303,10 +325,13 @@ export class TenantSchemaProvisioner {
       `CREATE INDEX IF NOT EXISTS "TenantAuditEvent_eventType_createdAt_idx" ON "${schemaName}"."TenantAuditEvent"("eventType", "createdAt")`,
     ];
 
-    const tenantPrisma = this.connectionManager.getTenantClient(schemaName);
+    const tenantPrisma = this.connectionManager.getTenantClient(
+      tenantId,
+      databaseName,
+    );
     for (const sql of statements) {
       await tenantPrisma.$executeRawUnsafe(sql);
     }
-    this.logger.log(`Tenant schema "${schemaName}" provisioned successfully`);
+    this.logger.log(`Tenant database "${databaseName}" provisioned successfully`);
   }
 }

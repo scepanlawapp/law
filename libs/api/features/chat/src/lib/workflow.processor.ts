@@ -44,13 +44,14 @@ export class WorkflowProcessor extends WorkerHost {
       job.data.workspaceId,
     );
     const tenantPrisma = this.connectionManager.getTenantClient(
-      tenant.schemaName,
+      tenant.id,
+      tenant.databaseName!,
     );
     const context: TenantContext = {
       userId: "system-workflow",
       workspaceId: job.data.workspaceId,
       tenantId: tenant.id,
-      schemaName: tenant.schemaName,
+      databaseName: tenant.databaseName!,
       role: WorkspaceRole.ADMIN,
       storagePrefix: tenant.storagePrefix ?? `tenants/${tenant.id}/`,
       prisma: tenantPrisma,
@@ -75,7 +76,8 @@ export class WorkflowProcessor extends WorkerHost {
         job.data.workspaceId,
       );
       const tenantPrisma = this.connectionManager.getTenantClient(
-        tenant.schemaName,
+        tenant.id,
+        tenant.databaseName!,
       );
       const record = await tenantPrisma.workflowJob.update({
         where: { id: job.data.jobId },

@@ -100,3 +100,4 @@ Each track lives under `delivery/tracks/<track_id>/` with `spec.md`, `plan.md`, 
 ## Active Tracks
 
 - `clients_cases_backend_20260913`: tenant-scoped Clients and Cases REST domain, lifecycle rules, activities, responsibilities, and configurable reference data.
+- `clients_cases_frontend_20260913`: API-connected Angular Clients and Cases workflows using default Spartan/UI primitives.

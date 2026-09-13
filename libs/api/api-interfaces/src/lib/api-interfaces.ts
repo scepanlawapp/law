@@ -81,11 +81,17 @@ export interface AuthWorkspaceMembership {
 export interface AuthSessionResponse {
   user: AuthUser;
   memberships: AuthWorkspaceMembership[];
+  activeWorkspaceId: string | null;
+  activeTenantId: string | null;
 }
 
 export interface LoginRequest {
   email: string;
   password: string;
+}
+
+export interface ActiveWorkspaceRequest {
+  workspaceId: string;
 }
 
 export interface InvitationAcceptRequest {

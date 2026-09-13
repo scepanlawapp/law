@@ -1,0 +1,92 @@
+@if (loading()) {
+  <p>{{ "clients.loading" | translate }}</p>
+} @else if (client(); as item) {
+  <h1>{{ item.displayName }}</h1>
+  <p>{{ item.clientNumber }} {{ item.status }}</p>
+  <p>
+    <a hlmBtn [routerLink]="['/clients', item.id, 'edit']">{{
+      "clients.edit" | translate
+    }}</a>
+    <a
+      hlmBtn
+      [routerLink]="['/cases/new']"
+      [queryParams]="{ clientId: item.id }"
+      >{{ "clients.createCase" | translate }}</a
+    >
+    @if (item.status === "ARCHIVED") {
+      <button hlmBtn type="button" (click)="activate()">
+        {{ "clients.activate" | translate }}
+      </button>
+    } @else {
+      <button hlmBtn type="button" (click)="archive()">
+        {{ "clients.archive" | translate }}
+      </button>
+    }
+  </p>
+  <div hlmTabs tab="overview" (tabActivated)="load($event)">
+    <div hlmTabsList>
+      <button hlmTabsTrigger="overview">
+        {{ "clients.overview" | translate }}</button
+      ><button hlmTabsTrigger="cases">{{ "clients.cases" | translate }}</button
+      ><button hlmTabsTrigger="activities">
+        {{ "clients.activities" | translate }}</button
+      ><button hlmTabsTrigger="contacts">
+        {{ "clients.contacts" | translate }}</button
+      ><button hlmTabsTrigger="addresses">
+        {{ "clients.addresses" | translate }}
+      </button>
+    </div>
+    <section hlmTabsContent="overview">
+      <p>{{ item.email }}</p>
+      <p>{{ item.phone }}</p>
+      <p>{{ item.website }}</p>
+      <p>{{ item.notes }}</p>
+    </section>
+    <section hlmTabsContent="cases">
+      @if (clientCases(); as result) {
+        @for (caseItem of result.items; track caseItem.id) {
+          <p>
+            <a [routerLink]="['/cases', caseItem.id]"
+              >{{ caseItem.caseNumber }} {{ caseItem.name }}</a
+            >
+          </p>
+        }
+      }
+    </section>
+    <section hlmTabsContent="activities">
+      @for (activity of activities(); track activity.id) {
+        <p>
+          {{ activity.activityDate }} {{ activity.type }} {{ activity.title }}
+          {{ activity.description }}
+        </p>
+      }
+    </section>
+    <section hlmTabsContent="contacts">
+      @for (contact of contacts(); track contact.id) {
+        <p>
+          {{ contact.firstName }} {{ contact.lastName }} {{ contact.email }}
+          {{ contact.status }}
+          @if (contact.status === "ACTIVE") {
+            <button
+              hlmBtn
+              type="button"
+              (click)="deactivateContact(contact.id)"
+            >
+              {{ "clients.deactivate" | translate }}
+            </button>
+          }
+        </p>
+      }
+    </section>
+    <section hlmTabsContent="addresses">
+      @for (address of addresses(); track address.id) {
+        <p>
+          {{ address.street }} {{ address.city }} {{ address.country }}
+          <button hlmBtn type="button" (click)="removeAddress(address.id)">
+            {{ "clients.remove" | translate }}
+          </button>
+        </p>
+      }
+    </section>
+  </div>
+}
