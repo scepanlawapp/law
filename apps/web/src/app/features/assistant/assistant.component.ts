@@ -2,6 +2,7 @@ import { DatePipe } from "@angular/common";
 import {
   Component,
   ChangeDetectionStrategy,
+  computed,
   DestroyRef,
   ElementRef,
   AfterViewInit,
@@ -12,8 +13,24 @@ import {
   signal,
 } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
-import { MatIconModule } from "@angular/material/icon";
-import { MatTooltipModule } from "@angular/material/tooltip";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideArrowUp,
+  lucideBot,
+  lucideMessageCircle,
+  lucideMic,
+  lucideMicOff,
+  lucidePaperclip,
+  lucidePlus,
+  lucideSearch,
+  lucideSparkles,
+  lucideUser,
+  lucideX,
+} from "@ng-icons/lucide";
+import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { ChatApiClient } from "@law/api-clients";
 import {
   ChatMessageResponse,
@@ -57,14 +74,24 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
   ".txt": "text/plain",
 };
 
+interface SessionGroup {
+  key: string;
+  date: Date;
+  label: "assistant.today" | "assistant.yesterday" | null;
+  sessions: ChatSessionSummary[];
+}
+
 @Component({
   selector: "app-assistant",
   standalone: true,
   imports: [
     BottomReachedDirective,
     DatePipe,
-    MatIconModule,
-    MatTooltipModule,
+    NgIcon,
+    HlmTooltipImports,
+    HlmButton,
+    HlmInput,
+    HlmInputGroupImports,
     ReactiveFormsModule,
     TranslatePipe,
     DraftReviewPanelComponent,
@@ -72,6 +99,21 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,
+  providers: [
+    provideIcons({
+      lucideArrowUp,
+      lucideBot,
+      lucideMessageCircle,
+      lucideMic,
+      lucideMicOff,
+      lucidePaperclip,
+      lucidePlus,
+      lucideSearch,
+      lucideSparkles,
+      lucideUser,
+      lucideX,
+    }),
+  ],
 })
 export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly authState = inject(AuthState);
@@ -95,6 +137,40 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     draft: new FormControl("", { nonNullable: true }),
   });
   protected readonly sessions = signal<ChatSessionSummary[]>([]);
+  protected readonly sessionGroups = computed<SessionGroup[]>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const groups = new Map<string, SessionGroup>();
+
+    for (const session of this.sessions()) {
+      const date = new Date(session.updatedAt);
+      const day = new Date(date);
+      day.setHours(0, 0, 0, 0);
+      const key = day.toISOString();
+      const differenceInDays = Math.round(
+        (today.getTime() - day.getTime()) / 86_400_000,
+      );
+
+      if (!groups.has(key)) {
+        groups.set(key, {
+          key,
+          date: day,
+          label:
+            differenceInDays === 0
+              ? "assistant.today"
+              : differenceInDays === 1
+                ? "assistant.yesterday"
+                : null,
+          sessions: [],
+        });
+      }
+      groups.get(key)?.sessions.push(session);
+    }
+
+    return [...groups.values()].sort(
+      (first, second) => second.date.getTime() - first.date.getTime(),
+    );
+  });
   protected readonly messages = signal<ChatMessageResponse[]>([]);
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly pendingFiles = signal<File[]>([]);

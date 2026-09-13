@@ -1,10 +1,25 @@
-import { Component, inject, signal } from "@angular/core";
-import { MatIconModule } from "@angular/material/icon";
-import { MatMenuModule } from "@angular/material/menu";
+import { Component, signal } from "@angular/core";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideSearch,
+  lucideBell,
+  lucideArrowRight,
+  lucideCreditCard,
+  lucideFolderOpen,
+  lucideMessageCircle,
+  lucideTriangleAlert,
+  lucideFileText,
+  lucideCalendar,
+  lucideUsers,
+  lucideSquareCheck,
+  lucideFileCheck,
+  lucideInfo,
+} from "@ng-icons/lucide";
 import { RouterLink } from "@angular/router";
+import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-import { AuthState } from "@law/security";
-import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
 interface HeaderNotification {
   title: string;
@@ -23,18 +38,33 @@ const LEGAL_QUOTE_KEYS = Array.from(
   selector: "app-header",
   standalone: true,
   templateUrl: "./header.component.html",
-  styleUrl: "./header.component.scss",
   imports: [
-    MatIconModule,
-    MatMenuModule,
+    NgIcon,
     RouterLink,
-    UserMenuComponent,
+    ...HlmDropdownMenuImports,
+    HlmButton,
+    HlmInputGroupImports,
     TranslatePipe,
+  ],
+  providers: [
+    provideIcons({
+      lucideSearch,
+      lucideBell,
+      lucideArrowRight,
+      lucideCreditCard,
+      lucideFolderOpen,
+      lucideMessageCircle,
+      lucideTriangleAlert,
+      lucideFileText,
+      lucideCalendar,
+      lucideUsers,
+      lucideSquareCheck,
+      lucideFileCheck,
+      lucideInfo,
+    }),
   ],
 })
 export class HeaderComponent {
-  private readonly authState = inject(AuthState);
-  readonly session = this.authState.session;
   readonly quoteKey = signal(
     LEGAL_QUOTE_KEYS[Math.floor(Math.random() * LEGAL_QUOTE_KEYS.length)],
   );
@@ -44,75 +74,71 @@ export class HeaderComponent {
       title: "New document uploaded",
       detail: "Contract.pdf in case P-123/2026",
       time: "10m",
-      icon: "description",
+      icon: "lucideFileText",
       tone: "blue",
     },
     {
       title: "Hearing reminder",
       detail: "Court hearing tomorrow at 10:00",
       time: "1h",
-      icon: "calendar_month",
+      icon: "lucideCalendar",
       tone: "blue",
     },
     {
       title: "Deadline approaching",
       detail: "Submit appeal in 2 days",
       time: "3h",
-      icon: "warning",
+      icon: "lucideTriangleAlert",
       tone: "red",
     },
     {
       title: "New message from client",
       detail: "Ana Jovanović",
       time: "5h",
-      icon: "chat_bubble_outline",
+      icon: "lucideMessageCircle",
       tone: "blue",
     },
     {
       title: "System update",
       detail: "Backup completed successfully",
       time: "1d",
-      icon: "info",
+      icon: "lucideInfo",
       tone: "purple",
     },
     {
       title: "Payment received",
       detail: "Invoice #INV-0042 was paid",
       time: "1d",
-      icon: "payments",
+      icon: "lucideCreditCard",
       tone: "orange",
     },
     {
       title: "Case status changed",
       detail: "P-124/2026 is now Active",
       time: "2d",
-      icon: "folder_open",
+      icon: "lucideFolderOpen",
       tone: "orange",
     },
     {
       title: "New client added",
       detail: "Nikola Petrović joined your workspace",
       time: "2d",
-      icon: "group",
+      icon: "lucideUsers",
       tone: "blue",
     },
     {
       title: "Task completed",
       detail: "Prepare response to court",
       time: "3d",
-      icon: "check_box",
+      icon: "lucideSquareCheck",
       tone: "purple",
     },
     {
       title: "Document review finished",
       detail: "Ugovor.pdf is ready for review",
       time: "3d",
-      icon: "fact_check",
+      icon: "lucideFileCheck",
       tone: "blue",
     },
   ];
-
-  logout(): void {
-    this.authState.logout().subscribe();
-  }
 }

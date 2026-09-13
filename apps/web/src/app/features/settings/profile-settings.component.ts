@@ -5,10 +5,9 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { MatButtonModule } from "@angular/material/button";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatIconModule } from "@angular/material/icon";
-import { MatInputModule } from "@angular/material/input";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
+import { HlmInput } from "@spartan-ng/helm/input";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { AuthApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -20,10 +19,10 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
   standalone: true,
   imports: [
     ReactiveFormsModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatIconModule,
-    MatInputModule,
+    HlmButton,
+    HlmField,
+    HlmFieldLabel,
+    HlmInput,
     TranslatePipe,
   ],
   templateUrl: "./profile-settings.component.html",

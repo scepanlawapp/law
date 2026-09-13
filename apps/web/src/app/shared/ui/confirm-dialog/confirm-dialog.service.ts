@@ -1,5 +1,5 @@
 import { Injectable, inject } from "@angular/core";
-import { MatDialog } from "@angular/material/dialog";
+import { HlmDialogService } from "@spartan-ng/helm/dialog";
 import { Observable, map } from "rxjs";
 import { ConfirmDialogComponent } from "./confirm-dialog.component";
 
@@ -24,29 +24,23 @@ export interface ConfirmDialogData {
 
 @Injectable({ providedIn: "root" })
 export class ConfirmDialogService {
-  private readonly dialog = inject(MatDialog);
+  private readonly dialog = inject(HlmDialogService);
 
   confirm(options: ConfirmDialogOptions): Observable<boolean> {
-    const dialogRef = this.dialog.open<
+    const dialogRef = this.dialog.open<boolean, ConfirmDialogData>(
       ConfirmDialogComponent,
-      ConfirmDialogData,
-      boolean
-    >(ConfirmDialogComponent, {
-      data: {
-        title: options.title,
-        message: options.message,
-        confirmText: options.confirmText ?? "Confirm",
-        cancelText: options.cancelText ?? "Cancel",
-        variant: options.variant ?? "default",
+      {
+        context: {
+          title: options.title,
+          message: options.message,
+          confirmText: options.confirmText ?? "Confirm",
+          cancelText: options.cancelText ?? "Cancel",
+          variant: options.variant ?? "default",
+        },
+        disableClose: options.disableClose ?? false,
       },
-      disableClose: options.disableClose ?? false,
-      autoFocus: "dialog",
-      restoreFocus: true,
-      maxWidth: "calc(100vw - 2rem)",
-      panelClass: "confirm-dialog-panel",
-      backdropClass: "confirm-dialog-backdrop",
-    });
+    );
 
-    return dialogRef.afterClosed().pipe(map((confirmed) => confirmed === true));
+    return dialogRef.closed$.pipe(map((confirmed) => confirmed === true));
   }
 }

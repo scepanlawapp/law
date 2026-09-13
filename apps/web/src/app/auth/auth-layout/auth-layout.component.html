@@ -1,7 +1,12 @@
-<main class="auth-layout">
-  <section class="promo-panel" aria-label="Legal platform overview"></section>
+<main
+  class="mx-auto flex h-screen w-full max-w-[90rem] max-h-[56rem] overflow-hidden bg-card"
+>
+  <section
+    class="hidden md:block"
+    aria-label="Legal platform overview"
+  ></section>
 
-  <section class="auth-panel">
+  <section class="flex min-w-0 flex-1 flex-col">
     <router-outlet />
   </section>
 </main>

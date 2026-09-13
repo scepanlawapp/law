@@ -1,45 +1,32 @@
-<article
-  class="relative flex min-h-[4.95rem] box-border items-start gap-[0.7rem] rounded-[var(--radius-md)] border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-3 shadow-[var(--shadow-sm)]"
->
-  <div
-    class="grid h-[2.05rem] w-[2.05rem] shrink-0 place-items-center rounded-full bg-[var(--color-surface-accent)] text-[var(--color-brand)]"
-  >
-    <mat-icon class="h-[1.1rem] w-[1.1rem] text-[1.1rem]">{{
-      icon()
-    }}</mat-icon>
+<article class="relative flex items-start">
+  <div class="grid shrink-0 place-items-center">
+    <ng-icon [name]="icon()" />
   </div>
-  <div class="grid min-w-0 gap-px">
-    <span class="text-base text-[var(--color-text-muted)]">{{ title() | translate }}</span>
-    <strong
-      class="text-[1.15rem] leading-[1.15] text-[var(--color-text-primary)]"
-      >{{ value() }}</strong
-    >
+  <div class="grid min-w-0">
+    <span>{{ title() | translate }}</span>
+    <strong>{{ value() }}</strong>
     <span
-      class="flex items-center gap-px whitespace-nowrap text-base text-[var(--color-success)] [&.down]:text-[#ee4d55] [&.neutral]:text-[#6d8298]"
+      class="flex items-center"
       [class.down]="trendDirection() === 'down'"
       [class.neutral]="trendDirection() === 'neutral'"
     >
-      <mat-icon class="h-[0.7rem] w-[0.7rem] text-[0.7rem]">{{
-        trendDirection() === "down"
-          ? "south"
-          : trendDirection() === "neutral"
-            ? "remove"
-            : "north"
-      }}</mat-icon>
+      <ng-icon
+        [name]="
+          trendDirection() === 'down'
+            ? 'lucideTrendingDown'
+            : trendDirection() === 'neutral'
+              ? 'lucideMinus'
+              : 'lucideTrendingUp'
+        "
+      />
       {{ trend() }}
-      <small class="text-inherit">{{ trendDetail() | translate }}</small>
+      <small>{{ trendDetail() | translate }}</small>
     </span>
   </div>
   @if (chart().length) {
-    <div
-      class="ml-auto mt-auto flex h-[1.55rem] w-12 items-end gap-[0.14rem] pb-px"
-      aria-hidden="true"
-    >
+    <div class="ml-auto mt-auto flex items-end" aria-hidden="true">
       @for (point of chart(); track $index) {
-        <span
-          class="min-h-[0.18rem] flex-1 rounded-t-[0.15rem] bg-[#70acf0]"
-          [style.height.%]="point"
-        ></span>
+        <span class="flex-1" [style.height.%]="point"></span>
       }
     </div>
   }

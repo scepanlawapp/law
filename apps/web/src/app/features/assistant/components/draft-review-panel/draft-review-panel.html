@@ -37,6 +37,8 @@
   >
     @for (scriptOption of scripts; track scriptOption) {
     <button
+      hlmBtn
+      variant="ghost"
       type="button"
       [class.selected]="script === scriptOption"
       (click)="scriptChange.emit(scriptOption)"
@@ -48,6 +50,7 @@
   </div>
 
   <textarea
+    hlmInput
     rows="10"
     class="draft-editor"
     [ngModel]="text"
@@ -55,6 +58,7 @@
   ></textarea>
 
   <textarea
+    hlmInput
     rows="2"
     class="review-note"
     [ngModel]="note"
@@ -63,19 +67,29 @@
   ></textarea>
 
   <div class="draft-review-buttons">
-    <button type="button" class="secondary" (click)="exportDocx.emit()">
+    <button
+      hlmBtn
+      variant="secondary"
+      type="button"
+      (click)="exportDocx.emit()"
+    >
       {{ "assistant.exportDocx" | translate }}
     </button>
-    <button type="button" class="secondary" (click)="save.emit()">
+    <button hlmBtn variant="secondary" type="button" (click)="save.emit()">
       {{ "assistant.saveDraft" | translate }}
     </button>
-    <button type="button" class="primary" (click)="approve.emit()">
+    <button hlmBtn type="button" (click)="approve.emit()">
       {{ "assistant.approveDraft" | translate }}
     </button>
-    <button type="button" class="warn" (click)="requestChanges.emit()">
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      (click)="requestChanges.emit()"
+    >
       {{ "assistant.requestChanges" | translate }}
     </button>
-    <button type="button" class="danger" (click)="reject.emit()">
+    <button hlmBtn variant="destructive" type="button" (click)="reject.emit()">
       {{ "assistant.rejectDraft" | translate }}
     </button>
   </div>

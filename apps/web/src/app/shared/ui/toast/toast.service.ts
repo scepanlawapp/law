@@ -1,6 +1,5 @@
-import { Injectable, inject } from "@angular/core";
-import { MatSnackBar, MatSnackBarRef } from "@angular/material/snack-bar";
-import { ToastComponent } from "./toast.component";
+import { Injectable } from "@angular/core";
+import { toast } from "@spartan-ng/brain/sonner";
 
 export type ToastType = "success" | "error" | "warning" | "info";
 
@@ -9,53 +8,30 @@ export interface ToastOptions {
   duration?: number;
 }
 
-export interface ToastData {
-  message: string;
-  action?: string;
-  type: ToastType;
-  icon: string;
-}
-
-const TOAST_DEFAULTS: Record<ToastType, { duration: number; icon: string }> = {
-  success: { duration: 4000, icon: "check_circle" },
-  error: { duration: 8000, icon: "error" },
-  warning: { duration: 5000, icon: "warning" },
-  info: { duration: 4000, icon: "info" },
+const TOAST_DEFAULTS: Record<ToastType, { duration: number }> = {
+  success: { duration: 4000 },
+  error: { duration: 8000 },
+  warning: { duration: 5000 },
+  info: { duration: 4000 },
 };
 
 @Injectable({ providedIn: "root" })
 export class ToastService {
-  private readonly snackBar = inject(MatSnackBar);
-  private readonly activeToasts = new Map<
-    string,
-    MatSnackBarRef<ToastComponent>
-  >();
+  private readonly activeToasts = new Map<string, string | number>();
 
-  success(
-    message: string,
-    options?: ToastOptions,
-  ): MatSnackBarRef<ToastComponent> {
+  success(message: string, options?: ToastOptions): string | number {
     return this.open("success", message, options);
   }
 
-  error(
-    message: string,
-    options?: ToastOptions,
-  ): MatSnackBarRef<ToastComponent> {
+  error(message: string, options?: ToastOptions): string | number {
     return this.open("error", message, options);
   }
 
-  warning(
-    message: string,
-    options?: ToastOptions,
-  ): MatSnackBarRef<ToastComponent> {
+  warning(message: string, options?: ToastOptions): string | number {
     return this.open("warning", message, options);
   }
 
-  info(
-    message: string,
-    options?: ToastOptions,
-  ): MatSnackBarRef<ToastComponent> {
+  info(message: string, options?: ToastOptions): string | number {
     return this.open("info", message, options);
   }
 
@@ -63,26 +39,24 @@ export class ToastService {
     type: ToastType,
     message: string,
     options: ToastOptions = {},
-  ): MatSnackBarRef<ToastComponent> {
+  ): string | number {
     const defaults = TOAST_DEFAULTS[type];
     const key = `${type}:${message}:${options.action ?? ""}`;
     const existing = this.activeToasts.get(key);
-    if (existing) {
+    if (existing !== undefined) {
       return existing;
     }
 
-    const ref = this.snackBar.openFromComponent(ToastComponent, {
-      data: { message, action: options.action, type, icon: defaults.icon },
+    const id = toast[type](message, {
       duration: options.duration ?? defaults.duration,
-      horizontalPosition: "right",
-      verticalPosition: "top",
-      panelClass: ["app-toast-panel", `app-toast-panel--${type}`],
-      politeness: type === "error" ? "assertive" : "polite",
-      announcementMessage: message,
+      ...(options.action
+        ? { action: { label: options.action, onClick: () => undefined } }
+        : {}),
+      onDismiss: () => this.activeToasts.delete(key),
+      onAutoClose: () => this.activeToasts.delete(key),
     });
-    this.activeToasts.set(key, ref);
-    ref.afterDismissed().subscribe(() => this.activeToasts.delete(key));
+    this.activeToasts.set(key, id);
 
-    return ref;
+    return id;
   }
 }

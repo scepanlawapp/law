@@ -1,31 +1,19 @@
-<div
-  class="confirm-dialog"
-  [class]="'confirm-dialog confirm-dialog--' + data.variant"
->
-  <div class="confirm-dialog__heading">
-    <span class="confirm-dialog__icon" aria-hidden="true">
-      <mat-icon>{{
-        data.variant === "default" ? "help_outline" : "warning"
-      }}</mat-icon>
-    </span>
-    <h2 mat-dialog-title>{{ data.title }}</h2>
-  </div>
+<div hlmDialogHeader class="flex items-center">
+  <ng-icon
+    aria-hidden="true"
+    [name]="
+      data.variant === 'default' ? 'lucideCircleAlert' : 'lucideTriangleAlert'
+    "
+  />
+  <h2 hlmDialogTitle>{{ data.title }}</h2>
+  <p hlmDialogDescription>{{ data.message }}</p>
+</div>
 
-  <mat-dialog-content>
-    <p>{{ data.message }}</p>
-  </mat-dialog-content>
-
-  <mat-dialog-actions align="end">
-    <button mat-button type="button" (click)="cancel()">
-      {{ data.cancelText }}
-    </button>
-    <button
-      mat-flat-button
-      type="button"
-      class="confirm-dialog__confirm"
-      (click)="confirm()"
-    >
-      {{ data.confirmText }}
-    </button>
-  </mat-dialog-actions>
+<div hlmDialogFooter class="flex justify-end">
+  <button hlmBtn variant="ghost" type="button" (click)="cancel()">
+    {{ data.cancelText }}
+  </button>
+  <button hlmBtn type="button" (click)="confirm()">
+    {{ data.confirmText }}
+  </button>
 </div>

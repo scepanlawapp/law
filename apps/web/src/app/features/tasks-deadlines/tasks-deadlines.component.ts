@@ -4,6 +4,5 @@ import { Component } from "@angular/core";
   selector: "app-tasks-deadlines",
   standalone: true,
   templateUrl: "./tasks-deadlines.component.html",
-  styleUrl: "./tasks-deadlines.component.scss",
 })
 export class TasksDeadlinesComponent {}

@@ -26,38 +26,45 @@
       </div>
     </div>
     <div class="settings-form-grid">
-      <mat-form-field appearance="outline"
-        ><mat-label>{{ "settings.firstName" | translate }}</mat-label
-        ><input matInput formControlName="firstName"
-      /></mat-form-field>
-      <mat-form-field appearance="outline"
-        ><mat-label>{{ "settings.lastName" | translate }}</mat-label
-        ><input matInput formControlName="lastName"
-      /></mat-form-field>
-      <mat-form-field appearance="outline"
-        ><mat-label>{{ "settings.username" | translate }}</mat-label
-        ><input matInput formControlName="username"
-      /></mat-form-field>
-      <mat-form-field appearance="outline"
-        ><mat-label>{{ "settings.phone" | translate }}</mat-label
-        ><input matInput formControlName="phone"
-      /></mat-form-field>
-      <mat-form-field appearance="outline" class="settings-form-wide"
-        ><mat-label>{{ "settings.jobTitle" | translate }}</mat-label
-        ><input matInput formControlName="jobTitle"
-      /></mat-form-field>
-      <mat-form-field appearance="outline" class="settings-form-wide"
-        ><mat-label>{{ "settings.profilePhotoUrl" | translate }}</mat-label
-        ><input matInput type="url" formControlName="avatarUrl"
-      /></mat-form-field>
+      <div hlmField>
+        <label hlmFieldLabel for="firstName">{{
+          "settings.firstName" | translate
+        }}</label>
+        <input hlmInput id="firstName" formControlName="firstName" />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="lastName">{{
+          "settings.lastName" | translate
+        }}</label>
+        <input hlmInput id="lastName" formControlName="lastName" />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="username">{{
+          "settings.username" | translate
+        }}</label>
+        <input hlmInput id="username" formControlName="username" />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="phone">{{
+          "settings.phone" | translate
+        }}</label>
+        <input hlmInput id="phone" formControlName="phone" />
+      </div>
+      <div hlmField class="settings-form-wide">
+        <label hlmFieldLabel for="jobTitle">{{
+          "settings.jobTitle" | translate
+        }}</label>
+        <input hlmInput id="jobTitle" formControlName="jobTitle" />
+      </div>
+      <div hlmField class="settings-form-wide">
+        <label hlmFieldLabel for="avatarUrl">{{
+          "settings.profilePhotoUrl" | translate
+        }}</label>
+        <input hlmInput id="avatarUrl" type="url" formControlName="avatarUrl" />
+      </div>
     </div>
     <div class="settings-actions">
-      <button
-        mat-flat-button
-        color="primary"
-        type="submit"
-        [disabled]="saving()"
-      >
+      <button hlmBtn type="submit" [disabled]="saving()">
         {{
           (saving() ? "settings.saving" : "settings.saveChanges") | translate
         }}
@@ -76,24 +83,32 @@
         <p>{{ "settings.passwordHint" | translate }}</p>
       </div>
     </div>
-    <mat-form-field appearance="outline"
-      ><mat-label>{{ "settings.currentPassword" | translate }}</mat-label
-      ><input
-        matInput
+    <div hlmField>
+      <label hlmFieldLabel for="currentPassword">{{
+        "settings.currentPassword" | translate
+      }}</label>
+      <input
+        hlmInput
+        id="currentPassword"
         type="password"
         formControlName="currentPassword"
         autocomplete="current-password"
-    /></mat-form-field>
-    <mat-form-field appearance="outline"
-      ><mat-label>{{ "settings.newPassword" | translate }}</mat-label
-      ><input
-        matInput
+      />
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="newPassword">{{
+        "settings.newPassword" | translate
+      }}</label>
+      <input
+        hlmInput
+        id="newPassword"
         type="password"
         formControlName="newPassword"
         autocomplete="new-password"
-    /></mat-form-field>
+      />
+    </div>
     <div class="settings-actions">
-      <button mat-stroked-button type="submit">
+      <button hlmBtn variant="outline" type="submit">
         {{ "settings.changePassword" | translate }}
       </button>
     </div>

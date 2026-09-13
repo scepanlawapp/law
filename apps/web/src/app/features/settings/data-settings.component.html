@@ -10,8 +10,8 @@
     <p>{{ "settings.clearHistoryHint" | translate }}</p>
   </div>
   <button
-    mat-stroked-button
-    color="warn"
+    hlmBtn
+    variant="destructive"
     type="button"
     [disabled]="clearing()"
     (click)="clearHistory()"

@@ -1,54 +1,69 @@
-<div class="settings-section-header">
+<div>
   <div>
     <h2>{{ "settings.workspace" | translate }}</h2>
     <p>{{ "settings.workspaceDescription" | translate }}</p>
   </div>
 </div>
 @if (loading()) {
-  <p class="settings-state">{{ "settings.loading" | translate }}</p>
+  <p>{{ "settings.loading" | translate }}</p>
 } @else {
-  <form class="settings-form" [formGroup]="form" (ngSubmit)="save()">
-    <div class="settings-toggle-row">
+  <form [formGroup]="form" (ngSubmit)="save()">
+    <div>
       <div>
         <strong>{{ "settings.workspaceNotifications" | translate }}</strong>
         <p>{{ "settings.workspaceNotificationsHint" | translate }}</p>
       </div>
-      <mat-slide-toggle
+      <hlm-switch
         formControlName="workspaceNotifications"
         [attr.aria-label]="'settings.workspaceNotifications' | translate"
-      ></mat-slide-toggle>
+      />
     </div>
-    <mat-form-field appearance="outline"
-      ><mat-label>{{ "settings.dateTimeFormat" | translate }}</mat-label
-      ><mat-select formControlName="dateTimeFormat"
-        ><mat-option value="TWENTY_FOUR_HOUR">{{
-          "settings.twentyFourHour" | translate
-        }}</mat-option
-        ><mat-option value="TWELVE_HOUR">{{
-          "settings.twelveHour" | translate
-        }}</mat-option></mat-select
-      ></mat-form-field
-    ><mat-form-field appearance="outline"
-      ><mat-label>{{ "settings.timeZone" | translate }}</mat-label
-      ><mat-select formControlName="timeZone"
-        ><mat-option value="Europe/Belgrade">{{
-          "settings.belgrade" | translate
-        }}</mat-option
-        ><mat-option value="Europe/London">{{
-          "settings.london" | translate
-        }}</mat-option
-        ><mat-option value="America/New_York">{{
-          "settings.newYork" | translate
-        }}</mat-option></mat-select
-      ></mat-form-field
-    >
-    <div class="settings-actions">
-      <button
-        mat-flat-button
-        color="primary"
-        type="submit"
-        [disabled]="saving()"
+    <div hlmField>
+      <label hlmFieldLabel for="date-time-format-select">{{
+        "settings.dateTimeFormat" | translate
+      }}</label>
+      <hlm-select
+        formControlName="dateTimeFormat"
+        [itemToString]="dateTimeFormatItemToString"
       >
+        <hlm-select-trigger id="date-time-format-select" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of dateTimeFormatOptions; track option.value) {
+              <hlm-select-item [value]="option.value">{{
+                dateTimeFormatItemToString(option.value)
+              }}</hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="time-zone-select">{{
+        "settings.timeZone" | translate
+      }}</label>
+      <hlm-select
+        formControlName="timeZone"
+        [itemToString]="timeZoneItemToString"
+      >
+        <hlm-select-trigger id="time-zone-select" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of timeZoneOptions; track option.value) {
+              <hlm-select-item [value]="option.value">{{
+                timeZoneItemToString(option.value)
+              }}</hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+    <div>
+      <button hlmBtn type="submit" [disabled]="saving()">
         {{
           (saving() ? "settings.saving" : "settings.saveChanges") | translate
         }}

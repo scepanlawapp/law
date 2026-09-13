@@ -1,23 +1,28 @@
 import { Component, inject, signal } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { UserSettingsLanguage, UserSettingsTheme } from "@law/api-interfaces";
-import { MatButtonModule } from "@angular/material/button";
-import { MatFormFieldModule } from "@angular/material/form-field";
-import { MatSelectModule } from "@angular/material/select";
+import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ThemeService } from "../../core/theme/theme.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import {
+  createSelectItemToString,
+  type SelectOption,
+} from "../../shared/utils";
 
 @Component({
   selector: "app-appearance-settings",
   standalone: true,
   imports: [
     ReactiveFormsModule,
-    MatButtonModule,
-    MatFormFieldModule,
-    MatSelectModule,
+    HlmButton,
+    HlmField,
+    HlmFieldLabel,
+    HlmSelectImports,
     TranslatePipe,
   ],
   templateUrl: "./appearance-settings.component.html",
@@ -30,6 +35,24 @@ export class AppearanceSettingsComponent {
   private readonly toast = inject(ToastService);
   readonly loading = signal(true);
   readonly saving = signal(false);
+  readonly themeOptions: ReadonlyArray<SelectOption<UserSettingsTheme>> = [
+    { value: "SYSTEM", label: "settings.system" },
+    { value: "LIGHT", label: "settings.light" },
+    { value: "DARK", label: "settings.dark" },
+  ];
+  readonly languageOptions: ReadonlyArray<SelectOption<UserSettingsLanguage>> =
+    [
+      { value: "SR", label: "settings.serbian" },
+      { value: "EN", label: "settings.english" },
+    ];
+  readonly themeItemToString = createSelectItemToString(
+    this.themeOptions,
+    (key) => this.localization.translate(key),
+  );
+  readonly languageItemToString = createSelectItemToString(
+    this.languageOptions,
+    (key) => this.localization.translate(key),
+  );
   readonly form = new FormGroup({
     theme: new FormControl<UserSettingsTheme>("SYSTEM", { nonNullable: true }),
     language: new FormControl<UserSettingsLanguage>("SR", {

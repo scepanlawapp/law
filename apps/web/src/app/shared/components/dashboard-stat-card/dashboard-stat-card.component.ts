@@ -1,13 +1,32 @@
 import { Component, input } from "@angular/core";
-import { MatIconModule } from "@angular/material/icon";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideFolderOpen,
+  lucideCalendar,
+  lucideSquareCheck,
+  lucideFileText,
+  lucideTrendingUp,
+  lucideTrendingDown,
+  lucideMinus,
+} from "@ng-icons/lucide";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 
 @Component({
   selector: "app-dashboard-stat-card",
   standalone: true,
-  imports: [MatIconModule, TranslatePipe],
+  imports: [NgIcon, TranslatePipe],
   templateUrl: "./dashboard-stat-card.component.html",
-  styleUrl: "./dashboard-stat-card.component.scss",
+  providers: [
+    provideIcons({
+      lucideFolderOpen,
+      lucideCalendar,
+      lucideSquareCheck,
+      lucideFileText,
+      lucideTrendingUp,
+      lucideTrendingDown,
+      lucideMinus,
+    }),
+  ],
 })
 export class DashboardStatCardComponent {
   readonly title = input.required<string>();
