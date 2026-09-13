@@ -1,5 +1,6 @@
 import {
   CanActivate,
+  ConflictException,
   ExecutionContext,
   ForbiddenException,
   Injectable,
@@ -14,11 +15,11 @@ import { TenantConnectionManager } from "./tenant-connection-manager";
 import { TenantContext, TenantContextService } from "./tenant-context";
 
 export interface AuthenticatedWorkspaceRequest {
-  body?: { workspaceId?: string };
-  params?: { workspaceId?: string };
-  query?: { workspaceId?: string };
-  headers: { [key: string]: string | string[] | undefined };
-  auth?: { user: { id: string; email?: string } };
+  auth?: {
+    user: { id: string; email?: string };
+    activeWorkspaceId: string | null;
+    activeTenantId: string | null;
+  };
   workspace?: { workspaceId: string; role: WorkspaceRole };
   tenantContext?: TenantContext;
 }
@@ -51,8 +52,11 @@ export class WorkspaceAccessGuard implements CanActivate {
     const requiredRole = this.reflector.getAllAndOverride<
       WorkspaceRole | undefined
     >(WORKSPACE_ROLE_KEY, [context.getHandler(), context.getClass()]);
-    const workspaceId = this.workspaceId(request);
-    if (!workspaceId) throw new NotFoundException("Workspace not found");
+    const workspaceId = request.auth.activeWorkspaceId;
+    const activeTenantId = request.auth.activeTenantId;
+    if (!workspaceId || !activeTenantId) {
+      throw new ConflictException("An active workspace must be selected");
+    }
 
     const membership = await this.platformPrisma.workspaceMember.findUnique({
       where: {
@@ -69,15 +73,19 @@ export class WorkspaceAccessGuard implements CanActivate {
 
     const { tenant } =
       await this.tenantRegistry.resolveTenantForWorkspace(workspaceId);
+    if (tenant.id !== activeTenantId) {
+      throw new ConflictException("Active tenant selection is invalid");
+    }
     const tenantPrisma = this.connectionManager.getTenantClient(
-      tenant.schemaName,
+      tenant.id,
+      tenant.databaseName!,
     );
 
     const tenantContext: TenantContext = {
       userId: request.auth.user.id,
       workspaceId: membership.workspaceId,
       tenantId: tenant.id,
-      schemaName: tenant.schemaName,
+      databaseName: tenant.databaseName!,
       role: membership.role as WorkspaceRole,
       storagePrefix: tenant.storagePrefix ?? `tenants/${tenant.id}/`,
       prisma: tenantPrisma,
@@ -92,17 +100,5 @@ export class WorkspaceAccessGuard implements CanActivate {
     request.tenantContext = tenantContext;
 
     return true;
-  }
-
-  private workspaceId(
-    request: AuthenticatedWorkspaceRequest,
-  ): string | undefined {
-    const header = request.headers["x-workspace-id"];
-    return (
-      request.params?.workspaceId ??
-      request.body?.workspaceId ??
-      request.query?.workspaceId ??
-      (Array.isArray(header) ? header[0] : header)
-    );
   }
 }

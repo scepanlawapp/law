@@ -1,0 +1,11 @@
+{
+  "created_at": "2026-09-13T00:00:00Z",
+  "keywords": ["clients", "cases", "nest", "prisma", "tenant", "activities"],
+  "parent_track_id": "platform_multi_tenant_layer_20260912",
+  "prd_reference": ".github/develop-phase1.md",
+  "priority": "high",
+  "status": "in_progress",
+  "track_id": "clients_cases_backend_20260913",
+  "type": "feature",
+  "updated_at": "2026-09-13T00:00:00Z"
+}

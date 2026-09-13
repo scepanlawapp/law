@@ -63,7 +63,7 @@ describe("Multi-Tenant Platform Layer Verification", () => {
   describe("Workspace Access & Tenant Resolution", () => {
     it("rejects unauthenticated requests", async () => {
       const context = createMockContext({
-        headers: { "x-workspace-id": "ws-1" },
+        headers: {},
       });
       await expect(guard.canActivate(context)).rejects.toThrow(
         ForbiddenException,
@@ -72,11 +72,14 @@ describe("Multi-Tenant Platform Layer Verification", () => {
 
     it("rejects requests missing a workspace ID", async () => {
       const context = createMockContext({
-        auth: { user: { id: "user-1" } },
-        headers: {},
+        auth: {
+          user: { id: "user-1" },
+          activeWorkspaceId: null,
+          activeTenantId: null,
+        },
       });
       await expect(guard.canActivate(context)).rejects.toThrow(
-        NotFoundException,
+        "An active workspace must be selected",
       );
     });
 
@@ -84,8 +87,12 @@ describe("Multi-Tenant Platform Layer Verification", () => {
       platformPrisma.workspaceMember.findUnique.mockResolvedValue(null);
 
       const context = createMockContext({
-        auth: { user: { id: "user-1" } },
-        headers: { "x-workspace-id": "ws-other" },
+        auth: {
+          user: { id: "user-1" },
+          activeWorkspaceId: "ws-other",
+          activeTenantId: "tenant-other",
+        },
+        headers: {},
       });
       await expect(guard.canActivate(context)).rejects.toThrow(
         NotFoundException,
@@ -100,8 +107,12 @@ describe("Multi-Tenant Platform Layer Verification", () => {
       });
 
       const context = createMockContext({
-        auth: { user: { id: "user-1" } },
-        headers: { "x-workspace-id": "ws-1" },
+        auth: {
+          user: { id: "user-1" },
+          activeWorkspaceId: "ws-1",
+          activeTenantId: "tenant-1",
+        },
+        headers: {},
       });
       await expect(guard.canActivate(context)).rejects.toThrow(
         NotFoundException,
@@ -121,7 +132,7 @@ describe("Multi-Tenant Platform Layer Verification", () => {
             id: "tenant-1",
             key: "alpha-tenant",
             name: "Alpha Firm Tenant",
-            schemaName: "tenant_ws1",
+            databaseName: "law_tenant_1",
             status: "ACTIVE",
             storagePrefix: "tenants/ws-1/",
           },
@@ -133,8 +144,12 @@ describe("Multi-Tenant Platform Layer Verification", () => {
       );
 
       const request: any = {
-        auth: { user: { id: "user-1" } },
-        headers: { "x-workspace-id": "ws-1" },
+        auth: {
+          user: { id: "user-1" },
+          activeWorkspaceId: "ws-1",
+          activeTenantId: "tenant-1",
+        },
+        headers: {},
       };
       const context = createMockContext(request);
 
@@ -148,10 +163,45 @@ describe("Multi-Tenant Platform Layer Verification", () => {
         userId: "user-1",
         workspaceId: "ws-1",
         tenantId: "tenant-1",
-        schemaName: "tenant_ws1",
+        databaseName: "law_tenant_1",
         role: WorkspaceRole.OWNER,
         storagePrefix: "tenants/ws-1/",
       });
+    });
+
+    it("ignores a forged workspace header and uses the active session tenant", async () => {
+      platformPrisma.workspaceMember.findUnique.mockResolvedValue({
+        workspaceId: "ws-1",
+        role: "OWNER",
+        status: "ACTIVE",
+      });
+      (tenantRegistry.resolveTenantForWorkspace as jest.Mock).mockResolvedValue({
+        workspace: { id: "ws-1", name: "Alpha Firm", tenantId: "tenant-1" },
+        tenant: {
+          id: "tenant-1",
+          key: "alpha-tenant",
+          name: "Alpha Firm Tenant",
+          databaseName: "law_tenant_1",
+          status: "ACTIVE",
+          storagePrefix: "tenants/ws-1/",
+        },
+      });
+      const request: any = {
+        auth: {
+          user: { id: "user-1" },
+          activeWorkspaceId: "ws-1",
+          activeTenantId: "tenant-1",
+        },
+        headers: { "x-workspace-id": "ws-other" },
+      };
+
+      await expect(guard.canActivate(createMockContext(request))).resolves.toBe(true);
+
+      expect(tenantRegistry.resolveTenantForWorkspace).toHaveBeenCalledWith("ws-1");
+      expect(connectionManager.getTenantClient).toHaveBeenCalledWith(
+        "tenant-1",
+        "law_tenant_1",
+      );
     });
   });
 
@@ -164,7 +214,7 @@ describe("Multi-Tenant Platform Layer Verification", () => {
         userId: "user-1",
         workspaceId: "ws-1",
         tenantId: "tenant-1",
-        schemaName: "tenant_1",
+        databaseName: "law_tenant_1",
         role: WorkspaceRole.OWNER,
         storagePrefix: "tenants/tenant-1/",
         prisma: mockPrisma1,
@@ -174,7 +224,7 @@ describe("Multi-Tenant Platform Layer Verification", () => {
         userId: "user-2",
         workspaceId: "ws-2",
         tenantId: "tenant-2",
-        schemaName: "tenant_2",
+        databaseName: "law_tenant_2",
         role: WorkspaceRole.LAWYER,
         storagePrefix: "tenants/tenant-2/",
         prisma: mockPrisma2,
@@ -192,9 +242,9 @@ describe("Multi-Tenant Platform Layer Verification", () => {
       ]);
 
       expect(results[0]?.tenantId).toBe("tenant-1");
-      expect(results[0]?.schemaName).toBe("tenant_1");
+      expect(results[0]?.databaseName).toBe("law_tenant_1");
       expect(results[1]?.tenantId).toBe("tenant-2");
-      expect(results[1]?.schemaName).toBe("tenant_2");
+      expect(results[1]?.databaseName).toBe("law_tenant_2");
     });
   });
 

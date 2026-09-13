@@ -92,12 +92,14 @@ model Tenant {
   id            String       @id @default(uuid())
   key           String       @unique
   name          String
-  schemaName    String       @unique
+  databaseName  String?      @unique
+  schemaName    String?      @unique
   status        TenantStatus @default(ACTIVE)
   storagePrefix String?
   createdAt     DateTime     @default(now()) @db.Timestamptz(3)
   updatedAt     DateTime     @updatedAt @db.Timestamptz(3)
   workspaces    Workspace[]
+  activeSessions AuthSession[] @relation("ActiveTenant")
 }
 
 model Workspace {
@@ -109,6 +111,7 @@ model Workspace {
   updatedAt   DateTime          @updatedAt @db.Timestamptz(3)
   memberships WorkspaceMember[]
   auditEvents AuditEvent[]
+  activeSessions AuthSession[] @relation("ActiveWorkspace")
 
   @@index([tenantId])
 }
@@ -139,10 +142,16 @@ model AuthSession {
   lastUsedAt       DateTime? @db.Timestamptz(3)
   userAgent        String?
   ipAddress        String?
+  activeWorkspaceId String?
+  activeTenantId    String?
   user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activeWorkspace  Workspace? @relation("ActiveWorkspace", fields: [activeWorkspaceId], references: [id], onDelete: SetNull)
+  activeTenant     Tenant?    @relation("ActiveTenant", fields: [activeTenantId], references: [id], onDelete: SetNull)
 
   @@index([userId, revokedAt])
   @@index([tokenFamily])
+  @@index([activeWorkspaceId])
+  @@index([activeTenantId])
 }
 
 model AuthToken {

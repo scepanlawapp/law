@@ -7,7 +7,7 @@ export interface TenantContext {
   userId: string;
   workspaceId: string;
   tenantId: string;
-  schemaName: string;
+  databaseName: string;
   role: WorkspaceRole;
   storagePrefix: string;
   prisma: TenantPrismaClient;

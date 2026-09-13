@@ -1,5 +1,5 @@
 import {
-  buildTenantDbUrl,
+  buildTenantDatabaseUrl,
   TenantConnectionManager,
 } from "./tenant-connection-manager";
 import { TenantContext, TenantContextService } from "./tenant-context";
@@ -23,6 +23,7 @@ describe("Multi-tenant Core Components", () => {
 
       expect(connectionManager.getTenantClient).toHaveBeenCalledWith(
         "tenant_123",
+        "tenant_123",
       );
       expect(executeRawUnsafe).toHaveBeenCalledWith(
         expect.stringContaining('CREATE SCHEMA IF NOT EXISTS "tenant_123"'),
@@ -42,21 +43,22 @@ describe("Multi-tenant Core Components", () => {
     });
   });
 
-  describe("buildTenantDbUrl", () => {
-    it("appends schema parameter to base database URL", () => {
-      const url = buildTenantDbUrl(
+  describe("buildTenantDatabaseUrl", () => {
+    it("replaces the database name without adding a schema parameter", () => {
+      const url = buildTenantDatabaseUrl(
         "postgresql://law:law@localhost:5432/law",
-        "tenant_abc",
+        "law_tenant_abc",
       );
-      expect(url).toContain("schema=tenant_abc");
+      expect(url).toContain("/law_tenant_abc");
+      expect(url).not.toContain("schema=");
     });
 
-    it("handles URLs that already contain query parameters", () => {
-      const url = buildTenantDbUrl(
+    it("preserves non-schema URL query parameters", () => {
+      const url = buildTenantDatabaseUrl(
         "postgresql://law:law@localhost:5432/law?sslmode=disable",
-        "tenant_xyz",
+        "law_tenant_xyz",
       );
-      expect(url).toContain("schema=tenant_xyz");
+      expect(url).toContain("/law_tenant_xyz");
       expect(url).toContain("sslmode=disable");
     });
   });
@@ -68,7 +70,7 @@ describe("Multi-tenant Core Components", () => {
         userId: "user-1",
         workspaceId: "ws-1",
         tenantId: "tenant-1",
-        schemaName: "tenant_ws1",
+        databaseName: "law_tenant_1",
         role: WorkspaceRole.OWNER,
         storagePrefix: "tenants/tenant-1/",
         prisma: mockPrisma,
@@ -98,7 +100,7 @@ describe("Multi-tenant Core Components", () => {
         userId: "user-1",
         workspaceId: "ws-1",
         tenantId: "tenant-1",
-        schemaName: "tenant_ws1",
+        databaseName: "law_tenant_1",
         role: WorkspaceRole.OWNER,
         storagePrefix: "tenants/tenant-1/",
         prisma: mockPrisma,

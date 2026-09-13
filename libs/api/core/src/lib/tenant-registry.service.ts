@@ -1,8 +1,10 @@
 import {
+  ConflictException,
   ForbiddenException,
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
 import { WorkspaceRole, WorkspaceSummary } from "@law/api-interfaces";
 import { PlatformPrismaService } from "./core";
 import { TenantSchemaProvisioner } from "./tenant-schema-provisioner";
@@ -17,7 +19,7 @@ export interface ResolvedTenantWorkspace {
     id: string;
     key: string;
     name: string;
-    schemaName: string;
+    databaseName: string | null;
     status: string;
     storagePrefix: string | null;
   };
@@ -43,7 +45,6 @@ export class TenantRegistryService {
     }
 
     if (!workspace.tenant) {
-      // Auto-provision if workspace exists without tenant mapping (e.g. bootstrap/seed)
       const tenant = await this.provisionTenantForWorkspace(
         workspace.id,
         workspace.name,
@@ -60,6 +61,9 @@ export class TenantRegistryService {
 
     if (workspace.tenant.status !== "ACTIVE") {
       throw new ForbiddenException("Tenant is not active");
+    }
+    if (!workspace.tenant.databaseName) {
+      throw new ConflictException("Tenant database migration is required");
     }
 
     return {
@@ -79,35 +83,49 @@ export class TenantRegistryService {
     id: string;
     key: string;
     name: string;
-    schemaName: string;
+    databaseName: string | null;
     status: string;
     storagePrefix: string | null;
   }> {
-    const schemaName = `tenant_${workspaceId.replace(/[^a-zA-Z0-9]/g, "_")}`;
     const key = `tenant-${workspaceId.slice(0, 8)}`;
     const storagePrefix = `tenants/${workspaceId}/`;
-
-    await this.provisioner.provisionTenantSchema(schemaName);
-
-    const tenant = await this.platformPrisma.tenant.upsert({
-      where: { schemaName },
-      update: {
-        name: `${workspaceName} Tenant`,
-        status: "ACTIVE",
-        storagePrefix,
-      },
-      create: {
-        key,
-        name: `${workspaceName} Tenant`,
-        schemaName,
-        status: "ACTIVE",
-        storagePrefix,
-      },
+    let tenant = await this.platformPrisma.tenant.findUnique({
+      where: { key },
     });
 
-    await this.platformPrisma.workspace.update({
-      where: { id: workspaceId },
-      data: { tenantId: tenant.id },
+    if (!tenant) {
+      const tenantId = randomUUID();
+      tenant = await this.platformPrisma.tenant.create({
+        data: {
+          id: tenantId,
+          key,
+          name: `${workspaceName} Tenant`,
+          databaseName: `law_tenant_${tenantId.replace(/-/g, "_")}`,
+          status: "PROVISIONING",
+          storagePrefix,
+        },
+      });
+    }
+
+    if (!tenant.databaseName) {
+      throw new ConflictException("Tenant database migration is required");
+    }
+
+    await this.provisioner.provisionTenantDatabase(
+      tenant.id,
+      tenant.databaseName,
+    );
+
+    tenant = await this.platformPrisma.$transaction(async (tx) => {
+      const activeTenant = await tx.tenant.update({
+        where: { id: tenant!.id },
+        data: { name: `${workspaceName} Tenant`, status: "ACTIVE", storagePrefix },
+      });
+      await tx.workspace.update({
+        where: { id: workspaceId },
+        data: { tenantId: activeTenant.id },
+      });
+      return activeTenant;
     });
 
     return tenant;

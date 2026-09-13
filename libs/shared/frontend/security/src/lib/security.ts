@@ -54,40 +54,27 @@ export class AuthState {
   }
 
   setActiveWorkspace(workspaceId: string): void {
-    const current = this.session();
-    const exists = current?.memberships.some((m) => m.workspaceId === workspaceId);
-    if (exists) {
-      this.activeWorkspaceId.set(workspaceId);
-    }
+    this.api.selectActiveWorkspace({ workspaceId }).subscribe({
+      next: (session) => {
+        this.session.set(session);
+        this.ensureActiveWorkspace(session);
+      },
+    });
   }
 
   private ensureActiveWorkspace(session: AuthSessionResponse | null): void {
-    if (!session || !session.memberships.length) {
-      this.activeWorkspaceId.set(null);
-      return;
-    }
-    const currentActive = this.activeWorkspaceId();
-    const stillValid = session.memberships.some((m) => m.workspaceId === currentActive);
-    if (!currentActive || !stillValid) {
-      this.activeWorkspaceId.set(session.memberships[0].workspaceId);
-    }
+    const activeWorkspaceId = session?.activeWorkspaceId ?? null;
+    const isAccessible = session?.memberships.some(
+      (membership) => membership.workspaceId === activeWorkspaceId,
+    );
+    this.activeWorkspaceId.set(isAccessible ? activeWorkspaceId : null);
   }
 }
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthState);
-  const activeWsId = auth.activeWorkspaceId();
-  const isPlatformPath =
-    request.url.includes("/auth/") ||
-    request.url.includes("/workspaces") ||
-    request.url.includes("/users/me/settings");
 
   let modifiedRequest = request.clone({ withCredentials: true });
-  if (activeWsId && !isPlatformPath && !request.headers.has("X-Workspace-Id")) {
-    modifiedRequest = modifiedRequest.clone({
-      setHeaders: { "X-Workspace-Id": activeWsId },
-    });
-  }
 
   return next(modifiedRequest).pipe(
     catchError((error: HttpErrorResponse) => {
@@ -97,6 +84,13 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
           .pipe(
             tap((session) => {
               auth.session.set(session);
+              const isAccessible = session.memberships.some(
+                (membership) =>
+                  membership.workspaceId === session.activeWorkspaceId,
+              );
+              auth.activeWorkspaceId.set(
+                isAccessible ? session.activeWorkspaceId : null,
+              );
             }),
             switchMap(() => next(modifiedRequest)),
             catchError((refreshError) => {

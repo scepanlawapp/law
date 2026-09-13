@@ -15,6 +15,7 @@ import { AuthRateLimitGuard } from "./rate-limit.guard";
 import { AuthRuntimeConfig } from "./auth.config";
 import {
   InvitationAcceptDto,
+  ActiveWorkspaceDto,
   InvitationCreateDto,
   LoginDto,
   PasswordForgotDto,
@@ -88,6 +89,18 @@ export class AuthController {
   @UseGuards(AuthGuard)
   me(@Req() request: AuthenticatedRequest) {
     return this.authService.currentUser(sessionToken(request));
+  }
+
+  @Post("active-workspace")
+  @UseGuards(AuthGuard)
+  activeWorkspace(
+    @Body() body: ActiveWorkspaceDto,
+    @Req() request: AuthenticatedRequest,
+  ) {
+    return this.authService.selectActiveWorkspace(
+      sessionToken(request),
+      body.workspaceId,
+    );
   }
 
   @Post("refresh")

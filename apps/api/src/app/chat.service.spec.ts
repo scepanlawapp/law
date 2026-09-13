@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { FakeChatModelProvider } from "@law/llm";
+import { TenantContextService } from "@law/core";
 import type { ChatStreamEvent } from "@law/api-interfaces";
 import {
   ChatEventBus,
@@ -23,13 +24,15 @@ const fakeBrief = {
   warnings: [],
 };
 
+let currentTenantPrisma: unknown;
+
 function prismaMock() {
   const workflowJobs = new Map<string, Record<string, unknown>>();
   const briefExtractionResults = new Map<string, Record<string, unknown>>();
   let jobSeq = 0;
   let briefSeq = 0;
 
-  return {
+  const prisma = {
     chatSession: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -101,6 +104,8 @@ function prismaMock() {
       create: jest.fn(),
     },
   };
+  currentTenantPrisma = prisma;
+  return prisma;
 }
 
 const now = new Date("2026-09-06T12:00:00.000Z");
@@ -116,6 +121,14 @@ const session = {
 };
 
 describe("ChatService", () => {
+  beforeEach(() => {
+    jest
+      .spyOn(TenantContextService, "current", "get")
+      .mockImplementation(() => ({ prisma: currentTenantPrisma }) as never);
+  });
+
+  afterEach(() => jest.restoreAllMocks());
+
   it("returns 404 for sessions outside the workspace", async () => {
     const prisma = prismaMock();
     prisma.chatSession.findFirst.mockResolvedValue(null);

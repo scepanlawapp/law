@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  ForbiddenException,
+  Injectable,
+  UnauthorizedException,
+} from "@nestjs/common";
 import {
   createHash,
   randomBytes,
@@ -172,8 +176,41 @@ export class AuthService {
   }
 
   async currentUser(token: string | undefined): Promise<AuthSessionResponse> {
-    const user = await this.userForToken(token);
-    return this.toResponse(user);
+    const record = await this.sessionForToken(token);
+    const selection = await this.validSelection(
+      record.userId,
+      record.activeWorkspaceId,
+      record.activeTenantId,
+    );
+    if (!selection && (record.activeWorkspaceId || record.activeTenantId)) {
+      await this.prisma.authSession.update({
+        where: { id: record.id },
+        data: { activeWorkspaceId: null, activeTenantId: null },
+      });
+    }
+    return this.toResponse(record.user, selection);
+  }
+
+  async selectActiveWorkspace(
+    token: string | undefined,
+    workspaceId: string,
+  ): Promise<AuthSessionResponse> {
+    const record = await this.sessionForToken(token);
+    const selection = await this.selectionForWorkspace(
+      record.userId,
+      workspaceId,
+    );
+    if (!selection) {
+      throw new ForbiddenException("Workspace tenant is not available");
+    }
+    await this.prisma.authSession.update({
+      where: { id: record.id },
+      data: {
+        activeWorkspaceId: selection.workspaceId,
+        activeTenantId: selection.tenantId,
+      },
+    });
+    return this.toResponse(record.user, selection);
   }
 
   async logout(token: string | undefined): Promise<void> {
@@ -225,6 +262,11 @@ export class AuthService {
     }
 
     const nextToken = randomBytes(32).toString("base64url");
+    const selection = await this.validSelection(
+      current.userId,
+      current.activeWorkspaceId,
+      current.activeTenantId,
+    );
     await this.prisma.$transaction([
       this.prisma.authSession.update({
         where: { id: current.id },
@@ -236,6 +278,8 @@ export class AuthService {
           tokenFamily: current.tokenFamily,
           refreshTokenHash: hashToken(nextToken),
           expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+          activeWorkspaceId: selection?.workspaceId,
+          activeTenantId: selection?.tenantId,
         },
       }),
     ]);
@@ -244,7 +288,10 @@ export class AuthService {
       outcome: "SUCCESS",
       userId: current.userId,
     });
-    return { token: nextToken, session: this.toResponse(current.user) };
+    return {
+      token: nextToken,
+      session: this.toResponse(current.user, selection),
+    };
   }
 
   async requestPasswordReset(email: string): Promise<void> {
@@ -335,18 +382,38 @@ export class AuthService {
     session: AuthSessionResponse,
   ): Promise<{ token: string; session: AuthSessionResponse }> {
     const token = randomBytes(32).toString("base64url");
+    const selection =
+      session.memberships.length === 1
+        ? await this.selectionForWorkspace(
+            userId,
+            session.memberships[0].workspaceId,
+          )
+        : null;
     await this.prisma.authSession.create({
       data: {
         userId,
         tokenFamily: randomBytes(16).toString("hex"),
         refreshTokenHash: hashToken(token),
         expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+        activeWorkspaceId: selection?.workspaceId,
+        activeTenantId: selection?.tenantId,
       },
     });
-    return { token, session };
+    return {
+      token,
+      session: {
+        ...session,
+        activeWorkspaceId: selection?.workspaceId ?? null,
+        activeTenantId: selection?.tenantId ?? null,
+      },
+    };
   }
 
   private async userForToken(token: string | undefined) {
+    return (await this.sessionForToken(token)).user;
+  }
+
+  private async sessionForToken(token: string | undefined) {
     if (!token) throw new UnauthorizedException("Authentication required");
     const record = await this.prisma.authSession.findFirst({
       where: {
@@ -371,30 +438,63 @@ export class AuthService {
       where: { id: record.id },
       data: { lastUsedAt: new Date() },
     });
-    return record.user;
+    return record;
   }
 
-  private toResponse(user: {
-    id: string;
-    email: string;
-    status: string;
-    memberships: Array<{
-      workspaceId: string;
-      role: string;
-      workspace: { name: string };
-    }>;
-  }): AuthSessionResponse {
+  private async selectionForWorkspace(userId: string, workspaceId: string) {
+    const membership = await this.prisma.workspaceMember.findUnique({
+      where: { userId_workspaceId: { userId, workspaceId } },
+      include: { workspace: { include: { tenant: true } } },
+    });
+    const tenant = membership?.workspace.tenant;
+    if (
+      membership?.status !== "ACTIVE" ||
+      !tenant ||
+      tenant.status !== "ACTIVE" ||
+      !tenant.databaseName
+    ) {
+      return null;
+    }
+    return { workspaceId: membership.workspaceId, tenantId: tenant.id };
+  }
+
+  private async validSelection(
+    userId: string,
+    workspaceId: string | null,
+    tenantId: string | null,
+  ) {
+    if (!workspaceId || !tenantId) return null;
+    const selection = await this.selectionForWorkspace(userId, workspaceId);
+    return selection?.tenantId === tenantId ? selection : null;
+  }
+
+  private toResponse(
+    user: {
+      id: string;
+      email: string;
+      status: string;
+      memberships: Array<{
+        workspaceId: string;
+        role: string;
+        workspace: { name: string };
+      }>;
+    },
+    selection: { workspaceId: string; tenantId: string } | null = null,
+    memberships = user.memberships,
+  ): AuthSessionResponse {
     return {
       user: {
         id: user.id,
         email: user.email,
         status: user.status as AuthSessionResponse["user"]["status"],
       },
-      memberships: user.memberships.map((membership) => ({
+      memberships: memberships.map((membership) => ({
         workspaceId: membership.workspaceId,
         workspaceName: membership.workspace.name,
         role: membership.role as WorkspaceRole,
       })),
+      activeWorkspaceId: selection?.workspaceId ?? null,
+      activeTenantId: selection?.tenantId ?? null,
     };
   }
 
