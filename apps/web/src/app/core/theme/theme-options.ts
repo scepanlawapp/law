@@ -1,7 +1,12 @@
-import { UserSettingsAccent, UserSettingsTheme } from "@law/api-interfaces";
+import {
+  UserSettingsAccent,
+  UserSettingsFinish,
+  UserSettingsTheme,
+} from "@law/api-interfaces";
 
 export const DEFAULT_THEME: UserSettingsTheme = "MIDNIGHT";
 export const DEFAULT_ACCENT: UserSettingsAccent = "GOLD";
+export const DEFAULT_FINISH: UserSettingsFinish = "SOLID";
 
 export const THEME_VALUES: readonly UserSettingsTheme[] = [
   "MIDNIGHT",
@@ -21,6 +26,14 @@ export const ACCENT_VALUES: readonly UserSettingsAccent[] = [
   "BURGUNDY",
   "PURPLE",
   "IVORY",
+];
+
+export const FINISH_VALUES: readonly UserSettingsFinish[] = [
+  "SOLID",
+  "METALLIC",
+  "BRUSHED",
+  "MATTE",
+  "LUXURY",
 ];
 
 export const ACCENT_SWATCHES: ReadonlyArray<{
@@ -45,12 +58,20 @@ export function normalizeAccent(value: unknown): UserSettingsAccent {
   return isAccent(value) ? value : DEFAULT_ACCENT;
 }
 
+export function normalizeFinish(value: unknown): UserSettingsFinish {
+  return isFinish(value) ? value : DEFAULT_FINISH;
+}
+
 export function toCssTheme(value: unknown): string {
   return normalizeTheme(value).toLowerCase().replace(/_/g, "-");
 }
 
 export function toCssAccent(value: unknown): string {
   return normalizeAccent(value).toLowerCase().replace(/_/g, "-");
+}
+
+export function toCssFinish(value: unknown): string {
+  return normalizeFinish(value).toLowerCase().replace(/_/g, "-");
 }
 
 function isTheme(value: unknown): value is UserSettingsTheme {
@@ -64,5 +85,12 @@ function isAccent(value: unknown): value is UserSettingsAccent {
   return (
     typeof value === "string" &&
     ACCENT_VALUES.includes(value as UserSettingsAccent)
+  );
+}
+
+function isFinish(value: unknown): value is UserSettingsFinish {
+  return (
+    typeof value === "string" &&
+    FINISH_VALUES.includes(value as UserSettingsFinish)
   );
 }

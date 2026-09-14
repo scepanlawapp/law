@@ -1,0 +1,17 @@
+{
+  "track_id": "finish_premium_system_20260915",
+  "parent_track_id": "theme_accent_system_20260914",
+  "type": "feature",
+  "status": "in_progress",
+  "prd_reference": null,
+  "created_at": "2026-09-15T00:00:00Z",
+  "updated_at": "2026-09-15T00:00:00Z",
+  "keywords": [
+    "finish",
+    "premium",
+    "metallic",
+    "appearance-settings",
+    "design-system"
+  ],
+  "priority": "medium"
+}

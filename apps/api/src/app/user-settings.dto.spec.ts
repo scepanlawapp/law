@@ -36,6 +36,15 @@ describe("UpdatePreferencesDto appearance values", () => {
       });
       expect(await validate(dto)).toHaveLength(0);
     }
+
+    for (const finish of ["SOLID", "METALLIC", "BRUSHED", "MATTE", "LUXURY"]) {
+      const dto = plainToInstance(UpdatePreferencesDto, {
+        theme: "MIDNIGHT",
+        accentColor: "GOLD",
+        finish,
+      });
+      expect(await validate(dto)).toHaveLength(0);
+    }
   });
 
   it("rejects legacy appearance values", async () => {
@@ -49,5 +58,16 @@ describe("UpdatePreferencesDto appearance values", () => {
       "theme",
       "accentColor",
     ]);
+  });
+
+  it("rejects an unknown finish value", async () => {
+    const dto = plainToInstance(UpdatePreferencesDto, {
+      theme: "MIDNIGHT",
+      accentColor: "GOLD",
+      finish: "NEON",
+    });
+
+    const errors = await validate(dto);
+    expect(errors.map((error) => error.property)).toEqual(["finish"]);
   });
 });

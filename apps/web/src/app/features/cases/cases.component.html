@@ -31,16 +31,14 @@
       </thead>
       <tbody hlmTBody>
         @for (caseItem of items(); track caseItem.id) {
-          <tr
-            hlmTr
-            class="cursor-pointer"
-            (click)="openCase(caseItem.id)"
-          >
+          <tr hlmTr class="cursor-pointer" (click)="openCase(caseItem.id)">
             <td hlmTd>{{ caseItem.caseNumber }}</td>
             <td hlmTd>
-              <a [routerLink]="['/cases', caseItem.id]" (click)="$event.stopPropagation()">{{
-                caseItem.name
-              }}</a>
+              <a
+                [routerLink]="['/cases', caseItem.id]"
+                (click)="$event.stopPropagation()"
+                >{{ caseItem.name }}</a
+              >
             </td>
             <td hlmTd>
               <a
