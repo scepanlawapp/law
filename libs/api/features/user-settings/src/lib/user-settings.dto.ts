@@ -9,10 +9,26 @@ import {
   ValidateNested,
 } from "class-validator";
 
-const themes = ["SYSTEM", "LIGHT", "DARK"] as const;
+const themes = [
+  "MIDNIGHT",
+  "DEEP_NAVY",
+  "CHARCOAL",
+  "DARK_TEAL",
+  "BURGUNDY",
+  "IVORY",
+] as const;
 const languages = ["SR", "EN"] as const;
 const dateTimeFormats = ["TWELVE_HOUR", "TWENTY_FOUR_HOUR"] as const;
-const accentColors = ["BLUE", "TEAL", "CORAL", "VIOLET"] as const;
+const accentColors = [
+  "GOLD",
+  "EMERALD",
+  "ROYAL_BLUE",
+  "COPPER",
+  "ICE_BLUE",
+  "BURGUNDY",
+  "PURPLE",
+  "IVORY",
+] as const;
 
 export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(80) firstName?: string;

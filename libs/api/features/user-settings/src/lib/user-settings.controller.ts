@@ -10,18 +10,13 @@ import {
 import { AuthGuard, AuthenticatedRequest, CsrfOriginGuard } from "@law/auth";
 import { UserSettingsService } from "./user-settings.service";
 import { UpdateUserSettingsDto } from "./user-settings.dto";
-import {
-  PlatformPrismaService,
-  TenantConnectionManager,
-  TenantRegistryService,
-} from "@law/core";
+import { TenantConnectionManager, TenantRegistryService } from "@law/core";
 
 @Controller("users/me")
 @UseGuards(CsrfOriginGuard, AuthGuard)
 export class UserSettingsController {
   constructor(
     private readonly settings: UserSettingsService,
-    private readonly prisma: PlatformPrismaService,
     private readonly tenantRegistry: TenantRegistryService,
     private readonly connectionManager: TenantConnectionManager,
   ) {}

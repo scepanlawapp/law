@@ -39,9 +39,12 @@ enum AuthTokenPurpose {
 }
 
 enum ThemePreference {
-  SYSTEM
-  LIGHT
-  DARK
+  MIDNIGHT
+  DEEP_NAVY
+  CHARCOAL
+  DARK_TEAL
+  BURGUNDY
+  IVORY
 }
 
 enum LanguagePreference {
@@ -77,9 +80,9 @@ model User {
 
 model UserSettings {
   userId                 String                   @id
-  theme                  ThemePreference          @default(SYSTEM)
+  theme                  ThemePreference          @default(MIDNIGHT)
   language               LanguagePreference       @default(SR)
-  accentColor            String                   @default("BLUE")
+  accentColor            String                   @default("GOLD")
   workspaceNotifications Boolean                  @default(true)
   dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
   timeZone               String                   @default("Europe/Belgrade")

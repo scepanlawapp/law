@@ -1,10 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@law/core";
-import {
-  UserSettingsResponse,
-  UserSettingsUpdateRequest,
-} from "@law/api-interfaces";
+import { UserSettingsAccent, UserSettingsResponse } from "@law/api-interfaces";
 import { UpdateUserSettingsDto } from "./user-settings.dto";
+
+const DEFAULT_SETTINGS: UserSettingsRecord = {
+  theme: "MIDNIGHT",
+  language: "SR",
+  accentColor: "GOLD",
+  workspaceNotifications: true,
+  dateTimeFormat: "TWENTY_FOUR_HOUR",
+  timeZone: "Europe/Belgrade",
+};
 
 @Injectable()
 export class UserSettingsService {
@@ -15,10 +21,8 @@ export class UserSettingsService {
       where: { id: userId },
       include: { settings: true },
     });
-    const settings =
-      user.settings ??
-      (await this.prisma.userSettings.create({ data: { userId } }));
-    return this.toResponse(user, settings);
+    // A user without a settings row simply uses the defaults until they save changes.
+    return this.toResponse(user, user.settings ?? DEFAULT_SETTINGS);
   }
 
   async update(
@@ -54,7 +58,7 @@ export class UserSettingsService {
       preferences: {
         theme: settings.theme,
         language: settings.language,
-        accentColor: settings.accentColor,
+        accentColor: normalizeAccent(settings.accentColor),
         workspaceNotifications: settings.workspaceNotifications,
         dateTimeFormat: settings.dateTimeFormat,
         timeZone: settings.timeZone,
@@ -71,4 +75,26 @@ type UserSettingsUser = Pick<UserSettingsResponse["profile"], never> & {
   jobTitle: string | null;
   avatarUrl: string | null;
 };
-type UserSettingsRecord = UserSettingsResponse["preferences"];
+type UserSettingsRecord = Omit<
+  UserSettingsResponse["preferences"],
+  "accentColor"
+> & {
+  accentColor: string;
+};
+
+const accents = [
+  "GOLD",
+  "EMERALD",
+  "ROYAL_BLUE",
+  "COPPER",
+  "ICE_BLUE",
+  "BURGUNDY",
+  "PURPLE",
+  "IVORY",
+] as const;
+
+function normalizeAccent(value: string): UserSettingsAccent {
+  return accents.includes(value as (typeof accents)[number])
+    ? (value as UserSettingsAccent)
+    : "GOLD";
+}

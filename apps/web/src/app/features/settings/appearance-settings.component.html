@@ -54,28 +54,19 @@
     </div>
     <fieldset>
       <legend>{{ "settings.accentColor" | translate }}</legend>
-      <div class="accent-options">
-        @for (
-          color of [
-            { name: "BLUE", value: "#1760ac" },
-            { name: "TEAL", value: "#168c8c" },
-            { name: "CORAL", value: "#d76551" },
-            { name: "VIOLET", value: "#7256a6" },
-          ];
-          track color.name
-        ) {
-          <label class="accent-option"
-            ><input
-              type="radio"
-              formControlName="accentColor"
-              [value]="color.name"
-            /><span [style.backgroundColor]="color.value"></span
-            ><strong>{{
+      <hlm-radio-group formControlName="accentColor" class="accent-options">
+        @for (color of accentOptions; track color.name) {
+          <div class="accent-option">
+            <hlm-radio [value]="color.name" [inputId]="'accent-' + color.name">
+              <hlm-radio-indicator indicator />
+            </hlm-radio>
+            <span [style.backgroundColor]="color.value"></span>
+            <label hlmLabel [for]="'accent-' + color.name">{{
               "settings.accent." + color.name | translate
-            }}</strong></label
-          >
+            }}</label>
+          </div>
         }
-      </div>
+      </hlm-radio-group>
     </fieldset>
     <div class="settings-actions">
       <button hlmBtn type="submit" [disabled]="saving()">
