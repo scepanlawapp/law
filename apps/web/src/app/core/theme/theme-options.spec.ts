@@ -11,7 +11,7 @@ import {
 } from "./theme-options";
 
 describe("theme options", () => {
-  it("uses MIDNIGHT, GOLD, and SOLID as defaults", () => {
+  it("uses CHARCOAL, GOLD, and METALLIC as defaults", () => {
     expect(normalizeTheme(null)).toBe(DEFAULT_THEME);
     expect(normalizeAccent(null)).toBe(DEFAULT_ACCENT);
     expect(normalizeFinish(null)).toBe(DEFAULT_FINISH);
@@ -24,11 +24,11 @@ describe("theme options", () => {
   });
 
   it("falls back for old and unknown values", () => {
-    expect(normalizeTheme("SYSTEM")).toBe("MIDNIGHT");
-    expect(normalizeTheme("DARK")).toBe("MIDNIGHT");
+    expect(normalizeTheme("SYSTEM")).toBe("CHARCOAL");
+    expect(normalizeTheme("DARK")).toBe("CHARCOAL");
     expect(normalizeAccent("BLUE")).toBe("GOLD");
     expect(normalizeAccent("not-a-real-accent")).toBe("GOLD");
-    expect(normalizeFinish("NEON")).toBe("SOLID");
-    expect(normalizeFinish(undefined)).toBe("SOLID");
+    expect(normalizeFinish("NEON")).toBe("METALLIC");
+    expect(normalizeFinish(undefined)).toBe("METALLIC");
   });
 });

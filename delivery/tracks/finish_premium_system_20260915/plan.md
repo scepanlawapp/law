@@ -13,6 +13,7 @@
 - [x] Add English and Serbian translations for the finish labels.
 - [x] Add/extend focused frontend and backend tests.
 - [x] Run Prisma, frontend, backend, lint, build, and manual verification.
+- [x] Change the application default appearance to `CHARCOAL` / `GOLD` / `METALLIC` (frontend constants, backend defaults, and Prisma column defaults), via an additive migration that only affects newly created rows.
 
 ## Verification results
 
@@ -31,3 +32,4 @@
 - `apps/api/prisma/schema.prisma` (unused by any `db:migrate`/`generate` script) is kept in sync with `platform.prisma` for consistency, but has no corresponding migration.
 - Per follow-up direction, the `default` `hlmBtn` variant (not a separate `premium` variant) and sidebar active `routerLinkActive` links now use `.premium-primary` directly. This is safe because `--primary-surface`/`--premium-*` default to the flat `--primary` value, so every accent/finish other than GOLD (and CSS-supported COPPER) renders identically to before.
 - The Appearance settings Finish picker is shown only when `accentColor === "GOLD"` (per explicit user direction), even though COPPER also has CSS gradient support; COPPER's gradients remain reachable only if a GOLD-selected finish value is later paired with a COPPER accent change without an intervening reset, which does not happen today since switching away from GOLD forces `finish` back to `SOLID`.
+- Default appearance is now `CHARCOAL` / `GOLD` / `METALLIC` (was `MIDNIGHT` / `GOLD` / `SOLID`). Existing rows are untouched; only the Postgres column defaults and application-level fallbacks changed (migration `20260915010000_user_settings_default_charcoal_metallic`).
