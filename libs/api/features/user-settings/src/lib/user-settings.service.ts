@@ -8,10 +8,10 @@ import {
 import { UpdateUserSettingsDto } from "./user-settings.dto";
 
 const DEFAULT_SETTINGS: UserSettingsRecord = {
-  theme: "MIDNIGHT",
+  theme: "CHARCOAL",
   language: "SR",
   accentColor: "GOLD",
-  finish: "SOLID",
+  finish: "METALLIC",
   workspaceNotifications: true,
   dateTimeFormat: "TWENTY_FOUR_HOUR",
   timeZone: "Europe/Belgrade",

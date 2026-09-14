@@ -4,9 +4,9 @@ import {
   UserSettingsTheme,
 } from "@law/api-interfaces";
 
-export const DEFAULT_THEME: UserSettingsTheme = "MIDNIGHT";
+export const DEFAULT_THEME: UserSettingsTheme = "CHARCOAL";
 export const DEFAULT_ACCENT: UserSettingsAccent = "GOLD";
-export const DEFAULT_FINISH: UserSettingsFinish = "SOLID";
+export const DEFAULT_FINISH: UserSettingsFinish = "METALLIC";
 
 export const THEME_VALUES: readonly UserSettingsTheme[] = [
   "MIDNIGHT",

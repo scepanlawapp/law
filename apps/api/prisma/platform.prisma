@@ -80,10 +80,10 @@ model User {
 
 model UserSettings {
   userId                 String                   @id
-  theme                  ThemePreference          @default(MIDNIGHT)
+  theme                  ThemePreference          @default(CHARCOAL)
   language               LanguagePreference       @default(SR)
   accentColor            String                   @default("GOLD")
-  finish                 String                   @default("SOLID")
+  finish                 String                   @default("METALLIC")
   workspaceNotifications Boolean                  @default(true)
   dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
   timeZone               String                   @default("Europe/Belgrade")
