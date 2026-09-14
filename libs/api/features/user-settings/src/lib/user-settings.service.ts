@@ -1,12 +1,17 @@
 import { Injectable } from "@nestjs/common";
 import { PrismaService } from "@law/core";
-import { UserSettingsAccent, UserSettingsResponse } from "@law/api-interfaces";
+import {
+  UserSettingsAccent,
+  UserSettingsFinish,
+  UserSettingsResponse,
+} from "@law/api-interfaces";
 import { UpdateUserSettingsDto } from "./user-settings.dto";
 
 const DEFAULT_SETTINGS: UserSettingsRecord = {
   theme: "MIDNIGHT",
   language: "SR",
   accentColor: "GOLD",
+  finish: "SOLID",
   workspaceNotifications: true,
   dateTimeFormat: "TWENTY_FOUR_HOUR",
   timeZone: "Europe/Belgrade",
@@ -59,6 +64,7 @@ export class UserSettingsService {
         theme: settings.theme,
         language: settings.language,
         accentColor: normalizeAccent(settings.accentColor),
+        finish: normalizeFinish(settings.finish),
         workspaceNotifications: settings.workspaceNotifications,
         dateTimeFormat: settings.dateTimeFormat,
         timeZone: settings.timeZone,
@@ -77,9 +83,10 @@ type UserSettingsUser = Pick<UserSettingsResponse["profile"], never> & {
 };
 type UserSettingsRecord = Omit<
   UserSettingsResponse["preferences"],
-  "accentColor"
+  "accentColor" | "finish"
 > & {
   accentColor: string;
+  finish: string;
 };
 
 const accents = [
@@ -97,4 +104,12 @@ function normalizeAccent(value: string): UserSettingsAccent {
   return accents.includes(value as (typeof accents)[number])
     ? (value as UserSettingsAccent)
     : "GOLD";
+}
+
+const finishes = ["SOLID", "METALLIC", "BRUSHED", "MATTE", "LUXURY"] as const;
+
+function normalizeFinish(value: string): UserSettingsFinish {
+  return finishes.includes(value as (typeof finishes)[number])
+    ? (value as UserSettingsFinish)
+    : "SOLID";
 }

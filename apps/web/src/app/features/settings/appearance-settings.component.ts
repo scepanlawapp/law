@@ -1,7 +1,9 @@
 import { Component, inject, signal } from "@angular/core";
+import { toSignal } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import {
   UserSettingsAccent,
+  UserSettingsFinish,
   UserSettingsLanguage,
   UserSettingsTheme,
 } from "@law/api-interfaces";
@@ -22,8 +24,11 @@ import {
 import {
   ACCENT_SWATCHES,
   DEFAULT_ACCENT,
+  DEFAULT_FINISH,
   DEFAULT_THEME,
+  FINISH_VALUES,
   normalizeAccent,
+  normalizeFinish,
   normalizeTheme,
 } from "../../core/theme/theme-options";
 
@@ -59,6 +64,7 @@ export class AppearanceSettingsComponent {
     { value: "IVORY", label: "settings.themeIvory" },
   ];
   readonly accentOptions = ACCENT_SWATCHES;
+  readonly finishOptions: ReadonlyArray<UserSettingsFinish> = FINISH_VALUES;
   readonly languageOptions: ReadonlyArray<SelectOption<UserSettingsLanguage>> =
     [
       { value: "SR", label: "settings.serbian" },
@@ -82,14 +88,27 @@ export class AppearanceSettingsComponent {
     accentColor: new FormControl<UserSettingsAccent>(DEFAULT_ACCENT, {
       nonNullable: true,
     }),
+    finish: new FormControl<UserSettingsFinish>(DEFAULT_FINISH, {
+      nonNullable: true,
+    }),
+  });
+  // The finish picker is only meaningful for the GOLD accent's premium gradients.
+  readonly accentColorValue = toSignal(this.form.controls.accentColor.valueChanges, {
+    initialValue: this.form.controls.accentColor.value,
   });
   constructor() {
+    this.form.controls.accentColor.valueChanges.subscribe((accentColor) => {
+      if (accentColor !== "GOLD") {
+        this.form.controls.finish.setValue(DEFAULT_FINISH);
+      }
+    });
     this.api.get().subscribe({
       next: (s) => {
         this.form.patchValue({
           ...s.preferences,
           theme: normalizeTheme(s.preferences.theme),
           accentColor: normalizeAccent(s.preferences.accentColor),
+          finish: normalizeFinish(s.preferences.finish),
         });
         this.loading.set(false);
       },
@@ -109,6 +128,7 @@ export class AppearanceSettingsComponent {
         this.theme.apply(
           this.form.controls.theme.value,
           this.form.controls.accentColor.value,
+          this.form.controls.finish.value,
         );
         this.toast.success(
           this.localization.translate("settings.appearanceSaved"),

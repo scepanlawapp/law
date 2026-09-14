@@ -34,6 +34,9 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-primary-highlight: var(--premium-highlight);
+  --color-primary-shadow: var(--premium-shadow);
+
   --color-success: var(--success);
   --color-success-foreground: var(--success-foreground);
   --color-warning: var(--warning);
@@ -389,6 +392,247 @@ html[data-theme="ivory"][data-accent="ivory"] {
   --ring: #a69d8d;
 }
 
+/* Premium finish surfaces: SOLID (and any accent without a rule below) mirrors --primary exactly. */
+:root,
+html {
+  --primary-surface: var(--primary);
+  --primary-surface-hover: var(--primary);
+  --primary-surface-active: var(--primary);
+  --premium-border: var(--primary);
+  --premium-shadow: none;
+  --premium-highlight: transparent;
+}
+
+/* Swatch previews render their own finish regardless of the currently applied global attributes. */
+.finish-swatch[data-finish="solid"] {
+  --primary-surface: var(--primary);
+  --primary-surface-hover: var(--primary);
+  --primary-surface-active: var(--primary);
+  --premium-border: var(--primary);
+  --premium-shadow: none;
+  --premium-highlight: transparent;
+}
+
+/* Accents without a dedicated premium recipe stay flat, even in the swatch preview. */
+.finish-swatch[data-finish]:not([data-accent="gold"]):not(
+    [data-accent="copper"]
+  ) {
+  --primary-surface: var(--primary);
+  --primary-surface-hover: var(--primary);
+  --primary-surface-active: var(--primary);
+  --premium-border: var(--primary);
+  --premium-shadow: none;
+  --premium-highlight: transparent;
+}
+
+:root[data-finish="metallic"][data-accent="gold"],
+html[data-finish="metallic"][data-accent="gold"],
+.finish-swatch[data-finish="metallic"][data-accent="gold"] {
+  --primary-surface: linear-gradient(
+    135deg,
+    #f6d98a 0%,
+    #d7ad55 28%,
+    #c4933d 52%,
+    #e8c46f 76%,
+    #b98532 100%
+  );
+  --primary-surface-hover: linear-gradient(
+    135deg,
+    #f9e3a3 0%,
+    #e0ba66 28%,
+    #cea24a 52%,
+    #edcd80 76%,
+    #c39240 100%
+  );
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #b98532;
+  --premium-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --premium-highlight: rgba(255, 255, 255, 0.25);
+}
+
+:root[data-finish="brushed"][data-accent="gold"],
+html[data-finish="brushed"][data-accent="gold"],
+.finish-swatch[data-finish="brushed"][data-accent="gold"] {
+  --primary-surface:
+    repeating-linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.025) 0px,
+      rgba(255, 255, 255, 0.025) 1px,
+      rgba(0, 0, 0, 0.025) 1px,
+      rgba(0, 0, 0, 0.025) 2px
+    ),
+    linear-gradient(135deg, #e8c978, #bd8d37, #d8ad56, #a97828, #e3bd68);
+  --primary-surface-hover:
+    repeating-linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.035) 0px,
+      rgba(255, 255, 255, 0.035) 1px,
+      rgba(0, 0, 0, 0.035) 1px,
+      rgba(0, 0, 0, 0.035) 2px
+    ),
+    linear-gradient(135deg, #edd58c, #c99b45, #e0b768, #b48534, #e9c579);
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #a97828;
+  --premium-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  --premium-highlight: rgba(255, 255, 255, 0.18);
+}
+
+:root[data-finish="matte"][data-accent="gold"],
+html[data-finish="matte"][data-accent="gold"],
+.finish-swatch[data-finish="matte"][data-accent="gold"] {
+  --primary-surface: linear-gradient(
+    135deg,
+    #d5ad5c 0%,
+    #c29645 50%,
+    #b88937 100%
+  );
+  --primary-surface-hover: linear-gradient(
+    135deg,
+    #ddb769 0%,
+    #caa050 50%,
+    #c0923f 100%
+  );
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #b88937;
+  --premium-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  --premium-highlight: rgba(255, 255, 255, 0.12);
+}
+
+:root[data-finish="luxury"][data-accent="gold"],
+html[data-finish="luxury"][data-accent="gold"],
+.finish-swatch[data-finish="luxury"][data-accent="gold"] {
+  --primary-surface:
+    radial-gradient(
+      circle at 25% 20%,
+      rgba(255, 255, 255, 0.4),
+      transparent 28%
+    ),
+    linear-gradient(
+      135deg,
+      #f8e0a0 0%,
+      #d8aa4c 32%,
+      #b67d27 58%,
+      #e4bb62 82%,
+      #c18c34 100%
+    );
+  --primary-surface-hover:
+    radial-gradient(
+      circle at 25% 20%,
+      rgba(255, 255, 255, 0.5),
+      transparent 30%
+    ),
+    linear-gradient(135deg, #fbe7b3, #e2b65a, #c08a34, #edc574, #cb9740);
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #b67d27;
+  --premium-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  --premium-highlight: rgba(255, 255, 255, 0.4);
+}
+
+:root[data-finish="metallic"][data-accent="copper"],
+html[data-finish="metallic"][data-accent="copper"],
+.finish-swatch[data-finish="metallic"][data-accent="copper"] {
+  --primary-surface: linear-gradient(
+    135deg,
+    #eab488 0%,
+    #cf8c54 28%,
+    #b8723a 52%,
+    #e2a06a 76%,
+    #a8632e 100%
+  );
+  --primary-surface-hover: linear-gradient(
+    135deg,
+    #f0c39e 0%,
+    #d99c64 28%,
+    #c17f45 52%,
+    #e8ae7c 76%,
+    #b16f37 100%
+  );
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #a8632e;
+  --premium-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  --premium-highlight: rgba(255, 255, 255, 0.22);
+}
+
+:root[data-finish="brushed"][data-accent="copper"],
+html[data-finish="brushed"][data-accent="copper"],
+.finish-swatch[data-finish="brushed"][data-accent="copper"] {
+  --primary-surface:
+    repeating-linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.025) 0px,
+      rgba(255, 255, 255, 0.025) 1px,
+      rgba(0, 0, 0, 0.025) 1px,
+      rgba(0, 0, 0, 0.025) 2px
+    ),
+    linear-gradient(135deg, #dda173, #b97740, #cc8f56, #a6672f, #d99c68);
+  --primary-surface-hover:
+    repeating-linear-gradient(
+      100deg,
+      rgba(255, 255, 255, 0.035) 0px,
+      rgba(255, 255, 255, 0.035) 1px,
+      rgba(0, 0, 0, 0.035) 1px,
+      rgba(0, 0, 0, 0.035) 2px
+    ),
+    linear-gradient(135deg, #e6b087, #c3854c, #d59c63, #b0753a, #e0a976);
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #a6672f;
+  --premium-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+  --premium-highlight: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-finish="matte"][data-accent="copper"],
+html[data-finish="matte"][data-accent="copper"],
+.finish-swatch[data-finish="matte"][data-accent="copper"] {
+  --primary-surface: linear-gradient(
+    135deg,
+    #c68e59 0%,
+    #b47842 50%,
+    #a1662f 100%
+  );
+  --primary-surface-hover: linear-gradient(
+    135deg,
+    #ce9865 0%,
+    #bc824c 50%,
+    #a96f38 100%
+  );
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #a1662f;
+  --premium-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  --premium-highlight: rgba(255, 255, 255, 0.1);
+}
+
+:root[data-finish="luxury"][data-accent="copper"],
+html[data-finish="luxury"][data-accent="copper"],
+.finish-swatch[data-finish="luxury"][data-accent="copper"] {
+  --primary-surface:
+    radial-gradient(
+      circle at 25% 20%,
+      rgba(255, 255, 255, 0.38),
+      transparent 28%
+    ),
+    linear-gradient(
+      135deg,
+      #eec4a0 0%,
+      #cf9459 32%,
+      #a96b30 58%,
+      #e0aa72 82%,
+      #b47b3d 100%
+    );
+  --primary-surface-hover:
+    radial-gradient(
+      circle at 25% 20%,
+      rgba(255, 255, 255, 0.48),
+      transparent 30%
+    ),
+    linear-gradient(135deg, #f3d1b3, #dba367, #b47a3a, #e8bb84, #bd8949);
+  --primary-surface-active: var(--primary-surface);
+  --premium-border: #a96b30;
+  --premium-shadow:
+    0 4px 14px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --premium-highlight: rgba(255, 255, 255, 0.38);
+}
+
 html,
 body {
   height: 100%;
@@ -447,5 +691,47 @@ select {
   button:not(:disabled),
   [role="button"]:not([aria-disabled="true"]) {
     cursor: pointer;
+  }
+}
+
+/* Opt-in premium surface utilities; SOLID and unsupported accents fall back to a flat --primary. */
+@layer components {
+  /* background-color is the flat fallback; background-image (invalid for plain colors) only paints when --primary-surface is a real gradient. */
+  .premium-primary {
+    background-color: var(--primary);
+    background-image: var(--primary-surface);
+    color: var(--primary-foreground);
+    border-color: var(--premium-border);
+    box-shadow: var(--premium-shadow);
+  }
+
+  .premium-primary:hover {
+    background-image: var(--primary-surface-hover);
+  }
+
+  .premium-primary:active {
+    background-image: var(--primary-surface-active);
+  }
+
+  .premium-badge {
+    background-color: var(--primary);
+    background-image: var(--primary-surface);
+    color: var(--primary-foreground);
+    border: 1px solid var(--premium-border);
+    box-shadow: var(--premium-shadow);
+    border-radius: 9999px;
+    padding: 0.125rem 0.625rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .finish-swatch {
+    background-color: var(--primary);
+    background-image: var(--primary-surface);
+    border: 1px solid var(--premium-border);
+    border-radius: 0.375rem;
+    width: 2rem;
+    height: 1.25rem;
+    display: inline-block;
   }
 }

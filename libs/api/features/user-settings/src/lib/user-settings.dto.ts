@@ -29,6 +29,7 @@ const accentColors = [
   "PURPLE",
   "IVORY",
 ] as const;
+const finishes = ["SOLID", "METALLIC", "BRUSHED", "MATTE", "LUXURY"] as const;
 
 export class UpdateProfileDto {
   @IsOptional() @IsString() @MaxLength(80) firstName?: string;
@@ -46,6 +47,7 @@ export class UpdatePreferencesDto {
   @IsOptional() @IsIn(themes) theme?: (typeof themes)[number];
   @IsOptional() @IsIn(languages) language?: (typeof languages)[number];
   @IsOptional() @IsIn(accentColors) accentColor?: (typeof accentColors)[number];
+  @IsOptional() @IsIn(finishes) finish?: (typeof finishes)[number];
   @IsOptional() @IsBoolean() workspaceNotifications?: boolean;
   @IsOptional()
   @IsIn(dateTimeFormats)

@@ -130,6 +130,7 @@ model UserSettings {
   theme                  ThemePreference          @default(MIDNIGHT)
   language               LanguagePreference       @default(SR)
   accentColor            String                   @default("GOLD")
+  finish                 String                   @default("SOLID")
   workspaceNotifications Boolean                  @default(true)
   dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
   timeZone               String                   @default("Europe/Belgrade")

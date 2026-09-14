@@ -56,6 +56,12 @@ export type UserSettingsAccent =
   | "BURGUNDY"
   | "PURPLE"
   | "IVORY";
+export type UserSettingsFinish =
+  | "SOLID"
+  | "METALLIC"
+  | "BRUSHED"
+  | "MATTE"
+  | "LUXURY";
 export type UserSettingsLanguage = "SR" | "EN";
 export type UserSettingsDateTimeFormat = "TWELVE_HOUR" | "TWENTY_FOUR_HOUR";
 
@@ -72,6 +78,7 @@ export interface UserSettingsPreferences {
   theme: UserSettingsTheme;
   language: UserSettingsLanguage;
   accentColor: UserSettingsAccent;
+  finish: UserSettingsFinish;
   workspaceNotifications: boolean;
   dateTimeFormat: UserSettingsDateTimeFormat;
   timeZone: string;

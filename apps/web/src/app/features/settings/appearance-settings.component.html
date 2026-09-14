@@ -68,6 +68,28 @@
         }
       </hlm-radio-group>
     </fieldset>
+    @if (accentColorValue() === "GOLD") {
+      <fieldset>
+        <legend>{{ "settings.finish" | translate }}</legend>
+        <hlm-radio-group formControlName="finish" class="accent-options">
+          @for (finish of finishOptions; track finish) {
+            <div class="accent-option">
+              <hlm-radio [value]="finish" [inputId]="'finish-' + finish">
+                <hlm-radio-indicator indicator />
+              </hlm-radio>
+              <span
+                class="finish-swatch"
+                [attr.data-finish]="finish.toLowerCase()"
+                data-accent="gold"
+              ></span>
+              <label hlmLabel [for]="'finish-' + finish">{{
+                "settings.finish." + finish | translate
+              }}</label>
+            </div>
+          }
+        </hlm-radio-group>
+      </fieldset>
+    }
     <div class="settings-actions">
       <button hlmBtn type="submit" [disabled]="saving()">
         {{
