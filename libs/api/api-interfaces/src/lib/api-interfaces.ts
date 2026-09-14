@@ -40,7 +40,22 @@ export interface AuthUser {
   avatarUrl?: string;
 }
 
-export type UserSettingsTheme = "SYSTEM" | "LIGHT" | "DARK";
+export type UserSettingsTheme =
+  | "MIDNIGHT"
+  | "DEEP_NAVY"
+  | "CHARCOAL"
+  | "DARK_TEAL"
+  | "BURGUNDY"
+  | "IVORY";
+export type UserSettingsAccent =
+  | "GOLD"
+  | "EMERALD"
+  | "ROYAL_BLUE"
+  | "COPPER"
+  | "ICE_BLUE"
+  | "BURGUNDY"
+  | "PURPLE"
+  | "IVORY";
 export type UserSettingsLanguage = "SR" | "EN";
 export type UserSettingsDateTimeFormat = "TWELVE_HOUR" | "TWENTY_FOUR_HOUR";
 
@@ -56,7 +71,7 @@ export interface UserSettingsProfile {
 export interface UserSettingsPreferences {
   theme: UserSettingsTheme;
   language: UserSettingsLanguage;
-  accentColor: string;
+  accentColor: UserSettingsAccent;
   workspaceNotifications: boolean;
   dateTimeFormat: UserSettingsDateTimeFormat;
   timeZone: string;

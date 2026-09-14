@@ -1,8 +1,14 @@
 import { Component, inject, signal } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
-import { UserSettingsLanguage, UserSettingsTheme } from "@law/api-interfaces";
+import {
+  UserSettingsAccent,
+  UserSettingsLanguage,
+  UserSettingsTheme,
+} from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
+import { HlmLabel } from "@spartan-ng/helm/label";
+import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -13,6 +19,13 @@ import {
   createSelectItemToString,
   type SelectOption,
 } from "../../shared/utils";
+import {
+  ACCENT_SWATCHES,
+  DEFAULT_ACCENT,
+  DEFAULT_THEME,
+  normalizeAccent,
+  normalizeTheme,
+} from "../../core/theme/theme-options";
 
 @Component({
   selector: "app-appearance-settings",
@@ -22,6 +35,8 @@ import {
     HlmButton,
     HlmField,
     HlmFieldLabel,
+    HlmLabel,
+    HlmRadioGroupImports,
     HlmSelectImports,
     TranslatePipe,
   ],
@@ -36,10 +51,14 @@ export class AppearanceSettingsComponent {
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly themeOptions: ReadonlyArray<SelectOption<UserSettingsTheme>> = [
-    { value: "SYSTEM", label: "settings.system" },
-    { value: "LIGHT", label: "settings.light" },
-    { value: "DARK", label: "settings.dark" },
+    { value: "MIDNIGHT", label: "settings.themeMidnight" },
+    { value: "DEEP_NAVY", label: "settings.themeDeepNavy" },
+    { value: "CHARCOAL", label: "settings.themeCharcoal" },
+    { value: "DARK_TEAL", label: "settings.themeDarkTeal" },
+    { value: "BURGUNDY", label: "settings.themeBurgundy" },
+    { value: "IVORY", label: "settings.themeIvory" },
   ];
+  readonly accentOptions = ACCENT_SWATCHES;
   readonly languageOptions: ReadonlyArray<SelectOption<UserSettingsLanguage>> =
     [
       { value: "SR", label: "settings.serbian" },
@@ -54,16 +73,24 @@ export class AppearanceSettingsComponent {
     (key) => this.localization.translate(key),
   );
   readonly form = new FormGroup({
-    theme: new FormControl<UserSettingsTheme>("SYSTEM", { nonNullable: true }),
+    theme: new FormControl<UserSettingsTheme>(DEFAULT_THEME, {
+      nonNullable: true,
+    }),
     language: new FormControl<UserSettingsLanguage>("SR", {
       nonNullable: true,
     }),
-    accentColor: new FormControl("BLUE", { nonNullable: true }),
+    accentColor: new FormControl<UserSettingsAccent>(DEFAULT_ACCENT, {
+      nonNullable: true,
+    }),
   });
   constructor() {
     this.api.get().subscribe({
       next: (s) => {
-        this.form.patchValue(s.preferences);
+        this.form.patchValue({
+          ...s.preferences,
+          theme: normalizeTheme(s.preferences.theme),
+          accentColor: normalizeAccent(s.preferences.accentColor),
+        });
         this.loading.set(false);
       },
       error: () => {
@@ -79,7 +106,10 @@ export class AppearanceSettingsComponent {
     this.api.update({ preferences: this.form.getRawValue() }).subscribe({
       next: async () => {
         await this.localization.setLanguage(this.form.controls.language.value);
-        this.theme.apply(this.form.controls.theme.value);
+        this.theme.apply(
+          this.form.controls.theme.value,
+          this.form.controls.accentColor.value,
+        );
         this.toast.success(
           this.localization.translate("settings.appearanceSaved"),
         );

@@ -1,0 +1,17 @@
+{
+  "track_id": "theme_accent_system_20260914",
+  "parent_track_id": null,
+  "type": "feature",
+  "status": "in_progress",
+  "prd_reference": null,
+  "created_at": "2026-09-14T00:00:00Z",
+  "updated_at": "2026-09-14T00:00:00Z",
+  "keywords": [
+    "theme",
+    "accent",
+    "semantic-tokens",
+    "appearance-settings",
+    "design-system"
+  ],
+  "priority": "high"
+}
