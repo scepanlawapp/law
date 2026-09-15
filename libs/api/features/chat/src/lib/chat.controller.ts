@@ -36,6 +36,7 @@ import {
   ReviewDraftDto,
   UpdateChatSessionDto,
   UpdateDraftDto,
+  UpdateMessageFeedbackDto,
 } from "./chat.dto";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
@@ -131,6 +132,15 @@ export class ChatController {
     );
   }
 
+  @Sse("events")
+  workspaceEvents(
+    @Req() request: WorkspaceRequest,
+  ): Observable<{ data: ChatStreamEvent }> {
+    return this.chat
+      .streamWorkspace(request.workspace!.workspaceId)
+      .pipe(map((event) => ({ data: event })));
+  }
+
   @Get("attachments/:attachmentId")
   async downloadAttachment(
     @Req() request: WorkspaceRequest,
@@ -160,6 +170,38 @@ export class ChatController {
       request.workspace!.workspaceId,
       jobId,
       query.script ?? "latin",
+    );
+  }
+
+  @Post("jobs/:jobId/retry")
+  retryJob(
+    @Req() request: WorkspaceRequest,
+    @Param("jobId") jobId: string,
+  ) {
+    return this.chat.retryJob(request.workspace!.workspaceId, jobId);
+  }
+
+  @Patch("messages/:messageId/feedback")
+  updateMessageFeedback(
+    @Req() request: WorkspaceRequest,
+    @Param("messageId") messageId: string,
+    @Body() body: UpdateMessageFeedbackDto,
+  ) {
+    return this.chat.updateMessageFeedback(
+      request.workspace!.workspaceId,
+      messageId,
+      body.feedback ?? null,
+    );
+  }
+
+  @Post("messages/:messageId/regenerate")
+  regenerateAnswer(
+    @Req() request: WorkspaceRequest,
+    @Param("messageId") messageId: string,
+  ) {
+    return this.chat.regenerateAnswer(
+      request.workspace!.workspaceId,
+      messageId,
     );
   }
 

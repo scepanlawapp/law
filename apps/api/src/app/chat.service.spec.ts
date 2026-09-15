@@ -31,6 +31,7 @@ function prismaMock() {
   const briefExtractionResults = new Map<string, Record<string, unknown>>();
   let jobSeq = 0;
   let briefSeq = 0;
+  let messageSeq = 0;
 
   const prisma = {
     chatSession: {
@@ -40,7 +41,42 @@ function prismaMock() {
       update: jest.fn(),
     },
     chatMessage: {
-      create: jest.fn(),
+      create: jest.fn(async ({
+        data,
+      }: {
+        data: Record<string, unknown>;
+      }): Promise<Record<string, unknown>> => {
+        messageSeq += 1;
+        return {
+          id: `message-${messageSeq}`,
+          triageDecision: null,
+          metadata: null,
+          createdAt: now,
+          ...data,
+        };
+      }),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Record<string, unknown>;
+        }): Promise<Record<string, unknown>> => ({
+          id: where.id,
+          sessionId: session.id,
+          role: "ASSISTANT",
+          content: "",
+          status: "PENDING",
+          triageDecision: null,
+          correlationId: "corr-answer",
+          metadata: { outcome: "ANSWER" },
+          createdAt: now,
+          ...data,
+        }),
+      ),
+      findUnique: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     chatAttachment: {
       create: jest.fn(),
@@ -81,6 +117,8 @@ function prismaMock() {
       findUnique: jest.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(workflowJobs.get(where.id) ?? null),
       ),
+      findFirst: jest.fn().mockResolvedValue(null),
+      findMany: jest.fn().mockResolvedValue([]),
     },
     briefExtractionResult: {
       create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
@@ -96,7 +134,7 @@ function prismaMock() {
     draftResult: {
       create: jest.fn(),
       findFirst: jest.fn(),
-      findMany: jest.fn(),
+      findMany: jest.fn().mockResolvedValue([]),
       findUnique: jest.fn(),
       update: jest.fn(),
     },
@@ -132,9 +170,12 @@ describe("ChatService", () => {
   it("returns 404 for sessions outside the workspace", async () => {
     const prisma = prismaMock();
     prisma.chatSession.findFirst.mockResolvedValue(null);
+    const events = new ChatEventBus();
+    const emitted: ChatStreamEvent[] = [];
+    events.stream(session.id).subscribe((event) => emitted.push(event));
     const service = new ChatService(
       prisma as never,
-      new ChatEventBus(),
+      events,
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
       new FakeChatModelProvider({ decision: "LEGAL", reason: "ok" }),
@@ -298,7 +339,7 @@ describe("ChatService", () => {
       expect.objectContaining({
         data: expect.objectContaining({
           jobId: "job-2",
-          messageId: "msg-assistant",
+          messageId: "msg-user",
           confidence: fakeBrief.confidence,
           missingFields: fakeBrief.missingFields,
         }),
@@ -358,9 +399,12 @@ describe("ChatService", () => {
       },
     ]);
 
+    const events = new ChatEventBus();
+    const attachmentEvents: ChatStreamEvent[] = [];
+    events.stream(session.id).subscribe((event) => attachmentEvents.push(event));
     const service = new ChatService(
       prisma as never,
-      new ChatEventBus(),
+      events,
       {
         save: jest.fn(),
         read: jest.fn().mockResolvedValue(Buffer.from("hello world")),
@@ -404,6 +448,11 @@ describe("ChatService", () => {
         data: expect.objectContaining({ status: "COMPLETED" }),
       }),
     );
+    expect(
+      attachmentEvents
+        .filter((event) => event.type === "attachment.updated")
+        .map((event) => event.attachment?.extractionStatus),
+    ).toEqual(["RUNNING", "COMPLETED"]);
   });
 
   it("does not queue a job for non-legal messages", async () => {
@@ -490,7 +539,14 @@ describe("ChatService", () => {
     const provider = {
       completeStructured: jest.fn().mockImplementation(async () => {
         calls += 1;
-        if (calls <= 2) return { decision: "LEGAL", reason: "Lawsuit" };
+        if (calls <= 2) {
+          return {
+            decision: "LEGAL",
+            reason: "Lawsuit",
+            intent: "DRAFT",
+            language: "sr",
+          };
+        }
         throw new Error("OpenRouter timed out");
       }),
     };
@@ -517,7 +573,7 @@ describe("ChatService", () => {
       expect.objectContaining({
         where: { id: "job-2" },
         data: expect.objectContaining({
-          status: "COMPLETED",
+          status: "FAILED",
           errorCode: "BRIEF_LLM_FAILED",
           output: expect.objectContaining({
             userText: "Tužba za naknadu štete",
@@ -633,23 +689,49 @@ describe("ChatService", () => {
         createdAt: now,
       })
       .mockResolvedValueOnce({
-        id: "msg-assistant",
+        id: "msg-draft-ready",
         sessionId: session.id,
         role: "ASSISTANT",
-        content: "accepted",
+        content: "Nacrt je spreman za pregled.",
         status: "COMPLETED",
-        triageDecision: "LEGAL",
+        triageDecision: null,
         correlationId: "corr-5",
+        metadata: { outcome: "DRAFT_READY", draftId: "draft-1" },
         createdAt: now,
       });
     const fakeDraft = {
       documentText: "PRVI OSNOVNI SUD U BEOGRADU\n\nTUŽBA...",
       warnings: [],
     };
+    prisma.draftResult.create.mockResolvedValue({
+      id: "draft-1",
+      jobId: "job-3",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      messageId: "msg-user",
+      briefResultId: "brief-result-1",
+      documentText: fakeDraft.documentText,
+      finalDocumentText: null,
+      warnings: fakeDraft.warnings,
+      promptChars: 100,
+      truncated: false,
+      model: "test-model",
+      approvalStatus: "READY_FOR_SIGNOFF",
+      reviewedByUserId: null,
+      reviewedAt: null,
+      reviewNote: null,
+      previousDraftId: null,
+      errorCode: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const events = new ChatEventBus();
+    const emitted: ChatStreamEvent[] = [];
+    events.stream(session.id).subscribe((event) => emitted.push(event));
 
     const service = new ChatService(
       prisma as never,
-      new ChatEventBus(),
+      events,
       { save: jest.fn(), read: jest.fn() } as never,
       new ChatRuntimeConfig(),
       new FakeChatModelProvider([
@@ -689,6 +771,27 @@ describe("ChatService", () => {
         where: { id: "job-3" },
         data: expect.objectContaining({ status: "COMPLETED", errorCode: null }),
       }),
+    );
+    expect(prisma.chatMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          content: "Nacrt je spreman za pregled.",
+          correlationId: expect.any(String),
+          metadata: { outcome: "DRAFT_READY", draftId: "draft-1" },
+        }),
+      }),
+    );
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          type: "draft.updated",
+          draft: expect.objectContaining({ id: "draft-1" }),
+        }),
+        expect.objectContaining({
+          type: "message.created",
+          message: expect.objectContaining({ id: "msg-draft-ready" }),
+        }),
+      ]),
     );
   });
 
@@ -742,6 +845,71 @@ describe("ChatService", () => {
 
     expect(prisma.workflowJob.create).toHaveBeenCalledTimes(2);
     expect(prisma.draftResult.create).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: { outcome: "DRAFT_UNSUPPORTED" },
+        }),
+      }),
+    );
+  });
+
+  it("routes a legal question to a streamed answering job", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockResolvedValue(session);
+    const events = new ChatEventBus();
+    const emitted: ChatStreamEvent[] = [];
+    events.stream(session.id).subscribe((event) => emitted.push(event));
+    const service = new ChatService(
+      prisma as never,
+      events,
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider([
+        { title: "Rok zastarelosti" },
+        {
+          decision: "LEGAL",
+          reason: "Legal guidance requested",
+          intent: "ANSWER",
+          language: "sr",
+        },
+        { stream: ["Opšti ", "pravni odgovor."] },
+      ]),
+    );
+
+    await service.sendMessage({
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      userId: "user-1",
+      content: "Koji je opšti rok zastarelosti?",
+      files: [],
+    });
+    await new Promise((resolve) => setImmediate(resolve));
+
+    expect(prisma.workflowJob.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ workflowName: "answering" }),
+      }),
+    );
+    expect(prisma.chatMessage.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: {
+          content: "Opšti pravni odgovor.",
+          status: "COMPLETED",
+        },
+      }),
+    );
+    expect(emitted).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ type: "message.started" }),
+        expect.objectContaining({
+          type: "message.delta",
+          delta: "pravni odgovor.",
+        }),
+        expect.objectContaining({ type: "message.updated" }),
+      ]),
+    );
   });
 
   it("getDraft returns the persisted draft for a job in the workspace", async () => {
@@ -1237,6 +1405,96 @@ describe("ChatService", () => {
     );
   });
 
+  it("includes persisted workflow activity in session summaries", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findMany.mockResolvedValue([session]);
+    prisma.chatSession.count.mockResolvedValue(1);
+    prisma.workflowJob.findMany.mockResolvedValue([
+      {
+        id: "job-active",
+        workspaceId: session.workspaceId,
+        sessionId: session.id,
+        workflowName: "brief-extraction",
+        status: "RUNNING",
+        correlationId: "corr-active",
+        output: { progressStage: "EXTRACTING_FACTS" },
+        errorCode: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    prisma.draftResult.findMany.mockResolvedValue([{ sessionId: session.id }]);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.listSessions(session.workspaceId, { page: 1, pageSize: 20 }),
+    ).resolves.toMatchObject({
+      items: [
+        {
+          id: session.id,
+          activity: {
+            activeJobCount: 1,
+            hasDraft: true,
+            latestJob: {
+              id: "job-active",
+              progressStage: "EXTRACTING_FACTS",
+              updatedAt: now.toISOString(),
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it("returns authoritative messages, jobs, and drafts for a session", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatMessage.findMany.mockResolvedValue([]);
+    prisma.workflowJob.findMany.mockResolvedValue([
+      {
+        id: "job-1",
+        workspaceId: session.workspaceId,
+        sessionId: session.id,
+        workflowName: "triage",
+        status: "COMPLETED",
+        correlationId: "corr-1",
+        output: { progressStage: "UNDERSTANDING_REQUEST" },
+        errorCode: null,
+        createdAt: now,
+        updatedAt: now,
+      },
+    ]);
+    prisma.draftResult.findMany.mockResolvedValue([]);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.getSession(session.workspaceId, session.id),
+    ).resolves.toMatchObject({
+      id: session.id,
+      messages: [],
+      jobs: [
+        {
+          id: "job-1",
+          status: "COMPLETED",
+          progressStage: "UNDERSTANDING_REQUEST",
+        },
+      ],
+      drafts: [],
+    });
+  });
+
   it("deleteSession soft-deletes the session and emits session.deleted", async () => {
     const prisma = prismaMock();
     prisma.chatSession.findFirst.mockResolvedValue(session);
@@ -1361,5 +1619,227 @@ describe("ChatService", () => {
     );
     // The injected queue is a mock, so the runner never actually executes.
     expect(prisma.workflowJob.update).not.toHaveBeenCalled();
+  });
+
+  it("retries a failed job with persisted input and the same correlation", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    const sourceInput = {
+      userText: "Pravno pitanje",
+      attachments: [],
+      language: "sr",
+      messageId: "msg-user",
+    };
+    const failed = await prisma.workflowJob.create({
+      data: {
+        workspaceId: session.workspaceId,
+        sessionId: session.id,
+        workflowName: "answering",
+        status: "FAILED",
+        correlationId: "corr-retry",
+        input: sourceInput,
+      },
+    });
+    prisma.workflowJob.create.mockClear();
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+      { enqueue },
+    );
+
+    await expect(
+      service.retryJob(session.workspaceId, failed.id),
+    ).resolves.toMatchObject({
+      workflowName: "answering",
+      status: "QUEUED",
+      correlationId: "corr-retry",
+    });
+    expect(prisma.workflowJob.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        input: sourceInput,
+        correlationId: "corr-retry",
+        status: "QUEUED",
+      }),
+    });
+    expect(enqueue).toHaveBeenCalledWith(
+      "answering",
+      expect.any(String),
+      expect.objectContaining({
+        correlationId: "corr-retry",
+        messageId: "msg-user",
+      }),
+    );
+  });
+
+  it("rejects retry while the correlation has active work", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    const failed = await prisma.workflowJob.create({
+      data: {
+        workspaceId: session.workspaceId,
+        sessionId: session.id,
+        workflowName: "drafting",
+        status: "FAILED",
+        correlationId: "corr-active",
+        input: {},
+      },
+    });
+    prisma.workflowJob.findFirst.mockResolvedValue({ id: "job-running" });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+      { enqueue: jest.fn() },
+    );
+
+    await expect(
+      service.retryJob(session.workspaceId, failed.id),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("persists assistant feedback without replacing message metadata", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    const assistant = {
+      id: "message-feedback",
+      sessionId: session.id,
+      role: "ASSISTANT",
+      content: "Odgovor",
+      status: "COMPLETED",
+      triageDecision: null,
+      correlationId: "corr-feedback",
+      metadata: { outcome: "ANSWER" },
+      createdAt: now,
+    };
+    prisma.chatMessage.findUnique.mockResolvedValue(assistant);
+    prisma.chatMessage.update.mockResolvedValue({
+      ...assistant,
+      metadata: { outcome: "ANSWER", feedback: "POSITIVE" },
+      attachments: [],
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.updateMessageFeedback(
+        session.workspaceId,
+        assistant.id,
+        "POSITIVE",
+      ),
+    ).resolves.toMatchObject({ feedback: "POSITIVE" });
+    expect(prisma.chatMessage.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: {
+          metadata: { outcome: "ANSWER", feedback: "POSITIVE" },
+        },
+      }),
+    );
+  });
+
+  it("rejects feedback on a user message", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      id: "message-user",
+      sessionId: session.id,
+      role: "USER",
+      metadata: null,
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.updateMessageFeedback(
+        session.workspaceId,
+        "message-user",
+        "NEGATIVE",
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("regenerates a completed streamed answer from persisted input", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      id: "message-answer",
+      sessionId: session.id,
+      role: "ASSISTANT",
+      status: "COMPLETED",
+      correlationId: "corr-answer",
+      metadata: { outcome: "ANSWER" },
+    });
+    const sourceInput = {
+      userText: "Pravno pitanje",
+      attachments: [],
+      language: "sr",
+    };
+    prisma.workflowJob.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ input: sourceInput });
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+      { enqueue },
+    );
+
+    await expect(
+      service.regenerateAnswer(session.workspaceId, "message-answer"),
+    ).resolves.toMatchObject({
+      workflowName: "answering",
+      status: "QUEUED",
+      correlationId: "corr-answer",
+    });
+    expect(prisma.workflowJob.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ input: sourceInput }),
+    });
+    expect(enqueue).toHaveBeenCalledWith(
+      "answering",
+      expect.any(String),
+      expect.objectContaining({ correlationId: "corr-answer" }),
+    );
+  });
+
+  it("rejects regeneration for a non-answer assistant message", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      id: "message-draft",
+      sessionId: session.id,
+      role: "ASSISTANT",
+      status: "COMPLETED",
+      correlationId: "corr-draft",
+      metadata: { outcome: "DRAFT_READY" },
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.regenerateAnswer(session.workspaceId, "message-draft"),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

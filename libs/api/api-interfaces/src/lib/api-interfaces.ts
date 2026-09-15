@@ -138,8 +138,31 @@ export interface PasswordResetRequest {
 export type ChatSessionStatus = "ACTIVE" | "ARCHIVED";
 export type ChatMessageRole = "USER" | "ASSISTANT" | "SYSTEM";
 export type ChatMessageStatus = "PENDING" | "COMPLETED" | "FAILED";
+export type ChatMessageFeedback = "POSITIVE" | "NEGATIVE";
+export type ChatMessageOutcome =
+  | "ANSWER"
+  | "DRAFT_READY"
+  | "DRAFT_UNSUPPORTED"
+  | "CONTEXT_REQUIRED";
 export type TriageDecision = "LEGAL" | "NON_LEGAL" | "UNCLEAR";
+export type AssistantIntent = "ANSWER" | "DRAFT";
+export type AssistantLanguage = "sr" | "en";
+export type ChatWorkflowName =
+  | "triage"
+  | "answering"
+  | "brief-extraction"
+  | "template-retrieval"
+  | "drafting"
+  | "evaluation"
+  | "review";
 export type WorkflowJobStatus = "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+export type WorkflowProgressStage =
+  | "UNDERSTANDING_REQUEST"
+  | "READING_ATTACHMENTS"
+  | "EXTRACTING_FACTS"
+  | "PREPARING_ANSWER"
+  | "PREPARING_DRAFT"
+  | "SAVING_FOR_REVIEW";
 export type ChatAttachmentExtractionStatus =
   | "PENDING"
   | "RUNNING"
@@ -161,6 +184,10 @@ export type DraftApprovalStatus =
 
 export type ChatEventType =
   | "message.created"
+  | "message.started"
+  | "message.delta"
+  | "message.updated"
+  | "attachment.updated"
   | "triage.started"
   | "triage.completed"
   | "job.queued"
@@ -188,6 +215,8 @@ export interface ChatMessageResponse {
   status: ChatMessageStatus;
   triageDecision?: TriageDecision | null;
   correlationId?: string | null;
+  feedback?: ChatMessageFeedback | null;
+  outcome?: ChatMessageOutcome | null;
   createdAt: string;
   attachments: ChatAttachmentSummary[];
 }
@@ -201,6 +230,13 @@ export interface ChatSessionSummary {
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
+  activity?: ChatSessionActivitySummary | null;
+}
+
+export interface ChatSessionActivitySummary {
+  activeJobCount: number;
+  latestJob: WorkflowJobResponse | null;
+  hasDraft: boolean;
 }
 
 export type SortDirection = "asc" | "desc";
@@ -238,6 +274,8 @@ export type ChatSessionListResponse = PaginatedResponse<ChatSessionSummary>;
 
 export interface ChatSessionDetail extends ChatSessionSummary {
   messages: ChatMessageResponse[];
+  jobs: WorkflowJobResponse[];
+  drafts: DraftResultResponse[];
 }
 
 export interface ChatSessionCreateRequest {
@@ -250,21 +288,33 @@ export interface ChatSendMessageResponse {
   correlationId: string;
 }
 
+export interface ChatMessageFeedbackRequest {
+  feedback: ChatMessageFeedback | null;
+}
+
 export interface WorkflowJobResponse {
   id: string;
   workspaceId: string;
   sessionId: string;
-  workflowName: string;
+  workflowName: ChatWorkflowName;
   status: WorkflowJobStatus;
   correlationId: string;
+  progressStage?: WorkflowProgressStage | null;
+  errorCode?: string | null;
   createdAt: string;
+  updatedAt: string;
 }
 
 export interface ChatStreamEvent {
   type: ChatEventType;
+  workspaceId?: string;
   sessionId: string;
+  correlationId?: string;
   createdAt: string;
   message?: ChatMessageResponse;
+  messageId?: string;
+  delta?: string;
+  attachment?: ChatAttachmentSummary;
   job?: WorkflowJobResponse;
   draft?: DraftResultResponse;
   decision?: TriageDecision;
@@ -332,6 +382,7 @@ export interface DraftResultResponse {
   previousDraftId?: string | null;
   errorCode?: string | null;
   createdAt: string;
+  updatedAt?: string;
   // Script of documentText in this response; stored value is always Latin.
   script?: DocumentScript;
 }

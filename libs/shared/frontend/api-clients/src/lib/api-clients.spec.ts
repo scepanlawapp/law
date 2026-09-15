@@ -1,4 +1,4 @@
-import { chatEventsUrl } from "./chat-events-url";
+import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
 
 describe("chatEventsUrl", () => {
   it("builds an SSE URL with workspace id", () => {
@@ -13,5 +13,15 @@ describe("chatEventsUrl", () => {
     ).toBe(
       "http://localhost:3000/api/chat/sessions/session-1/events?workspaceId=workspace-1&after=2026-09-06T00%3A00%3A00.000Z",
     );
+  });
+
+  it("builds a workspace-wide SSE URL", () => {
+    expect(
+      workspaceChatEventsUrl(
+        "http://localhost:3000",
+        "/api",
+        "workspace-1",
+      ),
+    ).toBe("http://localhost:3000/api/chat/events?workspaceId=workspace-1");
   });
 });

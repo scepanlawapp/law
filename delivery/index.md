@@ -15,6 +15,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Assistant Live Workflow Experience](./tracks/assistant_live_workflow_20260915/index.md)
 - [Premium Finish System](./tracks/finish_premium_system_20260915/index.md)
 - [Executive Theme and Accent System](./tracks/theme_accent_system_20260914/index.md)
 - [Platform Multi-Tenant Layer & Schema-per-Tenant Isolation](./tracks/platform_multi_tenant_layer_20260912/index.md)

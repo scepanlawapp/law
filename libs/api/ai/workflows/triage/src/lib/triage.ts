@@ -4,6 +4,8 @@ import type { ChatModelProvider } from "@law/llm";
 export const triageDecisionSchema = z.object({
   decision: z.enum(["LEGAL", "NON_LEGAL", "UNCLEAR"]),
   reason: z.string().min(1).max(500),
+  intent: z.enum(["ANSWER", "DRAFT"]).default("DRAFT"),
+  language: z.enum(["sr", "en"]).default("sr"),
 });
 
 export type TriageDecisionResult = z.infer<typeof triageDecisionSchema>;
@@ -25,8 +27,11 @@ export const PORTIR_SYSTEM_PROMPT = [
   "Accept Serbian legal matters such as tužba, ugovor, razvod, naknada štete, ZPP/ZOO questions, and client case facts.",
   "Reject weather, coding, trivia, and other non-legal requests.",
   "If the intent is ambiguous, return UNCLEAR.",
+  "For a legal question that asks for guidance or explanation, use intent ANSWER.",
+  "For a request to prepare a lawsuit or other document, use intent DRAFT.",
+  "Set language to sr for Serbian input and en for English input.",
   "You only see attachment filenames, MIME types, and sizes — never file contents.",
-  'Reply with JSON only: {"decision":"LEGAL|NON_LEGAL|UNCLEAR","reason":"short explanation"}.',
+  'Reply with JSON only: {"decision":"LEGAL|NON_LEGAL|UNCLEAR","reason":"short explanation","intent":"ANSWER|DRAFT","language":"sr|en"}.',
 ].join(" ");
 
 export function buildTriageUserPrompt(input: TriageInput): string {
@@ -49,7 +54,7 @@ export async function classifyTriage(
   input: TriageInput,
 ): Promise<TriageDecisionResult> {
   return provider.completeStructured({
-    schema: triageDecisionSchema,
+    schema: triageDecisionSchema as z.ZodType<TriageDecisionResult>,
     messages: [
       { role: "system", content: PORTIR_SYSTEM_PROMPT },
       { role: "user", content: buildTriageUserPrompt(input) },
@@ -59,18 +64,25 @@ export async function classifyTriage(
 
 export function assistantReplyFor(decision: TriageDecisionResult): string {
   if (decision.decision === "LEGAL") {
-    return "Zahtev je prihvaćen kao pravni upit. Queued for brief extraction / Zahtev je stavljen u red za izdvajanje činjenica.";
+    return decision.language === "en"
+      ? "Your legal request was accepted and is being processed."
+      : "Pravni zahtev je prihvaćen i obrađuje se.";
   }
   if (decision.decision === "UNCLEAR") {
-    return "Nisam siguran da li je ovo pravni upit. Možete li ukratko opisati pravni problem (npr. tužba, ugovor, razvod)? / Please describe the legal issue.";
+    return decision.language === "en"
+      ? "Please describe the legal issue more specifically, for example whether it concerns a lawsuit, contract, or divorce."
+      : "Molimo vas da preciznije opišete pravni problem, na primer da li se odnosi na tužbu, ugovor ili razvod.";
   }
-  return "Ovo nije pravni upit za kancelariju Stojković, pa ne mogu da nastavim. / This is not a legal request, so I cannot continue.";
+  return decision.language === "en"
+    ? "This is not a legal request, so I cannot continue."
+    : "Ovo nije pravni zahtev, pa ne mogu da nastavim.";
 }
 
 export interface PortirGraphResult {
   decision: TriageDecisionResult;
   assistantContent: string;
   queueBriefExtraction: boolean;
+  queueAnswer: boolean;
 }
 
 export async function runPortirGraph(
@@ -81,6 +93,8 @@ export async function runPortirGraph(
   return {
     decision,
     assistantContent: assistantReplyFor(decision),
-    queueBriefExtraction: decision.decision === "LEGAL",
+    queueBriefExtraction:
+      decision.decision === "LEGAL" && decision.intent === "DRAFT",
+    queueAnswer: decision.decision === "LEGAL" && decision.intent === "ANSWER",
   };
 }

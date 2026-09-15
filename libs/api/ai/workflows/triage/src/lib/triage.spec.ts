@@ -18,7 +18,22 @@ describe("triage", () => {
     ).resolves.toEqual({
       decision: "LEGAL",
       reason: "Damage compensation lawsuit",
+      intent: "DRAFT",
+      language: "sr",
     });
+  });
+
+  it("routes a legal question to answering in the user's language", async () => {
+    const provider = new FakeChatModelProvider({
+      decision: "LEGAL",
+      reason: "Legal guidance requested",
+      intent: "ANSWER",
+      language: "en",
+    });
+
+    await expect(
+      classifyTriage(provider, { userText: "What is the limitation period?" }),
+    ).resolves.toMatchObject({ intent: "ANSWER", language: "en" });
   });
 
   it("classifies a non-legal request", async () => {
@@ -31,7 +46,7 @@ describe("triage", () => {
       userText: "What's the weather?",
     });
     expect(result.decision).toBe("NON_LEGAL");
-    expect(assistantReplyFor(result)).toContain("nije pravni upit");
+    expect(assistantReplyFor(result)).toContain("nije pravni zahtev");
   });
 
   it("asks a clarifying question when unclear", async () => {
@@ -39,7 +54,7 @@ describe("triage", () => {
       decision: "UNCLEAR",
       reason: "Too vague",
     });
-    expect(assistantReplyFor(result)).toContain("Nisam siguran");
+    expect(assistantReplyFor(result)).toContain("preciznije opišete");
   });
 
   it("includes attachment metadata in the prompt, not file bytes", () => {

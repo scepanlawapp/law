@@ -12,3 +12,13 @@ export function chatEventsUrl(
   if (after) url.searchParams.set("after", after);
   return url.toString();
 }
+
+export function workspaceChatEventsUrl(
+  apiUrl: string,
+  apiPrefix: string,
+  workspaceId: string,
+): string {
+  const url = new URL(`${apiUrl}${apiPrefix}/chat/events`);
+  url.searchParams.set("workspaceId", workspaceId);
+  return url.toString();
+}

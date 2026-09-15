@@ -124,12 +124,30 @@
   background: color-mix(in srgb, var(--primary) 14%, transparent);
 }
 
+.conversation-item-copy {
+  display: grid;
+  min-width: 0;
+}
+
 .conversation-item strong {
   overflow: hidden;
   font-size: 0.8125rem;
   line-height: 1.25rem;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.conversation-item-copy small {
+  overflow: hidden;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  line-height: 1rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.conversation-item-icon ng-icon.is-running {
+  animation: assistant-spin 1s linear infinite;
 }
 
 .conversation-item time {
@@ -306,12 +324,73 @@
   white-space: pre-wrap;
 }
 
+.assistant-markdown {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.assistant-markdown :where(p, ul, ol, h1, h2, h3, blockquote) {
+  margin: 0 0 0.625rem;
+}
+
+.assistant-markdown :where(p, ul, ol, blockquote):last-child {
+  margin-bottom: 0;
+}
+
+.assistant-markdown :where(h1, h2, h3) {
+  font-size: 0.9375rem;
+  line-height: 1.4;
+}
+
+.assistant-markdown :where(ul, ol) {
+  padding-left: 1.25rem;
+}
+
+.assistant-markdown a {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 0.125rem;
+}
+
+.assistant-markdown code {
+  padding: 0.125rem 0.25rem;
+  background: var(--muted);
+  border-radius: 0.25rem;
+  font-size: 0.8125rem;
+}
+
 .message-content time {
   display: block;
   margin-top: 0.5rem;
   color: var(--muted-foreground);
   font-size: 0.6875rem;
   text-align: right;
+}
+
+.message-feedback {
+  display: flex;
+  min-height: 2rem;
+  align-items: center;
+  gap: 0.125rem;
+  margin-top: 0.25rem;
+}
+
+.message-feedback button {
+  width: 2rem;
+  height: 2rem;
+  color: var(--muted-foreground);
+}
+
+.message-feedback button.is-selected {
+  color: var(--primary);
+  background: var(--accent);
+}
+
+.message-open-draft {
+  display: none;
+  width: auto !important;
+  padding-inline: 0.625rem;
 }
 
 .message-attachments {
@@ -330,6 +409,22 @@
   color: var(--primary);
   font-size: 0.75rem;
   font-weight: 600;
+}
+
+.message-attachments li {
+  display: grid;
+  gap: 0.125rem;
+}
+
+.message-attachments small {
+  padding-left: 1.125rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
+.message-attachments small[data-status="FAILED"],
+.message-attachments small[data-status="UNSUPPORTED"] {
+  color: var(--destructive);
 }
 
 .message-attachments a span,
@@ -368,14 +463,87 @@
   line-height: 1.5;
 }
 
-.assistant-processing {
-  width: fit-content;
+.workflow-activity-list {
+  display: grid;
+  gap: 0.375rem;
   margin-top: 0.5rem;
+}
+
+.workflow-activity {
+  display: flex;
+  width: min(100%, 28rem);
+  align-items: center;
+  gap: 0.625rem;
   padding: 0.625rem 0.75rem;
-  color: var(--muted-foreground);
   background: var(--muted);
+  border: 1px solid var(--border);
   border-radius: 0.375rem;
+  flex-wrap: wrap;
+}
+
+.workflow-activity-icon {
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  flex: 0 0 1.75rem;
+  place-items: center;
+  color: var(--primary);
+}
+
+.workflow-activity[data-state="active"] .workflow-activity-icon {
+  animation: assistant-spin 1s linear infinite;
+}
+
+.workflow-activity[data-state="failed"] .workflow-activity-icon {
+  color: var(--destructive);
+}
+
+.workflow-activity-copy {
+  display: grid;
+  min-width: 0;
+  gap: 0.125rem;
+  flex: 1;
+}
+
+.workflow-activity-copy strong {
   font-size: 0.8125rem;
+}
+
+.workflow-activity-copy small {
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+}
+
+.workflow-elapsed {
+  font-variant-numeric: tabular-nums;
+}
+
+.workflow-activity-steps {
+  display: grid;
+  width: 100%;
+  gap: 0.375rem;
+  margin: 0;
+  padding: 0.625rem 0 0 2.375rem;
+  border-top: 1px solid var(--border);
+  list-style: none;
+}
+
+.workflow-activity-steps li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.workflow-activity-steps li > span {
+  display: grid;
+}
+
+.workflow-activity-steps ng-icon {
+  color: var(--primary);
+}
+
+.workflow-activity-steps li[data-status="FAILED"] ng-icon {
+  color: var(--destructive);
 }
 
 .assistant-error {
@@ -512,6 +680,10 @@
 
   .message-content {
     max-width: calc(100% - 2.75rem);
+  }
+
+  .message-open-draft {
+    display: inline-flex;
   }
 
   .composer-footer {

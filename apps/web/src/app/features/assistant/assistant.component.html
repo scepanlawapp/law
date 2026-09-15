@@ -59,11 +59,27 @@
             (click)="selectSession(session.id)"
           >
             <span class="conversation-item-icon" aria-hidden="true">
-              <ng-icon name="lucideMessageCircle" />
+              <ng-icon
+                [name]="
+                  session.activity?.activeJobCount
+                    ? 'lucideLoaderCircle'
+                    : session.activity?.hasDraft
+                      ? 'lucideFileText'
+                      : 'lucideMessageCircle'
+                "
+                [class.is-running]="session.activity?.activeJobCount"
+              />
             </span>
-            <strong>{{
-              session.title || ("assistant.newChat" | translate)
-            }}</strong>
+            <span class="conversation-item-copy">
+              <strong>{{
+                session.title || ("assistant.newChat" | translate)
+              }}</strong>
+              @if (session.activity?.activeJobCount) {
+                <small>{{ "assistant.conversationWorking" | translate }}</small>
+              } @else if (session.activity?.hasDraft) {
+                <small>{{ "assistant.conversationDraftReady" | translate }}</small>
+              }
+            </span>
             <time>{{ session.updatedAt | date: "shortTime" }}</time>
           </button>
         }
@@ -182,7 +198,14 @@
                   />
                 </div>
                 <div class="message-content">
-                  <p>{{ message.content }}</p>
+                  @if (message.role === "USER") {
+                    <p>{{ message.content }}</p>
+                  } @else {
+                    <div
+                      class="assistant-markdown"
+                      [innerHTML]="message.content | assistantMarkdown"
+                    ></div>
+                  }
                   @if (message.attachments.length) {
                     <ul class="message-attachments">
                       @for (file of message.attachments; track file.id) {
@@ -198,13 +221,106 @@
                             />
                             <span>{{ file.originalName }}</span>
                           </a>
+                          @if (file.extractionStatus; as extractionStatus) {
+                            <small [attr.data-status]="extractionStatus">
+                              {{
+                                "assistant.attachmentStatus." + extractionStatus
+                                  | translate
+                              }}
+                            </small>
+                          }
                         </li>
                       }
                     </ul>
                   }
                   <time>{{ message.createdAt | date: "HH:mm" }}</time>
+                  @if (
+                    message.role === "ASSISTANT" &&
+                    message.status === "COMPLETED"
+                  ) {
+                    <div class="message-feedback">
+                      @if (message.outcome === "ANSWER") {
+                        <button
+                          hlmBtn
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          [hlmTooltip]="'assistant.copyResponse' | translate"
+                          [attr.aria-label]="'assistant.copyResponse' | translate"
+                          (click)="copyMessage(message)"
+                        >
+                          <ng-icon name="lucideCopy" />
+                        </button>
+                        <button
+                          hlmBtn
+                          variant="ghost"
+                          size="icon"
+                          type="button"
+                          [disabled]="regeneratingMessageId() === message.id"
+                          [hlmTooltip]="'assistant.regenerate' | translate"
+                          [attr.aria-label]="'assistant.regenerate' | translate"
+                          (click)="regenerateAnswer(message)"
+                        >
+                          <ng-icon name="lucideRefreshCw" />
+                        </button>
+                      }
+                      @if (message.outcome === "DRAFT_READY") {
+                        <button
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
+                          class="message-open-draft"
+                          type="button"
+                          (click)="openDraftReview()"
+                        >
+                          <ng-icon name="lucideFileText" aria-hidden="true" />
+                          {{ "assistant.openDraft" | translate }}
+                        </button>
+                      }
+                      <button
+                        hlmBtn
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        [class.is-selected]="message.feedback === 'POSITIVE'"
+                        [attr.aria-pressed]="message.feedback === 'POSITIVE'"
+                        [disabled]="feedbackMessageId() === message.id"
+                        [hlmTooltip]="'assistant.helpful' | translate"
+                        [attr.aria-label]="'assistant.helpful' | translate"
+                        (click)="updateMessageFeedback(message, 'POSITIVE')"
+                      >
+                        <ng-icon name="lucideThumbsUp" />
+                      </button>
+                      <button
+                        hlmBtn
+                        variant="ghost"
+                        size="icon"
+                        type="button"
+                        [class.is-selected]="message.feedback === 'NEGATIVE'"
+                        [attr.aria-pressed]="message.feedback === 'NEGATIVE'"
+                        [disabled]="feedbackMessageId() === message.id"
+                        [hlmTooltip]="'assistant.notHelpful' | translate"
+                        [attr.aria-label]="'assistant.notHelpful' | translate"
+                        (click)="updateMessageFeedback(message, 'NEGATIVE')"
+                      >
+                        <ng-icon name="lucideThumbsDown" />
+                      </button>
+                    </div>
+                  }
                 </div>
               </article>
+              @if (
+                message.role === "USER" &&
+                activityFor(message.correlationId);
+                as activity
+              ) {
+                <div class="workflow-activity-list">
+                  <ng-container
+                    [ngTemplateOutlet]="workflowActivityTemplate"
+                    [ngTemplateOutletContext]="{ $implicit: activity }"
+                  />
+                </div>
+              }
             } @empty {
               <div class="assistant-empty-state">
                 <span aria-hidden="true">
@@ -214,12 +330,104 @@
                 <p>{{ "assistant.description" | translate }}</p>
               </div>
             }
-            @if (classifying()) {
-              <div class="assistant-processing" aria-live="polite">
-                <ng-icon name="lucideLoaderCircle" aria-hidden="true" />
-                <span>{{ "assistant.reviewing" | translate }}</span>
-              </div>
-            }
+            <ng-template #workflowActivityTemplate let-activity>
+                <section
+                  class="workflow-activity"
+                  [attr.data-state]="activity.status"
+                  aria-live="polite"
+                >
+                  <span class="workflow-activity-icon" aria-hidden="true">
+                    <ng-icon
+                      [name]="
+                        activity.status === 'active'
+                          ? 'lucideLoaderCircle'
+                          : activity.status === 'failed'
+                            ? 'lucideCircleAlert'
+                            : 'lucideCheckCircle2'
+                      "
+                    />
+                  </span>
+                  <span class="workflow-activity-copy">
+                    <strong>{{ activity.titleKey | translate }}</strong>
+                    <small>{{ activity.agentKey | translate }}</small>
+                    @if (activity.status === "active") {
+                      <small class="workflow-elapsed" aria-hidden="true">
+                        {{ "assistant.workflow.workingFor" | translate }}
+                        {{ elapsedSeconds(activity.startedAt) }}s
+                      </small>
+                    }
+                  </span>
+                  @if (activity.status === "failed" && activity.retryJobId) {
+                    <button
+                      hlmBtn
+                      variant="outline"
+                      size="sm"
+                      type="button"
+                      [disabled]="retryingJobId() === activity.retryJobId"
+                      (click)="retryWorkflow(activity.retryJobId)"
+                    >
+                      <ng-icon name="lucideRefreshCw" aria-hidden="true" />
+                      {{ "assistant.workflow.retry" | translate }}
+                    </button>
+                  } @else if (
+                    activity.status === "completed" && activity.steps.length
+                  ) {
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      [attr.aria-expanded]="
+                        expandedActivities().has(activity.correlationId)
+                      "
+                      [hlmTooltip]="
+                        (expandedActivities().has(activity.correlationId)
+                          ? 'assistant.workflow.hideDetails'
+                          : 'assistant.workflow.showDetails'
+                        ) | translate
+                      "
+                      [attr.aria-label]="
+                        (expandedActivities().has(activity.correlationId)
+                          ? 'assistant.workflow.hideDetails'
+                          : 'assistant.workflow.showDetails'
+                        ) | translate
+                      "
+                      (click)="toggleActivity(activity.correlationId)"
+                    >
+                      <ng-icon
+                        [name]="
+                          expandedActivities().has(activity.correlationId)
+                            ? 'lucideChevronUp'
+                            : 'lucideChevronDown'
+                        "
+                      />
+                    </button>
+                  }
+                  @if (expandedActivities().has(activity.correlationId)) {
+                    <ol class="workflow-activity-steps">
+                      @for (step of activity.steps; track step.id) {
+                        <li [attr.data-status]="step.status">
+                          <ng-icon
+                            [name]="
+                              step.status === 'FAILED'
+                                ? 'lucideCircleAlert'
+                                : step.status === 'QUEUED' ||
+                                    step.status === 'RUNNING'
+                                  ? 'lucideLoaderCircle'
+                                  : 'lucideCheckCircle2'
+                            "
+                            aria-hidden="true"
+                          />
+                          <span>
+                            <strong>{{ step.titleKey | translate }}</strong>
+                            <small>{{ step.agentKey | translate }}</small>
+                          </span>
+                        </li>
+                      }
+                    </ol>
+                  }
+                </section>
+            </ng-template>
             @if (error()) {
               <p class="assistant-error" role="alert">{{ error() }}</p>
             }
@@ -318,7 +526,7 @@
                 size="icon"
                 type="submit"
                 [attr.aria-label]="'assistant.sendMessage' | translate"
-                [disabled]="sending() || classifying() || !canSend()"
+                [disabled]="sending() || !canSend()"
               >
                 <ng-icon name="lucideArrowUp" />
               </button>
