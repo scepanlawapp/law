@@ -1,92 +1,113 @@
-@if (loading()) {
-  <p>{{ "clients.loading" | translate }}</p>
-} @else if (client(); as item) {
-  <h1>{{ item.displayName }}</h1>
-  <p>{{ item.clientNumber }} {{ item.status }}</p>
-  <p>
-    <a hlmBtn [routerLink]="['/clients', item.id, 'edit']">{{
-      "clients.edit" | translate
-    }}</a>
-    <a
-      hlmBtn
-      [routerLink]="['/cases/new']"
-      [queryParams]="{ clientId: item.id }"
-      >{{ "clients.createCase" | translate }}</a
-    >
-    @if (item.status === "ARCHIVED") {
-      <button hlmBtn type="button" (click)="activate()">
-        {{ "clients.activate" | translate }}
-      </button>
-    } @else {
-      <button hlmBtn type="button" (click)="archive()">
-        {{ "clients.archive" | translate }}
-      </button>
-    }
-  </p>
-  <div hlmTabs tab="overview" (tabActivated)="load($event)">
-    <div hlmTabsList>
-      <button hlmTabsTrigger="overview">
-        {{ "clients.overview" | translate }}</button
-      ><button hlmTabsTrigger="cases">{{ "clients.cases" | translate }}</button
-      ><button hlmTabsTrigger="activities">
-        {{ "clients.activities" | translate }}</button
-      ><button hlmTabsTrigger="contacts">
-        {{ "clients.contacts" | translate }}</button
-      ><button hlmTabsTrigger="addresses">
-        {{ "clients.addresses" | translate }}
-      </button>
-    </div>
-    <section hlmTabsContent="overview">
-      <p>{{ item.email }}</p>
-      <p>{{ item.phone }}</p>
-      <p>{{ item.website }}</p>
-      <p>{{ item.notes }}</p>
-    </section>
-    <section hlmTabsContent="cases">
-      @if (clientCases(); as result) {
-        @for (caseItem of result.items; track caseItem.id) {
-          <p>
-            <a [routerLink]="['/cases', caseItem.id]"
-              >{{ caseItem.caseNumber }} {{ caseItem.name }}</a
-            >
+<main class="min-h-full bg-background p-6 text-foreground lg:p-8">
+  @if (loading()) {
+    <p role="status" class="text-muted-foreground">
+      {{ "clients.loading" | translate }}
+    </p>
+  } @else if (error() || !client()) {
+    <p class="text-destructive">{{ "clients.loadError" | translate }}</p>
+  } @else {
+    <div class="mx-auto max-w-5xl space-y-6">
+      <header class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p class="text-sm text-muted-foreground">
+            {{ client()!.clientCode }}
+          </p>
+          <h1 class="text-2xl font-semibold">
+            {{ client()!.party.displayName }}
+          </h1>
+          <p class="text-sm text-muted-foreground">{{ client()!.status }}</p>
+        </div>
+        <a hlmBtn variant="outline" routerLink="/clients">{{
+          "clients.cancel" | translate
+        }}</a>
+      </header>
+
+      <nav
+        class="flex flex-wrap gap-2 border-b border-border pb-2"
+        aria-label="Client sections"
+      >
+        @for (
+          item of [
+            { key: "overview", label: "clients.overview" },
+            { key: "contacts", label: "clients.contacts" },
+            { key: "matters", label: "clients.cases" },
+            { key: "documents", label: "Documents" },
+            { key: "activity", label: "clients.activities" },
+          ];
+          track item.key
+        ) {
+          <button
+            type="button"
+            class="rounded-md px-3 py-2 text-sm"
+            [class.bg-accent]="tab() === item.key"
+            (click)="selectTab(item.key)"
+          >
+            {{ item.label | translate }}
+          </button>
+        }
+      </nav>
+
+      @switch (tab()) {
+        @case ("overview") {
+          <section class="grid gap-4 sm:grid-cols-2">
+            <div class="rounded-lg border border-border bg-card p-5">
+              <p class="text-sm text-muted-foreground">
+                {{ "clients.type" | translate }}
+              </p>
+              <p class="font-medium">{{ client()!.party.type }}</p>
+            </div>
+            <div class="rounded-lg border border-border bg-card p-5">
+              <p class="text-sm text-muted-foreground">
+                {{ "clients.responsible" | translate }}
+              </p>
+              <p class="font-medium">
+                {{ client()!.responsibleUserId || "-" }}
+              </p>
+            </div>
+          </section>
+        }
+        @case ("contacts") {
+          <section class="space-y-3">
+            @for (
+              contact of client()!.organizationContacts;
+              track contact.relationshipId
+            ) {
+              <div class="rounded-lg border border-border bg-card p-4">
+                <p class="font-medium">{{ contact.displayName }}</p>
+                <p class="text-sm text-muted-foreground">
+                  {{ contact.relationshipType.name }} ·
+                  {{ contact.jobTitle || "-" }}
+                </p>
+              </div>
+            } @empty {
+              <p class="text-muted-foreground">
+                {{ "clients.empty" | translate }}
+              </p>
+            }
+          </section>
+        }
+        @case ("documents") {
+          <p
+            class="rounded-lg border border-dashed border-border p-8 text-muted-foreground"
+          >
+            Documents will be available in the document phase.
+          </p>
+        }
+        @case ("activity") {
+          <p
+            class="rounded-lg border border-dashed border-border p-8 text-muted-foreground"
+          >
+            Activity will be available in the activity phase.
+          </p>
+        }
+        @default {
+          <p
+            class="rounded-lg border border-dashed border-border p-8 text-muted-foreground"
+          >
+            {{ "clients.empty" | translate }}
           </p>
         }
       }
-    </section>
-    <section hlmTabsContent="activities">
-      @for (activity of activities(); track activity.id) {
-        <p>
-          {{ activity.activityDate }} {{ activity.type }} {{ activity.title }}
-          {{ activity.description }}
-        </p>
-      }
-    </section>
-    <section hlmTabsContent="contacts">
-      @for (contact of contacts(); track contact.id) {
-        <p>
-          {{ contact.firstName }} {{ contact.lastName }} {{ contact.email }}
-          {{ contact.status }}
-          @if (contact.status === "ACTIVE") {
-            <button
-              hlmBtn
-              type="button"
-              (click)="deactivateContact(contact.id)"
-            >
-              {{ "clients.deactivate" | translate }}
-            </button>
-          }
-        </p>
-      }
-    </section>
-    <section hlmTabsContent="addresses">
-      @for (address of addresses(); track address.id) {
-        <p>
-          {{ address.street }} {{ address.city }} {{ address.country }}
-          <button hlmBtn type="button" (click)="removeAddress(address.id)">
-            {{ "clients.remove" | translate }}
-          </button>
-        </p>
-      }
-    </section>
-  </div>
-}
+    </div>
+  }
+</main>

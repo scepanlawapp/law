@@ -1,79 +1,102 @@
-<h1>{{ "cases.title" | translate }}</h1>
-<p>
-  <a hlmBtn routerLink="/cases/new">{{ "cases.create" | translate }}</a>
-</p>
-<label for="case-search">{{ "cases.search" | translate }}</label>
-<input hlmInput id="case-search" [formControl]="search" />
-@if (loading()) {
-  <p>{{ "cases.loading" | translate }}</p>
-}
-@if (error()) {
-  <p>
-    {{ "cases.error" | translate }}
-    <button hlmBtn type="button" (click)="retry()">
-      {{ "cases.retry" | translate }}
-    </button>
-  </p>
-}
-@if (!loading() && !error()) {
-  <div hlmTableContainer>
-    <table hlmTable>
-      <thead hlmTHead>
-        <tr hlmTr>
-          <th hlmTh>{{ "cases.number" | translate }}</th>
-          <th hlmTh>{{ "cases.name" | translate }}</th>
-          <th hlmTh>{{ "cases.client" | translate }}</th>
-          <th hlmTh>{{ "cases.responsible" | translate }}</th>
-          <th hlmTh>{{ "cases.priority" | translate }}</th>
-          <th hlmTh>{{ "cases.status" | translate }}</th>
-          <th hlmTh>{{ "cases.opened" | translate }}</th>
-        </tr>
-      </thead>
-      <tbody hlmTBody>
-        @for (caseItem of items(); track caseItem.id) {
-          <tr hlmTr class="cursor-pointer" (click)="openCase(caseItem.id)">
-            <td hlmTd>{{ caseItem.caseNumber }}</td>
-            <td hlmTd>
-              <a
-                [routerLink]="['/cases', caseItem.id]"
-                (click)="$event.stopPropagation()"
-                >{{ caseItem.name }}</a
-              >
-            </td>
-            <td hlmTd>
-              <a
-                [routerLink]="['/clients', caseItem.clientId]"
-                (click)="$event.stopPropagation()"
-                >{{ clientName(caseItem.clientId) }}</a
-              >
-            </td>
-            <td hlmTd>{{ userName(caseItem.responsibleUserId) }}</td>
-            <td hlmTd>{{ caseItem.priority }}</td>
-            <td hlmTd>{{ caseItem.status }}</td>
-            <td hlmTd>{{ caseItem.openedDate }}</td>
-          </tr>
-        } @empty {
+<main
+  class="flex min-h-full flex-col gap-6 bg-background p-6 text-foreground lg:p-8"
+>
+  <header
+    class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+  >
+    <div>
+      <p class="text-sm text-muted-foreground">
+        {{ "cases.title" | translate }}
+      </p>
+      <h1 class="text-2xl font-semibold tracking-normal">
+        {{ "cases.title" | translate }}
+      </h1>
+    </div>
+    <a hlmBtn routerLink="/cases/new">{{ "cases.create" | translate }}</a>
+  </header>
+
+  <label class="max-w-xl" hlmField>
+    <span hlmFieldLabel>{{ "cases.search" | translate }}</span>
+    <input hlmInput [formControl]="search" type="search" />
+  </label>
+
+  @if (loading()) {
+    <p
+      class="rounded-lg border border-border bg-card p-6 text-muted-foreground"
+      role="status"
+    >
+      {{ "cases.loading" | translate }}
+    </p>
+  } @else if (error()) {
+    <div
+      class="flex items-center justify-between rounded-lg border border-destructive/30 bg-card p-6"
+    >
+      <p class="text-destructive">{{ "cases.error" | translate }}</p>
+      <button hlmBtn variant="outline" type="button" (click)="retry()">
+        {{ "cases.retry" | translate }}
+      </button>
+    </div>
+  } @else if (matters().length === 0) {
+    <p
+      class="rounded-lg border border-dashed border-border bg-card p-10 text-center text-muted-foreground"
+    >
+      {{ "cases.empty" | translate }}
+    </p>
+  } @else {
+    <div class="overflow-x-auto rounded-lg border border-border bg-card">
+      <table hlmTable>
+        <thead hlmTHead>
           <tr hlmTr>
-            <td hlmTd colspan="7">{{ "cases.empty" | translate }}</td>
+            <th hlmTh>{{ "cases.number" | translate }}</th>
+            <th hlmTh>{{ "cases.name" | translate }}</th>
+            <th hlmTh>{{ "cases.status" | translate }}</th>
+            <th hlmTh>{{ "cases.priority" | translate }}</th>
           </tr>
-        }
-      </tbody>
-    </table>
-  </div>
-  <p>{{ "cases.page" | translate: { page: page(), total: pageCount() } }}</p>
-  <button
-    hlmBtn
-    type="button"
-    (click)="changePage(page() - 1)"
-    [disabled]="page() === 1"
-  >
-    {{ "cases.previous" | translate }}</button
-  ><button
-    hlmBtn
-    type="button"
-    (click)="changePage(page() + 1)"
-    [disabled]="page() === pageCount()"
-  >
-    {{ "cases.next" | translate }}
-  </button>
-}
+        </thead>
+        <tbody hlmTBody>
+          @for (matter of matters(); track matter.id) {
+            <tr hlmTr>
+              <td hlmTd>{{ matter.internalNumber || "-" }}</td>
+              <td hlmTd>
+                <a
+                  class="font-medium hover:underline"
+                  [routerLink]="['/cases', matter.id]"
+                >
+                  {{ matter.title }}
+                </a>
+              </td>
+              <td hlmTd>{{ matter.state }}</td>
+              <td hlmTd>{{ matter.priority }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <nav
+      class="flex items-center justify-end gap-2"
+      aria-label="Matter pagination"
+    >
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="page() <= 1"
+        (click)="previousPage()"
+      >
+        {{ "cases.previous" | translate }}
+      </button>
+      <span class="text-sm text-muted-foreground"
+        >{{ page() }} / {{ totalPages() }}</span
+      >
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="page() >= totalPages()"
+        (click)="nextPage()"
+      >
+        {{ "cases.next" | translate }}
+      </button>
+    </nav>
+  }
+</main>

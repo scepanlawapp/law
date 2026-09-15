@@ -1,110 +1,142 @@
-import { Type } from "class-transformer";
 import {
   IsArray,
   IsBoolean,
-  IsDateString,
-  IsEnum,
-  IsObject,
+  IsIn,
+  IsInt,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { PaginationQueryDto } from "@law/core";
-import {
-  ActivityType,
-  CasePriority,
-  CaseStatus,
-  ClientAddressType,
-  ClientStatus,
-  ClientType,
-} from "@prisma/tenant-client";
+import type {
+  LegalClientStatus,
+  LegalPartyType,
+  PartyAddressType,
+  PartyContactPointType,
+  PartyIdentifierType,
+} from "@law/api-interfaces";
+import {} from "@law/api-interfaces";
 
-export class ClientListQueryDto extends PaginationQueryDto {
-  @IsOptional()
-  @IsEnum(ClientStatus)
-  status?: ClientStatus;
+export class PartyContactPointDto {
+  @IsIn(["EMAIL", "PHONE", "MOBILE", "FAX", "WEBSITE", "OTHER"])
+  type!: PartyContactPointType;
 
-  @IsOptional()
-  @IsEnum(ClientType)
-  type?: ClientType;
-
-  @IsOptional()
-  @IsUUID()
-  responsibleUserId?: string;
-
-  @IsOptional()
-  @IsArray()
-  @IsUUID("4", { each: true })
-  @Type(() => String)
-  tags?: string[];
-}
-
-export class ClientActivityListQueryDto extends PaginationQueryDto {
-  @IsOptional() @IsEnum(ActivityType) type?: ActivityType;
-  @IsOptional()
-  @IsBoolean()
-  @Type(() => Boolean)
-  includeCaseActivities?: boolean;
-}
-
-export class ClientCaseListQueryDto extends PaginationQueryDto {
-  @IsOptional()
-  @IsEnum(CaseStatus)
-  status?: CaseStatus;
-
-  @IsOptional()
-  @IsEnum(CasePriority)
-  priority?: CasePriority;
-}
-
-export class CreateClientDto {
-  @IsEnum(ClientType)
-  type!: ClientType;
+  @IsString()
+  @MaxLength(500)
+  value!: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(160)
+  @MaxLength(100)
+  label?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+}
+
+export class PartyIdentifierDto {
+  @IsIn([
+    "NATIONAL_ID",
+    "TAX_ID",
+    "REGISTRATION_ID",
+    "PASSPORT",
+    "ID_CARD",
+    "VAT_ID",
+    "OTHER",
+  ])
+  type!: PartyIdentifierType;
+
+  @IsString()
+  @MaxLength(200)
+  value!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  countryCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  issuer?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+}
+
+export class PartyAddressDto {
+  @IsOptional()
+  @IsIn(["PRIMARY", "REGISTERED", "MAILING", "BILLING", "OTHER"])
+  type?: PartyAddressType;
+
+  @IsString()
+  @MaxLength(300)
+  addressLine1!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  addressLine2?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  city?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  postalCode?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  region?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(10)
+  countryCode?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimary?: boolean;
+}
+
+export class CreateClientDto {
+  @IsIn(["PERSON", "ORGANIZATION"])
+  type!: LegalPartyType;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
   firstName?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(160)
+  @MaxLength(120)
   lastName?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(320)
-  displayName?: string;
+  @MaxLength(300)
+  legalName?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(320)
-  organizationName?: string;
+  @MaxLength(300)
+  tradeName?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(320)
-  email?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(80)
-  phone?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(2048)
-  website?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(20)
-  preferredLanguage?: string;
-
-  @IsOptional()
-  @IsString()
-  @MaxLength(10000)
+  @MaxLength(5000)
   notes?: string;
 
   @IsOptional()
@@ -113,62 +145,112 @@ export class CreateClientDto {
 
   @IsOptional()
   @IsArray()
-  @IsUUID("4", { each: true })
-  tagIds?: string[];
+  @ValidateNested({ each: true })
+  @Type(() => PartyContactPointDto)
+  contactPoints?: PartyContactPointDto[];
 
   @IsOptional()
-  @IsObject()
-  customFields?: Record<string, unknown>;
-}
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PartyIdentifierDto)
+  identifiers?: PartyIdentifierDto[];
 
-export class UpdateClientDto extends CreateClientDto {
   @IsOptional()
-  declare type: ClientType;
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PartyAddressDto)
+  addresses?: PartyAddressDto[];
 }
 
-export class ClientAddressDto {
-  @IsOptional() @IsEnum(ClientAddressType) type?: ClientAddressType;
-  @IsOptional() @IsString() @MaxLength(320) street?: string;
-  @IsOptional() @IsString() @MaxLength(320) streetAdditional?: string;
-  @IsOptional() @IsString() @MaxLength(160) city?: string;
-  @IsOptional() @IsString() @MaxLength(40) postalCode?: string;
-  @IsOptional() @IsString() @MaxLength(160) stateOrRegion?: string;
-  @IsOptional() @IsString() @MaxLength(2) country?: string;
-  @IsOptional() @IsBoolean() isPrimary?: boolean;
+export class UpdateClientDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  lastName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  legalName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(300)
+  tradeName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(5000)
+  notes?: string;
+
+  @IsOptional()
+  @IsUUID()
+  responsibleUserId?: string | null;
+
+  @IsOptional()
+  @IsIn(["ACTIVE", "INACTIVE"])
+  status?: LegalClientStatus;
 }
 
-export class ClientContactDto {
-  @IsString() @MaxLength(160) firstName!: string;
-  @IsString() @MaxLength(160) lastName!: string;
-  @IsOptional() @IsString() @MaxLength(160) position?: string;
-  @IsOptional() @IsString() @MaxLength(320) email?: string;
-  @IsOptional() @IsString() @MaxLength(80) phone?: string;
-  @IsOptional() @IsBoolean() isPrimary?: boolean;
-  @IsOptional() @IsString() @MaxLength(10000) notes?: string;
+export class ClientListQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @IsIn(["ACTIVE", "INACTIVE"])
+  status?: LegalClientStatus;
 }
 
-export class UpdateClientContactDto {
-  @IsOptional() @IsString() @MaxLength(160) firstName?: string;
-  @IsOptional() @IsString() @MaxLength(160) lastName?: string;
-  @IsOptional() @IsString() @MaxLength(160) position?: string;
-  @IsOptional() @IsString() @MaxLength(320) email?: string;
-  @IsOptional() @IsString() @MaxLength(80) phone?: string;
-  @IsOptional() @IsBoolean() isPrimary?: boolean;
-  @IsOptional() @IsString() @MaxLength(10000) notes?: string;
+export class CreateOrganizationContactDto {
+  @IsOptional()
+  @IsUUID()
+  existingPartyId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  firstName?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  lastName?: string;
+
+  @IsUUID()
+  relationshipTypeId!: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  jobTitle?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  department?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  isPrimaryContact?: boolean;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => PartyContactPointDto)
+  contactPoints?: PartyContactPointDto[];
 }
 
-export class ClientActivityDto {
-  @IsEnum(ActivityType) type!: ActivityType;
-  @IsString() @MaxLength(320) title!: string;
-  @IsOptional() @IsString() @MaxLength(10000) description?: string;
-  @IsDateString() activityDate!: string;
-  @IsOptional() @IsUUID() relatedCaseId?: string;
-}
+export class AutocompleteQueryDto {
+  @IsString()
+  @MaxLength(120)
+  q!: string;
 
-export class UpdateClientActivityDto {
-  @IsOptional() @IsEnum(ActivityType) type?: ActivityType;
-  @IsOptional() @IsString() @MaxLength(320) title?: string;
-  @IsOptional() @IsString() @MaxLength(10000) description?: string;
-  @IsOptional() @IsDateString() activityDate?: string;
-  @IsOptional() @IsUUID() relatedCaseId?: string;
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 20;
 }

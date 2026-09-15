@@ -1,100 +1,103 @@
-<h1>{{ (clientId ? "clients.edit" : "clients.create") | translate }}</h1>
-@if (loading()) {
-  <p>{{ "clients.loading" | translate }}</p>
-} @else {
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-    <div hlmField>
-      <label hlmFieldLabel for="type">{{ "clients.type" | translate }}</label
-      ><select id="type" formControlName="type">
-        <option value="INDIVIDUAL">
-          {{ "clients.individual" | translate }}
-        </option>
-        <option value="ORGANIZATION">
-          {{ "clients.organization" | translate }}
-        </option>
-      </select>
-    </div>
-    @if (isOrganization()) {
-      <div hlmField>
-        <label hlmFieldLabel for="organizationName">{{
-          "clients.organizationName" | translate
-        }}</label
-        ><input
-          hlmInput
-          id="organizationName"
-          formControlName="organizationName"
-        />
-      </div>
-    } @else {
-      <div hlmField>
-        <label hlmFieldLabel for="firstName">{{
-          "clients.firstName" | translate
-        }}</label
-        ><input hlmInput id="firstName" formControlName="firstName" required />
-      </div>
-      <div hlmField>
-        <label hlmFieldLabel for="lastName">{{
-          "clients.lastName" | translate
-        }}</label
-        ><input hlmInput id="lastName" formControlName="lastName" required />
-      </div>
-    }
-    <div hlmField>
-      <label hlmFieldLabel for="displayName">{{
-        "clients.displayName" | translate
-      }}</label
-      ><input hlmInput id="displayName" formControlName="displayName" />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="email">{{ "clients.email" | translate }}</label
-      ><input hlmInput id="email" type="email" formControlName="email" />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="phone">{{ "clients.phone" | translate }}</label
-      ><input hlmInput id="phone" formControlName="phone" />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="website">{{
-        "clients.website" | translate
-      }}</label
-      ><input hlmInput id="website" formControlName="website" />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="language">{{
-        "clients.language" | translate
-      }}</label
-      ><input hlmInput id="language" formControlName="preferredLanguage" />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="responsibleUserId">{{
-        "clients.responsible" | translate
-      }}</label
-      ><select id="responsibleUserId" formControlName="responsibleUserId">
-        <option value=""></option>
-        @for (user of users(); track user.userId) {
-          <option [value]="user.userId">{{ user.label }}</option>
-        }
-      </select>
-    </div>
-    <fieldset>
-      <legend>{{ "clients.tags" | translate }}</legend>
-      @for (tag of tags(); track tag.id) {
-        <label
-          ><input
-            type="checkbox"
-            [checked]="form.controls.tagIds.value.includes(tag.id)"
-            (change)="form.controls.tagIds.setValue($any($event.target).checked ? [...form.controls.tagIds.value, tag.id] : form.controls.tagIds.value.filter((id) => id !== tag.id))"
-          />{{ tag.name }}</label
-        >
+<main class="min-h-full bg-background p-6 text-foreground lg:p-8">
+  <div class="mx-auto max-w-3xl space-y-6">
+    <header>
+      <p class="text-sm text-muted-foreground">
+        {{ "clients.create" | translate }}
+      </p>
+      <h1 class="text-2xl font-semibold">{{ "clients.create" | translate }}</h1>
+    </header>
+
+    <form class="space-y-6" [formGroup]="form" (ngSubmit)="save()">
+      <fieldset class="space-y-3">
+        <legend class="text-sm font-medium">
+          {{ "clients.type" | translate }}
+        </legend>
+        <div class="grid grid-cols-2 gap-2 sm:max-w-sm" role="radiogroup">
+          <button
+            type="button"
+            class="rounded-lg border px-4 py-3 text-left"
+            [class.border-primary]="type() === 'PERSON'"
+            [class.bg-accent]="type() === 'PERSON'"
+            (click)="setType('PERSON')"
+          >
+            {{ "clients.individual" | translate }}
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border px-4 py-3 text-left"
+            [class.border-primary]="type() === 'ORGANIZATION'"
+            [class.bg-accent]="type() === 'ORGANIZATION'"
+            (click)="setType('ORGANIZATION')"
+          >
+            {{ "clients.organization" | translate }}
+          </button>
+        </div>
+      </fieldset>
+
+      @if (type() === "PERSON") {
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="first-name">{{
+              "clients.firstName" | translate
+            }}</label>
+            <input
+              hlmInput
+              id="first-name"
+              formControlName="firstName"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="last-name">{{
+              "clients.lastName" | translate
+            }}</label>
+            <input
+              hlmInput
+              id="last-name"
+              formControlName="lastName"
+              required
+            />
+          </div>
+        </div>
+      } @else {
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="legal-name">{{
+              "clients.organizationName" | translate
+            }}</label>
+            <input
+              hlmInput
+              id="legal-name"
+              formControlName="legalName"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="trade-name">Trade name</label>
+            <input hlmInput id="trade-name" formControlName="tradeName" />
+          </div>
+        </div>
       }
-    </fieldset>
-    <div hlmField>
-      <label hlmFieldLabel for="notes">{{ "clients.notes" | translate }}</label
-      ><textarea id="notes" formControlName="notes"></textarea>
-    </div>
-    <button hlmBtn type="submit" [disabled]="saving()">
-      {{ (saving() ? "clients.saving" : "clients.save") | translate }}
-    </button>
-    <a hlmBtn routerLink="/clients">{{ "clients.cancel" | translate }}</a>
-  </form>
-}
+
+      <div hlmField>
+        <label hlmFieldLabel for="client-notes">{{
+          "clients.notes" | translate
+        }}</label>
+        <textarea
+          hlmTextarea
+          id="client-notes"
+          formControlName="notes"
+        ></textarea>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <a hlmBtn variant="outline" routerLink="/clients">{{
+          "clients.cancel" | translate
+        }}</a>
+        <button hlmBtn type="submit" [disabled]="saving()">
+          {{ (saving() ? "clients.saving" : "clients.save") | translate }}
+        </button>
+      </div>
+    </form>
+  </div>
+</main>

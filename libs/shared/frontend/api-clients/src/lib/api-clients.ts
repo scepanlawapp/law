@@ -26,6 +26,17 @@ import {
   PasswordResetRequest,
   UserSettingsResponse,
   UserSettingsUpdateRequest,
+  AutocompleteQuery,
+  CreateClientRequest,
+  LegalClientDetail,
+  LegalClientListQuery,
+  LegalClientListResponse,
+  CreateMatterRequest,
+  MatterDetail,
+  MatterListQuery,
+  MatterSummary,
+  UpdateClientRequest,
+  UpdateMatterRequest,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl } from "./chat-events-url";
@@ -707,6 +718,78 @@ export class ClientsApiClient {
 }
 
 @Injectable({ providedIn: "root" })
+export class LegalClientsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(query: LegalClientListQuery = {}): Observable<LegalClientListResponse> {
+    return this.http.get<LegalClientListResponse>(this.endpoint("/clients"), {
+      withCredentials: true,
+      params: queryParams(query),
+    });
+  }
+
+  search(
+    query: AutocompleteQuery,
+  ): Observable<LegalClientListResponse["items"]> {
+    return this.http.get<LegalClientListResponse["items"]>(
+      this.endpoint("/clients/search"),
+      { withCredentials: true, params: queryParams(query) },
+    );
+  }
+
+  get(clientId: string): Observable<LegalClientDetail> {
+    return this.http.get<LegalClientDetail>(
+      this.endpoint(`/clients/${clientId}`),
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  create(request: CreateClientRequest): Observable<LegalClientDetail> {
+    return this.http.post<LegalClientDetail>(
+      this.endpoint("/clients"),
+      request,
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  update(
+    clientId: string,
+    request: UpdateClientRequest,
+  ): Observable<LegalClientDetail> {
+    return this.http.patch<LegalClientDetail>(
+      this.endpoint(`/clients/${clientId}`),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  archive(clientId: string): Observable<LegalClientDetail> {
+    return this.http.post<LegalClientDetail>(
+      this.endpoint(`/clients/${clientId}/archive`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  activate(clientId: string): Observable<LegalClientDetail> {
+    return this.http.post<LegalClientDetail>(
+      this.endpoint(`/clients/${clientId}/activate`),
+      {},
+      { withCredentials: true },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
 export class CasesApiClient {
   private readonly http = inject(HttpClient);
 
@@ -860,6 +943,82 @@ export class CasesApiClient {
       this.endpoint(`/cases/${caseId}/${action}`),
       {},
       { withCredentials: true },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class MattersApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(query: MatterListQuery = {}): Observable<{
+    items: MatterSummary[];
+    meta: LegalClientListResponse["meta"];
+  }> {
+    return this.http.get<{
+      items: MatterSummary[];
+      meta: LegalClientListResponse["meta"];
+    }>(this.endpoint("/matters"), {
+      withCredentials: true,
+      params: queryParams(query),
+    });
+  }
+
+  get(matterId: string): Observable<MatterDetail> {
+    return this.http.get<MatterDetail>(this.endpoint(`/matters/${matterId}`), {
+      withCredentials: true,
+    });
+  }
+
+  create(request: CreateMatterRequest): Observable<MatterDetail> {
+    return this.http.post<MatterDetail>(this.endpoint("/matters"), request, {
+      withCredentials: true,
+    });
+  }
+
+  update(
+    matterId: string,
+    request: UpdateMatterRequest,
+  ): Observable<MatterDetail> {
+    return this.http.patch<MatterDetail>(
+      this.endpoint(`/matters/${matterId}`),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  open(matterId: string): Observable<MatterDetail> {
+    return this.http.post<MatterDetail>(
+      this.endpoint(`/matters/${matterId}/open`),
+      {},
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  close(matterId: string): Observable<MatterDetail> {
+    return this.http.post<MatterDetail>(
+      this.endpoint(`/matters/${matterId}/close`),
+      {},
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  archive(matterId: string): Observable<MatterDetail> {
+    return this.http.post<MatterDetail>(
+      this.endpoint(`/matters/${matterId}/archive`),
+      {},
+      {
+        withCredentials: true,
+      },
     );
   }
 }

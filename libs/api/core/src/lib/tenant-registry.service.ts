@@ -119,7 +119,11 @@ export class TenantRegistryService {
     tenant = await this.platformPrisma.$transaction(async (tx) => {
       const activeTenant = await tx.tenant.update({
         where: { id: tenant!.id },
-        data: { name: `${workspaceName} Tenant`, status: "ACTIVE", storagePrefix },
+        data: {
+          name: `${workspaceName} Tenant`,
+          status: "ACTIVE",
+          storagePrefix,
+        },
       });
       await tx.workspace.update({
         where: { id: workspaceId },

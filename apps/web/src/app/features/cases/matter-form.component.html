@@ -1,0 +1,61 @@
+<main class="min-h-full bg-background p-6 text-foreground lg:p-8">
+  <div class="mx-auto max-w-3xl space-y-6">
+    <header>
+      <p class="text-sm text-muted-foreground">
+        {{ "cases.create" | translate }}
+      </p>
+      <h1 class="text-2xl font-semibold">{{ "cases.create" | translate }}</h1>
+    </header>
+
+    <form class="space-y-6" [formGroup]="form" (ngSubmit)="save(false)">
+      <div hlmField>
+        <label hlmFieldLabel for="matter-title">{{
+          "cases.name" | translate
+        }}</label>
+        <input hlmInput id="matter-title" formControlName="title" required />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="matter-priority">{{
+          "cases.priority" | translate
+        }}</label>
+        <select
+          id="matter-priority"
+          class="h-8 w-full rounded-lg border border-input bg-transparent px-2.5"
+          formControlName="priority"
+        >
+          <option value="LOW">LOW</option>
+          <option value="NORMAL">NORMAL</option>
+          <option value="HIGH">HIGH</option>
+          <option value="URGENT">URGENT</option>
+        </select>
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="matter-description">{{
+          "cases.description" | translate
+        }}</label>
+        <textarea
+          hlmTextarea
+          id="matter-description"
+          formControlName="description"
+        ></textarea>
+      </div>
+      <div class="flex flex-wrap justify-end gap-2">
+        <a hlmBtn variant="outline" routerLink="/cases">{{
+          "cases.cancel" | translate
+        }}</a>
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          [disabled]="saving()"
+          (click)="save(false)"
+        >
+          Save draft
+        </button>
+        <button hlmBtn type="button" [disabled]="saving()" (click)="save(true)">
+          Open matter
+        </button>
+      </div>
+    </form>
+  </div>
+</main>

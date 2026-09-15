@@ -1,7 +1,6 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   Param,
   Patch,
@@ -9,19 +8,18 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { AuthGuard, AuthenticatedRequest, CsrfOriginGuard } from "@law/auth";
+import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
-import { ClientDetail, ClientListResponse } from "@law/api-interfaces";
 import {
-  ClientActivityDto,
-  ClientActivityListQueryDto,
-  ClientAddressDto,
-  ClientCaseListQueryDto,
-  ClientContactDto,
+  LegalClientDetail,
+  LegalClientListResponse,
+  OrganizationContactResponse,
+} from "@law/api-interfaces";
+import {
+  AutocompleteQueryDto,
   ClientListQueryDto,
   CreateClientDto,
-  UpdateClientActivityDto,
-  UpdateClientContactDto,
+  CreateOrganizationContactDto,
   UpdateClientDto,
 } from "./clients.dto";
 import { ClientsService } from "./clients.service";
@@ -33,136 +31,48 @@ export class ClientsController {
   constructor(private readonly clients: ClientsService) {}
 
   @Get()
-  list(@Query() query: ClientListQueryDto): Promise<ClientListResponse> {
+  list(@Query() query: ClientListQueryDto): Promise<LegalClientListResponse> {
     return this.clients.list(query);
   }
 
-  @Post()
-  create(@Body() body: CreateClientDto): Promise<ClientDetail> {
-    return this.clients.create(body);
+  @Get("search")
+  search(@Query() query: AutocompleteQueryDto) {
+    return this.clients.autocomplete(query.q, query.limit);
   }
 
   @Get(":clientId")
-  get(@Param("clientId") clientId: string): Promise<ClientDetail> {
+  get(@Param("clientId") clientId: string): Promise<LegalClientDetail> {
     return this.clients.get(clientId);
+  }
+
+  @Post()
+  create(@Body() body: CreateClientDto): Promise<LegalClientDetail> {
+    return this.clients.create(body);
   }
 
   @Patch(":clientId")
   update(
     @Param("clientId") clientId: string,
     @Body() body: UpdateClientDto,
-  ): Promise<ClientDetail> {
+  ): Promise<LegalClientDetail> {
     return this.clients.update(clientId, body);
   }
 
   @Post(":clientId/archive")
-  archive(@Param("clientId") clientId: string): Promise<ClientDetail> {
+  archive(@Param("clientId") clientId: string): Promise<LegalClientDetail> {
     return this.clients.archive(clientId);
   }
 
   @Post(":clientId/activate")
-  activate(@Param("clientId") clientId: string): Promise<ClientDetail> {
+  activate(@Param("clientId") clientId: string): Promise<LegalClientDetail> {
     return this.clients.activate(clientId);
   }
 
-  @Get(":clientId/cases")
-  listCases(
-    @Param("clientId") clientId: string,
-    @Query() query: ClientCaseListQueryDto,
-  ) {
-    return this.clients.listCases(clientId, query);
-  }
-
-  @Get(":clientId/addresses")
-  listAddresses(@Param("clientId") clientId: string) {
-    return this.clients.listAddresses(clientId);
-  }
-
-  @Post(":clientId/addresses")
-  createAddress(
-    @Param("clientId") clientId: string,
-    @Body() body: ClientAddressDto,
-  ) {
-    return this.clients.createAddress(clientId, body);
-  }
-
-  @Patch(":clientId/addresses/:addressId")
-  updateAddress(
-    @Param("clientId") clientId: string,
-    @Param("addressId") addressId: string,
-    @Body() body: ClientAddressDto,
-  ) {
-    return this.clients.updateAddress(clientId, addressId, body);
-  }
-
-  @Delete(":clientId/addresses/:addressId")
-  removeAddress(
-    @Param("clientId") clientId: string,
-    @Param("addressId") addressId: string,
-  ): Promise<void> {
-    return this.clients.removeAddress(clientId, addressId);
-  }
-
-  @Get(":clientId/contacts")
-  listContacts(@Param("clientId") clientId: string) {
-    return this.clients.listContacts(clientId);
-  }
-
   @Post(":clientId/contacts")
-  createContact(
+  addContact(
     @Param("clientId") clientId: string,
-    @Body() body: ClientContactDto,
-  ) {
-    return this.clients.createContact(clientId, body);
-  }
-
-  @Get(":clientId/contacts/:contactId")
-  getContact(
-    @Param("clientId") clientId: string,
-    @Param("contactId") contactId: string,
-  ) {
-    return this.clients.getContact(clientId, contactId);
-  }
-
-  @Patch(":clientId/contacts/:contactId")
-  updateContact(
-    @Param("clientId") clientId: string,
-    @Param("contactId") contactId: string,
-    @Body() body: UpdateClientContactDto,
-  ) {
-    return this.clients.updateContact(clientId, contactId, body);
-  }
-
-  @Post(":clientId/contacts/:contactId/deactivate")
-  deactivateContact(
-    @Param("clientId") clientId: string,
-    @Param("contactId") contactId: string,
-  ) {
-    return this.clients.deactivateContact(clientId, contactId);
-  }
-
-  @Get(":clientId/activities")
-  listActivities(
-    @Param("clientId") clientId: string,
-    @Query() query: ClientActivityListQueryDto,
-  ) {
-    return this.clients.listActivities(clientId, query);
-  }
-
-  @Post(":clientId/activities")
-  createActivity(
-    @Param("clientId") clientId: string,
-    @Body() body: ClientActivityDto,
-  ) {
-    return this.clients.createActivity(clientId, body);
-  }
-
-  @Patch(":clientId/activities/:activityId")
-  updateActivity(
-    @Param("clientId") clientId: string,
-    @Param("activityId") activityId: string,
-    @Body() body: UpdateClientActivityDto,
-  ) {
-    return this.clients.updateActivity(clientId, activityId, body);
+    @Body() body: CreateOrganizationContactDto,
+  ): Promise<OrganizationContactResponse> {
+    return this.clients.addOrganizationContact(clientId, body);
   }
 }

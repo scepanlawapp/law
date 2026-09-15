@@ -1,21 +1,20 @@
 import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
-import { Router, RouterLink } from "@angular/router";
-import { debounceTime, distinctUntilChanged, startWith, switchMap } from "rxjs";
+import { RouterLink } from "@angular/router";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { ClientSummary } from "@law/api-interfaces";
-import { ClientsApiClient, ReferencesApiClient } from "@law/api-clients";
+import {
+  debounceTime,
+  distinctUntilChanged,
+  finalize,
+  startWith,
+  switchMap,
+  tap,
+} from "rxjs";
+import { LegalClientSummary } from "@law/api-interfaces";
+import { LegalClientsApiClient } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
-import {
-  HlmTable,
-  HlmTableContainer,
-  HlmTBody,
-  HlmTd,
-  HlmTh,
-  HlmTHead,
-  HlmTr,
-} from "@spartan-ng/helm/table";
+import { HlmTableImports } from "@spartan-ng/helm/table";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
@@ -23,99 +22,70 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
   standalone: true,
   templateUrl: "./clients.component.html",
   imports: [
-    ReactiveFormsModule,
-    RouterLink,
     HlmButton,
     HlmInput,
-    HlmTable,
-    HlmTableContainer,
-    HlmTBody,
-    HlmTd,
-    HlmTh,
-    HlmTHead,
-    HlmTr,
+    HlmTableImports,
+    ReactiveFormsModule,
+    RouterLink,
     TranslatePipe,
   ],
 })
 export class ClientsComponent {
-  private readonly clientsApi = inject(ClientsApiClient);
-  private readonly references = inject(ReferencesApiClient);
+  private readonly api = inject(LegalClientsApiClient);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly router = inject(Router);
+
   readonly search = new FormControl("", { nonNullable: true });
-  readonly items = signal<ClientSummary[]>([]);
+  readonly clients = signal<LegalClientSummary[]>([]);
   readonly page = signal(1);
-  readonly pageCount = signal(1);
+  readonly totalPages = signal(0);
   readonly loading = signal(false);
   readonly error = signal(false);
-  readonly users = signal(new Map<string, string>());
-  private sequence = 0;
 
   constructor() {
-    this.references.users().subscribe({
-      next: (users) =>
-        this.users.set(
-          new Map(
-            users.map((membership) => [
-              membership.userId,
-              [membership.user.firstName, membership.user.lastName]
-                .filter(Boolean)
-                .join(" ") || membership.user.email,
-            ]),
-          ),
-        ),
-    });
     this.search.valueChanges
       .pipe(
-        startWith(this.search.value),
-        debounceTime(300),
+        startWith(""),
+        debounceTime(250),
         distinctUntilChanged(),
         switchMap((search) => {
           this.page.set(1);
-          return this.load(search, 1);
+          return this.load(search);
         }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe();
   }
 
-  load(
-    search = this.search.value,
-    page = this.page(),
-  ): ReturnType<ClientsApiClient["list"]> {
-    const sequence = ++this.sequence;
-    this.loading.set(true);
-    this.error.set(false);
-    return this.clientsApi.list({ search, page, pageSize: 20 }).pipe(
-      switchMap((response) => {
-        if (sequence === this.sequence) {
-          this.items.set(response.items);
-          this.page.set(response.meta.page);
-          this.pageCount.set(response.meta.totalPages);
-          this.loading.set(false);
-        }
-        return [];
-      }),
-    );
+  nextPage(): void {
+    if (this.page() >= this.totalPages()) return;
+    this.page.update((value) => value + 1);
+    this.load(this.search.value).subscribe();
   }
 
-  changePage(page: number): void {
-    if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.load(this.search.value, page).subscribe({
-      error: () => {
-        this.loading.set(false);
-        this.error.set(true);
-      },
-    });
+  previousPage(): void {
+    if (this.page() <= 1) return;
+    this.page.update((value) => value - 1);
+    this.load(this.search.value).subscribe();
   }
 
   retry(): void {
-    this.changePage(this.page());
+    this.load(this.search.value).subscribe();
   }
-  userName(userId: string | null): string {
-    return userId ? (this.users().get(userId) ?? userId) : "";
-  }
-  openClient(clientId: string): void {
-    this.router.navigate(["/clients", clientId]);
+
+  private load(search: string) {
+    this.loading.set(true);
+    this.error.set(false);
+    return this.api
+      .list({ page: this.page(), pageSize: 20, search: search.trim() })
+      .pipe(
+        tap({
+          next: (response) => {
+            this.clients.set(response.items);
+            this.totalPages.set(response.meta.totalPages);
+          },
+          error: () => this.error.set(true),
+        }),
+        finalize(() => this.loading.set(false)),
+      );
   }
 }

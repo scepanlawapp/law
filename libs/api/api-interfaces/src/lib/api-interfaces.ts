@@ -407,3 +407,5 @@ export interface CaseDetail extends CaseSummary {
 }
 
 export type CaseListResponse = PaginatedResponse<CaseSummary>;
+
+export * from "./legal-contracts";
