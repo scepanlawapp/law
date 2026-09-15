@@ -188,6 +188,36 @@ model PracticeArea {
   @@index([workspaceId, isActive, name])
 }
 
+model DocumentCategory {
+  id              String   @id @default(uuid())
+  workspaceId     String
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
+model OrganizationRelationshipType {
+  id              String   @id @default(uuid())
+  workspaceId     String
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
 enum MatterStatus {
   DRAFT
   OPEN

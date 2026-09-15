@@ -2,99 +2,298 @@
 @if (loading()) {
   <p>{{ "clients.loading" | translate }}</p>
 } @else {
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-    <div hlmField>
-      <label hlmFieldLabel for="type">{{ "clients.type" | translate }}</label
-      ><select id="type" formControlName="type">
-        <option value="INDIVIDUAL">
-          {{ "clients.individual" | translate }}
-        </option>
-        <option value="ORGANIZATION">
-          {{ "clients.organization" | translate }}
-        </option>
-      </select>
+  <form [formGroup]="form" (ngSubmit)="submit()" novalidate class="space-y-6">
+    <div class="rounded-md border border-border bg-card p-4">
+      <div class="mb-3 text-sm font-medium text-foreground">Client type</div>
+      <div class="flex gap-2" role="radiogroup" aria-label="Client type">
+        <button
+          type="button"
+          class="rounded-md border px-3 py-2 text-sm"
+          [class.border-primary]="!isOrganization()"
+          [class.bg-primary]="!isOrganization()"
+          [class.text-primary-foreground]="!isOrganization()"
+          [class.border-border]="isOrganization()"
+          (click)="form.controls.type.setValue('INDIVIDUAL')"
+        >
+          Person
+        </button>
+        <button
+          type="button"
+          class="rounded-md border px-3 py-2 text-sm"
+          [class.border-primary]="isOrganization()"
+          [class.bg-primary]="isOrganization()"
+          [class.text-primary-foreground]="isOrganization()"
+          [class.border-border]="!isOrganization()"
+          (click)="form.controls.type.setValue('ORGANIZATION')"
+        >
+          Organization
+        </button>
+      </div>
     </div>
+
     @if (isOrganization()) {
-      <div hlmField>
-        <label hlmFieldLabel for="organizationName">{{
-          "clients.organizationName" | translate
-        }}</label
-        ><input
-          hlmInput
-          id="organizationName"
-          formControlName="organizationName"
-        />
+      <div class="space-y-4 rounded-md border border-border bg-card p-4">
+        <div hlmField>
+          <label hlmFieldLabel for="legalName">Legal name</label>
+          <input hlmInput id="legalName" formControlName="legalName" required />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="tradeName">Trade name</label>
+          <input hlmInput id="tradeName" formControlName="tradeName" />
+        </div>
       </div>
     } @else {
-      <div hlmField>
-        <label hlmFieldLabel for="firstName">{{
-          "clients.firstName" | translate
-        }}</label
-        ><input hlmInput id="firstName" formControlName="firstName" required />
-      </div>
-      <div hlmField>
-        <label hlmFieldLabel for="lastName">{{
-          "clients.lastName" | translate
-        }}</label
-        ><input hlmInput id="lastName" formControlName="lastName" required />
+      <div class="space-y-4 rounded-md border border-border bg-card p-4">
+        <div hlmField>
+          <label hlmFieldLabel for="firstName">First name</label>
+          <input hlmInput id="firstName" formControlName="firstName" required />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="lastName">Last name</label>
+          <input hlmInput id="lastName" formControlName="lastName" required />
+        </div>
       </div>
     }
-    <div hlmField>
-      <label hlmFieldLabel for="displayName">{{
-        "clients.displayName" | translate
-      }}</label
-      ><input hlmInput id="displayName" formControlName="displayName" />
+
+    <div class="space-y-4 rounded-md border border-border bg-card p-4">
+      <div hlmField>
+        <label hlmFieldLabel for="displayName">Display name</label>
+        <input hlmInput id="displayName" formControlName="displayName" />
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <div hlmField>
+          <label hlmFieldLabel for="email">Email</label>
+          <input hlmInput id="email" type="email" formControlName="email" />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="phone">Phone</label>
+          <input hlmInput id="phone" formControlName="phone" />
+        </div>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        <div hlmField>
+          <label hlmFieldLabel for="website">Website</label>
+          <input hlmInput id="website" formControlName="website" />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="language">Preferred language</label>
+          <input hlmInput id="language" formControlName="preferredLanguage" />
+        </div>
+      </div>
     </div>
-    <div hlmField>
-      <label hlmFieldLabel for="email">{{ "clients.email" | translate }}</label
-      ><input hlmInput id="email" type="email" formControlName="email" />
+
+    <div class="space-y-4 rounded-md border border-border bg-card p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-medium text-foreground">Contact details</h2>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div hlmField>
+          <label hlmFieldLabel for="emailPrimary">Primary email</label>
+          <input
+            hlmInput
+            id="emailPrimary"
+            [value]="form.controls.email.value ?? ''"
+            readonly
+          />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="phonePrimary">Primary phone</label>
+          <input
+            hlmInput
+            id="phonePrimary"
+            [value]="form.controls.phone.value ?? ''"
+            readonly
+          />
+        </div>
+      </div>
     </div>
-    <div hlmField>
-      <label hlmFieldLabel for="phone">{{ "clients.phone" | translate }}</label
-      ><input hlmInput id="phone" formControlName="phone" />
+
+    <div class="space-y-4 rounded-md border border-border bg-card p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-medium text-foreground">Identifiers</h2>
+        <button type="button" hlmBtn variant="secondary" size="sm">
+          Add identifier
+        </button>
+      </div>
+      <div class="grid gap-4 md:grid-cols-3">
+        <div hlmField>
+          <label hlmFieldLabel for="identifierType">Type</label>
+          <input hlmInput id="identifierType" value="JMBG" readonly />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="identifierValue">Value</label>
+          <input hlmInput id="identifierValue" placeholder="Optional" />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="identifierIssuer">Issuer</label>
+          <input hlmInput id="identifierIssuer" placeholder="Optional" />
+        </div>
+      </div>
     </div>
-    <div hlmField>
-      <label hlmFieldLabel for="website">{{
-        "clients.website" | translate
-      }}</label
-      ><input hlmInput id="website" formControlName="website" />
+
+    <div class="space-y-4 rounded-md border border-border bg-card p-4">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-medium text-foreground">Addresses</h2>
+        <button type="button" hlmBtn variant="secondary" size="sm">
+          Add address
+        </button>
+      </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div hlmField>
+          <label hlmFieldLabel for="addressLine1">Street</label>
+          <input hlmInput id="addressLine1" placeholder="Street and number" />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="city">City</label>
+          <input hlmInput id="city" placeholder="City" />
+        </div>
+      </div>
     </div>
+
+    @if (isOrganization()) {
+      <div class="space-y-4 rounded-md border border-border bg-card p-4">
+        <div class="flex items-center justify-between">
+          <h2 class="text-lg font-medium text-foreground">Contact persons</h2>
+          <button
+            type="button"
+            hlmBtn
+            variant="secondary"
+            size="sm"
+            (click)="addContactPerson()"
+          >
+            Add contact person
+          </button>
+        </div>
+
+        @if (contactPersons().length === 0) {
+          <p class="text-sm text-muted-foreground">
+            No contact persons added yet.
+          </p>
+        } @else {
+          @for (person of contactPersons(); track person.id) {
+            <div class="rounded-md border border-border p-3">
+              <div class="mb-3 flex items-center justify-between">
+                <span class="text-sm font-medium text-foreground"
+                  >Contact person</span
+                >
+                <button
+                  type="button"
+                  class="text-sm text-destructive"
+                  (click)="removeContactPerson(person.id)"
+                >
+                  Remove
+                </button>
+              </div>
+              <div class="grid gap-4 md:grid-cols-2">
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-name-' + person.id"
+                    >Name</label
+                  >
+                  <input
+                    hlmInput
+                    [id]="'contact-name-' + person.id"
+                    [(ngModel)]="person.name"
+                    name="contactName{{ person.id }}"
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-relation-' + person.id"
+                    >Relationship</label
+                  >
+                  <input
+                    hlmInput
+                    [id]="'contact-relation-' + person.id"
+                    [(ngModel)]="person.relationshipType"
+                    name="contactRelationship{{ person.id }}"
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-job-' + person.id"
+                    >Job title</label
+                  >
+                  <input
+                    hlmInput
+                    [id]="'contact-job-' + person.id"
+                    [(ngModel)]="person.jobTitle"
+                    name="contactJob{{ person.id }}"
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-email-' + person.id"
+                    >Email</label
+                  >
+                  <input
+                    hlmInput
+                    [id]="'contact-email-' + person.id"
+                    type="email"
+                    [(ngModel)]="person.email"
+                    name="contactEmail{{ person.id }}"
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-phone-' + person.id"
+                    >Phone</label
+                  >
+                  <input
+                    hlmInput
+                    [id]="'contact-phone-' + person.id"
+                    [(ngModel)]="person.phone"
+                    name="contactPhone{{ person.id }}"
+                  />
+                </div>
+                <label class="flex items-center gap-2 text-sm text-foreground">
+                  <input
+                    type="checkbox"
+                    [(ngModel)]="person.isPrimary"
+                    [name]="'contactPrimary' + person.id"
+                  />
+                  Primary contact
+                </label>
+              </div>
+            </div>
+          }
+        }
+      </div>
+    }
+
     <div hlmField>
-      <label hlmFieldLabel for="language">{{
-        "clients.language" | translate
-      }}</label
-      ><input hlmInput id="language" formControlName="preferredLanguage" />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="responsibleUserId">{{
-        "clients.responsible" | translate
-      }}</label
-      ><select id="responsibleUserId" formControlName="responsibleUserId">
+      <label hlmFieldLabel for="responsibleUserId">Responsible user</label>
+      <select id="responsibleUserId" formControlName="responsibleUserId">
         <option value=""></option>
         @for (user of users(); track user.userId) {
           <option [value]="user.userId">{{ user.label }}</option>
         }
       </select>
     </div>
-    <fieldset>
-      <legend>{{ "clients.tags" | translate }}</legend>
+
+    <fieldset class="rounded-md border border-border p-4">
+      <legend class="px-2 text-sm font-medium text-foreground">Tags</legend>
       @for (tag of tags(); track tag.id) {
-        <label
-          ><input
+        <label class="flex items-center gap-2 py-1 text-sm text-foreground">
+          <input
             type="checkbox"
             [checked]="form.controls.tagIds.value.includes(tag.id)"
             (change)="form.controls.tagIds.setValue($any($event.target).checked ? [...form.controls.tagIds.value, tag.id] : form.controls.tagIds.value.filter((id) => id !== tag.id))"
-          />{{ tag.name }}</label
-        >
+          />
+          {{ tag.name }}
+        </label>
       }
     </fieldset>
+
     <div hlmField>
-      <label hlmFieldLabel for="notes">{{ "clients.notes" | translate }}</label
-      ><textarea id="notes" formControlName="notes"></textarea>
+      <label hlmFieldLabel for="notes">Notes</label>
+      <textarea id="notes" formControlName="notes" rows="4"></textarea>
     </div>
-    <button hlmBtn type="submit" [disabled]="saving()">
-      {{ (saving() ? "clients.saving" : "clients.save") | translate }}
-    </button>
-    <a hlmBtn routerLink="/clients">{{ "clients.cancel" | translate }}</a>
+
+    <div class="flex items-center gap-3">
+      <button hlmBtn type="submit" [disabled]="saving()">
+        {{ (saving() ? "clients.saving" : "clients.save") | translate }}
+      </button>
+      <a hlmBtn variant="secondary" routerLink="/clients">{{
+        "clients.cancel" | translate
+      }}</a>
+    </div>
   </form>
 }

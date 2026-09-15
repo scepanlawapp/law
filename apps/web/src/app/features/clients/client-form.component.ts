@@ -2,6 +2,7 @@ import { Component, inject, signal } from "@angular/core";
 import {
   FormControl,
   FormGroup,
+  FormsModule,
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
@@ -19,11 +20,22 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 
+type ContactPerson = {
+  id: string;
+  name: string;
+  relationshipType: string;
+  jobTitle: string;
+  email: string;
+  phone: string;
+  isPrimary: boolean;
+};
+
 @Component({
   selector: "app-client-form",
   standalone: true,
   templateUrl: "./client-form.component.html",
   imports: [
+    FormsModule,
     ReactiveFormsModule,
     RouterLink,
     HlmButton,
@@ -45,10 +57,13 @@ export class ClientFormComponent {
   readonly loading = signal(!!this.clientId);
   readonly users = signal<Array<{ userId: string; label: string }>>([]);
   readonly tags = signal<Array<{ id: string; name: string }>>([]);
+  readonly contactPersons = signal<ContactPerson[]>([]);
   readonly form = new FormGroup({
     type: new FormControl<ClientType>("INDIVIDUAL", { nonNullable: true }),
     firstName: new FormControl(""),
     lastName: new FormControl(""),
+    legalName: new FormControl(""),
+    tradeName: new FormControl(""),
     displayName: new FormControl("", {
       validators: [Validators.maxLength(320)],
     }),
@@ -61,31 +76,39 @@ export class ClientFormComponent {
     responsibleUserId: new FormControl(""),
     tagIds: new FormControl<string[]>([], { nonNullable: true }),
   });
+
   constructor() {
-    this.refs
-      .users()
-      .subscribe({
-        next: (items) =>
-          this.users.set(
-            items.map((item) => ({
-              userId: item.userId,
-              label:
-                [item.user.firstName, item.user.lastName]
-                  .filter(Boolean)
-                  .join(" ") || item.user.email,
-            })),
-          ),
-      });
-    this.refs
-      .tags()
-      .subscribe({
-        next: (items) => this.tags.set(items.filter((item) => item.isActive)),
-      });
+    this.refs.users().subscribe({
+      next: (items) =>
+        this.users.set(
+          items.map((item) => ({
+            userId: item.userId,
+            label:
+              [item.user.firstName, item.user.lastName]
+                .filter(Boolean)
+                .join(" ") || item.user.email,
+          })),
+        ),
+    });
+    this.refs.tags().subscribe({
+      next: (items) => this.tags.set(items.filter((item) => item.isActive)),
+    });
     if (this.clientId)
       this.api.get(this.clientId).subscribe({
         next: (item) => {
+          const isOrganization = item.type === "ORGANIZATION";
           this.form.patchValue({
-            ...item,
+            type: item.type,
+            firstName: item.firstName ?? "",
+            lastName: item.lastName ?? "",
+            legalName: isOrganization ? (item.organizationName ?? "") : "",
+            organizationName: item.organizationName ?? "",
+            displayName: item.displayName ?? "",
+            email: item.email ?? "",
+            phone: item.phone ?? "",
+            website: item.website ?? "",
+            preferredLanguage: item.preferredLanguage ?? "",
+            notes: item.notes ?? "",
             responsibleUserId: item.responsibleUserId ?? "",
             tagIds: item.tags.map((tag) => tag.id),
           });
@@ -97,29 +120,57 @@ export class ClientFormComponent {
         },
       });
   }
+
   isOrganization(): boolean {
     return this.form.controls.type.value === "ORGANIZATION";
   }
+
+  addContactPerson(): void {
+    this.contactPersons.update((people) => [
+      ...people,
+      {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+        name: "",
+        relationshipType: "",
+        jobTitle: "",
+        email: "",
+        phone: "",
+        isPrimary: false,
+      },
+    ]);
+  }
+
+  removeContactPerson(id: string): void {
+    this.contactPersons.update((people) =>
+      people.filter((person) => person.id !== id),
+    );
+  }
+
   submit(): void {
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
       return;
     }
     const raw = this.form.getRawValue();
+    const hasPersonName = !!raw.firstName?.trim() && !!raw.lastName?.trim();
+    const hasOrganizationName =
+      !!raw.legalName?.trim() || !!raw.organizationName?.trim();
     if (
-      (!this.isOrganization() &&
-        (!raw.firstName?.trim() || !raw.lastName?.trim())) ||
-      (this.isOrganization() && !raw.organizationName?.trim())
+      (!this.isOrganization() && !hasPersonName) ||
+      (this.isOrganization() && !hasOrganizationName)
     ) {
       this.form.markAllAsTouched();
       return;
     }
+
     const request: ClientRequest = {
       type: raw.type,
       firstName: raw.firstName?.trim() || undefined,
       lastName: raw.lastName?.trim() || undefined,
       displayName: raw.displayName?.trim() || undefined,
-      organizationName: raw.organizationName?.trim() || undefined,
+      organizationName: this.isOrganization()
+        ? raw.legalName?.trim() || raw.organizationName?.trim() || undefined
+        : undefined,
       email: raw.email?.trim() || undefined,
       phone: raw.phone?.trim() || undefined,
       website: raw.website?.trim() || undefined,
@@ -128,6 +179,7 @@ export class ClientFormComponent {
       responsibleUserId: raw.responsibleUserId || undefined,
       tagIds: raw.tagIds,
     };
+
     this.saving.set(true);
     const action = this.clientId
       ? this.api.update(this.clientId, request)

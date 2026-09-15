@@ -33,6 +33,21 @@ export class ReferencesController {
   @Get("practice-areas") practiceAreas() {
     return this.references.list("practiceArea");
   }
+  @Get("matter-stages") matterStages() {
+    return this.references.list("matterStage");
+  }
+  @Get("participant-roles") participantRoles() {
+    return this.references.list("participantRole");
+  }
+  @Get("proceeding-types") proceedingTypes() {
+    return this.references.list("proceedingType");
+  }
+  @Get("document-categories") documentCategories() {
+    return this.references.list("documentCategory");
+  }
+  @Get("organization-relationship-types") organizationRelationshipTypes() {
+    return this.references.list("organizationRelationshipType");
+  }
   @Post("tags") @WorkspaceAccess(WorkspaceRole.ADMIN) createTag(
     @Body() body: ReferenceDto,
   ) {
@@ -94,5 +109,113 @@ export class ReferencesController {
   @WorkspaceAccess(WorkspaceRole.ADMIN)
   activatePracticeArea(@Param("id") id: string) {
     return this.references.setActive("practiceArea", id, true);
+  }
+
+  @Post("matter-stages")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  createMatterStage(@Body() body: ReferenceDto) {
+    return this.references.create("matterStage", body);
+  }
+  @Patch("matter-stages/:id")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  updateMatterStage(@Param("id") id: string, @Body() body: ReferenceDto) {
+    return this.references.update("matterStage", id, body);
+  }
+  @Post("matter-stages/:id/archive")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  archiveMatterStage(@Param("id") id: string) {
+    return this.references.setActive("matterStage", id, false);
+  }
+  @Post("matter-stages/:id/activate")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  activateMatterStage(@Param("id") id: string) {
+    return this.references.setActive("matterStage", id, true);
+  }
+
+  @Post("participant-roles")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  createParticipantRole(@Body() body: ReferenceDto) {
+    return this.references.create("participantRole", body);
+  }
+  @Patch("participant-roles/:id")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  updateParticipantRole(@Param("id") id: string, @Body() body: ReferenceDto) {
+    return this.references.update("participantRole", id, body);
+  }
+  @Post("participant-roles/:id/archive")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  archiveParticipantRole(@Param("id") id: string) {
+    return this.references.setActive("participantRole", id, false);
+  }
+  @Post("participant-roles/:id/activate")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  activateParticipantRole(@Param("id") id: string) {
+    return this.references.setActive("participantRole", id, true);
+  }
+
+  @Post("proceeding-types")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  createProceedingType(@Body() body: ReferenceDto) {
+    return this.references.create("proceedingType", body);
+  }
+  @Patch("proceeding-types/:id")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  updateProceedingType(@Param("id") id: string, @Body() body: ReferenceDto) {
+    return this.references.update("proceedingType", id, body);
+  }
+  @Post("proceeding-types/:id/archive")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  archiveProceedingType(@Param("id") id: string) {
+    return this.references.setActive("proceedingType", id, false);
+  }
+  @Post("proceeding-types/:id/activate")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  activateProceedingType(@Param("id") id: string) {
+    return this.references.setActive("proceedingType", id, true);
+  }
+
+  @Post("document-categories")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  createDocumentCategory(@Body() body: ReferenceDto) {
+    return this.references.create("documentCategory", body);
+  }
+  @Patch("document-categories/:id")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  updateDocumentCategory(@Param("id") id: string, @Body() body: ReferenceDto) {
+    return this.references.update("documentCategory", id, body);
+  }
+  @Post("document-categories/:id/archive")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  archiveDocumentCategory(@Param("id") id: string) {
+    return this.references.setActive("documentCategory", id, false);
+  }
+  @Post("document-categories/:id/activate")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  activateDocumentCategory(@Param("id") id: string) {
+    return this.references.setActive("documentCategory", id, true);
+  }
+
+  @Post("organization-relationship-types")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  createOrganizationRelationshipType(@Body() body: ReferenceDto) {
+    return this.references.create("organizationRelationshipType", body);
+  }
+  @Patch("organization-relationship-types/:id")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  updateOrganizationRelationshipType(
+    @Param("id") id: string,
+    @Body() body: ReferenceDto,
+  ) {
+    return this.references.update("organizationRelationshipType", id, body);
+  }
+  @Post("organization-relationship-types/:id/archive")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  archiveOrganizationRelationshipType(@Param("id") id: string) {
+    return this.references.setActive("organizationRelationshipType", id, false);
+  }
+  @Post("organization-relationship-types/:id/activate")
+  @WorkspaceAccess(WorkspaceRole.ADMIN)
+  activateOrganizationRelationshipType(@Param("id") id: string) {
+    return this.references.setActive("organizationRelationshipType", id, true);
   }
 }
