@@ -6,8 +6,6 @@ import { WorkspacesController } from "./workspaces.controller";
 import { CoreModule } from "@law/core";
 import { AuthModule } from "@law/auth";
 import { ChatModule } from "@law/chat";
-import { ClientsModule } from "@law/clients";
-import { CasesModule } from "@law/cases";
 import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
 import { validateEnvironment } from "./config.validation";
@@ -18,8 +16,6 @@ import { validateEnvironment } from "./config.validation";
     CoreModule,
     AuthModule,
     ChatModule,
-    ClientsModule,
-    CasesModule,
     ReferencesModule,
     UserSettingsModule,
   ],

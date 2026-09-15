@@ -11,17 +11,14 @@ export class TenantSchemaProvisioner {
     tenantId: string,
     databaseName: string,
   ): Promise<void> {
-    await this.connectionManager.createTenantDatabase(databaseName).catch(
-      (error: unknown) => {
-        if (
-          error instanceof Error &&
-          /already exists/i.test(error.message)
-        ) {
+    await this.connectionManager
+      .createTenantDatabase(databaseName)
+      .catch((error: unknown) => {
+        if (error instanceof Error && /already exists/i.test(error.message)) {
           return;
         }
         throw error;
-      },
-    );
+      });
     await this.provisionTenantSchema("public", tenantId, databaseName);
   }
 
@@ -34,48 +31,8 @@ export class TenantSchemaProvisioner {
       throw new Error(`Invalid schema name: ${schemaName}`);
     }
 
-    const domainStatements = [
-      ...[
-        "ClientType",
-        "ClientStatus",
-        "ClientAddressType",
-        "ClientContactStatus",
-        "ActivityType",
-        "ActivitySource",
-        "CaseStatus",
-        "CasePriority",
-      ].map(
-        (type) =>
-          `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = '${type}' AND n.nspname = '${schemaName}') THEN CREATE TYPE "${schemaName}"."${type}" AS ENUM (${type === "ClientType" ? "'INDIVIDUAL', 'ORGANIZATION'" : type === "ClientStatus" ? "'ACTIVE', 'INACTIVE', 'ARCHIVED'" : type === "ClientAddressType" ? "'MAIN', 'BILLING', 'REGISTERED', 'MAILING', 'OTHER'" : type === "ClientContactStatus" ? "'ACTIVE', 'INACTIVE'" : type === "ActivityType" ? "'NOTE', 'PHONE_CALL', 'MEETING', 'EMAIL', 'OTHER'" : type === "ActivitySource" ? "'MANUAL', 'SYSTEM', 'AI'" : type === "CaseStatus" ? "'DRAFT', 'ACTIVE', 'ON_HOLD', 'CLOSED', 'ARCHIVED'" : "'LOW', 'NORMAL', 'HIGH', 'URGENT'"}); END IF; END $$;`,
-      ),
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."DomainCounter" ("workspaceId" TEXT NOT NULL, "name" TEXT NOT NULL, "value" INTEGER NOT NULL DEFAULT 0, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "DomainCounter_pkey" PRIMARY KEY ("workspaceId", "name"))`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."Tag" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "name" TEXT NOT NULL, "color" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "Tag_pkey" PRIMARY KEY ("id"), CONSTRAINT "Tag_workspaceId_name_key" UNIQUE ("workspaceId", "name"))`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."CaseType" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "name" TEXT NOT NULL, "description" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "CaseType_pkey" PRIMARY KEY ("id"), CONSTRAINT "CaseType_workspaceId_name_key" UNIQUE ("workspaceId", "name"))`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."PracticeArea" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "name" TEXT NOT NULL, "description" TEXT, "isActive" BOOLEAN NOT NULL DEFAULT true, "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "PracticeArea_pkey" PRIMARY KEY ("id"), CONSTRAINT "PracticeArea_workspaceId_name_key" UNIQUE ("workspaceId", "name"))`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."Client" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "clientNumber" TEXT NOT NULL, "type" "${schemaName}"."ClientType" NOT NULL, "displayName" TEXT NOT NULL, "firstName" TEXT, "lastName" TEXT, "organizationName" TEXT, "status" "${schemaName}"."ClientStatus" NOT NULL DEFAULT 'ACTIVE', "email" TEXT, "phone" TEXT, "website" TEXT, "preferredLanguage" TEXT, "notes" TEXT, "customFields" JSONB, "responsibleUserId" TEXT, "primaryAddressId" TEXT, "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "Client_pkey" PRIMARY KEY ("id"), CONSTRAINT "Client_workspaceId_clientNumber_key" UNIQUE ("workspaceId", "clientNumber"), CONSTRAINT "Client_primaryAddressId_key" UNIQUE ("primaryAddressId"))`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."ClientAddress" ("id" TEXT NOT NULL, "clientId" TEXT NOT NULL, "type" "${schemaName}"."ClientAddressType" NOT NULL DEFAULT 'MAIN', "street" TEXT, "streetAdditional" TEXT, "city" TEXT, "postalCode" TEXT, "stateOrRegion" TEXT, "country" TEXT, "isPrimary" BOOLEAN NOT NULL DEFAULT false, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ClientAddress_pkey" PRIMARY KEY ("id"), CONSTRAINT "ClientAddress_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "${schemaName}"."Client"("id") ON DELETE CASCADE)`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."ClientContact" ("id" TEXT NOT NULL, "clientId" TEXT NOT NULL, "firstName" TEXT NOT NULL, "lastName" TEXT NOT NULL, "position" TEXT, "email" TEXT, "phone" TEXT, "isPrimary" BOOLEAN NOT NULL DEFAULT false, "notes" TEXT, "status" "${schemaName}"."ClientContactStatus" NOT NULL DEFAULT 'ACTIVE', "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ClientContact_pkey" PRIMARY KEY ("id"), CONSTRAINT "ClientContact_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "${schemaName}"."Client"("id") ON DELETE CASCADE)`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."Case" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "caseNumber" TEXT NOT NULL, "clientId" TEXT NOT NULL, "name" TEXT NOT NULL, "description" TEXT, "caseTypeId" TEXT, "practiceAreaId" TEXT, "status" "${schemaName}"."CaseStatus" NOT NULL DEFAULT 'DRAFT', "priority" "${schemaName}"."CasePriority" NOT NULL DEFAULT 'NORMAL', "responsibleUserId" TEXT NOT NULL, "openedDate" TIMESTAMPTZ(3), "closedDate" TIMESTAMPTZ(3), "closingNote" TEXT, "externalReference" TEXT, "confidentialityLevel" TEXT, "customFields" JSONB, "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "Case_pkey" PRIMARY KEY ("id"), CONSTRAINT "Case_workspaceId_caseNumber_key" UNIQUE ("workspaceId", "caseNumber"), CONSTRAINT "Case_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "${schemaName}"."Client"("id") ON DELETE RESTRICT, CONSTRAINT "Case_caseTypeId_fkey" FOREIGN KEY ("caseTypeId") REFERENCES "${schemaName}"."CaseType"("id") ON DELETE SET NULL, CONSTRAINT "Case_practiceAreaId_fkey" FOREIGN KEY ("practiceAreaId") REFERENCES "${schemaName}"."PracticeArea"("id") ON DELETE SET NULL)`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."ClientActivity" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "clientId" TEXT NOT NULL, "relatedCaseId" TEXT, "type" "${schemaName}"."ActivityType" NOT NULL, "title" TEXT NOT NULL, "description" TEXT, "activityDate" TIMESTAMPTZ(3) NOT NULL, "source" "${schemaName}"."ActivitySource" NOT NULL DEFAULT 'MANUAL', "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "ClientActivity_pkey" PRIMARY KEY ("id"), CONSTRAINT "ClientActivity_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "${schemaName}"."Client"("id") ON DELETE CASCADE, CONSTRAINT "ClientActivity_relatedCaseId_fkey" FOREIGN KEY ("relatedCaseId") REFERENCES "${schemaName}"."Case"("id") ON DELETE SET NULL)`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."CaseActivity" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "caseId" TEXT NOT NULL, "type" "${schemaName}"."ActivityType" NOT NULL, "title" TEXT NOT NULL, "description" TEXT, "activityDate" TIMESTAMPTZ(3) NOT NULL, "source" "${schemaName}"."ActivitySource" NOT NULL DEFAULT 'MANUAL', "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "CaseActivity_pkey" PRIMARY KEY ("id"), CONSTRAINT "CaseActivity_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "${schemaName}"."Case"("id") ON DELETE CASCADE)`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."CaseResponsibility" ("id" TEXT NOT NULL, "workspaceId" TEXT NOT NULL, "caseId" TEXT NOT NULL, "userId" TEXT NOT NULL, "isPrimary" BOOLEAN NOT NULL DEFAULT false, "startedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "endedAt" TIMESTAMPTZ(3), "createdByUserId" TEXT NOT NULL, "updatedByUserId" TEXT NOT NULL, "createdAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, "updatedAt" TIMESTAMPTZ(3) NOT NULL DEFAULT CURRENT_TIMESTAMP, CONSTRAINT "CaseResponsibility_pkey" PRIMARY KEY ("id"), CONSTRAINT "CaseResponsibility_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "${schemaName}"."Case"("id") ON DELETE CASCADE)`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."ClientTag" ("clientId" TEXT NOT NULL, "tagId" TEXT NOT NULL, CONSTRAINT "ClientTag_pkey" PRIMARY KEY ("clientId", "tagId"), CONSTRAINT "ClientTag_clientId_fkey" FOREIGN KEY ("clientId") REFERENCES "${schemaName}"."Client"("id") ON DELETE CASCADE, CONSTRAINT "ClientTag_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "${schemaName}"."Tag"("id") ON DELETE CASCADE)`,
-      `CREATE TABLE IF NOT EXISTS "${schemaName}"."CaseTag" ("caseId" TEXT NOT NULL, "tagId" TEXT NOT NULL, CONSTRAINT "CaseTag_pkey" PRIMARY KEY ("caseId", "tagId"), CONSTRAINT "CaseTag_caseId_fkey" FOREIGN KEY ("caseId") REFERENCES "${schemaName}"."Case"("id") ON DELETE CASCADE, CONSTRAINT "CaseTag_tagId_fkey" FOREIGN KEY ("tagId") REFERENCES "${schemaName}"."Tag"("id") ON DELETE CASCADE)`,
-      `DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'Client_primaryAddressId_fkey' AND connamespace = '${schemaName}'::regnamespace) THEN ALTER TABLE "${schemaName}"."Client" ADD CONSTRAINT "Client_primaryAddressId_fkey" FOREIGN KEY ("primaryAddressId") REFERENCES "${schemaName}"."ClientAddress"("id") ON DELETE SET NULL; END IF; END $$;`,
-      `CREATE INDEX IF NOT EXISTS "Tag_workspaceId_isActive_name_idx" ON "${schemaName}"."Tag"("workspaceId", "isActive", "name")`,
-      `CREATE INDEX IF NOT EXISTS "CaseType_workspaceId_isActive_name_idx" ON "${schemaName}"."CaseType"("workspaceId", "isActive", "name")`,
-      `CREATE INDEX IF NOT EXISTS "PracticeArea_workspaceId_isActive_name_idx" ON "${schemaName}"."PracticeArea"("workspaceId", "isActive", "name")`,
-      `CREATE INDEX IF NOT EXISTS "Client_workspaceId_status_displayName_idx" ON "${schemaName}"."Client"("workspaceId", "status", "displayName")`,
-      `CREATE INDEX IF NOT EXISTS "Case_workspaceId_clientId_status_updatedAt_idx" ON "${schemaName}"."Case"("workspaceId", "clientId", "status", "updatedAt")`,
-      `CREATE INDEX IF NOT EXISTS "CaseActivity_workspaceId_caseId_activityDate_idx" ON "${schemaName}"."CaseActivity"("workspaceId", "caseId", "activityDate")`,
-      `CREATE INDEX IF NOT EXISTS "ClientActivity_workspaceId_clientId_activityDate_idx" ON "${schemaName}"."ClientActivity"("workspaceId", "clientId", "activityDate")`,
-      `CREATE UNIQUE INDEX IF NOT EXISTS "ClientAddress_one_primary_idx" ON "${schemaName}"."ClientAddress"("clientId") WHERE "isPrimary"`,
-      `CREATE UNIQUE INDEX IF NOT EXISTS "ClientContact_one_primary_active_idx" ON "${schemaName}"."ClientContact"("clientId") WHERE "isPrimary" AND "status" = 'ACTIVE'`,
-      `CREATE UNIQUE INDEX IF NOT EXISTS "CaseResponsibility_one_primary_active_idx" ON "${schemaName}"."CaseResponsibility"("caseId") WHERE "isPrimary" AND "endedAt" IS NULL`,
-    ];
     const statements = [
       `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
-      ...domainStatements,
       `DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = 'DateTimeFormatPreference' AND n.nspname = '${schemaName}') THEN
           CREATE TYPE "${schemaName}"."DateTimeFormatPreference" AS ENUM ('TWELVE_HOUR', 'TWENTY_FOUR_HOUR');
@@ -332,6 +289,8 @@ export class TenantSchemaProvisioner {
     for (const sql of statements) {
       await tenantPrisma.$executeRawUnsafe(sql);
     }
-    this.logger.log(`Tenant database "${databaseName}" provisioned successfully`);
+    this.logger.log(
+      `Tenant database "${databaseName}" provisioned successfully`,
+    );
   }
 }
