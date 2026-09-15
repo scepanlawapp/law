@@ -152,6 +152,9 @@
       ],
       "@spartan-ng/helm/radio-group": [
         "./libs/shared/frontend/ui/radio-group/src/index.ts"
+      ],
+      "@spartan-ng/helm/sheet": [
+        "./libs/shared/frontend/ui/sheet/src/index.ts"
       ]
     }
   },

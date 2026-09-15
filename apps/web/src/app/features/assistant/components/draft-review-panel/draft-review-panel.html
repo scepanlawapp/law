@@ -1,96 +1,166 @@
-<section class="draft-review-panel" aria-labelledby="draft-review-title">
-  <div class="draft-review-header">
-    <strong id="draft-review-title"
-      >{{ "assistant.draftReview" | translate }}</strong
-    >
-    <span class="draft-status"
-      >{{ draft.approvalStatus || "READY_FOR_SIGNOFF" }}</span
-    >
-  </div>
-
-  <div class="draft-review-meta">
-    @if (draft.warnings.length) {
-    <div class="draft-alerts">
-      <strong>{{ "assistant.draftWarnings" | translate }}</strong>
-      <ul>
-        @for (warning of draft.warnings; track warning) {
-        <li>{{ warning }}</li>
-        }
-      </ul>
-    </div>
-    } @if (draft.missingFields?.length) {
-    <div class="draft-alerts">
-      <strong>{{ "assistant.missingFields" | translate }}</strong>
-      <div class="missing-fields">
-        @for (field of draft.missingFields; track field) {
-        <span>{{ field }}</span>
-        }
+<section
+  class="draft-review-panel"
+  [class.is-collapsed]="!expanded"
+  aria-labelledby="draft-review-title"
+>
+  <header class="draft-review-header">
+    <div class="draft-heading">
+      <span class="draft-heading-icon" aria-hidden="true">
+        <ng-icon name="lucideTriangleAlert" />
+      </span>
+      <div>
+        <strong id="draft-review-title">{{
+          "assistant.draftReview" | translate
+        }}</strong>
+        <span
+          class="draft-status"
+          [attr.data-status]="draft.approvalStatus || 'READY_FOR_SIGNOFF'"
+          >{{ statusKey() | translate }}</span
+        >
       </div>
     </div>
-    }
-  </div>
-
-  <div
-    class="draft-script-toggle"
-    role="group"
-    [attr.aria-label]="'assistant.script' | translate"
-  >
-    @for (scriptOption of scripts; track scriptOption) {
     <button
       hlmBtn
       variant="ghost"
+      size="icon"
       type="button"
-      [class.selected]="script === scriptOption"
-      (click)="scriptChange.emit(scriptOption)"
+      [hlmTooltip]="
+        (expanded ? 'assistant.collapseDraft' : 'assistant.expandDraft')
+          | translate
+      "
+      [attr.aria-label]="
+        (expanded ? 'assistant.collapseDraft' : 'assistant.expandDraft')
+          | translate
+      "
+      [attr.aria-expanded]="expanded"
+      aria-controls="draft-review-content"
+      (click)="expandedChange.emit(!expanded)"
     >
-      {{ (scriptOption === "latin" ? "assistant.latin" : "assistant.cyrillic") |
-      translate }}
+      <ng-icon
+        [name]="expanded ? 'lucideChevronRight' : 'lucideChevronLeft'"
+      />
     </button>
-    }
-  </div>
+  </header>
 
-  <textarea
-    hlmInput
-    rows="10"
-    class="draft-editor"
-    [ngModel]="text"
-    (ngModelChange)="textChange.emit($event)"
-  ></textarea>
+  @if (expanded) {
+    <div id="draft-review-content" class="draft-review-content">
+      <div class="draft-review-meta">
+        @if (draft.warnings.length) {
+          <section class="draft-alert draft-alert-warning">
+            <strong>
+              <ng-icon name="lucideTriangleAlert" aria-hidden="true" />
+              {{ "assistant.draftWarnings" | translate }}
+            </strong>
+            <ul>
+              @for (warning of draft.warnings; track warning) {
+                <li>{{ warning }}</li>
+              }
+            </ul>
+          </section>
+        }
+        @if (draft.missingFields?.length) {
+          <section class="draft-alert">
+            <strong>{{ "assistant.missingFields" | translate }}</strong>
+            <div class="missing-fields">
+              @for (field of draft.missingFields; track field) {
+                <span>{{ field }}</span>
+              }
+            </div>
+          </section>
+        }
+      </div>
 
-  <textarea
-    hlmInput
-    rows="2"
-    class="review-note"
-    [ngModel]="note"
-    (ngModelChange)="noteChange.emit($event)"
-    [placeholder]="'assistant.reviewNotePlaceholder' | translate"
-  ></textarea>
+      <div class="draft-toolbar">
+        <span>{{ "assistant.script" | translate }}</span>
+        <div
+          class="draft-script-toggle"
+          role="group"
+          [attr.aria-label]="'assistant.script' | translate"
+        >
+          @for (scriptOption of scripts; track scriptOption) {
+            <button
+              type="button"
+              [class.selected]="script === scriptOption"
+              [attr.aria-pressed]="script === scriptOption"
+              (click)="scriptChange.emit(scriptOption)"
+            >
+              {{
+                (scriptOption === "latin"
+                  ? "assistant.latin"
+                  : "assistant.cyrillic"
+                ) | translate
+              }}
+            </button>
+          }
+        </div>
+      </div>
 
-  <div class="draft-review-buttons">
-    <button
-      hlmBtn
-      variant="secondary"
-      type="button"
-      (click)="exportDocx.emit()"
-    >
-      {{ "assistant.exportDocx" | translate }}
-    </button>
-    <button hlmBtn variant="secondary" type="button" (click)="save.emit()">
-      {{ "assistant.saveDraft" | translate }}
-    </button>
-    <button hlmBtn type="button" (click)="approve.emit()">
-      {{ "assistant.approveDraft" | translate }}
-    </button>
-    <button
-      hlmBtn
-      variant="outline"
-      type="button"
-      (click)="requestChanges.emit()"
-    >
-      {{ "assistant.requestChanges" | translate }}
-    </button>
-    <button hlmBtn variant="destructive" type="button" (click)="reject.emit()">
-      {{ "assistant.rejectDraft" | translate }}
-    </button>
-  </div>
+      <label class="draft-field-label" for="draft-document-text">{{
+        "assistant.draftDocument" | translate
+      }}</label>
+      <textarea
+        hlmInput
+        id="draft-document-text"
+        rows="16"
+        class="draft-editor"
+        [ngModel]="text"
+        (ngModelChange)="textChange.emit($event)"
+      ></textarea>
+
+      <label class="draft-field-label" for="draft-review-note">{{
+        "assistant.reviewNote" | translate
+      }}</label>
+      <textarea
+        hlmInput
+        id="draft-review-note"
+        rows="3"
+        class="review-note"
+        [ngModel]="note"
+        (ngModelChange)="noteChange.emit($event)"
+        [placeholder]="'assistant.reviewNotePlaceholder' | translate"
+      ></textarea>
+    </div>
+
+    <footer class="draft-review-footer">
+      <div class="draft-document-actions">
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          (click)="exportDocx.emit()"
+        >
+          <ng-icon name="lucideDownload" aria-hidden="true" />
+          {{ "assistant.exportDocx" | translate }}
+        </button>
+        <button hlmBtn variant="secondary" type="button" (click)="save.emit()">
+          <ng-icon name="lucideSave" aria-hidden="true" />
+          {{ "assistant.saveDraft" | translate }}
+        </button>
+      </div>
+      <div class="draft-workflow-actions">
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          (click)="requestChanges.emit()"
+        >
+          <ng-icon name="lucideRotateCcw" aria-hidden="true" />
+          {{ "assistant.requestChanges" | translate }}
+        </button>
+        <button
+          hlmBtn
+          variant="destructive"
+          type="button"
+          (click)="reject.emit()"
+        >
+          <ng-icon name="lucideX" aria-hidden="true" />
+          {{ "assistant.rejectDraft" | translate }}
+        </button>
+        <button hlmBtn type="button" (click)="approve.emit()">
+          <ng-icon name="lucideCheck" aria-hidden="true" />
+          {{ "assistant.approveDraft" | translate }}
+        </button>
+      </div>
+    </footer>
+  }
 </section>
