@@ -10,7 +10,7 @@ import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
 import { ClientsModule } from "@law/clients";
 import { MattersModule } from "@law/cases";
-import { DocumentsModule } from "@law/documents";
+import { DocumentsModule } from "@law/legal-documents";
 import { validateEnvironment } from "./config.validation";
 
 @Module({

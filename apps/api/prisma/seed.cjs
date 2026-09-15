@@ -3,6 +3,8 @@ const {
 } = require("@prisma/platform-client");
 const { PrismaClient: TenantPrismaClient } = require("@prisma/tenant-client");
 const { randomBytes, scryptSync } = require("node:crypto");
+const { execFileSync } = require("node:child_process");
+const { join } = require("node:path");
 
 function hashPassword(password) {
   const salt = randomBytes(16).toString("hex");
@@ -366,6 +368,49 @@ async function seedLegalLookups(prisma, workspaceId) {
   }
 }
 
+async function ensureLegalSchema(prisma, tenantDatabaseUrl) {
+  const runMigration = (directory) => {
+    execFileSync(
+      "npx",
+      [
+        "prisma",
+        "db",
+        "execute",
+        "--schema",
+        "apps/api/prisma/tenant.prisma",
+        "--file",
+        join(
+          "apps",
+          "api",
+          "prisma",
+          "tenant-migrations",
+          directory,
+          "migration.sql",
+        ),
+      ],
+      {
+        cwd: process.cwd(),
+        env: { ...process.env, DATABASE_URL: tenantDatabaseUrl },
+        stdio: "inherit",
+      },
+    );
+  };
+
+  const coreRows = await prisma.$queryRawUnsafe(
+    `SELECT to_regclass('public."Party"')::text AS "party"`,
+  );
+  if (!coreRows[0]?.party) {
+    runMigration("20260915120000_core_legal_domain");
+  }
+
+  const extensibilityRows = await prisma.$queryRawUnsafe(
+    `SELECT to_regclass('public."Document"')::text AS "document"`,
+  );
+  if (!extensibilityRows[0]?.document) {
+    runMigration("20260915150000_documents_custom_fields_activity");
+  }
+}
+
 async function main() {
   const email = process.env.AUTH_BOOTSTRAP_EMAIL?.trim().toLowerCase();
   const password = process.env.AUTH_BOOTSTRAP_PASSWORD;
@@ -432,6 +477,7 @@ async function main() {
 
     // 2. Apply the canonical tenant schema to the physical tenant database.
     await provisionTenantSchema(tenantPrisma, "public");
+    await ensureLegalSchema(tenantPrisma, tenantDbUrl);
     await seedLegalLookups(tenantPrisma, workspaceId);
 
     // 3. Upsert Workspace linked to Tenant

@@ -40,7 +40,7 @@
             type="button"
             class="rounded-md px-3 py-2 text-sm"
             [class.bg-accent]="tab() === item.key"
-            (click)="tab.set(item.key)"
+            (click)="selectTab(item.key)"
           >
             {{ item.label | translate }}
           </button>

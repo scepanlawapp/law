@@ -22,7 +22,7 @@
       "@law/chat": ["./libs/api/features/chat/src/index.ts"],
       "@law/clients": ["./libs/api/features/clients/src/index.ts"],
       "@law/cases": ["./libs/api/features/cases/src/index.ts"],
-      "@law/documents": ["./libs/api/features/documents/src/index.ts"],
+      "@law/legal-documents": ["./libs/api/features/documents/src/index.ts"],
       "@law/references": ["./libs/api/features/references/src/index.ts"],
       "@law/user-settings": ["./libs/api/features/user-settings/src/index.ts"],
       "@law/core": ["./libs/api/core/src/index.ts"],

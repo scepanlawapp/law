@@ -24,6 +24,12 @@ export class ClientDetailComponent {
     "overview" | "contacts" | "matters" | "documents" | "activity"
   >("overview");
 
+  selectTab(value: string): void {
+    if (["overview", "contacts", "matters", "documents", "activity"].includes(value)) {
+      this.tab.set(value as typeof this.tab extends () => infer T ? T : never);
+    }
+  }
+
   constructor() {
     const clientId = this.route.snapshot.paramMap.get("clientId");
     if (!clientId) {

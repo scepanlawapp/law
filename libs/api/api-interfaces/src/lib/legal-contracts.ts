@@ -336,7 +336,7 @@ export interface UpdateLookupRequest {
   practiceAreaId?: string | null;
 }
 
-export interface MatterTransitionResponse extends MatterDetail {}
+export type MatterTransitionResponse = MatterDetail;
 
 export type LegalPaginatedResponse<T> = PaginatedResponse<T>;
 
@@ -361,6 +361,7 @@ export interface DocumentListQuery {
   page?: number;
   pageSize?: number;
   search?: string;
+  sort?: string;
   categoryId?: string;
   includeArchived?: boolean;
   clientId?: string;

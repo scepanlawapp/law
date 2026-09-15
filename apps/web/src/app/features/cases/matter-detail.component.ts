@@ -24,6 +24,12 @@ export class MatterDetailComponent {
     "overview" | "documents" | "participants" | "proceedings" | "activity"
   >("overview");
 
+  selectTab(value: string): void {
+    if (["overview", "documents", "participants", "proceedings", "activity"].includes(value)) {
+      this.tab.set(value as typeof this.tab extends () => infer T ? T : never);
+    }
+  }
+
   constructor() {
     const matterId = this.route.snapshot.paramMap.get("matterId");
     if (!matterId) {

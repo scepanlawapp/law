@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 
 @Injectable()
 export class LegalDocumentStorage {
@@ -35,7 +35,7 @@ export class LegalDocumentStorage {
     };
   }
 
-  read(
+  async read(
     workspaceId: string,
     documentId: string,
     storageKey: string,
@@ -43,6 +43,17 @@ export class LegalDocumentStorage {
     const prefix = `tenants/${workspaceId}/documents/${documentId}/`;
     if (!storageKey.startsWith(prefix))
       throw new Error("Invalid document storage key");
-    return readFile(join(this.root, ...storageKey.split("/")));
+    const baseDirectory = resolve(
+      this.root,
+      "tenants",
+      workspaceId,
+      "documents",
+      documentId,
+    );
+    const candidate = resolve(this.root, ...storageKey.split("/"));
+    if (candidate !== baseDirectory && !candidate.startsWith(`${baseDirectory}/`)) {
+      throw new Error("Invalid document storage path");
+    }
+    return readFile(candidate);
   }
 }
