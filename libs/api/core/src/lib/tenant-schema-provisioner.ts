@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { TenantConnectionManager } from "./tenant-connection-manager";
 import { legalSchemaStatements } from "./legal-schema";
+import { extensibilitySchemaStatements } from "./extensibility-schema";
 
 @Injectable()
 export class TenantSchemaProvisioner {
@@ -35,6 +36,7 @@ export class TenantSchemaProvisioner {
     const statements = [
       `CREATE SCHEMA IF NOT EXISTS "${schemaName}"`,
       ...legalSchemaStatements(schemaName),
+      ...extensibilitySchemaStatements(schemaName),
       `DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_type t JOIN pg_namespace n ON n.oid = t.typnamespace WHERE t.typname = 'DateTimeFormatPreference' AND n.nspname = '${schemaName}') THEN
           CREATE TYPE "${schemaName}"."DateTimeFormatPreference" AS ENUM ('TWELVE_HOUR', 'TWENTY_FOUR_HOUR');

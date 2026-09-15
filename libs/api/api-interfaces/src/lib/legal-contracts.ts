@@ -339,3 +339,40 @@ export interface UpdateLookupRequest {
 export interface MatterTransitionResponse extends MatterDetail {}
 
 export type LegalPaginatedResponse<T> = PaginatedResponse<T>;
+
+export type DocumentSource = "UPLOAD" | "EMAIL" | "API" | "GENERATED" | "SCAN";
+export type DocumentVisibility = "INTERNAL" | "CLIENT_SHARED";
+
+export interface DocumentSummary {
+  id: string;
+  originalFilename: string;
+  title: string | null;
+  mimeType: string;
+  sizeBytes: number;
+  category: LegalLookupSummary | null;
+  documentDate: string | null;
+  source: DocumentSource;
+  visibility: DocumentVisibility;
+  archivedAt: string | null;
+  createdAt: string;
+}
+
+export interface DocumentListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  categoryId?: string;
+  includeArchived?: boolean;
+  clientId?: string;
+  matterId?: string;
+}
+
+export interface ActivityEventSummary {
+  id: string;
+  entityType: string;
+  entityId: string;
+  eventType: string;
+  payload: Record<string, unknown> | null;
+  actorUserId: string | null;
+  createdAt: string;
+}

@@ -10,6 +10,7 @@ import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
 import { ClientsModule } from "@law/clients";
 import { MattersModule } from "@law/cases";
+import { DocumentsModule } from "@law/documents";
 import { validateEnvironment } from "./config.validation";
 
 @Module({
@@ -22,6 +23,7 @@ import { validateEnvironment } from "./config.validation";
     UserSettingsModule,
     ClientsModule,
     MattersModule,
+    DocumentsModule,
   ],
   controllers: [AppController, WorkspacesController],
   providers: [AppService],
