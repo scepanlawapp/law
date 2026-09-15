@@ -41,11 +41,11 @@
                 >{{ client.displayName }}</a
               >
             </td>
-            <td hlmTd>{{ client.type }}</td>
+            <td hlmTd>{{ "clients.type." + client.type | translate }}</td>
             <td hlmTd>{{ userName(client.responsibleUserId) }}</td>
             <td hlmTd>{{ client.email }}</td>
             <td hlmTd>{{ client.phone }}</td>
-            <td hlmTd>{{ client.status }}</td>
+            <td hlmTd>{{ "clients.status." + client.status | translate }}</td>
             <td hlmTd>{{ client.activeCaseCount }}</td>
           </tr>
         } @empty {

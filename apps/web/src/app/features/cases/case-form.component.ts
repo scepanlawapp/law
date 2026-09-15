@@ -16,9 +16,15 @@ import {
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import {
+  createSelectItemToString,
+  type SelectOption,
+} from "../../shared/utils";
 
 @Component({
   selector: "app-case-form",
@@ -31,6 +37,8 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    HlmSelectImports,
+    HlmTextarea,
     TranslatePipe,
   ],
 })
@@ -49,6 +57,26 @@ export class CaseFormComponent {
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly types = signal<Array<{ id: string; name: string }>>([]);
   readonly areas = signal<Array<{ id: string; name: string }>>([]);
+  readonly priorityOptions: ReadonlyArray<SelectOption<CasePriority>> = [
+    { value: "LOW", label: "LOW" },
+    { value: "NORMAL", label: "NORMAL" },
+    { value: "HIGH", label: "HIGH" },
+    { value: "URGENT", label: "URGENT" },
+  ];
+  readonly clientItemToString = (value: string | null | undefined): string =>
+    this.clients().find((client) => client.id === value)?.name ?? "";
+  readonly responsibleUserItemToString = (
+    value: string | null | undefined,
+  ): string => this.users().find((user) => user.id === value)?.name ?? "";
+  readonly priorityItemToString = createSelectItemToString(
+    this.priorityOptions,
+    (label) => label,
+  );
+  readonly caseTypeItemToString = (value: string | null | undefined): string =>
+    this.types().find((type) => type.id === value)?.name ?? "";
+  readonly practiceAreaItemToString = (
+    value: string | null | undefined,
+  ): string => this.areas().find((area) => area.id === value)?.name ?? "";
   readonly form = new FormGroup({
     clientId: new FormControl(
       this.route.snapshot.queryParamMap.get("clientId") ?? "",

@@ -40,8 +40,8 @@ import {
 } from "@ng-icons/lucide";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { HlmButton } from "@spartan-ng/helm/button";
-import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
   HlmSheet,
   HlmSheetClose,
@@ -119,8 +119,8 @@ interface SessionGroup {
     NgIcon,
     HlmTooltipImports,
     HlmButton,
-    HlmInput,
     HlmInputGroupImports,
+    HlmTextarea,
     HlmSheet,
     HlmSheetClose,
     HlmSheetContent,
@@ -225,9 +225,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly selectedSessionTitle = computed(
     () =>
-      this.sessions().find(
-        (session) => session.id === this.selectedSessionId(),
-      )?.title ?? null,
+      this.sessions().find((session) => session.id === this.selectedSessionId())
+        ?.title ?? null,
   );
   protected readonly pendingFiles = signal<File[]>([]);
   protected readonly sessionPage = signal(1);
@@ -839,10 +838,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    this.source = new EventSource(
-      this.chat.workspaceEventsUrl(workspaceId),
-      { withCredentials: true },
-    );
+    this.source = new EventSource(this.chat.workspaceEventsUrl(workspaceId), {
+      withCredentials: true,
+    });
     this.source.onmessage = (event) => {
       try {
         this.handleWorkspaceEvent(JSON.parse(event.data) as ChatStreamEvent);

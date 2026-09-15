@@ -9,9 +9,9 @@
         <ng-icon name="lucideTriangleAlert" />
       </span>
       <div>
-        <strong id="draft-review-title">{{
-          "assistant.draftReview" | translate
-        }}</strong>
+        <strong id="draft-review-title"
+          >{{ "assistant.draftReview" | translate }}</strong
+        >
         <span
           class="draft-status"
           [attr.data-status]="draft.approvalStatus || 'READY_FOR_SIGNOFF'"
@@ -36,131 +36,124 @@
       aria-controls="draft-review-content"
       (click)="expandedChange.emit(!expanded)"
     >
-      <ng-icon
-        [name]="expanded ? 'lucideChevronRight' : 'lucideChevronLeft'"
-      />
+      <ng-icon [name]="expanded ? 'lucideChevronRight' : 'lucideChevronLeft'" />
     </button>
   </header>
 
   @if (expanded) {
-    <div id="draft-review-content" class="draft-review-content">
-      <div class="draft-review-meta">
-        @if (draft.warnings.length) {
-          <section class="draft-alert draft-alert-warning">
-            <strong>
-              <ng-icon name="lucideTriangleAlert" aria-hidden="true" />
-              {{ "assistant.draftWarnings" | translate }}
-            </strong>
-            <ul>
-              @for (warning of draft.warnings; track warning) {
-                <li>{{ warning }}</li>
-              }
-            </ul>
-          </section>
-        }
-        @if (draft.missingFields?.length) {
-          <section class="draft-alert">
-            <strong>{{ "assistant.missingFields" | translate }}</strong>
-            <div class="missing-fields">
-              @for (field of draft.missingFields; track field) {
-                <span>{{ field }}</span>
-              }
-            </div>
-          </section>
-        }
-      </div>
-
-      <div class="draft-toolbar">
-        <span>{{ "assistant.script" | translate }}</span>
-        <div
-          class="draft-script-toggle"
-          role="group"
-          [attr.aria-label]="'assistant.script' | translate"
-        >
-          @for (scriptOption of scripts; track scriptOption) {
-            <button
-              type="button"
-              [class.selected]="script === scriptOption"
-              [attr.aria-pressed]="script === scriptOption"
-              (click)="scriptChange.emit(scriptOption)"
-            >
-              {{
-                (scriptOption === "latin"
-                  ? "assistant.latin"
-                  : "assistant.cyrillic"
-                ) | translate
-              }}
-            </button>
+  <div id="draft-review-content" class="draft-review-content">
+    <div class="draft-review-meta">
+      @if (draft.warnings.length) {
+      <section class="draft-alert draft-alert-warning">
+        <strong>
+          <ng-icon name="lucideTriangleAlert" aria-hidden="true" />
+          {{ "assistant.draftWarnings" | translate }}
+        </strong>
+        <ul>
+          @for (warning of draft.warnings; track warning) {
+          <li>{{ warning }}</li>
+          }
+        </ul>
+      </section>
+      } @if (draft.missingFields?.length) {
+      <section class="draft-alert">
+        <strong>{{ "assistant.missingFields" | translate }}</strong>
+        <div class="missing-fields">
+          @for (field of draft.missingFields; track field) {
+          <span>{{ field }}</span>
           }
         </div>
-      </div>
-
-      <label class="draft-field-label" for="draft-document-text">{{
-        "assistant.draftDocument" | translate
-      }}</label>
-      <textarea
-        hlmInput
-        id="draft-document-text"
-        rows="16"
-        class="draft-editor"
-        [ngModel]="text"
-        (ngModelChange)="textChange.emit($event)"
-      ></textarea>
-
-      <label class="draft-field-label" for="draft-review-note">{{
-        "assistant.reviewNote" | translate
-      }}</label>
-      <textarea
-        hlmInput
-        id="draft-review-note"
-        rows="3"
-        class="review-note"
-        [ngModel]="note"
-        (ngModelChange)="noteChange.emit($event)"
-        [placeholder]="'assistant.reviewNotePlaceholder' | translate"
-      ></textarea>
+      </section>
+      }
     </div>
 
-    <footer class="draft-review-footer">
-      <div class="draft-document-actions">
+    <div class="draft-toolbar">
+      <span>{{ "assistant.script" | translate }}</span>
+      <div
+        class="draft-script-toggle"
+        role="group"
+        [attr.aria-label]="'assistant.script' | translate"
+      >
+        @for (scriptOption of scripts; track scriptOption) {
         <button
-          hlmBtn
-          variant="outline"
           type="button"
-          (click)="exportDocx.emit()"
+          [class.selected]="script === scriptOption"
+          [attr.aria-pressed]="script === scriptOption"
+          (click)="scriptChange.emit(scriptOption)"
         >
-          <ng-icon name="lucideDownload" aria-hidden="true" />
-          {{ "assistant.exportDocx" | translate }}
+          {{ (scriptOption === "latin" ? "assistant.latin" :
+          "assistant.cyrillic" ) | translate }}
         </button>
-        <button hlmBtn variant="secondary" type="button" (click)="save.emit()">
-          <ng-icon name="lucideSave" aria-hidden="true" />
-          {{ "assistant.saveDraft" | translate }}
-        </button>
+        }
       </div>
-      <div class="draft-workflow-actions">
-        <button
-          hlmBtn
-          variant="outline"
-          type="button"
-          (click)="requestChanges.emit()"
-        >
-          <ng-icon name="lucideRotateCcw" aria-hidden="true" />
-          {{ "assistant.requestChanges" | translate }}
-        </button>
-        <button
-          hlmBtn
-          variant="destructive"
-          type="button"
-          (click)="reject.emit()"
-        >
-          <ng-icon name="lucideX" aria-hidden="true" />
-          {{ "assistant.rejectDraft" | translate }}
-        </button>
-        <button hlmBtn type="button" (click)="approve.emit()">
-          <ng-icon name="lucideCheck" aria-hidden="true" />
-          {{ "assistant.approveDraft" | translate }}
-        </button>
-      </div>
-    </footer>
+    </div>
+
+    <label class="draft-field-label" for="draft-document-text"
+      >{{ "assistant.draftDocument" | translate }}</label
+    >
+    <textarea
+      hlmTextarea
+      id="draft-document-text"
+      rows="16"
+      class="draft-editor"
+      [ngModel]="text"
+      (ngModelChange)="textChange.emit($event)"
+    ></textarea>
+
+    <label class="draft-field-label" for="draft-review-note"
+      >{{ "assistant.reviewNote" | translate }}</label
+    >
+    <textarea
+      hlmTextarea
+      id="draft-review-note"
+      rows="3"
+      class="review-note"
+      [ngModel]="note"
+      (ngModelChange)="noteChange.emit($event)"
+      [placeholder]="'assistant.reviewNotePlaceholder' | translate"
+    ></textarea>
+  </div>
+
+  <footer class="draft-review-footer">
+    <div class="draft-document-actions">
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        (click)="exportDocx.emit()"
+      >
+        <ng-icon name="lucideDownload" aria-hidden="true" />
+        {{ "assistant.exportDocx" | translate }}
+      </button>
+      <button hlmBtn variant="secondary" type="button" (click)="save.emit()">
+        <ng-icon name="lucideSave" aria-hidden="true" />
+        {{ "assistant.saveDraft" | translate }}
+      </button>
+    </div>
+    <div class="draft-workflow-actions">
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        (click)="requestChanges.emit()"
+      >
+        <ng-icon name="lucideRotateCcw" aria-hidden="true" />
+        {{ "assistant.requestChanges" | translate }}
+      </button>
+      <button
+        hlmBtn
+        variant="destructive"
+        type="button"
+        (click)="reject.emit()"
+      >
+        <ng-icon name="lucideX" aria-hidden="true" />
+        {{ "assistant.rejectDraft" | translate }}
+      </button>
+      <button hlmBtn type="button" (click)="approve.emit()">
+        <ng-icon name="lucideCheck" aria-hidden="true" />
+        {{ "assistant.approveDraft" | translate }}
+      </button>
+    </div>
+  </footer>
   }
 </section>

@@ -58,7 +58,11 @@
         <label hlmFieldLabel for="closingNote">{{
           "cases.closingNote" | translate
         }}</label>
-        <textarea id="closingNote" formControlName="closingNote"></textarea>
+        <textarea
+          hlmTextarea
+          id="closingNote"
+          formControlName="closingNote"
+        ></textarea>
       </div>
       <button hlmBtn type="submit">{{ "cases.close" | translate }}</button>
       <button hlmBtn type="button" (click)="showCloseForm.set(false)">
@@ -87,18 +91,26 @@
     </section>
     <section hlmTabsContent="activities">
       <form [formGroup]="activityForm" (ngSubmit)="addActivity()">
-        <select formControlName="type">
-          <option value="NOTE">NOTE</option>
-          <option value="PHONE_CALL">PHONE_CALL</option>
-          <option value="MEETING">MEETING</option>
-          <option value="EMAIL">EMAIL</option>
-          <option value="OTHER">OTHER</option></select
+        <hlm-select
+          formControlName="type"
+          [itemToString]="activityTypeItemToString"
+        >
+          <hlm-select-trigger class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              @for (type of activityTypeOptions; track type) {
+                <hlm-select-item [value]="type">{{ type }}</hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content> </hlm-select
         ><input hlmInput formControlName="title" required /><input
           hlmInput
           type="date"
           formControlName="activityDate"
           required
-        /><textarea formControlName="description"></textarea
+        /><textarea hlmTextarea formControlName="description"></textarea
         ><button hlmBtn type="submit">
           {{ "cases.addActivity" | translate }}
         </button>
@@ -112,10 +124,19 @@
     </section>
     <section hlmTabsContent="responsibilities">
       <form [formGroup]="responsibilityForm" (ngSubmit)="addResponsibility()">
-        <select formControlName="userId">
-          @for (entry of users() | keyvalue; track entry.key) {
-            <option [value]="entry.key">{{ entry.value }}</option>
-          }</select
+        <hlm-select formControlName="userId" [itemToString]="userItemToString">
+          <hlm-select-trigger class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              @for (entry of users() | keyvalue; track entry.key) {
+                <hlm-select-item [value]="entry.key">{{
+                  entry.value
+                }}</hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content> </hlm-select
         ><input hlmInput type="date" formControlName="startedAt" /><label
           ><input type="checkbox" formControlName="isPrimary" />{{
             "cases.primary" | translate

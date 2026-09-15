@@ -75,6 +75,7 @@ enum ClientStatus {
   ACTIVE
   INACTIVE
   ARCHIVED
+  PROSPECT
 }
 
 enum ClientAddressType {

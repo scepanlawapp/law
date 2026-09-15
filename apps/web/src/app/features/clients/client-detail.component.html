@@ -2,7 +2,7 @@
   <p>{{ "clients.loading" | translate }}</p>
 } @else if (client(); as item) {
   <h1>{{ item.displayName }}</h1>
-  <p>{{ item.clientNumber }} {{ item.status }}</p>
+  <p>{{ item.clientNumber }} {{ "clients.status." + item.status | translate }}</p>
   <p>
     <a hlmBtn [routerLink]="['/clients', item.id, 'edit']">{{
       "clients.edit" | translate

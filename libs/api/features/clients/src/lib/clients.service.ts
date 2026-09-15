@@ -242,6 +242,7 @@ export class ClientsService {
         data: {
           workspaceId,
           clientNumber: await this.nextNumber(tx, "CLIENT"),
+          status: input.status ?? "ACTIVE",
           ...normalized,
           email: input.email?.trim(),
           phone: input.phone?.trim(),
@@ -285,10 +286,24 @@ export class ClientsService {
     const normalized = this.normalize(input, existing);
     const { userId, workspaceId } = this.context;
     await this.db.$transaction(async (tx) => {
+      if (input.status === "ARCHIVED" && existing.status !== "ARCHIVED") {
+        const activeCaseCount = await tx.case.count({
+          where: {
+            clientId,
+            workspaceId,
+            status: { in: ["DRAFT", "ACTIVE", "ON_HOLD"] },
+          },
+        });
+        if (activeCaseCount)
+          throw new BadRequestException(
+            "Clients with open cases cannot be archived",
+          );
+      }
       await tx.client.update({
         where: { id: clientId },
         data: {
           ...normalized,
+          ...(input.status !== undefined && { status: input.status }),
           ...(input.email !== undefined && {
             email: input.email.trim() || null,
           }),

@@ -3,16 +3,45 @@
   <p>{{ "clients.loading" | translate }}</p>
 } @else {
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
+    <fieldset>
+      <legend>{{ "clients.type" | translate }}</legend>
+      <hlm-radio-group formControlName="type">
+        @for (option of clientTypeOptions; track option.value) {
+          <div>
+            <hlm-radio
+              [value]="option.value"
+              [inputId]="'client-type-' + option.value.toLowerCase()"
+            >
+              <hlm-radio-indicator indicator />
+            </hlm-radio>
+            <label hlmLabel [for]="'client-type-' + option.value.toLowerCase()">{{
+              option.label | translate
+            }}</label>
+          </div>
+        }
+      </hlm-radio-group>
+    </fieldset>
     <div hlmField>
-      <label hlmFieldLabel for="type">{{ "clients.type" | translate }}</label
-      ><select id="type" formControlName="type">
-        <option value="INDIVIDUAL">
-          {{ "clients.individual" | translate }}
-        </option>
-        <option value="ORGANIZATION">
-          {{ "clients.organization" | translate }}
-        </option>
-      </select>
+      <label hlmFieldLabel for="status">{{
+        "clients.status" | translate
+      }}</label
+      ><hlm-select
+        formControlName="status"
+        [itemToString]="statusItemToString"
+      >
+        <hlm-select-trigger id="status" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of statusOptions; track option.value) {
+              <hlm-select-item [value]="option.value">{{
+                statusItemToString(option.value)
+              }}</hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     @if (isOrganization()) {
       <div hlmField>
@@ -69,12 +98,24 @@
       <label hlmFieldLabel for="responsibleUserId">{{
         "clients.responsible" | translate
       }}</label
-      ><select id="responsibleUserId" formControlName="responsibleUserId">
-        <option value=""></option>
-        @for (user of users(); track user.userId) {
-          <option [value]="user.userId">{{ user.label }}</option>
-        }
-      </select>
+      ><hlm-select
+        formControlName="responsibleUserId"
+        [itemToString]="responsibleUserItemToString"
+      >
+        <hlm-select-trigger id="responsibleUserId" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            <hlm-select-item value=""></hlm-select-item>
+            @for (user of users(); track user.userId) {
+              <hlm-select-item [value]="user.userId">{{
+                user.label
+              }}</hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     <fieldset>
       <legend>{{ "clients.tags" | translate }}</legend>
@@ -90,7 +131,7 @@
     </fieldset>
     <div hlmField>
       <label hlmFieldLabel for="notes">{{ "clients.notes" | translate }}</label
-      ><textarea id="notes" formControlName="notes"></textarea>
+      ><textarea hlmTextarea id="notes" formControlName="notes"></textarea>
     </div>
     <button hlmBtn type="submit" [disabled]="saving()">
       {{ (saving() ? "clients.saving" : "clients.save") | translate }}

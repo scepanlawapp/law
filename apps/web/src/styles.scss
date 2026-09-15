@@ -656,8 +656,23 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
+select,
+textarea {
+  @apply w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm;
+}
+
 select {
-  @apply text-base;
+  @apply h-8 cursor-pointer py-1 pe-8;
+}
+
+textarea {
+  @apply min-h-16 resize-y;
+}
+
+select option,
+select optgroup {
+  background-color: var(--popover);
+  color: var(--popover-foreground);
 }
 
 /* Supplemental tokens required by Spartan/Helm components. */

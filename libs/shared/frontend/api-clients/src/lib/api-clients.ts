@@ -443,6 +443,7 @@ export interface CaseListQuery {
 
 export interface ClientRequest {
   type: ClientType;
+  status?: ClientStatus;
   firstName?: string;
   lastName?: string;
   displayName?: string;

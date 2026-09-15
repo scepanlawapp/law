@@ -388,7 +388,7 @@ export interface DraftResultResponse {
 }
 
 export type ClientType = "INDIVIDUAL" | "ORGANIZATION";
-export type ClientStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
+export type ClientStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED" | "PROSPECT";
 export type CaseStatus = "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED" | "ARCHIVED";
 export type CasePriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type ActivityType =

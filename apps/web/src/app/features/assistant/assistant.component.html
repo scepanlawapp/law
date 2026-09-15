@@ -77,7 +77,9 @@
               @if (session.activity?.activeJobCount) {
                 <small>{{ "assistant.conversationWorking" | translate }}</small>
               } @else if (session.activity?.hasDraft) {
-                <small>{{ "assistant.conversationDraftReady" | translate }}</small>
+                <small>{{
+                  "assistant.conversationDraftReady" | translate
+                }}</small>
               }
             </span>
             <time>{{ session.updatedAt | date: "shortTime" }}</time>
@@ -85,9 +87,9 @@
         }
       } @empty {
         @if (!loadingSessions()) {
-          <p class="conversation-empty">{{
-            "assistant.noConversations" | translate
-          }}</p>
+          <p class="conversation-empty">
+            {{ "assistant.noConversations" | translate }}
+          </p>
         }
       }
       @if (loadingSessions()) {
@@ -132,9 +134,9 @@
         >
           <div class="sheet-accessible-header">
             <h2 hlmSheetTitle>{{ "assistant.conversations" | translate }}</h2>
-            <p hlmSheetDescription>{{
-              "assistant.sidebarDescription" | translate
-            }}</p>
+            <p hlmSheetDescription>
+              {{ "assistant.sidebarDescription" | translate }}
+            </p>
           </div>
           <button
             class="conversation-sheet-close"
@@ -194,7 +196,9 @@
               <article class="message" [attr.data-role]="message.role">
                 <div class="message-avatar" aria-hidden="true">
                   <ng-icon
-                    [name]="message.role === 'USER' ? 'lucideUser' : 'lucideBot'"
+                    [name]="
+                      message.role === 'USER' ? 'lucideUser' : 'lucideBot'
+                    "
                   />
                 </div>
                 <div class="message-content">
@@ -246,7 +250,9 @@
                           size="icon"
                           type="button"
                           [hlmTooltip]="'assistant.copyResponse' | translate"
-                          [attr.aria-label]="'assistant.copyResponse' | translate"
+                          [attr.aria-label]="
+                            'assistant.copyResponse' | translate
+                          "
                           (click)="copyMessage(message)"
                         >
                           <ng-icon name="lucideCopy" />
@@ -310,8 +316,7 @@
                 </div>
               </article>
               @if (
-                message.role === "USER" &&
-                activityFor(message.correlationId);
+                message.role === "USER" && activityFor(message.correlationId);
                 as activity
               ) {
                 <div class="workflow-activity-list">
@@ -331,102 +336,102 @@
               </div>
             }
             <ng-template #workflowActivityTemplate let-activity>
-                <section
-                  class="workflow-activity"
-                  [attr.data-state]="activity.status"
-                  aria-live="polite"
-                >
-                  <span class="workflow-activity-icon" aria-hidden="true">
+              <section
+                class="workflow-activity"
+                [attr.data-state]="activity.status"
+                aria-live="polite"
+              >
+                <span class="workflow-activity-icon" aria-hidden="true">
+                  <ng-icon
+                    [name]="
+                      activity.status === 'active'
+                        ? 'lucideLoaderCircle'
+                        : activity.status === 'failed'
+                          ? 'lucideCircleAlert'
+                          : 'lucideCheckCircle2'
+                    "
+                  />
+                </span>
+                <span class="workflow-activity-copy">
+                  <strong>{{ activity.titleKey | translate }}</strong>
+                  <small>{{ activity.agentKey | translate }}</small>
+                  @if (activity.status === "active") {
+                    <small class="workflow-elapsed" aria-hidden="true">
+                      {{ "assistant.workflow.workingFor" | translate }}
+                      {{ elapsedSeconds(activity.startedAt) }}s
+                    </small>
+                  }
+                </span>
+                @if (activity.status === "failed" && activity.retryJobId) {
+                  <button
+                    hlmBtn
+                    variant="outline"
+                    size="sm"
+                    type="button"
+                    [disabled]="retryingJobId() === activity.retryJobId"
+                    (click)="retryWorkflow(activity.retryJobId)"
+                  >
+                    <ng-icon name="lucideRefreshCw" aria-hidden="true" />
+                    {{ "assistant.workflow.retry" | translate }}
+                  </button>
+                } @else if (
+                  activity.status === "completed" && activity.steps.length
+                ) {
+                  <button
+                    hlmBtn
+                    variant="ghost"
+                    size="icon"
+                    type="button"
+                    [attr.aria-expanded]="
+                      expandedActivities().has(activity.correlationId)
+                    "
+                    [hlmTooltip]="
+                      (expandedActivities().has(activity.correlationId)
+                        ? 'assistant.workflow.hideDetails'
+                        : 'assistant.workflow.showDetails'
+                      ) | translate
+                    "
+                    [attr.aria-label]="
+                      (expandedActivities().has(activity.correlationId)
+                        ? 'assistant.workflow.hideDetails'
+                        : 'assistant.workflow.showDetails'
+                      ) | translate
+                    "
+                    (click)="toggleActivity(activity.correlationId)"
+                  >
                     <ng-icon
                       [name]="
-                        activity.status === 'active'
-                          ? 'lucideLoaderCircle'
-                          : activity.status === 'failed'
-                            ? 'lucideCircleAlert'
-                            : 'lucideCheckCircle2'
+                        expandedActivities().has(activity.correlationId)
+                          ? 'lucideChevronUp'
+                          : 'lucideChevronDown'
                       "
                     />
-                  </span>
-                  <span class="workflow-activity-copy">
-                    <strong>{{ activity.titleKey | translate }}</strong>
-                    <small>{{ activity.agentKey | translate }}</small>
-                    @if (activity.status === "active") {
-                      <small class="workflow-elapsed" aria-hidden="true">
-                        {{ "assistant.workflow.workingFor" | translate }}
-                        {{ elapsedSeconds(activity.startedAt) }}s
-                      </small>
+                  </button>
+                }
+                @if (expandedActivities().has(activity.correlationId)) {
+                  <ol class="workflow-activity-steps">
+                    @for (step of activity.steps; track step.id) {
+                      <li [attr.data-status]="step.status">
+                        <ng-icon
+                          [name]="
+                            step.status === 'FAILED'
+                              ? 'lucideCircleAlert'
+                              : step.status === 'QUEUED' ||
+                                  step.status === 'RUNNING'
+                                ? 'lucideLoaderCircle'
+                                : 'lucideCheckCircle2'
+                          "
+                          aria-hidden="true"
+                        />
+                        <span>
+                          <strong>{{ step.titleKey | translate }}</strong>
+                          <small>{{ step.agentKey | translate }}</small>
+                        </span>
+                      </li>
                     }
-                  </span>
-                  @if (activity.status === "failed" && activity.retryJobId) {
-                    <button
-                      hlmBtn
-                      variant="outline"
-                      size="sm"
-                      type="button"
-                      [disabled]="retryingJobId() === activity.retryJobId"
-                      (click)="retryWorkflow(activity.retryJobId)"
-                    >
-                      <ng-icon name="lucideRefreshCw" aria-hidden="true" />
-                      {{ "assistant.workflow.retry" | translate }}
-                    </button>
-                  } @else if (
-                    activity.status === "completed" && activity.steps.length
-                  ) {
-                    <button
-                      hlmBtn
-                      variant="ghost"
-                      size="icon"
-                      type="button"
-                      [attr.aria-expanded]="
-                        expandedActivities().has(activity.correlationId)
-                      "
-                      [hlmTooltip]="
-                        (expandedActivities().has(activity.correlationId)
-                          ? 'assistant.workflow.hideDetails'
-                          : 'assistant.workflow.showDetails'
-                        ) | translate
-                      "
-                      [attr.aria-label]="
-                        (expandedActivities().has(activity.correlationId)
-                          ? 'assistant.workflow.hideDetails'
-                          : 'assistant.workflow.showDetails'
-                        ) | translate
-                      "
-                      (click)="toggleActivity(activity.correlationId)"
-                    >
-                      <ng-icon
-                        [name]="
-                          expandedActivities().has(activity.correlationId)
-                            ? 'lucideChevronUp'
-                            : 'lucideChevronDown'
-                        "
-                      />
-                    </button>
-                  }
-                  @if (expandedActivities().has(activity.correlationId)) {
-                    <ol class="workflow-activity-steps">
-                      @for (step of activity.steps; track step.id) {
-                        <li [attr.data-status]="step.status">
-                          <ng-icon
-                            [name]="
-                              step.status === 'FAILED'
-                                ? 'lucideCircleAlert'
-                                : step.status === 'QUEUED' ||
-                                    step.status === 'RUNNING'
-                                  ? 'lucideLoaderCircle'
-                                  : 'lucideCheckCircle2'
-                            "
-                            aria-hidden="true"
-                          />
-                          <span>
-                            <strong>{{ step.titleKey | translate }}</strong>
-                            <small>{{ step.agentKey | translate }}</small>
-                          </span>
-                        </li>
-                      }
-                    </ol>
-                  }
-                </section>
+                  </ol>
+                }
+              </section>
             </ng-template>
             @if (error()) {
               <p class="assistant-error" role="alert">{{ error() }}</p>
@@ -483,7 +488,7 @@
                 (change)="onFiles($event)"
               />
               <textarea
-                hlmInput
+                hlmTextarea
                 #draftTextarea
                 formControlName="draft"
                 rows="1"
