@@ -17,6 +17,10 @@ import { WorkspaceSettingsComponent } from "./features/settings/workspace-settin
 import { DataSettingsComponent } from "./features/settings/data-settings.component";
 import { ClientsComponent } from "./features/clients/clients.component";
 import { CasesComponent } from "./features/cases/cases.component";
+import { MatterFormComponent } from "./features/cases/matter-form.component";
+import { ClientFormComponent } from "./features/clients/client-form.component";
+import { ClientDetailComponent } from "./features/clients/client-detail.component";
+import { MatterDetailComponent } from "./features/cases/matter-detail.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
 import { FinanceComponent } from "./features/finance/finance.component";
 import { ReportsComponent } from "./features/reports/reports.component";
@@ -47,7 +51,11 @@ export const appRoutes: Route[] = [
       { path: "", pathMatch: "full", redirectTo: "dashboard" },
       { path: "dashboard", component: DashboardComponent },
       { path: "clients", component: ClientsComponent },
+      { path: "clients/new", component: ClientFormComponent },
+      { path: "clients/:clientId", component: ClientDetailComponent },
       { path: "cases", component: CasesComponent },
+      { path: "cases/new", component: MatterFormComponent },
+      { path: "cases/:matterId", component: MatterDetailComponent },
       { path: "documents", component: DocumentsComponent },
       { path: "calendar", component: CalendarComponent },
       { path: "notifications", component: NotificationsComponent },

@@ -1,1 +1,102 @@
-Clients list component
+<main
+  class="flex min-h-full flex-col gap-6 bg-background p-6 text-foreground lg:p-8"
+>
+  <header
+    class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between"
+  >
+    <div>
+      <p class="text-sm text-muted-foreground">
+        {{ "clients.title" | translate }}
+      </p>
+      <h1 class="text-2xl font-semibold tracking-normal">
+        {{ "clients.title" | translate }}
+      </h1>
+    </div>
+    <a hlmBtn routerLink="/clients/new">{{ "clients.create" | translate }}</a>
+  </header>
+
+  <label class="max-w-xl" hlmField>
+    <span hlmFieldLabel>{{ "clients.search" | translate }}</span>
+    <input hlmInput [formControl]="search" type="search" />
+  </label>
+
+  @if (loading()) {
+    <p
+      class="rounded-lg border border-border bg-card p-6 text-muted-foreground"
+      role="status"
+    >
+      {{ "clients.loading" | translate }}
+    </p>
+  } @else if (error()) {
+    <div
+      class="flex items-center justify-between rounded-lg border border-destructive/30 bg-card p-6"
+    >
+      <p class="text-destructive">{{ "clients.error" | translate }}</p>
+      <button hlmBtn variant="outline" type="button" (click)="retry()">
+        {{ "clients.retry" | translate }}
+      </button>
+    </div>
+  } @else if (clients().length === 0) {
+    <p
+      class="rounded-lg border border-dashed border-border bg-card p-10 text-center text-muted-foreground"
+    >
+      {{ "clients.empty" | translate }}
+    </p>
+  } @else {
+    <div class="overflow-x-auto rounded-lg border border-border bg-card">
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>{{ "clients.number" | translate }}</th>
+            <th hlmTh>{{ "clients.name" | translate }}</th>
+            <th hlmTh>{{ "clients.type" | translate }}</th>
+            <th hlmTh>{{ "clients.status" | translate }}</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (client of clients(); track client.id) {
+            <tr hlmTr>
+              <td hlmTd>{{ client.clientCode }}</td>
+              <td hlmTd>
+                <a
+                  class="font-medium hover:underline"
+                  [routerLink]="['/clients', client.id]"
+                >
+                  {{ client.party.displayName }}
+                </a>
+              </td>
+              <td hlmTd>{{ client.party.type }}</td>
+              <td hlmTd>{{ client.status }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <nav
+      class="flex items-center justify-end gap-2"
+      aria-label="Client pagination"
+    >
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="page() <= 1"
+        (click)="previousPage()"
+      >
+        {{ "clients.previous" | translate }}
+      </button>
+      <span class="text-sm text-muted-foreground"
+        >{{ page() }} / {{ totalPages() }}</span
+      >
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="page() >= totalPages()"
+        (click)="nextPage()"
+      >
+        {{ "clients.next" | translate }}
+      </button>
+    </nav>
+  }
+</main>

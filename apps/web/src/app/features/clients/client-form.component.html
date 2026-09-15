@@ -1,0 +1,103 @@
+<main class="min-h-full bg-background p-6 text-foreground lg:p-8">
+  <div class="mx-auto max-w-3xl space-y-6">
+    <header>
+      <p class="text-sm text-muted-foreground">
+        {{ "clients.create" | translate }}
+      </p>
+      <h1 class="text-2xl font-semibold">{{ "clients.create" | translate }}</h1>
+    </header>
+
+    <form class="space-y-6" [formGroup]="form" (ngSubmit)="save()">
+      <fieldset class="space-y-3">
+        <legend class="text-sm font-medium">
+          {{ "clients.type" | translate }}
+        </legend>
+        <div class="grid grid-cols-2 gap-2 sm:max-w-sm" role="radiogroup">
+          <button
+            type="button"
+            class="rounded-lg border px-4 py-3 text-left"
+            [class.border-primary]="type() === 'PERSON'"
+            [class.bg-accent]="type() === 'PERSON'"
+            (click)="setType('PERSON')"
+          >
+            {{ "clients.individual" | translate }}
+          </button>
+          <button
+            type="button"
+            class="rounded-lg border px-4 py-3 text-left"
+            [class.border-primary]="type() === 'ORGANIZATION'"
+            [class.bg-accent]="type() === 'ORGANIZATION'"
+            (click)="setType('ORGANIZATION')"
+          >
+            {{ "clients.organization" | translate }}
+          </button>
+        </div>
+      </fieldset>
+
+      @if (type() === "PERSON") {
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="first-name">{{
+              "clients.firstName" | translate
+            }}</label>
+            <input
+              hlmInput
+              id="first-name"
+              formControlName="firstName"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="last-name">{{
+              "clients.lastName" | translate
+            }}</label>
+            <input
+              hlmInput
+              id="last-name"
+              formControlName="lastName"
+              required
+            />
+          </div>
+        </div>
+      } @else {
+        <div class="grid gap-4 sm:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="legal-name">{{
+              "clients.organizationName" | translate
+            }}</label>
+            <input
+              hlmInput
+              id="legal-name"
+              formControlName="legalName"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="trade-name">Trade name</label>
+            <input hlmInput id="trade-name" formControlName="tradeName" />
+          </div>
+        </div>
+      }
+
+      <div hlmField>
+        <label hlmFieldLabel for="client-notes">{{
+          "clients.notes" | translate
+        }}</label>
+        <textarea
+          hlmTextarea
+          id="client-notes"
+          formControlName="notes"
+        ></textarea>
+      </div>
+
+      <div class="flex justify-end gap-2">
+        <a hlmBtn variant="outline" routerLink="/clients">{{
+          "clients.cancel" | translate
+        }}</a>
+        <button hlmBtn type="submit" [disabled]="saving()">
+          {{ (saving() ? "clients.saving" : "clients.save") | translate }}
+        </button>
+      </div>
+    </form>
+  </div>
+</main>
