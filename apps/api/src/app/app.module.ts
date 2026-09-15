@@ -8,6 +8,8 @@ import { AuthModule } from "@law/auth";
 import { ChatModule } from "@law/chat";
 import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
+import { ClientsModule } from "@law/clients";
+import { MattersModule } from "@law/cases";
 import { validateEnvironment } from "./config.validation";
 
 @Module({
@@ -18,6 +20,8 @@ import { validateEnvironment } from "./config.validation";
     ChatModule,
     ReferencesModule,
     UserSettingsModule,
+    ClientsModule,
+    MattersModule,
   ],
   controllers: [AppController, WorkspacesController],
   providers: [AppService],
