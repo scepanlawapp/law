@@ -8,6 +8,7 @@ import { AuthModule } from "@law/auth";
 import { ChatModule } from "@law/chat";
 import { ClientsModule } from "@law/clients";
 import { CasesModule } from "@law/cases";
+import { MattersModule } from "@law/matters";
 import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
 import { validateEnvironment } from "./config.validation";
@@ -20,6 +21,7 @@ import { validateEnvironment } from "./config.validation";
     ChatModule,
     ClientsModule,
     CasesModule,
+    MattersModule,
     ReferencesModule,
     UserSettingsModule,
   ],

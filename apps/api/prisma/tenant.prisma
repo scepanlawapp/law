@@ -182,39 +182,200 @@ model PracticeArea {
   createdAt       DateTime @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime @updatedAt @db.Timestamptz(3)
   cases           Case[]
+  matters         Matter[]
 
   @@unique([workspaceId, name])
   @@index([workspaceId, isActive, name])
 }
 
-model Client {
-  id                String         @id @default(uuid())
+enum MatterStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum MatterPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+model MatterStage {
+  id              String   @id @default(uuid())
+  workspaceId     String
+  name            String
+  description     String?
+  isActive        Boolean  @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+  matters         Matter[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
+model ParticipantRole {
+  id              String                  @id @default(uuid())
+  workspaceId     String
+  name            String
+  description     String?
+  isActive        Boolean                 @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime                @updatedAt @db.Timestamptz(3)
+  matterRoles     MatterParticipantRole[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
+model ProceedingType {
+  id              String       @id @default(uuid())
+  workspaceId     String
+  name            String
+  description     String?
+  isActive        Boolean      @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime     @updatedAt @db.Timestamptz(3)
+  proceedings     Proceeding[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
+model Matter {
+  id                String              @id @default(uuid())
   workspaceId       String
-  clientNumber      String
-  type              ClientType
-  displayName       String
-  firstName         String?
-  lastName          String?
-  organizationName  String?
-  status            ClientStatus   @default(ACTIVE)
-  email             String?
-  phone             String?
-  website           String?
-  preferredLanguage String?
-  notes             String?
-  customFields      Json?
-  responsibleUserId String?
-  primaryAddressId  String?        @unique
+  matterNumber      String
+  title             String
+  description       String?
+  status            MatterStatus        @default(DRAFT)
+  practiceAreaId    String?
+  stageId           String?
+  priority          MatterPriority      @default(NORMAL)
+  responsibleUserId String
+  openedAt          DateTime?           @db.Timestamptz(3)
+  closedAt          DateTime?           @db.Timestamptz(3)
+  archivedAt        DateTime?           @db.Timestamptz(3)
   createdByUserId   String
   updatedByUserId   String
-  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
-  addresses         ClientAddress[] @relation("ClientAddresses")
-  primaryAddress    ClientAddress? @relation("ClientPrimaryAddress", fields: [primaryAddressId], references: [id], onDelete: SetNull)
-  contacts          ClientContact[]
-  activities        ClientActivity[]
-  cases             Case[]
-  tags              ClientTag[]
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+  practiceArea      PracticeArea?       @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
+  stage             MatterStage?        @relation(fields: [stageId], references: [id], onDelete: SetNull)
+  clients           MatterClient[]
+  participants      MatterParticipant[]
+  proceedings       Proceeding[]
+
+  @@unique([workspaceId, matterNumber])
+  @@index([workspaceId, status, updatedAt])
+  @@index([workspaceId, responsibleUserId, status])
+}
+
+model MatterClient {
+  id          String   @id @default(uuid())
+  workspaceId String
+  matterId    String
+  clientId    String
+  isPrimary   Boolean  @default(false)
+  notes       String?
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  matter      Matter   @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  client      Client   @relation("MatterClientClient", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@unique([matterId, clientId])
+  @@index([matterId, isPrimary])
+  @@index([clientId, createdAt])
+}
+
+model MatterParticipant {
+  id          String                  @id @default(uuid())
+  workspaceId String
+  matterId    String
+  partyId     String
+  notes       String?
+  createdAt   DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                @updatedAt @db.Timestamptz(3)
+  matter      Matter                  @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  party       Client                  @relation("MatterParticipantParty", fields: [partyId], references: [id], onDelete: Cascade)
+  roles       MatterParticipantRole[]
+
+  @@unique([matterId, partyId])
+  @@index([matterId, partyId])
+}
+
+model MatterParticipantRole {
+  id                  String            @id @default(uuid())
+  workspaceId         String
+  matterParticipantId String
+  participantRoleId   String
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime          @updatedAt @db.Timestamptz(3)
+  matterParticipant   MatterParticipant @relation(fields: [matterParticipantId], references: [id], onDelete: Cascade)
+  participantRole     ParticipantRole   @relation(fields: [participantRoleId], references: [id], onDelete: Cascade)
+
+  @@unique([matterParticipantId, participantRoleId])
+  @@index([participantRoleId, matterParticipantId])
+}
+
+model Proceeding {
+  id             String          @id @default(uuid())
+  workspaceId    String
+  matterId       String
+  typeId         String?
+  externalNumber String?
+  authorityName  String?
+  judgeName      String?
+  status         String?
+  startedAt      DateTime?       @db.Timestamptz(3)
+  endedAt        DateTime?       @db.Timestamptz(3)
+  notes          String?
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  matter         Matter          @relation(fields: [matterId], references: [id], onDelete: Cascade)
+  type           ProceedingType? @relation(fields: [typeId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, matterId, startedAt])
+  @@index([workspaceId, externalNumber])
+}
+
+model Client {
+  id                 String              @id @default(uuid())
+  workspaceId        String
+  clientNumber       String
+  type               ClientType
+  displayName        String
+  firstName          String?
+  lastName           String?
+  organizationName   String?
+  status             ClientStatus        @default(ACTIVE)
+  email              String?
+  phone              String?
+  website            String?
+  preferredLanguage  String?
+  notes              String?
+  customFields       Json?
+  responsibleUserId  String?
+  primaryAddressId   String?             @unique
+  createdByUserId    String
+  updatedByUserId    String
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  addresses          ClientAddress[]     @relation("ClientAddresses")
+  primaryAddress     ClientAddress?      @relation("ClientPrimaryAddress", fields: [primaryAddressId], references: [id], onDelete: SetNull)
+  contacts           ClientContact[]
+  activities         ClientActivity[]
+  cases              Case[]
+  tags               ClientTag[]
+  matterClients      MatterClient[]      @relation("MatterClientClient")
+  matterParticipants MatterParticipant[] @relation("MatterParticipantParty")
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status, displayName])
@@ -283,7 +444,7 @@ model ClientActivity {
 }
 
 model Case {
-  id                   String             @id @default(uuid())
+  id                   String               @id @default(uuid())
   workspaceId          String
   caseNumber           String
   clientId             String
@@ -291,24 +452,24 @@ model Case {
   description          String?
   caseTypeId           String?
   practiceAreaId       String?
-  status               CaseStatus         @default(DRAFT)
-  priority             CasePriority       @default(NORMAL)
+  status               CaseStatus           @default(DRAFT)
+  priority             CasePriority         @default(NORMAL)
   responsibleUserId    String
-  openedDate           DateTime?          @db.Timestamptz(3)
-  closedDate           DateTime?          @db.Timestamptz(3)
+  openedDate           DateTime?            @db.Timestamptz(3)
+  closedDate           DateTime?            @db.Timestamptz(3)
   closingNote          String?
   externalReference    String?
   confidentialityLevel String?
   customFields         Json?
   createdByUserId      String
   updatedByUserId      String
-  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
-  client               Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  caseType             CaseType?          @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
-  practiceArea         PracticeArea?      @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
+  createdAt            DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime             @updatedAt @db.Timestamptz(3)
+  client               Client               @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  caseType             CaseType?            @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
+  practiceArea         PracticeArea?        @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
   activities           CaseActivity[]
-  clientActivities     ClientActivity[]   @relation("ClientActivityRelatedCase")
+  clientActivities     ClientActivity[]     @relation("ClientActivityRelatedCase")
   responsibilities     CaseResponsibility[]
   tags                 CaseTag[]
 
