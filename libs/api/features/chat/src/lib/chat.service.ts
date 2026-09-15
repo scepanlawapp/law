@@ -9,6 +9,8 @@ import {
 import { randomUUID } from "node:crypto";
 import {
   ChatAttachmentSummary,
+  ChatMessageFeedback,
+  ChatMessageResponse,
   ChatSessionListResponse,
   ChatSendMessageResponse,
   ChatSessionDetail,
@@ -30,6 +32,7 @@ import {
   PrismaClient as TenantPrismaClient,
 } from "@prisma/tenant-client";
 import { ChatModelProvider } from "@law/llm";
+import { WorkflowName } from "@law/contracts";
 import { renderDraftDocx } from "@law/documents";
 import { toCyrillic, toLatin } from "@law/transliteration";
 import { buildTitleUserPrompt, generateTitle } from "@law/title-generation";
@@ -148,8 +151,40 @@ export class ChatService {
       }),
       this.db.chatSession.count({ where }),
     ]);
+    const sessionIds = sessions.map((session) => session.id);
+    const [activeJobs, sessionsWithDrafts] = sessionIds.length
+      ? await Promise.all([
+          this.db.workflowJob.findMany({
+            where: {
+              sessionId: { in: sessionIds },
+              status: { in: ["QUEUED", "RUNNING"] },
+            },
+            orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+          }),
+          this.db.draftResult.findMany({
+            where: { sessionId: { in: sessionIds } },
+            select: { sessionId: true },
+            distinct: ["sessionId"],
+          }),
+        ])
+      : [[], []];
+    const draftSessionIds = new Set(
+      sessionsWithDrafts.map((draft) => draft.sessionId),
+    );
     return {
-      items: sessions.map((session) => toSessionSummary(session)),
+      items: sessions.map((session) => {
+        const sessionJobs = activeJobs.filter(
+          (job) => job.sessionId === session.id,
+        );
+        return {
+          ...toSessionSummary(session),
+          activity: {
+            activeJobCount: sessionJobs.length,
+            latestJob: sessionJobs[0] ? toJob(sessionJobs[0]) : null,
+            hasDraft: draftSessionIds.has(session.id),
+          },
+        };
+      }),
       meta: paginationMeta(page, pageSize, totalItems, sort),
     };
   }
@@ -181,6 +216,7 @@ export class ChatService {
     });
     this.emit({
       type: "session.title.updated",
+      workspaceId,
       sessionId: session.id,
       createdAt: updated.updatedAt.toISOString(),
       title: updated.title,
@@ -193,14 +229,27 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionDetail> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const messages = await this.db.chatMessage.findMany({
-      where: { sessionId },
-      include: { attachments: true },
-      orderBy: { createdAt: "asc" },
-    });
+    const [messages, jobs, drafts] = await Promise.all([
+      this.db.chatMessage.findMany({
+        where: { sessionId },
+        include: { attachments: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      this.db.workflowJob.findMany({
+        where: { sessionId },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+      this.db.draftResult.findMany({
+        where: { sessionId },
+        include: { briefResult: { select: { missingFields: true } } },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+    ]);
     return {
       ...toSessionSummary(session),
       messages: messages.map((message) => toMessage(message)),
+      jobs: jobs.map((job) => toJob(job)),
+      drafts: drafts.map((draft) => toDraft(draft)),
     };
   }
 
@@ -215,6 +264,7 @@ export class ChatService {
     });
     this.emit({
       type: "session.deleted",
+      workspaceId,
       sessionId: session.id,
       createdAt: updated.updatedAt.toISOString(),
     });
@@ -293,13 +343,16 @@ export class ChatService {
     });
     this.emit({
       type: "message.created",
+      workspaceId: params.workspaceId,
       sessionId: session.id,
+      correlationId,
       createdAt: mappedUserMessage.createdAt,
       message: mappedUserMessage,
     });
 
     if (session.title === "New chat") {
       void this.runTitleGeneration({
+        workspaceId: params.workspaceId,
         sessionId: session.id,
         content: toLatin(mappedUserMessage.content),
         attachmentIds: mappedUserMessage.attachments.map(
@@ -320,13 +373,16 @@ export class ChatService {
       correlationId,
       content: toLatin(mappedUserMessage.content),
       attachments: mappedUserMessage.attachments,
+      messageId: mappedUserMessage.id,
     }).catch((error: unknown) => {
       this.logger.error(
         error instanceof Error ? error.message : "Portir failed",
       );
       this.emit({
         type: "error",
+        workspaceId: params.workspaceId,
         sessionId: session.id,
+        correlationId,
         createdAt: new Date().toISOString(),
         error: "Portir could not classify this message.",
       });
@@ -342,6 +398,7 @@ export class ChatService {
     correlationId: string;
     content: string;
     attachments: ChatAttachmentSummary[];
+    messageId: string;
   }): Promise<void> {
     const job = await this.db.workflowJob.create({
       data: {
@@ -361,7 +418,9 @@ export class ChatService {
     });
     this.emit({
       type: "job.queued",
+      workspaceId: params.workspaceId,
       sessionId: params.sessionId,
+      correlationId: params.correlationId,
       createdAt: job.createdAt.toISOString(),
       job: toJob(job),
     });
@@ -371,6 +430,7 @@ export class ChatService {
       sessionId: params.sessionId,
       jobId: job.id,
       correlationId: params.correlationId,
+      messageId: params.messageId,
     });
   }
 
@@ -489,6 +549,7 @@ export class ChatService {
     const response = toDraft(next);
     this.emit({
       type: "draft.updated",
+      workspaceId,
       sessionId: draft.sessionId,
       createdAt: next.updatedAt.toISOString(),
       draft: response,
@@ -585,6 +646,7 @@ export class ChatService {
     const response = toDraft(updated);
     this.emit({
       type: "draft.updated",
+      workspaceId,
       sessionId: draft.sessionId,
       createdAt: updated.updatedAt.toISOString(),
       draft: response,
@@ -632,7 +694,9 @@ export class ChatService {
     });
     this.emit({
       type: "job.queued",
+      workspaceId: input.workspaceId,
       sessionId: input.draft.sessionId,
+      correlationId: revisionJob.correlationId,
       createdAt: revisionJob.createdAt.toISOString(),
       job: toJob(revisionJob),
     });
@@ -645,8 +709,186 @@ export class ChatService {
     });
   }
 
+  async retryJob(
+    workspaceId: string,
+    jobId: string,
+  ): Promise<ReturnType<typeof toJob>> {
+    const sourceJob = await this.db.workflowJob.findUnique({
+      where: { id: jobId },
+    });
+    if (!sourceJob || sourceJob.workspaceId !== workspaceId) {
+      throw new NotFoundException("Workflow job not found");
+    }
+    await this.requireSession(workspaceId, sourceJob.sessionId);
+    if (sourceJob.status !== "FAILED") {
+      throw new BadRequestException("Only failed workflow jobs can be retried");
+    }
+    const activeJob = await this.db.workflowJob.findFirst({
+      where: {
+        sessionId: sourceJob.sessionId,
+        correlationId: sourceJob.correlationId,
+        status: { in: ["QUEUED", "RUNNING"] },
+      },
+    });
+    if (activeJob) {
+      throw new BadRequestException(
+        "This request already has an active workflow",
+      );
+    }
+
+    const retry = await this.db.workflowJob.create({
+      data: {
+        workspaceId,
+        sessionId: sourceJob.sessionId,
+        workflowName: sourceJob.workflowName,
+        status: "QUEUED",
+        correlationId: sourceJob.correlationId,
+        input: sourceJob.input,
+      },
+    });
+    const mapped = toJob(retry);
+    this.emit({
+      type: "job.queued",
+      workspaceId,
+      sessionId: sourceJob.sessionId,
+      correlationId: sourceJob.correlationId,
+      createdAt: mapped.createdAt,
+      job: mapped,
+    });
+    const sourceInput =
+      sourceJob.input &&
+      typeof sourceJob.input === "object" &&
+      !Array.isArray(sourceJob.input)
+        ? (sourceJob.input as Record<string, unknown>)
+        : null;
+    const messageId =
+      typeof sourceInput?.["messageId"] === "string"
+        ? sourceInput["messageId"]
+        : undefined;
+    await this.workflowQueue.enqueue(
+      sourceJob.workflowName as WorkflowName,
+      retry.id,
+      {
+        workspaceId,
+        sessionId: sourceJob.sessionId,
+        jobId: retry.id,
+        correlationId: sourceJob.correlationId,
+        messageId,
+      },
+    );
+    return mapped;
+  }
+
+  async updateMessageFeedback(
+    workspaceId: string,
+    messageId: string,
+    feedback: ChatMessageFeedback | null,
+  ): Promise<ChatMessageResponse> {
+    const message = await this.db.chatMessage.findUnique({
+      where: { id: messageId },
+    });
+    if (!message) throw new NotFoundException("Chat message not found");
+    await this.requireSession(workspaceId, message.sessionId);
+    if (message.role !== "ASSISTANT") {
+      throw new BadRequestException("Feedback is only allowed on assistant messages");
+    }
+    const metadata =
+      message.metadata &&
+      typeof message.metadata === "object" &&
+      !Array.isArray(message.metadata)
+        ? (message.metadata as Record<string, unknown>)
+        : {};
+    const updated = await this.db.chatMessage.update({
+      where: { id: messageId },
+      data: {
+        metadata: { ...metadata, feedback },
+      },
+      include: { attachments: true },
+    });
+    return toMessage(updated);
+  }
+
+  async regenerateAnswer(
+    workspaceId: string,
+    messageId: string,
+  ): Promise<ReturnType<typeof toJob>> {
+    const message = await this.db.chatMessage.findUnique({
+      where: { id: messageId },
+    });
+    if (!message) throw new NotFoundException("Chat message not found");
+    await this.requireSession(workspaceId, message.sessionId);
+    const metadata =
+      message.metadata &&
+      typeof message.metadata === "object" &&
+      !Array.isArray(message.metadata)
+        ? (message.metadata as Record<string, unknown>)
+        : null;
+    if (
+      message.role !== "ASSISTANT" ||
+      message.status !== "COMPLETED" ||
+      metadata?.["outcome"] !== "ANSWER" ||
+      !message.correlationId
+    ) {
+      throw new BadRequestException(
+        "Only completed streamed answers can be regenerated",
+      );
+    }
+    const activeJob = await this.db.workflowJob.findFirst({
+      where: {
+        sessionId: message.sessionId,
+        correlationId: message.correlationId,
+        workflowName: "answering",
+        status: { in: ["QUEUED", "RUNNING"] },
+      },
+    });
+    if (activeJob) {
+      throw new BadRequestException("This answer is already being regenerated");
+    }
+    const sourceJob = await this.db.workflowJob.findFirst({
+      where: {
+        sessionId: message.sessionId,
+        correlationId: message.correlationId,
+        workflowName: "answering",
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    if (!sourceJob?.input) {
+      throw new BadRequestException("Answer workflow input is unavailable");
+    }
+    const regeneration = await this.db.workflowJob.create({
+      data: {
+        workspaceId,
+        sessionId: message.sessionId,
+        workflowName: "answering",
+        status: "QUEUED",
+        correlationId: message.correlationId,
+        input: sourceJob.input,
+      },
+    });
+    const mapped = toJob(regeneration);
+    this.emit({
+      type: "job.queued",
+      workspaceId,
+      sessionId: message.sessionId,
+      correlationId: message.correlationId,
+      createdAt: mapped.createdAt,
+      job: mapped,
+    });
+    await this.workflowQueue.enqueue("answering", regeneration.id, {
+      workspaceId,
+      sessionId: message.sessionId,
+      jobId: regeneration.id,
+      correlationId: message.correlationId,
+    });
+    return mapped;
+  }
+
   stream(sessionId: string) {
     return this.events.stream(sessionId);
+  }
+
+  streamWorkspace(workspaceId: string) {
+    return this.events.streamWorkspace(workspaceId);
   }
 
   async replayEvents(
@@ -686,6 +928,7 @@ export class ChatService {
   }
 
   private async runTitleGeneration(params: {
+    workspaceId: string;
     sessionId: string;
     content: string;
     attachmentIds: string[];
@@ -734,6 +977,7 @@ export class ChatService {
     });
     this.emit({
       type: "session.title.updated",
+      workspaceId: params.workspaceId,
       sessionId: params.sessionId,
       createdAt: updated.updatedAt.toISOString(),
       title: updated.title,

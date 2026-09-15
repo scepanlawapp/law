@@ -3,6 +3,7 @@ import {
   ChatMessageResponse,
   ChatSessionSummary,
   DraftResultResponse,
+  WorkflowProgressStage,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
 
@@ -61,6 +62,7 @@ export function toMessage(message: {
   status: "PENDING" | "COMPLETED" | "FAILED";
   triageDecision?: "LEGAL" | "NON_LEGAL" | "UNCLEAR" | null;
   correlationId?: string | null;
+  metadata?: unknown;
   createdAt: Date;
   attachments: Array<{
     id: string;
@@ -78,11 +80,41 @@ export function toMessage(message: {
     status: message.status,
     triageDecision: message.triageDecision,
     correlationId: message.correlationId,
+    feedback: feedbackFromMetadata(message.metadata),
+    outcome: outcomeFromMetadata(message.metadata),
     createdAt: message.createdAt.toISOString(),
     attachments: message.attachments.map((attachment) =>
       toAttachment(attachment),
     ),
   };
+}
+
+function outcomeFromMetadata(
+  metadata: unknown,
+): ChatMessageResponse["outcome"] {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+  const outcome = (metadata as Record<string, unknown>)["outcome"];
+  switch (outcome) {
+    case "ANSWER":
+    case "DRAFT_READY":
+    case "DRAFT_UNSUPPORTED":
+    case "CONTEXT_REQUIRED":
+      return outcome;
+    default:
+      return null;
+  }
+}
+
+function feedbackFromMetadata(
+  metadata: unknown,
+): ChatMessageResponse["feedback"] {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return null;
+  }
+  const feedback = (metadata as Record<string, unknown>)["feedback"];
+  return feedback === "POSITIVE" || feedback === "NEGATIVE" ? feedback : null;
 }
 
 export function toJob(job: {
@@ -92,17 +124,43 @@ export function toJob(job: {
   workflowName: string;
   status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
   correlationId: string;
+  output?: unknown;
+  errorCode?: string | null;
   createdAt: Date;
+  updatedAt: Date;
 }): WorkflowJobResponse {
   return {
     id: job.id,
     workspaceId: job.workspaceId,
     sessionId: job.sessionId,
-    workflowName: job.workflowName,
+    workflowName: job.workflowName as WorkflowJobResponse["workflowName"],
     status: job.status,
     correlationId: job.correlationId,
+    progressStage: progressStageFromOutput(job.output),
+    errorCode: job.errorCode ?? null,
     createdAt: job.createdAt.toISOString(),
+    updatedAt: job.updatedAt.toISOString(),
   };
+}
+
+function progressStageFromOutput(
+  output: unknown,
+): WorkflowProgressStage | null {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return null;
+  }
+  const progressStage = (output as Record<string, unknown>)["progressStage"];
+  switch (progressStage) {
+    case "UNDERSTANDING_REQUEST":
+    case "READING_ATTACHMENTS":
+    case "EXTRACTING_FACTS":
+    case "PREPARING_ANSWER":
+    case "PREPARING_DRAFT":
+    case "SAVING_FOR_REVIEW":
+      return progressStage;
+    default:
+      return null;
+  }
 }
 
 export function toDraft(draft: {
@@ -133,6 +191,7 @@ export function toDraft(draft: {
   previousDraftId?: string | null;
   errorCode: string | null;
   createdAt: Date;
+  updatedAt?: Date;
 }): DraftResultResponse {
   return {
     id: draft.id,
@@ -156,5 +215,6 @@ export function toDraft(draft: {
     previousDraftId: draft.previousDraftId ?? null,
     errorCode: draft.errorCode,
     createdAt: draft.createdAt.toISOString(),
+    updatedAt: draft.updatedAt?.toISOString(),
   };
 }

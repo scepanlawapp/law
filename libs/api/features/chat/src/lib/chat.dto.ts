@@ -1,6 +1,6 @@
 import { IsIn, IsOptional, IsString, IsUUID, MaxLength } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
-import { DocumentScript } from "@law/api-interfaces";
+import { ChatMessageFeedback, DocumentScript } from "@law/api-interfaces";
 
 export class ChatSessionListQueryDto extends PaginationQueryDto {}
 
@@ -49,4 +49,10 @@ export class ReviewDraftDto {
   @IsOptional()
   @IsString()
   note?: string;
+}
+
+export class UpdateMessageFeedbackDto {
+  @IsOptional()
+  @IsIn(["POSITIVE", "NEGATIVE"])
+  feedback!: ChatMessageFeedback | null;
 }

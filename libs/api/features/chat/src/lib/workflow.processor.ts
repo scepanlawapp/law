@@ -85,13 +85,17 @@ export class WorkflowProcessor extends WorkerHost {
       });
       this.events.emit({
         type: "job.updated",
+        workspaceId: job.data.workspaceId,
         sessionId: job.data.sessionId,
+        correlationId: job.data.correlationId,
         createdAt: record.updatedAt.toISOString(),
         job: toJob(record),
       });
       this.events.emit({
         type: "error",
+        workspaceId: job.data.workspaceId,
         sessionId: job.data.sessionId,
+        correlationId: job.data.correlationId,
         createdAt: new Date().toISOString(),
         error: `Workflow ${job.name} failed after ${attemptsMade} attempt(s): ${error.message}`,
       });

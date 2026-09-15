@@ -1,5 +1,10 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import { ChatAttachmentSummary, ChatStreamEvent } from "@law/api-interfaces";
+import {
+  ChatAttachmentSummary,
+  ChatStreamEvent,
+  WorkflowJobStatus,
+  WorkflowProgressStage,
+} from "@law/api-interfaces";
 import { PlatformPrismaService, TenantContextService } from "@law/core";
 import { WorkflowName } from "@law/contracts";
 import { ChatModelProvider } from "@law/llm";
@@ -17,7 +22,7 @@ import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
 import { resolveChatModelProvider } from "./chat-model.util";
-import { toJob, toMessage } from "./chat.mappers";
+import { toDraft, toJob, toMessage } from "./chat.mappers";
 import {
   WORKFLOW_QUEUE_PORT,
   WorkflowJobPayload,
@@ -47,6 +52,7 @@ interface BriefExtractionInput {
   messageId: string;
   userText: string;
   attachments: ChatAttachmentSummary[];
+  language?: "sr" | "en";
 }
 
 interface DraftingInput {
@@ -54,6 +60,13 @@ interface DraftingInput {
   messageId?: string;
   previousDraftId?: string;
   reviewerNote?: string;
+  language?: "sr" | "en";
+}
+
+interface AnsweringInput {
+  userText: string;
+  attachments: ChatAttachmentSummary[];
+  language: "sr" | "en";
 }
 
 /**
@@ -93,14 +106,15 @@ export class WorkflowRunner {
     }
     if (record.status === "COMPLETED") return;
 
-    await this.db.workflowJob.update({
-      where: { id: record.id },
-      data: { status: "RUNNING" },
+    await this.transitionJob(record, payload, "RUNNING", {
+      progressStage: this.initialStage(name, record),
     });
 
     switch (name) {
       case "triage":
         return this.runTriage(record as WorkflowJobRecord, payload);
+      case "answering":
+        return this.runAnswering(record as WorkflowJobRecord, payload);
       case "brief-extraction":
         return this.runBriefExtraction(record as WorkflowJobRecord, payload);
       case "drafting":
@@ -122,7 +136,9 @@ export class WorkflowRunner {
 
     this.emit({
       type: "triage.started",
+      workspaceId: payload.workspaceId,
       sessionId: payload.sessionId,
+      correlationId: payload.correlationId,
       createdAt: new Date().toISOString(),
     });
 
@@ -141,7 +157,9 @@ export class WorkflowRunner {
       await this.markFailed(record.id, payload, "TRIAGE_FAILED");
       this.emit({
         type: "error",
+        workspaceId: payload.workspaceId,
         sessionId: payload.sessionId,
+        correlationId: payload.correlationId,
         createdAt: new Date().toISOString(),
         error: "Portir could not classify this message.",
       });
@@ -150,30 +168,20 @@ export class WorkflowRunner {
 
     this.emit({
       type: "triage.completed",
+      workspaceId: payload.workspaceId,
       sessionId: payload.sessionId,
+      correlationId: payload.correlationId,
       createdAt: new Date().toISOString(),
       decision: result.decision.decision,
       reason: result.decision.reason,
     });
 
-    const assistant = await this.db.chatMessage.create({
-      data: {
-        sessionId: payload.sessionId,
-        role: "ASSISTANT",
-        content: result.assistantContent,
-        status: "COMPLETED",
+    if (result.decision.decision !== "LEGAL") {
+      await this.createAssistantOutcome(payload, result.assistantContent, {
+        reason: result.decision.reason,
         triageDecision: result.decision.decision,
-        correlationId: payload.correlationId,
-        metadata: { reason: result.decision.reason },
-      },
-    });
-    const mapped = toMessage({ ...assistant, attachments: [] });
-    this.emit({
-      type: "message.created",
-      sessionId: payload.sessionId,
-      createdAt: mapped.createdAt,
-      message: mapped,
-    });
+      });
+    }
 
     let nextJobId: string | undefined;
     if (result.queueBriefExtraction) {
@@ -187,39 +195,58 @@ export class WorkflowRunner {
           input: JSON.parse(
             JSON.stringify({
               actorId: input.actorId,
-              messageId: mapped.id,
+              messageId: payload.messageId,
               userText: input.content,
               attachments: input.attachments,
+              language: result.decision.language,
             }),
           ),
         },
       });
       this.emit({
         type: "job.queued",
+        workspaceId: payload.workspaceId,
         sessionId: payload.sessionId,
+        correlationId: payload.correlationId,
         createdAt: created.createdAt.toISOString(),
         job: toJob(created),
       });
       nextJobId = created.id;
     }
 
-    const completed = await this.db.workflowJob.update({
-      where: { id: record.id },
-      data: {
-        status: "COMPLETED",
-        output: JSON.parse(
-          JSON.stringify({
-            decision: result.decision.decision,
-            reason: result.decision.reason,
-          }),
-        ),
-      },
-    });
-    this.emit({
-      type: "job.updated",
-      sessionId: payload.sessionId,
-      createdAt: completed.updatedAt.toISOString(),
-      job: toJob(completed),
+    let answerJobId: string | undefined;
+    if (result.queueAnswer) {
+      const created = await this.db.workflowJob.create({
+        data: {
+          workspaceId: payload.workspaceId,
+          sessionId: payload.sessionId,
+          workflowName: "answering",
+          status: "QUEUED",
+          correlationId: payload.correlationId,
+          input: JSON.parse(
+            JSON.stringify({
+              userText: input.content,
+              attachments: input.attachments,
+              language: result.decision.language,
+            }),
+          ),
+        },
+      });
+      this.emit({
+        type: "job.queued",
+        workspaceId: payload.workspaceId,
+        sessionId: payload.sessionId,
+        correlationId: payload.correlationId,
+        createdAt: created.createdAt.toISOString(),
+        job: toJob(created),
+      });
+      answerJobId = created.id;
+    }
+
+    await this.transitionJob(record, payload, "COMPLETED", {
+      progressStage: "UNDERSTANDING_REQUEST",
+      decision: result.decision.decision,
+      reason: result.decision.reason,
     });
 
     if (nextJobId) {
@@ -228,9 +255,129 @@ export class WorkflowRunner {
         sessionId: payload.sessionId,
         jobId: nextJobId,
         correlationId: payload.correlationId,
-        messageId: mapped.id,
+        messageId: payload.messageId,
       });
     }
+    if (answerJobId) {
+      await this.workflowQueue.enqueue("answering", answerJobId, {
+        workspaceId: payload.workspaceId,
+        sessionId: payload.sessionId,
+        jobId: answerJobId,
+        correlationId: payload.correlationId,
+        messageId: payload.messageId,
+      });
+    }
+  }
+
+  private async runAnswering(
+    record: WorkflowJobRecord,
+    payload: WorkflowJobPayload,
+  ): Promise<void> {
+    const input = record.input as AnsweringInput | null;
+    if (!input) {
+      await this.markFailed(record.id, payload, "ANSWER_INPUT_MISSING");
+      return;
+    }
+
+    const assistant = await this.db.chatMessage.create({
+      data: {
+        sessionId: payload.sessionId,
+        role: "ASSISTANT",
+        content: "",
+        status: "PENDING",
+        correlationId: payload.correlationId,
+        metadata: { outcome: "ANSWER" },
+      },
+    });
+    const pendingMessage = toMessage({ ...assistant, attachments: [] });
+    this.emit({
+      type: "message.started",
+      workspaceId: payload.workspaceId,
+      sessionId: payload.sessionId,
+      correlationId: payload.correlationId,
+      createdAt: pendingMessage.createdAt,
+      message: pendingMessage,
+    });
+
+    let content = "";
+    try {
+      const provider = resolveChatModelProvider(this.config, this.provider);
+      for await (const delta of provider.streamText({
+        messages: [
+          {
+            role: "system",
+            content: this.answerSystemPrompt(input.language),
+          },
+          { role: "user", content: input.userText },
+        ],
+      })) {
+        content += delta;
+        await this.db.chatMessage.update({
+          where: { id: assistant.id },
+          data: { content },
+        });
+        this.emit({
+          type: "message.delta",
+          workspaceId: payload.workspaceId,
+          sessionId: payload.sessionId,
+          correlationId: payload.correlationId,
+          createdAt: new Date().toISOString(),
+          messageId: assistant.id,
+          delta,
+        });
+      }
+      const completed = await this.db.chatMessage.update({
+        where: { id: assistant.id },
+        data: { content, status: "COMPLETED" },
+      });
+      const mapped = toMessage({ ...completed, attachments: [] });
+      this.emit({
+        type: "message.updated",
+        workspaceId: payload.workspaceId,
+        sessionId: payload.sessionId,
+        correlationId: payload.correlationId,
+        createdAt: mapped.createdAt,
+        message: mapped,
+      });
+      await this.transitionJob(record, payload, "COMPLETED", {
+        progressStage: "PREPARING_ANSWER",
+        messageId: assistant.id,
+      });
+    } catch (error) {
+      await this.db.chatMessage.update({
+        where: { id: assistant.id },
+        data: { content, status: "FAILED" },
+      });
+      await this.transitionJob(
+        record,
+        payload,
+        "FAILED",
+        { progressStage: "PREPARING_ANSWER", messageId: assistant.id },
+        "ANSWERING_FAILED",
+      );
+      this.emit({
+        type: "error",
+        workspaceId: payload.workspaceId,
+        sessionId: payload.sessionId,
+        correlationId: payload.correlationId,
+        createdAt: new Date().toISOString(),
+        error:
+          input.language === "en"
+            ? "The assistant could not complete the answer."
+            : "Asistent nije uspeo da završi odgovor.",
+      });
+    }
+  }
+
+  private answerSystemPrompt(language: "sr" | "en"): string {
+    const responseLanguage = language === "en" ? "English" : "Serbian";
+    return [
+      "You are a legal assistant supporting a Serbian law office.",
+      `Reply in ${responseLanguage}.`,
+      "Provide general, unverified guidance and clearly recommend checking authoritative sources or a lawyer when precision matters.",
+      "Do not invent article numbers, citations, case references, or source links.",
+      "Use concise Markdown when it improves readability.",
+    ].join(" ");
   }
 
   private async runBriefExtraction(
@@ -243,6 +390,12 @@ export class WorkflowRunner {
       return;
     }
 
+    if (input.attachments.length) {
+      await this.transitionJob(record, payload, "RUNNING", {
+        progressStage: "READING_ATTACHMENTS",
+      });
+    }
+
     const attachmentIds = input.attachments.map((attachment) => attachment.id);
     const attachments = attachmentIds.length
       ? await this.db.chatAttachment.findMany({
@@ -253,7 +406,10 @@ export class WorkflowRunner {
     const extractedAttachments = [];
     const briefDocuments: BriefDocumentInput[] = [];
     for (const attachment of attachments) {
-      const result = await this.extractAttachment(attachment);
+      const summary = input.attachments.find(
+        (item) => item.id === attachment.id,
+      );
+      const result = await this.extractAttachment(attachment, payload, summary);
       extractedAttachments.push({
         attachmentId: attachment.id,
         originalName: attachment.originalName,
@@ -275,6 +431,10 @@ export class WorkflowRunner {
     const hasContext =
       hasUserText ||
       briefDocuments.some((doc) => doc.status === "COMPLETED" && !!doc.text);
+
+    await this.transitionJob(record, payload, "RUNNING", {
+      progressStage: "EXTRACTING_FACTS",
+    });
 
     let output: Record<string, unknown> = {
       userText: input.userText,
@@ -327,20 +487,16 @@ export class WorkflowRunner {
       }
     }
 
-    const job = await this.db.workflowJob.update({
-      where: { id: record.id },
-      data: {
-        status: "COMPLETED",
-        errorCode,
-        output: JSON.parse(JSON.stringify(output)),
+    const job = await this.transitionJob(
+      record,
+      payload,
+      errorCode ? "FAILED" : "COMPLETED",
+      {
+        ...output,
+        progressStage: "EXTRACTING_FACTS",
       },
-    });
-    this.emit({
-      type: "job.updated",
-      sessionId: payload.sessionId,
-      createdAt: job.updatedAt.toISOString(),
-      job: toJob(job),
-    });
+      errorCode,
+    );
 
     if (draftingTrigger) {
       const draftJob = await this.db.workflowJob.create({
@@ -354,13 +510,16 @@ export class WorkflowRunner {
             JSON.stringify({
               briefResultId: draftingTrigger.briefResultId,
               messageId: input.messageId,
+              language: input.language,
             }),
           ),
         },
       });
       this.emit({
         type: "job.queued",
+        workspaceId: payload.workspaceId,
         sessionId: payload.sessionId,
+        correlationId: job.correlationId,
         createdAt: draftJob.createdAt.toISOString(),
         job: toJob(draftJob),
       });
@@ -371,6 +530,17 @@ export class WorkflowRunner {
         jobId: draftJob.id,
         correlationId: job.correlationId,
         messageId: input.messageId,
+      });
+    } else if (!errorCode) {
+      const content = !hasContext
+        ? input.language === "en"
+          ? "I could not read enough information to prepare a draft. Please add a description of the matter or attach a readable document."
+          : "Nema dovoljno čitljivih podataka za pripremu nacrta. Opišite predmet ili priložite čitljiv dokument."
+        : input.language === "en"
+          ? "The request was analyzed, but automatic drafting currently supports lawsuit drafts only. Please clarify whether you need a lawsuit draft or continue with a legal question."
+          : "Zahtev je analiziran, ali automatska izrada trenutno podržava samo nacrte tužbi. Navedite da li želite nacrt tužbe ili nastavite pravnim pitanjem.";
+      await this.createAssistantOutcome(payload, content, {
+        outcome: hasContext ? "DRAFT_UNSUPPORTED" : "CONTEXT_REQUIRED",
       });
     }
   }
@@ -417,7 +587,10 @@ export class WorkflowRunner {
       );
       const draft = await runDraftingLlm(provider, prompt);
 
-      await this.db.draftResult.create({
+      await this.transitionJob(record, payload, "RUNNING", {
+        progressStage: "SAVING_FOR_REVIEW",
+      });
+      const persistedDraft = await this.db.draftResult.create({
         data: {
           jobId: record.id,
           workspaceId: payload.workspaceId,
@@ -432,9 +605,46 @@ export class WorkflowRunner {
           previousDraftId: input.previousDraftId ?? null,
         },
       });
+      const mappedDraft = toDraft(persistedDraft);
+      this.emit({
+        type: "draft.updated",
+        workspaceId: payload.workspaceId,
+        sessionId: payload.sessionId,
+        correlationId: payload.correlationId,
+        createdAt: mappedDraft.updatedAt ?? mappedDraft.createdAt,
+        draft: mappedDraft,
+      });
+
+      const assistant = await this.db.chatMessage.create({
+        data: {
+          sessionId: payload.sessionId,
+          role: "ASSISTANT",
+          content:
+            input.language === "en"
+              ? "The draft is ready for review."
+              : "Nacrt je spreman za pregled.",
+          status: "COMPLETED",
+          correlationId: payload.correlationId,
+          metadata: {
+            outcome: "DRAFT_READY",
+            draftId: mappedDraft.id,
+          },
+        },
+      });
+      const mappedMessage = toMessage({ ...assistant, attachments: [] });
+      this.emit({
+        type: "message.created",
+        workspaceId: payload.workspaceId,
+        sessionId: payload.sessionId,
+        correlationId: payload.correlationId,
+        createdAt: mappedMessage.createdAt,
+        message: mappedMessage,
+      });
 
       output = {
+        progressStage: "SAVING_FOR_REVIEW",
         draft: {
+          id: mappedDraft.id,
           documentTextLength: draft.documentText.length,
           warnings: draft.warnings,
         },
@@ -449,19 +659,42 @@ export class WorkflowRunner {
       errorCode = "DRAFTING_LLM_FAILED";
     }
 
-    const job = await this.db.workflowJob.update({
-      where: { id: record.id },
+    await this.transitionJob(
+      record,
+      payload,
+      errorCode ? "FAILED" : "COMPLETED",
+      {
+        ...output,
+        progressStage:
+          errorCode === null ? "SAVING_FOR_REVIEW" : "PREPARING_DRAFT",
+      },
+      errorCode,
+    );
+  }
+
+  private async createAssistantOutcome(
+    payload: WorkflowJobPayload,
+    content: string,
+    metadata: Record<string, unknown>,
+  ): Promise<void> {
+    const assistant = await this.db.chatMessage.create({
       data: {
+        sessionId: payload.sessionId,
+        role: "ASSISTANT",
+        content,
         status: "COMPLETED",
-        errorCode,
-        output: JSON.parse(JSON.stringify(output)),
+        correlationId: payload.correlationId,
+        metadata,
       },
     });
+    const mapped = toMessage({ ...assistant, attachments: [] });
     this.emit({
-      type: "job.updated",
+      type: "message.created",
+      workspaceId: payload.workspaceId,
       sessionId: payload.sessionId,
-      createdAt: job.updatedAt.toISOString(),
-      job: toJob(job),
+      correlationId: payload.correlationId,
+      createdAt: mapped.createdAt,
+      message: mapped,
     });
   }
 
@@ -471,10 +704,15 @@ export class WorkflowRunner {
     sessionId: string;
     storedName: string;
     mimeType: string;
-  }): Promise<{
+  }, payload: WorkflowJobPayload, summary?: ChatAttachmentSummary): Promise<{
     status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
     text?: string;
   }> {
+    await this.db.chatAttachment.update({
+      where: { id: attachment.id },
+      data: { extractionStatus: "RUNNING" },
+    });
+    this.emitAttachmentStatus(payload, summary, "RUNNING");
     try {
       const buffer = await this.storage.read({
         workspaceId: attachment.workspaceId,
@@ -495,6 +733,12 @@ export class WorkflowRunner {
           extractedAt: new Date(),
         },
       });
+      this.emitAttachmentStatus(
+        payload,
+        summary,
+        result.status,
+        result.sourceScript ?? null,
+      );
       return result;
     } catch (error) {
       const message =
@@ -507,8 +751,26 @@ export class WorkflowRunner {
           extractedAt: new Date(),
         },
       });
+      this.emitAttachmentStatus(payload, summary, "FAILED");
       return { status: "FAILED", text: undefined };
     }
+  }
+
+  private emitAttachmentStatus(
+    payload: WorkflowJobPayload,
+    attachment: ChatAttachmentSummary | undefined,
+    extractionStatus: ChatAttachmentSummary["extractionStatus"],
+    sourceScript: ChatAttachmentSummary["sourceScript"] = null,
+  ): void {
+    if (!attachment) return;
+    this.emit({
+      type: "attachment.updated",
+      workspaceId: payload.workspaceId,
+      sessionId: payload.sessionId,
+      correlationId: payload.correlationId,
+      createdAt: new Date().toISOString(),
+      attachment: { ...attachment, extractionStatus, sourceScript },
+    });
   }
 
   private truncateForJobOutput(text: string | undefined): string | undefined {
@@ -522,16 +784,55 @@ export class WorkflowRunner {
     payload: WorkflowJobPayload,
     errorCode: string,
   ): Promise<void> {
+    const record = await this.db.workflowJob.findUnique({ where: { id: jobId } });
+    if (!record) return;
+    await this.transitionJob(record, payload, "FAILED", undefined, errorCode);
+  }
+
+  private initialStage(
+    name: WorkflowName,
+    record: WorkflowJobRecord,
+  ): WorkflowProgressStage {
+    switch (name) {
+      case "triage":
+        return "UNDERSTANDING_REQUEST";
+      case "answering":
+        return "PREPARING_ANSWER";
+      case "brief-extraction":
+        return (record.input as BriefExtractionInput | null)?.attachments.length
+          ? "READING_ATTACHMENTS"
+          : "EXTRACTING_FACTS";
+      case "drafting":
+        return "PREPARING_DRAFT";
+      default:
+        return "UNDERSTANDING_REQUEST";
+    }
+  }
+
+  private async transitionJob(
+    record: WorkflowJobRecord,
+    payload: WorkflowJobPayload,
+    status: WorkflowJobStatus,
+    output?: Record<string, unknown>,
+    errorCode: string | null = null,
+  ): Promise<WorkflowJobRecord> {
     const job = await this.db.workflowJob.update({
-      where: { id: jobId },
-      data: { status: "FAILED", errorCode },
+      where: { id: record.id },
+      data: {
+        status,
+        errorCode,
+        ...(output ? { output: JSON.parse(JSON.stringify(output)) } : {}),
+      },
     });
     this.emit({
       type: "job.updated",
+      workspaceId: payload.workspaceId,
       sessionId: payload.sessionId,
+      correlationId: payload.correlationId,
       createdAt: job.updatedAt.toISOString(),
       job: toJob(job),
     });
+    return job as WorkflowJobRecord;
   }
 
   private emit(event: ChatStreamEvent): void {

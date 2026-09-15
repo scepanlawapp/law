@@ -1,0 +1,19 @@
+{
+  "track_id": "assistant_live_workflow_20260915",
+  "parent_track_id": "assistant_workspace_redesign_20260915",
+  "type": "feature",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-15T00:00:00Z",
+  "updated_at": "2026-09-15T00:00:00Z",
+  "keywords": [
+    "assistant",
+    "workflow-status",
+    "sse",
+    "streaming",
+    "angular",
+    "bullmq",
+    "accessibility"
+  ],
+  "priority": "high"
+}

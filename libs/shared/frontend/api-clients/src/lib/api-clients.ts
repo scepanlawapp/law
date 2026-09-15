@@ -5,6 +5,8 @@ import {
   AuthSessionResponse,
   ActiveWorkspaceRequest,
   ChatSendMessageResponse,
+  ChatMessageFeedback,
+  ChatMessageResponse,
   ChatSessionCreateRequest,
   ChatSessionDetail,
   ChatSessionListResponse,
@@ -26,9 +28,10 @@ import {
   PasswordResetRequest,
   UserSettingsResponse,
   UserSettingsUpdateRequest,
+  WorkflowJobResponse,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
-import { chatEventsUrl } from "./chat-events-url";
+import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
 
 @Injectable({ providedIn: "root" })
 export class AuthApiClient {
@@ -247,6 +250,40 @@ export class ChatApiClient {
     );
   }
 
+  retryJob(
+    workspaceId: string,
+    jobId: string,
+  ): Observable<WorkflowJobResponse> {
+    return this.http.post<WorkflowJobResponse>(
+      this.endpoint(`/chat/jobs/${jobId}/retry`),
+      {},
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  updateMessageFeedback(
+    workspaceId: string,
+    messageId: string,
+    feedback: ChatMessageFeedback | null,
+  ): Observable<ChatMessageResponse> {
+    return this.http.patch<ChatMessageResponse>(
+      this.endpoint(`/chat/messages/${messageId}/feedback`),
+      { feedback },
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  regenerateAnswer(
+    workspaceId: string,
+    messageId: string,
+  ): Observable<WorkflowJobResponse> {
+    return this.http.post<WorkflowJobResponse>(
+      this.endpoint(`/chat/messages/${messageId}/regenerate`),
+      {},
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
   exportUrl(
     workspaceId: string,
     draftId: string,
@@ -316,6 +353,11 @@ export class ChatApiClient {
       sessionId,
       after,
     );
+  }
+
+  workspaceEventsUrl(workspaceId: string): string {
+    const config = getRuntimeConfig();
+    return workspaceChatEventsUrl(config.apiUrl, config.apiPrefix, workspaceId);
   }
 }
 

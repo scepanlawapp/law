@@ -17,6 +17,11 @@ import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideArrowUp,
   lucideBot,
+  lucideCheckCircle2,
+  lucideChevronDown,
+  lucideChevronUp,
+  lucideCircleAlert,
+  lucideCopy,
   lucideFileText,
   lucideLoaderCircle,
   lucideMenu,
@@ -25,8 +30,11 @@ import {
   lucideMicOff,
   lucidePaperclip,
   lucidePlus,
+  lucideRefreshCw,
   lucideSearch,
   lucideSparkles,
+  lucideThumbsDown,
+  lucideThumbsUp,
   lucideUser,
   lucideX,
 } from "@ng-icons/lucide";
@@ -46,6 +54,7 @@ import {
 import { ChatApiClient } from "@law/api-clients";
 import {
   ChatMessageResponse,
+  ChatMessageFeedback,
   ChatSessionSummary,
   ChatStreamEvent,
   DocumentScript,
@@ -60,6 +69,13 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { AssistantMarkdownPipe } from "./assistant-markdown.pipe";
+import {
+  buildWorkflowActivityState,
+  reduceWorkflowActivityEvent,
+  selectWorkflowActivities,
+  WorkflowActivityState,
+} from "./assistant-workflow-state";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
 const ALLOWED_FILE_MIME_TYPES = [
@@ -114,6 +130,7 @@ interface SessionGroup {
     HlmSheetTrigger,
     ReactiveFormsModule,
     TranslatePipe,
+    AssistantMarkdownPipe,
     DraftReviewPanelComponent,
   ],
   templateUrl: "./assistant.component.html",
@@ -123,6 +140,11 @@ interface SessionGroup {
     provideIcons({
       lucideArrowUp,
       lucideBot,
+      lucideCheckCircle2,
+      lucideChevronDown,
+      lucideChevronUp,
+      lucideCircleAlert,
+      lucideCopy,
       lucideFileText,
       lucideLoaderCircle,
       lucideMenu,
@@ -131,8 +153,11 @@ interface SessionGroup {
       lucideMicOff,
       lucidePaperclip,
       lucidePlus,
+      lucideRefreshCw,
       lucideSearch,
       lucideSparkles,
+      lucideThumbsDown,
+      lucideThumbsUp,
       lucideUser,
       lucideX,
     }),
@@ -147,6 +172,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
   private source: EventSource | null = null;
+  private sessionRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private elapsedTimer: ReturnType<typeof setInterval> | null = null;
   private speechBaseText = "";
   private lastSpeechDraft = "";
   private lastSpeechText = "";
@@ -208,7 +235,18 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly sessionTotalPages = signal(0);
   protected readonly loadingSessions = signal(false);
   protected readonly sending = signal(false);
-  protected readonly classifying = signal(false);
+  protected readonly retryingJobId = signal<string | null>(null);
+  protected readonly resyncing = signal(false);
+  protected readonly feedbackMessageId = signal<string | null>(null);
+  protected readonly regeneratingMessageId = signal<string | null>(null);
+  private readonly clock = signal(Date.now());
+  protected readonly expandedActivities = signal<ReadonlySet<string>>(
+    new Set(),
+  );
+  protected readonly workflowState = signal<WorkflowActivityState>({});
+  protected readonly workflowActivities = computed(() =>
+    selectWorkflowActivities(this.workflowState()),
+  );
   protected readonly error = signal("");
   protected readonly draft = signal<DraftResultResponse | null>(null);
   protected readonly draftText = signal("");
@@ -235,9 +273,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   ngOnInit(): void {
     this.destroyRef.onDestroy(() => {
       this.source?.close();
+      if (this.sessionRefreshTimer) clearTimeout(this.sessionRefreshTimer);
+      if (this.elapsedTimer) clearInterval(this.elapsedTimer);
       this.speechRecognition.reset();
     });
+    this.elapsedTimer = setInterval(() => this.clock.set(Date.now()), 1000);
     this.loadSessions();
+    this.listenWorkspace();
   }
 
   ngAfterViewInit(): void {
@@ -252,6 +294,35 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     return Boolean(
       this.composerForm.controls.draft.value.trim() ||
       this.pendingFiles().length,
+    );
+  }
+
+  protected elapsedSeconds(startedAt: string): number {
+    return Math.max(
+      0,
+      Math.floor((this.clock() - new Date(startedAt).getTime()) / 1000),
+    );
+  }
+
+  protected openDraftReview(): void {
+    if (this.draft()) this.draftReviewExpanded.set(true);
+  }
+
+  protected toggleActivity(correlationId: string): void {
+    this.expandedActivities.update((current) => {
+      const next = new Set(current);
+      if (next.has(correlationId)) next.delete(correlationId);
+      else next.add(correlationId);
+      return next;
+    });
+  }
+
+  protected activityFor(correlationId?: string | null) {
+    if (!correlationId) return null;
+    return (
+      this.workflowActivities().find(
+        (activity) => activity.correlationId === correlationId,
+      ) ?? null
     );
   }
 
@@ -362,14 +433,15 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.selectedSessionId.set(sessionId);
     this.conversationSheetOpen.set(false);
     this.error.set("");
-    this.classifying.set(false);
+    this.workflowState.set({});
     this.chat.getSession(workspaceId, sessionId).subscribe({
       next: (detail) => {
+        if (this.selectedSessionId() !== sessionId) return;
         this.messages.set(detail.messages);
+        this.workflowState.set(buildWorkflowActivityState(detail));
         this.scheduleMessagesScroll();
-        const lastMessage = detail.messages[detail.messages.length - 1];
-        this.listen(sessionId, lastMessage?.createdAt);
-        this.loadDrafts(workspaceId, sessionId);
+        const latestDraft = detail.drafts[detail.drafts.length - 1] ?? null;
+        this.applyDraft(latestDraft);
       },
       error: () => this.error.set("Unable to load this conversation."),
     });
@@ -377,22 +449,21 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   protected loadDrafts(workspaceId: string, sessionId: string): void {
     this.chat.listDrafts(workspaceId, sessionId).subscribe({
-      next: (drafts) => {
-        const draft = drafts[0] ?? null;
-        if (draft && draft.id !== this.loadedDraftId) {
-          this.draftReviewExpanded.set(true);
-        }
-        if (!draft) this.draftReviewExpanded.set(false);
-        this.loadedDraftId = draft?.id ?? null;
-        this.draft.set(draft);
-        this.draftText.set(
-          draft?.finalDocumentText ?? draft?.documentText ?? "",
-        );
-        this.draftScript.set("latin");
-        this.draftReviewNote.set("");
-      },
+      next: (drafts) => this.applyDraft(drafts[0] ?? null),
       error: () => this.draft.set(null),
     });
+  }
+
+  private applyDraft(draft: DraftResultResponse | null): void {
+    if (draft && draft.id !== this.loadedDraftId) {
+      this.draftReviewExpanded.set(true);
+    }
+    if (!draft) this.draftReviewExpanded.set(false);
+    this.loadedDraftId = draft?.id ?? null;
+    this.draft.set(draft);
+    this.draftText.set(draft?.finalDocumentText ?? draft?.documentText ?? "");
+    this.draftScript.set("latin");
+    this.draftReviewNote.set("");
   }
 
   protected onDraftScriptChange(script: DocumentScript): void {
@@ -478,6 +549,94 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       });
   }
 
+  protected retryWorkflow(jobId: string): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId || this.retryingJobId()) return;
+    this.retryingJobId.set(jobId);
+    this.chat.retryJob(workspaceId, jobId).subscribe({
+      next: (job) => {
+        this.retryingJobId.set(null);
+        this.handleEvent({
+          type: "job.queued",
+          workspaceId,
+          sessionId: job.sessionId,
+          correlationId: job.correlationId,
+          createdAt: job.createdAt,
+          job,
+        });
+      },
+      error: () => {
+        this.retryingJobId.set(null);
+        this.toast.error(
+          this.localization.translate("assistant.workflow.retryError"),
+        );
+      },
+    });
+  }
+
+  protected updateMessageFeedback(
+    message: ChatMessageResponse,
+    feedback: ChatMessageFeedback,
+  ): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId || this.feedbackMessageId()) return;
+    this.feedbackMessageId.set(message.id);
+    this.chat
+      .updateMessageFeedback(
+        workspaceId,
+        message.id,
+        message.feedback === feedback ? null : feedback,
+      )
+      .subscribe({
+        next: (updated) => {
+          this.feedbackMessageId.set(null);
+          this.upsertMessage(updated);
+        },
+        error: () => {
+          this.feedbackMessageId.set(null);
+          this.toast.error(
+            this.localization.translate("assistant.feedbackError"),
+          );
+        },
+      });
+  }
+
+  protected copyMessage(message: ChatMessageResponse): void {
+    void navigator.clipboard.writeText(message.content).then(
+      () =>
+        this.toast.success(
+          this.localization.translate("assistant.responseCopied"),
+        ),
+      () =>
+        this.toast.error(this.localization.translate("assistant.copyError")),
+    );
+  }
+
+  protected regenerateAnswer(message: ChatMessageResponse): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId || this.regeneratingMessageId()) return;
+    this.regeneratingMessageId.set(message.id);
+    this.chat.regenerateAnswer(workspaceId, message.id).subscribe({
+      next: (job) => {
+        this.regeneratingMessageId.set(null);
+        this.handleEvent({
+          type: "job.queued",
+          workspaceId,
+          sessionId: job.sessionId,
+          correlationId: job.correlationId,
+          createdAt: job.createdAt,
+          job,
+        });
+      },
+      error: () => {
+        this.regeneratingMessageId.set(null);
+        this.toast.error(
+          this.localization.translate("assistant.regenerateError"),
+        );
+      },
+    });
+  }
+
   protected deleteSession(sessionId: string): void {
     this.confirmDialog
       .confirm({
@@ -511,7 +670,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
               this.draft.set(null);
               this.loadedDraftId = null;
               this.draftReviewExpanded.set(false);
-              this.classifying.set(false);
+              this.workflowState.set({});
               this.source?.close();
               this.source = null;
               this.focusDraftTextarea();
@@ -635,6 +794,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       next: (session) => {
         this.sessions.update((items) => [session, ...items]);
         this.selectedSessionId.set(session.id);
+        this.workflowState.set({});
         this.sendMessage(session.id);
       },
       error: () => {
@@ -664,7 +824,6 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.resetTextarea();
           this.pendingFiles.set([]);
           this.sending.set(false);
-          this.classifying.set(true);
           this.loadSessions();
         },
         error: () => {
@@ -674,39 +833,149 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       });
   }
 
-  private listen(sessionId: string, after?: string): void {
+  private listenWorkspace(): void {
     const workspaceId = this.workspaceId();
-    if (!workspaceId) return;
+    if (!workspaceId || this.source || typeof EventSource === "undefined") {
+      return;
+    }
 
-    this.source?.close();
     this.source = new EventSource(
-      this.chat.eventsUrl(workspaceId, sessionId, after),
+      this.chat.workspaceEventsUrl(workspaceId),
       { withCredentials: true },
     );
     this.source.onmessage = (event) => {
       try {
-        this.handleEvent(JSON.parse(event.data) as ChatStreamEvent);
+        this.handleWorkspaceEvent(JSON.parse(event.data) as ChatStreamEvent);
       } catch {
         this.error.set("Received an unreadable chat event.");
       }
     };
-    this.source.onerror = () => this.classifying.set(false);
+    this.source.onerror = () => {
+      this.resyncSelectedSession();
+      this.scheduleSessionRefresh();
+    };
+  }
+
+  private handleWorkspaceEvent(event: ChatStreamEvent): void {
+    if (event.type === "session.deleted") {
+      this.sessions.update((items) =>
+        items.filter((session) => session.id !== event.sessionId),
+      );
+    }
+    if (event.sessionId === this.selectedSessionId()) {
+      this.handleEvent(event);
+    } else {
+      this.handleBackgroundEvent(event);
+    }
+    if (
+      event.type === "job.queued" ||
+      event.type === "job.updated" ||
+      event.type === "draft.updated" ||
+      event.type === "session.title.updated" ||
+      event.type === "session.deleted"
+    ) {
+      this.scheduleSessionRefresh();
+    }
+  }
+
+  private handleBackgroundEvent(event: ChatStreamEvent): void {
+    if (event.type === "session.title.updated") {
+      this.upsertSessionTitle(event.sessionId, event.title ?? null);
+    }
+    if (event.type === "draft.updated") {
+      this.toast.success(
+        this.localization.translate("assistant.backgroundDraftReady"),
+      );
+    } else if (
+      event.type === "message.updated" &&
+      event.message?.role === "ASSISTANT" &&
+      event.message.status === "COMPLETED"
+    ) {
+      this.toast.success(
+        this.localization.translate("assistant.backgroundAnswerReady"),
+      );
+    } else if (event.type === "error") {
+      this.toast.error(
+        event.error ??
+          this.localization.translate("assistant.backgroundProcessingError"),
+      );
+    }
+  }
+
+  private scheduleSessionRefresh(): void {
+    if (this.sessionRefreshTimer) clearTimeout(this.sessionRefreshTimer);
+    this.sessionRefreshTimer = setTimeout(() => {
+      this.sessionRefreshTimer = null;
+      this.refreshSessionSummaries();
+    }, 100);
+  }
+
+  private refreshSessionSummaries(): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+    this.chat
+      .listSessions(workspaceId, {
+        page: 1,
+        search: this.sessionSearch(),
+      })
+      .subscribe({
+        next: (response) => {
+          const remaining = this.sessions().filter(
+            (session) =>
+              !response.items.some((updated) => updated.id === session.id),
+          );
+          this.sessions.set([...response.items, ...remaining]);
+          this.sessionTotalPages.set(response.meta.totalPages);
+        },
+        error: () => undefined,
+      });
+  }
+
+  private resyncSelectedSession(): void {
+    const workspaceId = this.workspaceId();
+    const sessionId = this.selectedSessionId();
+    if (!workspaceId || !sessionId || this.resyncing()) return;
+    this.resyncing.set(true);
+    this.chat
+      .getSession(workspaceId, sessionId)
+      .pipe(finalize(() => this.resyncing.set(false)))
+      .subscribe({
+        next: (detail) => {
+          if (this.selectedSessionId() !== sessionId) return;
+          this.messages.set(detail.messages);
+          this.workflowState.set(buildWorkflowActivityState(detail));
+          this.applyDraft(detail.drafts[detail.drafts.length - 1] ?? null);
+          this.scheduleMessagesScroll();
+        },
+        error: () => undefined,
+      });
   }
 
   private handleEvent(event: ChatStreamEvent): void {
-    if (event.type === "message.created" && event.message) {
+    this.workflowState.update((state) =>
+      reduceWorkflowActivityEvent(state, event),
+    );
+    if (
+      (event.type === "message.created" ||
+        event.type === "message.started" ||
+        event.type === "message.updated") &&
+      event.message
+    ) {
       this.upsertMessage(event.message);
-      if (event.message.role === "ASSISTANT") this.classifying.set(false);
     }
-    if (event.type === "triage.started") this.classifying.set(true);
-    if (event.type === "triage.completed" || event.type === "job.queued") {
-      this.classifying.set(false);
+    if (event.type === "message.delta" && event.messageId && event.delta) {
+      this.appendMessageDelta(event.messageId, event.delta);
+    }
+    if (event.type === "attachment.updated" && event.attachment) {
+      this.updateAttachment(event.attachment);
+    }
+    if (event.type === "draft.updated" && event.draft) {
+      this.applyDraft(event.draft);
     }
     if (event.type === "session.title.updated") {
       this.upsertSessionTitle(event.sessionId, event.title ?? null);
     }
     if (event.type === "error") {
-      this.classifying.set(false);
       this.error.set(
         event.error ?? "The assistant could not process this message.",
       );
@@ -721,10 +990,35 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   private upsertMessage(message: ChatMessageResponse): void {
     this.messages.update((items) => {
-      if (items.some((item) => item.id === message.id)) return items;
-      return [...items, message];
+      const index = items.findIndex((item) => item.id === message.id);
+      if (index === -1) return [...items, message];
+      return items.map((item) => (item.id === message.id ? message : item));
     });
     this.scheduleMessagesScroll();
+  }
+
+  private appendMessageDelta(messageId: string, delta: string): void {
+    this.messages.update((items) =>
+      items.map((message) =>
+        message.id === messageId
+          ? { ...message, content: `${message.content}${delta}` }
+          : message,
+      ),
+    );
+    this.scheduleMessagesScroll();
+  }
+
+  private updateAttachment(
+    attachment: ChatMessageResponse["attachments"][number],
+  ): void {
+    this.messages.update((items) =>
+      items.map((message) => ({
+        ...message,
+        attachments: message.attachments.map((item) =>
+          item.id === attachment.id ? attachment : item,
+        ),
+      })),
+    );
   }
 
   private scheduleMessagesScroll(): void {

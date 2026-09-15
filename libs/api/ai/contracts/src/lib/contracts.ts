@@ -1,5 +1,6 @@
 export type WorkflowName =
   | "triage"
+  | "answering"
   | "brief-extraction"
   | "template-retrieval"
   | "drafting"
