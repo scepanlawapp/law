@@ -1,16 +1,26 @@
-<section>
-  <aside>
-    <div>
-      <h1>{{ "assistant.title" | translate }}</h1>
-      <p>{{ "assistant.sidebarDescription" | translate }}</p>
+<ng-template #conversationNavigation>
+  <div class="conversation-navigation">
+    <div class="conversation-heading">
+      <span class="conversation-heading-icon" aria-hidden="true">
+        <ng-icon name="lucideBot" />
+      </span>
+      <div>
+        <h1>{{ "assistant.title" | translate }}</h1>
+        <p>{{ "assistant.sidebarDescription" | translate }}</p>
+      </div>
     </div>
 
-    <button hlmBtn type="button" (click)="createSession()">
+    <button
+      class="new-conversation"
+      hlmBtn
+      type="button"
+      (click)="createSession()"
+    >
       <ng-icon name="lucidePlus" aria-hidden="true" />
       <span>{{ "assistant.newConversation" | translate }}</span>
     </button>
 
-    <hlm-input-group>
+    <hlm-input-group class="conversation-search">
       <input
         hlmInputGroupInput
         type="search"
@@ -23,7 +33,11 @@
       </hlm-input-group-addon>
     </hlm-input-group>
 
-    <div appBottomReached (bottomReached)="loadNextSessionPage()">
+    <div
+      class="conversation-list"
+      appBottomReached
+      (bottomReached)="loadNextSessionPage()"
+    >
       @for (group of sessionGroups(); track group.key) {
         <h2>
           {{
@@ -36,185 +50,303 @@
           <button
             hlmBtn
             variant="ghost"
-            class="w-full min-w-0 justify-start"
+            class="conversation-item"
+            [class.is-selected]="selectedSessionId() === session.id"
+            [attr.aria-current]="
+              selectedSessionId() === session.id ? 'true' : null
+            "
             type="button"
             (click)="selectSession(session.id)"
           >
-            <span class="flex min-w-0 w-full items-center gap-2 text-left">
-              <span><ng-icon name="lucideMessageCircle" /></span>
-              <span class="min-w-0 flex-1 truncate">
-                <strong class="block truncate">{{
-                  session.title || ("assistant.newChat" | translate)
-                }}</strong>
-              </span>
-              <time class="shrink-0">{{
-                session.updatedAt | date: "shortTime"
-              }}</time>
+            <span class="conversation-item-icon" aria-hidden="true">
+              <ng-icon name="lucideMessageCircle" />
             </span>
+            <strong>{{
+              session.title || ("assistant.newChat" | translate)
+            }}</strong>
+            <time>{{ session.updatedAt | date: "shortTime" }}</time>
           </button>
         }
+      } @empty {
+        @if (!loadingSessions()) {
+          <p class="conversation-empty">{{
+            "assistant.noConversations" | translate
+          }}</p>
+        }
+      }
+      @if (loadingSessions()) {
+        <p class="conversation-loading" aria-live="polite">
+          <ng-icon name="lucideLoaderCircle" aria-hidden="true" />
+          {{ "assistant.loadingConversations" | translate }}
+        </p>
       }
     </div>
+  </div>
+</ng-template>
+
+<section class="assistant-shell">
+  <aside class="desktop-conversations">
+    <ng-container [ngTemplateOutlet]="conversationNavigation" />
   </aside>
 
-  <section [attr.data-state]="messages().length ? 'with-messages' : 'empty'">
-    <div
-      #messagesContainer
-      (dragover)="onDragOver($event)"
-      (drop)="onDrop($event)"
-    >
-      @for (message of messages(); track message.id) {
-        <article [attr.data-role]="message.role">
-          <div class="flex">
-            <span>
-              <ng-icon
-                [name]="message.role === 'USER' ? 'lucideUser' : 'lucideBot'"
-              />
-            </span>
-            <div>
-              <p>{{ message.content }}</p>
-              @if (message.attachments.length) {
-                <ul>
-                  @for (file of message.attachments; track file.id) {
-                    <li>
-                      <a
-                        [href]="attachmentUrl(file.id)"
-                        target="_blank"
-                        rel="noreferrer noopener"
-                      >
-                        {{ file.originalName }}
-                      </a>
-                    </li>
-                  }
-                </ul>
-              }
-              <time>{{ message.createdAt | date: "HH:mm" }}</time>
-            </div>
-          </div>
-        </article>
-      }
-      @if (classifying()) {
-        <p>{{ "assistant.reviewing" | translate }}</p>
-      }
-      @if (error()) {
-        <p role="alert">{{ error() }}</p>
-      }
-    </div>
-    @if (draft(); as draftItem) {
-      <app-draft-review-panel
-        [draft]="draftItem"
-        [text]="draftText()"
-        [script]="draftScript()"
-        [note]="draftReviewNote()"
-        (textChange)="draftText.set($event)"
-        (noteChange)="draftReviewNote.set($event)"
-        (scriptChange)="onDraftScriptChange($event)"
-        (exportDocx)="exportDraftDocx()"
-        (save)="updateDraft()"
-        (approve)="approveDraft()"
-        (requestChanges)="requestChangesDraft()"
-        (reject)="rejectDraft()"
-      ></app-draft-review-panel>
-    }
-
-    <footer>
-      <form
-        [attr.aria-label]="'assistant.title' | translate"
-        [formGroup]="composerForm"
-        (dragover)="onDragOver($event)"
-        (drop)="onDrop($event)"
-        (ngSubmit)="send()"
+  <section class="assistant-main">
+    <header class="assistant-header">
+      <hlm-sheet
+        side="left"
+        [state]="conversationSheetOpen() ? 'open' : 'closed'"
+        (stateChanged)="conversationSheetOpen.set($event === 'open')"
       >
-        @if (pendingFiles().length) {
-          <div>
-            @for (file of pendingFiles(); track file.name + file.size) {
-              <span>
-                {{ file.name }}
-                <button
-                  hlmBtn
-                  variant="ghost"
-                  size="icon"
-                  type="button"
-                  (click)="removePendingFile(file)"
-                  [attr.aria-label]="'assistant.removeFile' | translate"
-                >
-                  <ng-icon name="lucideX" />
-                </button>
-              </span>
-            }
+        <button
+          class="mobile-conversation-trigger"
+          hlmBtn
+          hlmSheetTrigger
+          side="left"
+          variant="ghost"
+          size="icon"
+          type="button"
+          [hlmTooltip]="'assistant.conversations' | translate"
+          [attr.aria-label]="'assistant.conversations' | translate"
+        >
+          <ng-icon name="lucideMenu" />
+        </button>
+        <hlm-sheet-content
+          *hlmSheetPortal
+          class="assistant-conversation-sheet"
+          [showCloseButton]="false"
+        >
+          <div class="sheet-accessible-header">
+            <h2 hlmSheetTitle>{{ "assistant.conversations" | translate }}</h2>
+            <p hlmSheetDescription>{{
+              "assistant.sidebarDescription" | translate
+            }}</p>
           </div>
-        }
-        <div class="flex items-center gap-2">
           <button
+            class="conversation-sheet-close"
             hlmBtn
+            hlmSheetClose
             variant="ghost"
             size="icon"
             type="button"
-            [attr.aria-label]="'assistant.attachFiles' | translate"
-            (click)="fileInput.click()"
+            [attr.aria-label]="'assistant.closeConversations' | translate"
           >
-            <ng-icon name="lucidePaperclip" aria-hidden="true" />
+            <ng-icon name="lucideX" />
           </button>
-          <input
-            #fileInput
-            type="file"
-            hidden
-            multiple
-            accept=".pdf,.txt,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
-            (change)="onFiles($event)"
-          />
-          <textarea
-            hlmInput
-            #draftTextarea
-            formControlName="draft"
-            rows="1"
-            [placeholder]="'assistant.askPlaceholder' | translate"
-            [disabled]="sending()"
-            (keydown.enter)="onComposerKeydown($event)"
-            (input)="resizeTextarea($event)"
-            (paste)="onPaste($event, $event.target)"
-          ></textarea>
-          <div>
-            <button
-              hlmBtn
-              variant="ghost"
-              size="icon"
-              type="button"
-              [disabled]="!speechRecognition.isSupported()"
-              [hlmTooltip]="
-                (speechRecognition.isListening()
-                  ? 'speech.stop'
-                  : 'speech.start'
-                ) | translate
-              "
-              [attr.aria-label]="
-                (speechRecognition.isListening()
-                  ? 'speech.stop'
-                  : 'speech.start'
-                ) | translate
-              "
-              (click)="toggleSpeechRecognition()"
-            >
-              <ng-icon
-                [name]="
-                  speechRecognition.isListening() ? 'lucideMicOff' : 'lucideMic'
-                "
-              />
-            </button>
-          </div>
-          <div>
-            <button
-              hlmBtn
-              size="icon"
-              type="submit"
-              [attr.aria-label]="'assistant.sendMessage' | translate"
-              [disabled]="sending() || classifying() || !canSend()"
-            >
-              <ng-icon name="lucideArrowUp" />
-            </button>
+          <ng-container [ngTemplateOutlet]="conversationNavigation" />
+        </hlm-sheet-content>
+      </hlm-sheet>
+
+      <div class="assistant-header-copy">
+        <span>{{ "assistant.conversation" | translate }}</span>
+        <strong>{{
+          selectedSessionTitle() || ("assistant.newChat" | translate)
+        }}</strong>
+      </div>
+
+      @if (draft()) {
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          class="draft-mobile-toggle"
+          [attr.aria-expanded]="draftReviewExpanded()"
+          aria-controls="draft-review-content"
+          (click)="draftReviewExpanded.set(!draftReviewExpanded())"
+        >
+          <ng-icon name="lucideFileText" aria-hidden="true" />
+          {{ "assistant.draftReview" | translate }}
+        </button>
+      }
+    </header>
+
+    <div
+      class="assistant-workspace"
+      [class.has-draft]="draft()"
+      [class.review-expanded]="draftReviewExpanded()"
+    >
+      <section
+        class="chat-panel"
+        [attr.data-state]="messages().length ? 'with-messages' : 'empty'"
+      >
+        <div
+          #messagesContainer
+          class="message-scroll"
+          (dragover)="onDragOver($event)"
+          (drop)="onDrop($event)"
+        >
+          <div class="message-stream">
+            @for (message of messages(); track message.id) {
+              <article class="message" [attr.data-role]="message.role">
+                <div class="message-avatar" aria-hidden="true">
+                  <ng-icon
+                    [name]="message.role === 'USER' ? 'lucideUser' : 'lucideBot'"
+                  />
+                </div>
+                <div class="message-content">
+                  <p>{{ message.content }}</p>
+                  @if (message.attachments.length) {
+                    <ul class="message-attachments">
+                      @for (file of message.attachments; track file.id) {
+                        <li>
+                          <a
+                            [href]="attachmentUrl(file.id)"
+                            target="_blank"
+                            rel="noreferrer noopener"
+                          >
+                            <ng-icon
+                              name="lucidePaperclip"
+                              aria-hidden="true"
+                            />
+                            <span>{{ file.originalName }}</span>
+                          </a>
+                        </li>
+                      }
+                    </ul>
+                  }
+                  <time>{{ message.createdAt | date: "HH:mm" }}</time>
+                </div>
+              </article>
+            } @empty {
+              <div class="assistant-empty-state">
+                <span aria-hidden="true">
+                  <ng-icon name="lucideSparkles" />
+                </span>
+                <h2>{{ "assistant.emptyTitle" | translate }}</h2>
+                <p>{{ "assistant.description" | translate }}</p>
+              </div>
+            }
+            @if (classifying()) {
+              <div class="assistant-processing" aria-live="polite">
+                <ng-icon name="lucideLoaderCircle" aria-hidden="true" />
+                <span>{{ "assistant.reviewing" | translate }}</span>
+              </div>
+            }
+            @if (error()) {
+              <p class="assistant-error" role="alert">{{ error() }}</p>
+            }
           </div>
         </div>
-      </form>
-    </footer>
+
+        <footer class="composer-footer">
+          <form
+            class="composer"
+            [attr.aria-label]="'assistant.title' | translate"
+            [formGroup]="composerForm"
+            (dragover)="onDragOver($event)"
+            (drop)="onDrop($event)"
+            (ngSubmit)="send()"
+          >
+            @if (pendingFiles().length) {
+              <div class="pending-files">
+                @for (file of pendingFiles(); track file.name + file.size) {
+                  <span class="pending-file">
+                    <ng-icon name="lucidePaperclip" aria-hidden="true" />
+                    <span>{{ file.name }}</span>
+                    <button
+                      hlmBtn
+                      variant="ghost"
+                      size="icon"
+                      type="button"
+                      (click)="removePendingFile(file)"
+                      [attr.aria-label]="'assistant.removeFile' | translate"
+                    >
+                      <ng-icon name="lucideX" />
+                    </button>
+                  </span>
+                }
+              </div>
+            }
+            <div class="composer-row">
+              <button
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                type="button"
+                [attr.aria-label]="'assistant.attachFiles' | translate"
+                (click)="fileInput.click()"
+              >
+                <ng-icon name="lucidePaperclip" aria-hidden="true" />
+              </button>
+              <input
+                #fileInput
+                type="file"
+                hidden
+                multiple
+                accept=".pdf,.txt,.docx,.xls,.xlsx,image/png,image/jpeg,image/webp"
+                (change)="onFiles($event)"
+              />
+              <textarea
+                hlmInput
+                #draftTextarea
+                formControlName="draft"
+                rows="1"
+                [placeholder]="'assistant.askPlaceholder' | translate"
+                [disabled]="sending()"
+                (keydown.enter)="onComposerKeydown($event)"
+                (input)="resizeTextarea($event)"
+                (paste)="onPaste($event, $event.target)"
+              ></textarea>
+              <button
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                type="button"
+                [disabled]="!speechRecognition.isSupported()"
+                [hlmTooltip]="
+                  (speechRecognition.isListening()
+                    ? 'speech.stop'
+                    : 'speech.start'
+                  ) | translate
+                "
+                [attr.aria-label]="
+                  (speechRecognition.isListening()
+                    ? 'speech.stop'
+                    : 'speech.start'
+                  ) | translate
+                "
+                (click)="toggleSpeechRecognition()"
+              >
+                <ng-icon
+                  [name]="
+                    speechRecognition.isListening()
+                      ? 'lucideMicOff'
+                      : 'lucideMic'
+                  "
+                />
+              </button>
+              <button
+                hlmBtn
+                size="icon"
+                type="submit"
+                [attr.aria-label]="'assistant.sendMessage' | translate"
+                [disabled]="sending() || classifying() || !canSend()"
+              >
+                <ng-icon name="lucideArrowUp" />
+              </button>
+            </div>
+          </form>
+        </footer>
+      </section>
+
+      @if (draft(); as draftItem) {
+        <app-draft-review-panel
+          class="review-pane"
+          [class.is-expanded]="draftReviewExpanded()"
+          [draft]="draftItem"
+          [text]="draftText()"
+          [script]="draftScript()"
+          [note]="draftReviewNote()"
+          [expanded]="draftReviewExpanded()"
+          (expandedChange)="draftReviewExpanded.set($event)"
+          (textChange)="draftText.set($event)"
+          (noteChange)="draftReviewNote.set($event)"
+          (scriptChange)="onDraftScriptChange($event)"
+          (exportDocx)="exportDraftDocx()"
+          (save)="updateDraft()"
+          (approve)="approveDraft()"
+          (requestChanges)="requestChangesDraft()"
+          (reject)="rejectDraft()"
+        />
+      }
+    </div>
   </section>
 </section>

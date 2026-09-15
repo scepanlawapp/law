@@ -1,4 +1,4 @@
-import { DatePipe } from "@angular/common";
+import { DatePipe, NgTemplateOutlet } from "@angular/common";
 import {
   Component,
   ChangeDetectionStrategy,
@@ -17,6 +17,9 @@ import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideArrowUp,
   lucideBot,
+  lucideFileText,
+  lucideLoaderCircle,
+  lucideMenu,
   lucideMessageCircle,
   lucideMic,
   lucideMicOff,
@@ -31,6 +34,15 @@ import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
+import {
+  HlmSheet,
+  HlmSheetClose,
+  HlmSheetContent,
+  HlmSheetDescription,
+  HlmSheetPortal,
+  HlmSheetTitle,
+  HlmSheetTrigger,
+} from "@spartan-ng/helm/sheet";
 import { ChatApiClient } from "@law/api-clients";
 import {
   ChatMessageResponse,
@@ -87,11 +99,19 @@ interface SessionGroup {
   imports: [
     BottomReachedDirective,
     DatePipe,
+    NgTemplateOutlet,
     NgIcon,
     HlmTooltipImports,
     HlmButton,
     HlmInput,
     HlmInputGroupImports,
+    HlmSheet,
+    HlmSheetClose,
+    HlmSheetContent,
+    HlmSheetDescription,
+    HlmSheetPortal,
+    HlmSheetTitle,
+    HlmSheetTrigger,
     ReactiveFormsModule,
     TranslatePipe,
     DraftReviewPanelComponent,
@@ -103,6 +123,9 @@ interface SessionGroup {
     provideIcons({
       lucideArrowUp,
       lucideBot,
+      lucideFileText,
+      lucideLoaderCircle,
+      lucideMenu,
       lucideMessageCircle,
       lucideMic,
       lucideMicOff,
@@ -173,6 +196,12 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   });
   protected readonly messages = signal<ChatMessageResponse[]>([]);
   protected readonly selectedSessionId = signal<string | null>(null);
+  protected readonly selectedSessionTitle = computed(
+    () =>
+      this.sessions().find(
+        (session) => session.id === this.selectedSessionId(),
+      )?.title ?? null,
+  );
   protected readonly pendingFiles = signal<File[]>([]);
   protected readonly sessionPage = signal(1);
   protected readonly sessionSearch = signal("");
@@ -185,6 +214,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly draftText = signal("");
   protected readonly draftScript = signal<DocumentScript>("latin");
   protected readonly draftReviewNote = signal("");
+  protected readonly draftReviewExpanded = signal(false);
+  protected readonly conversationSheetOpen = signal(false);
+  private loadedDraftId: string | null = null;
 
   constructor() {
     effect(() => {
@@ -328,6 +360,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (!workspaceId) return;
 
     this.selectedSessionId.set(sessionId);
+    this.conversationSheetOpen.set(false);
     this.error.set("");
     this.classifying.set(false);
     this.chat.getSession(workspaceId, sessionId).subscribe({
@@ -346,6 +379,11 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.chat.listDrafts(workspaceId, sessionId).subscribe({
       next: (drafts) => {
         const draft = drafts[0] ?? null;
+        if (draft && draft.id !== this.loadedDraftId) {
+          this.draftReviewExpanded.set(true);
+        }
+        if (!draft) this.draftReviewExpanded.set(false);
+        this.loadedDraftId = draft?.id ?? null;
         this.draft.set(draft);
         this.draftText.set(
           draft?.finalDocumentText ?? draft?.documentText ?? "",
@@ -470,6 +508,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
             if (this.selectedSessionId() === sessionId) {
               this.selectedSessionId.set(null);
               this.messages.set([]);
+              this.draft.set(null);
+              this.loadedDraftId = null;
+              this.draftReviewExpanded.set(false);
               this.classifying.set(false);
               this.source?.close();
               this.source = null;

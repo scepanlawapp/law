@@ -1,0 +1,18 @@
+{
+  "track_id": "assistant_workspace_redesign_20260915",
+  "parent_track_id": null,
+  "type": "feature",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-15T00:00:00Z",
+  "updated_at": "2026-09-15T00:00:00Z",
+  "keywords": [
+    "assistant",
+    "draft-review",
+    "responsive-layout",
+    "spartan-ui",
+    "accessibility",
+    "angular"
+  ],
+  "priority": "high"
+}
