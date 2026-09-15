@@ -287,6 +287,85 @@ async function provisionTenantSchema(prisma, schemaName) {
   }
 }
 
+async function seedLegalLookups(prisma, workspaceId) {
+  const definitions = [
+    [
+      "organizationRelationshipType",
+      [
+        ["EMPLOYEE", "Employee"],
+        ["DIRECTOR", "Director"],
+        ["LEGAL_REPRESENTATIVE", "Legal representative"],
+        ["AUTHORIZED_PERSON", "Authorized person"],
+        ["BILLING_CONTACT", "Billing contact"],
+      ],
+    ],
+    [
+      "practiceArea",
+      [
+        ["CIVIL", "Civil law"],
+        ["CRIMINAL", "Criminal law"],
+        ["COMMERCIAL", "Commercial law"],
+        ["FAMILY", "Family law"],
+        ["EMPLOYMENT", "Employment law"],
+        ["ADMINISTRATIVE", "Administrative law"],
+        ["ENFORCEMENT", "Enforcement"],
+        ["REAL_ESTATE", "Real estate"],
+      ],
+    ],
+    [
+      "participantRole",
+      [
+        ["PLAINTIFF", "Plaintiff"],
+        ["DEFENDANT", "Defendant"],
+        ["APPLICANT", "Applicant"],
+        ["RESPONDENT", "Respondent"],
+        ["WITNESS", "Witness"],
+        ["EXPERT", "Expert"],
+        ["LEGAL_REPRESENTATIVE", "Legal representative"],
+      ],
+    ],
+    [
+      "proceedingType",
+      [
+        ["FIRST_INSTANCE", "First instance"],
+        ["APPEAL", "Appeal"],
+        ["ENFORCEMENT", "Enforcement"],
+        ["ADMINISTRATIVE", "Administrative"],
+        ["ARBITRATION", "Arbitration"],
+      ],
+    ],
+    [
+      "documentCategory",
+      [
+        ["PLEADING", "Pleading"],
+        ["DECISION", "Decision"],
+        ["CONTRACT", "Contract"],
+        ["EVIDENCE", "Evidence"],
+        ["CORRESPONDENCE", "Correspondence"],
+        ["IDENTIFICATION", "Identification document"],
+      ],
+    ],
+  ];
+
+  for (const [modelName, values] of definitions) {
+    const model = prisma[modelName];
+    for (const [index, [code, name]] of values.entries()) {
+      await model.upsert({
+        where: { workspaceId_code: { workspaceId, code } },
+        update: { name, isActive: true, isSystemSeed: true, sortOrder: index },
+        create: {
+          workspaceId,
+          code,
+          name,
+          isActive: true,
+          isSystemSeed: true,
+          sortOrder: index,
+        },
+      });
+    }
+  }
+}
+
 async function main() {
   const email = process.env.AUTH_BOOTSTRAP_EMAIL?.trim().toLowerCase();
   const password = process.env.AUTH_BOOTSTRAP_PASSWORD;
@@ -353,6 +432,7 @@ async function main() {
 
     // 2. Apply the canonical tenant schema to the physical tenant database.
     await provisionTenantSchema(tenantPrisma, "public");
+    await seedLegalLookups(tenantPrisma, workspaceId);
 
     // 3. Upsert Workspace linked to Tenant
     const workspace = await platformPrisma.workspace.upsert({
