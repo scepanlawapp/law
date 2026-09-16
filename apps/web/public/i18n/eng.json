@@ -506,6 +506,7 @@
   "cases.number": "Case number",
   "cases.internalCaseNumber": "Internal case number",
   "cases.name": "Name",
+  "cases.close": "Close",
   "cases.client": "Client",
   "cases.responsible": "Responsible lawyer",
   "cases.priority": "Priority",

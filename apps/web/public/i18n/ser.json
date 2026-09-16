@@ -506,6 +506,7 @@
   "cases.number": "Broj predmeta",
   "cases.internalCaseNumber": "Interni broj predmeta",
   "cases.name": "Naziv",
+  "cases.close": "Zatvori",
   "cases.client": "Klijent",
   "cases.responsible": "Odgovorni advokat",
   "cases.priority": "Prioritet",
