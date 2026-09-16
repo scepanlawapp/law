@@ -1,4 +1,5 @@
-import { Component, inject } from "@angular/core";
+import { Component, DestroyRef, inject } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideScale,
@@ -47,9 +48,13 @@ import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.c
 })
 export class SidebarComponent {
   private readonly authState = inject(AuthState);
+  private readonly destroyRef = inject(DestroyRef);
   readonly session = this.authState.session;
 
   logout(): void {
-    this.authState.logout().subscribe();
+    this.authState
+      .logout()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 }

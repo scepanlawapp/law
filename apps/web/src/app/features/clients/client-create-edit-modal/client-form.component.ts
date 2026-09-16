@@ -1,4 +1,10 @@
-import { Component, ElementRef, inject, signal } from "@angular/core";
+import {
+  Component,
+  DestroyRef,
+  ElementRef,
+  inject,
+  signal,
+} from "@angular/core";
 import {
   AbstractControl,
   FormControl,
@@ -22,6 +28,7 @@ import {
   ReferencesApiClient,
 } from "@law/api-clients";
 import { forkJoin, map, Observable, switchMap } from "rxjs";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmDialogDescription,
@@ -43,6 +50,7 @@ import { CollapsibleSectionComponent } from "../../../shared/ui/collapsible-sect
 import { CountrySelectComponent } from "../../../shared/ui/country-select/country-select.component";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { SelectOption, createSelectItemToString } from "../../../shared/utils";
+import { HlmDialogImports } from "@spartan-ng/helm/dialog";
 
 @Component({
   selector: "app-client-form",
@@ -62,14 +70,19 @@ import { SelectOption, createSelectItemToString } from "../../../shared/utils";
     HlmRadioGroupImports,
     HlmSelectImports,
     HlmSpinner,
+    HlmDialogImports,
     HlmTextarea,
     CountrySelectComponent,
     CollapsibleSectionComponent,
     TranslatePipe,
   ],
+  host: {
+    class: "flex min-h-0 flex-1 flex-col gap-6",
+  },
 })
 export class ClientFormComponent {
   private readonly auth = inject(AuthApiClient);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly api = inject(ClientsApiClient);
   private readonly refs = inject(ReferencesApiClient);
   private readonly toast = inject(ToastService);
@@ -141,29 +154,40 @@ export class ClientFormComponent {
   });
   constructor() {
     this.applyTypeValidators(this.form.controls.type.value);
-    this.form.controls.type.valueChanges.subscribe((type) => {
-      this.applyTypeValidators(type);
-    });
-    this.refs.users().subscribe({
-      next: (items) =>
-        this.users.set(
-          items.map((item) => ({
-            userId: item.userId,
-            label:
-              [item.user.firstName, item.user.lastName]
-                .filter(Boolean)
-                .join(" ") || item.user.email,
-          })),
-        ),
-    });
-    this.refs.tags().subscribe({
-      next: (items) => this.tags.set(items.filter((item) => item.isActive)),
-    });
-    if (!this.clientId) {
-      this.auth.me().subscribe({
-        next: (session) =>
-          this.form.controls.responsibleUserId.setValue(session.user.id),
+    this.form.controls.type.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((type) => {
+        this.applyTypeValidators(type);
       });
+    this.refs
+      .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) =>
+          this.users.set(
+            items.map((item) => ({
+              userId: item.userId,
+              label:
+                [item.user.firstName, item.user.lastName]
+                  .filter(Boolean)
+                  .join(" ") || item.user.email,
+            })),
+          ),
+      });
+    this.refs
+      .tags()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => this.tags.set(items.filter((item) => item.isActive)),
+      });
+    if (!this.clientId) {
+      this.auth
+        .me()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (session) =>
+            this.form.controls.responsibleUserId.setValue(session.user.id),
+        });
     }
     if (this.clientId)
       forkJoin({
@@ -171,38 +195,40 @@ export class ClientFormComponent {
         addresses: this.api.listAddresses(this.clientId),
         documents: this.api.listIdentificationDocuments(this.clientId),
         contacts: this.api.listContacts(this.clientId),
-      }).subscribe({
-        next: ({ client, addresses, documents, contacts }) => {
-          this.form.patchValue({
-            responsibleUserId: client.responsibleUserId ?? "",
-            tagIds: client.tags.map((tag) => tag.id),
-          });
-          this.form.patchValue(client);
-          this.replaceForms(
-            this.addresses,
-            addresses,
-            (address) => this.createAddressForm(address),
-            () => this.createAddressForm(),
-          );
-          this.replaceForms(
-            this.identificationDocuments,
-            documents,
-            (document) => this.createIdentificationDocumentForm(document),
-            () => this.createIdentificationDocumentForm(),
-          );
-          this.replaceForms(
-            this.contacts,
-            contacts,
-            (contact) => this.createContactForm(contact),
-            () => this.createContactForm(),
-          );
-          this.loading.set(false);
-        },
-        error: () => {
-          this.loading.set(false);
-          this.toast.error(this.localization.translate("clients.loadError"));
-        },
-      });
+      })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: ({ client, addresses, documents, contacts }) => {
+            this.form.patchValue({
+              responsibleUserId: client.responsibleUserId ?? "",
+              tagIds: client.tags.map((tag) => tag.id),
+            });
+            this.form.patchValue(client);
+            this.replaceForms(
+              this.addresses,
+              addresses,
+              (address) => this.createAddressForm(address),
+              () => this.createAddressForm(),
+            );
+            this.replaceForms(
+              this.identificationDocuments,
+              documents,
+              (document) => this.createIdentificationDocumentForm(document),
+              () => this.createIdentificationDocumentForm(),
+            );
+            this.replaceForms(
+              this.contacts,
+              contacts,
+              (contact) => this.createContactForm(contact),
+              () => this.createContactForm(),
+            );
+            this.loading.set(false);
+          },
+          error: () => {
+            this.loading.set(false);
+            this.toast.error(this.localization.translate("clients.loadError"));
+          },
+        });
   }
 
   private createAddressForm(address?: ClientAddress, isPrimaryDefault = false) {
@@ -477,6 +503,7 @@ export class ClientFormComponent {
             ...contactRequests.map((row) => this.saveContact(client.id, row)),
           ]).pipe(map(() => client)),
         ),
+        takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (client) => {
