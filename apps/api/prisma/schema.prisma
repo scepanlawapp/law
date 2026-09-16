@@ -103,6 +103,52 @@ enum DraftApprovalStatus {
   CHANGES_REQUESTED
 }
 
+enum ClientType {
+  INDIVIDUAL
+  ORGANIZATION
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+  PROSPECT
+}
+
+enum ClientContactStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum ActivityType {
+  NOTE
+  PHONE_CALL
+  MEETING
+  EMAIL
+  OTHER
+}
+
+enum ActivitySource {
+  MANUAL
+  SYSTEM
+  AI
+}
+
+enum CaseStatus {
+  DRAFT
+  ACTIVE
+  ON_HOLD
+  CLOSED
+  ARCHIVED
+}
+
+enum CasePriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
 model User {
   id                String            @id @default(uuid())
   email             String            @unique
@@ -151,6 +197,302 @@ model Workspace {
   workflowJobs           WorkflowJob[]
   briefExtractionResults BriefExtractionResult[]
   draftResults           DraftResult[]
+  config                 WorkspaceConfig?
+  domainCounters         DomainCounter[]
+  tags                   Tag[]
+  caseTypes              CaseType[]
+  practiceAreas          PracticeArea[]
+  clients                Client[]
+  cases                  Case[]
+  clientActivities       ClientActivity[]
+  caseActivities         CaseActivity[]
+  caseResponsibilities   CaseResponsibility[]
+  tenantAuditEvents      TenantAuditEvent[]
+}
+
+model WorkspaceConfig {
+  workspaceId            String                   @id
+  timeZone               String                   @default("Europe/Belgrade")
+  dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
+  workspaceNotifications Boolean                  @default(true)
+  officeHours            Json?
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+  workspace              Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model DomainCounter {
+  workspaceId String
+  name        String
+  value       Int       @default(0)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, name])
+}
+
+model Tag {
+  id              String      @id @default(uuid())
+  workspaceId     String
+  name            String
+  color           String?
+  isActive        Boolean     @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime    @updatedAt @db.Timestamptz(3)
+  workspace       Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  clients         ClientTag[]
+  cases           CaseTag[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
+model CaseType {
+  id              String    @id @default(uuid())
+  workspaceId     String
+  name            String
+  description     String?
+  isActive        Boolean   @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cases           Case[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
+model PracticeArea {
+  id              String    @id @default(uuid())
+  workspaceId     String
+  name            String
+  description     String?
+  isActive        Boolean   @default(true)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  cases           Case[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, isActive, name])
+}
+
+model Client {
+  id                      String                         @id @default(uuid())
+  workspaceId             String
+  clientNumber            String
+  type                    ClientType
+  displayName             String
+  firstName               String?
+  lastName                String?
+  organizationName        String?
+  isDomestic              Boolean                        @default(true)
+  jmbg                    String?
+  taxNumber               String?
+  registrationNumber      String?
+  status                  ClientStatus                   @default(ACTIVE)
+  email                   String?
+  phone                   String?
+  website                 String?
+  preferredLanguage       String?
+  notes                   String?
+  customFields            Json?
+  responsibleUserId       String?
+  createdByUserId         String
+  updatedByUserId         String
+  createdAt               DateTime                       @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                       @updatedAt @db.Timestamptz(3)
+  workspace               Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  addresses               ClientAddress[]                @relation("ClientAddresses")
+  identificationDocuments ClientIdentificationDocument[]
+  contacts                ClientContact[]
+  activities              ClientActivity[]
+  cases                   Case[]
+  tags                    ClientTag[]
+
+  @@unique([workspaceId, clientNumber])
+  @@index([workspaceId, status, displayName])
+  @@index([workspaceId, type, status])
+  @@index([workspaceId, responsibleUserId, status])
+  @@index([workspaceId, email])
+  @@index([workspaceId, phone])
+}
+
+model ClientAddress {
+  id               String   @id @default(uuid())
+  clientId         String
+  addressType      String
+  street           String
+  streetAdditional String?
+  city             String
+  postalCode       String
+  stateOrRegion    String?
+  country          String
+  note             String?
+  isPrimary        Boolean  @default(false)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+  client           Client   @relation("ClientAddresses", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+}
+
+model ClientIdentificationDocument {
+  id          String    @id @default(uuid())
+  clientId    String
+  type        String
+  number      String
+  issuedDate  DateTime? @db.Date
+  expiredDate DateTime? @db.Date
+  country     String
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+}
+
+model ClientContact {
+  id        String              @id @default(uuid())
+  clientId  String
+  firstName String
+  lastName  String
+  position  String?
+  email     String?
+  phone     String?
+  isPrimary Boolean             @default(false)
+  notes     String?
+  status    ClientContactStatus @default(ACTIVE)
+  createdAt DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime            @updatedAt @db.Timestamptz(3)
+  client    Client              @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, status, lastName, firstName])
+}
+
+model ClientActivity {
+  id              String         @id @default(uuid())
+  workspaceId     String
+  clientId        String
+  relatedCaseId   String?
+  type            ActivityType
+  title           String
+  description     String?
+  activityDate    DateTime       @db.Timestamptz(3)
+  source          ActivitySource @default(MANUAL)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client          Client         @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  relatedCase     Case?          @relation("ClientActivityRelatedCase", fields: [relatedCaseId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, clientId, activityDate])
+  @@index([relatedCaseId])
+}
+
+model Case {
+  id                   String               @id @default(uuid())
+  workspaceId          String
+  caseNumber           String
+  clientId             String
+  name                 String
+  description          String?
+  caseTypeId           String?
+  practiceAreaId       String?
+  status               CaseStatus           @default(DRAFT)
+  priority             CasePriority         @default(NORMAL)
+  responsibleUserId    String
+  openedDate           DateTime?            @db.Timestamptz(3)
+  closedDate           DateTime?            @db.Timestamptz(3)
+  closingNote          String?
+  externalReference    String?
+  confidentialityLevel String?
+  customFields         Json?
+  createdByUserId      String
+  updatedByUserId      String
+  createdAt            DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime             @updatedAt @db.Timestamptz(3)
+  workspace            Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client               Client               @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  caseType             CaseType?            @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
+  practiceArea         PracticeArea?        @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
+  activities           CaseActivity[]
+  clientActivities     ClientActivity[]     @relation("ClientActivityRelatedCase")
+  responsibilities     CaseResponsibility[]
+  tags                 CaseTag[]
+
+  @@unique([workspaceId, caseNumber])
+  @@index([workspaceId, clientId, status, updatedAt])
+  @@index([workspaceId, status, updatedAt])
+  @@index([workspaceId, responsibleUserId, status])
+  @@index([workspaceId, caseTypeId, status])
+  @@index([workspaceId, practiceAreaId, status])
+}
+
+model CaseActivity {
+  id              String         @id @default(uuid())
+  workspaceId     String
+  caseId          String
+  type            ActivityType
+  title           String
+  description     String?
+  activityDate    DateTime       @db.Timestamptz(3)
+  source          ActivitySource @default(MANUAL)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  case            Case           @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, caseId, activityDate])
+}
+
+model CaseResponsibility {
+  id              String    @id @default(uuid())
+  workspaceId     String
+  caseId          String
+  userId          String
+  isPrimary       Boolean   @default(false)
+  startedAt       DateTime  @default(now()) @db.Timestamptz(3)
+  endedAt         DateTime? @db.Timestamptz(3)
+  createdByUserId String
+  updatedByUserId String
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  case            Case      @relation(fields: [caseId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, caseId, endedAt])
+  @@index([workspaceId, userId, endedAt])
+}
+
+model ClientTag {
+  clientId String
+  tagId    String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([clientId, tagId])
+  @@index([tagId, clientId])
+}
+
+model CaseTag {
+  caseId String
+  tagId  String
+  case   Case @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  tag    Tag  @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([caseId, tagId])
+  @@index([tagId, caseId])
 }
 
 model WorkspaceMember {
@@ -357,4 +699,20 @@ model DraftResult {
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])
   @@index([approvalStatus, reviewedAt])
+}
+
+model TenantAuditEvent {
+  id          String     @id @default(uuid())
+  userId      String?
+  workspaceId String?
+  eventType   String
+  outcome     String
+  requestId   String?
+  metadata    Json?
+  createdAt   DateTime   @default(now()) @db.Timestamptz(3)
+  workspace   Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([workspaceId, createdAt])
+  @@index([eventType, createdAt])
 }

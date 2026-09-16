@@ -1,6 +1,5 @@
 import {
   CanActivate,
-  ConflictException,
   ExecutionContext,
   ForbiddenException,
   Injectable,
@@ -10,18 +9,15 @@ import { Reflector } from "@nestjs/core";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { PlatformPrismaService } from "./core";
 import { WORKSPACE_ROLE_KEY } from "./workspace-access.decorator";
-import { TenantRegistryService } from "./tenant-registry.service";
-import { TenantConnectionManager } from "./tenant-connection-manager";
-import { TenantContext, TenantContextService } from "./tenant-context";
+import { HARDCODED_WORKSPACE_ID } from "./workspace.constants";
+import { WorkspaceContext, WorkspaceContextService } from "./workspace-context";
 
 export interface AuthenticatedWorkspaceRequest {
   auth?: {
     user: { id: string; email?: string };
-    activeWorkspaceId: string | null;
-    activeTenantId: string | null;
   };
   workspace?: { workspaceId: string; role: WorkspaceRole };
-  tenantContext?: TenantContext;
+  workspaceContext?: WorkspaceContext;
 }
 
 const roleRank: Record<WorkspaceRole, number> = {
@@ -31,14 +27,16 @@ const roleRank: Record<WorkspaceRole, number> = {
   [WorkspaceRole.OWNER]: 4,
 };
 
+/**
+ * The app operates against a single hardcoded workspace (no workspace switching);
+ * this guard only verifies the caller is an active member of that workspace.
+ */
 @Injectable()
 export class WorkspaceAccessGuard implements CanActivate {
   constructor(
     private readonly reflector: Reflector,
     private readonly platformPrisma: PlatformPrismaService,
-    private readonly tenantRegistry: TenantRegistryService,
-    private readonly connectionManager: TenantConnectionManager,
-    private readonly tenantContextService: TenantContextService,
+    private readonly workspaceContextService: WorkspaceContextService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -52,15 +50,13 @@ export class WorkspaceAccessGuard implements CanActivate {
     const requiredRole = this.reflector.getAllAndOverride<
       WorkspaceRole | undefined
     >(WORKSPACE_ROLE_KEY, [context.getHandler(), context.getClass()]);
-    const workspaceId = request.auth.activeWorkspaceId;
-    const activeTenantId = request.auth.activeTenantId;
-    if (!workspaceId || !activeTenantId) {
-      throw new ConflictException("An active workspace must be selected");
-    }
 
     const membership = await this.platformPrisma.workspaceMember.findUnique({
       where: {
-        userId_workspaceId: { userId: request.auth.user.id, workspaceId },
+        userId_workspaceId: {
+          userId: request.auth.user.id,
+          workspaceId: HARDCODED_WORKSPACE_ID,
+        },
       },
       select: { workspaceId: true, role: true, status: true },
     });
@@ -71,33 +67,19 @@ export class WorkspaceAccessGuard implements CanActivate {
       throw new ForbiddenException("Insufficient workspace role");
     }
 
-    const { tenant } =
-      await this.tenantRegistry.resolveTenantForWorkspace(workspaceId);
-    if (tenant.id !== activeTenantId) {
-      throw new ConflictException("Active tenant selection is invalid");
-    }
-    const tenantPrisma = this.connectionManager.getTenantClient(
-      tenant.id,
-      tenant.databaseName!,
-    );
-
-    const tenantContext: TenantContext = {
+    const workspaceContext: WorkspaceContext = {
       userId: request.auth.user.id,
       workspaceId: membership.workspaceId,
-      tenantId: tenant.id,
-      databaseName: tenant.databaseName!,
       role: membership.role as WorkspaceRole,
-      storagePrefix: tenant.storagePrefix ?? `tenants/${tenant.id}/`,
-      prisma: tenantPrisma,
     };
 
-    this.tenantContextService.enterWith(tenantContext);
+    this.workspaceContextService.enterWith(workspaceContext);
 
     request.workspace = {
       workspaceId: membership.workspaceId,
       role: membership.role as WorkspaceRole,
     };
-    request.tenantContext = tenantContext;
+    request.workspaceContext = workspaceContext;
 
     return true;
   }

@@ -3,7 +3,6 @@ import { HttpClient, HttpParams } from "@angular/common/http";
 import { Observable } from "rxjs";
 import {
   AuthSessionResponse,
-  ActiveWorkspaceRequest,
   ChatSendMessageResponse,
   ChatMessageFeedback,
   ChatMessageResponse,
@@ -77,16 +76,6 @@ export class AuthApiClient {
     return this.http.post<{ success: boolean }>(
       this.endpoint("/auth/logout"),
       {},
-      { withCredentials: true },
-    );
-  }
-
-  selectActiveWorkspace(
-    request: ActiveWorkspaceRequest,
-  ): Observable<AuthSessionResponse> {
-    return this.http.post<AuthSessionResponse>(
-      this.endpoint("/auth/active-workspace"),
-      request,
       { withCredentials: true },
     );
   }

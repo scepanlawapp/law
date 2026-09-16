@@ -17,7 +17,7 @@ import {
   CaseStatus,
   ClientStatus,
   ClientType,
-} from "@prisma/tenant-client";
+} from "@prisma/client";
 
 export class ClientListQueryDto extends PaginationQueryDto {
   @IsOptional()

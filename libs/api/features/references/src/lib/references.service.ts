@@ -3,8 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { PlatformPrismaService, TenantContextService } from "@law/core";
-import { PrismaClient as TenantPrismaClient } from "@prisma/tenant-client";
+import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { ReferenceDto } from "./references.dto";
 
 type Resource = "tag" | "caseType" | "practiceArea";
@@ -24,10 +23,10 @@ const countries = [
 export class ReferencesService {
   constructor(private readonly platformPrisma: PlatformPrismaService) {}
   private get context() {
-    return TenantContextService.required;
+    return WorkspaceContextService.required;
   }
-  private get db(): TenantPrismaClient {
-    return this.context.prisma;
+  private get db(): PlatformPrismaService {
+    return this.platformPrisma;
   }
   async users() {
     return this.platformPrisma.workspaceMember.findMany({

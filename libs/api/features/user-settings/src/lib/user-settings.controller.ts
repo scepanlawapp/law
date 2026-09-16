@@ -10,15 +10,14 @@ import {
 import { AuthGuard, AuthenticatedRequest, CsrfOriginGuard } from "@law/auth";
 import { UserSettingsService } from "./user-settings.service";
 import { UpdateUserSettingsDto } from "./user-settings.dto";
-import { TenantConnectionManager, TenantRegistryService } from "@law/core";
+import { PlatformPrismaService } from "@law/core";
 
 @Controller("users/me")
 @UseGuards(CsrfOriginGuard, AuthGuard)
 export class UserSettingsController {
   constructor(
     private readonly settings: UserSettingsService,
-    private readonly tenantRegistry: TenantRegistryService,
-    private readonly connectionManager: TenantConnectionManager,
+    private readonly prisma: PlatformPrismaService,
   ) {}
 
   @Get("settings")
@@ -35,17 +34,16 @@ export class UserSettingsController {
   }
 
   @Delete("conversations")
-  async clearConversationHistory(@Req() request: AuthenticatedRequest) {
-    const workspaceId = request.auth!.activeWorkspaceId;
+  async clearConversationHistory(
+    @Req()
+    request: AuthenticatedRequest & {
+      workspace?: { workspaceId: string };
+    },
+  ) {
+    const workspaceId = request.workspace?.workspaceId;
     if (!workspaceId) return { deleted: 0 };
 
-    const { tenant } =
-      await this.tenantRegistry.resolveTenantForWorkspace(workspaceId);
-    const tenantPrisma = this.connectionManager.getTenantClient(
-      tenant.id,
-      tenant.databaseName!,
-    );
-    const result = await tenantPrisma.chatSession.updateMany({
+    const result = await this.prisma.chatSession.updateMany({
       where: {
         createdByUserId: request.auth!.user.id,
         workspaceId,

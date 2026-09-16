@@ -24,9 +24,7 @@ export class AuthState {
   readonly session = signal<AuthSessionResponse | null>(null);
   readonly activeWorkspace = computed<ActiveWorkspace | null>(() => {
     const session = this.session();
-    const membership = session?.memberships.find(
-      (item) => item.workspaceId === session.activeWorkspaceId,
-    );
+    const membership = session?.memberships[0];
 
     return session && membership
       ? {
@@ -66,14 +64,6 @@ export class AuthState {
         void this.router.navigate(["/login"]);
       }),
     );
-  }
-
-  setActiveWorkspace(workspaceId: string): void {
-    this.api.selectActiveWorkspace({ workspaceId }).subscribe({
-      next: (session) => {
-        this.session.set(session);
-      },
-    });
   }
 }
 

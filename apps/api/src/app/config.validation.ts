@@ -23,23 +23,6 @@ export function validateEnvironment(
   } catch {
     throw new Error("AUTH_FRONTEND_ORIGIN must be a valid URL");
   }
-  const tenantDatabaseUrl = String(environment.TENANT_DATABASE_URL ?? "");
-  const tenantAdminDatabaseUrl = String(
-    environment.TENANT_ADMIN_DATABASE_URL ?? tenantDatabaseUrl,
-  );
-  if (!tenantDatabaseUrl || !tenantAdminDatabaseUrl) {
-    throw new Error(
-      "TENANT_DATABASE_URL and TENANT_ADMIN_DATABASE_URL are required",
-    );
-  }
-  try {
-    new URL(tenantDatabaseUrl);
-    new URL(tenantAdminDatabaseUrl);
-  } catch {
-    throw new Error(
-      "TENANT_DATABASE_URL and TENANT_ADMIN_DATABASE_URL must be valid URLs",
-    );
-  }
   if (
     nodeEnv === "production" &&
     (!environment.SMTP_HOST || !environment.SMTP_FROM)
@@ -103,8 +86,6 @@ export function validateEnvironment(
     OPENROUTER_MODEL: String(
       environment.OPENROUTER_MODEL ?? "openai/gpt-4o-mini",
     ),
-    TENANT_DATABASE_URL: tenantDatabaseUrl,
-    TENANT_ADMIN_DATABASE_URL: tenantAdminDatabaseUrl,
     CHAT_UPLOAD_DIR: String(
       environment.CHAT_UPLOAD_DIR ?? "./tmp/chat-uploads",
     ),

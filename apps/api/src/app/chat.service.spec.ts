@@ -1,6 +1,5 @@
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { FakeChatModelProvider } from "@law/llm";
-import { TenantContextService } from "@law/core";
 import type { ChatStreamEvent } from "@law/api-interfaces";
 import {
   ChatEventBus,
@@ -24,8 +23,6 @@ const fakeBrief = {
   warnings: [],
 };
 
-let currentTenantPrisma: unknown;
-
 function prismaMock() {
   const workflowJobs = new Map<string, Record<string, unknown>>();
   const briefExtractionResults = new Map<string, Record<string, unknown>>();
@@ -41,20 +38,22 @@ function prismaMock() {
       update: jest.fn(),
     },
     chatMessage: {
-      create: jest.fn(async ({
-        data,
-      }: {
-        data: Record<string, unknown>;
-      }): Promise<Record<string, unknown>> => {
-        messageSeq += 1;
-        return {
-          id: `message-${messageSeq}`,
-          triageDecision: null,
-          metadata: null,
-          createdAt: now,
-          ...data,
-        };
-      }),
+      create: jest.fn(
+        async ({
+          data,
+        }: {
+          data: Record<string, unknown>;
+        }): Promise<Record<string, unknown>> => {
+          messageSeq += 1;
+          return {
+            id: `message-${messageSeq}`,
+            triageDecision: null,
+            metadata: null,
+            createdAt: now,
+            ...data,
+          };
+        },
+      ),
       update: jest.fn(
         async ({
           where,
@@ -142,7 +141,6 @@ function prismaMock() {
       create: jest.fn(),
     },
   };
-  currentTenantPrisma = prisma;
   return prisma;
 }
 
@@ -159,12 +157,6 @@ const session = {
 };
 
 describe("ChatService", () => {
-  beforeEach(() => {
-    jest
-      .spyOn(TenantContextService, "current", "get")
-      .mockImplementation(() => ({ prisma: currentTenantPrisma }) as never);
-  });
-
   afterEach(() => jest.restoreAllMocks());
 
   it("returns 404 for sessions outside the workspace", async () => {
@@ -401,7 +393,9 @@ describe("ChatService", () => {
 
     const events = new ChatEventBus();
     const attachmentEvents: ChatStreamEvent[] = [];
-    events.stream(session.id).subscribe((event) => attachmentEvents.push(event));
+    events
+      .stream(session.id)
+      .subscribe((event) => attachmentEvents.push(event));
     const service = new ChatService(
       prisma as never,
       events,
