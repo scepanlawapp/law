@@ -1,4 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
@@ -107,6 +108,7 @@ export class DashboardComponent {
   private readonly authState = inject(AuthState);
   private readonly chat = inject(ChatApiClient);
   private readonly router = inject(Router);
+  private readonly destroyRef = inject(DestroyRef);
 
   protected readonly promptForm = new FormGroup({
     prompt: new FormControl("", { nonNullable: true }),
@@ -128,23 +130,29 @@ export class DashboardComponent {
 
     this.sendingPrompt.set(true);
     this.promptError.set("");
-    this.chat.createSession({ workspaceId }).subscribe({
-      next: (session) => {
-        this.chat.sendMessage(workspaceId, session.id, content).subscribe({
-          next: () => {
-            this.router.navigateByUrl("/assistant");
-          },
-          error: () => {
-            this.sendingPrompt.set(false);
-            this.promptError.set("Unable to send that message.");
-          },
-        });
-      },
-      error: () => {
-        this.sendingPrompt.set(false);
-        this.promptError.set("Unable to create a conversation.");
-      },
-    });
+    this.chat
+      .createSession({ workspaceId })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (session) => {
+          this.chat
+            .sendMessage(workspaceId, session.id, content)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: () => {
+                this.router.navigateByUrl("/assistant");
+              },
+              error: () => {
+                this.sendingPrompt.set(false);
+                this.promptError.set("Unable to send that message.");
+              },
+            });
+        },
+        error: () => {
+          this.sendingPrompt.set(false);
+          this.promptError.set("Unable to create a conversation.");
+        },
+      });
   }
 
   translateStatus(status: CaseStatus): string {

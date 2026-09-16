@@ -17,6 +17,7 @@ import {
   HlmTr,
 } from "@spartan-ng/helm/table";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 
 @Component({
   selector: "app-clients",
@@ -42,6 +43,7 @@ export class ClientsComponent {
   private readonly references = inject(ReferencesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly clientDialog = inject(ClientFormDialogService);
   readonly search = new FormControl("", { nonNullable: true });
   readonly items = signal<ClientSummary[]>([]);
   readonly page = signal(1);
@@ -52,19 +54,22 @@ export class ClientsComponent {
   private sequence = 0;
 
   constructor() {
-    this.references.users().subscribe({
-      next: (users) =>
-        this.users.set(
-          new Map(
-            users.map((membership) => [
-              membership.userId,
-              [membership.user.firstName, membership.user.lastName]
-                .filter(Boolean)
-                .join(" ") || membership.user.email,
-            ]),
+    this.references
+      .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (users) =>
+          this.users.set(
+            new Map(
+              users.map((membership) => [
+                membership.userId,
+                [membership.user.firstName, membership.user.lastName]
+                  .filter(Boolean)
+                  .join(" ") || membership.user.email,
+              ]),
+            ),
           ),
-        ),
-    });
+      });
     this.search.valueChanges
       .pipe(
         startWith(this.search.value),
@@ -101,12 +106,14 @@ export class ClientsComponent {
 
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.load(this.search.value, page).subscribe({
-      error: () => {
-        this.loading.set(false);
-        this.error.set(true);
-      },
-    });
+    this.load(this.search.value, page)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          this.loading.set(false);
+          this.error.set(true);
+        },
+      });
   }
 
   retry(): void {
@@ -117,5 +124,15 @@ export class ClientsComponent {
   }
   openClient(clientId: string): void {
     this.router.navigate(["/clients", clientId]);
+  }
+
+  createClient(): void {
+    this.clientDialog
+      .create()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((client) => {
+        if (!client) return;
+        this.router.navigate(["/clients", client.id]);
+      });
   }
 }

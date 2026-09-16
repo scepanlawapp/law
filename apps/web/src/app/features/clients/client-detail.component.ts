@@ -1,5 +1,6 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { RouterLink, ActivatedRoute } from "@angular/router";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ClientDetail } from "@law/api-interfaces";
 import {
   ClientsApiClient,
@@ -18,6 +19,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 
 @Component({
   selector: "app-client-detail",
@@ -35,10 +37,12 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 })
 export class ClientDetailComponent {
   private readonly api = inject(ClientsApiClient);
+  private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly clientDialog = inject(ClientFormDialogService);
   readonly id = this.route.snapshot.paramMap.get("clientId")!;
   readonly client = signal<ClientDetail | null>(null);
   readonly loading = signal(true);
@@ -54,33 +58,51 @@ export class ClientDetailComponent {
   }
   reload(): void {
     this.loading.set(true);
-    this.api.get(this.id).subscribe({
-      next: (client) => {
-        this.client.set(client);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.loading.set(false);
-        this.toast.error(this.local.translate("clients.loadError"));
-      },
-    });
+    this.api
+      .get(this.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (client) => {
+          this.client.set(client);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.toast.error(this.local.translate("clients.loadError"));
+        },
+      });
+  }
+  editClient(): void {
+    this.clientDialog
+      .edit(this.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((updated) => {
+        if (!updated) return;
+        this.reload();
+        this.load("addresses");
+        this.load("contacts");
+      });
   }
   load(tab: string): void {
     if (tab === "cases")
       this.api
         .listCases(this.id, { page: 1, pageSize: 20 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({ next: (result) => this.clientCases.set(result) });
     if (tab === "activities")
       this.api
         .listActivities(this.id, { page: 1, pageSize: 20 })
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({ next: (result) => this.activities.set(result.items) });
     if (tab === "contacts")
       this.api
         .listContacts(this.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({ next: (items) => this.contacts.set(items) });
     if (tab === "addresses")
       this.api
         .listAddresses(this.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({ next: (items) => this.addresses.set(items) });
   }
   archive(): void {
@@ -90,26 +112,34 @@ export class ClientDetailComponent {
         message: this.local.translate("clients.archiveConfirm"),
         variant: "danger",
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((ok) => {
         if (ok)
-          this.api.archive(this.id).subscribe({
-            next: () => {
-              this.toast.success(this.local.translate("clients.saved"));
-              this.reload();
-            },
-            error: () =>
-              this.toast.error(this.local.translate("clients.saveError")),
-          });
+          this.api
+            .archive(this.id)
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({
+              next: () => {
+                this.toast.success(this.local.translate("clients.saved"));
+                this.reload();
+              },
+              error: () =>
+                this.toast.error(this.local.translate("clients.saveError")),
+            });
       });
   }
   activate(): void {
-    this.api.activate(this.id).subscribe({
-      next: () => {
-        this.toast.success(this.local.translate("clients.saved"));
-        this.reload();
-      },
-      error: () => this.toast.error(this.local.translate("clients.saveError")),
-    });
+    this.api
+      .activate(this.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.toast.success(this.local.translate("clients.saved"));
+          this.reload();
+        },
+        error: () =>
+          this.toast.error(this.local.translate("clients.saveError")),
+      });
   }
   deactivateContact(contactId: string): void {
     this.confirm
@@ -118,10 +148,12 @@ export class ClientDetailComponent {
         message: this.local.translate("clients.deactivateConfirm"),
         variant: "danger",
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((ok) => {
         if (ok)
           this.api
             .deactivateContact(this.id, contactId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({ next: () => this.load("contacts") });
       });
   }
@@ -132,10 +164,12 @@ export class ClientDetailComponent {
         message: this.local.translate("clients.removeConfirm"),
         variant: "danger",
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((ok) => {
         if (ok)
           this.api
             .removeAddress(this.id, addressId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({ next: () => this.load("addresses") });
       });
   }

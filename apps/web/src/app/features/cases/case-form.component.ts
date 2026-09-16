@@ -1,4 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   FormControl,
   FormGroup,
@@ -7,7 +8,7 @@ import {
 } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { HlmDialogService } from "@spartan-ng/helm/dialog";
-import { CasePriority, CaseStatus, ClientDetail } from "@law/api-interfaces";
+import { CasePriority, CaseStatus } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import {
   CaseRequest,
@@ -23,7 +24,7 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
-import { ClientFormComponent } from "../clients/client-form.component";
+import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
 import { ReferenceDataService } from "../../shared/reference-data.service";
 import { ReferenceCreateDialogComponent } from "../../shared/ui/reference-create-dialog/reference-create-dialog.component";
 import {
@@ -66,6 +67,8 @@ export class CaseFormComponent {
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly dialog = inject(HlmDialogService);
+  private readonly clientDialog = inject(ClientFormDialogService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly caseId = this.route.snapshot.paramMap.get("caseId");
   readonly saving = signal(false);
   readonly loading = signal(!!this.caseId);
@@ -137,6 +140,7 @@ export class CaseFormComponent {
   constructor() {
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) =>
           this.clients.set(
@@ -150,6 +154,7 @@ export class CaseFormComponent {
     this.referenceData.loadPracticeAreas();
     this.refs
       .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) =>
           this.users.set(
@@ -163,36 +168,41 @@ export class CaseFormComponent {
           ),
       });
     if (!this.caseId) {
-      const format =
-        this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
-      this.api.nextNumber(format).subscribe({
-        next: (value) => this.form.controls.caseNumber.setValue(value.caseNumber),
-      });
+      const format = this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
+      this.api
+        .nextNumber(format)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (value) =>
+            this.form.controls.caseNumber.setValue(value.caseNumber),
+        });
     }
     if (this.caseId)
-      this.api.get(this.caseId).subscribe({
-        next: (item) => {
-          this.form.patchValue({
-            ...item,
-            openedDate: toDateInputValue(item.openedDate),
-          });
-          this.form.controls.clientId.disable();
-          this.form.controls.responsibleUserId.disable();
-          this.loading.set(false);
-        },
-        error: () => {
-          this.loading.set(false);
-          this.toast.error(this.local.translate("cases.loadError"));
-        },
-      });
+      this.api
+        .get(this.caseId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (item) => {
+            this.form.patchValue({
+              ...item,
+              openedDate: toDateInputValue(item.openedDate),
+            });
+            this.form.controls.clientId.disable();
+            this.form.controls.responsibleUserId.disable();
+            this.loading.set(false);
+          },
+          error: () => {
+            this.loading.set(false);
+            this.toast.error(this.local.translate("cases.loadError"));
+          },
+        });
   }
 
   openClientDialog(): void {
-    this.dialog
-      .open<ClientDetail>(ClientFormComponent, {
-        contentClass: "sm:max-w-2xl",
-      })
-      .closed$.subscribe((client) => {
+    this.clientDialog
+      .create()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((client) => {
         if (!client) return;
         this.clients.update((items) => [
           ...items,
@@ -208,11 +218,16 @@ export class CaseFormComponent {
       "cases.createTypeDescription",
       "cases.type",
       (name) =>
-        this.referenceData.createCaseType(name).subscribe({
-          next: (item) => this.form.controls.caseTypeId.setValue(item.id),
-          error: () =>
-            this.toast.error(this.local.translate("cases.referenceSaveError")),
-        }),
+        this.referenceData
+          .createCaseType(name)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (item) => this.form.controls.caseTypeId.setValue(item.id),
+            error: () =>
+              this.toast.error(
+                this.local.translate("cases.referenceSaveError"),
+              ),
+          }),
     );
   }
 
@@ -222,11 +237,16 @@ export class CaseFormComponent {
       "cases.createAreaDescription",
       "cases.area",
       (name) =>
-        this.referenceData.createPracticeArea(name).subscribe({
-          next: (item) => this.form.controls.practiceAreaId.setValue(item.id),
-          error: () =>
-            this.toast.error(this.local.translate("cases.referenceSaveError")),
-        }),
+        this.referenceData
+          .createPracticeArea(name)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (item) => this.form.controls.practiceAreaId.setValue(item.id),
+            error: () =>
+              this.toast.error(
+                this.local.translate("cases.referenceSaveError"),
+              ),
+          }),
     );
   }
 
@@ -241,7 +261,8 @@ export class CaseFormComponent {
         contentClass: "sm:max-w-md",
         context: { title, description, nameLabel },
       })
-      .closed$.subscribe((name) => {
+      .closed$.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((name) => {
         if (!name?.trim()) return;
         create(name.trim());
       });
@@ -271,7 +292,7 @@ export class CaseFormComponent {
     const action = this.caseId
       ? this.api.update(this.caseId, request)
       : this.api.create(request);
-    action.subscribe({
+    action.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (item) => {
         this.toast.success(this.local.translate("cases.saved"));
         this.router.navigate(["/cases", item.id]);

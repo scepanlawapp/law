@@ -55,13 +55,16 @@ Prisma Database ORM / File Storage / AI Workflows
   - Use `signal()` for state management.
   - Use `computed()` for derived state.
   - Use `effect()` strictly for side-effects.
+  - Destroy subscriptions and effects properly to avoid memory leaks.
   - Use `toSignal()` and `toObservable()` when bridging RxJS streams (e.g., HTTP requests).
   - Avoid unnecessary RxJS state subjects when Signals provide a cleaner API.
 - **Dependency Injection:** Use the functional `inject()` syntax over constructor injection for cleaner composition.
 - **Control Flow:** Use modern Angular control flow syntax (`@if`, `@for`, `@switch`, `@defer`) exclusively. Do NOT use `*ngIf` or `*ngFor`.
 - **Forms:** Use typed Reactive Forms for complex legal forms and document inputs.
+- **Loading Spinner:** When we are waiting for an asynchronous operation to complete (e.g., HTTP request), display a loading spinner using the `HlmSpinner` component to provide visual feedback to the user.
 - **Select value/label mapping:** For Spartan UI selects, do not display the raw stored value in the selected trigger. Keep option objects as `{ value, label }` with the translation key in the label field, and resolve the selected display through `itemToString` / `createSelectItemToString` from the shared utility. The selected text must always map back to the matching option label, not the underlying raw value.
   - Example pattern:
+
     ```ts
     readonly themeOptions = [
       { value: "SYSTEM", label: "settings.system" },
@@ -73,6 +76,7 @@ Prisma Database ORM / File Storage / AI Workflows
       (key) => this.localization.translate(key),
     );
     ```
+
   - Shared helper lives in [apps/web/src/app/shared/utils.ts](apps/web/src/app/shared/utils.ts).
   - When the select is rendered in HTML, bind `[itemToString]` to that helper and keep the trigger as `<hlm-select-value />`.
 
@@ -113,8 +117,6 @@ Users can select their preferred UI accent color: **blue**, **turquoise** (tirki
 Accent color switching is driven by the `data-accent` attribute on the `<html>` root tag:
 
 - `<html data-accent="blue">`
-- `<html data-accent="turquoise">`
-- `<html data-accent="coral">`
 - `<html data-accent="purple">`
 
 Changing `data-accent` overrides the `--primary`, `--primary-foreground`, `--ring`, and `--accent` CSS custom properties globally.

@@ -1,4 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { KeyValuePipe } from "@angular/common";
 import {
   FormControl,
@@ -58,6 +59,7 @@ export class CaseDetailComponent {
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly id = this.route.snapshot.paramMap.get("caseId")!;
   readonly item = signal<CaseDetail | null>(null);
   readonly loading = signal(true);
@@ -107,49 +109,57 @@ export class CaseDetailComponent {
     isPrimary: new FormControl(false, { nonNullable: true }),
   });
   constructor() {
-    this.refs.users().subscribe({
-      next: (items) =>
-        this.users.set(
-          new Map(
-            items.map((item) => [
-              item.userId,
-              [item.user.firstName, item.user.lastName]
-                .filter(Boolean)
-                .join(" ") || item.user.email,
-            ]),
+    this.refs
+      .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) =>
+          this.users.set(
+            new Map(
+              items.map((item) => [
+                item.userId,
+                [item.user.firstName, item.user.lastName]
+                  .filter(Boolean)
+                  .join(" ") || item.user.email,
+              ]),
+            ),
           ),
-        ),
-    });
+      });
     this.reload();
   }
   reload(): void {
     this.loading.set(true);
-    this.api.get(this.id).subscribe({
-      next: (item) => {
-        this.item.set(item);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.loading.set(false);
-        this.toast.error(this.local.translate("cases.loadError"));
-      },
-    });
+    this.api
+      .get(this.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (item) => {
+          this.item.set(item);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.loading.set(false);
+          this.toast.error(this.local.translate("cases.loadError"));
+        },
+      });
   }
   load(tab: string): void {
     if (tab === "activities")
       this.api
         .listActivities(this.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({ next: (items) => this.activities.set(items) });
     if (tab === "responsibilities")
       this.api
         .listResponsibilities(this.id)
+        .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({ next: (items) => this.responsibilities.set(items) });
   }
   lifecycle(
     action: "activate" | "putOnHold" | "resume" | "reopen" | "archive",
   ): void {
     const call = this.api[action](this.id);
-    call.subscribe({
+    call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.toast.success(this.local.translate("cases.saved"));
         this.reload();
@@ -164,6 +174,7 @@ export class CaseDetailComponent {
         message: this.local.translate("cases.archiveConfirm"),
         variant: "danger",
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((ok) => {
         if (ok) this.lifecycle("archive");
       });
@@ -179,6 +190,7 @@ export class CaseDetailComponent {
         closedDate: value.closedDate,
         closingNote: value.closingNote ?? undefined,
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.showCloseForm.set(false);
@@ -200,6 +212,7 @@ export class CaseDetailComponent {
         ...value,
         description: value.description ?? undefined,
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.activityForm.reset({
@@ -223,6 +236,7 @@ export class CaseDetailComponent {
         ...value,
         startedAt: value.startedAt ?? undefined,
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.responsibilityForm.reset({
@@ -236,12 +250,15 @@ export class CaseDetailComponent {
       });
   }
   setPrimary(responsibilityId: string): void {
-    this.api.setPrimary(this.id, responsibilityId).subscribe({
-      next: () => {
-        this.load("responsibilities");
-        this.reload();
-      },
-    });
+    this.api
+      .setPrimary(this.id, responsibilityId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.load("responsibilities");
+          this.reload();
+        },
+      });
   }
   end(responsibilityId: string): void {
     this.confirm
@@ -250,10 +267,12 @@ export class CaseDetailComponent {
         message: this.local.translate("cases.endConfirm"),
         variant: "danger",
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((ok) => {
         if (ok)
           this.api
             .endResponsibility(this.id, responsibilityId)
+            .pipe(takeUntilDestroyed(this.destroyRef))
             .subscribe({ next: () => this.load("responsibilities") });
       });
   }

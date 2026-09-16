@@ -78,14 +78,6 @@ enum ClientStatus {
   PROSPECT
 }
 
-enum ClientAddressType {
-  MAIN
-  BILLING
-  REGISTERED
-  MAILING
-  OTHER
-}
-
 enum ClientContactStatus {
   ACTIVE
   INACTIVE
@@ -197,6 +189,10 @@ model Client {
   firstName         String?
   lastName          String?
   organizationName  String?
+  isDomestic        Boolean        @default(true)
+  jmbg              String?
+  taxNumber         String?
+  registrationNumber String?
   status            ClientStatus   @default(ACTIVE)
   email             String?
   phone             String?
@@ -205,13 +201,12 @@ model Client {
   notes             String?
   customFields      Json?
   responsibleUserId String?
-  primaryAddressId  String?        @unique
   createdByUserId   String
   updatedByUserId   String
   createdAt         DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
   addresses         ClientAddress[] @relation("ClientAddresses")
-  primaryAddress    ClientAddress? @relation("ClientPrimaryAddress", fields: [primaryAddressId], references: [id], onDelete: SetNull)
+  identificationDocuments ClientIdentificationDocument[]
   contacts          ClientContact[]
   activities        ClientActivity[]
   cases             Case[]
@@ -226,20 +221,35 @@ model Client {
 }
 
 model ClientAddress {
-  id               String            @id @default(uuid())
+  id               String   @id @default(uuid())
   clientId         String
-  type             ClientAddressType @default(MAIN)
-  street           String?
+  addressType      String
+  street           String
   streetAdditional String?
-  city             String?
-  postalCode       String?
+  city             String
+  postalCode       String
   stateOrRegion    String?
-  country          String?
-  isPrimary        Boolean           @default(false)
-  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
-  client           Client            @relation("ClientAddresses", fields: [clientId], references: [id], onDelete: Cascade)
-  primaryForClient Client?           @relation("ClientPrimaryAddress")
+  country          String
+  note             String?
+  isPrimary        Boolean  @default(false)
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+  client           Client   @relation("ClientAddresses", fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([clientId, createdAt])
+}
+
+model ClientIdentificationDocument {
+  id          String   @id @default(uuid())
+  clientId    String
+  type        String
+  number      String
+  issuedDate  DateTime? @db.Date
+  expiredDate DateTime? @db.Date
+  country     String
+  createdAt   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime @updatedAt @db.Timestamptz(3)
+  client      Client   @relation(fields: [clientId], references: [id], onDelete: Cascade)
 
   @@index([clientId, createdAt])
 }

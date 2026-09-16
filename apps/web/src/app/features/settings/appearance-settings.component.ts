@@ -1,5 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
-import { toSignal } from "@angular/core/rxjs-interop";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import {
   UserSettingsAccent,
@@ -53,6 +53,7 @@ export class AppearanceSettingsComponent {
   private readonly localization = inject(LocalizationService);
   private readonly theme = inject(ThemeService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly themeOptions: ReadonlyArray<SelectOption<UserSettingsTheme>> = [
@@ -97,12 +98,17 @@ export class AppearanceSettingsComponent {
     initialValue: this.form.controls.accentColor.value,
   });
   constructor() {
-    this.form.controls.accentColor.valueChanges.subscribe((accentColor) => {
+    this.form.controls.accentColor.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((accentColor) => {
       if (accentColor !== "GOLD") {
         this.form.controls.finish.setValue(DEFAULT_FINISH);
       }
     });
-    this.api.get().subscribe({
+    this.api
+      .get()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (s) => {
         this.form.patchValue({
           ...s.preferences,
@@ -122,7 +128,10 @@ export class AppearanceSettingsComponent {
   }
   save(): void {
     this.saving.set(true);
-    this.api.update({ preferences: this.form.getRawValue() }).subscribe({
+    this.api
+      .update({ preferences: this.form.getRawValue() })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: async () => {
         await this.localization.setLanguage(this.form.controls.language.value);
         this.theme.apply(

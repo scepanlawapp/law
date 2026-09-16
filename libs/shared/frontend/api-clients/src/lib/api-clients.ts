@@ -457,6 +457,10 @@ export interface ClientRequest {
   lastName?: string;
   displayName?: string;
   organizationName?: string;
+  isDomestic?: boolean;
+  jmbg?: string;
+  taxNumber?: string;
+  registrationNumber?: string;
   email?: string;
   phone?: string;
   website?: string;
@@ -491,14 +495,35 @@ export interface ActivityRequest {
 }
 
 export interface ClientAddressRequest {
-  type?: string;
-  street?: string;
+  addressType: string;
+  street: string;
   streetAdditional?: string;
-  city?: string;
-  postalCode?: string;
+  city: string;
+  postalCode: string;
   stateOrRegion?: string;
-  country?: string;
+  country: string;
+  note?: string;
   isPrimary?: boolean;
+}
+
+export interface ClientIdentificationDocumentRequest {
+  type: string;
+  number: string;
+  issuedDate?: string;
+  expiredDate?: string;
+  country: string;
+}
+
+export interface ClientIdentificationDocument {
+  id: string;
+  clientId: string;
+  type: string;
+  number: string;
+  country: string;
+  issuedDate: string | null;
+  expiredDate: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ClientContactRequest {
@@ -648,6 +673,52 @@ export class ClientsApiClient {
   listAddresses(clientId: string): Observable<ClientAddress[]> {
     return this.http.get<ClientAddress[]>(
       this.endpoint(`/clients/${clientId}/addresses`),
+      { withCredentials: true },
+    );
+  }
+
+  listIdentificationDocuments(
+    clientId: string,
+  ): Observable<ClientIdentificationDocument[]> {
+    return this.http.get<ClientIdentificationDocument[]>(
+      this.endpoint(`/clients/${clientId}/identification-documents`),
+      { withCredentials: true },
+    );
+  }
+
+  createIdentificationDocument(
+    clientId: string,
+    request: ClientIdentificationDocumentRequest,
+  ): Observable<ClientIdentificationDocument> {
+    return this.http.post<ClientIdentificationDocument>(
+      this.endpoint(`/clients/${clientId}/identification-documents`),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  updateIdentificationDocument(
+    clientId: string,
+    documentId: string,
+    request: ClientIdentificationDocumentRequest,
+  ): Observable<ClientIdentificationDocument> {
+    return this.http.patch<ClientIdentificationDocument>(
+      this.endpoint(
+        `/clients/${clientId}/identification-documents/${documentId}`,
+      ),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  removeIdentificationDocument(
+    clientId: string,
+    documentId: string,
+  ): Observable<void> {
+    return this.http.delete<void>(
+      this.endpoint(
+        `/clients/${clientId}/identification-documents/${documentId}`,
+      ),
       { withCredentials: true },
     );
   }

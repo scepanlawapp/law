@@ -12,6 +12,7 @@ import {
   inject,
   signal,
 } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
@@ -292,7 +293,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected canSend(): boolean {
     return Boolean(
       this.composerForm.controls.draft.value.trim() ||
-      this.pendingFiles().length,
+        this.pendingFiles().length,
     );
   }
 
@@ -372,7 +373,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         page,
         search: this.sessionSearch(),
       })
-      .pipe(finalize(() => this.loadingSessions.set(false)))
+      .pipe(
+        finalize(() => this.loadingSessions.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (response) => {
           this.sessions.update((sessions) =>
@@ -413,16 +417,19 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
 
-    this.chat.createSession({ workspaceId }).subscribe({
-      next: (session) => {
-        this.sessionPage.set(1);
-        this.sessions.set([]);
-        this.loadSessions();
-        this.selectSession(session.id);
-        this.focusDraftTextarea();
-      },
-      error: () => this.error.set("Unable to create a conversation."),
-    });
+    this.chat
+      .createSession({ workspaceId })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (session) => {
+          this.sessionPage.set(1);
+          this.sessions.set([]);
+          this.loadSessions();
+          this.selectSession(session.id);
+          this.focusDraftTextarea();
+        },
+        error: () => this.error.set("Unable to create a conversation."),
+      });
   }
 
   protected selectSession(sessionId: string): void {
@@ -433,24 +440,30 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.conversationSheetOpen.set(false);
     this.error.set("");
     this.workflowState.set({});
-    this.chat.getSession(workspaceId, sessionId).subscribe({
-      next: (detail) => {
-        if (this.selectedSessionId() !== sessionId) return;
-        this.messages.set(detail.messages);
-        this.workflowState.set(buildWorkflowActivityState(detail));
-        this.scheduleMessagesScroll();
-        const latestDraft = detail.drafts[detail.drafts.length - 1] ?? null;
-        this.applyDraft(latestDraft);
-      },
-      error: () => this.error.set("Unable to load this conversation."),
-    });
+    this.chat
+      .getSession(workspaceId, sessionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (detail) => {
+          if (this.selectedSessionId() !== sessionId) return;
+          this.messages.set(detail.messages);
+          this.workflowState.set(buildWorkflowActivityState(detail));
+          this.scheduleMessagesScroll();
+          const latestDraft = detail.drafts[detail.drafts.length - 1] ?? null;
+          this.applyDraft(latestDraft);
+        },
+        error: () => this.error.set("Unable to load this conversation."),
+      });
   }
 
   protected loadDrafts(workspaceId: string, sessionId: string): void {
-    this.chat.listDrafts(workspaceId, sessionId).subscribe({
-      next: (drafts) => this.applyDraft(drafts[0] ?? null),
-      error: () => this.draft.set(null),
-    });
+    this.chat
+      .listDrafts(workspaceId, sessionId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (drafts) => this.applyDraft(drafts[0] ?? null),
+        error: () => this.draft.set(null),
+      });
   }
 
   private applyDraft(draft: DraftResultResponse | null): void {
@@ -470,14 +483,17 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const activeDraft = this.draft();
     if (!workspaceId || !activeDraft) return;
 
-    this.chat.getDraft(workspaceId, activeDraft.jobId, script).subscribe({
-      next: (draft) => {
-        this.draft.set(draft);
-        this.draftText.set(draft.documentText);
-        this.draftScript.set(script);
-      },
-      error: () => this.error.set("Unable to change document script."),
-    });
+    this.chat
+      .getDraft(workspaceId, activeDraft.jobId, script)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (draft) => {
+          this.draft.set(draft);
+          this.draftText.set(draft.documentText);
+          this.draftScript.set(script);
+        },
+        error: () => this.error.set("Unable to change document script."),
+      });
   }
 
   protected exportDraftDocx(): void {
@@ -500,6 +516,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
     this.chat
       .updateDraft(workspaceId, activeDraft.id, this.draftText())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => {
           this.draft.set(draft);
@@ -516,6 +533,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
     this.chat
       .approveDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
         error: () => this.error.set("Unable to approve this draft."),
@@ -529,6 +547,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
     this.chat
       .rejectDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
         error: () => this.error.set("Unable to reject this draft."),
@@ -542,6 +561,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
     this.chat
       .requestChangesDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
         error: () => this.error.set("Unable to request changes."),
@@ -552,25 +572,28 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     if (!workspaceId || this.retryingJobId()) return;
     this.retryingJobId.set(jobId);
-    this.chat.retryJob(workspaceId, jobId).subscribe({
-      next: (job) => {
-        this.retryingJobId.set(null);
-        this.handleEvent({
-          type: "job.queued",
-          workspaceId,
-          sessionId: job.sessionId,
-          correlationId: job.correlationId,
-          createdAt: job.createdAt,
-          job,
-        });
-      },
-      error: () => {
-        this.retryingJobId.set(null);
-        this.toast.error(
-          this.localization.translate("assistant.workflow.retryError"),
-        );
-      },
-    });
+    this.chat
+      .retryJob(workspaceId, jobId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (job) => {
+          this.retryingJobId.set(null);
+          this.handleEvent({
+            type: "job.queued",
+            workspaceId,
+            sessionId: job.sessionId,
+            correlationId: job.correlationId,
+            createdAt: job.createdAt,
+            job,
+          });
+        },
+        error: () => {
+          this.retryingJobId.set(null);
+          this.toast.error(
+            this.localization.translate("assistant.workflow.retryError"),
+          );
+        },
+      });
   }
 
   protected updateMessageFeedback(
@@ -586,6 +609,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         message.id,
         message.feedback === feedback ? null : feedback,
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (updated) => {
           this.feedbackMessageId.set(null);
@@ -615,25 +639,28 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     if (!workspaceId || this.regeneratingMessageId()) return;
     this.regeneratingMessageId.set(message.id);
-    this.chat.regenerateAnswer(workspaceId, message.id).subscribe({
-      next: (job) => {
-        this.regeneratingMessageId.set(null);
-        this.handleEvent({
-          type: "job.queued",
-          workspaceId,
-          sessionId: job.sessionId,
-          correlationId: job.correlationId,
-          createdAt: job.createdAt,
-          job,
-        });
-      },
-      error: () => {
-        this.regeneratingMessageId.set(null);
-        this.toast.error(
-          this.localization.translate("assistant.regenerateError"),
-        );
-      },
-    });
+    this.chat
+      .regenerateAnswer(workspaceId, message.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (job) => {
+          this.regeneratingMessageId.set(null);
+          this.handleEvent({
+            type: "job.queued",
+            workspaceId,
+            sessionId: job.sessionId,
+            correlationId: job.correlationId,
+            createdAt: job.createdAt,
+            job,
+          });
+        },
+        error: () => {
+          this.regeneratingMessageId.set(null);
+          this.toast.error(
+            this.localization.translate("assistant.regenerateError"),
+          );
+        },
+      });
   }
 
   protected deleteSession(sessionId: string): void {
@@ -649,38 +676,44 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         cancelText: this.localization.translate("settings.cancel"),
         variant: "danger",
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((confirmed) => {
         if (!confirmed) return;
 
         const workspaceId = this.workspaceId();
         if (!workspaceId) return;
 
-        this.chat.deleteSession(workspaceId, sessionId).subscribe({
-          next: () => {
-            this.sessions.update((items) =>
-              items.filter((item) => item.id !== sessionId),
-            );
-            this.toast.success(
-              this.localization.translate("assistant.conversationDeleted"),
-            );
-            if (this.selectedSessionId() === sessionId) {
-              this.selectedSessionId.set(null);
-              this.messages.set([]);
-              this.draft.set(null);
-              this.loadedDraftId = null;
-              this.draftReviewExpanded.set(false);
-              this.workflowState.set({});
-              this.source?.close();
-              this.source = null;
-              this.focusDraftTextarea();
-            }
-          },
-          error: () => {
-            this.toast.error(
-              this.localization.translate("assistant.conversationDeleteError"),
-            );
-          },
-        });
+        this.chat
+          .deleteSession(workspaceId, sessionId)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.sessions.update((items) =>
+                items.filter((item) => item.id !== sessionId),
+              );
+              this.toast.success(
+                this.localization.translate("assistant.conversationDeleted"),
+              );
+              if (this.selectedSessionId() === sessionId) {
+                this.selectedSessionId.set(null);
+                this.messages.set([]);
+                this.draft.set(null);
+                this.loadedDraftId = null;
+                this.draftReviewExpanded.set(false);
+                this.workflowState.set({});
+                this.source?.close();
+                this.source = null;
+                this.focusDraftTextarea();
+              }
+            },
+            error: () => {
+              this.toast.error(
+                this.localization.translate(
+                  "assistant.conversationDeleteError",
+                ),
+              );
+            },
+          });
       });
   }
 
@@ -750,18 +783,21 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     const hasSelectedSession = Boolean(this.selectedSessionId());
     if (!hasSelectedSession && workspaceId) {
-      this.chat.createSession({ workspaceId }).subscribe({
-        next: (session) => {
-          this.sessions.update((items) => [session, ...items]);
-          this.selectedSessionId.set(session.id);
-          this.pendingFiles.set(accepted);
-          this.error.set("");
-          this.loadSessions();
-        },
-        error: () => {
-          this.error.set("Unable to create a conversation.");
-        },
-      });
+      this.chat
+        .createSession({ workspaceId })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (session) => {
+            this.sessions.update((items) => [session, ...items]);
+            this.selectedSessionId.set(session.id);
+            this.pendingFiles.set(accepted);
+            this.error.set("");
+            this.loadSessions();
+          },
+          error: () => {
+            this.error.set("Unable to create a conversation.");
+          },
+        });
       return;
     }
 
@@ -789,17 +825,20 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       return;
     }
 
-    this.chat.createSession({ workspaceId }).subscribe({
-      next: (session) => {
-        this.sessions.update((items) => [session, ...items]);
-        this.selectedSessionId.set(session.id);
-        this.workflowState.set({});
-        this.sendMessage(session.id);
-      },
-      error: () => {
-        this.error.set("Unable to create a conversation.");
-      },
-    });
+    this.chat
+      .createSession({ workspaceId })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (session) => {
+          this.sessions.update((items) => [session, ...items]);
+          this.selectedSessionId.set(session.id);
+          this.workflowState.set({});
+          this.sendMessage(session.id);
+        },
+        error: () => {
+          this.error.set("Unable to create a conversation.");
+        },
+      });
   }
 
   private sendMessage(sessionId: string): void {
@@ -815,6 +854,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         this.composerForm.controls.draft.value,
         this.pendingFiles(),
       )
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
           this.upsertMessage(response.userMessage);
@@ -916,6 +956,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         page: 1,
         search: this.sessionSearch(),
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
           const remaining = this.sessions().filter(
@@ -936,7 +977,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.resyncing.set(true);
     this.chat
       .getSession(workspaceId, sessionId)
-      .pipe(finalize(() => this.resyncing.set(false)))
+      .pipe(
+        finalize(() => this.resyncing.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
         next: (detail) => {
           if (this.selectedSessionId() !== sessionId) return;

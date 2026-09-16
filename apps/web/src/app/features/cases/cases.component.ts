@@ -59,6 +59,7 @@ export class CasesComponent {
   constructor() {
     this.references
       .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (users) =>
           this.users.set(
@@ -74,6 +75,7 @@ export class CasesComponent {
       });
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) =>
           this.clients.set(
@@ -116,12 +118,14 @@ export class CasesComponent {
   }
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.load(this.search.value, page).subscribe({
-      error: () => {
-        this.loading.set(false);
-        this.error.set(true);
-      },
-    });
+    this.load(this.search.value, page)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          this.loading.set(false);
+          this.error.set(true);
+        },
+      });
   }
   retry(): void {
     this.changePage(this.page());

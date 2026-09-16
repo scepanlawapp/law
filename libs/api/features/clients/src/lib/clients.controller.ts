@@ -18,6 +18,7 @@ import {
   ClientAddressDto,
   ClientCaseListQueryDto,
   ClientContactDto,
+  ClientIdentificationDocumentDto,
   ClientListQueryDto,
   CreateClientDto,
   UpdateClientActivityDto,
@@ -101,6 +102,40 @@ export class ClientsController {
     @Param("addressId") addressId: string,
   ): Promise<void> {
     return this.clients.removeAddress(clientId, addressId);
+  }
+
+  @Get(":clientId/identification-documents")
+  listIdentificationDocuments(@Param("clientId") clientId: string) {
+    return this.clients.listIdentificationDocuments(clientId);
+  }
+
+  @Post(":clientId/identification-documents")
+  createIdentificationDocument(
+    @Param("clientId") clientId: string,
+    @Body() body: ClientIdentificationDocumentDto,
+  ) {
+    return this.clients.createIdentificationDocument(clientId, body);
+  }
+
+  @Patch(":clientId/identification-documents/:documentId")
+  updateIdentificationDocument(
+    @Param("clientId") clientId: string,
+    @Param("documentId") documentId: string,
+    @Body() body: ClientIdentificationDocumentDto,
+  ) {
+    return this.clients.updateIdentificationDocument(
+      clientId,
+      documentId,
+      body,
+    );
+  }
+
+  @Delete(":clientId/identification-documents/:documentId")
+  removeIdentificationDocument(
+    @Param("clientId") clientId: string,
+    @Param("documentId") documentId: string,
+  ): Promise<void> {
+    return this.clients.removeIdentificationDocument(clientId, documentId);
   }
 
   @Get(":clientId/contacts")
