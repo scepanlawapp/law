@@ -17,7 +17,7 @@ import {
   HlmTr,
 } from "@spartan-ng/helm/table";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-import { ClientFormDialogService } from "./client-form-dialog.service";
+import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 
 @Component({
   selector: "app-clients",

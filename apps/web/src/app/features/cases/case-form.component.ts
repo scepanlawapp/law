@@ -23,7 +23,7 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
-import { ClientFormDialogService } from "../clients/client-form-dialog.service";
+import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
 import { ReferenceDataService } from "../../shared/reference-data.service";
 import { ReferenceCreateDialogComponent } from "../../shared/ui/reference-create-dialog/reference-create-dialog.component";
 import {
@@ -136,38 +136,34 @@ export class CaseFormComponent {
     confidentialityLevel: new FormControl(""),
   });
   constructor() {
-    this.clientsApi
-      .list({ page: 1, pageSize: 100 })
-      .subscribe({
-        next: (response) =>
-          this.clients.set(
-            response.items.map((item) => ({
-              id: item.id,
-              name: item.displayName,
-            })),
-          ),
-      });
+    this.clientsApi.list({ page: 1, pageSize: 100 }).subscribe({
+      next: (response) =>
+        this.clients.set(
+          response.items.map((item) => ({
+            id: item.id,
+            name: item.displayName,
+          })),
+        ),
+    });
     this.referenceData.loadCaseTypes();
     this.referenceData.loadPracticeAreas();
-    this.refs
-      .users()
-      .subscribe({
-        next: (items) =>
-          this.users.set(
-            items.map((item) => ({
-              id: item.userId,
-              name:
-                [item.user.firstName, item.user.lastName]
-                  .filter(Boolean)
-                  .join(" ") || item.user.email,
-            })),
-          ),
-      });
+    this.refs.users().subscribe({
+      next: (items) =>
+        this.users.set(
+          items.map((item) => ({
+            id: item.userId,
+            name:
+              [item.user.firstName, item.user.lastName]
+                .filter(Boolean)
+                .join(" ") || item.user.email,
+          })),
+        ),
+    });
     if (!this.caseId) {
-      const format =
-        this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
+      const format = this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
       this.api.nextNumber(format).subscribe({
-        next: (value) => this.form.controls.caseNumber.setValue(value.caseNumber),
+        next: (value) =>
+          this.form.controls.caseNumber.setValue(value.caseNumber),
       });
     }
     if (this.caseId)

@@ -30,16 +30,13 @@ import { HlmLabel } from "@spartan-ng/helm/label";
 import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
-import { TranslatePipe } from "../../core/localization/translate.pipe";
-import { LocalizationService } from "../../core/localization/localization.service";
-import { ToastService } from "../../shared/ui/toast/toast.service";
-import { CountrySelectComponent } from "../../shared/ui/country-select/country-select.component";
-import { CollapsibleSectionComponent } from "../../shared/ui/collapsible-section/collapsible-section.component";
 import type { ClientFormDialogContext } from "./client-form-dialog.service";
-import {
-  createSelectItemToString,
-  type SelectOption,
-} from "../../shared/utils";
+import { LocalizationService } from "../../../core/localization/localization.service";
+import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { CollapsibleSectionComponent } from "../../../shared/ui/collapsible-section/collapsible-section.component";
+import { CountrySelectComponent } from "../../../shared/ui/country-select/country-select.component";
+import { ToastService } from "../../../shared/ui/toast/toast.service";
+import { SelectOption, createSelectItemToString } from "../../../shared/utils";
 
 @Component({
   selector: "app-client-form",
@@ -73,9 +70,8 @@ export class ClientFormComponent {
   private readonly dialogRef = inject(BrnDialogRef<ClientDetail>, {
     optional: true,
   });
-  private readonly dialogContext = injectBrnDialogContext<
-    ClientFormDialogContext | null
-  >({ optional: true });
+  private readonly dialogContext =
+    injectBrnDialogContext<ClientFormDialogContext | null>({ optional: true });
   readonly isDialog = this.dialogRef !== null;
   readonly clientId =
     this.dialogContext?.clientId ??

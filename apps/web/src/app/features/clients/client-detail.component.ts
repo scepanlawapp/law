@@ -18,7 +18,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
-import { ClientFormDialogService } from "./client-form-dialog.service";
+import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 
 @Component({
   selector: "app-client-detail",
