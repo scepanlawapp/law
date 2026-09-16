@@ -31,7 +31,7 @@ describe("CasesService", () => {
     $transaction: jest.fn(async (callback: (transaction: unknown) => unknown) =>
       callback(db),
     ),
-    case: { findFirst: jest.fn(), update: jest.fn() },
+    case: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     caseActivity: { create: jest.fn() },
   };
   const platformPrisma = { workspaceMember: { findUnique: jest.fn() } };
@@ -45,6 +45,13 @@ describe("CasesService", () => {
     prisma: db,
   };
   const service = new CasesService(platformPrisma as never);
+
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(new Date("2026-09-16T12:00:00.000Z"));
+  });
+
+  afterAll(() => jest.useRealTimers());
 
   beforeEach(() => jest.clearAllMocks());
 
@@ -93,5 +100,44 @@ describe("CasesService", () => {
         data: expect.objectContaining({ source: "SYSTEM", workspaceId }),
       }),
     );
+  });
+
+  it.each([
+    ["YYYY-N", "2026-4", "2026-5"],
+    ["YYYY-NNNNN", "2026-00004", "2026-00005"],
+    ["CYYYY/NNN", "C2026/004", "C2026/005"],
+    ["YYYYC-NN", "2026C-04", "2026C-05"],
+    ["PNNNNN-YY", "P00004-26", "P00005-26"],
+  ] as const)(
+    "suggests the next case number for %s",
+    async (format, existing, expected) => {
+      db.case.findMany.mockResolvedValue([{ caseNumber: existing }]);
+
+      await TenantContextService.run(context as never, async () => {
+        await expect(service.nextNumberSuggestion(format)).resolves.toEqual({
+          caseNumber: expected,
+        });
+      });
+    },
+  );
+
+  it("continues the sequence when the workspace changes number format", async () => {
+    db.case.findMany.mockResolvedValue([{ caseNumber: "CA-000001" }]);
+
+    await TenantContextService.run(context as never, async () => {
+      await expect(service.nextNumberSuggestion("YYYY-N")).resolves.toEqual({
+        caseNumber: "2026-2",
+      });
+    });
+  });
+
+  it("falls back to the default year-number when number lookup fails", async () => {
+    db.case.findMany.mockRejectedValue(new Error("database unavailable"));
+
+    await TenantContextService.run(context as never, async () => {
+      await expect(service.nextNumberSuggestion("CYYYY/NNN")).resolves.toEqual({
+        caseNumber: "2026-1",
+      });
+    });
   });
 });

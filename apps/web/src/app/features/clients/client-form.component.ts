@@ -6,7 +6,8 @@ import {
   Validators,
 } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
-import { ClientStatus, ClientType } from "@law/api-interfaces";
+import { BrnDialogRef } from "@spartan-ng/brain/dialog";
+import { ClientDetail, ClientStatus, ClientType } from "@law/api-interfaces";
 import {
   ClientRequest,
   ClientsApiClient,
@@ -52,6 +53,10 @@ export class ClientFormComponent {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
+  private readonly dialogRef = inject(BrnDialogRef<ClientDetail>, {
+    optional: true,
+  });
+  readonly isDialog = this.dialogRef !== null;
   readonly clientId = this.route.snapshot.paramMap.get("clientId");
   readonly saving = signal(false);
   readonly loading = signal(!!this.clientId);
@@ -91,6 +96,10 @@ export class ClientFormComponent {
     tagIds: new FormControl<string[]>([], { nonNullable: true }),
   });
   constructor() {
+    this.applyTypeValidators(this.form.controls.type.value);
+    this.form.controls.type.valueChanges.subscribe((type) => {
+      this.applyTypeValidators(type);
+    });
     this.refs.users().subscribe({
       next: (items) =>
         this.users.set(
@@ -125,6 +134,25 @@ export class ClientFormComponent {
   isOrganization(): boolean {
     return this.form.controls.type.value === "ORGANIZATION";
   }
+
+  private applyTypeValidators(type: ClientType): void {
+    if (type === "ORGANIZATION") {
+      this.form.controls.organizationName.setValidators([Validators.required]);
+      this.form.controls.firstName.clearValidators();
+      this.form.controls.lastName.clearValidators();
+    } else {
+      this.form.controls.organizationName.clearValidators();
+      this.form.controls.firstName.setValidators([Validators.required]);
+      this.form.controls.lastName.setValidators([Validators.required]);
+    }
+
+    this.form.controls.organizationName.updateValueAndValidity({
+      emitEvent: false,
+    });
+    this.form.controls.firstName.updateValueAndValidity({ emitEvent: false });
+    this.form.controls.lastName.updateValueAndValidity({ emitEvent: false });
+  }
+
   submit(): void {
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
@@ -161,6 +189,10 @@ export class ClientFormComponent {
     action.subscribe({
       next: (client) => {
         this.toast.success(this.localization.translate("clients.saved"));
+        if (this.dialogRef) {
+          this.dialogRef.close(client);
+          return;
+        }
         this.router.navigate(["/clients", client.id]);
       },
       error: () => {
@@ -168,5 +200,9 @@ export class ClientFormComponent {
         this.toast.error(this.localization.translate("clients.saveError"));
       },
     });
+  }
+
+  cancel(): void {
+    this.dialogRef?.close();
   }
 }

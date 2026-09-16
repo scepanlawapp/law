@@ -1,0 +1,20 @@
+<div hlmDialogHeader>
+  <h2 hlmDialogTitle>{{ data.title | translate }}</h2>
+  <p hlmDialogDescription>{{ data.description | translate }}</p>
+</div>
+
+<form [formGroup]="form" (ngSubmit)="submit()">
+  <div hlmField>
+    <label hlmFieldLabel for="reference-name">{{ data.nameLabel | translate }}</label>
+    <input hlmInput id="reference-name" formControlName="name" required />
+  </div>
+
+  <div hlmDialogFooter class="flex justify-end gap-2">
+    <button hlmBtn variant="ghost" type="button" (click)="cancel()">
+      {{ "common.cancel" | translate }}
+    </button>
+    <button hlmBtn type="submit">
+      {{ "common.create" | translate }}
+    </button>
+  </div>
+</form>

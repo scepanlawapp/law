@@ -6,21 +6,46 @@
     <div hlmField>
       <label hlmFieldLabel for="clientId">{{
         "cases.client" | translate
+      }}</label>
+      <div class="flex items-center gap-2">
+        <hlm-select
+          formControlName="clientId"
+          [itemToString]="clientItemToString"
+        >
+          <hlm-select-trigger id="clientId" class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              @for (client of clients(); track client.id) {
+                <hlm-select-item [value]="client.id">{{
+                  client.name
+                }}</hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          type="button"
+          (click)="openClientDialog()"
+        >
+          {{ "clients.create" | translate }}
+        </button>
+      </div>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="caseNumber">{{
+        "cases.internalCaseNumber" | translate
       }}</label
-      ><hlm-select formControlName="clientId" [itemToString]="clientItemToString">
-        <hlm-select-trigger id="clientId" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (client of clients(); track client.id) {
-              <hlm-select-item [value]="client.id">{{
-                client.name
-              }}</hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
+      ><input
+        hlmInput
+        id="caseNumber"
+        formControlName="caseNumber"
+        required
+      />
     </div>
     <div hlmField>
       <label hlmFieldLabel for="name">{{ "cases.name" | translate }}</label
@@ -40,7 +65,28 @@
         <hlm-select-content *hlmSelectPortal>
           <hlm-select-group>
             @for (user of users(); track user.id) {
-              <hlm-select-item [value]="user.id">{{ user.name }}</hlm-select-item>
+              <hlm-select-item [value]="user.id">{{
+                user.name
+              }}</hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="status">{{
+        "cases.status" | translate
+      }}</label
+      ><hlm-select formControlName="status" [itemToString]="statusItemToString">
+        <hlm-select-trigger id="status" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of statusOptions; track option.value) {
+              <hlm-select-item [value]="option.value">{{
+                statusItemToString(option.value)
+              }}</hlm-select-item>
             }
           </hlm-select-group>
         </hlm-select-content>
@@ -50,7 +96,10 @@
       <label hlmFieldLabel for="priority">{{
         "cases.priority" | translate
       }}</label
-      ><hlm-select formControlName="priority" [itemToString]="priorityItemToString">
+      ><hlm-select
+        formControlName="priority"
+        [itemToString]="priorityItemToString"
+      >
         <hlm-select-trigger id="priority" class="w-full">
           <hlm-select-value />
         </hlm-select-trigger>
@@ -58,7 +107,7 @@
           <hlm-select-group>
             @for (option of priorityOptions; track option.value) {
               <hlm-select-item [value]="option.value">{{
-                option.label
+                priorityItemToString(option.value)
               }}</hlm-select-item>
             }
           </hlm-select-group>
@@ -68,41 +117,70 @@
     <div hlmField>
       <label hlmFieldLabel for="caseTypeId">{{
         "cases.type" | translate
-      }}</label
-      ><hlm-select formControlName="caseTypeId" [itemToString]="caseTypeItemToString">
-        <hlm-select-trigger id="caseTypeId" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            <hlm-select-item value=""></hlm-select-item>
-            @for (type of types(); track type.id) {
-              <hlm-select-item [value]="type.id">{{ type.name }}</hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
+      }}</label>
+      <div class="flex items-center gap-2">
+        <hlm-select
+          formControlName="caseTypeId"
+          [itemToString]="caseTypeItemToString"
+        >
+          <hlm-select-trigger id="caseTypeId" class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              <hlm-select-item value=""></hlm-select-item>
+              @for (type of types(); track type.id) {
+                <hlm-select-item [value]="type.id">{{
+                  type.name
+                }}</hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          type="button"
+          (click)="openCaseTypeDialog()"
+        >
+          {{ "common.create" | translate }}
+        </button>
+      </div>
     </div>
     <div hlmField>
       <label hlmFieldLabel for="practiceAreaId">{{
         "cases.area" | translate
-      }}</label
-      ><hlm-select
-        formControlName="practiceAreaId"
-        [itemToString]="practiceAreaItemToString"
-      >
-        <hlm-select-trigger id="practiceAreaId" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            <hlm-select-item value=""></hlm-select-item>
-            @for (area of areas(); track area.id) {
-              <hlm-select-item [value]="area.id">{{ area.name }}</hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
+      }}</label>
+      <div class="flex items-center gap-2">
+        <hlm-select
+          formControlName="practiceAreaId"
+          [itemToString]="practiceAreaItemToString"
+        >
+          <hlm-select-trigger id="practiceAreaId" class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              <hlm-select-item value=""></hlm-select-item>
+              @for (area of areas(); track area.id) {
+                <hlm-select-item [value]="area.id">{{
+                  area.name
+                }}</hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          type="button"
+          (click)="openPracticeAreaDialog()"
+        >
+          {{ "common.create" | translate }}
+        </button>
+      </div>
     </div>
     <div hlmField>
       <label hlmFieldLabel for="openedDate">{{
@@ -139,7 +217,11 @@
       <label hlmFieldLabel for="description">{{
         "cases.description" | translate
       }}</label
-      ><textarea hlmTextarea id="description" formControlName="description"></textarea>
+      ><textarea
+        hlmTextarea
+        id="description"
+        formControlName="description"
+      ></textarea>
     </div>
     <button hlmBtn type="submit" [disabled]="saving()">
       {{ (saving() ? "cases.saving" : "cases.save") | translate }}

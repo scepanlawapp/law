@@ -6,7 +6,9 @@ import {
   Validators,
 } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
-import { CasePriority } from "@law/api-interfaces";
+import { HlmDialogService } from "@spartan-ng/helm/dialog";
+import { CasePriority, CaseStatus, ClientDetail } from "@law/api-interfaces";
+import { AuthState } from "@law/security";
 import {
   CaseRequest,
   CasesApiClient,
@@ -21,10 +23,21 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { ClientFormComponent } from "../clients/client-form.component";
+import { ReferenceDataService } from "../../shared/reference-data.service";
+import { ReferenceCreateDialogComponent } from "../../shared/ui/reference-create-dialog/reference-create-dialog.component";
 import {
   createSelectItemToString,
   type SelectOption,
 } from "../../shared/utils";
+
+function todayDateInputValue(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function toDateInputValue(value: string | null | undefined): string {
+  return value ? value.slice(0, 10) : "";
+}
 
 @Component({
   selector: "app-case-form",
@@ -46,22 +59,32 @@ export class CaseFormComponent {
   private readonly api = inject(CasesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly refs = inject(ReferencesApiClient);
+  private readonly referenceData = inject(ReferenceDataService);
+  private readonly auth = inject(AuthState);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
+  private readonly dialog = inject(HlmDialogService);
   readonly caseId = this.route.snapshot.paramMap.get("caseId");
   readonly saving = signal(false);
   readonly loading = signal(!!this.caseId);
   readonly clients = signal<Array<{ id: string; name: string }>>([]);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
-  readonly types = signal<Array<{ id: string; name: string }>>([]);
-  readonly areas = signal<Array<{ id: string; name: string }>>([]);
+  readonly types = this.referenceData.caseTypes;
+  readonly areas = this.referenceData.practiceAreas;
   readonly priorityOptions: ReadonlyArray<SelectOption<CasePriority>> = [
-    { value: "LOW", label: "LOW" },
-    { value: "NORMAL", label: "NORMAL" },
-    { value: "HIGH", label: "HIGH" },
-    { value: "URGENT", label: "URGENT" },
+    { value: "LOW", label: "cases.priority.LOW" },
+    { value: "NORMAL", label: "cases.priority.NORMAL" },
+    { value: "HIGH", label: "cases.priority.HIGH" },
+    { value: "URGENT", label: "cases.priority.URGENT" },
+  ];
+  readonly statusOptions: ReadonlyArray<SelectOption<CaseStatus>> = [
+    { value: "DRAFT", label: "cases.status.DRAFT" },
+    { value: "ACTIVE", label: "cases.status.ACTIVE" },
+    { value: "ON_HOLD", label: "cases.status.ON_HOLD" },
+    { value: "CLOSED", label: "cases.status.CLOSED" },
+    { value: "ARCHIVED", label: "cases.status.ARCHIVED" },
   ];
   readonly clientItemToString = (value: string | null | undefined): string =>
     this.clients().find((client) => client.id === value)?.name ?? "";
@@ -70,7 +93,11 @@ export class CaseFormComponent {
   ): string => this.users().find((user) => user.id === value)?.name ?? "";
   readonly priorityItemToString = createSelectItemToString(
     this.priorityOptions,
-    (label) => label,
+    (key) => this.local.translate(key),
+  );
+  readonly statusItemToString = createSelectItemToString(
+    this.statusOptions,
+    (key) => this.local.translate(key),
   );
   readonly caseTypeItemToString = (value: string | null | undefined): string =>
     this.types().find((type) => type.id === value)?.name ?? "";
@@ -82,6 +109,14 @@ export class CaseFormComponent {
       this.route.snapshot.queryParamMap.get("clientId") ?? "",
       { nonNullable: true, validators: [Validators.required] },
     ),
+    caseNumber: new FormControl("", {
+      nonNullable: true,
+      validators: [
+        Validators.required,
+        Validators.maxLength(40),
+        Validators.pattern(/^[A-Za-z0-9/.-]+$/),
+      ],
+    }),
     name: new FormControl("", {
       nonNullable: true,
       validators: [Validators.required, Validators.maxLength(320)],
@@ -93,8 +128,9 @@ export class CaseFormComponent {
     description: new FormControl(""),
     caseTypeId: new FormControl(""),
     practiceAreaId: new FormControl(""),
+    status: new FormControl<CaseStatus>("ACTIVE", { nonNullable: true }),
     priority: new FormControl<CasePriority>("NORMAL", { nonNullable: true }),
-    openedDate: new FormControl(""),
+    openedDate: new FormControl(this.caseId ? "" : todayDateInputValue()),
     externalReference: new FormControl(""),
     confidentialityLevel: new FormControl(""),
   });
@@ -110,6 +146,8 @@ export class CaseFormComponent {
             })),
           ),
       });
+    this.referenceData.loadCaseTypes();
+    this.referenceData.loadPracticeAreas();
     this.refs
       .users()
       .subscribe({
@@ -124,20 +162,20 @@ export class CaseFormComponent {
             })),
           ),
       });
-    this.refs
-      .caseTypes()
-      .subscribe({
-        next: (items) => this.types.set(items.filter((item) => item.isActive)),
+    if (!this.caseId) {
+      const format =
+        this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
+      this.api.nextNumber(format).subscribe({
+        next: (value) => this.form.controls.caseNumber.setValue(value.caseNumber),
       });
-    this.refs
-      .practiceAreas()
-      .subscribe({
-        next: (items) => this.areas.set(items.filter((item) => item.isActive)),
-      });
+    }
     if (this.caseId)
       this.api.get(this.caseId).subscribe({
         next: (item) => {
-          this.form.patchValue(item);
+          this.form.patchValue({
+            ...item,
+            openedDate: toDateInputValue(item.openedDate),
+          });
           this.form.controls.clientId.disable();
           this.form.controls.responsibleUserId.disable();
           this.loading.set(false);
@@ -148,6 +186,67 @@ export class CaseFormComponent {
         },
       });
   }
+
+  openClientDialog(): void {
+    this.dialog
+      .open<ClientDetail>(ClientFormComponent, {
+        contentClass: "sm:max-w-2xl",
+      })
+      .closed$.subscribe((client) => {
+        if (!client) return;
+        this.clients.update((items) => [
+          ...items,
+          { id: client.id, name: client.displayName },
+        ]);
+        this.form.controls.clientId.setValue(client.id);
+      });
+  }
+
+  openCaseTypeDialog(): void {
+    this.openReferenceDialog(
+      "cases.createType",
+      "cases.createTypeDescription",
+      "cases.type",
+      (name) =>
+        this.referenceData.createCaseType(name).subscribe({
+          next: (item) => this.form.controls.caseTypeId.setValue(item.id),
+          error: () =>
+            this.toast.error(this.local.translate("cases.referenceSaveError")),
+        }),
+    );
+  }
+
+  openPracticeAreaDialog(): void {
+    this.openReferenceDialog(
+      "cases.createArea",
+      "cases.createAreaDescription",
+      "cases.area",
+      (name) =>
+        this.referenceData.createPracticeArea(name).subscribe({
+          next: (item) => this.form.controls.practiceAreaId.setValue(item.id),
+          error: () =>
+            this.toast.error(this.local.translate("cases.referenceSaveError")),
+        }),
+    );
+  }
+
+  private openReferenceDialog(
+    title: string,
+    description: string,
+    nameLabel: string,
+    create: (name: string) => void,
+  ): void {
+    this.dialog
+      .open<string>(ReferenceCreateDialogComponent, {
+        contentClass: "sm:max-w-md",
+        context: { title, description, nameLabel },
+      })
+      .closed$.subscribe((name) => {
+        if (!name?.trim()) return;
+        create(name.trim());
+      });
+  }
+
   submit(): void {
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
@@ -156,11 +255,13 @@ export class CaseFormComponent {
     const raw = this.form.getRawValue();
     const request: CaseRequest = {
       clientId: raw.clientId,
+      caseNumber: raw.caseNumber.trim(),
       name: raw.name.trim(),
       responsibleUserId: raw.responsibleUserId,
       description: raw.description?.trim() || undefined,
       caseTypeId: raw.caseTypeId || undefined,
       practiceAreaId: raw.practiceAreaId || undefined,
+      status: raw.status,
       priority: raw.priority,
       openedDate: raw.openedDate || undefined,
       externalReference: raw.externalReference?.trim() || undefined,
