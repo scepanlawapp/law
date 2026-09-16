@@ -197,9 +197,8 @@
             <label hlmFieldLabel [for]="'document-country-' + $index">{{
               "clients.country" | translate
             }}</label>
-            <input
-              hlmInput
-              [id]="'document-country-' + $index"
+            <app-country-select
+              [inputId]="'document-country-' + $index"
               formControlName="country"
             />
           </div>
@@ -321,11 +320,10 @@
             <label hlmFieldLabel [for]="'address-country-' + $index">{{
               "clients.country" | translate
             }}</label>
-            <input
-              hlmInput
-              [id]="'address-country-' + $index"
+            <app-country-select
+              [inputId]="'address-country-' + $index"
+              [required]="true"
               formControlName="country"
-              required
             />
           </div>
           <div hlmField>

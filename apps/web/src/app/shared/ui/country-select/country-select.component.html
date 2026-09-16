@@ -1,0 +1,39 @@
+<div
+  hlmCombobox
+  [value]="selected()"
+  (valueChange)="onValueChange($event)"
+  [itemToString]="itemToString"
+  [isItemEqualToValue]="isItemEqualToValue"
+  [filter]="filterCountries"
+  [disabled]="disabled()"
+  (closed)="handleClosed()"
+>
+  <hlm-combobox-trigger
+    [buttonId]="inputId()"
+    class="w-full justify-between"
+    [attr.aria-required]="required() ? 'true' : null"
+  >
+    <hlm-combobox-value [placeholder]="resolvedPlaceholder()">
+      <ng-template hlmComboboxValueTemplate let-item>
+        <span class="flex items-center gap-2">
+          <span class="fi fi-{{ item.code.toLowerCase() }}" aria-hidden="true"></span>
+          <span>{{ item.name }}</span>
+        </span>
+      </ng-template>
+    </hlm-combobox-value>
+  </hlm-combobox-trigger>
+  <hlm-combobox-content *hlmComboboxPortal>
+    <hlm-combobox-input [placeholder]="searchPlaceholder()" [showTrigger]="false" />
+    <hlm-combobox-empty>{{ emptyMessage() }}</hlm-combobox-empty>
+    <div hlmComboboxList>
+      @for (country of options(); track country.code) {
+        <hlm-combobox-item [value]="country">
+          <span class="flex items-center gap-2">
+            <span class="fi fi-{{ country.code.toLowerCase() }}" aria-hidden="true"></span>
+            <span>{{ country.name }}</span>
+          </span>
+        </hlm-combobox-item>
+      }
+    </div>
+  </hlm-combobox-content>
+</div>

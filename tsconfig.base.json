@@ -5,6 +5,7 @@
     "sourceMap": true,
     "declaration": false,
     "moduleResolution": "bundler",
+    "resolveJsonModule": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "importHelpers": true,
@@ -155,6 +156,9 @@
       ],
       "@spartan-ng/helm/sheet": [
         "./libs/shared/frontend/ui/sheet/src/index.ts"
+      ],
+      "@spartan-ng/helm/combobox": [
+        "./libs/shared/frontend/ui/combobox/src/index.ts"
       ]
     }
   },

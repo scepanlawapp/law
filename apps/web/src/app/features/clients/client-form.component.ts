@@ -32,6 +32,7 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { CountrySelectComponent } from "../../shared/ui/country-select/country-select.component";
 import {
   createSelectItemToString,
   type SelectOption,
@@ -52,6 +53,7 @@ import {
     HlmRadioGroupImports,
     HlmSelectImports,
     HlmTextarea,
+    CountrySelectComponent,
     TranslatePipe,
   ],
 })

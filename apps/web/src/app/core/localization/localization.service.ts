@@ -7,6 +7,10 @@ type TranslationCatalog = Record<string, string>;
 @Injectable({ providedIn: "root" })
 export class LocalizationService {
   private readonly catalog = signal<TranslationCatalog>({});
+  private readonly currentLanguage = signal<"SR" | "EN">("SR");
+
+  /** The application's active UI language, updated whenever `setLanguage`/`load` resolves. */
+  readonly language = this.currentLanguage.asReadonly();
 
   async load(language: "SR" | "EN" = "SR"): Promise<void> {
     const response = await fetch(
@@ -17,6 +21,7 @@ export class LocalizationService {
     }
 
     this.catalog.set((await response.json()) as TranslationCatalog);
+    this.currentLanguage.set(language);
   }
 
   async setLanguage(language: "SR" | "EN"): Promise<void> {
