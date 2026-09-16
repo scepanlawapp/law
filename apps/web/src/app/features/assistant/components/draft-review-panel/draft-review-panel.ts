@@ -18,7 +18,7 @@ import {
   lucideX,
 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
-import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { DraftResultResponse, DocumentScript } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
@@ -30,7 +30,7 @@ import { TranslatePipe } from "../../../../core/localization/translate.pipe";
     FormsModule,
     NgIcon,
     HlmButton,
-    HlmInput,
+    HlmTextarea,
     HlmTooltipImports,
     TranslatePipe,
   ],

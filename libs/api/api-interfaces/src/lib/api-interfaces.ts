@@ -100,6 +100,25 @@ export interface AuthWorkspaceMembership {
   role: WorkspaceRole;
 }
 
+export const CASE_NUMBER_FORMATS = [
+  "YYYY-N",
+  "YYYY-NNNNN",
+  "CYYYY/NNN",
+  "YYYYC-NN",
+  "PNNNNN-YY",
+] as const;
+
+export type CaseNumberFormat = (typeof CASE_NUMBER_FORMATS)[number];
+
+export interface ActiveWorkspace {
+  id: string;
+  organizationName: string;
+  owner: AuthUser;
+  role: WorkspaceRole;
+  caseNumberFormat: CaseNumberFormat;
+  caseNumberFormatOptions: ReadonlyArray<CaseNumberFormat>;
+}
+
 export interface AuthSessionResponse {
   user: AuthUser;
   memberships: AuthWorkspaceMembership[];
@@ -388,7 +407,7 @@ export interface DraftResultResponse {
 }
 
 export type ClientType = "INDIVIDUAL" | "ORGANIZATION";
-export type ClientStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
+export type ClientStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED" | "PROSPECT";
 export type CaseStatus = "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED" | "ARCHIVED";
 export type CasePriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
 export type ActivityType =
@@ -458,3 +477,7 @@ export interface CaseDetail extends CaseSummary {
 }
 
 export type CaseListResponse = PaginatedResponse<CaseSummary>;
+
+export interface CaseNextNumberResponse {
+  caseNumber: string;
+}

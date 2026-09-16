@@ -7,12 +7,14 @@ import {
 } from "@angular/common/http";
 import { firstValueFrom, of, throwError } from "rxjs";
 import { AuthApiClient } from "@law/api-clients";
-import { AuthSessionResponse } from "@law/api-interfaces";
+import { AuthSessionResponse, WorkspaceRole } from "@law/api-interfaces";
 import { AuthState, authInterceptor } from "./security";
 
 const session: AuthSessionResponse = {
   user: { id: "user-1", email: "lawyer@example.test", status: "ACTIVE" },
   memberships: [],
+  activeWorkspaceId: null,
+  activeTenantId: null,
 };
 
 describe("AuthState", () => {
@@ -56,6 +58,40 @@ describe("AuthState", () => {
       password: "password",
     });
     expect(state.session()).toEqual(session);
+  });
+
+  it("builds the active workspace with case number settings", () => {
+    const workspaceSession: AuthSessionResponse = {
+      ...session,
+      activeWorkspaceId: "workspace-1",
+      memberships: [
+        {
+          workspaceId: "workspace-1",
+          workspaceName: "Workspace",
+          role: WorkspaceRole.OWNER,
+        },
+      ],
+    };
+    api.me.mockReturnValue(of(workspaceSession));
+    const state = TestBed.inject(AuthState);
+
+    state.bootstrap().subscribe();
+
+    expect(state.activeWorkspace()).toEqual(
+      expect.objectContaining({
+        id: "workspace-1",
+        organizationName: "Stojkovic OD",
+        owner: workspaceSession.user,
+        caseNumberFormat: "YYYY-N",
+        caseNumberFormatOptions: [
+          "YYYY-N",
+          "YYYY-NNNNN",
+          "CYYYY/NNN",
+          "YYYYC-NN",
+          "PNNNNN-YY",
+        ],
+      }),
+    );
   });
 
   it("clears the session and navigates after logout", () => {

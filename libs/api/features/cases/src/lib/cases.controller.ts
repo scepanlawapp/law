@@ -13,6 +13,7 @@ import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   CaseActivityDto,
   CaseListQueryDto,
+  CaseNumberSuggestionQueryDto,
   CaseResponsibilityDto,
   CloseCaseDto,
   CreateCaseDto,
@@ -30,6 +31,9 @@ export class CasesController {
 
   @Get() list(@Query() query: CaseListQueryDto) {
     return this.cases.list(query);
+  }
+  @Get("next-number") nextNumber(@Query() query: CaseNumberSuggestionQueryDto) {
+    return this.cases.nextNumberSuggestion(query.format);
   }
   @Post() create(@Body() body: CreateCaseDto) {
     return this.cases.create(body);

@@ -14,7 +14,12 @@ import {
   parseSort,
   TenantContextService,
 } from "@law/core";
-import { CaseDetail, CaseListResponse, CaseSummary } from "@law/api-interfaces";
+import {
+  CaseDetail,
+  CaseListResponse,
+  CaseNumberFormat,
+  CaseSummary,
+} from "@law/api-interfaces";
 import {
   CaseActivityDto,
   CaseListQueryDto,
@@ -92,19 +97,100 @@ export class CasesService {
     return item;
   }
 
-  private async nextNumber(tx: Prisma.TransactionClient): Promise<string> {
-    const counter = await tx.domainCounter.upsert({
-      where: {
-        workspaceId_name: {
-          workspaceId: this.context.workspaceId,
-          name: "CASE",
-        },
-      },
-      create: { workspaceId: this.context.workspaceId, name: "CASE", value: 1 },
-      update: { value: { increment: 1 } },
-      select: { value: true },
+  private caseNumberPattern(
+    format: CaseNumberFormat,
+    year: number,
+  ): { regex: RegExp; sequenceWidth: number } {
+    const tokenPattern = /YYYY|YY|N+/g;
+    let source = "^";
+    let cursor = 0;
+    let sequenceWidth = 0;
+
+    for (const match of format.matchAll(tokenPattern)) {
+      const token = match[0];
+      const index = match.index;
+      source += format
+        .slice(cursor, index)
+        .replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      if (token === "YYYY") source += String(year);
+      else if (token === "YY") source += String(year).slice(-2);
+      else {
+        if (sequenceWidth)
+          throw new Error("Case number format has multiple sequence tokens");
+        sequenceWidth = token.length;
+        source += "(\\d+)";
+      }
+      cursor = index + token.length;
+    }
+
+    source += format.slice(cursor).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    if (!sequenceWidth)
+      throw new Error("Case number format has no sequence token");
+
+    return { regex: new RegExp(`${source}$`), sequenceWidth };
+  }
+
+  private renderCaseNumber(
+    format: CaseNumberFormat,
+    year: number,
+    sequence: number,
+  ): string {
+    return format.replace(/YYYY|YY|N+/g, (token) => {
+      if (token === "YYYY") return String(year);
+      if (token === "YY") return String(year).slice(-2);
+      return String(sequence).padStart(token.length, "0");
     });
-    return `CA-${String(counter.value).padStart(6, "0")}`;
+  }
+
+  private async nextNumberForFormat(
+    format: CaseNumberFormat,
+    year: number,
+  ): Promise<string> {
+    const { regex, sequenceWidth } = this.caseNumberPattern(format, year);
+    const cases = await this.db.case.findMany({
+      where: { workspaceId: this.context.workspaceId },
+      select: { caseNumber: true },
+    });
+    const highestFormattedSequence = cases.reduce((highest, item) => {
+      const match = regex.exec(item.caseNumber);
+      const value = Number(match?.[1]);
+      return Number.isInteger(value) && value > highest ? value : highest;
+    }, 0);
+    const nextSequence = Math.max(highestFormattedSequence, cases.length) + 1;
+
+    return this.renderCaseNumber(format, year, nextSequence).replace(
+      /N+/,
+      String(nextSequence).padStart(sequenceWidth, "0"),
+    );
+  }
+
+  private async nextNumber(format: CaseNumberFormat): Promise<string> {
+    const year = new Date().getFullYear();
+    try {
+      return await this.nextNumberForFormat(format, year);
+    } catch {
+      try {
+        return await this.nextNumberForFormat("YYYY-N", year);
+      } catch {
+        return `${year}-1`;
+      }
+    }
+  }
+
+  private caseNumber(input: string): string {
+    const value = input.trim();
+    if (!value) throw new BadRequestException("Case number is required");
+    return value;
+  }
+
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (error as { code?: string }).code === "P2002";
+  }
+
+  async nextNumberSuggestion(
+    format: CaseNumberFormat = "YYYY-N",
+  ): Promise<{ caseNumber: string }> {
+    return { caseNumber: await this.nextNumber(format) };
   }
 
   private summary(item: Case): CaseSummary {
@@ -208,52 +294,63 @@ export class CasesService {
       );
     if (!input.name.trim())
       throw new BadRequestException("Case name is required");
-    const item = await this.db.$transaction(async (tx) => {
-      const created = await tx.case.create({
-        data: {
-          workspaceId,
-          caseNumber: await this.nextNumber(tx),
-          clientId: input.clientId,
-          name: input.name.trim(),
-          description: input.description?.trim(),
-          caseTypeId: input.caseTypeId,
-          practiceAreaId: input.practiceAreaId,
-          priority: input.priority ?? "NORMAL",
-          responsibleUserId: input.responsibleUserId,
-          openedDate: input.openedDate ? new Date(input.openedDate) : undefined,
-          externalReference: input.externalReference?.trim(),
-          confidentialityLevel: input.confidentialityLevel?.trim(),
-          customFields: input.customFields as Prisma.InputJsonValue | undefined,
-          createdByUserId: userId,
-          updatedByUserId: userId,
-          tags: input.tagIds?.length
-            ? { create: input.tagIds.map((tagId) => ({ tagId })) }
-            : undefined,
-          responsibilities: {
-            create: {
-              workspaceId,
-              userId: input.responsibleUserId,
-              isPrimary: true,
-              createdByUserId: userId,
-              updatedByUserId: userId,
+    try {
+      const item = await this.db.$transaction(async (tx) => {
+        const created = await tx.case.create({
+          data: {
+            workspaceId,
+            caseNumber: this.caseNumber(input.caseNumber),
+            clientId: input.clientId,
+            name: input.name.trim(),
+            description: input.description?.trim(),
+            caseTypeId: input.caseTypeId,
+            practiceAreaId: input.practiceAreaId,
+            status: input.status,
+            priority: input.priority ?? "NORMAL",
+            responsibleUserId: input.responsibleUserId,
+            openedDate: input.openedDate
+              ? new Date(input.openedDate)
+              : undefined,
+            externalReference: input.externalReference?.trim(),
+            confidentialityLevel: input.confidentialityLevel?.trim(),
+            customFields: input.customFields as
+              | Prisma.InputJsonValue
+              | undefined,
+            createdByUserId: userId,
+            updatedByUserId: userId,
+            tags: input.tagIds?.length
+              ? { create: input.tagIds.map((tagId) => ({ tagId })) }
+              : undefined,
+            responsibilities: {
+              create: {
+                workspaceId,
+                userId: input.responsibleUserId,
+                isPrimary: true,
+                createdByUserId: userId,
+                updatedByUserId: userId,
+              },
+            },
+            activities: {
+              create: {
+                workspaceId,
+                type: "NOTE",
+                title: "Case created",
+                activityDate: new Date(),
+                source: "SYSTEM",
+                createdByUserId: userId,
+                updatedByUserId: userId,
+              },
             },
           },
-          activities: {
-            create: {
-              workspaceId,
-              type: "NOTE",
-              title: "Case created",
-              activityDate: new Date(),
-              source: "SYSTEM",
-              createdByUserId: userId,
-              updatedByUserId: userId,
-            },
-          },
-        },
+        });
+        return created;
       });
-      return created;
-    });
-    return this.get(item.id);
+      return this.get(item.id);
+    } catch (error) {
+      if (this.isUniqueConstraintError(error))
+        throw new BadRequestException("Case number already exists");
+      throw error;
+    }
   }
 
   async update(caseId: string, input: UpdateCaseDto): Promise<CaseDetail> {
@@ -262,55 +359,65 @@ export class CasesService {
     const { userId, workspaceId } = this.context;
     if (input.name !== undefined && !input.name.trim())
       throw new BadRequestException("Case name is required");
-    await this.db.$transaction(async (tx) => {
-      await tx.case.update({
-        where: { id: caseId },
-        data: {
-          ...(input.name !== undefined && { name: input.name.trim() }),
-          ...(input.description !== undefined && {
-            description: input.description.trim() || null,
-          }),
-          ...(input.caseTypeId !== undefined && {
-            caseTypeId: input.caseTypeId,
-          }),
-          ...(input.practiceAreaId !== undefined && {
-            practiceAreaId: input.practiceAreaId,
-          }),
-          ...(input.priority !== undefined && { priority: input.priority }),
-          ...(input.openedDate !== undefined && {
-            openedDate: new Date(input.openedDate),
-          }),
-          ...(input.externalReference !== undefined && {
-            externalReference: input.externalReference.trim() || null,
-          }),
-          ...(input.confidentialityLevel !== undefined && {
-            confidentialityLevel: input.confidentialityLevel.trim() || null,
-          }),
-          ...(input.customFields !== undefined && {
-            customFields: input.customFields as Prisma.InputJsonValue,
-          }),
-          ...(input.tagIds !== undefined && {
-            tags: {
-              deleteMany: {},
-              create: input.tagIds.map((tagId) => ({ tagId })),
-            },
-          }),
-          updatedByUserId: userId,
-        },
+    try {
+      await this.db.$transaction(async (tx) => {
+        await tx.case.update({
+          where: { id: caseId },
+          data: {
+            ...(input.caseNumber !== undefined && {
+              caseNumber: this.caseNumber(input.caseNumber),
+            }),
+            ...(input.name !== undefined && { name: input.name.trim() }),
+            ...(input.description !== undefined && {
+              description: input.description.trim() || null,
+            }),
+            ...(input.caseTypeId !== undefined && {
+              caseTypeId: input.caseTypeId,
+            }),
+            ...(input.practiceAreaId !== undefined && {
+              practiceAreaId: input.practiceAreaId,
+            }),
+            ...(input.status !== undefined && { status: input.status }),
+            ...(input.priority !== undefined && { priority: input.priority }),
+            ...(input.openedDate !== undefined && {
+              openedDate: new Date(input.openedDate),
+            }),
+            ...(input.externalReference !== undefined && {
+              externalReference: input.externalReference.trim() || null,
+            }),
+            ...(input.confidentialityLevel !== undefined && {
+              confidentialityLevel: input.confidentialityLevel.trim() || null,
+            }),
+            ...(input.customFields !== undefined && {
+              customFields: input.customFields as Prisma.InputJsonValue,
+            }),
+            ...(input.tagIds !== undefined && {
+              tags: {
+                deleteMany: {},
+                create: input.tagIds.map((tagId) => ({ tagId })),
+              },
+            }),
+            updatedByUserId: userId,
+          },
+        });
+        await tx.caseActivity.create({
+          data: {
+            workspaceId,
+            caseId,
+            type: "NOTE",
+            title: "Case information updated",
+            activityDate: new Date(),
+            source: "SYSTEM",
+            createdByUserId: userId,
+            updatedByUserId: userId,
+          },
+        });
       });
-      await tx.caseActivity.create({
-        data: {
-          workspaceId,
-          caseId,
-          type: "NOTE",
-          title: "Case information updated",
-          activityDate: new Date(),
-          source: "SYSTEM",
-          createdByUserId: userId,
-          updatedByUserId: userId,
-        },
-      });
-    });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error))
+        throw new BadRequestException("Case number already exists");
+      throw error;
+    }
     return this.get(caseId);
   }
 

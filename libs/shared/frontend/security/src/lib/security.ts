@@ -1,4 +1,4 @@
-import { Injectable, inject, signal } from "@angular/core";
+import { computed, Injectable, inject, signal } from "@angular/core";
 import { CanActivateFn, Router } from "@angular/router";
 import { HttpErrorResponse, HttpInterceptorFn } from "@angular/common/http";
 import {
@@ -11,21 +11,40 @@ import {
   throwError,
 } from "rxjs";
 import { AuthApiClient } from "@law/api-clients";
-import { AuthSessionResponse } from "@law/api-interfaces";
+import {
+  ActiveWorkspace,
+  AuthSessionResponse,
+  CASE_NUMBER_FORMATS,
+} from "@law/api-interfaces";
 
 @Injectable({ providedIn: "root" })
 export class AuthState {
   private readonly api = inject(AuthApiClient);
   private readonly router = inject(Router);
   readonly session = signal<AuthSessionResponse | null>(null);
-  readonly activeWorkspaceId = signal<string | null>(null);
+  readonly activeWorkspace = computed<ActiveWorkspace | null>(() => {
+    const session = this.session();
+    const membership = session?.memberships.find(
+      (item) => item.workspaceId === session.activeWorkspaceId,
+    );
+
+    return session && membership
+      ? {
+          id: membership.workspaceId,
+          organizationName: "Stojkovic OD",
+          owner: session.user,
+          role: membership.role,
+          caseNumberFormat: "YYYY-N",
+          caseNumberFormatOptions: CASE_NUMBER_FORMATS,
+        }
+      : null;
+  });
   readonly loading = signal(true);
 
   bootstrap(): Observable<AuthSessionResponse | null> {
     return this.api.me().pipe(
       tap((session) => {
         this.session.set(session);
-        this.ensureActiveWorkspace(session);
       }),
       catchError(() => of(null)),
       finalize(() => this.loading.set(false)),
@@ -33,21 +52,17 @@ export class AuthState {
   }
 
   login(email: string, password: string) {
-    return this.api
-      .login({ email, password })
-      .pipe(
-        tap((session) => {
-          this.session.set(session);
-          this.ensureActiveWorkspace(session);
-        }),
-      );
+    return this.api.login({ email, password }).pipe(
+      tap((session) => {
+        this.session.set(session);
+      }),
+    );
   }
 
   logout() {
     return this.api.logout().pipe(
       tap(() => {
         this.session.set(null);
-        this.activeWorkspaceId.set(null);
         void this.router.navigate(["/login"]);
       }),
     );
@@ -57,24 +72,15 @@ export class AuthState {
     this.api.selectActiveWorkspace({ workspaceId }).subscribe({
       next: (session) => {
         this.session.set(session);
-        this.ensureActiveWorkspace(session);
       },
     });
-  }
-
-  private ensureActiveWorkspace(session: AuthSessionResponse | null): void {
-    const activeWorkspaceId = session?.activeWorkspaceId ?? null;
-    const isAccessible = session?.memberships.some(
-      (membership) => membership.workspaceId === activeWorkspaceId,
-    );
-    this.activeWorkspaceId.set(isAccessible ? activeWorkspaceId : null);
   }
 }
 
 export const authInterceptor: HttpInterceptorFn = (request, next) => {
   const auth = inject(AuthState);
 
-  let modifiedRequest = request.clone({ withCredentials: true });
+  const modifiedRequest = request.clone({ withCredentials: true });
 
   return next(modifiedRequest).pipe(
     catchError((error: HttpErrorResponse) => {
@@ -84,18 +90,10 @@ export const authInterceptor: HttpInterceptorFn = (request, next) => {
           .pipe(
             tap((session) => {
               auth.session.set(session);
-              const isAccessible = session.memberships.some(
-                (membership) =>
-                  membership.workspaceId === session.activeWorkspaceId,
-              );
-              auth.activeWorkspaceId.set(
-                isAccessible ? session.activeWorkspaceId : null,
-              );
             }),
             switchMap(() => next(modifiedRequest)),
             catchError((refreshError) => {
               auth.session.set(null);
-              auth.activeWorkspaceId.set(null);
               return throwError(() => refreshError);
             }),
           );

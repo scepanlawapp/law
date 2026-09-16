@@ -6,7 +6,8 @@ import {
   Validators,
 } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
-import { ClientType } from "@law/api-interfaces";
+import { BrnDialogRef } from "@spartan-ng/brain/dialog";
+import { ClientDetail, ClientStatus, ClientType } from "@law/api-interfaces";
 import {
   ClientRequest,
   ClientsApiClient,
@@ -15,9 +16,17 @@ import {
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmLabel } from "@spartan-ng/helm/label";
+import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import {
+  createSelectItemToString,
+  type SelectOption,
+} from "../../shared/utils";
 
 @Component({
   selector: "app-client-form",
@@ -30,6 +39,10 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    HlmLabel,
+    HlmRadioGroupImports,
+    HlmSelectImports,
+    HlmTextarea,
     TranslatePipe,
   ],
 })
@@ -40,13 +53,34 @@ export class ClientFormComponent {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
+  private readonly dialogRef = inject(BrnDialogRef<ClientDetail>, {
+    optional: true,
+  });
+  readonly isDialog = this.dialogRef !== null;
   readonly clientId = this.route.snapshot.paramMap.get("clientId");
   readonly saving = signal(false);
   readonly loading = signal(!!this.clientId);
   readonly users = signal<Array<{ userId: string; label: string }>>([]);
   readonly tags = signal<Array<{ id: string; name: string }>>([]);
+  readonly clientTypeOptions: ReadonlyArray<SelectOption<ClientType>> = [
+    { value: "INDIVIDUAL", label: "clients.individual" },
+    { value: "ORGANIZATION", label: "clients.organization" },
+  ];
+  readonly statusOptions: ReadonlyArray<SelectOption<ClientStatus>> = [
+    { value: "PROSPECT", label: "clients.status.PROSPECT" },
+    { value: "ACTIVE", label: "clients.status.ACTIVE" },
+    { value: "INACTIVE", label: "clients.status.INACTIVE" },
+  ];
+  readonly statusItemToString = createSelectItemToString(
+    this.statusOptions,
+    (key) => this.localization.translate(key),
+  );
+  readonly responsibleUserItemToString = (
+    value: string | null | undefined,
+  ): string => this.users().find((user) => user.userId === value)?.label ?? "";
   readonly form = new FormGroup({
     type: new FormControl<ClientType>("INDIVIDUAL", { nonNullable: true }),
+    status: new FormControl<ClientStatus>("ACTIVE", { nonNullable: true }),
     firstName: new FormControl(""),
     lastName: new FormControl(""),
     displayName: new FormControl("", {
@@ -62,25 +96,25 @@ export class ClientFormComponent {
     tagIds: new FormControl<string[]>([], { nonNullable: true }),
   });
   constructor() {
-    this.refs
-      .users()
-      .subscribe({
-        next: (items) =>
-          this.users.set(
-            items.map((item) => ({
-              userId: item.userId,
-              label:
-                [item.user.firstName, item.user.lastName]
-                  .filter(Boolean)
-                  .join(" ") || item.user.email,
-            })),
-          ),
-      });
-    this.refs
-      .tags()
-      .subscribe({
-        next: (items) => this.tags.set(items.filter((item) => item.isActive)),
-      });
+    this.applyTypeValidators(this.form.controls.type.value);
+    this.form.controls.type.valueChanges.subscribe((type) => {
+      this.applyTypeValidators(type);
+    });
+    this.refs.users().subscribe({
+      next: (items) =>
+        this.users.set(
+          items.map((item) => ({
+            userId: item.userId,
+            label:
+              [item.user.firstName, item.user.lastName]
+                .filter(Boolean)
+                .join(" ") || item.user.email,
+          })),
+        ),
+    });
+    this.refs.tags().subscribe({
+      next: (items) => this.tags.set(items.filter((item) => item.isActive)),
+    });
     if (this.clientId)
       this.api.get(this.clientId).subscribe({
         next: (item) => {
@@ -100,6 +134,25 @@ export class ClientFormComponent {
   isOrganization(): boolean {
     return this.form.controls.type.value === "ORGANIZATION";
   }
+
+  private applyTypeValidators(type: ClientType): void {
+    if (type === "ORGANIZATION") {
+      this.form.controls.organizationName.setValidators([Validators.required]);
+      this.form.controls.firstName.clearValidators();
+      this.form.controls.lastName.clearValidators();
+    } else {
+      this.form.controls.organizationName.clearValidators();
+      this.form.controls.firstName.setValidators([Validators.required]);
+      this.form.controls.lastName.setValidators([Validators.required]);
+    }
+
+    this.form.controls.organizationName.updateValueAndValidity({
+      emitEvent: false,
+    });
+    this.form.controls.firstName.updateValueAndValidity({ emitEvent: false });
+    this.form.controls.lastName.updateValueAndValidity({ emitEvent: false });
+  }
+
   submit(): void {
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
@@ -116,6 +169,7 @@ export class ClientFormComponent {
     }
     const request: ClientRequest = {
       type: raw.type,
+      status: raw.status,
       firstName: raw.firstName?.trim() || undefined,
       lastName: raw.lastName?.trim() || undefined,
       displayName: raw.displayName?.trim() || undefined,
@@ -135,6 +189,10 @@ export class ClientFormComponent {
     action.subscribe({
       next: (client) => {
         this.toast.success(this.localization.translate("clients.saved"));
+        if (this.dialogRef) {
+          this.dialogRef.close(client);
+          return;
+        }
         this.router.navigate(["/clients", client.id]);
       },
       error: () => {
@@ -142,5 +200,9 @@ export class ClientFormComponent {
         this.toast.error(this.localization.translate("clients.saveError"));
       },
     });
+  }
+
+  cancel(): void {
+    this.dialogRef?.close();
   }
 }

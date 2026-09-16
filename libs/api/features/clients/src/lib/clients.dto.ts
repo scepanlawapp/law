@@ -63,6 +63,10 @@ export class CreateClientDto {
   type!: ClientType;
 
   @IsOptional()
+  @IsEnum(ClientStatus)
+  status?: ClientStatus;
+
+  @IsOptional()
   @IsString()
   @MaxLength(160)
   firstName?: string;

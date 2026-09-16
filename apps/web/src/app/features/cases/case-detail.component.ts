@@ -17,6 +17,8 @@ import {
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
   HlmTabs,
   HlmTabsContent,
@@ -39,6 +41,8 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    HlmSelectImports,
+    HlmTextarea,
     HlmTabs,
     HlmTabsContent,
     HlmTabsList,
@@ -61,6 +65,18 @@ export class CaseDetailComponent {
   readonly responsibilities = signal<CaseResponsibility[]>([]);
   readonly users = signal(new Map<string, string>());
   readonly showCloseForm = signal(false);
+  readonly activityTypeOptions: ReadonlyArray<DomainActivity["type"]> = [
+    "NOTE",
+    "PHONE_CALL",
+    "MEETING",
+    "EMAIL",
+    "OTHER",
+  ];
+  readonly activityTypeItemToString = (
+    value: DomainActivity["type"] | string | null | undefined,
+  ): string => value ?? "";
+  readonly userItemToString = (value: string | null | undefined): string =>
+    this.users().get(value ?? "") ?? "";
   readonly closeForm = new FormGroup({
     closedDate: new FormControl("", {
       nonNullable: true,

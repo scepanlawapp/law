@@ -15,6 +15,8 @@ import {
   DraftResultResponse,
   CaseDetail,
   CaseListResponse,
+  CaseNextNumberResponse,
+  CaseNumberFormat,
   CasePriority,
   CaseStatus,
   ClientDetail,
@@ -32,6 +34,13 @@ import {
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
+
+export interface ReferenceRequest {
+  name: string;
+  description?: string;
+  color?: string;
+  isActive?: boolean;
+}
 
 @Injectable({ providedIn: "root" })
 export class AuthApiClient {
@@ -443,6 +452,7 @@ export interface CaseListQuery {
 
 export interface ClientRequest {
   type: ClientType;
+  status?: ClientStatus;
   firstName?: string;
   lastName?: string;
   displayName?: string;
@@ -458,11 +468,13 @@ export interface ClientRequest {
 
 export interface CaseRequest {
   clientId: string;
+  caseNumber: string;
   name: string;
   responsibleUserId: string;
   description?: string;
   caseTypeId?: string;
   practiceAreaId?: string;
+  status?: CaseStatus;
   priority?: CasePriority;
   openedDate?: string;
   externalReference?: string;
@@ -770,6 +782,16 @@ export class CasesApiClient {
     });
   }
 
+  nextNumber(format: CaseNumberFormat): Observable<CaseNextNumberResponse> {
+    return this.http.get<CaseNextNumberResponse>(
+      this.endpoint("/cases/next-number"),
+      {
+        withCredentials: true,
+        params: new HttpParams().set("format", format),
+      },
+    );
+  }
+
   create(request: CaseRequest): Observable<CaseDetail> {
     return this.http.post<CaseDetail>(this.endpoint("/cases"), request, {
       withCredentials: true,
@@ -953,11 +975,31 @@ export class ReferencesApiClient {
     >(this.endpoint("/references/case-types"), { withCredentials: true });
   }
 
+  createCaseType(
+    request: ReferenceRequest,
+  ): Observable<{ id: string; name: string; isActive: boolean }> {
+    return this.http.post<{ id: string; name: string; isActive: boolean }>(
+      this.endpoint("/references/case-types"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
   practiceAreas(): Observable<
     Array<{ id: string; name: string; isActive: boolean }>
   > {
     return this.http.get<
       Array<{ id: string; name: string; isActive: boolean }>
     >(this.endpoint("/references/practice-areas"), { withCredentials: true });
+  }
+
+  createPracticeArea(
+    request: ReferenceRequest,
+  ): Observable<{ id: string; name: string; isActive: boolean }> {
+    return this.http.post<{ id: string; name: string; isActive: boolean }>(
+      this.endpoint("/references/practice-areas"),
+      request,
+      { withCredentials: true },
+    );
   }
 }
