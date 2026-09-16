@@ -69,6 +69,54 @@
         ><input hlmInput id="lastName" formControlName="lastName" required />
       </div>
     }
+    <fieldset>
+      <legend>{{ "clients.residency" | translate }}</legend>
+      <hlm-radio-group
+        formControlName="isDomestic"
+        class="flex flex-wrap gap-4"
+      >
+        <div class="flex items-center gap-2">
+          <hlm-radio [value]="true" inputId="client-domestic">
+            <hlm-radio-indicator indicator />
+          </hlm-radio>
+          <label hlmLabel class="cursor-pointer" for="client-domestic">{{
+            "clients.domestic" | translate
+          }}</label>
+        </div>
+        <div class="flex items-center gap-2">
+          <hlm-radio [value]="false" inputId="client-foreign">
+            <hlm-radio-indicator indicator />
+          </hlm-radio>
+          <label hlmLabel class="cursor-pointer" for="client-foreign">{{
+            "clients.foreign" | translate
+          }}</label>
+        </div>
+      </hlm-radio-group>
+    </fieldset>
+    @if (!isOrganization()) {
+      <div hlmField>
+        <label hlmFieldLabel for="jmbg">{{ "clients.jmbg" | translate }}</label>
+        <input hlmInput id="jmbg" formControlName="jmbg" />
+      </div>
+    }
+    @if (isOrganization()) {
+      <div hlmField>
+        <label hlmFieldLabel for="taxNumber">{{
+          "clients.taxNumber" | translate
+        }}</label>
+        <input hlmInput id="taxNumber" formControlName="taxNumber" />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="registrationNumber">{{
+          "clients.registrationNumber" | translate
+        }}</label>
+        <input
+          hlmInput
+          id="registrationNumber"
+          formControlName="registrationNumber"
+        />
+      </div>
+    }
     <div hlmField>
       <label hlmFieldLabel for="displayName">{{
         "clients.displayName" | translate
@@ -118,6 +166,282 @@
         </hlm-select-content>
       </hlm-select>
     </div>
+    <fieldset>
+      <legend>{{ "clients.identificationDocuments" | translate }}</legend>
+      @for (
+        document of identificationDocuments.controls;
+        track document.controls.id.value || $index
+      ) {
+        <div [formGroup]="document">
+          <div hlmField>
+            <label hlmFieldLabel [for]="'document-type-' + $index">{{
+              "clients.documentType" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'document-type-' + $index"
+              formControlName="type"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'document-number-' + $index">{{
+              "clients.documentNumber" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'document-number-' + $index"
+              formControlName="number"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'document-country-' + $index">{{
+              "clients.country" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'document-country-' + $index"
+              formControlName="country"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'document-issued-' + $index">{{
+              "clients.issuedDate" | translate
+            }}</label>
+            <input
+              hlmInput
+              type="date"
+              [id]="'document-issued-' + $index"
+              formControlName="issuedDate"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'document-expired-' + $index">{{
+              "clients.expiredDate" | translate
+            }}</label>
+            <input
+              hlmInput
+              type="date"
+              [id]="'document-expired-' + $index"
+              formControlName="expiredDate"
+            />
+          </div>
+          <button
+            hlmBtn
+            variant="ghost"
+            type="button"
+            (click)="removeIdentificationDocument($index)"
+          >
+            {{ "clients.remove" | translate }}
+          </button>
+        </div>
+      }
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        (click)="addIdentificationDocument()"
+      >
+        {{ "clients.addDocument" | translate }}
+      </button>
+    </fieldset>
+    <fieldset>
+      <legend>{{ "clients.addresses" | translate }}</legend>
+      @for (
+        address of addresses.controls;
+        track address.controls.id.value || $index
+      ) {
+        <div [formGroup]="address">
+          <div hlmField>
+            <label hlmFieldLabel [for]="'address-type-' + $index">{{
+              "clients.addressType" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'address-type-' + $index"
+              formControlName="addressType"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'address-street-' + $index">{{
+              "clients.street" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'address-street-' + $index"
+              formControlName="street"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label
+              hlmFieldLabel
+              [for]="'address-street-additional-' + $index"
+              >{{ "clients.streetAdditional" | translate }}</label
+            >
+            <input
+              hlmInput
+              [id]="'address-street-additional-' + $index"
+              formControlName="streetAdditional"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'address-city-' + $index">{{
+              "clients.city" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'address-city-' + $index"
+              formControlName="city"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'address-postal-code-' + $index">{{
+              "clients.postalCode" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'address-postal-code-' + $index"
+              formControlName="postalCode"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'address-region-' + $index">{{
+              "clients.stateOrRegion" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'address-region-' + $index"
+              formControlName="stateOrRegion"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'address-country-' + $index">{{
+              "clients.country" | translate
+            }}</label>
+            <input
+              hlmInput
+              [id]="'address-country-' + $index"
+              formControlName="country"
+              required
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'address-note-' + $index">{{
+              "clients.note" | translate
+            }}</label>
+            <textarea
+              hlmTextarea
+              [id]="'address-note-' + $index"
+              formControlName="note"
+            ></textarea>
+          </div>
+          <label hlmLabel
+            ><input type="checkbox" formControlName="isPrimary" />
+            {{ "clients.primaryAddress" | translate }}</label
+          >
+          <button
+            hlmBtn
+            variant="ghost"
+            type="button"
+            (click)="removeAddress($index)"
+          >
+            {{ "clients.remove" | translate }}
+          </button>
+        </div>
+      }
+      <button hlmBtn variant="outline" type="button" (click)="addAddress()">
+        {{ "clients.addAddress" | translate }}
+      </button>
+    </fieldset>
+    <fieldset>
+      <legend>{{ "clients.contacts" | translate }}</legend>
+      @for (
+        contact of contacts.controls;
+        track contact.controls.id.value || $index
+      ) {
+        <div [formGroup]="contact" class="border border-border p-3">
+          <div hlmField>
+            <label hlmFieldLabel [for]="'contact-first-name-' + $index">{{
+              "clients.firstName" | translate
+            }}</label
+            ><input
+              hlmInput
+              [id]="'contact-first-name-' + $index"
+              formControlName="firstName"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'contact-last-name-' + $index">{{
+              "clients.lastName" | translate
+            }}</label
+            ><input
+              hlmInput
+              [id]="'contact-last-name-' + $index"
+              formControlName="lastName"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'contact-position-' + $index">{{
+              "clients.position" | translate
+            }}</label
+            ><input
+              hlmInput
+              [id]="'contact-position-' + $index"
+              formControlName="position"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'contact-email-' + $index">{{
+              "clients.email" | translate
+            }}</label
+            ><input
+              hlmInput
+              type="email"
+              [id]="'contact-email-' + $index"
+              formControlName="email"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'contact-phone-' + $index">{{
+              "clients.phone" | translate
+            }}</label
+            ><input
+              hlmInput
+              [id]="'contact-phone-' + $index"
+              formControlName="phone"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel [for]="'contact-notes-' + $index">{{
+              "clients.notes" | translate
+            }}</label
+            ><textarea
+              hlmTextarea
+              [id]="'contact-notes-' + $index"
+              formControlName="notes"
+            ></textarea>
+          </div>
+          <label hlmLabel
+            ><input type="checkbox" formControlName="isPrimary" />
+            {{ "clients.primaryContact" | translate }}</label
+          >
+          <button
+            hlmBtn
+            variant="ghost"
+            type="button"
+            (click)="removeContact($index)"
+          >
+            {{ "clients.remove" | translate }}
+          </button>
+        </div>
+      }
+      <button hlmBtn variant="outline" type="button" (click)="addContact()">
+        {{ "clients.addContact" | translate }}
+      </button>
+    </fieldset>
     <fieldset>
       <legend>{{ "clients.tags" | translate }}</legend>
       @for (tag of tags(); track tag.id) {

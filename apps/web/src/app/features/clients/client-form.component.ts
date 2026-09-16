@@ -1,6 +1,7 @@
 import { Component, inject, signal } from "@angular/core";
 import {
   FormControl,
+  FormArray,
   FormGroup,
   ReactiveFormsModule,
   Validators,
@@ -9,10 +10,18 @@ import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { ClientDetail, ClientStatus, ClientType } from "@law/api-interfaces";
 import {
+  AuthApiClient,
   ClientRequest,
+  ClientAddress,
+  ClientAddressRequest,
+  ClientContact,
+  ClientContactRequest,
+  ClientIdentificationDocument,
+  ClientIdentificationDocumentRequest,
   ClientsApiClient,
   ReferencesApiClient,
 } from "@law/api-clients";
+import { forkJoin, map, Observable, switchMap } from "rxjs";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -47,6 +56,7 @@ import {
   ],
 })
 export class ClientFormComponent {
+  private readonly auth = inject(AuthApiClient);
   private readonly api = inject(ClientsApiClient);
   private readonly refs = inject(ReferencesApiClient);
   private readonly route = inject(ActivatedRoute);
@@ -78,6 +88,11 @@ export class ClientFormComponent {
   readonly responsibleUserItemToString = (
     value: string | null | undefined,
   ): string => this.users().find((user) => user.userId === value)?.label ?? "";
+  readonly addresses = new FormArray([this.createAddressForm(undefined, true)]);
+  readonly identificationDocuments = new FormArray([
+    this.createIdentificationDocumentForm(),
+  ]);
+  readonly contacts = new FormArray([this.createContactForm(undefined, true)]);
   readonly form = new FormGroup({
     type: new FormControl<ClientType>("INDIVIDUAL", { nonNullable: true }),
     status: new FormControl<ClientStatus>("ACTIVE", { nonNullable: true }),
@@ -87,6 +102,10 @@ export class ClientFormComponent {
       validators: [Validators.maxLength(320)],
     }),
     organizationName: new FormControl(""),
+    isDomestic: new FormControl(true, { nonNullable: true }),
+    jmbg: new FormControl(""),
+    taxNumber: new FormControl(""),
+    registrationNumber: new FormControl(""),
     email: new FormControl("", { validators: [Validators.email] }),
     phone: new FormControl(""),
     website: new FormControl(""),
@@ -115,14 +134,43 @@ export class ClientFormComponent {
     this.refs.tags().subscribe({
       next: (items) => this.tags.set(items.filter((item) => item.isActive)),
     });
+    if (!this.clientId) {
+      this.auth.me().subscribe({
+        next: (session) =>
+          this.form.controls.responsibleUserId.setValue(session.user.id),
+      });
+    }
     if (this.clientId)
-      this.api.get(this.clientId).subscribe({
-        next: (item) => {
+      forkJoin({
+        client: this.api.get(this.clientId),
+        addresses: this.api.listAddresses(this.clientId),
+        documents: this.api.listIdentificationDocuments(this.clientId),
+        contacts: this.api.listContacts(this.clientId),
+      }).subscribe({
+        next: ({ client, addresses, documents, contacts }) => {
           this.form.patchValue({
-            ...item,
-            responsibleUserId: item.responsibleUserId ?? "",
-            tagIds: item.tags.map((tag) => tag.id),
+            responsibleUserId: client.responsibleUserId ?? "",
+            tagIds: client.tags.map((tag) => tag.id),
           });
+          this.form.patchValue(client);
+          this.replaceForms(
+            this.addresses,
+            addresses,
+            (address) => this.createAddressForm(address),
+            () => this.createAddressForm(),
+          );
+          this.replaceForms(
+            this.identificationDocuments,
+            documents,
+            (document) => this.createIdentificationDocumentForm(document),
+            () => this.createIdentificationDocumentForm(),
+          );
+          this.replaceForms(
+            this.contacts,
+            contacts,
+            (contact) => this.createContactForm(contact),
+            () => this.createContactForm(),
+          );
           this.loading.set(false);
         },
         error: () => {
@@ -130,6 +178,107 @@ export class ClientFormComponent {
           this.toast.error(this.localization.translate("clients.loadError"));
         },
       });
+  }
+
+  private createAddressForm(address?: ClientAddress, isPrimaryDefault = false) {
+    return new FormGroup({
+      id: new FormControl(address?.id ?? "", { nonNullable: true }),
+      addressType: new FormControl(address?.addressType ?? "", {
+        nonNullable: true,
+      }),
+      street: new FormControl(address?.street ?? "", { nonNullable: true }),
+      streetAdditional: new FormControl(address?.streetAdditional ?? ""),
+      city: new FormControl(address?.city ?? "", { nonNullable: true }),
+      postalCode: new FormControl(address?.postalCode ?? "", {
+        nonNullable: true,
+      }),
+      stateOrRegion: new FormControl(address?.stateOrRegion ?? ""),
+      country: new FormControl(address?.country ?? "", { nonNullable: true }),
+      note: new FormControl(address?.note ?? ""),
+      isPrimary: new FormControl(address?.isPrimary ?? isPrimaryDefault, {
+        nonNullable: true,
+      }),
+    });
+  }
+
+  private createIdentificationDocumentForm(
+    document?: ClientIdentificationDocument,
+  ) {
+    return new FormGroup({
+      id: new FormControl(document?.id ?? "", { nonNullable: true }),
+      type: new FormControl(document?.type ?? "", { nonNullable: true }),
+      number: new FormControl(document?.number ?? "", { nonNullable: true }),
+      issuedDate: new FormControl(this.dateInputValue(document?.issuedDate), {
+        nonNullable: true,
+      }),
+      expiredDate: new FormControl(this.dateInputValue(document?.expiredDate), {
+        nonNullable: true,
+      }),
+      country: new FormControl(document?.country ?? "", {
+        nonNullable: true,
+      }),
+    });
+  }
+
+  private createContactForm(contact?: ClientContact, isPrimaryDefault = false) {
+    return new FormGroup({
+      id: new FormControl(contact?.id ?? "", { nonNullable: true }),
+      firstName: new FormControl(contact?.firstName ?? "", {
+        nonNullable: true,
+      }),
+      lastName: new FormControl(contact?.lastName ?? "", {
+        nonNullable: true,
+      }),
+      position: new FormControl(contact?.position ?? ""),
+      email: new FormControl(contact?.email ?? "", {
+        validators: [Validators.email],
+      }),
+      phone: new FormControl(contact?.phone ?? ""),
+      isPrimary: new FormControl(contact?.isPrimary ?? isPrimaryDefault, {
+        nonNullable: true,
+      }),
+      notes: new FormControl(contact?.notes ?? ""),
+    });
+  }
+
+  private dateInputValue(value: string | null | undefined): string {
+    return value ? value.slice(0, 10) : "";
+  }
+
+  private replaceForms<T>(
+    collection: FormArray,
+    items: T[],
+    create: (item: T) => FormGroup,
+    createEmpty: () => FormGroup,
+  ): void {
+    collection.clear();
+    for (const item of items) collection.push(create(item));
+    if (!items.length) collection.push(createEmpty());
+  }
+
+  addAddress(): void {
+    this.addresses.push(this.createAddressForm());
+  }
+
+  removeAddress(index: number): void {
+    if (this.addresses.length > 1) this.addresses.removeAt(index);
+  }
+
+  addIdentificationDocument(): void {
+    this.identificationDocuments.push(this.createIdentificationDocumentForm());
+  }
+
+  removeIdentificationDocument(index: number): void {
+    if (this.identificationDocuments.length > 1)
+      this.identificationDocuments.removeAt(index);
+  }
+
+  addContact(): void {
+    this.contacts.push(this.createContactForm());
+  }
+
+  removeContact(index: number): void {
+    if (this.contacts.length > 1) this.contacts.removeAt(index);
   }
   isOrganization(): boolean {
     return this.form.controls.type.value === "ORGANIZATION";
@@ -174,6 +323,10 @@ export class ClientFormComponent {
       lastName: raw.lastName?.trim() || undefined,
       displayName: raw.displayName?.trim() || undefined,
       organizationName: raw.organizationName?.trim() || undefined,
+      isDomestic: raw.isDomestic,
+      jmbg: raw.jmbg?.trim() || undefined,
+      taxNumber: raw.taxNumber?.trim() || undefined,
+      registrationNumber: raw.registrationNumber?.trim() || undefined,
       email: raw.email?.trim() || undefined,
       phone: raw.phone?.trim() || undefined,
       website: raw.website?.trim() || undefined,
@@ -182,24 +335,179 @@ export class ClientFormComponent {
       responsibleUserId: raw.responsibleUserId || undefined,
       tagIds: raw.tagIds,
     };
+    const addressRequests = this.addressRequests();
+    const documentRequests = this.documentRequests();
+    const contactRequests = this.contactRequests();
+    if (
+      addressRequests === null ||
+      documentRequests === null ||
+      contactRequests === null
+    ) {
+      this.saving.set(false);
+      this.toast.error(this.localization.translate("clients.saveError"));
+      return;
+    }
     this.saving.set(true);
     const action = this.clientId
       ? this.api.update(this.clientId, request)
       : this.api.create(request);
-    action.subscribe({
-      next: (client) => {
-        this.toast.success(this.localization.translate("clients.saved"));
-        if (this.dialogRef) {
-          this.dialogRef.close(client);
-          return;
-        }
-        this.router.navigate(["/clients", client.id]);
+    action
+      .pipe(
+        switchMap((client) =>
+          forkJoin([
+            ...addressRequests.map((row) => this.saveAddress(client.id, row)),
+            ...documentRequests.map((request) =>
+              this.saveIdentificationDocument(client.id, request),
+            ),
+            ...contactRequests.map((row) => this.saveContact(client.id, row)),
+          ]).pipe(map(() => client)),
+        ),
+      )
+      .subscribe({
+        next: (client) => {
+          this.toast.success(this.localization.translate("clients.saved"));
+          if (this.dialogRef) {
+            this.dialogRef.close(client);
+            return;
+          }
+          this.router.navigate(["/clients", client.id]);
+        },
+        error: () => {
+          this.saving.set(false);
+          this.toast.error(this.localization.translate("clients.saveError"));
+        },
+      });
+  }
+
+  private addressRequests(): Array<{
+    id?: string;
+    request: ClientAddressRequest;
+  }> | null {
+    const rows = this.addresses.getRawValue();
+    const populated = rows.filter((row) =>
+      [
+        row.addressType,
+        row.street,
+        row.streetAdditional,
+        row.city,
+        row.postalCode,
+        row.stateOrRegion,
+        row.country,
+        row.note,
+      ].some((value) => value?.trim()),
+    );
+    if (
+      populated.some(
+        (row) =>
+          !row.addressType.trim() ||
+          !row.street.trim() ||
+          !row.city.trim() ||
+          !row.postalCode.trim() ||
+          !row.country.trim(),
+      )
+    )
+      return null;
+    return populated.map(({ id, ...row }) => ({
+      id: id || undefined,
+      request: {
+        ...row,
+        streetAdditional: row.streetAdditional?.trim() || undefined,
+        stateOrRegion: row.stateOrRegion?.trim() || undefined,
+        note: row.note?.trim() || undefined,
+        addressType: row.addressType.trim(),
+        street: row.street.trim(),
+        city: row.city.trim(),
+        postalCode: row.postalCode.trim(),
+        country: row.country.trim(),
       },
-      error: () => {
-        this.saving.set(false);
-        this.toast.error(this.localization.translate("clients.saveError"));
+    }));
+  }
+
+  private documentRequests(): Array<{
+    id?: string;
+    request: ClientIdentificationDocumentRequest;
+  }> | null {
+    const rows = this.identificationDocuments.getRawValue();
+    const populated = rows.filter((row) =>
+      [row.type, row.number, row.issuedDate, row.expiredDate, row.country].some(
+        (value) => value?.trim(),
+      ),
+    );
+    if (
+      populated.some(
+        (row) => !row.type.trim() || !row.number.trim() || !row.country.trim(),
+      )
+    )
+      return null;
+    return populated.map(({ id, ...row }) => ({
+      id: id || undefined,
+      request: {
+        ...row,
+        type: row.type.trim(),
+        number: row.number.trim(),
+        country: row.country.trim(),
+        issuedDate: row.issuedDate || undefined,
+        expiredDate: row.expiredDate || undefined,
       },
-    });
+    }));
+  }
+
+  private contactRequests(): Array<{
+    id?: string;
+    request: ClientContactRequest;
+  }> | null {
+    const rows = this.contacts.getRawValue();
+    const populated = rows.filter((row) =>
+      [
+        row.firstName,
+        row.lastName,
+        row.position,
+        row.email,
+        row.phone,
+        row.notes,
+      ].some((value) => value?.trim()),
+    );
+    if (populated.some((row) => !row.firstName.trim() || !row.lastName.trim()))
+      return null;
+    return populated.map(({ id, ...row }) => ({
+      id: id || undefined,
+      request: {
+        ...row,
+        firstName: row.firstName.trim(),
+        lastName: row.lastName.trim(),
+        position: row.position?.trim() || undefined,
+        email: row.email?.trim() || undefined,
+        phone: row.phone?.trim() || undefined,
+        notes: row.notes?.trim() || undefined,
+      },
+    }));
+  }
+
+  private saveAddress(
+    clientId: string,
+    row: { id?: string; request: ClientAddressRequest },
+  ): Observable<unknown> {
+    return row.id
+      ? this.api.updateAddress(clientId, row.id, row.request)
+      : this.api.createAddress(clientId, row.request);
+  }
+
+  private saveIdentificationDocument(
+    clientId: string,
+    row: { id?: string; request: ClientIdentificationDocumentRequest },
+  ): Observable<unknown> {
+    return row.id
+      ? this.api.updateIdentificationDocument(clientId, row.id, row.request)
+      : this.api.createIdentificationDocument(clientId, row.request);
+  }
+
+  private saveContact(
+    clientId: string,
+    row: { id?: string; request: ClientContactRequest },
+  ): Observable<unknown> {
+    return row.id
+      ? this.api.updateContact(clientId, row.id, row.request)
+      : this.api.createContact(clientId, row.request);
   }
 
   cancel(): void {
