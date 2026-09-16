@@ -442,6 +442,10 @@ export interface ClientDetail extends ClientSummary {
   firstName: string | null;
   lastName: string | null;
   organizationName: string | null;
+  isDomestic: boolean;
+  jmbg: string | null;
+  taxNumber: string | null;
+  registrationNumber: string | null;
   website: string | null;
   preferredLanguage: string | null;
   notes: string | null;

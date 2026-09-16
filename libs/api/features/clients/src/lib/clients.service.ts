@@ -25,6 +25,7 @@ import {
   ClientAddressDto,
   ClientCaseListQueryDto,
   ClientContactDto,
+  ClientIdentificationDocumentDto,
   ClientListQueryDto,
   CreateClientDto,
   UpdateClientActivityDto,
@@ -220,6 +221,10 @@ export class ClientsService {
       firstName: client.firstName,
       lastName: client.lastName,
       organizationName: client.organizationName,
+      isDomestic: client.isDomestic,
+      jmbg: client.jmbg,
+      taxNumber: client.taxNumber,
+      registrationNumber: client.registrationNumber,
       website: client.website,
       preferredLanguage: client.preferredLanguage,
       notes: client.notes,
@@ -243,6 +248,10 @@ export class ClientsService {
           workspaceId,
           clientNumber: await this.nextNumber(tx, "CLIENT"),
           status: input.status ?? "ACTIVE",
+          isDomestic: input.isDomestic ?? true,
+          jmbg: input.jmbg?.trim(),
+          taxNumber: input.taxNumber?.trim(),
+          registrationNumber: input.registrationNumber?.trim(),
           ...normalized,
           email: input.email?.trim(),
           phone: input.phone?.trim(),
@@ -304,6 +313,18 @@ export class ClientsService {
         data: {
           ...normalized,
           ...(input.status !== undefined && { status: input.status }),
+          ...(input.isDomestic !== undefined && {
+            isDomestic: input.isDomestic,
+          }),
+          ...(input.jmbg !== undefined && {
+            jmbg: input.jmbg.trim() || null,
+          }),
+          ...(input.taxNumber !== undefined && {
+            taxNumber: input.taxNumber.trim() || null,
+          }),
+          ...(input.registrationNumber !== undefined && {
+            registrationNumber: input.registrationNumber.trim() || null,
+          }),
           ...(input.email !== undefined && {
             email: input.email.trim() || null,
           }),
@@ -474,7 +495,6 @@ export class ClientsService {
 
   async createAddress(clientId: string, input: ClientAddressDto) {
     await this.requireClient(clientId);
-    const { userId } = this.context;
     return this.db.$transaction(async (tx) => {
       if (input.isPrimary)
         await tx.clientAddress.updateMany({
@@ -484,21 +504,17 @@ export class ClientsService {
       const address = await tx.clientAddress.create({
         data: {
           clientId,
-          type: input.type ?? "MAIN",
-          street: input.street?.trim(),
+          addressType: input.addressType.trim(),
+          street: input.street.trim(),
           streetAdditional: input.streetAdditional?.trim(),
-          city: input.city?.trim(),
-          postalCode: input.postalCode?.trim(),
+          city: input.city.trim(),
+          postalCode: input.postalCode.trim(),
           stateOrRegion: input.stateOrRegion?.trim(),
-          country: input.country?.trim(),
+          country: input.country.trim(),
+          note: input.note?.trim(),
           isPrimary: input.isPrimary ?? false,
         },
       });
-      if (address.isPrimary)
-        await tx.client.update({
-          where: { id: clientId },
-          data: { primaryAddressId: address.id, updatedByUserId: userId },
-        });
       return address;
     });
   }
@@ -509,7 +525,6 @@ export class ClientsService {
     input: ClientAddressDto,
   ) {
     await this.requireClient(clientId);
-    const { userId } = this.context;
     return this.db.$transaction(async (tx) => {
       const address = await tx.clientAddress.findFirst({
         where: { id: addressId, clientId },
@@ -523,36 +538,21 @@ export class ClientsService {
       const updated = await tx.clientAddress.update({
         where: { id: addressId },
         data: {
-          ...(input.type !== undefined && { type: input.type }),
-          ...(input.street !== undefined && {
-            street: input.street.trim() || null,
-          }),
+          addressType: input.addressType.trim(),
+          street: input.street.trim(),
           ...(input.streetAdditional !== undefined && {
             streetAdditional: input.streetAdditional.trim() || null,
           }),
-          ...(input.city !== undefined && { city: input.city.trim() || null }),
-          ...(input.postalCode !== undefined && {
-            postalCode: input.postalCode.trim() || null,
-          }),
+          city: input.city.trim(),
+          postalCode: input.postalCode.trim(),
           ...(input.stateOrRegion !== undefined && {
             stateOrRegion: input.stateOrRegion.trim() || null,
           }),
-          ...(input.country !== undefined && {
-            country: input.country.trim() || null,
-          }),
+          country: input.country.trim(),
+          ...(input.note !== undefined && { note: input.note.trim() || null }),
           ...(input.isPrimary !== undefined && { isPrimary: input.isPrimary }),
         },
       });
-      if (updated.isPrimary)
-        await tx.client.update({
-          where: { id: clientId },
-          data: { primaryAddressId: addressId, updatedByUserId: userId },
-        });
-      if (input.isPrimary === false && address.isPrimary)
-        await tx.client.update({
-          where: { id: clientId },
-          data: { primaryAddressId: null, updatedByUserId: userId },
-        });
       return updated;
     });
   }
@@ -564,15 +564,72 @@ export class ClientsService {
         where: { id: addressId, clientId },
       });
       if (!address) throw new NotFoundException("Client address not found");
-      if (address.isPrimary)
-        await tx.client.update({
-          where: { id: clientId },
-          data: {
-            primaryAddressId: null,
-            updatedByUserId: this.context.userId,
-          },
-        });
       await tx.clientAddress.delete({ where: { id: addressId } });
+    });
+  }
+
+  async listIdentificationDocuments(clientId: string) {
+    await this.requireClient(clientId);
+    return this.db.clientIdentificationDocument.findMany({
+      where: { clientId },
+      orderBy: { createdAt: "asc" },
+    });
+  }
+
+  async createIdentificationDocument(
+    clientId: string,
+    input: ClientIdentificationDocumentDto,
+  ) {
+    await this.requireClient(clientId);
+    return this.db.clientIdentificationDocument.create({
+      data: {
+        clientId,
+        type: input.type.trim(),
+        number: input.number.trim(),
+        issuedDate: input.issuedDate ? new Date(input.issuedDate) : undefined,
+        expiredDate: input.expiredDate
+          ? new Date(input.expiredDate)
+          : undefined,
+        country: input.country.trim(),
+      },
+    });
+  }
+
+  async updateIdentificationDocument(
+    clientId: string,
+    documentId: string,
+    input: ClientIdentificationDocumentDto,
+  ) {
+    await this.requireClient(clientId);
+    const document = await this.db.clientIdentificationDocument.findFirst({
+      where: { id: documentId, clientId },
+    });
+    if (!document)
+      throw new NotFoundException("Client identification document not found");
+    return this.db.clientIdentificationDocument.update({
+      where: { id: documentId },
+      data: {
+        type: input.type.trim(),
+        number: input.number.trim(),
+        issuedDate: input.issuedDate ? new Date(input.issuedDate) : null,
+        expiredDate: input.expiredDate ? new Date(input.expiredDate) : null,
+        country: input.country.trim(),
+      },
+    });
+  }
+
+  async removeIdentificationDocument(
+    clientId: string,
+    documentId: string,
+  ): Promise<void> {
+    await this.requireClient(clientId);
+    const document = await this.db.clientIdentificationDocument.findFirst({
+      where: { id: documentId, clientId },
+    });
+    if (!document)
+      throw new NotFoundException("Client identification document not found");
+    await this.db.clientIdentificationDocument.delete({
+      where: { id: documentId },
     });
   }
 

@@ -15,7 +15,6 @@ import {
   ActivityType,
   CasePriority,
   CaseStatus,
-  ClientAddressType,
   ClientStatus,
   ClientType,
 } from "@prisma/tenant-client";
@@ -87,6 +86,25 @@ export class CreateClientDto {
   organizationName?: string;
 
   @IsOptional()
+  @IsBoolean()
+  isDomestic?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(32)
+  jmbg?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  taxNumber?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(80)
+  registrationNumber?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(320)
   email?: string;
@@ -131,14 +149,23 @@ export class UpdateClientDto extends CreateClientDto {
 }
 
 export class ClientAddressDto {
-  @IsOptional() @IsEnum(ClientAddressType) type?: ClientAddressType;
-  @IsOptional() @IsString() @MaxLength(320) street?: string;
+  @IsString() @MaxLength(80) addressType!: string;
+  @IsString() @MaxLength(320) street!: string;
   @IsOptional() @IsString() @MaxLength(320) streetAdditional?: string;
-  @IsOptional() @IsString() @MaxLength(160) city?: string;
-  @IsOptional() @IsString() @MaxLength(40) postalCode?: string;
+  @IsString() @MaxLength(160) city!: string;
+  @IsString() @MaxLength(40) postalCode!: string;
   @IsOptional() @IsString() @MaxLength(160) stateOrRegion?: string;
-  @IsOptional() @IsString() @MaxLength(2) country?: string;
+  @IsString() @MaxLength(2) country!: string;
+  @IsOptional() @IsString() @MaxLength(10000) note?: string;
   @IsOptional() @IsBoolean() isPrimary?: boolean;
+}
+
+export class ClientIdentificationDocumentDto {
+  @IsString() @MaxLength(80) type!: string;
+  @IsString() @MaxLength(160) number!: string;
+  @IsOptional() @IsDateString() issuedDate?: string;
+  @IsOptional() @IsDateString() expiredDate?: string;
+  @IsString() @MaxLength(2) country!: string;
 }
 
 export class ClientContactDto {
