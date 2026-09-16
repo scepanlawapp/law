@@ -1,5 +1,6 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, ElementRef, inject, signal } from "@angular/core";
 import {
+  AbstractControl,
   FormControl,
   FormArray,
   FormGroup,
@@ -33,6 +34,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { CountrySelectComponent } from "../../shared/ui/country-select/country-select.component";
+import { CollapsibleSectionComponent } from "../../shared/ui/collapsible-section/collapsible-section.component";
 import {
   createSelectItemToString,
   type SelectOption,
@@ -54,6 +56,7 @@ import {
     HlmSelectImports,
     HlmTextarea,
     CountrySelectComponent,
+    CollapsibleSectionComponent,
     TranslatePipe,
   ],
 })
@@ -65,6 +68,7 @@ export class ClientFormComponent {
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
   private readonly dialogRef = inject(BrnDialogRef<ClientDetail>, {
     optional: true,
   });
@@ -95,6 +99,20 @@ export class ClientFormComponent {
     this.createIdentificationDocumentForm(),
   ]);
   readonly contacts = new FormArray([this.createContactForm(undefined, true)]);
+  // Top-level section expand/collapse state; multiple sections can stay open at once.
+  readonly expandedBasicMore = signal(false);
+  readonly expandedAddresses = signal(true);
+  readonly expandedContacts = signal(false);
+  readonly expandedIdentification = signal(false);
+  readonly expandedAdditional = signal(false);
+  private readonly addressExtraExpanded = new WeakMap<
+    AbstractControl,
+    boolean
+  >();
+  private readonly contactNotesExpanded = new WeakMap<
+    AbstractControl,
+    boolean
+  >();
   readonly form = new FormGroup({
     type: new FormControl<ClientType>("INDIVIDUAL", { nonNullable: true }),
     status: new FormControl<ClientStatus>("ACTIVE", { nonNullable: true }),
@@ -286,6 +304,91 @@ export class ClientFormComponent {
     return this.form.controls.type.value === "ORGANIZATION";
   }
 
+  selectPrimaryAddress(index: number): void {
+    this.addresses.controls.forEach((group, i) =>
+      group.controls.isPrimary.setValue(i === index),
+    );
+  }
+
+  selectPrimaryContact(index: number): void {
+    this.contacts.controls.forEach((group, i) =>
+      group.controls.isPrimary.setValue(i === index),
+    );
+  }
+
+  isAddressExtraExpanded(group: AbstractControl): boolean {
+    return this.addressExtraExpanded.get(group) ?? false;
+  }
+
+  setAddressExtraExpanded(group: AbstractControl, value: boolean): void {
+    this.addressExtraExpanded.set(group, value);
+  }
+
+  isContactNotesExpanded(group: AbstractControl): boolean {
+    return this.contactNotesExpanded.get(group) ?? false;
+  }
+
+  setContactNotesExpanded(group: AbstractControl, value: boolean): void {
+    this.contactNotesExpanded.set(group, value);
+  }
+
+  toggleTag(tagId: string, checked: boolean): void {
+    const current = this.form.controls.tagIds.value;
+    this.form.controls.tagIds.setValue(
+      checked ? [...current, tagId] : current.filter((id) => id !== tagId),
+    );
+  }
+
+  /** Expands any section/nested area containing an invalid control, then focuses the first one. */
+  private expandInvalidSectionsAndFocus(): void {
+    const basicMoreInvalid = [
+      this.form.controls.displayName,
+      this.form.controls.website,
+      this.form.controls.preferredLanguage,
+    ].some((control) => control.invalid);
+    if (basicMoreInvalid) this.expandedBasicMore.set(true);
+
+    if (this.addresses.invalid) {
+      this.expandedAddresses.set(true);
+      for (const group of this.addresses.controls) {
+        const extraInvalid = [
+          group.controls.streetAdditional,
+          group.controls.stateOrRegion,
+          group.controls.note,
+        ].some((control) => control.invalid);
+        if (extraInvalid) this.setAddressExtraExpanded(group, true);
+      }
+    }
+
+    if (this.contacts.invalid) {
+      this.expandedContacts.set(true);
+      for (const group of this.contacts.controls) {
+        if (group.controls.notes.invalid)
+          this.setContactNotesExpanded(group, true);
+      }
+    }
+
+    if (
+      this.form.controls.jmbg.invalid ||
+      this.form.controls.registrationNumber.invalid ||
+      this.form.controls.taxNumber.invalid ||
+      this.identificationDocuments.invalid
+    ) {
+      this.expandedIdentification.set(true);
+    }
+
+    if (this.form.controls.tagIds.invalid || this.form.controls.notes.invalid) {
+      this.expandedAdditional.set(true);
+    }
+
+    setTimeout(() => {
+      const invalidControl = this.elementRef.nativeElement.querySelector(
+        "input.ng-invalid, textarea.ng-invalid, .ng-invalid[hlmcombobox], .ng-invalid",
+      );
+      if (invalidControl instanceof HTMLElement) invalidControl.focus();
+    });
+  }
+
   private applyTypeValidators(type: ClientType): void {
     if (type === "ORGANIZATION") {
       this.form.controls.organizationName.setValidators([Validators.required]);
@@ -307,6 +410,7 @@ export class ClientFormComponent {
   submit(): void {
     if (this.form.invalid || this.saving()) {
       this.form.markAllAsTouched();
+      this.expandInvalidSectionsAndFocus();
       return;
     }
     const raw = this.form.getRawValue();
@@ -316,6 +420,7 @@ export class ClientFormComponent {
       (this.isOrganization() && !raw.organizationName?.trim())
     ) {
       this.form.markAllAsTouched();
+      this.expandInvalidSectionsAndFocus();
       return;
     }
     const request: ClientRequest = {
@@ -345,6 +450,9 @@ export class ClientFormComponent {
       documentRequests === null ||
       contactRequests === null
     ) {
+      if (addressRequests === null) this.expandedAddresses.set(true);
+      if (documentRequests === null) this.expandedIdentification.set(true);
+      if (contactRequests === null) this.expandedContacts.set(true);
       this.saving.set(false);
       this.toast.error(this.localization.translate("clients.saveError"));
       return;

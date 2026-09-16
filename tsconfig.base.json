@@ -159,6 +159,9 @@
       ],
       "@spartan-ng/helm/combobox": [
         "./libs/shared/frontend/ui/combobox/src/index.ts"
+      ],
+      "@spartan-ng/helm/collapsible": [
+        "./libs/shared/frontend/ui/collapsible/src/index.ts"
       ]
     }
   },

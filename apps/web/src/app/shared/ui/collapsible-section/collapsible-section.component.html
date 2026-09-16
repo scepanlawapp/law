@@ -1,0 +1,22 @@
+<div
+  hlmCollapsible
+  [expanded]="expanded()"
+  (expandedChange)="toggle($event)"
+  class="border-border flex flex-col gap-4 rounded-lg border p-4"
+>
+  <button
+    hlmCollapsibleTrigger
+    [attr.aria-controls]="contentId"
+    class="flex w-full items-center justify-between text-left text-sm font-medium"
+  >
+    <span>{{ title() }}</span>
+    <ng-icon
+      name="lucideChevronDown"
+      class="transition-transform"
+      [class.rotate-180]="expanded()"
+    />
+  </button>
+  <div hlmCollapsibleContent [id]="contentId" class="flex flex-col gap-4">
+    <ng-content />
+  </div>
+</div>
