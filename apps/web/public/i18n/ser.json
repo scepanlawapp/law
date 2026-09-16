@@ -448,6 +448,7 @@
   "clients.title": "Klijenti",
   "clients.create": "Kreiraj klijenta",
   "clients.edit": "Izmeni klijenta",
+  "clients.formDescription": "Unesite podatke o klijentu.",
   "clients.search": "Pretraži klijente",
   "clients.loading": "Učitavanje...",
   "clients.error": "Klijenti nisu mogli biti učitani.",

@@ -1,4 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -18,6 +19,7 @@ export class DataSettingsComponent {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly clearing = signal(false);
   clearHistory(): void {
     this.confirmDialog
@@ -28,11 +30,15 @@ export class DataSettingsComponent {
         cancelText: this.localization.translate("settings.cancel"),
         variant: "danger",
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((confirmed) => {
         if (!confirmed) return;
 
         this.clearing.set(true);
-        this.api.clearConversationHistory().subscribe({
+        this.api
+          .clearConversationHistory()
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
           next: () => {
             this.toast.success(
               this.localization.translate("settings.historyDeleted"),

@@ -1,4 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { AuthApiClient } from "@law/api-clients";
@@ -25,13 +26,16 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 export class ForgotPasswordComponent {
   private readonly api = inject(AuthApiClient);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   email = "";
   readonly sent = signal(false);
   readonly submitting = signal(false);
 
   submit(): void {
     this.submitting.set(true);
-    this.api.forgotPassword({ email: this.email }).subscribe({
+    this.api.forgotPassword({ email: this.email })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.sent.set(true);
         this.submitting.set(false);

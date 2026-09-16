@@ -1,4 +1,4 @@
-import { Component, inject } from "@angular/core";
+import { Component, DestroyRef, inject } from "@angular/core";
 import { HttpErrorResponse } from "@angular/common/http";
 import {
   FormControl,
@@ -7,6 +7,7 @@ import {
   Validators,
 } from "@angular/forms";
 import { Router, RouterLink } from "@angular/router";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideMail,
@@ -61,6 +62,7 @@ export class LoginComponent {
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
 
   readonly features: FeatureItem[] = [
     {
@@ -117,7 +119,9 @@ export class LoginComponent {
     this.submitting = true;
     this.error = "";
 
-    this.auth.login(email, password).subscribe({
+    this.auth.login(email, password)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         void this.router.navigate(["/"]);
       },

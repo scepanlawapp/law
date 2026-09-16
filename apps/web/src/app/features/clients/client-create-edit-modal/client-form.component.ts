@@ -7,7 +7,6 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { ClientDetail, ClientStatus, ClientType } from "@law/api-interfaces";
 import {
@@ -24,13 +23,20 @@ import {
 } from "@law/api-clients";
 import { forkJoin, map, Observable, switchMap } from "rxjs";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmDialogDescription,
+  HlmDialogFooter,
+  HlmDialogHeader,
+  HlmDialogTitle,
+} from "@spartan-ng/helm/dialog";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmLabel } from "@spartan-ng/helm/label";
 import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
-import type { ClientFormDialogContext } from "./client-form-dialog.service";
+import { ClientFormDialogContext } from "./client-form-dialog.models";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { CollapsibleSectionComponent } from "../../../shared/ui/collapsible-section/collapsible-section.component";
@@ -44,14 +50,18 @@ import { SelectOption, createSelectItemToString } from "../../../shared/utils";
   templateUrl: "./client-form.component.html",
   imports: [
     ReactiveFormsModule,
-    RouterLink,
     HlmButton,
+    HlmDialogDescription,
+    HlmDialogFooter,
+    HlmDialogHeader,
+    HlmDialogTitle,
     HlmField,
     HlmFieldLabel,
     HlmInput,
     HlmLabel,
     HlmRadioGroupImports,
     HlmSelectImports,
+    HlmSpinner,
     HlmTextarea,
     CountrySelectComponent,
     CollapsibleSectionComponent,
@@ -62,20 +72,13 @@ export class ClientFormComponent {
   private readonly auth = inject(AuthApiClient);
   private readonly api = inject(ClientsApiClient);
   private readonly refs = inject(ReferencesApiClient);
-  private readonly route = inject(ActivatedRoute);
-  private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
   private readonly elementRef = inject(ElementRef<HTMLElement>);
-  private readonly dialogRef = inject(BrnDialogRef<ClientDetail>, {
-    optional: true,
-  });
+  private readonly dialogRef = inject(BrnDialogRef<ClientDetail>);
   private readonly dialogContext =
-    injectBrnDialogContext<ClientFormDialogContext | null>({ optional: true });
-  readonly isDialog = this.dialogRef !== null;
-  readonly clientId =
-    this.dialogContext?.clientId ??
-    this.route.snapshot.paramMap.get("clientId");
+    injectBrnDialogContext<ClientFormDialogContext>();
+  readonly clientId = this.dialogContext.clientId;
   readonly saving = signal(false);
   readonly loading = signal(!!this.clientId);
   readonly users = signal<Array<{ userId: string; label: string }>>([]);
@@ -478,11 +481,7 @@ export class ClientFormComponent {
       .subscribe({
         next: (client) => {
           this.toast.success(this.localization.translate("clients.saved"));
-          if (this.dialogRef) {
-            this.dialogRef.close(client);
-            return;
-          }
-          this.router.navigate(["/clients", client.id]);
+          this.dialogRef.close(client);
         },
         error: () => {
           this.saving.set(false);
@@ -623,6 +622,6 @@ export class ClientFormComponent {
   }
 
   cancel(): void {
-    this.dialogRef?.close();
+    this.dialogRef.close();
   }
 }

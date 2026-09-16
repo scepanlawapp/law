@@ -448,6 +448,7 @@
   "clients.title": "Clients",
   "clients.create": "Create client",
   "clients.edit": "Edit client",
+  "clients.formDescription": "Enter the client's details below.",
   "clients.search": "Search clients",
   "clients.loading": "Loading...",
   "clients.error": "Clients could not be loaded.",

@@ -162,6 +162,9 @@
       ],
       "@spartan-ng/helm/collapsible": [
         "./libs/shared/frontend/ui/collapsible/src/index.ts"
+      ],
+      "@spartan-ng/helm/spinner": [
+        "./libs/shared/frontend/ui/spinner/src/index.ts"
       ]
     }
   },

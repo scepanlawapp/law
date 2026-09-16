@@ -67,6 +67,7 @@
     "ng-packagr": "~22.1.0",
     "nx": "23.2.0",
     "postcss": "^8.5.28",
+    "prettier": "~3.6.2",
     "prisma": "^6.16.2",
     "tailwindcss": "^4.3.3",
     "ts-jest": "^29.4.7",

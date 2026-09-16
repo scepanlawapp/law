@@ -2,11 +2,8 @@ import { inject, Injectable } from "@angular/core";
 import { Observable } from "rxjs";
 import { ClientDetail } from "@law/api-interfaces";
 import { HlmDialogService } from "@spartan-ng/helm/dialog";
+import { ClientFormDialogContext } from "./client-form-dialog.models";
 import { ClientFormComponent } from "./client-form.component";
-
-export interface ClientFormDialogContext {
-  clientId?: string;
-}
 
 /** Opens the client create/edit form in a modal so any component can reuse it without routing. */
 @Injectable({ providedIn: "root" })
@@ -27,7 +24,8 @@ export class ClientFormDialogService {
     return this.dialog.open<ClientDetail, ClientFormDialogContext>(
       ClientFormComponent,
       {
-        contentClass: "sm:max-w-2xl",
+        contentClass:
+          "sm:max-w-2xl h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
         context: context ?? {},
       },
     ).closed$;

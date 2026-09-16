@@ -1,4 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   FormControl,
   FormGroup,
@@ -33,6 +34,7 @@ export class ProfileSettingsComponent {
   private readonly authApi = inject(AuthApiClient);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly form = new FormGroup({
@@ -55,7 +57,10 @@ export class ProfileSettingsComponent {
   });
 
   constructor() {
-    this.api.get().subscribe({
+    this.api
+      .get()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: (settings) => {
         this.form.patchValue({
           ...settings.profile,
@@ -91,6 +96,7 @@ export class ProfileSettingsComponent {
           avatarUrl: profile.avatarUrl?.trim() || undefined,
         },
       })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.toast.success(
@@ -113,7 +119,9 @@ export class ProfileSettingsComponent {
       return;
     }
     const { currentPassword, newPassword } = this.passwordForm.getRawValue();
-    this.authApi.changePassword(currentPassword, newPassword).subscribe({
+    this.authApi.changePassword(currentPassword, newPassword)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
       next: () => {
         this.passwordForm.reset();
         this.toast.success(

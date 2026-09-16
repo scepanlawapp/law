@@ -1,6 +1,14 @@
-<h1>{{ (clientId ? "clients.edit" : "clients.create") | translate }}</h1>
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>
+    {{ (clientId ? "clients.edit" : "clients.create") | translate }}
+  </h2>
+  <p hlmDialogDescription>{{ "clients.formDescription" | translate }}</p>
+</hlm-dialog-header>
 @if (loading()) {
-  <p>{{ "clients.loading" | translate }}</p>
+  <div class="flex items-center gap-2 text-muted-foreground">
+    <hlm-spinner aria-label="{{ 'clients.loading' | translate }}" />
+    <span>{{ "clients.loading" | translate }}</span>
+  </div>
 } @else {
   <form
     [formGroup]="form"
@@ -27,8 +35,9 @@
                 hlmLabel
                 class="cursor-pointer"
                 [for]="'client-type-' + option.value.toLowerCase()"
-                >{{ option.label | translate }}</label
               >
+                {{ option.label | translate }}
+              </label>
             </div>
           }
         </hlm-radio-group>
@@ -36,9 +45,9 @@
 
       @if (isOrganization()) {
         <div hlmField>
-          <label hlmFieldLabel for="organizationName">{{
-            "clients.organizationName" | translate
-          }}</label>
+          <label hlmFieldLabel for="organizationName">
+            {{ "clients.organizationName" | translate }}
+          </label>
           <input
             hlmInput
             id="organizationName"
@@ -46,12 +55,30 @@
             required
           />
         </div>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="registrationNumber">
+              {{ "clients.registrationNumber" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="registrationNumber"
+              formControlName="registrationNumber"
+            />
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="taxNumber">
+              {{ "clients.taxNumber" | translate }}
+            </label>
+            <input hlmInput id="taxNumber" formControlName="taxNumber" />
+          </div>
+        </div>
       } @else {
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div hlmField>
-            <label hlmFieldLabel for="firstName">{{
-              "clients.firstName" | translate
-            }}</label>
+            <label hlmFieldLabel for="firstName">
+              {{ "clients.firstName" | translate }}
+            </label>
             <input
               hlmInput
               id="firstName"
@@ -60,11 +87,17 @@
             />
           </div>
           <div hlmField>
-            <label hlmFieldLabel for="lastName">{{
-              "clients.lastName" | translate
-            }}</label>
+            <label hlmFieldLabel for="lastName">
+              {{ "clients.lastName" | translate }}
+            </label>
             <input hlmInput id="lastName" formControlName="lastName" required />
           </div>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="jmbg">
+            {{ "clients.jmbg" | translate }}
+          </label>
+          <input hlmInput id="jmbg" formControlName="jmbg" />
         </div>
       }
 
@@ -78,41 +111,41 @@
             <hlm-radio [value]="true" inputId="client-domestic">
               <hlm-radio-indicator indicator />
             </hlm-radio>
-            <label hlmLabel class="cursor-pointer" for="client-domestic">{{
-              "clients.domestic" | translate
-            }}</label>
+            <label hlmLabel class="cursor-pointer" for="client-domestic">
+              {{ "clients.domestic" | translate }}
+            </label>
           </div>
           <div class="flex items-center gap-2">
             <hlm-radio [value]="false" inputId="client-foreign">
               <hlm-radio-indicator indicator />
             </hlm-radio>
-            <label hlmLabel class="cursor-pointer" for="client-foreign">{{
-              "clients.foreign" | translate
-            }}</label>
+            <label hlmLabel class="cursor-pointer" for="client-foreign">
+              {{ "clients.foreign" | translate }}
+            </label>
           </div>
         </hlm-radio-group>
       </fieldset>
 
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div hlmField>
-          <label hlmFieldLabel for="email">{{
-            "clients.email" | translate
-          }}</label>
+          <label hlmFieldLabel for="email">
+            {{ "clients.email" | translate }}
+          </label>
           <input hlmInput id="email" type="email" formControlName="email" />
         </div>
         <div hlmField>
-          <label hlmFieldLabel for="phone">{{
-            "clients.phone" | translate
-          }}</label>
+          <label hlmFieldLabel for="phone">
+            {{ "clients.phone" | translate }}
+          </label>
           <input hlmInput id="phone" formControlName="phone" />
         </div>
       </div>
 
       <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div hlmField>
-          <label hlmFieldLabel for="status">{{
-            "clients.status" | translate
-          }}</label>
+          <label hlmFieldLabel for="status">
+            {{ "clients.status" | translate }}
+          </label>
           <hlm-select
             formControlName="status"
             [itemToString]="statusItemToString"
@@ -123,18 +156,18 @@
             <hlm-select-content *hlmSelectPortal>
               <hlm-select-group>
                 @for (option of statusOptions; track option.value) {
-                  <hlm-select-item [value]="option.value">{{
-                    statusItemToString(option.value)
-                  }}</hlm-select-item>
+                  <hlm-select-item [value]="option.value">
+                    {{ statusItemToString(option.value) }}
+                  </hlm-select-item>
                 }
               </hlm-select-group>
             </hlm-select-content>
           </hlm-select>
         </div>
         <div hlmField>
-          <label hlmFieldLabel for="responsibleUserId">{{
-            "clients.responsible" | translate
-          }}</label>
+          <label hlmFieldLabel for="responsibleUserId">
+            {{ "clients.responsible" | translate }}
+          </label>
           <hlm-select
             formControlName="responsibleUserId"
             [itemToString]="responsibleUserItemToString"
@@ -146,9 +179,9 @@
               <hlm-select-group>
                 <hlm-select-item value=""></hlm-select-item>
                 @for (user of users(); track user.userId) {
-                  <hlm-select-item [value]="user.userId">{{
-                    user.label
-                  }}</hlm-select-item>
+                  <hlm-select-item [value]="user.userId">
+                    {{ user.label }}
+                  </hlm-select-item>
                 }
               </hlm-select-group>
             </hlm-select-content>
@@ -163,21 +196,21 @@
       >
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div hlmField>
-            <label hlmFieldLabel for="displayName">{{
-              "clients.displayName" | translate
-            }}</label>
+            <label hlmFieldLabel for="displayName">
+              {{ "clients.displayName" | translate }}
+            </label>
             <input hlmInput id="displayName" formControlName="displayName" />
           </div>
           <div hlmField>
-            <label hlmFieldLabel for="website">{{
-              "clients.website" | translate
-            }}</label>
+            <label hlmFieldLabel for="website">
+              {{ "clients.website" | translate }}
+            </label>
             <input hlmInput id="website" formControlName="website" />
           </div>
           <div hlmField class="md:col-span-2">
-            <label hlmFieldLabel for="language">{{
-              "clients.language" | translate
-            }}</label>
+            <label hlmFieldLabel for="language">
+              {{ "clients.language" | translate }}
+            </label>
             <input hlmInput id="language" formControlName="preferredLanguage" />
           </div>
         </div>
@@ -196,9 +229,9 @@
         >
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel [for]="'address-type-' + $index">{{
-                "clients.addressType" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'address-type-' + $index">
+                {{ "clients.addressType" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'address-type-' + $index"
@@ -207,9 +240,9 @@
               />
             </div>
             <div hlmField>
-              <label hlmFieldLabel [for]="'address-country-' + $index">{{
-                "clients.country" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'address-country-' + $index">
+                {{ "clients.country" | translate }}
+              </label>
               <app-country-select
                 [inputId]="'address-country-' + $index"
                 [required]="true"
@@ -218,9 +251,9 @@
             </div>
           </div>
           <div hlmField>
-            <label hlmFieldLabel [for]="'address-street-' + $index">{{
-              "clients.street" | translate
-            }}</label>
+            <label hlmFieldLabel [for]="'address-street-' + $index">
+              {{ "clients.street" | translate }}
+            </label>
             <input
               hlmInput
               [id]="'address-street-' + $index"
@@ -230,9 +263,9 @@
           </div>
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel [for]="'address-city-' + $index">{{
-                "clients.city" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'address-city-' + $index">
+                {{ "clients.city" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'address-city-' + $index"
@@ -241,9 +274,9 @@
               />
             </div>
             <div hlmField>
-              <label hlmFieldLabel [for]="'address-postal-code-' + $index">{{
-                "clients.postalCode" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'address-postal-code-' + $index">
+                {{ "clients.postalCode" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'address-postal-code-' + $index"
@@ -263,8 +296,9 @@
                 <label
                   hlmFieldLabel
                   [for]="'address-street-additional-' + $index"
-                  >{{ "clients.streetAdditional" | translate }}</label
                 >
+                  {{ "clients.streetAdditional" | translate }}
+                </label>
                 <input
                   hlmInput
                   [id]="'address-street-additional-' + $index"
@@ -272,9 +306,9 @@
                 />
               </div>
               <div hlmField>
-                <label hlmFieldLabel [for]="'address-region-' + $index">{{
-                  "clients.stateOrRegion" | translate
-                }}</label>
+                <label hlmFieldLabel [for]="'address-region-' + $index">
+                  {{ "clients.stateOrRegion" | translate }}
+                </label>
                 <input
                   hlmInput
                   [id]="'address-region-' + $index"
@@ -282,9 +316,9 @@
                 />
               </div>
               <div hlmField class="md:col-span-2">
-                <label hlmFieldLabel [for]="'address-note-' + $index">{{
-                  "clients.note" | translate
-                }}</label>
+                <label hlmFieldLabel [for]="'address-note-' + $index">
+                  {{ "clients.note" | translate }}
+                </label>
                 <textarea
                   hlmTextarea
                   [id]="'address-note-' + $index"
@@ -332,9 +366,9 @@
         >
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel [for]="'contact-first-name-' + $index">{{
-                "clients.firstName" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'contact-first-name-' + $index">
+                {{ "clients.firstName" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'contact-first-name-' + $index"
@@ -342,9 +376,9 @@
               />
             </div>
             <div hlmField>
-              <label hlmFieldLabel [for]="'contact-last-name-' + $index">{{
-                "clients.lastName" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'contact-last-name-' + $index">
+                {{ "clients.lastName" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'contact-last-name-' + $index"
@@ -354,9 +388,9 @@
           </div>
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel [for]="'contact-email-' + $index">{{
-                "clients.email" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'contact-email-' + $index">
+                {{ "clients.email" | translate }}
+              </label>
               <input
                 hlmInput
                 type="email"
@@ -365,9 +399,9 @@
               />
             </div>
             <div hlmField>
-              <label hlmFieldLabel [for]="'contact-phone-' + $index">{{
-                "clients.phone" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'contact-phone-' + $index">
+                {{ "clients.phone" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'contact-phone-' + $index"
@@ -376,9 +410,9 @@
             </div>
           </div>
           <div hlmField>
-            <label hlmFieldLabel [for]="'contact-position-' + $index">{{
-              "clients.position" | translate
-            }}</label>
+            <label hlmFieldLabel [for]="'contact-position-' + $index">
+              {{ "clients.position" | translate }}
+            </label>
             <input
               hlmInput
               [id]="'contact-position-' + $index"
@@ -392,9 +426,9 @@
             (expandedChange)="setContactNotesExpanded(contact, $event)"
           >
             <div hlmField>
-              <label hlmFieldLabel [for]="'contact-notes-' + $index">{{
-                "clients.notes" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'contact-notes-' + $index">
+                {{ "clients.notes" | translate }}
+              </label>
               <textarea
                 hlmTextarea
                 [id]="'contact-notes-' + $index"
@@ -434,35 +468,6 @@
       [expanded]="expandedIdentification()"
       (expandedChange)="expandedIdentification.set($event)"
     >
-      @if (!isOrganization()) {
-        <div hlmField>
-          <label hlmFieldLabel for="jmbg">{{
-            "clients.jmbg" | translate
-          }}</label>
-          <input hlmInput id="jmbg" formControlName="jmbg" />
-        </div>
-      }
-      @if (isOrganization()) {
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div hlmField>
-            <label hlmFieldLabel for="registrationNumber">{{
-              "clients.registrationNumber" | translate
-            }}</label>
-            <input
-              hlmInput
-              id="registrationNumber"
-              formControlName="registrationNumber"
-            />
-          </div>
-          <div hlmField>
-            <label hlmFieldLabel for="taxNumber">{{
-              "clients.taxNumber" | translate
-            }}</label>
-            <input hlmInput id="taxNumber" formControlName="taxNumber" />
-          </div>
-        </div>
-      }
-
       @for (document of identificationDocuments.controls; track document) {
         <div
           [formGroup]="document"
@@ -470,9 +475,9 @@
         >
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel [for]="'document-type-' + $index">{{
-                "clients.documentType" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'document-type-' + $index">
+                {{ "clients.documentType" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'document-type-' + $index"
@@ -480,9 +485,9 @@
               />
             </div>
             <div hlmField>
-              <label hlmFieldLabel [for]="'document-number-' + $index">{{
-                "clients.documentNumber" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'document-number-' + $index">
+                {{ "clients.documentNumber" | translate }}
+              </label>
               <input
                 hlmInput
                 [id]="'document-number-' + $index"
@@ -491,9 +496,9 @@
             </div>
           </div>
           <div hlmField>
-            <label hlmFieldLabel [for]="'document-country-' + $index">{{
-              "clients.country" | translate
-            }}</label>
+            <label hlmFieldLabel [for]="'document-country-' + $index">
+              {{ "clients.country" | translate }}
+            </label>
             <app-country-select
               [inputId]="'document-country-' + $index"
               formControlName="country"
@@ -501,9 +506,9 @@
           </div>
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel [for]="'document-issued-' + $index">{{
-                "clients.issuedDate" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'document-issued-' + $index">
+                {{ "clients.issuedDate" | translate }}
+              </label>
               <input
                 hlmInput
                 type="date"
@@ -512,9 +517,9 @@
               />
             </div>
             <div hlmField>
-              <label hlmFieldLabel [for]="'document-expired-' + $index">{{
-                "clients.expiredDate" | translate
-              }}</label>
+              <label hlmFieldLabel [for]="'document-expired-' + $index">
+                {{ "clients.expiredDate" | translate }}
+              </label>
               <input
                 hlmInput
                 type="date"
@@ -559,32 +564,27 @@
                 type="checkbox"
                 [checked]="form.controls.tagIds.value.includes(tag.id)"
                 (change)="toggleTag(tag.id, $any($event.target).checked)"
-              />{{ tag.name }}</label
-            >
+              />
+              {{ tag.name }}
+            </label>
           }
         </div>
       </fieldset>
       <div hlmField>
-        <label hlmFieldLabel for="notes">{{
-          "clients.notes" | translate
-        }}</label>
+        <label hlmFieldLabel for="notes">
+          {{ "clients.notes" | translate }}
+        </label>
         <textarea hlmTextarea id="notes" formControlName="notes"></textarea>
       </div>
     </app-collapsible-section>
 
-    <div class="flex justify-end gap-2">
-      @if (isDialog) {
-        <button hlmBtn variant="ghost" type="button" (click)="cancel()">
-          {{ "clients.cancel" | translate }}
-        </button>
-      } @else {
-        <a hlmBtn variant="ghost" routerLink="/clients">{{
-          "clients.cancel" | translate
-        }}</a>
-      }
+    <hlm-dialog-footer>
+      <button hlmBtn variant="ghost" type="button" (click)="cancel()">
+        {{ "clients.cancel" | translate }}
+      </button>
       <button hlmBtn type="submit" [disabled]="saving()">
         {{ (saving() ? "clients.saving" : "clients.save") | translate }}
       </button>
-    </div>
+    </hlm-dialog-footer>
   </form>
 }

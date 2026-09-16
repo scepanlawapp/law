@@ -54,19 +54,22 @@ export class ClientsComponent {
   private sequence = 0;
 
   constructor() {
-    this.references.users().subscribe({
-      next: (users) =>
-        this.users.set(
-          new Map(
-            users.map((membership) => [
-              membership.userId,
-              [membership.user.firstName, membership.user.lastName]
-                .filter(Boolean)
-                .join(" ") || membership.user.email,
-            ]),
+    this.references
+      .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (users) =>
+          this.users.set(
+            new Map(
+              users.map((membership) => [
+                membership.userId,
+                [membership.user.firstName, membership.user.lastName]
+                  .filter(Boolean)
+                  .join(" ") || membership.user.email,
+              ]),
+            ),
           ),
-        ),
-    });
+      });
     this.search.valueChanges
       .pipe(
         startWith(this.search.value),
@@ -103,12 +106,14 @@ export class ClientsComponent {
 
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.load(this.search.value, page).subscribe({
-      error: () => {
-        this.loading.set(false);
-        this.error.set(true);
-      },
-    });
+    this.load(this.search.value, page)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        error: () => {
+          this.loading.set(false);
+          this.error.set(true);
+        },
+      });
   }
 
   retry(): void {
@@ -122,9 +127,12 @@ export class ClientsComponent {
   }
 
   createClient(): void {
-    this.clientDialog.create().subscribe((client) => {
-      if (!client) return;
-      this.router.navigate(["/clients", client.id]);
-    });
+    this.clientDialog
+      .create()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((client) => {
+        if (!client) return;
+        this.router.navigate(["/clients", client.id]);
+      });
   }
 }

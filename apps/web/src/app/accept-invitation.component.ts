@@ -1,4 +1,5 @@
-import { Component, inject, signal } from "@angular/core";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { AuthApiClient } from "@law/api-clients";
@@ -56,6 +57,7 @@ export class AcceptInvitationComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly destroyRef = inject(DestroyRef);
   readonly token = this.route.snapshot.queryParamMap.get("token") ?? "";
   password = "";
   readonly complete = signal(false);
@@ -65,6 +67,7 @@ export class AcceptInvitationComponent {
     this.submitting.set(true);
     this.api
       .acceptInvitation({ token: this.token, password: this.password })
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
           this.complete.set(true);
