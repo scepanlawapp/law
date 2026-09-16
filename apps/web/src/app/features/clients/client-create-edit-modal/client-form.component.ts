@@ -52,6 +52,15 @@ import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { SelectOption, createSelectItemToString } from "../../../shared/utils";
 import { HlmDialogImports } from "@spartan-ng/helm/dialog";
 
+type ClientAddressType =
+  | "REGISTERED"
+  | "DELIVERY"
+  | "BILLING"
+  | "OFFICE"
+  | "POSTAL";
+
+const DEFAULT_COUNTRY_CODE = "RS";
+
 @Component({
   selector: "app-client-form",
   standalone: true,
@@ -105,14 +114,28 @@ export class ClientFormComponent {
     { value: "ACTIVE", label: "clients.status.ACTIVE" },
     { value: "INACTIVE", label: "clients.status.INACTIVE" },
   ];
+  readonly addressTypeOptions: ReadonlyArray<SelectOption<ClientAddressType>> =
+    [
+      { value: "REGISTERED", label: "clients.addressType.REGISTERED" },
+      { value: "DELIVERY", label: "clients.addressType.DELIVERY" },
+      { value: "BILLING", label: "clients.addressType.BILLING" },
+      { value: "OFFICE", label: "clients.addressType.OFFICE" },
+      { value: "POSTAL", label: "clients.addressType.POSTAL" },
+    ];
   readonly statusItemToString = createSelectItemToString(
     this.statusOptions,
+    (key) => this.localization.translate(key),
+  );
+  readonly addressTypeItemToString = createSelectItemToString(
+    this.addressTypeOptions,
     (key) => this.localization.translate(key),
   );
   readonly responsibleUserItemToString = (
     value: string | null | undefined,
   ): string => this.users().find((user) => user.userId === value)?.label ?? "";
-  readonly addresses = new FormArray([this.createAddressForm(undefined, true)]);
+  readonly addresses = new FormArray<ReturnType<typeof this.createAddressForm>>(
+    [],
+  );
   readonly identificationDocuments = new FormArray([
     this.createIdentificationDocumentForm(),
   ]);
@@ -209,6 +232,7 @@ export class ClientFormComponent {
               addresses,
               (address) => this.createAddressForm(address),
               () => this.createAddressForm(),
+              false,
             );
             this.replaceForms(
               this.identificationDocuments,
@@ -234,17 +258,31 @@ export class ClientFormComponent {
   private createAddressForm(address?: ClientAddress, isPrimaryDefault = false) {
     return new FormGroup({
       id: new FormControl(address?.id ?? "", { nonNullable: true }),
-      addressType: new FormControl(address?.addressType ?? "", {
+      addressType: new FormControl<ClientAddressType>(
+        this.toClientAddressType(address?.addressType),
+        {
+          nonNullable: true,
+          validators: [Validators.required],
+        },
+      ),
+      street: new FormControl(address?.street ?? "", {
         nonNullable: true,
+        validators: [Validators.required],
       }),
-      street: new FormControl(address?.street ?? "", { nonNullable: true }),
       streetAdditional: new FormControl(address?.streetAdditional ?? ""),
-      city: new FormControl(address?.city ?? "", { nonNullable: true }),
+      city: new FormControl(address?.city ?? "", {
+        nonNullable: true,
+        validators: [Validators.required],
+      }),
       postalCode: new FormControl(address?.postalCode ?? "", {
         nonNullable: true,
+        validators: [Validators.required],
       }),
       stateOrRegion: new FormControl(address?.stateOrRegion ?? ""),
-      country: new FormControl(address?.country ?? "", { nonNullable: true }),
+      country: new FormControl(address?.country ?? DEFAULT_COUNTRY_CODE, {
+        nonNullable: true,
+        validators: [Validators.required],
+      }),
       note: new FormControl(address?.note ?? ""),
       isPrimary: new FormControl(address?.isPrimary ?? isPrimaryDefault, {
         nonNullable: true,
@@ -296,23 +334,34 @@ export class ClientFormComponent {
     return value ? value.slice(0, 10) : "";
   }
 
+  private toClientAddressType(
+    value: string | null | undefined,
+  ): ClientAddressType {
+    return this.addressTypeOptions.some((option) => option.value === value)
+      ? (value as ClientAddressType)
+      : "REGISTERED";
+  }
+
   private replaceForms<T>(
     collection: FormArray,
     items: T[],
     create: (item: T) => FormGroup,
     createEmpty: () => FormGroup,
+    addEmptyWhenNoItems = true,
   ): void {
     collection.clear();
     for (const item of items) collection.push(create(item));
-    if (!items.length) collection.push(createEmpty());
+    if (!items.length && addEmptyWhenNoItems) collection.push(createEmpty());
   }
 
   addAddress(): void {
-    this.addresses.push(this.createAddressForm());
+    this.addresses.push(
+      this.createAddressForm(undefined, !this.addresses.length),
+    );
   }
 
   removeAddress(index: number): void {
-    if (this.addresses.length > 1) this.addresses.removeAt(index);
+    this.addresses.removeAt(index);
   }
 
   addIdentificationDocument(): void {
@@ -438,9 +487,16 @@ export class ClientFormComponent {
     this.form.controls.lastName.updateValueAndValidity({ emitEvent: false });
   }
 
+  private markAllFormSectionsAsTouched(): void {
+    this.form.markAllAsTouched();
+    this.addresses.markAllAsTouched();
+    this.identificationDocuments.markAllAsTouched();
+    this.contacts.markAllAsTouched();
+  }
+
   submit(): void {
-    if (this.form.invalid || this.saving()) {
-      this.form.markAllAsTouched();
+    if (this.form.invalid || this.addresses.invalid || this.saving()) {
+      this.markAllFormSectionsAsTouched();
       this.expandInvalidSectionsAndFocus();
       return;
     }
@@ -450,7 +506,7 @@ export class ClientFormComponent {
         (!raw.firstName?.trim() || !raw.lastName?.trim())) ||
       (this.isOrganization() && !raw.organizationName?.trim())
     ) {
-      this.form.markAllAsTouched();
+      this.markAllFormSectionsAsTouched();
       this.expandInvalidSectionsAndFocus();
       return;
     }
@@ -481,6 +537,7 @@ export class ClientFormComponent {
       documentRequests === null ||
       contactRequests === null
     ) {
+      this.markAllFormSectionsAsTouched();
       if (addressRequests === null) this.expandedAddresses.set(true);
       if (documentRequests === null) this.expandedIdentification.set(true);
       if (contactRequests === null) this.expandedContacts.set(true);
@@ -524,13 +581,11 @@ export class ClientFormComponent {
     const rows = this.addresses.getRawValue();
     const populated = rows.filter((row) =>
       [
-        row.addressType,
         row.street,
         row.streetAdditional,
         row.city,
         row.postalCode,
         row.stateOrRegion,
-        row.country,
         row.note,
       ].some((value) => value?.trim()),
     );

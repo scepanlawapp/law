@@ -242,12 +242,26 @@
                 <label hlmFieldLabel [for]="'address-type-' + $index">
                   {{ "clients.addressType" | translate }}
                 </label>
-                <input
-                  hlmInput
-                  [id]="'address-type-' + $index"
+                <hlm-select
                   formControlName="addressType"
-                  required
-                />
+                  [itemToString]="addressTypeItemToString"
+                >
+                  <hlm-select-trigger
+                    [id]="'address-type-' + $index"
+                    class="w-full"
+                  >
+                    <hlm-select-value />
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal>
+                    <hlm-select-group>
+                      @for (option of addressTypeOptions; track option.value) {
+                        <hlm-select-item [value]="option.value">
+                          {{ addressTypeItemToString(option.value) }}
+                        </hlm-select-item>
+                      }
+                    </hlm-select-group>
+                  </hlm-select-content>
+                </hlm-select>
               </div>
               <div hlmField>
                 <label hlmFieldLabel [for]="'address-country-' + $index">
@@ -348,18 +362,13 @@
                 />
                 {{ "clients.primaryAddress" | translate }}
               </label>
-              <button
-                hlmBtn
-                variant="ghost"
-                type="button"
-                (click)="removeAddress($index)"
-              >
+              <button hlmBtn type="button" (click)="removeAddress($index)">
                 {{ "clients.remove" | translate }}
               </button>
             </div>
           </div>
         }
-        <button hlmBtn variant="outline" type="button" (click)="addAddress()">
+        <button hlmBtn type="button" (click)="addAddress()">
           {{ "clients.addAddress" | translate }}
         </button>
       </app-collapsible-section>
@@ -457,18 +466,13 @@
                 />
                 {{ "clients.primaryContact" | translate }}
               </label>
-              <button
-                hlmBtn
-                variant="ghost"
-                type="button"
-                (click)="removeContact($index)"
-              >
+              <button hlmBtn type="button" (click)="removeContact($index)">
                 {{ "clients.remove" | translate }}
               </button>
             </div>
           </div>
         }
-        <button hlmBtn variant="outline" type="button" (click)="addContact()">
+        <button hlmBtn type="button" (click)="addContact()">
           {{ "clients.addContact" | translate }}
         </button>
       </app-collapsible-section>
@@ -541,7 +545,6 @@
             <div class="flex justify-end">
               <button
                 hlmBtn
-                variant="ghost"
                 type="button"
                 (click)="removeIdentificationDocument($index)"
               >
@@ -550,12 +553,7 @@
             </div>
           </div>
         }
-        <button
-          hlmBtn
-          variant="outline"
-          type="button"
-          (click)="addIdentificationDocument()"
-        >
+        <button hlmBtn type="button" (click)="addIdentificationDocument()">
           {{ "clients.addDocument" | translate }}
         </button>
       </app-collapsible-section>
