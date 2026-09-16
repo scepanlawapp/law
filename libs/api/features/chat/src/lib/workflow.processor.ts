@@ -2,12 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { OnWorkerEvent, Processor, WorkerHost } from "@nestjs/bullmq";
 import { Job } from "bullmq";
 import { WorkflowName } from "@law/contracts";
-import {
-  TenantConnectionManager,
-  TenantContext,
-  TenantContextService,
-  TenantRegistryService,
-} from "@law/core";
+import { PlatformPrismaService, WorkspaceContext, WorkspaceContextService } from "@law/core";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { ChatEventBus } from "./chat.events";
 import { toJob } from "./chat.mappers";
@@ -32,31 +27,19 @@ export class WorkflowProcessor extends WorkerHost {
   constructor(
     private readonly runner: WorkflowRunner,
     private readonly events: ChatEventBus,
-    private readonly tenantRegistry: TenantRegistryService,
-    private readonly connectionManager: TenantConnectionManager,
-    private readonly tenantContextService: TenantContextService,
+    private readonly prisma: PlatformPrismaService,
+    private readonly workspaceContextService: WorkspaceContextService,
   ) {
     super();
   }
 
   async process(job: Job<WorkflowJobPayload>): Promise<void> {
-    const { tenant } = await this.tenantRegistry.resolveTenantForWorkspace(
-      job.data.workspaceId,
-    );
-    const tenantPrisma = this.connectionManager.getTenantClient(
-      tenant.id,
-      tenant.databaseName!,
-    );
-    const context: TenantContext = {
+    const context: WorkspaceContext = {
       userId: "system-workflow",
       workspaceId: job.data.workspaceId,
-      tenantId: tenant.id,
-      databaseName: tenant.databaseName!,
       role: WorkspaceRole.ADMIN,
-      storagePrefix: tenant.storagePrefix ?? `tenants/${tenant.id}/`,
-      prisma: tenantPrisma,
     };
-    await this.tenantContextService.run(context, () =>
+    await this.workspaceContextService.run(context, () =>
       this.runner.run(job.name as WorkflowName, job.data),
     );
   }
@@ -72,14 +55,7 @@ export class WorkflowProcessor extends WorkerHost {
     if (attemptsMade < maxAttempts) return; // more retries scheduled by BullMQ
 
     try {
-      const { tenant } = await this.tenantRegistry.resolveTenantForWorkspace(
-        job.data.workspaceId,
-      );
-      const tenantPrisma = this.connectionManager.getTenantClient(
-        tenant.id,
-        tenant.databaseName!,
-      );
-      const record = await tenantPrisma.workflowJob.update({
+      const record = await this.prisma.workflowJob.update({
         where: { id: job.data.jobId },
         data: { status: "FAILED", errorCode: "WORKFLOW_RETRIES_EXHAUSTED" },
       });

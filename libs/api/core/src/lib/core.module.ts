@@ -1,11 +1,8 @@
 import { Global, Module } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { PlatformPrismaService, PrismaService } from "./core";
-import { TenantConnectionManager } from "./tenant-connection-manager";
-import { TenantContextService } from "./tenant-context";
-import { TenantContextInterceptor } from "./tenant-context.interceptor";
-import { TenantSchemaProvisioner } from "./tenant-schema-provisioner";
-import { TenantRegistryService } from "./tenant-registry.service";
+import { WorkspaceContextService } from "./workspace-context";
+import { WorkspaceContextInterceptor } from "./workspace-context.interceptor";
 import { WorkspaceAccessGuard } from "./workspace-access.guard";
 
 @Global()
@@ -13,25 +10,19 @@ import { WorkspaceAccessGuard } from "./workspace-access.guard";
   providers: [
     PlatformPrismaService,
     PrismaService,
-    TenantConnectionManager,
-    TenantContextService,
-    TenantContextInterceptor,
-    TenantSchemaProvisioner,
-    TenantRegistryService,
+    WorkspaceContextService,
+    WorkspaceContextInterceptor,
     WorkspaceAccessGuard,
     {
       provide: APP_INTERCEPTOR,
-      useExisting: TenantContextInterceptor,
+      useExisting: WorkspaceContextInterceptor,
     },
   ],
   exports: [
     PlatformPrismaService,
     PrismaService,
-    TenantConnectionManager,
-    TenantContextService,
-    TenantContextInterceptor,
-    TenantSchemaProvisioner,
-    TenantRegistryService,
+    WorkspaceContextService,
+    WorkspaceContextInterceptor,
     WorkspaceAccessGuard,
   ],
 })

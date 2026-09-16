@@ -25,12 +25,8 @@ import {
   PaginationQueryDto,
   parseSort,
   PlatformPrismaService,
-  TenantContextService,
 } from "@law/core";
-import {
-  Prisma,
-  PrismaClient as TenantPrismaClient,
-} from "@prisma/tenant-client";
+import { Prisma } from "@prisma/client";
 import { ChatModelProvider } from "@law/llm";
 import { WorkflowName } from "@law/contracts";
 import { renderDraftDocx } from "@law/documents";
@@ -76,8 +72,8 @@ export class ChatService {
       createInlineWorkflowQueue(prisma, events, storage, config, provider);
   }
 
-  private get db(): TenantPrismaClient {
-    return TenantContextService.required.prisma;
+  private get db(): PlatformPrismaService {
+    return this.prisma;
   }
 
   private async recordAuditEvent(input: {

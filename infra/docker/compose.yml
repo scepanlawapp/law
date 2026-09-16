@@ -15,22 +15,6 @@ services:
       timeout: 5s
       retries: 10
 
-  postgres-tenant:
-    image: postgres:17-alpine
-    environment:
-      POSTGRES_DB: postgres
-      POSTGRES_USER: law
-      POSTGRES_PASSWORD: law
-    ports:
-      - "5433:5432"
-    volumes:
-      - postgres-tenant-data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U law -d postgres"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-
   redis:
     image: redis:7-alpine
     ports:
@@ -73,7 +57,6 @@ services:
 
 volumes:
   postgres-platform-data:
-  postgres-tenant-data:
   redis-data:
   # qdrant-data:
   # ollama-data:

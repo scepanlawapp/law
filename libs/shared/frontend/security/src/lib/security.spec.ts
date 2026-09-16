@@ -13,8 +13,6 @@ import { AuthState, authInterceptor } from "./security";
 const session: AuthSessionResponse = {
   user: { id: "user-1", email: "lawyer@example.test", status: "ACTIVE" },
   memberships: [],
-  activeWorkspaceId: null,
-  activeTenantId: null,
 };
 
 describe("AuthState", () => {
@@ -63,7 +61,6 @@ describe("AuthState", () => {
   it("builds the active workspace with case number settings", () => {
     const workspaceSession: AuthSessionResponse = {
       ...session,
-      activeWorkspaceId: "workspace-1",
       memberships: [
         {
           workspaceId: "workspace-1",

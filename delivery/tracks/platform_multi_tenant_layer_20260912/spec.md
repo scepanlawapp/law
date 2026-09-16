@@ -1,5 +1,9 @@
 # Platform Multi-Tenant Layer & Schema-per-Tenant Isolation Specification
 
+> **Superseded 2026-09-17**: this multi-tenant, database-per-tenant design was reverted in
+> favor of a single `law_platform` database with a hardcoded workspace. See
+> [single_database_collapse_20260917](../single_database_collapse_20260917/index.md).
+
 ## 1. Context & Motivation
 
 The system is evolving from a single-database structure to a multi-tenant legal platform. To provide strict data isolation across law firms while maintaining a shared platform for authentication and workspace management:

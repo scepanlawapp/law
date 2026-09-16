@@ -5,7 +5,8 @@ import {
   WorkflowJobStatus,
   WorkflowProgressStage,
 } from "@law/api-interfaces";
-import { PlatformPrismaService, TenantContextService } from "@law/core";
+import { PlatformPrismaService } from "@law/core";
+import { Prisma } from "@prisma/client";
 import { WorkflowName } from "@law/contracts";
 import { ChatModelProvider } from "@law/llm";
 import { runPortirGraph } from "@law/triage";
@@ -90,8 +91,8 @@ export class WorkflowRunner {
     private readonly workflowQueue: WorkflowQueuePort,
   ) {}
 
-  private get db(): any {
-    return TenantContextService.current?.prisma ?? (this.prisma as any);
+  private get db(): PlatformPrismaService {
+    return this.prisma;
   }
 
   async run(name: WorkflowName, payload: WorkflowJobPayload): Promise<void> {
@@ -684,7 +685,7 @@ export class WorkflowRunner {
         content,
         status: "COMPLETED",
         correlationId: payload.correlationId,
-        metadata,
+        metadata: metadata as Prisma.InputJsonValue,
       },
     });
     const mapped = toMessage({ ...assistant, attachments: [] });

@@ -1,5 +1,9 @@
 # Platform Multi-Tenant Layer Implementation Plan
 
+> **Superseded 2026-09-17**: this multi-tenant, database-per-tenant design was reverted in
+> favor of a single `law_platform` database with a hardcoded workspace. See
+> [single_database_collapse_20260917](../single_database_collapse_20260917/index.md).
+
 - [ ] Dual Prisma schema configuration (`platform.prisma` and `tenant.prisma`) with dedicated client generators and schema provisioning.
 - [ ] Platform database models (`Tenant`, `Workspace` tenant relationship) and migration execution.
 - [ ] `TenantConnectionManager` with cached schema-bound Prisma clients and connection pooling.

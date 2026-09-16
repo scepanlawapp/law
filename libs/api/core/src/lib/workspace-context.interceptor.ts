@@ -5,16 +5,16 @@ import {
   NestInterceptor,
 } from "@nestjs/common";
 import { Observable } from "rxjs";
-import { TenantContextService } from "./tenant-context";
+import { WorkspaceContextService } from "./workspace-context";
 
 @Injectable()
-export class TenantContextInterceptor implements NestInterceptor {
+export class WorkspaceContextInterceptor implements NestInterceptor {
   intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const request = context.switchToHttp().getRequest();
-    const tenantContext = request?.tenantContext;
-    if (tenantContext) {
+    const workspaceContext = request?.workspaceContext;
+    if (workspaceContext) {
       return new Observable((subscriber) => {
-        TenantContextService.run(tenantContext, () => {
+        WorkspaceContextService.run(workspaceContext, () => {
           const subscription = next.handle().subscribe(subscriber);
           return () => subscription.unsubscribe();
         });

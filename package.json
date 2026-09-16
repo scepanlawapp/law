@@ -13,11 +13,8 @@
     "services:down": "docker compose -f infra/docker/compose.yml down",
     "db:seed:auth": "node apps/api/prisma/seed.cjs",
     "tessdata:download": "bash scripts/download-tessdata.sh",
-    "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/platform.prisma",
-    "db:migrate:platform": "npx prisma migrate dev --schema apps/api/prisma/platform.prisma",
-    "db:migrate:tenant": "npx prisma db execute --schema apps/api/prisma/tenant.prisma --file apps/api/prisma/tenant-migrations/20260913000000_clients_cases/migration.sql",
-    "db:migrate:tenant:client-status-prospect": "npx prisma db execute --schema apps/api/prisma/tenant.prisma --file apps/api/prisma/tenant-migrations/20260916000000_client_status_prospect/migration.sql",
-    "prisma:generate": "npx prisma generate --schema apps/api/prisma/platform.prisma && npx prisma generate --schema apps/api/prisma/tenant.prisma"
+    "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma",
+    "prisma:generate": "npx prisma generate --schema apps/api/prisma/schema.prisma"
   },
   "private": true,
   "devDependencies": {

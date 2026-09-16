@@ -3,16 +3,12 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import {
-  Case,
-  Prisma,
-  PrismaClient as TenantPrismaClient,
-} from "@prisma/tenant-client";
+import { Case, Prisma } from "@prisma/client";
 import {
   PlatformPrismaService,
   paginationMeta,
   parseSort,
-  TenantContextService,
+  WorkspaceContextService,
 } from "@law/core";
 import {
   CaseDetail,
@@ -36,10 +32,10 @@ export class CasesService {
   constructor(private readonly platformPrisma: PlatformPrismaService) {}
 
   private get context() {
-    return TenantContextService.required;
+    return WorkspaceContextService.required;
   }
-  private get db(): TenantPrismaClient {
-    return this.context.prisma;
+  private get db(): PlatformPrismaService {
+    return this.platformPrisma;
   }
 
   private async requireResponsibleUser(userId: string): Promise<void> {

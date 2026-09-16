@@ -17,11 +17,6 @@ export class LoginDto {
   password!: string;
 }
 
-export class ActiveWorkspaceDto {
-  @IsUUID()
-  workspaceId!: string;
-}
-
 export class InvitationAcceptDto {
   @IsString()
   @MinLength(32)

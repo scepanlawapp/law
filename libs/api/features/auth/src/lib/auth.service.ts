@@ -1,8 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { Injectable, UnauthorizedException } from "@nestjs/common";
 import {
   createHash,
   randomBytes,
@@ -177,40 +173,7 @@ export class AuthService {
 
   async currentUser(token: string | undefined): Promise<AuthSessionResponse> {
     const record = await this.sessionForToken(token);
-    const selection = await this.validSelection(
-      record.userId,
-      record.activeWorkspaceId,
-      record.activeTenantId,
-    );
-    if (!selection && (record.activeWorkspaceId || record.activeTenantId)) {
-      await this.prisma.authSession.update({
-        where: { id: record.id },
-        data: { activeWorkspaceId: null, activeTenantId: null },
-      });
-    }
-    return this.toResponse(record.user, selection);
-  }
-
-  async selectActiveWorkspace(
-    token: string | undefined,
-    workspaceId: string,
-  ): Promise<AuthSessionResponse> {
-    const record = await this.sessionForToken(token);
-    const selection = await this.selectionForWorkspace(
-      record.userId,
-      workspaceId,
-    );
-    if (!selection) {
-      throw new ForbiddenException("Workspace tenant is not available");
-    }
-    await this.prisma.authSession.update({
-      where: { id: record.id },
-      data: {
-        activeWorkspaceId: selection.workspaceId,
-        activeTenantId: selection.tenantId,
-      },
-    });
-    return this.toResponse(record.user, selection);
+    return this.toResponse(record.user);
   }
 
   async logout(token: string | undefined): Promise<void> {
@@ -262,11 +225,6 @@ export class AuthService {
     }
 
     const nextToken = randomBytes(32).toString("base64url");
-    const selection = await this.validSelection(
-      current.userId,
-      current.activeWorkspaceId,
-      current.activeTenantId,
-    );
     await this.prisma.$transaction([
       this.prisma.authSession.update({
         where: { id: current.id },
@@ -278,8 +236,6 @@ export class AuthService {
           tokenFamily: current.tokenFamily,
           refreshTokenHash: hashToken(nextToken),
           expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-          activeWorkspaceId: selection?.workspaceId,
-          activeTenantId: selection?.tenantId,
         },
       }),
     ]);
@@ -290,7 +246,7 @@ export class AuthService {
     });
     return {
       token: nextToken,
-      session: this.toResponse(current.user, selection),
+      session: this.toResponse(current.user),
     };
   }
 
@@ -382,31 +338,15 @@ export class AuthService {
     session: AuthSessionResponse,
   ): Promise<{ token: string; session: AuthSessionResponse }> {
     const token = randomBytes(32).toString("base64url");
-    const selection =
-      session.memberships.length === 1
-        ? await this.selectionForWorkspace(
-            userId,
-            session.memberships[0].workspaceId,
-          )
-        : null;
     await this.prisma.authSession.create({
       data: {
         userId,
         tokenFamily: randomBytes(16).toString("hex"),
         refreshTokenHash: hashToken(token),
         expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-        activeWorkspaceId: selection?.workspaceId,
-        activeTenantId: selection?.tenantId,
       },
     });
-    return {
-      token,
-      session: {
-        ...session,
-        activeWorkspaceId: selection?.workspaceId ?? null,
-        activeTenantId: selection?.tenantId ?? null,
-      },
-    };
+    return { token, session };
   }
 
   private async userForToken(token: string | undefined) {
@@ -441,33 +381,6 @@ export class AuthService {
     return record;
   }
 
-  private async selectionForWorkspace(userId: string, workspaceId: string) {
-    const membership = await this.prisma.workspaceMember.findUnique({
-      where: { userId_workspaceId: { userId, workspaceId } },
-      include: { workspace: { include: { tenant: true } } },
-    });
-    const tenant = membership?.workspace.tenant;
-    if (
-      membership?.status !== "ACTIVE" ||
-      !tenant ||
-      tenant.status !== "ACTIVE" ||
-      !tenant.databaseName
-    ) {
-      return null;
-    }
-    return { workspaceId: membership.workspaceId, tenantId: tenant.id };
-  }
-
-  private async validSelection(
-    userId: string,
-    workspaceId: string | null,
-    tenantId: string | null,
-  ) {
-    if (!workspaceId || !tenantId) return null;
-    const selection = await this.selectionForWorkspace(userId, workspaceId);
-    return selection?.tenantId === tenantId ? selection : null;
-  }
-
   private toResponse(
     user: {
       id: string;
@@ -479,7 +392,6 @@ export class AuthService {
         workspace: { name: string };
       }>;
     },
-    selection: { workspaceId: string; tenantId: string } | null = null,
     memberships = user.memberships,
   ): AuthSessionResponse {
     return {
@@ -493,8 +405,6 @@ export class AuthService {
         workspaceName: membership.workspace.name,
         role: membership.role as WorkspaceRole,
       })),
-      activeWorkspaceId: selection?.workspaceId ?? null,
-      activeTenantId: selection?.tenantId ?? null,
     };
   }
 

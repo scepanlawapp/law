@@ -1,5 +1,5 @@
 import { BadRequestException } from "@nestjs/common";
-import { TenantContextService } from "@law/core";
+import { WorkspaceContextService } from "@law/core";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { CasesService } from "@law/cases";
 
@@ -27,22 +27,19 @@ function caseRecord(
 }
 
 describe("CasesService", () => {
-  const db = {
+  const platformPrisma = {
     $transaction: jest.fn(async (callback: (transaction: unknown) => unknown) =>
-      callback(db),
+      callback(platformPrisma),
     ),
+    workspaceMember: { findUnique: jest.fn() },
     case: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
     caseActivity: { create: jest.fn() },
   };
-  const platformPrisma = { workspaceMember: { findUnique: jest.fn() } };
+  const db = platformPrisma;
   const context = {
     workspaceId,
     userId,
-    tenantId: "tenant-1",
-    schemaName: "tenant_test",
     role: WorkspaceRole.OWNER,
-    storagePrefix: "tenants/tenant-1/",
-    prisma: db,
   };
   const service = new CasesService(platformPrisma as never);
 
@@ -57,7 +54,7 @@ describe("CasesService", () => {
 
   it("scopes detail lookups to the authenticated workspace", async () => {
     db.case.findFirst.mockResolvedValue(null);
-    await TenantContextService.run(context as never, async () => {
+    await WorkspaceContextService.run(context as never, async () => {
       await expect(service.get(caseRecord("DRAFT").id)).rejects.toThrow(
         "Case not found",
       );
@@ -71,7 +68,7 @@ describe("CasesService", () => {
 
   it("rejects an invalid lifecycle transition without mutating the case", async () => {
     db.case.findFirst.mockResolvedValue(caseRecord("DRAFT"));
-    await TenantContextService.run(context as never, async () => {
+    await WorkspaceContextService.run(context as never, async () => {
       await expect(
         service.transition(caseRecord("DRAFT").id, "ON_HOLD"),
       ).rejects.toBeInstanceOf(BadRequestException);
@@ -84,7 +81,7 @@ describe("CasesService", () => {
     db.case.findFirst.mockResolvedValue(caseRecord("DRAFT"));
     db.case.update.mockResolvedValue(caseRecord("ACTIVE"));
     db.caseActivity.create.mockResolvedValue({});
-    await TenantContextService.run(context as never, async () => {
+    await WorkspaceContextService.run(context as never, async () => {
       await service.transition(caseRecord("DRAFT").id, "ACTIVE");
     });
     expect(db.case.update).toHaveBeenCalledWith(
@@ -113,7 +110,7 @@ describe("CasesService", () => {
     async (format, existing, expected) => {
       db.case.findMany.mockResolvedValue([{ caseNumber: existing }]);
 
-      await TenantContextService.run(context as never, async () => {
+      await WorkspaceContextService.run(context as never, async () => {
         await expect(service.nextNumberSuggestion(format)).resolves.toEqual({
           caseNumber: expected,
         });
@@ -124,7 +121,7 @@ describe("CasesService", () => {
   it("continues the sequence when the workspace changes number format", async () => {
     db.case.findMany.mockResolvedValue([{ caseNumber: "CA-000001" }]);
 
-    await TenantContextService.run(context as never, async () => {
+    await WorkspaceContextService.run(context as never, async () => {
       await expect(service.nextNumberSuggestion("YYYY-N")).resolves.toEqual({
         caseNumber: "2026-2",
       });
@@ -134,7 +131,7 @@ describe("CasesService", () => {
   it("falls back to the default year-number when number lookup fails", async () => {
     db.case.findMany.mockRejectedValue(new Error("database unavailable"));
 
-    await TenantContextService.run(context as never, async () => {
+    await WorkspaceContextService.run(context as never, async () => {
       await expect(service.nextNumberSuggestion("CYYYY/NNN")).resolves.toEqual({
         caseNumber: "2026-1",
       });

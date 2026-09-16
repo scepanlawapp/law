@@ -18,7 +18,7 @@ import {
   CASE_NUMBER_FORMATS,
   CaseNumberFormat,
 } from "@law/api-interfaces";
-import { ActivityType, CasePriority, CaseStatus } from "@prisma/tenant-client";
+import { ActivityType, CasePriority, CaseStatus } from "@prisma/client";
 
 export class CaseNumberSuggestionQueryDto {
   @IsOptional()

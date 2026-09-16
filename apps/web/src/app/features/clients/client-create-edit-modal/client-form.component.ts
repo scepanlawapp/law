@@ -27,7 +27,7 @@ import {
   ClientsApiClient,
   ReferencesApiClient,
 } from "@law/api-clients";
-import { forkJoin, map, Observable, switchMap } from "rxjs";
+import { forkJoin, map, Observable, switchMap, defaultIfEmpty } from "rxjs";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -558,7 +558,9 @@ export class ClientFormComponent {
               this.saveIdentificationDocument(client.id, request),
             ),
             ...contactRequests.map((row) => this.saveContact(client.id, row)),
-          ]).pipe(map(() => client)),
+          ])
+            // An empty forkJoin completes without emitting, which would skip `next` below.
+            .pipe(defaultIfEmpty(null), map(() => client)),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
