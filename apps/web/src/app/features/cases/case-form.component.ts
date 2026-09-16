@@ -7,7 +7,7 @@ import {
 } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { HlmDialogService } from "@spartan-ng/helm/dialog";
-import { CasePriority, CaseStatus, ClientDetail } from "@law/api-interfaces";
+import { CasePriority, CaseStatus } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import {
   CaseRequest,
@@ -23,7 +23,7 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
-import { ClientFormComponent } from "../clients/client-form.component";
+import { ClientFormDialogService } from "../clients/client-form-dialog.service";
 import { ReferenceDataService } from "../../shared/reference-data.service";
 import { ReferenceCreateDialogComponent } from "../../shared/ui/reference-create-dialog/reference-create-dialog.component";
 import {
@@ -66,6 +66,7 @@ export class CaseFormComponent {
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly dialog = inject(HlmDialogService);
+  private readonly clientDialog = inject(ClientFormDialogService);
   readonly caseId = this.route.snapshot.paramMap.get("caseId");
   readonly saving = signal(false);
   readonly loading = signal(!!this.caseId);
@@ -188,18 +189,14 @@ export class CaseFormComponent {
   }
 
   openClientDialog(): void {
-    this.dialog
-      .open<ClientDetail>(ClientFormComponent, {
-        contentClass: "sm:max-w-2xl",
-      })
-      .closed$.subscribe((client) => {
-        if (!client) return;
-        this.clients.update((items) => [
-          ...items,
-          { id: client.id, name: client.displayName },
-        ]);
-        this.form.controls.clientId.setValue(client.id);
-      });
+    this.clientDialog.create().subscribe((client) => {
+      if (!client) return;
+      this.clients.update((items) => [
+        ...items,
+        { id: client.id, name: client.displayName },
+      ]);
+      this.form.controls.clientId.setValue(client.id);
+    });
   }
 
   openCaseTypeDialog(): void {

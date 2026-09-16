@@ -4,9 +4,9 @@
   <h1>{{ item.displayName }}</h1>
   <p>{{ item.clientNumber }} {{ "clients.status." + item.status | translate }}</p>
   <p>
-    <a hlmBtn [routerLink]="['/clients', item.id, 'edit']">{{
-      "clients.edit" | translate
-    }}</a>
+    <button hlmBtn type="button" (click)="editClient()">
+      {{ "clients.edit" | translate }}
+    </button>
     <a
       hlmBtn
       [routerLink]="['/cases/new']"

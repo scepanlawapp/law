@@ -1,6 +1,8 @@
 <h1>{{ "clients.title" | translate }}</h1>
 <p>
-  <a hlmBtn routerLink="/clients/new">{{ "clients.create" | translate }}</a>
+  <button hlmBtn type="button" (click)="createClient()">
+    {{ "clients.create" | translate }}
+  </button>
 </p>
 <label for="client-search">{{ "clients.search" | translate }}</label>
 <input hlmInput id="client-search" [formControl]="search" />

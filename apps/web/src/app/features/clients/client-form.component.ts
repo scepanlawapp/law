@@ -8,7 +8,7 @@ import {
   Validators,
 } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
-import { BrnDialogRef } from "@spartan-ng/brain/dialog";
+import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { ClientDetail, ClientStatus, ClientType } from "@law/api-interfaces";
 import {
   AuthApiClient,
@@ -35,6 +35,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { CountrySelectComponent } from "../../shared/ui/country-select/country-select.component";
 import { CollapsibleSectionComponent } from "../../shared/ui/collapsible-section/collapsible-section.component";
+import type { ClientFormDialogContext } from "./client-form-dialog.service";
 import {
   createSelectItemToString,
   type SelectOption,
@@ -72,8 +73,13 @@ export class ClientFormComponent {
   private readonly dialogRef = inject(BrnDialogRef<ClientDetail>, {
     optional: true,
   });
+  private readonly dialogContext = injectBrnDialogContext<
+    ClientFormDialogContext | null
+  >({ optional: true });
   readonly isDialog = this.dialogRef !== null;
-  readonly clientId = this.route.snapshot.paramMap.get("clientId");
+  readonly clientId =
+    this.dialogContext?.clientId ??
+    this.route.snapshot.paramMap.get("clientId");
   readonly saving = signal(false);
   readonly loading = signal(!!this.clientId);
   readonly users = signal<Array<{ userId: string; label: string }>>([]);

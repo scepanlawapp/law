@@ -18,6 +18,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { ClientFormDialogService } from "./client-form-dialog.service";
 
 @Component({
   selector: "app-client-detail",
@@ -39,6 +40,7 @@ export class ClientDetailComponent {
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly clientDialog = inject(ClientFormDialogService);
   readonly id = this.route.snapshot.paramMap.get("clientId")!;
   readonly client = signal<ClientDetail | null>(null);
   readonly loading = signal(true);
@@ -63,6 +65,14 @@ export class ClientDetailComponent {
         this.loading.set(false);
         this.toast.error(this.local.translate("clients.loadError"));
       },
+    });
+  }
+  editClient(): void {
+    this.clientDialog.edit(this.id).subscribe((updated) => {
+      if (!updated) return;
+      this.reload();
+      this.load("addresses");
+      this.load("contacts");
     });
   }
   load(tab: string): void {

@@ -17,6 +17,7 @@ import {
   HlmTr,
 } from "@spartan-ng/helm/table";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ClientFormDialogService } from "./client-form-dialog.service";
 
 @Component({
   selector: "app-clients",
@@ -42,6 +43,7 @@ export class ClientsComponent {
   private readonly references = inject(ReferencesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly clientDialog = inject(ClientFormDialogService);
   readonly search = new FormControl("", { nonNullable: true });
   readonly items = signal<ClientSummary[]>([]);
   readonly page = signal(1);
@@ -117,5 +119,12 @@ export class ClientsComponent {
   }
   openClient(clientId: string): void {
     this.router.navigate(["/clients", clientId]);
+  }
+
+  createClient(): void {
+    this.clientDialog.create().subscribe((client) => {
+      if (!client) return;
+      this.router.navigate(["/clients", client.id]);
+    });
   }
 }
