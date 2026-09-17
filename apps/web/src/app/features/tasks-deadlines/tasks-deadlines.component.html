@@ -1,1 +1,18 @@
-Zadaci i rokovi
+<div class="space-y-6">
+  <h1>{{ "nav.tasksDeadlines" | translate }}</h1>
+  <hlm-empty>
+    <hlm-empty-header>
+      <h2 hlmEmptyTitle>
+        {{ "tasksDeadlines.emptyTitle" | translate }}
+      </h2>
+      <p hlmEmptyDescription>
+        {{ "tasksDeadlines.emptyDescription" | translate }}
+      </p>
+    </hlm-empty-header>
+    <hlm-empty-content>
+      <button hlmBtn type="button">
+        {{ "tasksDeadlines.create" | translate }}
+      </button>
+    </hlm-empty-content>
+  </hlm-empty>
+</div>
