@@ -5,7 +5,7 @@
   </div>
 </div>
 @if (loading()) {
-  <p class="settings-state">{{ "settings.loading" | translate }}</p>
+  <hlm-spinner aria-label="{{ 'settings.loading' | translate }}" />
 } @else {
   <form class="settings-form" [formGroup]="form" (ngSubmit)="save()" novalidate>
     <div class="profile-avatar">
@@ -15,51 +15,51 @@
           [alt]="'settings.profilePhoto' | translate"
         />
       } @else {
-        <span
-          >{{ (form.controls.firstName.value || "L").charAt(0)
-          }}{{ (form.controls.lastName.value || "A").charAt(0) }}</span
-        >
+        <span>
+          {{ (form.controls.firstName.value || "L").charAt(0)
+          }}{{ (form.controls.lastName.value || "A").charAt(0) }}
+        </span>
       }
       <div>
-        <strong>{{ "settings.profilePhoto" | translate }}</strong
-        ><small>{{ "settings.profilePhotoHint" | translate }}</small>
+        <strong>{{ "settings.profilePhoto" | translate }}</strong>
+        <small>{{ "settings.profilePhotoHint" | translate }}</small>
       </div>
     </div>
     <div class="settings-form-grid">
       <div hlmField>
-        <label hlmFieldLabel for="firstName">{{
-          "settings.firstName" | translate
-        }}</label>
+        <label hlmFieldLabel for="firstName">
+          {{ "settings.firstName" | translate }}
+        </label>
         <input hlmInput id="firstName" formControlName="firstName" />
       </div>
       <div hlmField>
-        <label hlmFieldLabel for="lastName">{{
-          "settings.lastName" | translate
-        }}</label>
+        <label hlmFieldLabel for="lastName">
+          {{ "settings.lastName" | translate }}
+        </label>
         <input hlmInput id="lastName" formControlName="lastName" />
       </div>
       <div hlmField>
-        <label hlmFieldLabel for="username">{{
-          "settings.username" | translate
-        }}</label>
+        <label hlmFieldLabel for="username">
+          {{ "settings.username" | translate }}
+        </label>
         <input hlmInput id="username" formControlName="username" />
       </div>
       <div hlmField>
-        <label hlmFieldLabel for="phone">{{
-          "settings.phone" | translate
-        }}</label>
+        <label hlmFieldLabel for="phone">
+          {{ "settings.phone" | translate }}
+        </label>
         <input hlmInput id="phone" formControlName="phone" />
       </div>
       <div hlmField class="settings-form-wide">
-        <label hlmFieldLabel for="jobTitle">{{
-          "settings.jobTitle" | translate
-        }}</label>
+        <label hlmFieldLabel for="jobTitle">
+          {{ "settings.jobTitle" | translate }}
+        </label>
         <input hlmInput id="jobTitle" formControlName="jobTitle" />
       </div>
       <div hlmField class="settings-form-wide">
-        <label hlmFieldLabel for="avatarUrl">{{
-          "settings.profilePhotoUrl" | translate
-        }}</label>
+        <label hlmFieldLabel for="avatarUrl">
+          {{ "settings.profilePhotoUrl" | translate }}
+        </label>
         <input hlmInput id="avatarUrl" type="url" formControlName="avatarUrl" />
       </div>
     </div>
@@ -84,9 +84,9 @@
       </div>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="currentPassword">{{
-        "settings.currentPassword" | translate
-      }}</label>
+      <label hlmFieldLabel for="currentPassword">
+        {{ "settings.currentPassword" | translate }}
+      </label>
       <input
         hlmInput
         id="currentPassword"
@@ -96,9 +96,9 @@
       />
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="newPassword">{{
-        "settings.newPassword" | translate
-      }}</label>
+      <label hlmFieldLabel for="newPassword">
+        {{ "settings.newPassword" | translate }}
+      </label>
       <input
         hlmInput
         id="newPassword"

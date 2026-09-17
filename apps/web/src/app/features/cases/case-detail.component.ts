@@ -30,6 +30,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 @Component({
   selector: "app-case-detail",
@@ -43,6 +44,7 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
     HlmFieldLabel,
     HlmInput,
     HlmSelectImports,
+    HlmSpinner,
     HlmTextarea,
     HlmTabs,
     HlmTabsContent,

@@ -31,6 +31,7 @@ import {
   createSelectItemToString,
   type SelectOption,
 } from "../../shared/utils";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -54,6 +55,7 @@ function toDateInputValue(value: string | null | undefined): string {
     HlmSelectImports,
     HlmTextarea,
     TranslatePipe,
+    HlmSpinner,
   ],
 })
 export class CaseFormComponent {
@@ -70,6 +72,9 @@ export class CaseFormComponent {
   private readonly clientDialog = inject(ClientFormDialogService);
   private readonly destroyRef = inject(DestroyRef);
   readonly caseId = this.route.snapshot.paramMap.get("caseId");
+  readonly returnUrl = this.internalReturnUrl(
+    this.route.snapshot.queryParamMap.get("returnUrl"),
+  );
   readonly saving = signal(false);
   readonly loading = signal(!!this.caseId);
   readonly clients = signal<Array<{ id: string; name: string }>>([]);
@@ -295,12 +300,20 @@ export class CaseFormComponent {
     action.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (item) => {
         this.toast.success(this.local.translate("cases.saved"));
-        this.router.navigate(["/cases", item.id]);
+        if (!this.caseId && this.returnUrl) {
+          void this.router.navigateByUrl(this.returnUrl);
+        } else {
+          void this.router.navigate(["/cases", item.id]);
+        }
       },
       error: () => {
         this.saving.set(false);
         this.toast.error(this.local.translate("cases.saveError"));
       },
     });
+  }
+
+  private internalReturnUrl(value: string | null): string | null {
+    return value?.startsWith("/") && !value.startsWith("//") ? value : null;
   }
 }

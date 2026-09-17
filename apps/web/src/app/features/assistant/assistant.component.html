@@ -71,15 +71,15 @@
               />
             </span>
             <span class="conversation-item-copy">
-              <strong>{{
-                session.title || ("assistant.newChat" | translate)
-              }}</strong>
+              <strong>
+                {{ session.title || ("assistant.newChat" | translate) }}
+              </strong>
               @if (session.activity?.activeJobCount) {
                 <small>{{ "assistant.conversationWorking" | translate }}</small>
               } @else if (session.activity?.hasDraft) {
-                <small>{{
-                  "assistant.conversationDraftReady" | translate
-                }}</small>
+                <small>
+                  {{ "assistant.conversationDraftReady" | translate }}
+                </small>
               }
             </span>
             <time>{{ session.updatedAt | date: "shortTime" }}</time>
@@ -94,8 +94,9 @@
       }
       @if (loadingSessions()) {
         <p class="conversation-loading" aria-live="polite">
-          <ng-icon name="lucideLoaderCircle" aria-hidden="true" />
-          {{ "assistant.loadingConversations" | translate }}
+          <hlm-spinner
+            aria-label="{{ 'assistant.loadingConversations' | translate }}"
+          />
         </p>
       }
     </div>
@@ -155,9 +156,9 @@
 
       <div class="assistant-header-copy">
         <span>{{ "assistant.conversation" | translate }}</span>
-        <strong>{{
-          selectedSessionTitle() || ("assistant.newChat" | translate)
-        }}</strong>
+        <strong>
+          {{ selectedSessionTitle() || ("assistant.newChat" | translate) }}
+        </strong>
       </div>
 
       @if (draft()) {

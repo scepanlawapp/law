@@ -1,12 +1,12 @@
 <h1>{{ (caseId ? "cases.edit" : "cases.create") | translate }}</h1>
 @if (loading()) {
-  <p>{{ "cases.loading" | translate }}</p>
+  <hlm-spinner aria-label="{{ 'clients.loading' | translate }}" />
 } @else {
   <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
     <div hlmField>
-      <label hlmFieldLabel for="clientId">{{
-        "cases.client" | translate
-      }}</label>
+      <label hlmFieldLabel for="clientId">
+        {{ "cases.client" | translate }}
+      </label>
       <div class="flex items-center gap-2">
         <hlm-select
           formControlName="clientId"
@@ -18,9 +18,9 @@
           <hlm-select-content *hlmSelectPortal>
             <hlm-select-group>
               @for (client of clients(); track client.id) {
-                <hlm-select-item [value]="client.id">{{
-                  client.name
-                }}</hlm-select-item>
+                <hlm-select-item [value]="client.id">
+                  {{ client.name }}
+                </hlm-select-item>
               }
             </hlm-select-group>
           </hlm-select-content>
@@ -37,25 +37,20 @@
       </div>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="caseNumber">{{
-        "cases.internalCaseNumber" | translate
-      }}</label
-      ><input
-        hlmInput
-        id="caseNumber"
-        formControlName="caseNumber"
-        required
-      />
+      <label hlmFieldLabel for="caseNumber">
+        {{ "cases.internalCaseNumber" | translate }}
+      </label>
+      <input hlmInput id="caseNumber" formControlName="caseNumber" required />
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="name">{{ "cases.name" | translate }}</label
-      ><input hlmInput id="name" formControlName="name" required />
+      <label hlmFieldLabel for="name">{{ "cases.name" | translate }}</label>
+      <input hlmInput id="name" formControlName="name" required />
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="responsibleUserId">{{
-        "cases.responsible" | translate
-      }}</label
-      ><hlm-select
+      <label hlmFieldLabel for="responsibleUserId">
+        {{ "cases.responsible" | translate }}
+      </label>
+      <hlm-select
         formControlName="responsibleUserId"
         [itemToString]="responsibleUserItemToString"
       >
@@ -65,38 +60,36 @@
         <hlm-select-content *hlmSelectPortal>
           <hlm-select-group>
             @for (user of users(); track user.id) {
-              <hlm-select-item [value]="user.id">{{
-                user.name
-              }}</hlm-select-item>
+              <hlm-select-item [value]="user.id">
+                {{ user.name }}
+              </hlm-select-item>
             }
           </hlm-select-group>
         </hlm-select-content>
       </hlm-select>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="status">{{
-        "cases.status" | translate
-      }}</label
-      ><hlm-select formControlName="status" [itemToString]="statusItemToString">
+      <label hlmFieldLabel for="status">{{ "cases.status" | translate }}</label>
+      <hlm-select formControlName="status" [itemToString]="statusItemToString">
         <hlm-select-trigger id="status" class="w-full">
           <hlm-select-value />
         </hlm-select-trigger>
         <hlm-select-content *hlmSelectPortal>
           <hlm-select-group>
             @for (option of statusOptions; track option.value) {
-              <hlm-select-item [value]="option.value">{{
-                statusItemToString(option.value)
-              }}</hlm-select-item>
+              <hlm-select-item [value]="option.value">
+                {{ statusItemToString(option.value) }}
+              </hlm-select-item>
             }
           </hlm-select-group>
         </hlm-select-content>
       </hlm-select>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="priority">{{
-        "cases.priority" | translate
-      }}</label
-      ><hlm-select
+      <label hlmFieldLabel for="priority">
+        {{ "cases.priority" | translate }}
+      </label>
+      <hlm-select
         formControlName="priority"
         [itemToString]="priorityItemToString"
       >
@@ -106,18 +99,18 @@
         <hlm-select-content *hlmSelectPortal>
           <hlm-select-group>
             @for (option of priorityOptions; track option.value) {
-              <hlm-select-item [value]="option.value">{{
-                priorityItemToString(option.value)
-              }}</hlm-select-item>
+              <hlm-select-item [value]="option.value">
+                {{ priorityItemToString(option.value) }}
+              </hlm-select-item>
             }
           </hlm-select-group>
         </hlm-select-content>
       </hlm-select>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="caseTypeId">{{
-        "cases.type" | translate
-      }}</label>
+      <label hlmFieldLabel for="caseTypeId">
+        {{ "cases.type" | translate }}
+      </label>
       <div class="flex items-center gap-2">
         <hlm-select
           formControlName="caseTypeId"
@@ -130,9 +123,9 @@
             <hlm-select-group>
               <hlm-select-item value=""></hlm-select-item>
               @for (type of types(); track type.id) {
-                <hlm-select-item [value]="type.id">{{
-                  type.name
-                }}</hlm-select-item>
+                <hlm-select-item [value]="type.id">
+                  {{ type.name }}
+                </hlm-select-item>
               }
             </hlm-select-group>
           </hlm-select-content>
@@ -149,9 +142,9 @@
       </div>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="practiceAreaId">{{
-        "cases.area" | translate
-      }}</label>
+      <label hlmFieldLabel for="practiceAreaId">
+        {{ "cases.area" | translate }}
+      </label>
       <div class="flex items-center gap-2">
         <hlm-select
           formControlName="practiceAreaId"
@@ -164,9 +157,9 @@
             <hlm-select-group>
               <hlm-select-item value=""></hlm-select-item>
               @for (area of areas(); track area.id) {
-                <hlm-select-item [value]="area.id">{{
-                  area.name
-                }}</hlm-select-item>
+                <hlm-select-item [value]="area.id">
+                  {{ area.name }}
+                </hlm-select-item>
               }
             </hlm-select-group>
           </hlm-select-content>
@@ -183,10 +176,10 @@
       </div>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="openedDate">{{
-        "cases.opened" | translate
-      }}</label
-      ><input
+      <label hlmFieldLabel for="openedDate">
+        {{ "cases.opened" | translate }}
+      </label>
+      <input
         hlmInput
         id="openedDate"
         type="date"
@@ -194,30 +187,30 @@
       />
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="externalReference">{{
-        "cases.reference" | translate
-      }}</label
-      ><input
+      <label hlmFieldLabel for="externalReference">
+        {{ "cases.reference" | translate }}
+      </label>
+      <input
         hlmInput
         id="externalReference"
         formControlName="externalReference"
       />
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="confidentialityLevel">{{
-        "cases.confidentiality" | translate
-      }}</label
-      ><input
+      <label hlmFieldLabel for="confidentialityLevel">
+        {{ "cases.confidentiality" | translate }}
+      </label>
+      <input
         hlmInput
         id="confidentialityLevel"
         formControlName="confidentialityLevel"
       />
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="description">{{
-        "cases.description" | translate
-      }}</label
-      ><textarea
+      <label hlmFieldLabel for="description">
+        {{ "cases.description" | translate }}
+      </label>
+      <textarea
         hlmTextarea
         id="description"
         formControlName="description"
@@ -226,6 +219,8 @@
     <button hlmBtn type="submit" [disabled]="saving()">
       {{ (saving() ? "cases.saving" : "cases.save") | translate }}
     </button>
-    <a hlmBtn routerLink="/cases">{{ "cases.cancel" | translate }}</a>
+    <a hlmBtn [routerLink]="returnUrl || '/cases'">
+      {{ "cases.cancel" | translate }}
+    </a>
   </form>
 }

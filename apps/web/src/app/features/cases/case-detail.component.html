@@ -1,15 +1,15 @@
 @if (loading()) {
-  <p>{{ "cases.loading" | translate }}</p>
+  <hlm-spinner aria-label="{{ 'cases.loading' | translate }}" />
 } @else if (item(); as caseItem) {
   <h1>{{ caseItem.name }}</h1>
   <p>{{ caseItem.caseNumber }} {{ caseItem.status }}</p>
   <p>
-    <a hlmBtn [routerLink]="['/cases', caseItem.id, 'edit']">{{
-      "cases.edit" | translate
-    }}</a>
-    <a hlmBtn [routerLink]="['/clients', caseItem.clientId]">{{
-      "cases.client" | translate
-    }}</a>
+    <a hlmBtn [routerLink]="['/cases', caseItem.id, 'edit']">
+      {{ "cases.edit" | translate }}
+    </a>
+    <a hlmBtn [routerLink]="['/clients', caseItem.clientId]">
+      {{ "cases.client" | translate }}
+    </a>
     @if (caseItem.status === "DRAFT") {
       <button hlmBtn type="button" (click)="lifecycle('activate')">
         {{ "cases.activate" | translate }}
@@ -43,9 +43,9 @@
   @if (showCloseForm()) {
     <form [formGroup]="closeForm" (ngSubmit)="close()">
       <div hlmField>
-        <label hlmFieldLabel for="closedDate">{{
-          "cases.closedDate" | translate
-        }}</label>
+        <label hlmFieldLabel for="closedDate">
+          {{ "cases.closedDate" | translate }}
+        </label>
         <input
           hlmInput
           id="closedDate"
@@ -55,9 +55,9 @@
         />
       </div>
       <div hlmField>
-        <label hlmFieldLabel for="closingNote">{{
-          "cases.closingNote" | translate
-        }}</label>
+        <label hlmFieldLabel for="closingNote">
+          {{ "cases.closingNote" | translate }}
+        </label>
         <textarea
           hlmTextarea
           id="closingNote"
@@ -73,10 +73,12 @@
   <div hlmTabs tab="overview">
     <div hlmTabsList>
       <button hlmTabsTrigger="overview">
-        {{ "cases.overview" | translate }}</button
-      ><button hlmTabsTrigger="activities" (click)="load('activities')">
-        {{ "cases.activities" | translate }}</button
-      ><button
+        {{ "cases.overview" | translate }}
+      </button>
+      <button hlmTabsTrigger="activities" (click)="load('activities')">
+        {{ "cases.activities" | translate }}
+      </button>
+      <button
         hlmTabsTrigger="responsibilities"
         (click)="load('responsibilities')"
       >
@@ -104,14 +106,12 @@
                 <hlm-select-item [value]="type">{{ type }}</hlm-select-item>
               }
             </hlm-select-group>
-          </hlm-select-content> </hlm-select
-        ><input hlmInput formControlName="title" required /><input
-          hlmInput
-          type="date"
-          formControlName="activityDate"
-          required
-        /><textarea hlmTextarea formControlName="description"></textarea
-        ><button hlmBtn type="submit">
+          </hlm-select-content>
+        </hlm-select>
+        <input hlmInput formControlName="title" required />
+        <input hlmInput type="date" formControlName="activityDate" required />
+        <textarea hlmTextarea formControlName="description"></textarea>
+        <button hlmBtn type="submit">
           {{ "cases.addActivity" | translate }}
         </button>
       </form>
@@ -131,17 +131,19 @@
           <hlm-select-content *hlmSelectPortal>
             <hlm-select-group>
               @for (entry of users() | keyvalue; track entry.key) {
-                <hlm-select-item [value]="entry.key">{{
-                  entry.value
-                }}</hlm-select-item>
+                <hlm-select-item [value]="entry.key">
+                  {{ entry.value }}
+                </hlm-select-item>
               }
             </hlm-select-group>
-          </hlm-select-content> </hlm-select
-        ><input hlmInput type="date" formControlName="startedAt" /><label
-          ><input type="checkbox" formControlName="isPrimary" />{{
-            "cases.primary" | translate
-          }}</label
-        ><button hlmBtn type="submit">
+          </hlm-select-content>
+        </hlm-select>
+        <input hlmInput type="date" formControlName="startedAt" />
+        <label>
+          <input type="checkbox" formControlName="isPrimary" />
+          {{ "cases.primary" | translate }}
+        </label>
+        <button hlmBtn type="submit">
           {{ "cases.addResponsibility" | translate }}
         </button>
       </form>

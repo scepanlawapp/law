@@ -7,7 +7,7 @@
 <label for="client-search">{{ "clients.search" | translate }}</label>
 <input hlmInput id="client-search" [formControl]="search" />
 @if (loading()) {
-  <p>{{ "clients.loading" | translate }}</p>
+  <hlm-spinner aria-label="{{ 'clients.loading' | translate }}"></hlm-spinner>
 }
 @if (error()) {
   <p>
@@ -40,8 +40,9 @@
               <a
                 [routerLink]="['/clients', client.id]"
                 (click)="$event.stopPropagation()"
-                >{{ client.displayName }}</a
               >
+                {{ client.displayName }}
+              </a>
             </td>
             <td hlmTd>{{ "clients.type." + client.type | translate }}</td>
             <td hlmTd>{{ userName(client.responsibleUserId) }}</td>
