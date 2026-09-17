@@ -21,9 +21,16 @@ import {
 } from "@law/api-clients";
 import { CalendarItem, CalendarSourceType } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  createSelectItemToString,
+  type SelectOption,
+} from "../../shared/utils";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { EventDialogService } from "./event-dialog/event-dialog.service";
 
@@ -36,8 +43,35 @@ interface CalendarDay {
   today: boolean;
 }
 
+interface WeekEventSegment {
+  id: string;
+  day: string;
+  item: CalendarItem;
+  start: number;
+  end: number;
+  left: number;
+  width: number;
+  top: number;
+  height: number;
+}
+
+const BELGRADE_TIME_ZONE = "Europe/Belgrade";
+const CALENDAR_HOUR_HEIGHT = 64;
+const CALENDAR_MINUTES_PER_DAY = 24 * 60;
+
 function dateKey(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: BELGRADE_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const values = Object.fromEntries(
+    parts
+      .filter((part) => part.type !== "literal")
+      .map((part) => [part.type, part.value]),
+  ) as Record<string, string>;
+  return `${values["year"]}-${values["month"]}-${values["day"]}`;
 }
 
 function startOfDay(date: Date): Date {
@@ -56,10 +90,14 @@ function mondayIndex(date: Date): number {
   imports: [
     ReactiveFormsModule,
     HlmButton,
+    HlmField,
+    HlmFieldLabel,
     HlmInput,
+    HlmSelectImports,
     HlmSpinner,
     TranslatePipe,
   ],
+  styleUrls: ["./calendar.component.scss"],
 })
 export class CalendarComponent {
   private readonly api = inject(CalendarApiClient);
@@ -67,11 +105,16 @@ export class CalendarComponent {
   private readonly referencesApi = inject(ReferencesApiClient);
   private readonly eventDialog = inject(EventDialogService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly localization = inject(LocalizationService);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly search = new FormControl("", { nonNullable: true });
+  readonly sourceControl = new FormControl<CalendarSourceType | "">("", {
+    nonNullable: true,
+  });
+  readonly lawyerIdControl = new FormControl("", { nonNullable: true });
   readonly anchor = signal(this.initialDate());
   readonly view = signal<CalendarView>(this.initialView());
   readonly source = signal<CalendarSourceType | "">("");
@@ -79,6 +122,21 @@ export class CalendarComponent {
     this.route.snapshot.queryParamMap.get("lawyer") ?? "",
   );
   readonly lawyers = signal<Array<{ id: string; name: string }>>([]);
+  readonly sourceOptions: ReadonlyArray<SelectOption<CalendarSourceType | "">> =
+    [
+      { value: "", label: "calendar.allSources" },
+      { value: "EVENT", label: "calendar.source.event" },
+      { value: "TASK", label: "calendar.source.task" },
+      { value: "DEADLINE", label: "calendar.source.deadline" },
+    ];
+  readonly sourceItemToString = createSelectItemToString(
+    this.sourceOptions,
+    (key) => this.localization.translate(key),
+  );
+  readonly lawyerItemToString = (value: string | null | undefined): string =>
+    value
+      ? (this.lawyers().find((lawyer) => lawyer.id === value)?.name ?? value)
+      : this.localization.translate("calendar.allLawyers");
   readonly includeClosed = signal(false);
   readonly items = signal<CalendarItem[]>([]);
   readonly loading = signal(false);
@@ -88,6 +146,7 @@ export class CalendarComponent {
   readonly itemPopoverPosition = signal({ left: 16, top: 16 });
   readonly eventMenuItem = signal<CalendarItem | null>(null);
   readonly selectedDay = signal<string | null>(dateKey(this.anchor()));
+  readonly calendarExpanded = signal(false);
   @ViewChild("scheduleViewport")
   private scheduleViewport?: ElementRef<HTMLElement>;
   private requestSequence = 0;
@@ -102,6 +161,135 @@ export class CalendarComponent {
   });
   readonly weekDays = computed(() => this.buildWeekDays(this.anchor()));
   readonly hours = Array.from({ length: 24 }, (_, hour) => hour);
+  readonly hourHeight = CALENDAR_HOUR_HEIGHT;
+  readonly weekHasAllDayItems = computed(() =>
+    this.weekDays().some((day) => this.allDayItemsForDay(day.date).length > 0),
+  );
+  readonly weekEventSegments = computed<WeekEventSegment[]>(() => {
+    if (this.view() !== "week") return [];
+
+    const dayMap = new Map(this.weekDays().map((day) => [day.date, day]));
+    const segmentsByDay = new Map<string, WeekEventSegment[]>();
+    for (const day of this.weekDays()) {
+      segmentsByDay.set(day.date, []);
+    }
+
+    for (const item of this.filteredItems()) {
+      if (!item.startsAt || !item.endsAt) continue;
+      const start = new Date(item.startsAt);
+      const end = new Date(item.endsAt);
+      if (
+        Number.isNaN(start.getTime()) ||
+        Number.isNaN(end.getTime()) ||
+        end.getTime() <= start.getTime()
+      ) {
+        continue;
+      }
+
+      const startKey = dateKey(start);
+      const endKey = dateKey(end);
+      let cursor = startKey;
+
+      while (true) {
+        if (dayMap.has(cursor)) {
+          const segmentStartMinutes =
+            cursor === startKey ? this.belgradeMinutesFromMidnight(start) : 0;
+          const segmentEndMinutes =
+            cursor === endKey
+              ? this.belgradeMinutesFromMidnight(end)
+              : CALENDAR_MINUTES_PER_DAY;
+          const visibleStart = Math.max(0, segmentStartMinutes);
+          const visibleEnd = Math.min(
+            CALENDAR_MINUTES_PER_DAY,
+            segmentEndMinutes,
+          );
+
+          if (visibleEnd > visibleStart) {
+            segmentsByDay.get(cursor)?.push({
+              id: `${item.calendarId}-${cursor}`,
+              day: cursor,
+              item,
+              start: visibleStart,
+              end: visibleEnd,
+              left: 0,
+              width: 100,
+              top: this.minutesToPixels(visibleStart),
+              height: this.minutesToPixels(visibleEnd - visibleStart),
+            });
+          }
+        }
+
+        if (cursor === endKey) break;
+        cursor = this.addDayKey(cursor, 1);
+      }
+    }
+
+    const allSegments: WeekEventSegment[] = [];
+    for (const [, daySegments] of segmentsByDay.entries()) {
+      const sorted = [...daySegments].sort(
+        (left, right) => left.start - right.start || left.end - right.end,
+      );
+
+      // Assign columns and widths within one connected overlap group only, so a
+      // group's column count never inflates the width of unrelated segments
+      // elsewhere in the same day.
+      const layoutGroup = (group: WeekEventSegment[]): void => {
+        const laneEnds: number[] = [];
+        const columnOf = new Map<string, number>();
+        for (const segment of group) {
+          let column = laneEnds.findIndex((end) => end <= segment.start);
+          if (column === -1) column = laneEnds.length;
+          laneEnds[column] = segment.end;
+          columnOf.set(segment.id, column);
+        }
+
+        const columnCount = Math.max(1, laneEnds.length);
+        const baseWidth = 100 / columnCount;
+
+        for (const segment of group) {
+          const ownColumn = columnOf.get(segment.id) ?? 0;
+          let spanEnd = ownColumn;
+          for (let column = ownColumn + 1; column < columnCount; column++) {
+            const conflicts = group.some(
+              (other) =>
+                columnOf.get(other.id) === column &&
+                other.start < segment.end &&
+                segment.start < other.end,
+            );
+            if (conflicts) break;
+            spanEnd = column;
+          }
+
+          allSegments.push({
+            ...segment,
+            left: ownColumn * baseWidth,
+            width: (spanEnd - ownColumn + 1) * baseWidth,
+            top: this.minutesToPixels(segment.start),
+            height: this.minutesToPixels(segment.end - segment.start),
+          });
+        }
+      };
+
+      let currentGroup: WeekEventSegment[] = [];
+      let groupMaxEnd = -Infinity;
+      for (const segment of sorted) {
+        if (currentGroup.length === 0 || segment.start < groupMaxEnd) {
+          currentGroup.push(segment);
+          groupMaxEnd = Math.max(groupMaxEnd, segment.end);
+        } else {
+          layoutGroup(currentGroup);
+          currentGroup = [segment];
+          groupMaxEnd = segment.end;
+        }
+      }
+      if (currentGroup.length > 0) layoutGroup(currentGroup);
+    }
+
+    return allSegments.sort(
+      (left, right) =>
+        left.day.localeCompare(right.day) || left.start - right.start,
+    );
+  });
   readonly visibleFrom = computed(() =>
     this.view() === "month"
       ? (this.monthDays()[0]?.date ?? dateKey(this.anchor()))
@@ -152,6 +340,24 @@ export class CalendarComponent {
       this.includeClosed();
       this.loadRange();
     });
+    effect(() => {
+      const next = this.source();
+      if (this.sourceControl.value !== next) {
+        this.sourceControl.setValue(next, { emitEvent: false });
+      }
+    });
+    effect(() => {
+      const next = this.lawyerId();
+      if (this.lawyerIdControl.value !== next) {
+        this.lawyerIdControl.setValue(next, { emitEvent: false });
+      }
+    });
+    this.sourceControl.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => this.setSource(value ?? ""));
+    this.lawyerIdControl.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => this.setLawyer(value ?? ""));
     this.search.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.persistUrl());
@@ -201,6 +407,61 @@ export class CalendarComponent {
   setView(view: CalendarView): void {
     this.view.set(view);
     this.persistUrl();
+  }
+
+  minutesToPixels(minutes: number): number {
+    return (minutes / 60) * this.hourHeight;
+  }
+
+  weekSegmentsForDay(day: string): WeekEventSegment[] {
+    return this.weekEventSegments().filter((segment) => segment.day === day);
+  }
+
+  allDayItemsForDay(day: string): CalendarItem[] {
+    // Only genuine date-only items (contract's `date` field) belong here;
+    // timed EVENT items always carry startsAt/endsAt and render in the timeline.
+    return this.filteredItems().filter((item) => item.date === day);
+  }
+
+  eventLabel(item: CalendarItem): string {
+    if (!item.startsAt || !item.endsAt) return item.title;
+    const start = new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: BELGRADE_TIME_ZONE,
+    }).format(new Date(item.startsAt));
+    const end = new Intl.DateTimeFormat(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: BELGRADE_TIME_ZONE,
+    }).format(new Date(item.endsAt));
+    return `${start}–${end} ${item.title}`;
+  }
+
+  weekDayDoubleClick(event: MouseEvent, day: string): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest("[data-calendar-item-trigger]")) return;
+    this.openCreateEvent(day, 9);
+  }
+
+  editEvent(event: MouseEvent, item: CalendarItem): void {
+    event.preventDefault();
+    event.stopPropagation();
+    if (item.sourceType !== "EVENT") return;
+    this.eventDialog
+      .open({ item })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          if (updated) this.loadRange(false);
+        },
+      });
+  }
+
+  toggleCalendarSidebar(): void {
+    this.calendarExpanded.set(!this.calendarExpanded());
   }
 
   setSource(value: string): void {
@@ -267,7 +528,7 @@ export class CalendarComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (event) => {
-          if (event) this.loadRange();
+          if (event) this.loadRange(false);
         },
       });
   }
@@ -289,7 +550,7 @@ export class CalendarComponent {
       .subscribe({
         next: (event) => {
           this.eventMenuItem.set(null);
-          if (event) this.loadRange();
+          if (event) this.loadRange(false);
         },
       });
   }
@@ -315,7 +576,7 @@ export class CalendarComponent {
             next: () => {
               this.eventMenuItem.set(null);
               this.selectedItem.set(null);
-              this.loadRange();
+              this.loadRange(false);
             },
           });
       });
@@ -374,7 +635,34 @@ export class CalendarComponent {
     return item.calendarId;
   }
 
-  private loadRange(): void {
+  private addDayKey(value: string, offset: number): string {
+    const [year, month, day] = value.split("-").map(Number);
+    const date = new Date(Date.UTC(year, month - 1, day));
+    date.setUTCDate(date.getUTCDate() + offset);
+    return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+  }
+
+  private belgradeMinutesFromMidnight(date: Date): number {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone: BELGRADE_TIME_ZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(date);
+    const values = Object.fromEntries(
+      parts
+        .filter((part) => part.type !== "literal")
+        .map((part) => [part.type, Number(part.value)]),
+    ) as Record<string, number>;
+    return (
+      (values["hour"] ?? 0) * 60 +
+      (values["minute"] ?? 0) +
+      (values["second"] ?? 0) / 60
+    );
+  }
+
+  private loadRange(scrollToNow = true): void {
     const sequence = ++this.requestSequence;
     this.loading.set(true);
     this.error.set(false);
@@ -393,7 +681,7 @@ export class CalendarComponent {
           this.items.set(response.items);
           this.incomplete.set(Boolean(response.nextCursor));
           this.loading.set(false);
-          this.scrollToCurrentHour();
+          if (scrollToNow) this.scrollToCurrentHour();
         },
         error: () => {
           if (sequence !== this.requestSequence) return;

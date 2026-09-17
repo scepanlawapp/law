@@ -63,21 +63,3 @@ npm run services:config
 ```
 
 Implemented so far: authentication and workspaces, chat with uploads and SSE, attachment extraction (PDF/DOCX/XLSX/TXT, image and scanned-PDF OCR) normalized to Serbian Latin, Portir triage, brief extraction and tužba drafting via OpenRouter. Not yet implemented: draft approval UI, DOCX export, evaluation loop, template retrieval (Qdrant), background queue, local Ollama completions, state-portal integrations, production TLS and zero-leakage controls. See [delivery/roadmap.md](delivery/roadmap.md) for the plan.
-
-git clone "project path"
-u folderu projekta:
-git config user.name "Tvoje Privatno Ime Ili Pseudonim"
-git config user.email "privatni-email@gmail.com"
-git add .
-git commit -m "Opis izmena koje si napravio"
-(za proveru autorstva git log -1)
-
-NE RADI SE GIT PUSH vec :
-git format-patch -1 HEAD
-Šta se tačno desilo: Git je napravio .patch fajl u toj fascikli koji sadrži tvoj kod, tvoje privatno ime i tvoj privatni email. Taj fajl sada možeš poslati vlasniku projekta (npr. putem emaila ili Discorda).
-
-Vlasnik projekta prvo proveri da li se patch moze primeniti:
-git apply --check naziv-fajla.patch
-
-Primena patch-a:
-git am naziv-fajla.patch

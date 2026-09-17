@@ -1,5 +1,10 @@
-<div class="space-y-5">
-  <header class="flex flex-wrap items-center justify-between gap-3">
+<div
+  class="calendar-page"
+  [attr.data-calendar-expanded]="calendarExpanded() ? 'true' : 'false'"
+>
+  <header
+    class="calendar-header flex flex-wrap items-center justify-between gap-3"
+  >
     <div>
       <h1>{{ "calendar.title" | translate }}</h1>
       <p class="text-sm text-muted-foreground">
@@ -7,6 +12,18 @@
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
+      <!-- Add your expansion click handler here. -->
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        class="calendar-expand"
+        [attr.aria-expanded]="calendarExpanded()"
+        aria-controls="calendar-mini-panel"
+        (click)="toggleCalendarSidebar()"
+      >
+        {{ miniMonthLabel() }}
+      </button>
       <button
         hlmBtn
         type="button"
@@ -38,8 +55,11 @@
       </button>
     </div>
   </header>
-  <div class="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
-    <aside class="h-fit rounded-md border border-border bg-card p-4">
+  <div class="calendar-body gap-5">
+    <aside
+      id="calendar-mini-panel"
+      class="calendar-sidebar h-fit rounded-md border border-border bg-card p-4"
+    >
       <div class="mb-4 flex items-center justify-between gap-2">
         <h2 class="font-semibold capitalize">{{ miniMonthLabel() }}</h2>
         <button
@@ -93,10 +113,8 @@
         }
       </div>
     </aside>
-    <main class="min-w-0">
-      <div
-        class="grid gap-3 md:grid-cols-[minmax(14rem,1fr)_auto_auto] md:items-end"
-      >
+    <div class="calendar-main">
+      <div class="calendar-filters grid gap-3">
         <label class="grid gap-1 text-sm">
           {{ "calendar.search" | translate }}
           <input
@@ -105,38 +123,53 @@
             placeholder="{{ 'calendar.searchPlaceholder' | translate }}"
           />
         </label>
-        <label class="grid gap-1 text-sm">
-          {{ "calendar.source" | translate }}
-          <select
-            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            [value]="source()"
-            (change)="setSource($any($event.target).value)"
+        <div hlmField>
+          <label hlmFieldLabel for="source-select">
+            {{ "calendar.source" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="sourceControl"
+            [itemToString]="sourceItemToString"
           >
-            <option value="">{{ "calendar.allSources" | translate }}</option>
-            <option value="EVENT">
-              {{ "calendar.source.event" | translate }}
-            </option>
-            <option value="TASK">
-              {{ "calendar.source.task" | translate }}
-            </option>
-            <option value="DEADLINE">
-              {{ "calendar.source.deadline" | translate }}
-            </option>
-          </select>
-        </label>
-        <label class="grid gap-1 text-sm">
-          {{ "calendar.lawyer" | translate }}
-          <select
-            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-            [value]="lawyerId()"
-            (change)="setLawyer($any($event.target).value)"
+            <hlm-select-trigger id="source-select" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of sourceOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="lawyer-select">
+            {{ "calendar.lawyer" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="lawyerIdControl"
+            [itemToString]="lawyerItemToString"
           >
-            <option value="">{{ "calendar.allLawyers" | translate }}</option>
-            @for (lawyer of lawyers(); track lawyer.id) {
-              <option [value]="lawyer.id">{{ lawyer.name }}</option>
-            }
-          </select>
-        </label>
+            <hlm-select-trigger id="lawyer-select" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "calendar.allLawyers" | translate }}
+                </hlm-select-item>
+                @for (lawyer of lawyers(); track lawyer.id) {
+                  <hlm-select-item [value]="lawyer.id">
+                    {{ lawyer.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
         <label class="flex h-10 items-center gap-2 text-sm">
           <input
             type="checkbox"
@@ -146,7 +179,9 @@
           {{ "calendar.includeClosed" | translate }}
         </label>
       </div>
-      <div class="flex flex-wrap items-center justify-between gap-3">
+      <div
+        class="calendar-toolbar flex flex-wrap items-center justify-between gap-3"
+      >
         <h2 class="text-lg font-semibold">{{ rangeLabel() }}</h2>
         <div
           class="flex gap-1"
@@ -214,7 +249,7 @@
           </div>
         } @else {
           <section
-            class="space-y-3"
+            class="calendar-viewport space-y-3"
             aria-label="{{ 'calendar.agenda' | translate }}"
           >
             @for (item of filteredItems(); track trackItem($index, item)) {
@@ -239,7 +274,9 @@
                     {{ item.title }}
                   </span>
                 </span>
-                <span class="shrink-0 text-sm text-muted-foreground">
+                <span
+                  class="calendar-agenda-meta text-sm text-muted-foreground"
+                >
                   {{ sourceLabel(item) | translate }} ·
                   {{ statusLabel(item.status) | translate }}
                 </span>
@@ -250,12 +287,15 @@
       } @else if (view() === "week") {
         <section
           #scheduleViewport
-          class="max-h-[calc(100dvh-16rem)] overflow-auto rounded-md border border-border"
+          class="calendar-viewport rounded-md border border-border"
           aria-label="{{ 'calendar.week' | translate }}"
         >
-          <div class="min-w-[60rem]">
+          <div class="calendar-grid-wrapper">
             <div
-              class="grid grid-cols-[5rem_repeat(7,minmax(9rem,1fr))] border-l border-t border-border"
+              class="calendar-week-grid border-l border-t border-border"
+              [attr.data-all-day-empty]="
+                weekHasAllDayItems() ? 'false' : 'true'
+              "
             >
               <div class="border-b border-r border-border bg-muted p-2"></div>
               @for (day of weekDays(); track day.date) {
@@ -267,44 +307,87 @@
                   {{ day.date }}
                 </button>
               }
-              @for (hour of hours; track hour) {
+
+              <div
+                class="calendar-all-day-gutter border-b border-r border-border bg-muted"
+              ></div>
+              @for (day of weekDays(); track day.date) {
                 <div
-                  class="border-b border-r border-border bg-muted p-2 text-xs text-muted-foreground"
+                  class="calendar-day-all-day border-b border-r border-border"
                 >
-                  {{ hourLabel(hour) }}
+                  @for (
+                    item of allDayItemsForDay(day.date);
+                    track trackItem($index, item)
+                  ) {
+                    <button
+                      type="button"
+                      data-calendar-item-trigger
+                      class="calendar-all-day-item"
+                      (click)="selectItem($event, item)"
+                      (contextmenu)="openEventMenu($event, item)"
+                    >
+                      {{ item.title }}
+                    </button>
+                  }
                 </div>
-                @for (day of weekDays(); track day.date) {
+              }
+
+              <div
+                class="calendar-time-column border-b border-r border-border bg-muted"
+              >
+                @for (hour of hours; track hour) {
                   <div
-                    class="min-h-16 border-b border-r border-border p-1"
-                    (dblclick)="openCreateEvent(day.date, hour)"
+                    class="calendar-hour-label text-xs text-muted-foreground"
                   >
-                    @for (
-                      item of itemsForHour(day.date, hour);
-                      track trackItem($index, item)
-                    ) {
-                      <button
-                        type="button"
-                        data-calendar-item-trigger
-                        class="block w-full truncate rounded border border-border bg-card px-2 py-1 text-left text-xs"
-                        (click)="selectItem($event, item)"
-                        (contextmenu)="openEventMenu($event, item)"
-                      >
-                        {{ itemTime(item) }} {{ item.title }}
-                      </button>
-                    }
+                    {{ hourLabel(hour) }}
                   </div>
                 }
+              </div>
+              @for (day of weekDays(); track day.date) {
+                <div
+                  class="calendar-day-timeline border-b border-r border-border"
+                  [style.height.px]="hours.length * hourHeight"
+                  (dblclick)="weekDayDoubleClick($event, day.date)"
+                >
+                  @for (hour of hours; track hour) {
+                    <div class="calendar-hour-slot"></div>
+                  }
+                  @for (
+                    segment of weekSegmentsForDay(day.date);
+                    track segment.id
+                  ) {
+                    <button
+                      type="button"
+                      data-calendar-item-trigger
+                      class="calendar-week-event"
+                      [style.top.px]="segment.top"
+                      [style.height.px]="segment.height"
+                      [style.left.%]="segment.left"
+                      [style.width.%]="segment.width"
+                      [attr.aria-label]="eventLabel(segment.item)"
+                      (click)="selectItem($event, segment.item)"
+                      (dblclick)="editEvent($event, segment.item)"
+                      (contextmenu)="openEventMenu($event, segment.item)"
+                    >
+                      <span class="calendar-week-event-text">
+                        {{ eventLabel(segment.item) }}
+                      </span>
+                    </button>
+                  }
+                </div>
               }
             </div>
           </div>
         </section>
       } @else {
         <section
-          class="overflow-x-auto"
+          class="calendar-viewport"
           aria-label="{{ 'calendar.month' | translate }}"
         >
-          <div class="min-w-[48rem]">
-            <div class="grid grid-cols-7 border-l border-t border-border">
+          <div class="calendar-grid-wrapper">
+            <div
+              class="calendar-month-grid grid grid-cols-7 border-l border-t border-border"
+            >
               @for (
                 day of [
                   "calendar.mon",
@@ -463,6 +546,6 @@
           </dl>
         </aside>
       }
-    </main>
+    </div>
   </div>
 </div>
