@@ -40,7 +40,12 @@
       </hlm-empty-header>
       <hlm-empty-content>
         @if (search.value) {
-          <button hlmBtn type="button" variant="outline" (click)="clearSearch()">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            (click)="clearSearch()"
+          >
             {{ "clients.clearSearch" | translate }}
           </button>
         } @else {
@@ -67,28 +72,30 @@
         </thead>
         <tbody hlmTBody>
           @for (client of items(); track client.id) {
-          <tr hlmTr class="cursor-pointer" (click)="openClient(client.id)">
-            <td hlmTd>{{ client.clientNumber }}</td>
-            <td hlmTd>
-              <a
-                [routerLink]="['/clients', client.id]"
-                (click)="$event.stopPropagation()"
-              >
-                {{ client.displayName }}
-              </a>
-            </td>
-            <td hlmTd>{{ "clients.type." + client.type | translate }}</td>
-            <td hlmTd>{{ userName(client.responsibleUserId) }}</td>
-            <td hlmTd>{{ client.email }}</td>
-            <td hlmTd>{{ client.phone }}</td>
-            <td hlmTd>{{ "clients.status." + client.status | translate }}</td>
-            <td hlmTd>{{ client.activeCaseCount }}</td>
-          </tr>
+            <tr hlmTr class="cursor-pointer" (click)="openClient(client.id)">
+              <td hlmTd>{{ client.clientNumber }}</td>
+              <td hlmTd>
+                <a
+                  [routerLink]="['/clients', client.id]"
+                  (click)="$event.stopPropagation()"
+                >
+                  {{ client.displayName }}
+                </a>
+              </td>
+              <td hlmTd>{{ "clients.type." + client.type | translate }}</td>
+              <td hlmTd>{{ userName(client.responsibleUserId) }}</td>
+              <td hlmTd>{{ client.email }}</td>
+              <td hlmTd>{{ client.phone }}</td>
+              <td hlmTd>{{ "clients.status." + client.status | translate }}</td>
+              <td hlmTd>{{ client.activeCaseCount }}</td>
+            </tr>
           }
         </tbody>
       </table>
     </div>
-    <p>{{ "clients.page" | translate: { page: page(), total: pageCount() } }}</p>
+    <p>
+      {{ "clients.page" | translate: { page: page(), total: pageCount() } }}
+    </p>
     <button
       hlmBtn
       type="button"

@@ -1,0 +1,1405 @@
+From f6e0655fd5feecb884a205a35d93608c83f6f4bd Mon Sep 17 00:00:00 2001
+From: scepanlawapp <scepan.law.app@gmail.com>
+Date: Thu, 17 Sep 2026 14:28:46 +0200
+Subject: [PATCH] rokovi
+
+---
+ .../deadline-dialog.component.html            | 125 ++++++++
+ .../deadline-dialog.component.ts              | 164 +++++++++++
+ .../deadline-dialog/deadline-dialog.models.ts |   7 +
+ .../deadline-dialog.service.ts                |  21 ++
+ .../note-dialog/note-dialog.component.html    |  61 ++++
+ .../note-dialog/note-dialog.component.ts      |  99 +++++++
+ .../note-dialog/note-dialog.models.ts         |   9 +
+ .../note-dialog/note-dialog.service.ts        |  21 ++
+ .../task-dialog/task-dialog.component.html    | 131 +++++++++
+ .../task-dialog/task-dialog.component.ts      | 164 +++++++++++
+ .../task-dialog/task-dialog.models.ts         |   8 +
+ .../task-dialog/task-dialog.service.ts        |  21 ++
+ .../work-management/work-management-utils.ts  | 102 +++++++
+ .../user-menu/user-menu.component.html        |  30 +-
+ .../api-clients/src/lib/api-clients.ts        | 275 +++++++++++++++++-
+ 15 files changed, 1222 insertions(+), 16 deletions(-)
+ create mode 100644 apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.html
+ create mode 100644 apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.ts
+ create mode 100644 apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.models.ts
+ create mode 100644 apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.service.ts
+ create mode 100644 apps/web/src/app/features/work-management/note-dialog/note-dialog.component.html
+ create mode 100644 apps/web/src/app/features/work-management/note-dialog/note-dialog.component.ts
+ create mode 100644 apps/web/src/app/features/work-management/note-dialog/note-dialog.models.ts
+ create mode 100644 apps/web/src/app/features/work-management/note-dialog/note-dialog.service.ts
+ create mode 100644 apps/web/src/app/features/work-management/task-dialog/task-dialog.component.html
+ create mode 100644 apps/web/src/app/features/work-management/task-dialog/task-dialog.component.ts
+ create mode 100644 apps/web/src/app/features/work-management/task-dialog/task-dialog.models.ts
+ create mode 100644 apps/web/src/app/features/work-management/task-dialog/task-dialog.service.ts
+ create mode 100644 apps/web/src/app/features/work-management/work-management-utils.ts
+
+diff --git a/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.html b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.html
+new file mode 100644
+index 0000000..781909e
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.html
+@@ -0,0 +1,125 @@
++<hlm-dialog-header>
++  <h2 hlmDialogTitle>
++    {{
++      (editing ? "work.deadlines.edit" : "work.deadlines.create") | translate
++    }}
++  </h2>
++  <p hlmDialogDescription>{{ "work.deadlines.formDescription" | translate }}</p>
++</hlm-dialog-header>
++<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
++  <div hlmField>
++    <label hlmFieldLabel for="deadline-title">
++      {{ "work.title" | translate }}
++    </label>
++    <input hlmInput id="deadline-title" formControlName="title" />
++  </div>
++  <div hlmField>
++    <label hlmFieldLabel for="deadline-description">
++      {{ "work.description" | translate }}
++    </label>
++    <textarea
++      hlmTextarea
++      id="deadline-description"
++      formControlName="description"
++    ></textarea>
++  </div>
++  <div class="grid gap-4 md:grid-cols-2">
++    <div hlmField>
++      <label hlmFieldLabel for="deadline-type">
++        {{ "work.type" | translate }}
++      </label>
++      <select
++        id="deadline-type"
++        formControlName="type"
++        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++      >
++        @for (type of types; track type) {
++          <option [value]="type">
++            {{ "work.deadlineType." + type.toLowerCase() | translate }}
++          </option>
++        }
++      </select>
++    </div>
++    <div hlmField>
++      <label hlmFieldLabel for="deadline-responsible">
++        {{ "work.responsible" | translate }}
++      </label>
++      <select
++        id="deadline-responsible"
++        formControlName="responsibleUserId"
++        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++      >
++        @for (user of users(); track user.id) {
++          <option [value]="user.id">{{ user.name }}</option>
++        }
++      </select>
++    </div>
++  </div>
++  <div class="grid gap-4 md:grid-cols-2">
++    <div hlmField>
++      <label hlmFieldLabel for="deadline-due-mode">
++        {{ "work.dueTarget" | translate }}
++      </label>
++      <select
++        id="deadline-due-mode"
++        formControlName="dueMode"
++        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++      >
++        @for (mode of dueModes; track mode) {
++          <option [value]="mode">
++            {{ "work.dueMode." + mode.toLowerCase() | translate }}
++          </option>
++        }
++      </select>
++    </div>
++    @if (form.controls.dueMode.value === "DATE") {
++      <div hlmField>
++        <label hlmFieldLabel for="deadline-due-date">
++          {{ "work.dueDate" | translate }}
++        </label>
++        <input
++          hlmInput
++          id="deadline-due-date"
++          type="date"
++          formControlName="dueDate"
++        />
++      </div>
++    }
++    @if (form.controls.dueMode.value === "DATE_TIME") {
++      <div hlmField>
++        <label hlmFieldLabel for="deadline-due-at">
++          {{ "work.dueAt" | translate }}
++        </label>
++        <input
++          hlmInput
++          id="deadline-due-at"
++          type="datetime-local"
++          formControlName="dueAt"
++        />
++      </div>
++    }
++  </div>
++  <div hlmField>
++    <label hlmFieldLabel for="deadline-source">
++      {{ "work.sourceDescription" | translate }}
++    </label>
++    <input hlmInput id="deadline-source" formControlName="sourceDescription" />
++  </div>
++  <hlm-dialog-footer class="flex justify-end gap-2">
++    <button
++      hlmBtn
++      type="button"
++      variant="outline"
++      [disabled]="saving()"
++      (click)="dialogRef.close()"
++    >
++      {{ "common.cancel" | translate }}
++    </button>
++    <button hlmBtn type="submit" [disabled]="saving()">
++      @if (saving()) {
++        <hlm-spinner />
++      }
++      {{ "common.save" | translate }}
++    </button>
++  </hlm-dialog-footer>
++</form>
+diff --git a/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.ts b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.ts
+new file mode 100644
+index 0000000..2f95446
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.component.ts
+@@ -0,0 +1,164 @@
++import { Component, DestroyRef, inject, signal } from "@angular/core";
++import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
++import {
++  FormControl,
++  FormGroup,
++  ReactiveFormsModule,
++  Validators,
++} from "@angular/forms";
++import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
++import { DeadlineDetail, DeadlineType } from "@law/api-interfaces";
++import {
++  DeadlineRequest,
++  ReferencesApiClient,
++  WorkManagementApiClient,
++} from "@law/api-clients";
++import { HlmButton } from "@spartan-ng/helm/button";
++import {
++  HlmDialogDescription,
++  HlmDialogFooter,
++  HlmDialogHeader,
++  HlmDialogTitle,
++} from "@spartan-ng/helm/dialog";
++import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
++import { HlmInput } from "@spartan-ng/helm/input";
++import { HlmSpinner } from "@spartan-ng/helm/spinner";
++import { HlmTextarea } from "@spartan-ng/helm/textarea";
++import { TranslatePipe } from "../../../core/localization/translate.pipe";
++import {
++  dateInputValue,
++  dateTimeInputValue,
++  deadlineDueMode,
++} from "../work-management-utils";
++import { DeadlineDialogContext } from "./deadline-dialog.models";
++
++type DeadlineDueMode = "DATE" | "DATE_TIME";
++
++@Component({
++  selector: "app-deadline-dialog",
++  standalone: true,
++  templateUrl: "./deadline-dialog.component.html",
++  imports: [
++    ReactiveFormsModule,
++    HlmButton,
++    HlmDialogDescription,
++    HlmDialogFooter,
++    HlmDialogHeader,
++    HlmDialogTitle,
++    HlmField,
++    HlmFieldLabel,
++    HlmInput,
++    HlmSpinner,
++    HlmTextarea,
++    TranslatePipe,
++  ],
++})
++export class DeadlineDialogComponent {
++  private readonly api = inject(WorkManagementApiClient);
++  private readonly references = inject(ReferencesApiClient);
++  private readonly context = injectBrnDialogContext<DeadlineDialogContext>();
++  private readonly destroyRef = inject(DestroyRef);
++  readonly dialogRef = inject(BrnDialogRef<DeadlineDetail>);
++  readonly users = signal<Array<{ id: string; name: string }>>([]);
++  readonly saving = signal(false);
++  readonly editing = Boolean(this.context.deadline);
++  readonly types: DeadlineType[] = [
++    "COURT",
++    "STATUTORY",
++    "CONTRACTUAL",
++    "INTERNAL",
++    "OTHER",
++  ];
++  readonly dueModes: DeadlineDueMode[] = ["DATE", "DATE_TIME"];
++  readonly form = new FormGroup({
++    title: new FormControl(this.context.deadline?.title ?? "", {
++      nonNullable: true,
++      validators: [Validators.required, Validators.maxLength(320)],
++    }),
++    description: new FormControl(this.context.deadline?.description ?? "", {
++      nonNullable: true,
++    }),
++    type: new FormControl<DeadlineType>(
++      this.context.deadline?.type ?? "INTERNAL",
++      { nonNullable: true },
++    ),
++    dueMode: new FormControl<DeadlineDueMode>(
++      deadlineDueMode(this.context.deadline),
++      { nonNullable: true },
++    ),
++    dueDate: new FormControl(dateInputValue(this.context.deadline?.dueDate), {
++      nonNullable: true,
++    }),
++    dueAt: new FormControl(dateTimeInputValue(this.context.deadline?.dueAt), {
++      nonNullable: true,
++    }),
++    responsibleUserId: new FormControl(
++      this.context.deadline?.responsibleUserId ?? "",
++      { nonNullable: true, validators: [Validators.required] },
++    ),
++    sourceDescription: new FormControl(
++      this.context.deadline?.sourceDescription ?? "",
++      { nonNullable: true },
++    ),
++  });
++
++  constructor() {
++    this.references
++      .users()
++      .pipe(takeUntilDestroyed(this.destroyRef))
++      .subscribe((users) => {
++        this.users.set(
++          users.map((membership) => ({
++            id: membership.userId,
++            name:
++              [membership.user.firstName, membership.user.lastName]
++                .filter(Boolean)
++                .join(" ") || membership.user.email,
++          })),
++        );
++        if (!this.form.controls.responsibleUserId.value && this.users()[0]) {
++          this.form.controls.responsibleUserId.setValue(this.users()[0].id);
++        }
++      });
++  }
++
++  submit(): void {
++    if (this.form.invalid) {
++      this.form.markAllAsTouched();
++      return;
++    }
++    const value = this.form.getRawValue();
++    const request: DeadlineRequest = {
++      title: value.title,
++      description: value.description || undefined,
++      type: value.type,
++      timeZone: "Europe/Belgrade",
++      responsibleUserId: value.responsibleUserId,
++      sourceDescription: value.sourceDescription || undefined,
++      caseId: this.context.caseId ?? this.context.deadline?.caseId ?? undefined,
++      clientId:
++        this.context.clientId ?? this.context.deadline?.clientId ?? undefined,
++      dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
++      dueAt:
++        value.dueMode === "DATE_TIME"
++          ? new Date(value.dueAt).toISOString()
++          : undefined,
++    };
++    if (value.dueMode === "DATE" && !request.dueDate) {
++      this.form.controls.dueDate.setErrors({ required: true });
++      return;
++    }
++    if (value.dueMode === "DATE_TIME" && !value.dueAt) {
++      this.form.controls.dueAt.setErrors({ required: true });
++      return;
++    }
++    this.saving.set(true);
++    const operation = this.context.deadline
++      ? this.api.updateDeadline(this.context.deadline.id, request)
++      : this.api.createDeadline(request);
++    operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
++      next: (deadline) => this.dialogRef.close(deadline),
++      error: () => this.saving.set(false),
++    });
++  }
++}
+diff --git a/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.models.ts b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.models.ts
+new file mode 100644
+index 0000000..8c0a265
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.models.ts
+@@ -0,0 +1,7 @@
++import { DeadlineDetail } from "@law/api-interfaces";
++
++export interface DeadlineDialogContext {
++  deadline?: DeadlineDetail;
++  caseId?: string;
++  clientId?: string;
++}
+diff --git a/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.service.ts b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.service.ts
+new file mode 100644
+index 0000000..659489e
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/deadline-dialog/deadline-dialog.service.ts
+@@ -0,0 +1,21 @@
++import { inject, Injectable } from "@angular/core";
++import { Observable } from "rxjs";
++import { DeadlineDetail } from "@law/api-interfaces";
++import { HlmDialogService } from "@spartan-ng/helm/dialog";
++import { DeadlineDialogComponent } from "./deadline-dialog.component";
++import { DeadlineDialogContext } from "./deadline-dialog.models";
++
++@Injectable({ providedIn: "root" })
++export class DeadlineDialogService {
++  private readonly dialog = inject(HlmDialogService);
++
++  open(context: DeadlineDialogContext): Observable<DeadlineDetail | undefined> {
++    return this.dialog.open<DeadlineDetail, DeadlineDialogContext>(
++      DeadlineDialogComponent,
++      {
++        context,
++        contentClass: "sm:max-w-2xl max-h-[90dvh] overflow-y-auto",
++      },
++    ).closed$;
++  }
++}
+diff --git a/apps/web/src/app/features/work-management/note-dialog/note-dialog.component.html b/apps/web/src/app/features/work-management/note-dialog/note-dialog.component.html
+new file mode 100644
+index 0000000..18d8feb
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/note-dialog/note-dialog.component.html
+@@ -0,0 +1,61 @@
++<hlm-dialog-header>
++  <h2 hlmDialogTitle>
++    {{ (editing ? "work.notes.edit" : "work.notes.create") | translate }}
++  </h2>
++  <p hlmDialogDescription>{{ "work.notes.formDescription" | translate }}</p>
++</hlm-dialog-header>
++<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
++  <div hlmField>
++    <label hlmFieldLabel for="note-type">{{ "work.type" | translate }}</label>
++    <select
++      id="note-type"
++      formControlName="type"
++      class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++    >
++      @for (type of types; track type) {
++        <option [value]="type">
++          {{ "work.noteType." + type.toLowerCase() | translate }}
++        </option>
++      }
++    </select>
++  </div>
++  <div hlmField>
++    <label hlmFieldLabel for="note-occurred-at">
++      {{ "work.occurredAt" | translate }}
++    </label>
++    <input
++      hlmInput
++      id="note-occurred-at"
++      type="datetime-local"
++      formControlName="occurredAt"
++    />
++  </div>
++  <div hlmField>
++    <label hlmFieldLabel for="note-body">
++      {{ "work.notes.body" | translate }}
++    </label>
++    <textarea
++      hlmTextarea
++      id="note-body"
++      rows="8"
++      formControlName="body"
++    ></textarea>
++  </div>
++  <hlm-dialog-footer class="flex justify-end gap-2">
++    <button
++      hlmBtn
++      type="button"
++      variant="outline"
++      [disabled]="saving()"
++      (click)="dialogRef.close()"
++    >
++      {{ "common.cancel" | translate }}
++    </button>
++    <button hlmBtn type="submit" [disabled]="saving()">
++      @if (saving()) {
++        <hlm-spinner />
++      }
++      {{ "common.save" | translate }}
++    </button>
++  </hlm-dialog-footer>
++</form>
+diff --git a/apps/web/src/app/features/work-management/note-dialog/note-dialog.component.ts b/apps/web/src/app/features/work-management/note-dialog/note-dialog.component.ts
+new file mode 100644
+index 0000000..1c3fe39
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/note-dialog/note-dialog.component.ts
+@@ -0,0 +1,99 @@
++import { Component, DestroyRef, inject, signal } from "@angular/core";
++import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
++import {
++  FormControl,
++  FormGroup,
++  ReactiveFormsModule,
++  Validators,
++} from "@angular/forms";
++import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
++import { NoteDetail, NoteType } from "@law/api-interfaces";
++import { NoteRequest, WorkManagementApiClient } from "@law/api-clients";
++import { HlmButton } from "@spartan-ng/helm/button";
++import {
++  HlmDialogDescription,
++  HlmDialogFooter,
++  HlmDialogHeader,
++  HlmDialogTitle,
++} from "@spartan-ng/helm/dialog";
++import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
++import { HlmInput } from "@spartan-ng/helm/input";
++import { HlmSpinner } from "@spartan-ng/helm/spinner";
++import { HlmTextarea } from "@spartan-ng/helm/textarea";
++import { TranslatePipe } from "../../../core/localization/translate.pipe";
++import { dateTimeInputValue } from "../work-management-utils";
++import { NoteDialogContext } from "./note-dialog.models";
++
++@Component({
++  selector: "app-note-dialog",
++  standalone: true,
++  templateUrl: "./note-dialog.component.html",
++  imports: [
++    ReactiveFormsModule,
++    HlmButton,
++    HlmDialogDescription,
++    HlmDialogFooter,
++    HlmDialogHeader,
++    HlmDialogTitle,
++    HlmField,
++    HlmFieldLabel,
++    HlmInput,
++    HlmSpinner,
++    HlmTextarea,
++    TranslatePipe,
++  ],
++})
++export class NoteDialogComponent {
++  private readonly api = inject(WorkManagementApiClient);
++  private readonly context = injectBrnDialogContext<NoteDialogContext>();
++  private readonly destroyRef = inject(DestroyRef);
++  readonly dialogRef = inject(BrnDialogRef<NoteDetail>);
++  readonly saving = signal(false);
++  readonly editing = Boolean(this.context.note);
++  readonly types: NoteType[] = [
++    "GENERAL",
++    "CALL_SUMMARY",
++    "MEETING_SUMMARY",
++    "CASE_UPDATE",
++  ];
++  readonly form = new FormGroup({
++    type: new FormControl<NoteType>(
++      this.context.note?.type ?? this.context.type ?? "GENERAL",
++      { nonNullable: true },
++    ),
++    body: new FormControl(this.context.note?.body ?? "", {
++      nonNullable: true,
++      validators: [Validators.required, Validators.maxLength(10000)],
++    }),
++    occurredAt: new FormControl(
++      dateTimeInputValue(this.context.note?.occurredAt) ||
++        dateTimeInputValue(new Date().toISOString()),
++      { nonNullable: true, validators: [Validators.required] },
++    ),
++  });
++
++  submit(): void {
++    if (this.form.invalid) {
++      this.form.markAllAsTouched();
++      return;
++    }
++    const value = this.form.getRawValue();
++    const request: NoteRequest = {
++      type: value.type,
++      body: value.body,
++      occurredAt: new Date(value.occurredAt).toISOString(),
++      caseId: this.context.caseId ?? this.context.note?.caseId ?? undefined,
++      clientId:
++        this.context.clientId ?? this.context.note?.clientId ?? undefined,
++      eventId: this.context.eventId ?? this.context.note?.eventId ?? undefined,
++    };
++    this.saving.set(true);
++    const operation = this.context.note
++      ? this.api.updateNote(this.context.note.id, request)
++      : this.api.createNote(request);
++    operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
++      next: (note) => this.dialogRef.close(note),
++      error: () => this.saving.set(false),
++    });
++  }
++}
+diff --git a/apps/web/src/app/features/work-management/note-dialog/note-dialog.models.ts b/apps/web/src/app/features/work-management/note-dialog/note-dialog.models.ts
+new file mode 100644
+index 0000000..b91e6f4
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/note-dialog/note-dialog.models.ts
+@@ -0,0 +1,9 @@
++import { NoteDetail } from "@law/api-interfaces";
++
++export interface NoteDialogContext {
++  note?: NoteDetail;
++  type?: NoteDetail["type"];
++  caseId?: string;
++  clientId?: string;
++  eventId?: string;
++}
+diff --git a/apps/web/src/app/features/work-management/note-dialog/note-dialog.service.ts b/apps/web/src/app/features/work-management/note-dialog/note-dialog.service.ts
+new file mode 100644
+index 0000000..20299c9
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/note-dialog/note-dialog.service.ts
+@@ -0,0 +1,21 @@
++import { inject, Injectable } from "@angular/core";
++import { Observable } from "rxjs";
++import { NoteDetail } from "@law/api-interfaces";
++import { HlmDialogService } from "@spartan-ng/helm/dialog";
++import { NoteDialogComponent } from "./note-dialog.component";
++import { NoteDialogContext } from "./note-dialog.models";
++
++@Injectable({ providedIn: "root" })
++export class NoteDialogService {
++  private readonly dialog = inject(HlmDialogService);
++
++  open(context: NoteDialogContext): Observable<NoteDetail | undefined> {
++    return this.dialog.open<NoteDetail, NoteDialogContext>(
++      NoteDialogComponent,
++      {
++        context,
++        contentClass: "sm:max-w-2xl max-h-[90dvh] overflow-y-auto",
++      },
++    ).closed$;
++  }
++}
+diff --git a/apps/web/src/app/features/work-management/task-dialog/task-dialog.component.html b/apps/web/src/app/features/work-management/task-dialog/task-dialog.component.html
+new file mode 100644
+index 0000000..cf98ba8
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/task-dialog/task-dialog.component.html
+@@ -0,0 +1,131 @@
++<hlm-dialog-header>
++  <h2 hlmDialogTitle>
++    {{ (editing ? "work.tasks.edit" : "work.tasks.create") | translate }}
++  </h2>
++  <p hlmDialogDescription>{{ "work.tasks.formDescription" | translate }}</p>
++</hlm-dialog-header>
++<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
++  <div hlmField>
++    <label hlmFieldLabel for="task-title">{{ "work.title" | translate }}</label>
++    <input hlmInput id="task-title" formControlName="title" />
++  </div>
++  <div hlmField>
++    <label hlmFieldLabel for="task-description">
++      {{ "work.description" | translate }}
++    </label>
++    <textarea
++      hlmTextarea
++      id="task-description"
++      formControlName="description"
++    ></textarea>
++  </div>
++  <div class="grid gap-4 md:grid-cols-2">
++    <div hlmField>
++      <label hlmFieldLabel for="task-assignee">
++        {{ "work.responsible" | translate }}
++      </label>
++      <select
++        id="task-assignee"
++        formControlName="assigneeUserId"
++        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++      >
++        @for (user of users(); track user.id) {
++          <option [value]="user.id">{{ user.name }}</option>
++        }
++      </select>
++    </div>
++    <div hlmField>
++      <label hlmFieldLabel for="task-priority">
++        {{ "work.priority" | translate }}
++      </label>
++      <select
++        id="task-priority"
++        formControlName="priority"
++        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++      >
++        @for (priority of priorities; track priority) {
++          <option [value]="priority">
++            {{ "work.priority." + priority.toLowerCase() | translate }}
++          </option>
++        }
++      </select>
++    </div>
++  </div>
++  <div class="grid gap-4 md:grid-cols-3">
++    <div hlmField>
++      <label hlmFieldLabel for="task-status">
++        {{ "work.status" | translate }}
++      </label>
++      <select
++        id="task-status"
++        formControlName="status"
++        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++      >
++        @for (status of statuses; track status) {
++          <option [value]="status">
++            {{ "work.taskStatus." + status.toLowerCase() | translate }}
++          </option>
++        }
++      </select>
++    </div>
++    <div hlmField>
++      <label hlmFieldLabel for="task-due-mode">
++        {{ "work.dueTarget" | translate }}
++      </label>
++      <select
++        id="task-due-mode"
++        formControlName="dueMode"
++        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
++      >
++        @for (mode of dueModes; track mode) {
++          <option [value]="mode">
++            {{ "work.dueMode." + mode.toLowerCase() | translate }}
++          </option>
++        }
++      </select>
++    </div>
++    @if (form.controls.dueMode.value === "DATE") {
++      <div hlmField>
++        <label hlmFieldLabel for="task-due-date">
++          {{ "work.dueDate" | translate }}
++        </label>
++        <input
++          hlmInput
++          id="task-due-date"
++          type="date"
++          formControlName="dueDate"
++        />
++      </div>
++    }
++    @if (form.controls.dueMode.value === "DATE_TIME") {
++      <div hlmField>
++        <label hlmFieldLabel for="task-due-at">
++          {{ "work.dueAt" | translate }}
++        </label>
++        <input
++          hlmInput
++          id="task-due-at"
++          type="datetime-local"
++          formControlName="dueAt"
++        />
++      </div>
++    }
++  </div>
++  <hlm-dialog-footer class="flex justify-end gap-2">
++    <button
++      hlmBtn
++      type="button"
++      variant="outline"
++      [disabled]="saving()"
++      (click)="dialogRef.close()"
++    >
++      {{ "common.cancel" | translate }}
++    </button>
++    <button hlmBtn type="submit" [disabled]="saving()">
++      @if (saving()) {
++        <hlm-spinner />
++      }
++      {{ "common.save" | translate }}
++    </button>
++  </hlm-dialog-footer>
++</form>
+diff --git a/apps/web/src/app/features/work-management/task-dialog/task-dialog.component.ts b/apps/web/src/app/features/work-management/task-dialog/task-dialog.component.ts
+new file mode 100644
+index 0000000..3708b6c
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/task-dialog/task-dialog.component.ts
+@@ -0,0 +1,164 @@
++import { Component, DestroyRef, inject, signal } from "@angular/core";
++import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
++import {
++  FormControl,
++  FormGroup,
++  ReactiveFormsModule,
++  Validators,
++} from "@angular/forms";
++import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
++import { CasePriority, TaskDetail, TaskStatus } from "@law/api-interfaces";
++import {
++  ReferencesApiClient,
++  TaskRequest,
++  WorkManagementApiClient,
++} from "@law/api-clients";
++import { HlmButton } from "@spartan-ng/helm/button";
++import {
++  HlmDialogDescription,
++  HlmDialogFooter,
++  HlmDialogHeader,
++  HlmDialogTitle,
++} from "@spartan-ng/helm/dialog";
++import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
++import { HlmInput } from "@spartan-ng/helm/input";
++import { HlmSelectImports } from "@spartan-ng/helm/select";
++import { HlmSpinner } from "@spartan-ng/helm/spinner";
++import { HlmTextarea } from "@spartan-ng/helm/textarea";
++import { TranslatePipe } from "../../../core/localization/translate.pipe";
++import {
++  dateInputValue,
++  dateTimeInputValue,
++  DueTargetMode,
++  taskDueMode,
++} from "../work-management-utils";
++import { TaskDialogContext } from "./task-dialog.models";
++
++@Component({
++  selector: "app-task-dialog",
++  standalone: true,
++  templateUrl: "./task-dialog.component.html",
++  imports: [
++    ReactiveFormsModule,
++    HlmButton,
++    HlmDialogDescription,
++    HlmDialogFooter,
++    HlmDialogHeader,
++    HlmDialogTitle,
++    HlmField,
++    HlmFieldLabel,
++    HlmInput,
++    HlmSelectImports,
++    HlmSpinner,
++    HlmTextarea,
++    TranslatePipe,
++  ],
++})
++export class TaskDialogComponent {
++  private readonly api = inject(WorkManagementApiClient);
++  private readonly references = inject(ReferencesApiClient);
++  private readonly context = injectBrnDialogContext<TaskDialogContext>();
++  private readonly destroyRef = inject(DestroyRef);
++  readonly dialogRef = inject(BrnDialogRef<TaskDetail>);
++  readonly users = signal<Array<{ id: string; name: string }>>([]);
++  readonly saving = signal(false);
++  readonly editing = Boolean(this.context.task);
++  readonly priorities: CasePriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
++  readonly statuses: TaskStatus[] = [
++    "TODO",
++    "IN_PROGRESS",
++    "DONE",
++    "CANCELLED",
++  ];
++  readonly dueModes: DueTargetMode[] = ["NONE", "DATE", "DATE_TIME"];
++  readonly form = new FormGroup({
++    title: new FormControl(this.context.task?.title ?? "", {
++      nonNullable: true,
++      validators: [Validators.required, Validators.maxLength(320)],
++    }),
++    description: new FormControl(this.context.task?.description ?? "", {
++      nonNullable: true,
++    }),
++    status: new FormControl<TaskStatus>(this.context.task?.status ?? "TODO", {
++      nonNullable: true,
++    }),
++    priority: new FormControl<CasePriority>(
++      this.context.task?.priority ?? "NORMAL",
++      { nonNullable: true },
++    ),
++    assigneeUserId: new FormControl(this.context.task?.assigneeUserId ?? "", {
++      nonNullable: true,
++      validators: [Validators.required],
++    }),
++    dueMode: new FormControl<DueTargetMode>(taskDueMode(this.context.task), {
++      nonNullable: true,
++    }),
++    dueDate: new FormControl(dateInputValue(this.context.task?.dueDate), {
++      nonNullable: true,
++    }),
++    dueAt: new FormControl(dateTimeInputValue(this.context.task?.dueAt), {
++      nonNullable: true,
++    }),
++  });
++
++  constructor() {
++    this.references
++      .users()
++      .pipe(takeUntilDestroyed(this.destroyRef))
++      .subscribe((users) => {
++        this.users.set(
++          users.map((membership) => ({
++            id: membership.userId,
++            name:
++              [membership.user.firstName, membership.user.lastName]
++                .filter(Boolean)
++                .join(" ") || membership.user.email,
++          })),
++        );
++        if (!this.form.controls.assigneeUserId.value && this.users()[0]) {
++          this.form.controls.assigneeUserId.setValue(this.users()[0].id);
++        }
++      });
++  }
++
++  submit(): void {
++    if (this.form.invalid) {
++      this.form.markAllAsTouched();
++      return;
++    }
++    const value = this.form.getRawValue();
++    const request: TaskRequest = {
++      title: value.title,
++      description: value.description || undefined,
++      status: value.status,
++      priority: value.priority,
++      assigneeUserId: value.assigneeUserId,
++      caseId: this.context.caseId ?? this.context.task?.caseId ?? undefined,
++      clientId:
++        this.context.clientId ?? this.context.task?.clientId ?? undefined,
++      deadlineId:
++        this.context.deadlineId ?? this.context.task?.deadlineId ?? undefined,
++      dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
++      dueAt:
++        value.dueMode === "DATE_TIME"
++          ? new Date(value.dueAt).toISOString()
++          : undefined,
++    };
++    if (value.dueMode === "DATE" && !request.dueDate) {
++      this.form.controls.dueDate.setErrors({ required: true });
++      return;
++    }
++    if (value.dueMode === "DATE_TIME" && !value.dueAt) {
++      this.form.controls.dueAt.setErrors({ required: true });
++      return;
++    }
++    this.saving.set(true);
++    const operation = this.context.task
++      ? this.api.updateTask(this.context.task.id, request)
++      : this.api.createTask(request);
++    operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
++      next: (task) => this.dialogRef.close(task),
++      error: () => this.saving.set(false),
++    });
++  }
++}
+diff --git a/apps/web/src/app/features/work-management/task-dialog/task-dialog.models.ts b/apps/web/src/app/features/work-management/task-dialog/task-dialog.models.ts
+new file mode 100644
+index 0000000..161dc29
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/task-dialog/task-dialog.models.ts
+@@ -0,0 +1,8 @@
++import { TaskDetail } from "@law/api-interfaces";
++
++export interface TaskDialogContext {
++  task?: TaskDetail;
++  caseId?: string;
++  clientId?: string;
++  deadlineId?: string;
++}
+diff --git a/apps/web/src/app/features/work-management/task-dialog/task-dialog.service.ts b/apps/web/src/app/features/work-management/task-dialog/task-dialog.service.ts
+new file mode 100644
+index 0000000..33fc863
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/task-dialog/task-dialog.service.ts
+@@ -0,0 +1,21 @@
++import { inject, Injectable } from "@angular/core";
++import { Observable } from "rxjs";
++import { TaskDetail } from "@law/api-interfaces";
++import { HlmDialogService } from "@spartan-ng/helm/dialog";
++import { TaskDialogComponent } from "./task-dialog.component";
++import { TaskDialogContext } from "./task-dialog.models";
++
++@Injectable({ providedIn: "root" })
++export class TaskDialogService {
++  private readonly dialog = inject(HlmDialogService);
++
++  open(context: TaskDialogContext): Observable<TaskDetail | undefined> {
++    return this.dialog.open<TaskDetail, TaskDialogContext>(
++      TaskDialogComponent,
++      {
++        context,
++        contentClass: "sm:max-w-2xl max-h-[90dvh] overflow-y-auto",
++      },
++    ).closed$;
++  }
++}
+diff --git a/apps/web/src/app/features/work-management/work-management-utils.ts b/apps/web/src/app/features/work-management/work-management-utils.ts
+new file mode 100644
+index 0000000..c63abb5
+--- /dev/null
++++ b/apps/web/src/app/features/work-management/work-management-utils.ts
+@@ -0,0 +1,102 @@
++import {
++  ActivityLogSummary,
++  DeadlineDetail,
++  DeadlineStatus,
++  NoteType,
++  TaskDetail,
++  TaskStatus,
++} from "@law/api-interfaces";
++
++export type DueTargetMode = "NONE" | "DATE" | "DATE_TIME";
++
++export function dateInputValue(value: string | null | undefined): string {
++  return value ? value.slice(0, 10) : "";
++}
++
++export function dateTimeInputValue(value: string | null | undefined): string {
++  if (!value) return "";
++  const date = new Date(value);
++  const pad = (part: number) => String(part).padStart(2, "0");
++  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
++}
++
++export function taskDueMode(task?: TaskDetail | null): DueTargetMode {
++  if (task?.dueAt) return "DATE_TIME";
++  if (task?.dueDate) return "DATE";
++  return "NONE";
++}
++
++export function deadlineDueMode(
++  deadline?: DeadlineDetail | null,
++): Exclude<DueTargetMode, "NONE"> {
++  return deadline?.dueAt ? "DATE_TIME" : "DATE";
++}
++
++export function dueLabel(
++  dueDate: string | null,
++  dueAt: string | null,
++  emptyLabel: string,
++  locale: string,
++): string {
++  if (dueAt) {
++    return new Intl.DateTimeFormat(locale, {
++      dateStyle: "medium",
++      timeStyle: "short",
++    }).format(new Date(dueAt));
++  }
++  if (dueDate) {
++    return new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
++      new Date(`${dueDate.slice(0, 10)}T00:00:00`),
++    );
++  }
++  return emptyLabel;
++}
++
++export function isTaskOverdue(task: TaskDetail): boolean {
++  if (["DONE", "CANCELLED"].includes(task.status)) return false;
++  const value = task.dueAt ?? task.dueDate;
++  if (!value) return false;
++  const due = task.dueAt
++    ? new Date(task.dueAt)
++    : new Date(`${task.dueDate?.slice(0, 10)}T23:59:59`);
++  return due.getTime() < Date.now();
++}
++
++export function isDeadlineOpen(status: DeadlineStatus): boolean {
++  return status === "OPEN";
++}
++
++export function isTaskOpen(status: TaskStatus): boolean {
++  return status === "TODO" || status === "IN_PROGRESS";
++}
++
++export function actionLabel(entry: ActivityLogSummary): string {
++  const labels: Record<string, string> = {
++    NOTE_CREATED: "work.activity.noteCreated",
++    NOTE_UPDATED: "work.activity.noteUpdated",
++    TASK_CREATED: "work.activity.taskCreated",
++    TASK_UPDATED: "work.activity.taskUpdated",
++    TASK_DONE: "work.activity.taskDone",
++    TASK_TODO: "work.activity.taskReopened",
++    TASK_CANCELLED: "work.activity.taskCancelled",
++    DEADLINE_CREATED: "work.activity.deadlineCreated",
++    DEADLINE_UPDATED: "work.activity.deadlineUpdated",
++    DEADLINE_SATISFIED: "work.activity.deadlineSatisfied",
++    DEADLINE_OPEN: "work.activity.deadlineReopened",
++    DEADLINE_CANCELLED: "work.activity.deadlineCancelled",
++    EVENT_CREATED: "work.activity.eventCreated",
++    EVENT_UPDATED: "work.activity.eventUpdated",
++    EVENT_COMPLETED: "work.activity.eventCompleted",
++    EVENT_CANCELLED: "work.activity.eventCancelled",
++  };
++  return labels[entry.action] ?? "work.activity.other";
++}
++
++export function noteTypeLabel(type: NoteType): string {
++  return `work.noteType.${type.toLowerCase()}`;
++}
++
++export function preview(body: string): string {
++  const compact = body.replace(/\s+/g, " ").trim();
++  return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
++}
+diff --git a/apps/web/src/app/shared/components/user-menu/user-menu.component.html b/apps/web/src/app/shared/components/user-menu/user-menu.component.html
+index d23abe4..0edc8c8 100644
+--- a/apps/web/src/app/shared/components/user-menu/user-menu.component.html
++++ b/apps/web/src/app/shared/components/user-menu/user-menu.component.html
+@@ -23,7 +23,7 @@
+ <ng-template #userMenu>
+   <hlm-dropdown-menu aria-label="User menu">
+     <hlm-dropdown-menu-group>
+-      <div class="flex items-center">
++      <div class="flex items-center p-4">
+         @if (user().avatarUrl; as avatarUrl) {
+           <img [src]="avatarUrl" alt="" />
+         } @else {
+@@ -36,18 +36,22 @@
+           <small>{{ user().email }}</small>
+         </div>
+       </div>
+-      <a hlmDropdownMenuItem routerLink="/settings">
+-        <span><ng-icon name="lucideSettings" /></span>
+-        <span>{{ "userMenu.changeSettings" | translate }}</span>
+-      </a>
+-      <button
+-        hlmDropdownMenuItem
+-        type="button"
+-        (click)="logoutRequested.emit()"
+-      >
+-        <span><ng-icon name="lucideLogOut" /></span>
+-        <span>{{ "userMenu.logout" | translate }}</span>
+-      </button>
++      <div class="p-4">
++        <a hlmDropdownMenuItem routerLink="/settings">
++          <span><ng-icon name="lucideSettings" /></span>
++          <span>{{ "userMenu.changeSettings" | translate }}</span>
++        </a>
++      </div>
++      <div class="p-4">
++        <button
++          hlmDropdownMenuItem
++          type="button"
++          (click)="logoutRequested.emit()"
++        >
++          <span><ng-icon name="lucideLogOut" /></span>
++          <span>{{ "userMenu.logout" | translate }}</span>
++        </button>
++      </div>
+     </hlm-dropdown-menu-group>
+   </hlm-dropdown-menu>
+ </ng-template>
+diff --git a/libs/shared/frontend/api-clients/src/lib/api-clients.ts b/libs/shared/frontend/api-clients/src/lib/api-clients.ts
+index ffc412e..4ff0408 100644
+--- a/libs/shared/frontend/api-clients/src/lib/api-clients.ts
++++ b/libs/shared/frontend/api-clients/src/lib/api-clients.ts
+@@ -32,6 +32,15 @@ import {
+   WorkflowJobResponse,
+   CalendarResponse,
+   EventDetail,
++  ActivityLogSummary,
++  DeadlineDetail,
++  DeadlineStatus,
++  DeadlineType,
++  NoteDetail,
++  NoteType,
++  PaginatedResponse,
++  TaskDetail,
++  TaskStatus,
+ } from "@law/api-interfaces";
+ import { getRuntimeConfig } from "./runtime-config";
+ import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
+@@ -76,6 +85,85 @@ export interface EventRequest {
+   }>;
+ }
+ 
++export interface TaskListQuery {
++  page?: number;
++  pageSize?: number;
++  search?: string;
++  from?: string;
++  to?: string;
++  status?: TaskStatus;
++  priority?: CasePriority;
++  assigneeUserId?: string;
++  caseId?: string;
++  clientId?: string;
++  deadlineId?: string;
++}
++
++export interface TaskRequest {
++  title: string;
++  description?: string;
++  status?: TaskStatus;
++  priority?: CasePriority;
++  assigneeUserId: string;
++  dueDate?: string;
++  dueAt?: string;
++  caseId?: string;
++  clientId?: string;
++  deadlineId?: string;
++}
++
++export interface DeadlineListQuery {
++  page?: number;
++  pageSize?: number;
++  search?: string;
++  from?: string;
++  to?: string;
++  status?: DeadlineStatus;
++  type?: DeadlineType;
++  responsibleUserId?: string;
++  caseId?: string;
++  clientId?: string;
++}
++
++export interface DeadlineRequest {
++  title: string;
++  description?: string;
++  type: DeadlineType;
++  dueDate?: string;
++  dueAt?: string;
++  timeZone: string;
++  responsibleUserId: string;
++  caseId?: string;
++  clientId?: string;
++  sourceDescription?: string;
++}
++
++export interface NoteListQuery {
++  page?: number;
++  pageSize?: number;
++  search?: string;
++  type?: NoteType;
++  caseId?: string;
++  clientId?: string;
++  eventId?: string;
++}
++
++export interface NoteRequest {
++  type: NoteType;
++  body: string;
++  occurredAt: string;
++  caseId?: string;
++  clientId?: string;
++  eventId?: string;
++}
++
++export interface ActivityLogListQuery {
++  page?: number;
++  pageSize?: number;
++  caseId?: string;
++  clientId?: string;
++}
++
+ @Injectable({ providedIn: "root" })
+ export class AuthApiClient {
+   private readonly http = inject(HttpClient);
+@@ -888,16 +976,197 @@ export class EventsApiClient {
+   }
+ 
+   update(eventId: string, request: EventRequest): Observable<EventDetail> {
+-    return this.http.patch<EventDetail>(this.endpoint(`/events/${eventId}`), request, {
++    return this.http.patch<EventDetail>(
++      this.endpoint(`/events/${eventId}`),
++      request,
++      {
++        withCredentials: true,
++      },
++    );
++  }
++
++  cancel(eventId: string): Observable<EventDetail> {
++    return this.http.post<EventDetail>(
++      this.endpoint(`/events/${eventId}/cancel`),
++      {},
++      {
++        withCredentials: true,
++      },
++    );
++  }
++}
++
++@Injectable({ providedIn: "root" })
++export class WorkManagementApiClient {
++  private readonly http = inject(HttpClient);
++
++  private endpoint(path: string): string {
++    const config = getRuntimeConfig();
++    return `${config.apiUrl}${config.apiPrefix}${path}`;
++  }
++
++  listTasks(
++    query: TaskListQuery = {},
++  ): Observable<PaginatedResponse<TaskDetail>> {
++    return this.http.get<PaginatedResponse<TaskDetail>>(
++      this.endpoint("/tasks"),
++      {
++        withCredentials: true,
++        params: queryParams(query),
++      },
++    );
++  }
++
++  getTask(id: string): Observable<TaskDetail> {
++    return this.http.get<TaskDetail>(this.endpoint(`/tasks/${id}`), {
+       withCredentials: true,
+     });
+   }
+ 
+-  cancel(eventId: string): Observable<EventDetail> {
+-    return this.http.post<EventDetail>(this.endpoint(`/events/${eventId}/cancel`), {}, {
++  createTask(request: TaskRequest): Observable<TaskDetail> {
++    return this.http.post<TaskDetail>(this.endpoint("/tasks"), request, {
+       withCredentials: true,
+     });
+   }
++
++  updateTask(id: string, request: TaskRequest): Observable<TaskDetail> {
++    return this.http.patch<TaskDetail>(this.endpoint(`/tasks/${id}`), request, {
++      withCredentials: true,
++    });
++  }
++
++  completeTask(id: string): Observable<TaskDetail> {
++    return this.transitionTask(id, "complete");
++  }
++
++  cancelTask(id: string): Observable<TaskDetail> {
++    return this.transitionTask(id, "cancel");
++  }
++
++  reopenTask(id: string): Observable<TaskDetail> {
++    return this.transitionTask(id, "reopen");
++  }
++
++  listDeadlines(
++    query: DeadlineListQuery = {},
++  ): Observable<PaginatedResponse<DeadlineDetail>> {
++    return this.http.get<PaginatedResponse<DeadlineDetail>>(
++      this.endpoint("/deadlines"),
++      {
++        withCredentials: true,
++        params: queryParams(query),
++      },
++    );
++  }
++
++  getDeadline(id: string): Observable<DeadlineDetail> {
++    return this.http.get<DeadlineDetail>(this.endpoint(`/deadlines/${id}`), {
++      withCredentials: true,
++    });
++  }
++
++  createDeadline(request: DeadlineRequest): Observable<DeadlineDetail> {
++    return this.http.post<DeadlineDetail>(
++      this.endpoint("/deadlines"),
++      request,
++      {
++        withCredentials: true,
++      },
++    );
++  }
++
++  updateDeadline(
++    id: string,
++    request: DeadlineRequest,
++  ): Observable<DeadlineDetail> {
++    return this.http.patch<DeadlineDetail>(
++      this.endpoint(`/deadlines/${id}`),
++      request,
++      {
++        withCredentials: true,
++      },
++    );
++  }
++
++  satisfyDeadline(id: string): Observable<DeadlineDetail> {
++    return this.transitionDeadline(id, "satisfy");
++  }
++
++  cancelDeadline(id: string): Observable<DeadlineDetail> {
++    return this.transitionDeadline(id, "cancel");
++  }
++
++  reopenDeadline(id: string): Observable<DeadlineDetail> {
++    return this.transitionDeadline(id, "reopen");
++  }
++
++  listNotes(
++    query: NoteListQuery = {},
++  ): Observable<PaginatedResponse<NoteDetail>> {
++    return this.http.get<PaginatedResponse<NoteDetail>>(
++      this.endpoint("/notes"),
++      {
++        withCredentials: true,
++        params: queryParams(query),
++      },
++    );
++  }
++
++  getNote(id: string): Observable<NoteDetail> {
++    return this.http.get<NoteDetail>(this.endpoint(`/notes/${id}`), {
++      withCredentials: true,
++    });
++  }
++
++  createNote(request: NoteRequest): Observable<NoteDetail> {
++    return this.http.post<NoteDetail>(this.endpoint("/notes"), request, {
++      withCredentials: true,
++    });
++  }
++
++  updateNote(id: string, request: NoteRequest): Observable<NoteDetail> {
++    return this.http.patch<NoteDetail>(this.endpoint(`/notes/${id}`), request, {
++      withCredentials: true,
++    });
++  }
++
++  listActivity(
++    query: ActivityLogListQuery = {},
++  ): Observable<PaginatedResponse<ActivityLogSummary>> {
++    return this.http.get<PaginatedResponse<ActivityLogSummary>>(
++      this.endpoint("/activity-log"),
++      {
++        withCredentials: true,
++        params: queryParams(query),
++      },
++    );
++  }
++
++  private transitionTask(
++    id: string,
++    action: "complete" | "cancel" | "reopen",
++  ): Observable<TaskDetail> {
++    return this.http.post<TaskDetail>(
++      this.endpoint(`/tasks/${id}/${action}`),
++      {},
++      {
++        withCredentials: true,
++      },
++    );
++  }
++
++  private transitionDeadline(
++    id: string,
++    action: "satisfy" | "cancel" | "reopen",
++  ): Observable<DeadlineDetail> {
++    return this.http.post<DeadlineDetail>(
++      this.endpoint(`/deadlines/${id}/${action}`),
++      {},
++      {
++        withCredentials: true,
++      },
++    );
++  }
+ }
+ 
+ @Injectable({ providedIn: "root" })
+-- 
+2.50.1 (Apple Git-155)
+

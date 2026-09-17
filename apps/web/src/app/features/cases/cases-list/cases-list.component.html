@@ -98,11 +98,20 @@
       </hlm-empty-header>
       <hlm-empty-content>
         @if (hasFilters()) {
-          <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            (click)="clearFilters()"
+          >
             {{ "cases.clearFilters" | translate }}
           </button>
         } @else {
-          <a hlmBtn routerLink="/cases/new" [queryParams]="caseCreateQueryParams()">
+          <a
+            hlmBtn
+            routerLink="/cases/new"
+            [queryParams]="caseCreateQueryParams()"
+          >
             {{ "cases.create" | translate }}
           </a>
         }
