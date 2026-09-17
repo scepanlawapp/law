@@ -384,6 +384,131 @@ export type ActivityType =
   | "EMAIL"
   | "OTHER";
 export type ActivitySource = "MANUAL" | "SYSTEM" | "AI";
+export type EventType = "MEETING" | "HEARING" | "CALL" | "OTHER";
+export type EventStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
+export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+export type DeadlineType =
+  | "COURT"
+  | "STATUTORY"
+  | "CONTRACTUAL"
+  | "INTERNAL"
+  | "OTHER";
+export type DeadlineStatus = "OPEN" | "SATISFIED" | "CANCELLED";
+export type NoteType =
+  | "GENERAL"
+  | "CALL_SUMMARY"
+  | "MEETING_SUMMARY"
+  | "CASE_UPDATE";
+
+export interface EventSummary {
+  id: string;
+  type: EventType;
+  title: string;
+  description: string | null;
+  startsAt: string;
+  endsAt: string;
+  timeZone: string;
+  isAllDay: boolean;
+  status: EventStatus;
+  location: string | null;
+  meetingUrl: string | null;
+  courtName: string | null;
+  courtroom: string | null;
+  organizerUserId: string;
+  caseId: string | null;
+  clientIds: string[];
+  assigneeUserIds: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+export type EventDetail = EventSummary & { attendees: EventAttendee[] };
+export interface EventAttendee {
+  id: string;
+  clientContactId: string | null;
+  displayName: string;
+  email: string | null;
+}
+export interface TaskSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  status: TaskStatus;
+  priority: CasePriority;
+  assigneeUserId: string;
+  dueDate: string | null;
+  dueAt: string | null;
+  caseId: string | null;
+  clientId: string | null;
+  deadlineId: string | null;
+  completedAt: string | null;
+  completedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export type TaskDetail = TaskSummary;
+export interface DeadlineSummary {
+  id: string;
+  title: string;
+  description: string | null;
+  type: DeadlineType;
+  dueDate: string | null;
+  dueAt: string | null;
+  timeZone: string | null;
+  status: DeadlineStatus;
+  overdue: boolean;
+  responsibleUserId: string;
+  caseId: string | null;
+  clientId: string | null;
+  sourceDescription: string | null;
+  satisfiedAt: string | null;
+  satisfiedByUserId: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+export type DeadlineDetail = DeadlineSummary;
+export interface NoteSummary {
+  id: string;
+  type: NoteType;
+  body: string;
+  occurredAt: string;
+  caseId: string | null;
+  clientId: string | null;
+  eventId: string | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+export type NoteDetail = NoteSummary;
+export interface ActivityLogSummary {
+  id: string;
+  action: string;
+  actorUserId: string | null;
+  occurredAt: string;
+  caseId: string | null;
+  clientId: string | null;
+  entityType: string;
+  entityId: string;
+  metadata: Record<string, unknown> | null;
+}
+export type CalendarSourceType = "EVENT" | "TASK" | "DEADLINE";
+export interface CalendarItem {
+  calendarId: string;
+  sourceType: CalendarSourceType;
+  sourceId: string;
+  title: string;
+  status: string;
+  startsAt: string | null;
+  endsAt: string | null;
+  date: string | null;
+  timeZone: string | null;
+  caseId: string | null;
+  clientId: string | null;
+  responsibleUserId: string | null;
+}
+export interface CalendarResponse {
+  items: CalendarItem[];
+  nextCursor: string | null;
+}
 
 export interface ReferenceSummary {
   id: string;
