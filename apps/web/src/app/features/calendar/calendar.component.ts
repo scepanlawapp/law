@@ -3,6 +3,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  HostListener,
   ViewChild,
   computed,
   effect,
@@ -12,8 +13,12 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
-import { CalendarApiClient, CalendarQuery } from "@law/api-clients";
-import { EventsApiClient } from "@law/api-clients";
+import {
+  CalendarApiClient,
+  CalendarQuery,
+  EventsApiClient,
+  ReferencesApiClient,
+} from "@law/api-clients";
 import { CalendarItem, CalendarSourceType } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -59,6 +64,7 @@ function mondayIndex(date: Date): number {
 export class CalendarComponent {
   private readonly api = inject(CalendarApiClient);
   private readonly eventsApi = inject(EventsApiClient);
+  private readonly referencesApi = inject(ReferencesApiClient);
   private readonly eventDialog = inject(EventDialogService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly route = inject(ActivatedRoute);
@@ -69,12 +75,17 @@ export class CalendarComponent {
   readonly anchor = signal(this.initialDate());
   readonly view = signal<CalendarView>(this.initialView());
   readonly source = signal<CalendarSourceType | "">("");
+  readonly lawyerId = signal(
+    this.route.snapshot.queryParamMap.get("lawyer") ?? "",
+  );
+  readonly lawyers = signal<Array<{ id: string; name: string }>>([]);
   readonly includeClosed = signal(false);
   readonly items = signal<CalendarItem[]>([]);
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly incomplete = signal(false);
   readonly selectedItem = signal<CalendarItem | null>(null);
+  readonly itemPopoverPosition = signal({ left: 16, top: 16 });
   readonly eventMenuItem = signal<CalendarItem | null>(null);
   readonly selectedDay = signal<string | null>(dateKey(this.anchor()));
   @ViewChild("scheduleViewport")
@@ -103,7 +114,7 @@ export class CalendarComponent {
       : dateKey(this.viewEnd(this.anchor())),
   );
   readonly rangeLabel = computed(() =>
-    this.view() === "week"
+    this.view() === "week" || this.view() === "agenda"
       ? `${this.weekDays()[0]?.date} - ${this.weekDays()[6]?.date}`
       : new Intl.DateTimeFormat(undefined, {
           month: "long",
@@ -120,6 +131,9 @@ export class CalendarComponent {
     const query = this.search.value.trim().toLocaleLowerCase();
     return this.items().filter((item) => {
       if (this.source() && item.sourceType !== this.source()) return false;
+      if (this.lawyerId() && item.responsibleUserId !== this.lawyerId()) {
+        return false;
+      }
       if (
         !this.includeClosed() &&
         ["COMPLETED", "DONE", "CANCELLED", "SATISFIED"].includes(item.status)
@@ -134,18 +148,33 @@ export class CalendarComponent {
       this.anchor();
       this.view();
       this.source();
+      this.lawyerId();
       this.includeClosed();
       this.loadRange();
     });
     this.search.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.persistUrl());
+    this.referencesApi
+      .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((members) =>
+        this.lawyers.set(
+          members.map((member) => ({
+            id: member.userId,
+            name:
+              [member.user.firstName, member.user.lastName]
+                .filter(Boolean)
+                .join(" ") || member.user.email,
+          })),
+        ),
+      );
   }
 
   previous(): void {
     const date = new Date(this.anchor());
-    if (this.view() === "week") date.setDate(date.getDate() - 7);
-    else if (this.view() === "agenda") date.setDate(date.getDate() - 1);
+    if (this.view() === "week" || this.view() === "agenda")
+      date.setDate(date.getDate() - 7);
     else date.setMonth(date.getMonth() - 1);
     this.anchor.set(date);
     this.selectedDay.set(dateKey(date));
@@ -154,8 +183,8 @@ export class CalendarComponent {
 
   next(): void {
     const date = new Date(this.anchor());
-    if (this.view() === "week") date.setDate(date.getDate() + 7);
-    else if (this.view() === "agenda") date.setDate(date.getDate() + 1);
+    if (this.view() === "week" || this.view() === "agenda")
+      date.setDate(date.getDate() + 7);
     else date.setMonth(date.getMonth() + 1);
     this.anchor.set(date);
     this.selectedDay.set(dateKey(date));
@@ -176,6 +205,11 @@ export class CalendarComponent {
 
   setSource(value: string): void {
     this.source.set(value as CalendarSourceType | "");
+    this.persistUrl();
+  }
+
+  setLawyer(value: string): void {
+    this.lawyerId.set(value);
     this.persistUrl();
   }
 
@@ -200,8 +234,31 @@ export class CalendarComponent {
     return week.some((day) => day.date === selected);
   }
 
-  selectItem(item: CalendarItem): void {
+  selectItem(event: Event, item: CalendarItem): void {
+    const target = event.currentTarget as HTMLElement | null;
+    const rect = target?.getBoundingClientRect();
+    const width = 360;
+    const left = rect
+      ? Math.min(Math.max(rect.left, 8), window.innerWidth - width - 8)
+      : 16;
+    const preferredTop = (rect?.bottom ?? 16) + 8;
+    const top = Math.min(preferredTop, Math.max(window.innerHeight - 320, 8));
+    this.itemPopoverPosition.set({ left, top });
     this.selectedItem.set(item);
+  }
+
+  @HostListener("document:click", ["$event"])
+  closePopoverOnOutsideClick(event: MouseEvent): void {
+    if (!this.selectedItem()) return;
+    const target = event.target as HTMLElement | null;
+    if (
+      target?.closest(".calendar-item-popover") ||
+      target?.closest("[data-calendar-item-trigger]")
+    ) {
+      return;
+    }
+    this.selectedItem.set(null);
+    this.eventMenuItem.set(null);
   }
 
   openCreateEvent(date: string, hour = 9): void {
@@ -220,7 +277,7 @@ export class CalendarComponent {
     event.stopPropagation();
     if (item.sourceType !== "EVENT") return;
     this.eventMenuItem.set(item);
-    this.selectedItem.set(item);
+    this.selectItem(event, item);
   }
 
   changeEvent(): void {
@@ -309,6 +366,10 @@ export class CalendarComponent {
     return `calendar.source.${item.sourceType.toLowerCase()}`;
   }
 
+  statusLabel(status: string): string {
+    return `calendar.status.${status.toLowerCase()}`;
+  }
+
   trackItem(_: number, item: CalendarItem): string {
     return item.calendarId;
   }
@@ -321,6 +382,7 @@ export class CalendarComponent {
       from: `${this.visibleFrom()}T00:00:00.000Z`,
       to: `${this.nextDate(this.visibleTo())}T00:00:00.000Z`,
       limit: 100,
+      ...(this.lawyerId() && { userId: this.lawyerId() }),
     };
     this.api
       .list(query)
@@ -350,6 +412,7 @@ export class CalendarComponent {
         view: this.view(),
         search: this.search.value || null,
         source: this.source() || null,
+        lawyer: this.lawyerId() || null,
         closed: this.includeClosed() ? "1" : null,
       },
     });
@@ -406,7 +469,10 @@ export class CalendarComponent {
 
   private viewEnd(anchor: Date): Date {
     const date = this.viewStart(anchor);
-    date.setDate(date.getDate() + (this.view() === "week" ? 6 : 0));
+    date.setDate(
+      date.getDate() +
+        (this.view() === "week" || this.view() === "agenda" ? 6 : 0),
+    );
     return date;
   }
 
