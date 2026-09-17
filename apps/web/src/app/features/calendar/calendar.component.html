@@ -1,1 +1,450 @@
-Stranica za kalendar
+<div class="space-y-5">
+  <header class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1>{{ "calendar.title" | translate }}</h1>
+      <p class="text-sm text-muted-foreground">
+        {{ "calendar.timezone" | translate }}: Europe/Belgrade
+      </p>
+    </div>
+    <div class="flex flex-wrap gap-2">
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        (click)="openCreateEvent(selectedDay() ?? today)"
+      >
+        {{ "calendar.create" | translate }}
+      </button>
+      <button hlmBtn type="button" variant="outline" (click)="goToday()">
+        {{ "calendar.today" | translate }}
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        (click)="previous()"
+        aria-label="{{ 'calendar.previous' | translate }}"
+      >
+        ‹
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        (click)="next()"
+        aria-label="{{ 'calendar.next' | translate }}"
+      >
+        ›
+      </button>
+    </div>
+  </header>
+  <div class="grid gap-5 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <aside class="h-fit rounded-md border border-border bg-card p-4">
+      <div class="mb-4 flex items-center justify-between gap-2">
+        <h2 class="font-semibold capitalize">{{ miniMonthLabel() }}</h2>
+        <button
+          hlmBtn
+          type="button"
+          variant="ghost"
+          size="sm"
+          (click)="goToday()"
+        >
+          {{ "calendar.today" | translate }}
+        </button>
+      </div>
+      <div
+        class="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground"
+      >
+        @for (
+          day of [
+            "calendar.mon",
+            "calendar.tue",
+            "calendar.wed",
+            "calendar.thu",
+            "calendar.fri",
+            "calendar.sat",
+            "calendar.sun",
+          ];
+          track day
+        ) {
+          <span>{{ day | translate }}</span>
+        }
+      </div>
+      <div class="mt-2 grid gap-1">
+        @for (week of miniWeeks(); track week[0].date) {
+          <div
+            class="grid grid-cols-7 gap-1 rounded-md border border-transparent p-0.5 transition-colors"
+            [class.bg-accent]="isSelectedMiniWeek(week)"
+            [class.border-primary]="isSelectedMiniWeek(week)"
+          >
+            @for (day of week; track day.date) {
+              <button
+                type="button"
+                class="aspect-square rounded text-xs hover:bg-accent"
+                [class.bg-primary]="day.date === selectedDay()"
+                [class.text-primary-foreground]="day.date === selectedDay()"
+                [class.text-muted-foreground]="!day.currentMonth"
+                (click)="selectMiniDay(day.date)"
+              >
+                {{ day.day }}
+              </button>
+            }
+          </div>
+        }
+      </div>
+    </aside>
+    <main class="min-w-0">
+      <div
+        class="grid gap-3 md:grid-cols-[minmax(14rem,1fr)_auto_auto] md:items-end"
+      >
+        <label class="grid gap-1 text-sm">
+          {{ "calendar.search" | translate }}
+          <input
+            hlmInput
+            [formControl]="search"
+            placeholder="{{ 'calendar.searchPlaceholder' | translate }}"
+          />
+        </label>
+        <label class="grid gap-1 text-sm">
+          {{ "calendar.source" | translate }}
+          <select
+            class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+            [value]="source()"
+            (change)="setSource($any($event.target).value)"
+          >
+            <option value="">{{ "calendar.allSources" | translate }}</option>
+            <option value="EVENT">
+              {{ "calendar.source.event" | translate }}
+            </option>
+            <option value="TASK">
+              {{ "calendar.source.task" | translate }}
+            </option>
+            <option value="DEADLINE">
+              {{ "calendar.source.deadline" | translate }}
+            </option>
+          </select>
+        </label>
+        <label class="flex h-10 items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            [checked]="includeClosed()"
+            (change)="setIncludeClosed($any($event.target).checked)"
+          />
+          {{ "calendar.includeClosed" | translate }}
+        </label>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <h2 class="text-lg font-semibold">{{ rangeLabel() }}</h2>
+        <div
+          class="flex gap-1"
+          role="group"
+          aria-label="{{ 'calendar.view' | translate }}"
+        >
+          <button
+            hlmBtn
+            type="button"
+            [variant]="view() === 'month' ? 'default' : 'outline'"
+            (click)="setView('month')"
+          >
+            {{ "calendar.month" | translate }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            [variant]="view() === 'week' ? 'default' : 'outline'"
+            (click)="setView('week')"
+          >
+            {{ "calendar.week" | translate }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            [variant]="view() === 'agenda' ? 'default' : 'outline'"
+            (click)="setView('agenda')"
+          >
+            {{ "calendar.agenda" | translate }}
+          </button>
+        </div>
+      </div>
+      @if (incomplete()) {
+        <div
+          class="rounded-md border border-border bg-muted p-3 text-sm"
+          role="status"
+        >
+          {{ "calendar.incomplete" | translate }}
+        </div>
+      }
+      @if (loading()) {
+        <div class="flex items-center gap-2 py-8" role="status">
+          <hlm-spinner />
+          <span>{{ "calendar.loading" | translate }}</span>
+        </div>
+      } @else if (error()) {
+        <div
+          class="space-y-3 rounded-md border border-destructive p-4"
+          role="alert"
+        >
+          <p>{{ "calendar.error" | translate }}</p>
+          <button hlmBtn type="button" variant="outline" (click)="goToday()">
+            {{ "calendar.retry" | translate }}
+          </button>
+        </div>
+      } @else if (view() === "agenda") {
+        @if (filteredItems().length === 0) {
+          <div class="rounded-md border border-border bg-card p-8 text-center">
+            <h2 class="text-lg font-semibold">
+              {{ "calendar.emptyTitle" | translate }}
+            </h2>
+            <p class="mt-2 text-sm text-muted-foreground">
+              {{ "calendar.emptyDescription" | translate }}
+            </p>
+          </div>
+        } @else {
+          <section
+            class="space-y-3"
+            aria-label="{{ 'calendar.agenda' | translate }}"
+          >
+            @for (item of filteredItems(); track trackItem($index, item)) {
+              <button
+                type="button"
+                class="flex w-full items-start justify-between gap-4 rounded-md border border-border bg-card p-4 text-left hover:bg-accent"
+                (click)="selectItem(item)"
+                (contextmenu)="openEventMenu($event, item)"
+              >
+                <span class="min-w-0">
+                  <span class="block text-sm text-muted-foreground">
+                    {{ itemDate(item) }} ·
+                    {{
+                      itemTime(item) ||
+                        (item.date
+                          ? ("calendar.dateOnly" | translate)
+                          : ("calendar.allDay" | translate))
+                    }}
+                  </span>
+                  <span class="block truncate font-medium">
+                    {{ item.title }}
+                  </span>
+                </span>
+                <span class="shrink-0 text-sm text-muted-foreground">
+                  {{ sourceLabel(item) | translate }} · {{ item.status }}
+                </span>
+              </button>
+            }
+          </section>
+        }
+      } @else if (view() === "week") {
+        <section
+          #scheduleViewport
+          class="max-h-[calc(100dvh-16rem)] overflow-auto rounded-md border border-border"
+          aria-label="{{ 'calendar.week' | translate }}"
+        >
+          <div class="min-w-[60rem]">
+            <div
+              class="grid grid-cols-[5rem_repeat(7,minmax(9rem,1fr))] border-l border-t border-border"
+            >
+              <div class="border-b border-r border-border bg-muted p-2"></div>
+              @for (day of weekDays(); track day.date) {
+                <button
+                  type="button"
+                  class="border-b border-r border-border bg-muted p-2 text-left text-sm"
+                  (click)="selectDay(day.date)"
+                >
+                  {{ day.date }}
+                </button>
+              }
+              @for (hour of hours; track hour) {
+                <div
+                  class="border-b border-r border-border bg-muted p-2 text-xs text-muted-foreground"
+                >
+                  {{ hourLabel(hour) }}
+                </div>
+                @for (day of weekDays(); track day.date) {
+                  <div
+                    class="min-h-16 border-b border-r border-border p-1"
+                    (dblclick)="openCreateEvent(day.date, hour)"
+                  >
+                    @for (
+                      item of itemsForHour(day.date, hour);
+                      track trackItem($index, item)
+                    ) {
+                      <button
+                        type="button"
+                        class="block w-full truncate rounded border border-border bg-card px-2 py-1 text-left text-xs"
+                        (click)="selectItem(item)"
+                        (contextmenu)="openEventMenu($event, item)"
+                      >
+                        {{ itemTime(item) }} {{ item.title }}
+                      </button>
+                    }
+                  </div>
+                }
+              }
+            </div>
+          </div>
+        </section>
+      } @else {
+        <section
+          class="overflow-x-auto"
+          aria-label="{{ 'calendar.month' | translate }}"
+        >
+          <div class="min-w-[48rem]">
+            <div class="grid grid-cols-7 border-l border-t border-border">
+              @for (
+                day of [
+                  "calendar.mon",
+                  "calendar.tue",
+                  "calendar.wed",
+                  "calendar.thu",
+                  "calendar.fri",
+                  "calendar.sat",
+                  "calendar.sun",
+                ];
+                track day
+              ) {
+                <div
+                  class="border-b border-r border-border bg-muted p-2 text-sm font-medium"
+                >
+                  {{ day | translate }}
+                </div>
+              }
+              @for (day of monthDays(); track day.date) {
+                <button
+                  type="button"
+                  class="min-h-32 border-b border-r border-border p-2 text-left align-top"
+                  [class.bg-muted]="!day.currentMonth"
+                  [class.ring-2]="day.today"
+                  [class.ring-primary]="day.today"
+                  (click)="selectDay(day.date)"
+                  (dblclick)="
+                    itemsFor(day.date).length === 0 && openCreateEvent(day.date)
+                  "
+                >
+                  <span
+                    class="text-sm"
+                    [class.text-muted-foreground]="!day.currentMonth"
+                  >
+                    {{ day.day }}
+                  </span>
+                  <span class="mt-2 grid gap-1">
+                    @for (
+                      item of itemsFor(day.date).slice(0, 3);
+                      track trackItem($index, item)
+                    ) {
+                      <span
+                        class="block truncate rounded border border-border bg-card px-2 py-1 text-xs"
+                        (contextmenu)="openEventMenu($event, item)"
+                      >
+                        {{ itemTime(item) }} {{ item.title }}
+                      </span>
+                    }
+                    @if (itemsFor(day.date).length > 3) {
+                      <span class="text-xs text-muted-foreground">
+                        +{{ itemsFor(day.date).length - 3 }}
+                        {{ "calendar.more" | translate }}
+                      </span>
+                    }
+                  </span>
+                </button>
+              }
+            </div>
+          </div>
+        </section>
+      }
+      @if (selectedItem(); as item) {
+        <aside
+          class="rounded-md border border-border bg-card p-5"
+          aria-live="polite"
+        >
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <p class="text-sm text-muted-foreground">
+                {{ sourceLabel(item) | translate }} · {{ item.status }}
+              </p>
+              <h2 class="text-lg font-semibold">{{ item.title }}</h2>
+            </div>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="selectedItem.set(null)"
+            >
+              {{ "calendar.close" | translate }}
+            </button>
+          </div>
+          @if (eventMenuItem()?.calendarId === item.calendarId) {
+            <div
+              class="mt-4 flex flex-wrap gap-2"
+              role="menu"
+              aria-label="{{ 'calendar.eventActions' | translate }}"
+            >
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                role="menuitem"
+                (click)="changeEvent()"
+              >
+                {{ "calendar.change" | translate }}
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                variant="destructive"
+                role="menuitem"
+                (click)="cancelEvent()"
+              >
+                {{ "calendar.delete" | translate }}
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                role="menuitem"
+                (click)="closeEventMenu()"
+              >
+                {{ "calendar.close" | translate }}
+              </button>
+            </div>
+          }
+          <dl class="mt-4 grid gap-2 text-sm md:grid-cols-2">
+            <div>
+              <dt class="text-muted-foreground">
+                {{ "calendar.date" | translate }}
+              </dt>
+              <dd>{{ itemDate(item) }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">
+                {{ "calendar.time" | translate }}
+              </dt>
+              <dd>
+                {{
+                  itemTime(item) ||
+                    (item.date
+                      ? ("calendar.dateOnly" | translate)
+                      : ("calendar.allDay" | translate))
+                }}
+              </dd>
+            </div>
+            @if (item.caseId) {
+              <div>
+                <dt class="text-muted-foreground">
+                  {{ "calendar.case" | translate }}
+                </dt>
+                <dd>{{ item.caseId }}</dd>
+              </div>
+            }
+            @if (item.clientId) {
+              <div>
+                <dt class="text-muted-foreground">
+                  {{ "calendar.client" | translate }}
+                </dt>
+                <dd>{{ item.clientId }}</dd>
+              </div>
+            }
+          </dl>
+        </aside>
+      }
+    </main>
+  </div>
+</div>

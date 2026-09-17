@@ -30,6 +30,8 @@ import {
   UserSettingsResponse,
   UserSettingsUpdateRequest,
   WorkflowJobResponse,
+  CalendarResponse,
+  EventDetail,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -39,6 +41,39 @@ export interface ReferenceRequest {
   description?: string;
   color?: string;
   isActive?: boolean;
+}
+
+export interface CalendarQuery {
+  from: string;
+  to: string;
+  limit?: number;
+  userId?: string;
+  clientId?: string;
+  caseId?: string;
+  sourceType?: "EVENT" | "TASK" | "DEADLINE";
+  status?: string;
+}
+
+export interface EventRequest {
+  type: "MEETING" | "HEARING" | "CALL" | "OTHER";
+  title: string;
+  description?: string;
+  startsAt: string;
+  endsAt: string;
+  timeZone: string;
+  isAllDay?: boolean;
+  location?: string;
+  meetingUrl?: string;
+  courtName?: string;
+  courtroom?: string;
+  caseId?: string;
+  assigneeUserIds?: string[];
+  clientIds?: string[];
+  attendees?: Array<{
+    clientContactId?: string;
+    displayName: string;
+    email?: string;
+  }>;
 }
 
 @Injectable({ providedIn: "root" })
@@ -817,6 +852,51 @@ export class ClientsApiClient {
       request,
       { withCredentials: true },
     );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class CalendarApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(query: CalendarQuery): Observable<CalendarResponse> {
+    return this.http.get<CalendarResponse>(this.endpoint("/calendar"), {
+      withCredentials: true,
+      params: queryParams(query),
+    });
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class EventsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  create(request: EventRequest): Observable<EventDetail> {
+    return this.http.post<EventDetail>(this.endpoint("/events"), request, {
+      withCredentials: true,
+    });
+  }
+
+  update(eventId: string, request: EventRequest): Observable<EventDetail> {
+    return this.http.patch<EventDetail>(this.endpoint(`/events/${eventId}`), request, {
+      withCredentials: true,
+    });
+  }
+
+  cancel(eventId: string): Observable<EventDetail> {
+    return this.http.post<EventDetail>(this.endpoint(`/events/${eventId}/cancel`), {}, {
+      withCredentials: true,
+    });
   }
 }
 
