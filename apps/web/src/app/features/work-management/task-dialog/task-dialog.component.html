@@ -1,0 +1,131 @@
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>
+    {{ (editing ? "work.tasks.edit" : "work.tasks.create") | translate }}
+  </h2>
+  <p hlmDialogDescription>{{ "work.tasks.formDescription" | translate }}</p>
+</hlm-dialog-header>
+<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
+  <div hlmField>
+    <label hlmFieldLabel for="task-title">{{ "work.title" | translate }}</label>
+    <input hlmInput id="task-title" formControlName="title" />
+  </div>
+  <div hlmField>
+    <label hlmFieldLabel for="task-description">
+      {{ "work.description" | translate }}
+    </label>
+    <textarea
+      hlmTextarea
+      id="task-description"
+      formControlName="description"
+    ></textarea>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div hlmField>
+      <label hlmFieldLabel for="task-assignee">
+        {{ "work.responsible" | translate }}
+      </label>
+      <select
+        id="task-assignee"
+        formControlName="assigneeUserId"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        @for (user of users(); track user.id) {
+          <option [value]="user.id">{{ user.name }}</option>
+        }
+      </select>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="task-priority">
+        {{ "work.priority" | translate }}
+      </label>
+      <select
+        id="task-priority"
+        formControlName="priority"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        @for (priority of priorities; track priority) {
+          <option [value]="priority">
+            {{ "work.priority." + priority.toLowerCase() | translate }}
+          </option>
+        }
+      </select>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-3">
+    <div hlmField>
+      <label hlmFieldLabel for="task-status">
+        {{ "work.status" | translate }}
+      </label>
+      <select
+        id="task-status"
+        formControlName="status"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        @for (status of statuses; track status) {
+          <option [value]="status">
+            {{ "work.taskStatus." + status.toLowerCase() | translate }}
+          </option>
+        }
+      </select>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="task-due-mode">
+        {{ "work.dueTarget" | translate }}
+      </label>
+      <select
+        id="task-due-mode"
+        formControlName="dueMode"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        @for (mode of dueModes; track mode) {
+          <option [value]="mode">
+            {{ "work.dueMode." + mode.toLowerCase() | translate }}
+          </option>
+        }
+      </select>
+    </div>
+    @if (form.controls.dueMode.value === "DATE") {
+      <div hlmField>
+        <label hlmFieldLabel for="task-due-date">
+          {{ "work.dueDate" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="task-due-date"
+          type="date"
+          formControlName="dueDate"
+        />
+      </div>
+    }
+    @if (form.controls.dueMode.value === "DATE_TIME") {
+      <div hlmField>
+        <label hlmFieldLabel for="task-due-at">
+          {{ "work.dueAt" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="task-due-at"
+          type="datetime-local"
+          formControlName="dueAt"
+        />
+      </div>
+    }
+  </div>
+  <hlm-dialog-footer class="flex justify-end gap-2">
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      [disabled]="saving()"
+      (click)="dialogRef.close()"
+    >
+      {{ "common.cancel" | translate }}
+    </button>
+    <button hlmBtn type="submit" [disabled]="saving()">
+      @if (saving()) {
+        <hlm-spinner />
+      }
+      {{ "common.save" | translate }}
+    </button>
+  </hlm-dialog-footer>
+</form>
