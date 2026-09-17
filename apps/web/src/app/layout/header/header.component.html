@@ -1,4 +1,4 @@
-<header class="flex items-center justify-between">
+<header class="flex items-center justify-between p-2">
   <hlm-input-group class="w-100">
     <input
       hlmInputGroupInput
@@ -34,26 +34,26 @@
         <hlm-dropdown-menu-group>
           <div class="flex items-center justify-between">
             <h2>{{ "header.notifications" | translate }}</h2>
-            <span>{{
-              "header.newNotifications" | translate: { count: 10 }
-            }}</span>
+            <span>
+              {{ "header.newNotifications" | translate: { count: 10 } }}
+            </span>
           </div>
           @for (notification of notifications; track notification.title) {
             <div class="flex items-center">
-              <span [class]="notification.tone"
-                ><ng-icon [name]="notification.icon"
-              /></span>
-              <span
-                ><strong>{{ notification.title }}</strong
-                ><small>{{ notification.detail }}</small></span
-              >
+              <span [class]="notification.tone">
+                <ng-icon [name]="notification.icon" />
+              </span>
+              <span>
+                <strong>{{ notification.title }}</strong>
+                <small>{{ notification.detail }}</small>
+              </span>
               <time>{{ notification.time }}</time>
             </div>
           }
-          <a hlmDropdownMenuItem routerLink="/notifications"
-            >{{ "header.viewAllNotifications" | translate }}
-            <ng-icon name="lucideArrowRight"
-          /></a>
+          <a hlmDropdownMenuItem routerLink="/notifications">
+            {{ "header.viewAllNotifications" | translate }}
+            <ng-icon name="lucideArrowRight" />
+          </a>
         </hlm-dropdown-menu-group>
       </hlm-dropdown-menu>
     </ng-template>

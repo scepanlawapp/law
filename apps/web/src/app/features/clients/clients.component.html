@@ -18,22 +18,55 @@
   </p>
 }
 @if (!loading() && !error()) {
-  <div hlmTableContainer>
-    <table hlmTable>
-      <thead hlmTHead>
-        <tr hlmTr>
-          <th hlmTh>{{ "clients.number" | translate }}</th>
-          <th hlmTh>{{ "clients.name" | translate }}</th>
-          <th hlmTh>{{ "clients.type" | translate }}</th>
-          <th hlmTh>{{ "clients.responsible" | translate }}</th>
-          <th hlmTh>{{ "clients.email" | translate }}</th>
-          <th hlmTh>{{ "clients.phone" | translate }}</th>
-          <th hlmTh>{{ "clients.status" | translate }}</th>
-          <th hlmTh>{{ "clients.activeCases" | translate }}</th>
-        </tr>
-      </thead>
-      <tbody hlmTBody>
-        @for (client of items(); track client.id) {
+  @if (items().length === 0) {
+    <hlm-empty>
+      <hlm-empty-header>
+        <h2 hlmEmptyTitle>
+          {{
+            (search.value
+              ? "clients.noSearchResultsTitle"
+              : "clients.emptyTitle"
+            ) | translate
+          }}
+        </h2>
+        <p hlmEmptyDescription>
+          {{
+            (search.value
+              ? "clients.noSearchResultsDescription"
+              : "clients.emptyDescription"
+            ) | translate
+          }}
+        </p>
+      </hlm-empty-header>
+      <hlm-empty-content>
+        @if (search.value) {
+          <button hlmBtn type="button" variant="outline" (click)="clearSearch()">
+            {{ "clients.clearSearch" | translate }}
+          </button>
+        } @else {
+          <button hlmBtn type="button" (click)="createClient()">
+            {{ "clients.create" | translate }}
+          </button>
+        }
+      </hlm-empty-content>
+    </hlm-empty>
+  } @else {
+    <div hlmTableContainer>
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>{{ "clients.number" | translate }}</th>
+            <th hlmTh>{{ "clients.name" | translate }}</th>
+            <th hlmTh>{{ "clients.type" | translate }}</th>
+            <th hlmTh>{{ "clients.responsible" | translate }}</th>
+            <th hlmTh>{{ "clients.email" | translate }}</th>
+            <th hlmTh>{{ "clients.phone" | translate }}</th>
+            <th hlmTh>{{ "clients.status" | translate }}</th>
+            <th hlmTh>{{ "clients.activeCases" | translate }}</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (client of items(); track client.id) {
           <tr hlmTr class="cursor-pointer" (click)="openClient(client.id)">
             <td hlmTd>{{ client.clientNumber }}</td>
             <td hlmTd>
@@ -51,29 +84,26 @@
             <td hlmTd>{{ "clients.status." + client.status | translate }}</td>
             <td hlmTd>{{ client.activeCaseCount }}</td>
           </tr>
-        } @empty {
-          <tr hlmTr>
-            <td hlmTd colspan="7">{{ "clients.empty" | translate }}</td>
-          </tr>
-        }
-      </tbody>
-    </table>
-  </div>
-  <p>{{ "clients.page" | translate: { page: page(), total: pageCount() } }}</p>
-  <button
-    hlmBtn
-    type="button"
-    (click)="changePage(page() - 1)"
-    [disabled]="page() === 1"
-  >
-    {{ "clients.previous" | translate }}
-  </button>
-  <button
-    hlmBtn
-    type="button"
-    (click)="changePage(page() + 1)"
-    [disabled]="page() === pageCount()"
-  >
-    {{ "clients.next" | translate }}
-  </button>
+          }
+        </tbody>
+      </table>
+    </div>
+    <p>{{ "clients.page" | translate: { page: page(), total: pageCount() } }}</p>
+    <button
+      hlmBtn
+      type="button"
+      (click)="changePage(page() - 1)"
+      [disabled]="page() === 1"
+    >
+      {{ "clients.previous" | translate }}
+    </button>
+    <button
+      hlmBtn
+      type="button"
+      (click)="changePage(page() + 1)"
+      [disabled]="page() === pageCount()"
+    >
+      {{ "clients.next" | translate }}
+    </button>
+  }
 }

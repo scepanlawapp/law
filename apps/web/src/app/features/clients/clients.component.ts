@@ -19,6 +19,13 @@ import {
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import {
+  HlmEmpty,
+  HlmEmptyContent,
+  HlmEmptyDescription,
+  HlmEmptyHeader,
+  HlmEmptyTitle,
+} from "@spartan-ng/helm/empty";
 
 @Component({
   selector: "app-clients",
@@ -38,6 +45,11 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
     HlmTr,
     TranslatePipe,
     HlmSpinner,
+    HlmEmpty,
+    HlmEmptyContent,
+    HlmEmptyDescription,
+    HlmEmptyHeader,
+    HlmEmptyTitle,
   ],
 })
 export class ClientsComponent {
@@ -120,6 +132,9 @@ export class ClientsComponent {
 
   retry(): void {
     this.changePage(this.page());
+  }
+  clearSearch(): void {
+    this.search.setValue("");
   }
   userName(userId: string | null): string {
     return userId ? (this.users().get(userId) ?? userId) : "";
