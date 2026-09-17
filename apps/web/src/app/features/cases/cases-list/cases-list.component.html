@@ -1,0 +1,184 @@
+<div class="space-y-6">
+  @if (showHeading()) {
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <h1 class="text-2xl font-semibold">{{ "cases.title" | translate }}</h1>
+      <a hlmBtn routerLink="/cases/new">{{ "cases.create" | translate }}</a>
+    </div>
+  }
+
+  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+    <div class="space-y-2">
+      <label class="text-sm font-medium" for="case-search">
+        {{ "cases.search" | translate }}
+      </label>
+      <input hlmInput id="case-search" [formControl]="search" />
+    </div>
+    <div class="space-y-2">
+      <label class="text-sm font-medium" for="case-status-filter">
+        {{ "cases.status" | translate }}
+      </label>
+      <hlm-select [formControl]="status" [itemToString]="statusItemToString">
+        <hlm-select-trigger id="case-status-filter" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of statusOptions; track option.value) {
+              <hlm-select-item [value]="option.value">
+                {{ option.label | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+    <div class="space-y-2">
+      <label class="text-sm font-medium" for="case-responsible-filter">
+        {{ "cases.responsible" | translate }}
+      </label>
+      <hlm-select
+        [formControl]="responsibleUserId"
+        [itemToString]="userItemToString"
+      >
+        <hlm-select-trigger id="case-responsible-filter" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            <hlm-select-item value="">
+              {{ "cases.allResponsibleUsers" | translate }}
+            </hlm-select-item>
+            @for (user of users(); track user.id) {
+              <hlm-select-item [value]="user.id">
+                {{ user.name }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+    <div class="space-y-2">
+      <label class="text-sm font-medium" for="case-sort">
+        {{ "cases.sort" | translate }}
+      </label>
+      <hlm-select [formControl]="sort" [itemToString]="sortItemToString">
+        <hlm-select-trigger id="case-sort" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of sortOptions; track option.value) {
+              <hlm-select-item [value]="option.value">
+                {{ option.label | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+  </div>
+
+  @if (loading() && !loaded()) {
+    <div class="flex items-center gap-2 py-8" role="status">
+      <hlm-spinner />
+      <span>{{ "cases.loading" | translate }}</span>
+    </div>
+  } @else if (error()) {
+    <div class="space-y-3 py-8" role="alert">
+      <p>{{ "cases.error" | translate }}</p>
+      <button hlmBtn type="button" variant="outline" (click)="load()">
+        {{ "cases.retry" | translate }}
+      </button>
+    </div>
+  } @else if (items().length === 0) {
+    <div class="space-y-3 py-8">
+      <p>
+        {{ emptyMessageKey() | translate }}
+      </p>
+      @if (hasFilters()) {
+        <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
+          {{ "cases.clearFilters" | translate }}
+        </button>
+      }
+    </div>
+  } @else {
+    <div hlmTableContainer [attr.aria-busy]="loading()">
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>{{ "cases.number" | translate }}</th>
+            <th hlmTh>{{ "cases.name" | translate }}</th>
+            <th hlmTh>{{ "cases.client" | translate }}</th>
+            <th hlmTh>{{ "cases.responsible" | translate }}</th>
+            <th hlmTh>{{ "cases.priority" | translate }}</th>
+            <th hlmTh>{{ "cases.status" | translate }}</th>
+            <th hlmTh>{{ "cases.opened" | translate }}</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (caseItem of items(); track caseItem.id) {
+            <tr hlmTr>
+              <td hlmTd>
+                <a
+                  class="font-medium underline-offset-4 hover:underline"
+                  [routerLink]="['/cases', caseItem.id]"
+                >
+                  {{ caseItem.caseNumber }}
+                </a>
+              </td>
+              <td hlmTd>
+                <a
+                  class="underline-offset-4 hover:underline"
+                  [routerLink]="['/cases', caseItem.id]"
+                >
+                  {{ caseItem.name }}
+                </a>
+              </td>
+              <td hlmTd>
+                <a
+                  class="underline-offset-4 hover:underline"
+                  [routerLink]="['/clients', caseItem.clientId]"
+                >
+                  {{ clientName(caseItem.clientId) }}
+                </a>
+              </td>
+              <td hlmTd>{{ userName(caseItem.responsibleUserId) }}</td>
+              <td hlmTd>
+                {{ "cases.priority." + caseItem.priority | translate }}
+              </td>
+              <td hlmTd>{{ "cases.status." + caseItem.status | translate }}</td>
+              <td hlmTd>
+                {{ formatDate(caseItem.openedDate) }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <p class="text-sm text-muted-foreground">
+        {{ "cases.page" | translate: { page: page(), total: pageCount() } }}
+      </p>
+      <div class="flex gap-2">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="changePage(page() - 1)"
+          [disabled]="page() === 1 || loading()"
+        >
+          {{ "cases.previous" | translate }}
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="changePage(page() + 1)"
+          [disabled]="page() === pageCount() || loading()"
+        >
+          {{ "cases.next" | translate }}
+        </button>
+      </div>
+    </div>
+  }
+</div>

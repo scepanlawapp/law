@@ -14,6 +14,7 @@ import {
   createSelectItemToString,
   type SelectOption,
 } from "../../shared/utils";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 @Component({
   selector: "app-workspace-settings",
@@ -26,6 +27,7 @@ import {
     HlmSelectImports,
     HlmSwitch,
     TranslatePipe,
+    HlmSpinner,
   ],
   templateUrl: "./workspace-settings.component.html",
   styleUrl: "./settings-pages.component.scss",
@@ -69,17 +71,17 @@ export class WorkspaceSettingsComponent {
       .get()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: (s) => {
-        this.form.patchValue(s.preferences);
-        this.loading.set(false);
-      },
-      error: () => {
-        this.toast.error(
-          this.localization.translate("settings.workspaceLoadError"),
-        );
-        this.loading.set(false);
-      },
-    });
+        next: (s) => {
+          this.form.patchValue(s.preferences);
+          this.loading.set(false);
+        },
+        error: () => {
+          this.toast.error(
+            this.localization.translate("settings.workspaceLoadError"),
+          );
+          this.loading.set(false);
+        },
+      });
   }
   save(): void {
     this.saving.set(true);
@@ -87,18 +89,18 @@ export class WorkspaceSettingsComponent {
       .update({ preferences: this.form.getRawValue() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => {
-        this.toast.success(
-          this.localization.translate("settings.workspaceSaved"),
-        );
-        this.saving.set(false);
-      },
-      error: () => {
-        this.toast.error(
-          this.localization.translate("settings.workspaceSaveError"),
-        );
-        this.saving.set(false);
-      },
-    });
+        next: () => {
+          this.toast.success(
+            this.localization.translate("settings.workspaceSaved"),
+          );
+          this.saving.set(false);
+        },
+        error: () => {
+          this.toast.error(
+            this.localization.translate("settings.workspaceSaveError"),
+          );
+          this.saving.set(false);
+        },
+      });
   }
 }

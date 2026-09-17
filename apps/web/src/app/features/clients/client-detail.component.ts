@@ -1,25 +1,42 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
-import { RouterLink, ActivatedRoute } from "@angular/router";
+import {
+  Component,
+  DestroyRef,
+  computed,
+  effect,
+  inject,
+  signal,
+} from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { ClientDetail } from "@law/api-interfaces";
 import {
-  ClientsApiClient,
   ClientAddress,
   ClientContact,
-  DomainActivity,
+  ClientIdentificationDocument,
+  ClientsApiClient,
+  ReferencesApiClient,
 } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
   HlmTabs,
   HlmTabsContent,
   HlmTabsList,
   HlmTabsTrigger,
 } from "@spartan-ng/helm/tabs";
-import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { forkJoin } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
-import { ToastService } from "../../shared/ui/toast/toast.service";
-import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { loadCountryOptions } from "../../shared/utils/countries";
+import { CasesListComponent } from "../cases/cases-list/cases-list.component";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
+
+type ClientTab =
+  | "overview"
+  | "cases"
+  | "documents"
+  | "activities"
+  | "financials";
 
 @Component({
   selector: "app-client-detail",
@@ -28,149 +45,177 @@ import { ClientFormDialogService } from "./client-create-edit-modal/client-form-
   imports: [
     RouterLink,
     HlmButton,
+    HlmSpinner,
     HlmTabs,
     HlmTabsContent,
     HlmTabsList,
     HlmTabsTrigger,
+    CasesListComponent,
     TranslatePipe,
   ],
 })
 export class ClientDetailComponent {
   private readonly api = inject(ClientsApiClient);
+  private readonly references = inject(ReferencesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
-  private readonly toast = inject(ToastService);
-  private readonly local = inject(LocalizationService);
-  private readonly confirm = inject(ConfirmDialogService);
+  private readonly router = inject(Router);
+  private readonly localization = inject(LocalizationService);
   private readonly clientDialog = inject(ClientFormDialogService);
+
   readonly id = this.route.snapshot.paramMap.get("clientId")!;
   readonly client = signal<ClientDetail | null>(null);
-  readonly loading = signal(true);
   readonly addresses = signal<ClientAddress[]>([]);
   readonly contacts = signal<ClientContact[]>([]);
-  readonly activities = signal<DomainActivity[]>([]);
-  readonly clientCases = signal<{
-    items: Array<{ id: string; caseNumber: string; name: string }>;
-    meta: { page: number; totalPages: number };
-  } | null>(null);
+  readonly identificationDocuments = signal<ClientIdentificationDocument[]>([]);
+  readonly users = signal(new Map<string, string>());
+  readonly countries = signal(new Map<string, string>());
+  readonly loading = signal(true);
+  readonly error = signal(false);
+  readonly selectedTab = signal<ClientTab>(
+    this.toTab(this.route.snapshot.queryParamMap.get("tab")),
+  );
+  readonly casesOpened = signal(this.selectedTab() === "cases");
+  readonly sortedAddresses = computed(() =>
+    [...this.addresses()].sort(
+      (first, second) => Number(second.isPrimary) - Number(first.isPrimary),
+    ),
+  );
+  readonly sortedContacts = computed(() =>
+    [...this.contacts()].sort(
+      (first, second) => Number(second.isPrimary) - Number(first.isPrimary),
+    ),
+  );
+  readonly title = computed(() => {
+    const client = this.client();
+    if (!client) return "";
+    return client.type === "ORGANIZATION"
+      ? client.organizationName || client.displayName
+      : [client.firstName, client.lastName].filter(Boolean).join(" ") ||
+          client.displayName;
+  });
+  readonly secondaryName = computed(() => {
+    const client = this.client();
+    return client && client.displayName !== this.title()
+      ? client.displayName
+      : null;
+  });
+
   constructor() {
     this.reload();
+    this.route.queryParamMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) => {
+        const tab = this.toTab(params.get("tab"));
+        this.selectedTab.set(tab);
+        if (tab === "cases") this.casesOpened.set(true);
+      });
+    effect(() => {
+      const language = this.localization.language();
+      void loadCountryOptions(language).then((countries) =>
+        this.countries.set(
+          new Map(countries.map((country) => [country.code, country.name])),
+        ),
+      );
+    });
   }
+
   reload(): void {
     this.loading.set(true);
-    this.api
-      .get(this.id)
+    this.error.set(false);
+    forkJoin({
+      client: this.api.get(this.id),
+      addresses: this.api.listAddresses(this.id),
+      contacts: this.api.listContacts(this.id),
+      identificationDocuments: this.api.listIdentificationDocuments(this.id),
+      users: this.references.users(),
+    })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (client) => {
+        next: ({
+          client,
+          addresses,
+          contacts,
+          identificationDocuments,
+          users,
+        }) => {
           this.client.set(client);
+          this.addresses.set(addresses);
+          this.contacts.set(contacts);
+          this.identificationDocuments.set(identificationDocuments);
+          this.users.set(
+            new Map(
+              users.map((membership) => [
+                membership.userId,
+                [membership.user.firstName, membership.user.lastName]
+                  .filter(Boolean)
+                  .join(" ") || membership.user.email,
+              ]),
+            ),
+          );
           this.loading.set(false);
         },
         error: () => {
           this.loading.set(false);
-          this.toast.error(this.local.translate("clients.loadError"));
+          this.error.set(true);
         },
       });
   }
+
+  selectTab(tab: string): void {
+    const selectedTab = this.toTab(tab);
+    this.selectedTab.set(selectedTab);
+    if (selectedTab === "cases") this.casesOpened.set(true);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { tab: selectedTab === "overview" ? null : selectedTab },
+      queryParamsHandling: "merge",
+    });
+  }
+
   editClient(): void {
     this.clientDialog
       .edit(this.id)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((updated) => {
-        if (!updated) return;
-        this.reload();
-        this.load("addresses");
-        this.load("contacts");
+        if (updated) this.reload();
       });
   }
-  load(tab: string): void {
-    if (tab === "cases")
-      this.api
-        .listCases(this.id, { page: 1, pageSize: 20 })
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({ next: (result) => this.clientCases.set(result) });
-    if (tab === "activities")
-      this.api
-        .listActivities(this.id, { page: 1, pageSize: 20 })
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({ next: (result) => this.activities.set(result.items) });
-    if (tab === "contacts")
-      this.api
-        .listContacts(this.id)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({ next: (items) => this.contacts.set(items) });
-    if (tab === "addresses")
-      this.api
-        .listAddresses(this.id)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({ next: (items) => this.addresses.set(items) });
+
+  responsibleUserName(userId: string | null): string {
+    return userId
+      ? (this.users().get(userId) ?? userId)
+      : this.localization.translate("common.notProvided");
   }
-  archive(): void {
-    this.confirm
-      .confirm({
-        title: this.local.translate("clients.archive"),
-        message: this.local.translate("clients.archiveConfirm"),
-        variant: "danger",
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((ok) => {
-        if (ok)
-          this.api
-            .archive(this.id)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-              next: () => {
-                this.toast.success(this.local.translate("clients.saved"));
-                this.reload();
-              },
-              error: () =>
-                this.toast.error(this.local.translate("clients.saveError")),
-            });
-      });
+
+  countryName(code: string): string {
+    return this.countries().get(code.toUpperCase()) ?? code;
   }
-  activate(): void {
-    this.api
-      .activate(this.id)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.toast.success(this.local.translate("clients.saved"));
-          this.reload();
-        },
-        error: () =>
-          this.toast.error(this.local.translate("clients.saveError")),
-      });
+
+  formatDate(value: string | null): string {
+    if (!value) return this.localization.translate("common.notProvided");
+    return new Intl.DateTimeFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { dateStyle: "medium" },
+    ).format(new Date(value));
   }
-  deactivateContact(contactId: string): void {
-    this.confirm
-      .confirm({
-        title: this.local.translate("clients.deactivate"),
-        message: this.local.translate("clients.deactivateConfirm"),
-        variant: "danger",
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((ok) => {
-        if (ok)
-          this.api
-            .deactivateContact(this.id, contactId)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ next: () => this.load("contacts") });
-      });
+
+  displayValue(value: string | null | undefined): string {
+    return value?.trim() || this.localization.translate("common.notProvided");
   }
-  removeAddress(addressId: string): void {
-    this.confirm
-      .confirm({
-        title: this.local.translate("clients.remove"),
-        message: this.local.translate("clients.removeConfirm"),
-        variant: "danger",
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((ok) => {
-        if (ok)
-          this.api
-            .removeAddress(this.id, addressId)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ next: () => this.load("addresses") });
-      });
+
+  tagNames(client: ClientDetail): string {
+    return (
+      client.tags.map((tag) => tag.name).join(", ") ||
+      this.localization.translate("common.notProvided")
+    );
+  }
+
+  private toTab(value: string | null): ClientTab {
+    return ["cases", "documents", "activities", "financials"].includes(
+      value ?? "",
+    )
+      ? (value as ClientTab)
+      : "overview";
   }
 }

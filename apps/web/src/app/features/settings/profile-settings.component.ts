@@ -14,6 +14,7 @@ import { AuthApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 @Component({
   selector: "app-profile-settings",
@@ -25,9 +26,10 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
     HlmFieldLabel,
     HlmInput,
     TranslatePipe,
+    HlmSpinner,
   ],
   templateUrl: "./profile-settings.component.html",
-  styleUrl: "./settings-pages.component.scss",
+  styleUrls: ["./settings-pages.component.scss"],
 })
 export class ProfileSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);
@@ -61,25 +63,25 @@ export class ProfileSettingsComponent {
       .get()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: (settings) => {
-        this.form.patchValue({
-          ...settings.profile,
-          firstName: settings.profile.firstName ?? "",
-          lastName: settings.profile.lastName ?? "",
-          username: settings.profile.username ?? "",
-          phone: settings.profile.phone ?? "",
-          jobTitle: settings.profile.jobTitle ?? "",
-          avatarUrl: settings.profile.avatarUrl ?? "",
-        });
-        this.loading.set(false);
-      },
-      error: () => {
-        this.toast.error(
-          this.localization.translate("settings.profileLoadError"),
-        );
-        this.loading.set(false);
-      },
-    });
+        next: (settings) => {
+          this.form.patchValue({
+            ...settings.profile,
+            firstName: settings.profile.firstName ?? "",
+            lastName: settings.profile.lastName ?? "",
+            username: settings.profile.username ?? "",
+            phone: settings.profile.phone ?? "",
+            jobTitle: settings.profile.jobTitle ?? "",
+            avatarUrl: settings.profile.avatarUrl ?? "",
+          });
+          this.loading.set(false);
+        },
+        error: () => {
+          this.toast.error(
+            this.localization.translate("settings.profileLoadError"),
+          );
+          this.loading.set(false);
+        },
+      });
   }
 
   save(): void {
@@ -119,19 +121,20 @@ export class ProfileSettingsComponent {
       return;
     }
     const { currentPassword, newPassword } = this.passwordForm.getRawValue();
-    this.authApi.changePassword(currentPassword, newPassword)
+    this.authApi
+      .changePassword(currentPassword, newPassword)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => {
-        this.passwordForm.reset();
-        this.toast.success(
-          this.localization.translate("settings.passwordChanged"),
-        );
-      },
-      error: () =>
-        this.toast.error(
-          this.localization.translate("settings.passwordChangeError"),
-        ),
-    });
+        next: () => {
+          this.passwordForm.reset();
+          this.toast.success(
+            this.localization.translate("settings.passwordChanged"),
+          );
+        },
+        error: () =>
+          this.toast.error(
+            this.localization.translate("settings.passwordChangeError"),
+          ),
+      });
   }
 }

@@ -18,6 +18,7 @@ import {
 } from "@spartan-ng/helm/table";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 @Component({
   selector: "app-clients",
@@ -36,6 +37,7 @@ import { ClientFormDialogService } from "./client-create-edit-modal/client-form-
     HlmTHead,
     HlmTr,
     TranslatePipe,
+    HlmSpinner,
   ],
 })
 export class ClientsComponent {

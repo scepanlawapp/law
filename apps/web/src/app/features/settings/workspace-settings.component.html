@@ -5,7 +5,7 @@
   </div>
 </div>
 @if (loading()) {
-  <p>{{ "settings.loading" | translate }}</p>
+  <hlm-spinner aria-label="{{ 'settings.loading' | translate }}" />
 } @else {
   <form [formGroup]="form" (ngSubmit)="save()">
     <div>
@@ -19,9 +19,9 @@
       />
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="date-time-format-select">{{
-        "settings.dateTimeFormat" | translate
-      }}</label>
+      <label hlmFieldLabel for="date-time-format-select">
+        {{ "settings.dateTimeFormat" | translate }}
+      </label>
       <hlm-select
         formControlName="dateTimeFormat"
         [itemToString]="dateTimeFormatItemToString"
@@ -32,18 +32,18 @@
         <hlm-select-content *hlmSelectPortal>
           <hlm-select-group>
             @for (option of dateTimeFormatOptions; track option.value) {
-              <hlm-select-item [value]="option.value">{{
-                dateTimeFormatItemToString(option.value)
-              }}</hlm-select-item>
+              <hlm-select-item [value]="option.value">
+                {{ dateTimeFormatItemToString(option.value) }}
+              </hlm-select-item>
             }
           </hlm-select-group>
         </hlm-select-content>
       </hlm-select>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="time-zone-select">{{
-        "settings.timeZone" | translate
-      }}</label>
+      <label hlmFieldLabel for="time-zone-select">
+        {{ "settings.timeZone" | translate }}
+      </label>
       <hlm-select
         formControlName="timeZone"
         [itemToString]="timeZoneItemToString"
@@ -54,9 +54,9 @@
         <hlm-select-content *hlmSelectPortal>
           <hlm-select-group>
             @for (option of timeZoneOptions; track option.value) {
-              <hlm-select-item [value]="option.value">{{
-                timeZoneItemToString(option.value)
-              }}</hlm-select-item>
+              <hlm-select-item [value]="option.value">
+                {{ timeZoneItemToString(option.value) }}
+              </hlm-select-item>
             }
           </hlm-select-group>
         </hlm-select-content>

@@ -77,6 +77,7 @@ import {
   selectWorkflowActivities,
   WorkflowActivityState,
 } from "./assistant-workflow-state";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
 const ALLOWED_FILE_MIME_TYPES = [
@@ -133,6 +134,7 @@ interface SessionGroup {
     TranslatePipe,
     AssistantMarkdownPipe,
     DraftReviewPanelComponent,
+    HlmSpinner,
   ],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
