@@ -1,1 +1,16 @@
-Stranica za finansije
+<div class="space-y-6">
+  <h1>{{ "nav.finance" | translate }}</h1>
+  <hlm-empty>
+    <hlm-empty-header>
+      <h2 hlmEmptyTitle>{{ "finance.emptyTitle" | translate }}</h2>
+      <p hlmEmptyDescription>
+        {{ "finance.emptyDescription" | translate }}
+      </p>
+    </hlm-empty-header>
+    <hlm-empty-content>
+      <button hlmBtn type="button">
+        {{ "finance.create" | translate }}
+      </button>
+    </hlm-empty-content>
+  </hlm-empty>
+</div>

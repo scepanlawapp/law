@@ -23,7 +23,7 @@
 <ng-template #userMenu>
   <hlm-dropdown-menu aria-label="User menu">
     <hlm-dropdown-menu-group>
-      <div class="flex items-center">
+      <div class="flex items-center p-4">
         @if (user().avatarUrl; as avatarUrl) {
           <img [src]="avatarUrl" alt="" />
         } @else {
@@ -36,18 +36,22 @@
           <small>{{ user().email }}</small>
         </div>
       </div>
-      <a hlmDropdownMenuItem routerLink="/settings">
-        <span><ng-icon name="lucideSettings" /></span>
-        <span>{{ "userMenu.changeSettings" | translate }}</span>
-      </a>
-      <button
-        hlmDropdownMenuItem
-        type="button"
-        (click)="logoutRequested.emit()"
-      >
-        <span><ng-icon name="lucideLogOut" /></span>
-        <span>{{ "userMenu.logout" | translate }}</span>
-      </button>
+      <div class="p-4">
+        <a hlmDropdownMenuItem routerLink="/settings">
+          <span><ng-icon name="lucideSettings" /></span>
+          <span>{{ "userMenu.changeSettings" | translate }}</span>
+        </a>
+      </div>
+      <div class="p-4">
+        <button
+          hlmDropdownMenuItem
+          type="button"
+          (click)="logoutRequested.emit()"
+        >
+          <span><ng-icon name="lucideLogOut" /></span>
+          <span>{{ "userMenu.logout" | translate }}</span>
+        </button>
+      </div>
     </hlm-dropdown-menu-group>
   </hlm-dropdown-menu>
 </ng-template>

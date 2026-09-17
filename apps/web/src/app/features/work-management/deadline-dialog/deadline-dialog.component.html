@@ -1,0 +1,125 @@
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>
+    {{
+      (editing ? "work.deadlines.edit" : "work.deadlines.create") | translate
+    }}
+  </h2>
+  <p hlmDialogDescription>{{ "work.deadlines.formDescription" | translate }}</p>
+</hlm-dialog-header>
+<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
+  <div hlmField>
+    <label hlmFieldLabel for="deadline-title">
+      {{ "work.title" | translate }}
+    </label>
+    <input hlmInput id="deadline-title" formControlName="title" />
+  </div>
+  <div hlmField>
+    <label hlmFieldLabel for="deadline-description">
+      {{ "work.description" | translate }}
+    </label>
+    <textarea
+      hlmTextarea
+      id="deadline-description"
+      formControlName="description"
+    ></textarea>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div hlmField>
+      <label hlmFieldLabel for="deadline-type">
+        {{ "work.type" | translate }}
+      </label>
+      <select
+        id="deadline-type"
+        formControlName="type"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        @for (type of types; track type) {
+          <option [value]="type">
+            {{ "work.deadlineType." + type.toLowerCase() | translate }}
+          </option>
+        }
+      </select>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="deadline-responsible">
+        {{ "work.responsible" | translate }}
+      </label>
+      <select
+        id="deadline-responsible"
+        formControlName="responsibleUserId"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        @for (user of users(); track user.id) {
+          <option [value]="user.id">{{ user.name }}</option>
+        }
+      </select>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div hlmField>
+      <label hlmFieldLabel for="deadline-due-mode">
+        {{ "work.dueTarget" | translate }}
+      </label>
+      <select
+        id="deadline-due-mode"
+        formControlName="dueMode"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+      >
+        @for (mode of dueModes; track mode) {
+          <option [value]="mode">
+            {{ "work.dueMode." + mode.toLowerCase() | translate }}
+          </option>
+        }
+      </select>
+    </div>
+    @if (form.controls.dueMode.value === "DATE") {
+      <div hlmField>
+        <label hlmFieldLabel for="deadline-due-date">
+          {{ "work.dueDate" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="deadline-due-date"
+          type="date"
+          formControlName="dueDate"
+        />
+      </div>
+    }
+    @if (form.controls.dueMode.value === "DATE_TIME") {
+      <div hlmField>
+        <label hlmFieldLabel for="deadline-due-at">
+          {{ "work.dueAt" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="deadline-due-at"
+          type="datetime-local"
+          formControlName="dueAt"
+        />
+      </div>
+    }
+  </div>
+  <div hlmField>
+    <label hlmFieldLabel for="deadline-source">
+      {{ "work.sourceDescription" | translate }}
+    </label>
+    <input hlmInput id="deadline-source" formControlName="sourceDescription" />
+  </div>
+  <hlm-dialog-footer class="flex justify-end gap-2">
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      [disabled]="saving()"
+      (click)="dialogRef.close()"
+    >
+      {{ "common.cancel" | translate }}
+    </button>
+    <button hlmBtn type="submit" [disabled]="saving()">
+      @if (saving()) {
+        <hlm-spinner />
+      }
+      {{ "common.save" | translate }}
+    </button>
+  </hlm-dialog-footer>
+</form>

@@ -40,6 +40,9 @@
       "@law/user-settings": [
         "./libs/api/features/user-settings/src/index.ts"
       ],
+      "@law/activities-tasks-deadlines": [
+        "./libs/api/features/activities-tasks-deadlines/src/index.ts"
+      ],
       "@law/core": [
         "./libs/api/core/src/index.ts"
       ],

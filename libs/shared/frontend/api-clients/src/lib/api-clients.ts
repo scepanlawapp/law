@@ -30,6 +30,17 @@ import {
   UserSettingsResponse,
   UserSettingsUpdateRequest,
   WorkflowJobResponse,
+  CalendarResponse,
+  EventDetail,
+  ActivityLogSummary,
+  DeadlineDetail,
+  DeadlineStatus,
+  DeadlineType,
+  NoteDetail,
+  NoteType,
+  PaginatedResponse,
+  TaskDetail,
+  TaskStatus,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -39,6 +50,118 @@ export interface ReferenceRequest {
   description?: string;
   color?: string;
   isActive?: boolean;
+}
+
+export interface CalendarQuery {
+  from: string;
+  to: string;
+  limit?: number;
+  userId?: string;
+  clientId?: string;
+  caseId?: string;
+  sourceType?: "EVENT" | "TASK" | "DEADLINE";
+  status?: string;
+}
+
+export interface EventRequest {
+  type: "MEETING" | "HEARING" | "CALL" | "OTHER";
+  title: string;
+  description?: string;
+  startsAt: string;
+  endsAt: string;
+  timeZone: string;
+  isAllDay?: boolean;
+  location?: string;
+  meetingUrl?: string;
+  courtName?: string;
+  courtroom?: string;
+  caseId?: string;
+  assigneeUserIds?: string[];
+  clientIds?: string[];
+  attendees?: Array<{
+    clientContactId?: string;
+    displayName: string;
+    email?: string;
+  }>;
+}
+
+export interface TaskListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  from?: string;
+  to?: string;
+  status?: TaskStatus;
+  priority?: CasePriority;
+  assigneeUserId?: string;
+  caseId?: string;
+  clientId?: string;
+  deadlineId?: string;
+}
+
+export interface TaskRequest {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: CasePriority;
+  assigneeUserId: string;
+  dueDate?: string;
+  dueAt?: string;
+  caseId?: string;
+  clientId?: string;
+  deadlineId?: string;
+}
+
+export interface DeadlineListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  from?: string;
+  to?: string;
+  status?: DeadlineStatus;
+  type?: DeadlineType;
+  responsibleUserId?: string;
+  caseId?: string;
+  clientId?: string;
+}
+
+export interface DeadlineRequest {
+  title: string;
+  description?: string;
+  type: DeadlineType;
+  dueDate?: string;
+  dueAt?: string;
+  timeZone: string;
+  responsibleUserId: string;
+  caseId?: string;
+  clientId?: string;
+  sourceDescription?: string;
+}
+
+export interface NoteListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  type?: NoteType;
+  caseId?: string;
+  clientId?: string;
+  eventId?: string;
+}
+
+export interface NoteRequest {
+  type: NoteType;
+  body: string;
+  occurredAt: string;
+  caseId?: string;
+  clientId?: string;
+  eventId?: string;
+}
+
+export interface ActivityLogListQuery {
+  page?: number;
+  pageSize?: number;
+  caseId?: string;
+  clientId?: string;
 }
 
 @Injectable({ providedIn: "root" })
@@ -816,6 +939,232 @@ export class ClientsApiClient {
       this.endpoint(`/clients/${clientId}/activities/${activityId}`),
       request,
       { withCredentials: true },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class CalendarApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(query: CalendarQuery): Observable<CalendarResponse> {
+    return this.http.get<CalendarResponse>(this.endpoint("/calendar"), {
+      withCredentials: true,
+      params: queryParams(query),
+    });
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class EventsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  create(request: EventRequest): Observable<EventDetail> {
+    return this.http.post<EventDetail>(this.endpoint("/events"), request, {
+      withCredentials: true,
+    });
+  }
+
+  update(eventId: string, request: EventRequest): Observable<EventDetail> {
+    return this.http.patch<EventDetail>(
+      this.endpoint(`/events/${eventId}`),
+      request,
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  cancel(eventId: string): Observable<EventDetail> {
+    return this.http.post<EventDetail>(
+      this.endpoint(`/events/${eventId}/cancel`),
+      {},
+      {
+        withCredentials: true,
+      },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class WorkManagementApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  listTasks(
+    query: TaskListQuery = {},
+  ): Observable<PaginatedResponse<TaskDetail>> {
+    return this.http.get<PaginatedResponse<TaskDetail>>(
+      this.endpoint("/tasks"),
+      {
+        withCredentials: true,
+        params: queryParams(query),
+      },
+    );
+  }
+
+  getTask(id: string): Observable<TaskDetail> {
+    return this.http.get<TaskDetail>(this.endpoint(`/tasks/${id}`), {
+      withCredentials: true,
+    });
+  }
+
+  createTask(request: TaskRequest): Observable<TaskDetail> {
+    return this.http.post<TaskDetail>(this.endpoint("/tasks"), request, {
+      withCredentials: true,
+    });
+  }
+
+  updateTask(id: string, request: TaskRequest): Observable<TaskDetail> {
+    return this.http.patch<TaskDetail>(this.endpoint(`/tasks/${id}`), request, {
+      withCredentials: true,
+    });
+  }
+
+  completeTask(id: string): Observable<TaskDetail> {
+    return this.transitionTask(id, "complete");
+  }
+
+  cancelTask(id: string): Observable<TaskDetail> {
+    return this.transitionTask(id, "cancel");
+  }
+
+  reopenTask(id: string): Observable<TaskDetail> {
+    return this.transitionTask(id, "reopen");
+  }
+
+  listDeadlines(
+    query: DeadlineListQuery = {},
+  ): Observable<PaginatedResponse<DeadlineDetail>> {
+    return this.http.get<PaginatedResponse<DeadlineDetail>>(
+      this.endpoint("/deadlines"),
+      {
+        withCredentials: true,
+        params: queryParams(query),
+      },
+    );
+  }
+
+  getDeadline(id: string): Observable<DeadlineDetail> {
+    return this.http.get<DeadlineDetail>(this.endpoint(`/deadlines/${id}`), {
+      withCredentials: true,
+    });
+  }
+
+  createDeadline(request: DeadlineRequest): Observable<DeadlineDetail> {
+    return this.http.post<DeadlineDetail>(
+      this.endpoint("/deadlines"),
+      request,
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  updateDeadline(
+    id: string,
+    request: DeadlineRequest,
+  ): Observable<DeadlineDetail> {
+    return this.http.patch<DeadlineDetail>(
+      this.endpoint(`/deadlines/${id}`),
+      request,
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  satisfyDeadline(id: string): Observable<DeadlineDetail> {
+    return this.transitionDeadline(id, "satisfy");
+  }
+
+  cancelDeadline(id: string): Observable<DeadlineDetail> {
+    return this.transitionDeadline(id, "cancel");
+  }
+
+  reopenDeadline(id: string): Observable<DeadlineDetail> {
+    return this.transitionDeadline(id, "reopen");
+  }
+
+  listNotes(
+    query: NoteListQuery = {},
+  ): Observable<PaginatedResponse<NoteDetail>> {
+    return this.http.get<PaginatedResponse<NoteDetail>>(
+      this.endpoint("/notes"),
+      {
+        withCredentials: true,
+        params: queryParams(query),
+      },
+    );
+  }
+
+  getNote(id: string): Observable<NoteDetail> {
+    return this.http.get<NoteDetail>(this.endpoint(`/notes/${id}`), {
+      withCredentials: true,
+    });
+  }
+
+  createNote(request: NoteRequest): Observable<NoteDetail> {
+    return this.http.post<NoteDetail>(this.endpoint("/notes"), request, {
+      withCredentials: true,
+    });
+  }
+
+  updateNote(id: string, request: NoteRequest): Observable<NoteDetail> {
+    return this.http.patch<NoteDetail>(this.endpoint(`/notes/${id}`), request, {
+      withCredentials: true,
+    });
+  }
+
+  listActivity(
+    query: ActivityLogListQuery = {},
+  ): Observable<PaginatedResponse<ActivityLogSummary>> {
+    return this.http.get<PaginatedResponse<ActivityLogSummary>>(
+      this.endpoint("/activity-log"),
+      {
+        withCredentials: true,
+        params: queryParams(query),
+      },
+    );
+  }
+
+  private transitionTask(
+    id: string,
+    action: "complete" | "cancel" | "reopen",
+  ): Observable<TaskDetail> {
+    return this.http.post<TaskDetail>(
+      this.endpoint(`/tasks/${id}/${action}`),
+      {},
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  private transitionDeadline(
+    id: string,
+    action: "satisfy" | "cancel" | "reopen",
+  ): Observable<DeadlineDetail> {
+    return this.http.post<DeadlineDetail>(
+      this.endpoint(`/deadlines/${id}/${action}`),
+      {},
+      {
+        withCredentials: true,
+      },
     );
   }
 }

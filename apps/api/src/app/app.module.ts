@@ -9,6 +9,7 @@ import { ClientsModule } from "@law/clients";
 import { CasesModule } from "@law/cases";
 import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
+import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
 import { validateEnvironment } from "./config.validation";
 
 @Module({
@@ -21,6 +22,7 @@ import { validateEnvironment } from "./config.validation";
     CasesModule,
     ReferencesModule,
     UserSettingsModule,
+    ActivitiesTasksDeadlinesModule,
   ],
   controllers: [AppController],
   providers: [AppService],
