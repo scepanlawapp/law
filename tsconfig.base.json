@@ -159,6 +159,9 @@
       ],
       "@spartan-ng/helm/spinner": [
         "./libs/shared/frontend/ui/spinner/src/index.ts"
+      ],
+      "@spartan-ng/helm/empty": [
+        "./libs/shared/frontend/ui/empty/src/index.ts"
       ]
     }
   },

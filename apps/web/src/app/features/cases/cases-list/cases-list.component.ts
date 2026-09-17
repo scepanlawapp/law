@@ -2,14 +2,13 @@ import {
   Component,
   DestroyRef,
   OnInit,
-  computed,
   inject,
   input,
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
-import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { ActivatedRoute, Params, Router, RouterLink } from "@angular/router";
 import { CaseStatus, CaseSummary } from "@law/api-interfaces";
 import {
   CaseListQuery,
@@ -19,6 +18,13 @@ import {
 } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
+import {
+  HlmEmpty,
+  HlmEmptyContent,
+  HlmEmptyDescription,
+  HlmEmptyHeader,
+  HlmEmptyTitle,
+} from "@spartan-ng/helm/empty";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
@@ -55,6 +61,11 @@ type CaseSort =
     RouterLink,
     HlmButton,
     HlmInput,
+    HlmEmpty,
+    HlmEmptyContent,
+    HlmEmptyDescription,
+    HlmEmptyHeader,
+    HlmEmptyTitle,
     HlmSelectImports,
     HlmSpinner,
     HlmTable,
@@ -95,12 +106,6 @@ export class CasesListComponent implements OnInit {
   readonly loaded = signal(false);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly clients = signal(new Map<string, string>());
-  readonly hasFilters = computed(
-    () =>
-      !!this.search.value ||
-      !!this.status.value ||
-      !!this.responsibleUserId.value,
-  );
   readonly statusOptions: ReadonlyArray<SelectOption<CaseStatus | "">> = [
     { value: "", label: "cases.allStatuses" },
     { value: "DRAFT", label: "cases.status.DRAFT" },
@@ -265,6 +270,24 @@ export class CasesListComponent implements OnInit {
   emptyMessageKey(): string {
     if (this.hasFilters()) return "cases.noFilterResults";
     return this.clientId() ? "cases.emptyForClient" : "cases.empty";
+  }
+
+  hasFilters(): boolean {
+    return !!(
+      this.search.value ||
+      this.status.value ||
+      this.responsibleUserId.value
+    );
+  }
+
+  emptyTitleKey(): string {
+    if (this.hasFilters()) return "cases.noFilterResultsTitle";
+    return this.clientId() ? "cases.emptyForClientTitle" : "cases.emptyTitle";
+  }
+
+  caseCreateQueryParams(): Params | null {
+    const clientId = this.clientId();
+    return clientId ? { clientId, returnUrl: this.router.url } : null;
   }
 
   private updateQuery(extra: Record<string, string | number | null>): void {

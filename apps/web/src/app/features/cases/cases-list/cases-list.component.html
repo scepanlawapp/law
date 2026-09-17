@@ -91,16 +91,23 @@
       </button>
     </div>
   } @else if (items().length === 0) {
-    <div class="space-y-3 py-8">
-      <p>
-        {{ emptyMessageKey() | translate }}
-      </p>
-      @if (hasFilters()) {
-        <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
-          {{ "cases.clearFilters" | translate }}
-        </button>
-      }
-    </div>
+    <hlm-empty>
+      <hlm-empty-header>
+        <h2 hlmEmptyTitle>{{ emptyTitleKey() | translate }}</h2>
+        <p hlmEmptyDescription>{{ emptyMessageKey() | translate }}</p>
+      </hlm-empty-header>
+      <hlm-empty-content>
+        @if (hasFilters()) {
+          <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
+            {{ "cases.clearFilters" | translate }}
+          </button>
+        } @else {
+          <a hlmBtn routerLink="/cases/new" [queryParams]="caseCreateQueryParams()">
+            {{ "cases.create" | translate }}
+          </a>
+        }
+      </hlm-empty-content>
+    </hlm-empty>
   } @else {
     <div hlmTableContainer [attr.aria-busy]="loading()">
       <table hlmTable>
