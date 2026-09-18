@@ -1,18 +1,751 @@
-<div class="space-y-6">
-  <h1>{{ "nav.tasksDeadlines" | translate }}</h1>
-  <hlm-empty>
-    <hlm-empty-header>
-      <h2 hlmEmptyTitle>
-        {{ "tasksDeadlines.emptyTitle" | translate }}
-      </h2>
-      <p hlmEmptyDescription>
-        {{ "tasksDeadlines.emptyDescription" | translate }}
+<div class="space-y-6 text-sm">
+  <header class="flex flex-wrap items-center justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">
+        {{ "nav.tasksDeadlines" | translate }}
+      </h1>
+      <p class="text-muted-foreground">
+        {{ "work.pageDescription" | translate }}
       </p>
-    </hlm-empty-header>
-    <hlm-empty-content>
-      <button hlmBtn type="button">
-        {{ "tasksDeadlines.create" | translate }}
-      </button>
-    </hlm-empty-content>
-  </hlm-empty>
+    </div>
+    <button
+      hlmBtn
+      type="button"
+      (click)="tab() === 'tasks' ? openTask() : openDeadline()"
+    >
+      {{
+        (tab() === "tasks" ? "work.tasks.create" : "work.deadlines.create")
+          | translate
+      }}
+    </button>
+  </header>
+
+  <div class="flex flex-wrap gap-2 border-b border-border pb-3" role="tablist">
+    <button
+      hlmBtn
+      type="button"
+      [variant]="tab() === 'tasks' ? 'default' : 'outline'"
+      (click)="selectTab('tasks')"
+    >
+      {{ "work.tasks.title" | translate }}
+    </button>
+    <button
+      hlmBtn
+      type="button"
+      [variant]="tab() === 'deadlines' ? 'default' : 'outline'"
+      (click)="selectTab('deadlines')"
+    >
+      {{ "work.deadlines.title" | translate }}
+    </button>
+  </div>
+
+  @if (tab() === "tasks") {
+    <section class="space-y-4" aria-labelledby="tasks-heading">
+      <div class="flex flex-wrap gap-2">
+        <button hlmBtn type="button" variant="outline" (click)="myOpenTasks()">
+          {{ "work.quick.myOpen" | translate }}
+        </button>
+        <button hlmBtn type="button" variant="outline" (click)="allOpenTasks()">
+          {{ "work.quick.allOpen" | translate }}
+        </button>
+      </div>
+      <h2 id="tasks-heading" class="sr-only">
+        {{ "work.tasks.title" | translate }}
+      </h2>
+      <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <label class="space-y-1">
+          {{ "work.search" | translate }}
+          <input hlmInput [formControl]="taskSearch" />
+        </label>
+        <div class="space-y-1">
+          <label for="task-status-filter">
+            {{ "work.status" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="taskStatus"
+            [itemToString]="taskStatusItemToString"
+          >
+            <hlm-select-trigger id="task-status-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of taskStatusOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="task-priority-filter">
+            {{ "work.priority" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="taskPriority"
+            [itemToString]="priorityItemToString"
+          >
+            <hlm-select-trigger id="task-priority-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of priorityOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="task-assignee-filter">
+            {{ "work.responsible" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="taskAssignee"
+            [itemToString]="userItemToString"
+          >
+            <hlm-select-trigger id="task-assignee-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.allUsers" | translate }}
+                </hlm-select-item>
+                @for (user of users(); track user.id) {
+                  <hlm-select-item [value]="user.id">
+                    {{ user.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="task-case-filter">{{ "work.case" | translate }}</label>
+          <hlm-select
+            [formControl]="taskCase"
+            [itemToString]="caseItemToString"
+          >
+            <hlm-select-trigger id="task-case-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.allCases" | translate }}
+                </hlm-select-item>
+                @for (item of cases(); track item.id) {
+                  <hlm-select-item [value]="item.id">
+                    {{ item.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="task-client-filter">
+            {{ "work.client" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="taskClient"
+            [itemToString]="clientItemToString"
+          >
+            <hlm-select-trigger id="task-client-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.allClients" | translate }}
+                </hlm-select-item>
+                @for (client of clients(); track client.id) {
+                  <hlm-select-item [value]="client.id">
+                    {{ client.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+      </div>
+      @if (loading() && !loaded()) {
+        <div class="flex items-center gap-2 py-8">
+          <hlm-spinner />
+          <span>{{ "work.loading" | translate }}</span>
+        </div>
+      } @else if (error()) {
+        <div class="space-y-3 py-8" role="alert">
+          <p>{{ "work.loadError" | translate }}</p>
+          <button hlmBtn type="button" variant="outline" (click)="load()">
+            {{ "work.retry" | translate }}
+          </button>
+        </div>
+      } @else if (tasks().length === 0) {
+        <div
+          class="space-y-3 border border-dashed border-border p-8 text-center"
+        >
+          <h2 class="text-lg font-semibold">
+            {{
+              (hasTaskFilters() ? "work.noResults" : "work.tasks.empty")
+                | translate
+            }}
+          </h2>
+          <p class="text-muted-foreground">
+            {{
+              (hasTaskFilters()
+                ? "work.noResultsDescription"
+                : "work.tasks.emptyDescription"
+              ) | translate
+            }}
+          </p>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            (click)="hasTaskFilters() ? clearFilters() : openTask()"
+          >
+            {{
+              (hasTaskFilters() ? "work.clearFilters" : "work.tasks.create")
+                | translate
+            }}
+          </button>
+        </div>
+      } @else {
+        <div hlmTableContainer [attr.aria-busy]="loading()">
+          <table hlmTable>
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "work.title" | translate }}</th>
+                <th hlmTh>{{ "work.status" | translate }}</th>
+                <th hlmTh>{{ "work.priority" | translate }}</th>
+                <th hlmTh>{{ "work.due" | translate }}</th>
+                <th hlmTh>{{ "work.responsible" | translate }}</th>
+                <th hlmTh>{{ "work.related" | translate }}</th>
+                <th hlmTh>{{ "work.actions" | translate }}</th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (task of tasks(); track task.id) {
+                <tr hlmTr>
+                  <td hlmTd>
+                    <button
+                      class="font-medium underline-offset-4 hover:underline"
+                      type="button"
+                      (click)="selectedTask.set(task)"
+                    >
+                      {{ task.title }}
+                    </button>
+                  </td>
+                  <td hlmTd>
+                    {{
+                      "work.taskStatus." + task.status.toLowerCase() | translate
+                    }}
+                  </td>
+                  <td hlmTd>
+                    {{
+                      "work.priority." + task.priority.toLowerCase() | translate
+                    }}
+                  </td>
+                  <td hlmTd>{{ dueDate(task.dueDate, task.dueAt) }}</td>
+                  <td hlmTd>{{ userName(task.assigneeUserId) }}</td>
+                  <td hlmTd>
+                    <a
+                      [routerLink]="
+                        task.caseId
+                          ? ['/cases', task.caseId]
+                          : task.clientId
+                            ? ['/clients', task.clientId]
+                            : null
+                      "
+                    >
+                      {{
+                        task.caseId
+                          ? caseName(task.caseId)
+                          : clientName(task.clientId)
+                      }}
+                    </a>
+                  </td>
+                  <td hlmTd>
+                    <div class="flex flex-wrap gap-1">
+                      <button
+                        hlmBtn
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        (click)="openTask(task)"
+                      >
+                        {{ "common.edit" | translate }}
+                      </button>
+                      @if (
+                        task.status !== "DONE" && task.status !== "CANCELLED"
+                      ) {
+                        <button
+                          hlmBtn
+                          size="sm"
+                          type="button"
+                          (click)="transitionTask(task, 'complete')"
+                        >
+                          {{ "work.complete" | translate }}
+                        </button>
+                        <button
+                          hlmBtn
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          (click)="transitionTask(task, 'cancel')"
+                        >
+                          {{ "work.cancel" | translate }}
+                        </button>
+                      } @else {
+                        <button
+                          hlmBtn
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          (click)="transitionTask(task, 'reopen')"
+                        >
+                          {{ "work.reopen" | translate }}
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <span>
+            {{
+              "work.page" | translate: { page: taskPage(), total: taskPages() }
+            }}
+          </span>
+          <div class="flex gap-2">
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [disabled]="taskPage() === 1 || loading()"
+              (click)="changePage(taskPage() - 1)"
+            >
+              {{ "work.previous" | translate }}
+            </button>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [disabled]="taskPage() === taskPages() || loading()"
+              (click)="changePage(taskPage() + 1)"
+            >
+              {{ "work.next" | translate }}
+            </button>
+          </div>
+        </div>
+      }
+    </section>
+  } @else {
+    <section class="space-y-4" aria-labelledby="deadlines-heading">
+      <div class="flex flex-wrap gap-2">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="myOpenDeadlines()"
+        >
+          {{ "work.quick.myOpen" | translate }}
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="allOpenDeadlines()"
+        >
+          {{ "work.quick.allOpen" | translate }}
+        </button>
+      </div>
+      <h2 id="deadlines-heading" class="sr-only">
+        {{ "work.deadlines.title" | translate }}
+      </h2>
+      <div class="grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <label class="space-y-1">
+          {{ "work.search" | translate }}
+          <input hlmInput [formControl]="deadlineSearch" />
+        </label>
+        <div class="space-y-1">
+          <label for="deadline-status-filter">
+            {{ "work.status" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="deadlineStatus"
+            [itemToString]="deadlineStatusItemToString"
+          >
+            <hlm-select-trigger id="deadline-status-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of deadlineStatusOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="deadline-type-filter">
+            {{ "work.type" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="deadlineType"
+            [itemToString]="deadlineTypeItemToString"
+          >
+            <hlm-select-trigger id="deadline-type-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of deadlineTypeOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="deadline-responsible-filter">
+            {{ "work.responsible" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="deadlineResponsible"
+            [itemToString]="userItemToString"
+          >
+            <hlm-select-trigger id="deadline-responsible-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.allUsers" | translate }}
+                </hlm-select-item>
+                @for (user of users(); track user.id) {
+                  <hlm-select-item [value]="user.id">
+                    {{ user.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="deadline-case-filter">
+            {{ "work.case" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="deadlineCase"
+            [itemToString]="caseItemToString"
+          >
+            <hlm-select-trigger id="deadline-case-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.allCases" | translate }}
+                </hlm-select-item>
+                @for (item of cases(); track item.id) {
+                  <hlm-select-item [value]="item.id">
+                    {{ item.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="space-y-1">
+          <label for="deadline-client-filter">
+            {{ "work.client" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="deadlineClient"
+            [itemToString]="clientItemToString"
+          >
+            <hlm-select-trigger id="deadline-client-filter" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.allClients" | translate }}
+                </hlm-select-item>
+                @for (client of clients(); track client.id) {
+                  <hlm-select-item [value]="client.id">
+                    {{ client.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+      </div>
+      @if (loading() && !loaded()) {
+        <div class="flex items-center gap-2 py-8">
+          <hlm-spinner />
+          <span>{{ "work.loading" | translate }}</span>
+        </div>
+      } @else if (error()) {
+        <div class="space-y-3 py-8" role="alert">
+          <p>{{ "work.loadError" | translate }}</p>
+          <button hlmBtn type="button" variant="outline" (click)="load()">
+            {{ "work.retry" | translate }}
+          </button>
+        </div>
+      } @else if (deadlines().length === 0) {
+        <div
+          class="space-y-3 border border-dashed border-border p-8 text-center"
+        >
+          <h2 class="text-lg font-semibold">
+            {{
+              (hasDeadlineFilters() ? "work.noResults" : "work.deadlines.empty")
+                | translate
+            }}
+          </h2>
+          <p class="text-muted-foreground">
+            {{
+              (hasDeadlineFilters()
+                ? "work.noResultsDescription"
+                : "work.deadlines.emptyDescription"
+              ) | translate
+            }}
+          </p>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            (click)="hasDeadlineFilters() ? clearFilters() : openDeadline()"
+          >
+            {{
+              (hasDeadlineFilters()
+                ? "work.clearFilters"
+                : "work.deadlines.create"
+              ) | translate
+            }}
+          </button>
+        </div>
+      } @else {
+        <div hlmTableContainer [attr.aria-busy]="loading()">
+          <table hlmTable>
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "work.title" | translate }}</th>
+                <th hlmTh>{{ "work.due" | translate }}</th>
+                <th hlmTh>{{ "work.type" | translate }}</th>
+                <th hlmTh>{{ "work.responsible" | translate }}</th>
+                <th hlmTh>{{ "work.related" | translate }}</th>
+                <th hlmTh>{{ "work.status" | translate }}</th>
+                <th hlmTh>{{ "work.actions" | translate }}</th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (deadline of deadlines(); track deadline.id) {
+                <tr hlmTr>
+                  <td hlmTd>
+                    <button
+                      class="font-medium underline-offset-4 hover:underline"
+                      type="button"
+                      (click)="selectedDeadline.set(deadline)"
+                    >
+                      {{ deadline.title }}
+                    </button>
+                    @if (deadline.overdue) {
+                      <span class="ml-2 text-destructive">
+                        {{ "work.overdue" | translate }}
+                      </span>
+                    }
+                  </td>
+                  <td hlmTd>{{ dueDate(deadline.dueDate, deadline.dueAt) }}</td>
+                  <td hlmTd>
+                    {{
+                      "work.deadlineType." + deadline.type.toLowerCase()
+                        | translate
+                    }}
+                  </td>
+                  <td hlmTd>{{ userName(deadline.responsibleUserId) }}</td>
+                  <td hlmTd>
+                    <a
+                      [routerLink]="
+                        deadline.caseId
+                          ? ['/cases', deadline.caseId]
+                          : deadline.clientId
+                            ? ['/clients', deadline.clientId]
+                            : null
+                      "
+                    >
+                      {{
+                        deadline.caseId
+                          ? caseName(deadline.caseId)
+                          : clientName(deadline.clientId)
+                      }}
+                    </a>
+                  </td>
+                  <td hlmTd>
+                    {{
+                      "work.deadlineStatus." + deadline.status.toLowerCase()
+                        | translate
+                    }}
+                  </td>
+                  <td hlmTd>
+                    <div class="flex flex-wrap gap-1">
+                      <button
+                        hlmBtn
+                        size="sm"
+                        type="button"
+                        variant="outline"
+                        (click)="openDeadline(deadline)"
+                      >
+                        {{ "common.edit" | translate }}
+                      </button>
+                      @if (deadline.status === "OPEN") {
+                        <button
+                          hlmBtn
+                          size="sm"
+                          type="button"
+                          (click)="transitionDeadline(deadline, 'satisfy')"
+                        >
+                          {{ "work.satisfy" | translate }}
+                        </button>
+                        <button
+                          hlmBtn
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          (click)="transitionDeadline(deadline, 'cancel')"
+                        >
+                          {{ "work.cancel" | translate }}
+                        </button>
+                      } @else {
+                        <button
+                          hlmBtn
+                          size="sm"
+                          type="button"
+                          variant="outline"
+                          (click)="transitionDeadline(deadline, 'reopen')"
+                        >
+                          {{ "work.reopen" | translate }}
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <span>
+            {{
+              "work.page"
+                | translate: { page: deadlinePage(), total: deadlinePages() }
+            }}
+          </span>
+          <div class="flex gap-2">
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [disabled]="deadlinePage() === 1 || loading()"
+              (click)="changePage(deadlinePage() - 1)"
+            >
+              {{ "work.previous" | translate }}
+            </button>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [disabled]="deadlinePage() === deadlinePages() || loading()"
+              (click)="changePage(deadlinePage() + 1)"
+            >
+              {{ "work.next" | translate }}
+            </button>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  @if (selectedTask(); as task) {
+    <aside
+      class="space-y-3 border-t border-border pt-4"
+      aria-label="{{ 'work.details' | translate }}"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-lg font-semibold">{{ task.title }}</h2>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="selectedTask.set(null)"
+        >
+          {{ "common.close" | translate }}
+        </button>
+      </div>
+      <p class="whitespace-pre-line">
+        {{ task.description || ("work.noDescription" | translate) }}
+      </p>
+      <p>
+        {{ "work.due" | translate }}: {{ dueDate(task.dueDate, task.dueAt) }}
+      </p>
+      <p>
+        {{ "work.responsible" | translate }}:
+        {{ userName(task.assigneeUserId) }}
+      </p>
+      <p>
+        {{ "work.status" | translate }}:
+        {{ "work.taskStatus." + task.status.toLowerCase() | translate }}
+      </p>
+    </aside>
+  }
+  @if (selectedDeadline(); as deadline) {
+    <aside
+      class="space-y-3 border-t border-border pt-4"
+      aria-label="{{ 'work.details' | translate }}"
+    >
+      <div class="flex items-center justify-between gap-3">
+        <h2 class="text-lg font-semibold">{{ deadline.title }}</h2>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="selectedDeadline.set(null)"
+        >
+          {{ "common.close" | translate }}
+        </button>
+      </div>
+      <p class="whitespace-pre-line">
+        {{ deadline.description || ("work.noDescription" | translate) }}
+      </p>
+      <p>
+        {{ "work.due" | translate }}:
+        {{ dueDate(deadline.dueDate, deadline.dueAt) }}
+      </p>
+      <p>
+        {{ "work.responsible" | translate }}:
+        {{ userName(deadline.responsibleUserId) }}
+      </p>
+      <p>
+        {{ "work.sourceDescription" | translate }}:
+        {{ deadline.sourceDescription || ("work.noDescription" | translate) }}
+      </p>
+    </aside>
+  }
 </div>

@@ -29,6 +29,7 @@ import {
   dateInputValue,
   dateTimeInputValue,
   deadlineDueMode,
+  todayDateInputValue,
 } from "../work-management-utils";
 import { DeadlineDialogContext } from "./deadline-dialog.models";
 
@@ -86,9 +87,13 @@ export class DeadlineDialogComponent {
       deadlineDueMode(this.context.deadline),
       { nonNullable: true },
     ),
-    dueDate: new FormControl(dateInputValue(this.context.deadline?.dueDate), {
-      nonNullable: true,
-    }),
+    dueDate: new FormControl(
+      dateInputValue(this.context.deadline?.dueDate) ||
+        (this.context.deadline ? "" : todayDateInputValue()),
+      {
+        nonNullable: true,
+      },
+    ),
     dueAt: new FormControl(dateTimeInputValue(this.context.deadline?.dueAt), {
       nonNullable: true,
     }),
@@ -103,6 +108,12 @@ export class DeadlineDialogComponent {
   });
 
   constructor() {
+    this.form.controls.dueMode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((mode) => {
+        if (mode !== "DATE") this.form.controls.dueDate.setValue("");
+        if (mode !== "DATE_TIME") this.form.controls.dueAt.setValue("");
+      });
     this.references
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -141,7 +152,7 @@ export class DeadlineDialogComponent {
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
       dueAt:
         value.dueMode === "DATE_TIME"
-          ? new Date(value.dueAt).toISOString()
+          ? this.toIsoDateTime(value.dueAt)
           : undefined,
     };
     if (value.dueMode === "DATE" && !request.dueDate) {
@@ -160,5 +171,9 @@ export class DeadlineDialogComponent {
       next: (deadline) => this.dialogRef.close(deadline),
       error: () => this.saving.set(false),
     });
+  }
+
+  private toIsoDateTime(value: string): string {
+    return new Date(value).toISOString();
   }
 }

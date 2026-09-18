@@ -9,7 +9,7 @@ import {
   Query,
   UseGuards,
 } from "@nestjs/common";
-import { AuthGuard, AuthenticatedRequest, CsrfOriginGuard } from "@law/auth";
+import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import { ClientDetail, ClientListResponse } from "@law/api-interfaces";
 import {
