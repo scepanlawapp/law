@@ -1,0 +1,19 @@
+{
+  "name": "knowledge",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/knowledge/src",
+  "projectType": "library",
+  "tags": ["scope:ai", "type:ai"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/api/ai/knowledge",
+        "main": "libs/api/ai/knowledge/src/index.ts",
+        "tsConfig": "libs/api/ai/knowledge/tsconfig.lib.json",
+        "assets": ["libs/api/ai/knowledge/*.md"]
+      }
+    }
+  }
+}

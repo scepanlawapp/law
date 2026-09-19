@@ -268,6 +268,7 @@ model Workspace {
   notes                  Note[]
   activityLogs           ActivityLog[]
   tenantAuditEvents      TenantAuditEvent[]
+  legalSources           LegalSource[]
 }
 
 model WorkspaceConfig {
@@ -816,6 +817,64 @@ model AuditEvent {
   @@index([userId, createdAt])
   @@index([workspaceId, createdAt])
   @@index([eventType, createdAt])
+}
+
+model LegalSource {
+  id             String               @id @default(uuid())
+  workspaceId    String?
+  slug           String
+  title          String
+  publisher      String
+  sourceUrl      String
+  canonicalUrl   String
+  jurisdiction   String
+  language       String               @default("sr")
+  visibility     String               @default("PUBLIC")
+  createdAt      DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime             @updatedAt @db.Timestamptz(3)
+  workspace      Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions       LegalSourceVersion[]
+
+  @@index([workspaceId, visibility, slug])
+  @@index([canonicalUrl])
+}
+
+model LegalSourceVersion {
+  id               String       @id @default(uuid())
+  sourceId         String
+  contentHash      String
+  versionLabel     String?
+  sourceScript     String       @default("LATIN")
+  retrievedAt      DateTime     @default(now()) @db.Timestamptz(3)
+  parserVersion    String
+  embeddingModel   String
+  embeddingDimensions Int
+  indexingStatus   String       @default("PENDING")
+  indexingError    String?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  source           LegalSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chunks           LegalChunk[]
+
+  @@unique([sourceId, contentHash])
+  @@index([sourceId, indexingStatus, createdAt])
+}
+
+model LegalChunk {
+  id             String             @id @default(uuid())
+  versionId      String
+  ordinal        Int
+  text           String             @db.Text
+  articleNumber  String?
+  paragraphNumber Int?
+  pointNumber    Int?
+  embedding      Unsupported("vector(1024)")?
+  embeddingModel String
+  embeddingDimensions Int
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  version        LegalSourceVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  @@unique([versionId, ordinal])
+  @@index([versionId, articleNumber, paragraphNumber])
 }
 
 model ChatSession {

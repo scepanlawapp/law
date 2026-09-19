@@ -10,6 +10,7 @@ import { CasesModule } from "@law/cases";
 import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
+import { LegalKnowledgeModule } from "@law/legal-knowledge";
 import { validateEnvironment } from "./config.validation";
 
 @Module({
@@ -23,6 +24,7 @@ import { validateEnvironment } from "./config.validation";
     ReferencesModule,
     UserSettingsModule,
     ActivitiesTasksDeadlinesModule,
+    LegalKnowledgeModule,
   ],
   controllers: [AppController],
   providers: [AppService],

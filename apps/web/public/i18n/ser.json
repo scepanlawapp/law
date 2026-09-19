@@ -330,7 +330,6 @@
   "assistant.workflow.agent.answering": "Agent za pravne odgovore",
   "assistant.workflow.agent.brief-extraction": "Agent za izdvajanje činjenica",
   "assistant.workflow.agent.drafting": "Agent za izradu nacrta",
-  "assistant.workflow.agent.template-retrieval": "Agent za pronalaženje obrazaca",
   "assistant.workflow.agent.evaluation": "Agent za procenu",
   "assistant.workflow.agent.review": "Agent za pregled",
   "assistant.workflow.completed": "Zahtev je obrađen",

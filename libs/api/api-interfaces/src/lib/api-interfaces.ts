@@ -137,7 +137,6 @@ export type ChatWorkflowName =
   | "triage"
   | "answering"
   | "brief-extraction"
-  | "template-retrieval"
   | "drafting"
   | "evaluation"
   | "review";

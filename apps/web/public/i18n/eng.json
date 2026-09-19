@@ -330,7 +330,6 @@
   "assistant.workflow.agent.answering": "Legal answer agent",
   "assistant.workflow.agent.brief-extraction": "Brief extraction agent",
   "assistant.workflow.agent.drafting": "Drafting agent",
-  "assistant.workflow.agent.template-retrieval": "Template retrieval agent",
   "assistant.workflow.agent.evaluation": "Evaluation agent",
   "assistant.workflow.agent.review": "Review agent",
   "assistant.workflow.completed": "Request completed",
