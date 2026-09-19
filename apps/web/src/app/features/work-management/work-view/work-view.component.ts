@@ -1,4 +1,5 @@
 import {
+  ChangeDetectionStrategy,
   Component,
   DestroyRef,
   computed,
@@ -54,6 +55,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { Observable, debounceTime, distinctUntilChanged } from "rxjs";
+import { BottomReachedDirective } from "../../../core/directives/bottom-reached.directive";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
@@ -165,9 +167,11 @@ function eventToCalendarItem(event: EventDetail): CalendarItem {
 @Component({
   selector: "app-work-view",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./work-view.component.html",
   imports: [
     ReactiveFormsModule,
+    BottomReachedDirective,
     CdkDrag,
     CdkDropList,
     CdkDropListGroup,
@@ -300,6 +304,18 @@ export class WorkViewComponent {
     value
       ? (this.users().find((user) => user.id === value)?.name ?? value)
       : "";
+  readonly datePresetItemToString = (
+    value: DatePreset | null | undefined,
+  ): string =>
+    this.localization.translate(
+      this.datePresetOptions.find((option) => option.value === value)?.label ??
+        "",
+    );
+  readonly caseItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("work.filters.allCases");
+    const item = this.cases().find((option) => option.id === value);
+    return item ? `${item.caseNumber} — ${item.name}` : value;
+  };
 
   readonly workItems = computed<WorkItem[]>(() => {
     const types = this.recordTypes();
@@ -728,6 +744,27 @@ export class WorkViewComponent {
     drag: CdkDrag<WorkItem>,
     drop: CdkDropList<BoardColumnKey>,
   ): boolean => allowedDrop(drag.data, drop.data) !== null;
+
+  // List-view equivalent of a board drag: same allowed-transition rules, no cancel target.
+  statusTargetsFor(item: WorkItem): BoardColumnKey[] {
+    const candidates: BoardColumnKey[] = ["TODO", "IN_PROGRESS", "DONE"];
+    return candidates.filter(
+      (target) =>
+        target === item.presentationStatus ||
+        allowedDrop(item, target) !== null,
+    );
+  }
+
+  onStatusSelect(item: WorkItem, value: string): void {
+    const target = value as BoardColumnKey;
+    if (target === item.presentationStatus) return;
+    const transition = allowedDrop(item, target);
+    if (!transition) {
+      this.toast.error(this.localization.translate("work.invalidTransition"));
+      return;
+    }
+    this.runTransition(item, transition.action);
+  }
 
   private runTransition(item: WorkItem, action: DragTransitionAction): void {
     const call = this.transitionCall(item, action);

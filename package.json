@@ -12,6 +12,7 @@
     "services:up": "docker compose -f infra/docker/compose.yml up -d",
     "services:down": "docker compose -f infra/docker/compose.yml down",
     "db:seed:auth": "node apps/api/prisma/seed.cjs",
+    "db:seed:demo": "node apps/api/prisma/seed-demo-data.cjs",
     "tessdata:download": "bash scripts/download-tessdata.sh",
     "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma",
     "prisma:generate": "npx prisma generate --schema apps/api/prisma/schema.prisma"
