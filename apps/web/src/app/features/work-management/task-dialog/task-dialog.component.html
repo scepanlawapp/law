@@ -12,138 +12,140 @@
 >
   <div class="min-h-0 flex-1 overflow-y-auto">
     <div class="grid gap-4">
-  <div hlmField>
-    <label hlmFieldLabel for="task-title">{{ "work.title" | translate }}</label>
-    <input hlmInput id="task-title" formControlName="title" />
-  </div>
-  <div hlmField>
-    <label hlmFieldLabel for="task-description">
-      {{ "work.description" | translate }}
-    </label>
-    <textarea
-      hlmTextarea
-      id="task-description"
-      formControlName="description"
-    ></textarea>
-  </div>
-  <div class="grid gap-4 md:grid-cols-2">
-    <div hlmField>
-      <label hlmFieldLabel for="task-assignee">
-        {{ "work.responsible" | translate }}
-      </label>
-      <hlm-select
-        formControlName="assigneeUserId"
-        [itemToString]="userItemToString"
-      >
-        <hlm-select-trigger id="task-assignee" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (user of users(); track user.id) {
-              <hlm-select-item [value]="user.id">
-                {{ user.name }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="task-priority">
-        {{ "work.priority" | translate }}
-      </label>
-      <hlm-select
-        formControlName="priority"
-        [itemToString]="priorityItemToString"
-      >
-        <hlm-select-trigger id="task-priority" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (priority of priorities; track priority) {
-              <hlm-select-item [value]="priority">
-                {{ "work.priority." + priority.toLowerCase() | translate }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-  </div>
-  <div class="grid gap-4 md:grid-cols-3">
-    <div hlmField>
-      <label hlmFieldLabel for="task-status">
-        {{ "work.status" | translate }}
-      </label>
-      <hlm-select
-        formControlName="status"
-        [itemToString]="taskStatusItemToString"
-      >
-        <hlm-select-trigger id="task-status" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (status of statuses; track status) {
-              <hlm-select-item [value]="status">
-                {{ "work.taskStatus." + status.toLowerCase() | translate }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="task-due-mode">
-        {{ "work.dueTarget" | translate }}
-      </label>
-      <hlm-select
-        formControlName="dueMode"
-        [itemToString]="dueModeItemToString"
-      >
-        <hlm-select-trigger id="task-due-mode" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (mode of dueModes; track mode) {
-              <hlm-select-item [value]="mode">
-                {{ "work.dueMode." + mode.toLowerCase() | translate }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    @if (form.controls.dueMode.value === "DATE") {
       <div hlmField>
-        <label hlmFieldLabel for="task-due-date">
-          {{ "work.dueDate" | translate }}
+        <label hlmFieldLabel for="task-title">
+          {{ "work.title" | translate }}
         </label>
-        <input
-          hlmInput
-          id="task-due-date"
-          type="date"
-          formControlName="dueDate"
-        />
+        <input hlmInput id="task-title" formControlName="title" />
       </div>
-    }
-    @if (form.controls.dueMode.value === "DATE_TIME") {
       <div hlmField>
-        <label hlmFieldLabel for="task-due-at">
-          {{ "work.dueAt" | translate }}
+        <label hlmFieldLabel for="task-description">
+          {{ "work.description" | translate }}
         </label>
-        <input
-          hlmInput
-          id="task-due-at"
-          type="datetime-local"
-          formControlName="dueAt"
-        />
+        <textarea
+          hlmTextarea
+          id="task-description"
+          formControlName="description"
+        ></textarea>
       </div>
-    }
-  </div>
+      <div class="grid gap-4 md:grid-cols-2">
+        <div hlmField>
+          <label hlmFieldLabel for="task-assignee">
+            {{ "work.responsible" | translate }}
+          </label>
+          <hlm-select
+            formControlName="assigneeUserId"
+            [itemToString]="userItemToString"
+          >
+            <hlm-select-trigger id="task-assignee" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (user of users(); track user.id) {
+                  <hlm-select-item [value]="user.id">
+                    {{ user.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="task-priority">
+            {{ "work.priority" | translate }}
+          </label>
+          <hlm-select
+            formControlName="priority"
+            [itemToString]="priorityItemToString"
+          >
+            <hlm-select-trigger id="task-priority" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (priority of priorities; track priority) {
+                  <hlm-select-item [value]="priority">
+                    {{ "work.priority." + priority.toLowerCase() | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+      </div>
+      <div class="grid gap-4 md:grid-cols-3">
+        <div hlmField>
+          <label hlmFieldLabel for="task-status">
+            {{ "work.status" | translate }}
+          </label>
+          <hlm-select
+            formControlName="status"
+            [itemToString]="taskStatusItemToString"
+          >
+            <hlm-select-trigger id="task-status" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (status of statuses; track status) {
+                  <hlm-select-item [value]="status">
+                    {{ "work.taskStatus." + status.toLowerCase() | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="task-due-mode">
+            {{ "work.dueTarget" | translate }}
+          </label>
+          <hlm-select
+            formControlName="dueMode"
+            [itemToString]="dueModeItemToString"
+          >
+            <hlm-select-trigger id="task-due-mode" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (mode of dueModes; track mode) {
+                  <hlm-select-item [value]="mode">
+                    {{ "work.dueMode." + mode.toLowerCase() | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        @if (form.controls.dueMode.value === "DATE") {
+          <div hlmField>
+            <label hlmFieldLabel for="task-due-date">
+              {{ "work.dueDate" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="task-due-date"
+              type="date"
+              formControlName="dueDate"
+            />
+          </div>
+        }
+        @if (form.controls.dueMode.value === "DATE_TIME") {
+          <div hlmField>
+            <label hlmFieldLabel for="task-due-at">
+              {{ "work.dueAt" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="task-due-at"
+              type="datetime-local"
+              formControlName="dueAt"
+            />
+          </div>
+        }
+      </div>
     </div>
   </div>
   <hlm-dialog-footer class="flex justify-end gap-2">
