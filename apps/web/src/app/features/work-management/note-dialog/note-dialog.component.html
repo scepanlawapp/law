@@ -4,42 +4,59 @@
   </h2>
   <p hlmDialogDescription>{{ "work.notes.formDescription" | translate }}</p>
 </hlm-dialog-header>
-<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
-  <div hlmField>
-    <label hlmFieldLabel for="note-type">{{ "work.type" | translate }}</label>
-    <select
-      id="note-type"
-      formControlName="type"
-      class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-    >
-      @for (type of types; track type) {
-        <option [value]="type">
-          {{ "work.noteType." + type.toLowerCase() | translate }}
-        </option>
-      }
-    </select>
-  </div>
-  <div hlmField>
-    <label hlmFieldLabel for="note-occurred-at">
-      {{ "work.occurredAt" | translate }}
-    </label>
-    <input
-      hlmInput
-      id="note-occurred-at"
-      type="datetime-local"
-      formControlName="occurredAt"
-    />
-  </div>
-  <div hlmField>
-    <label hlmFieldLabel for="note-body">
-      {{ "work.notes.body" | translate }}
-    </label>
-    <textarea
-      hlmTextarea
-      id="note-body"
-      rows="8"
-      formControlName="body"
-    ></textarea>
+<form
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  class="flex min-h-0 flex-1 flex-col gap-4 text-sm"
+  novalidate
+>
+  <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="grid gap-4">
+      <div hlmField>
+        <label hlmFieldLabel for="note-type">
+          {{ "work.type" | translate }}
+        </label>
+        <hlm-select
+          formControlName="type"
+          [itemToString]="noteTypeItemToString"
+        >
+          <hlm-select-trigger id="note-type" class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              @for (type of types; track type) {
+                <hlm-select-item [value]="type">
+                  {{ "work.noteType." + type.toLowerCase() | translate }}
+                </hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="note-occurred-at">
+          {{ "work.occurredAt" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="note-occurred-at"
+          type="datetime-local"
+          formControlName="occurredAt"
+        />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="note-body">
+          {{ "work.notes.body" | translate }}
+        </label>
+        <textarea
+          hlmTextarea
+          id="note-body"
+          rows="8"
+          formControlName="body"
+        ></textarea>
+      </div>
+    </div>
   </div>
   <hlm-dialog-footer class="flex justify-end gap-2">
     <button

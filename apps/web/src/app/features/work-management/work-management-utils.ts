@@ -9,6 +9,12 @@ import {
 
 export type DueTargetMode = "NONE" | "DATE" | "DATE_TIME";
 
+export function todayDateInputValue(): string {
+  const today = new Date();
+  const pad = (part: number) => String(part).padStart(2, "0");
+  return `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+}
+
 export function dateInputValue(value: string | null | undefined): string {
   return value ? value.slice(0, 10) : "";
 }

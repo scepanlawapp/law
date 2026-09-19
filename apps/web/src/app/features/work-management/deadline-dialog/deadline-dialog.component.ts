@@ -24,11 +24,14 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import {
   dateInputValue,
   dateTimeInputValue,
   deadlineDueMode,
+  todayDateInputValue,
 } from "../work-management-utils";
 import { DeadlineDialogContext } from "./deadline-dialog.models";
 
@@ -48,6 +51,7 @@ type DeadlineDueMode = "DATE" | "DATE_TIME";
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    HlmSelectImports,
     HlmSpinner,
     HlmTextarea,
     TranslatePipe,
@@ -57,6 +61,7 @@ export class DeadlineDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly context = injectBrnDialogContext<DeadlineDialogContext>();
+  private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly dialogRef = inject(BrnDialogRef<DeadlineDetail>);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
@@ -70,6 +75,18 @@ export class DeadlineDialogComponent {
     "OTHER",
   ];
   readonly dueModes: DeadlineDueMode[] = ["DATE", "DATE_TIME"];
+  readonly deadlineTypeItemToString = (
+    value: string | null | undefined,
+  ): string =>
+    value
+      ? this.localization.translate(`work.deadlineType.${value.toLowerCase()}`)
+      : "";
+  readonly dueModeItemToString = (value: string | null | undefined): string =>
+    value
+      ? this.localization.translate(`work.dueMode.${value.toLowerCase()}`)
+      : "";
+  readonly userItemToString = (value: string | null | undefined): string =>
+    this.users().find((user) => user.id === value)?.name ?? "";
   readonly form = new FormGroup({
     title: new FormControl(this.context.deadline?.title ?? "", {
       nonNullable: true,
@@ -86,9 +103,13 @@ export class DeadlineDialogComponent {
       deadlineDueMode(this.context.deadline),
       { nonNullable: true },
     ),
-    dueDate: new FormControl(dateInputValue(this.context.deadline?.dueDate), {
-      nonNullable: true,
-    }),
+    dueDate: new FormControl(
+      dateInputValue(this.context.deadline?.dueDate) ||
+        (this.context.deadline ? "" : todayDateInputValue()),
+      {
+        nonNullable: true,
+      },
+    ),
     dueAt: new FormControl(dateTimeInputValue(this.context.deadline?.dueAt), {
       nonNullable: true,
     }),
@@ -103,6 +124,12 @@ export class DeadlineDialogComponent {
   });
 
   constructor() {
+    this.form.controls.dueMode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((mode) => {
+        if (mode !== "DATE") this.form.controls.dueDate.setValue("");
+        if (mode !== "DATE_TIME") this.form.controls.dueAt.setValue("");
+      });
     this.references
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -141,7 +168,7 @@ export class DeadlineDialogComponent {
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
       dueAt:
         value.dueMode === "DATE_TIME"
-          ? new Date(value.dueAt).toISOString()
+          ? this.toIsoDateTime(value.dueAt)
           : undefined,
     };
     if (value.dueMode === "DATE" && !request.dueDate) {
@@ -160,5 +187,9 @@ export class DeadlineDialogComponent {
       next: (deadline) => this.dialogRef.close(deadline),
       error: () => this.saving.set(false),
     });
+  }
+
+  private toIsoDateTime(value: string): string {
+    return new Date(value).toISOString();
   }
 }

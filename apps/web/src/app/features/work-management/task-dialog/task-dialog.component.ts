@@ -25,12 +25,14 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import {
   dateInputValue,
   dateTimeInputValue,
   DueTargetMode,
   taskDueMode,
+  todayDateInputValue,
 } from "../work-management-utils";
 import { TaskDialogContext } from "./task-dialog.models";
 
@@ -58,6 +60,7 @@ export class TaskDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly context = injectBrnDialogContext<TaskDialogContext>();
+  private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly dialogRef = inject(BrnDialogRef<TaskDetail>);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
@@ -71,6 +74,22 @@ export class TaskDialogComponent {
     "CANCELLED",
   ];
   readonly dueModes: DueTargetMode[] = ["NONE", "DATE", "DATE_TIME"];
+  readonly taskStatusItemToString = (
+    value: string | null | undefined,
+  ): string =>
+    value
+      ? this.localization.translate(`work.taskStatus.${value.toLowerCase()}`)
+      : "";
+  readonly priorityItemToString = (value: string | null | undefined): string =>
+    value
+      ? this.localization.translate(`work.priority.${value.toLowerCase()}`)
+      : "";
+  readonly dueModeItemToString = (value: string | null | undefined): string =>
+    value
+      ? this.localization.translate(`work.dueMode.${value.toLowerCase()}`)
+      : "";
+  readonly userItemToString = (value: string | null | undefined): string =>
+    this.users().find((user) => user.id === value)?.name ?? "";
   readonly form = new FormGroup({
     title: new FormControl(this.context.task?.title ?? "", {
       nonNullable: true,
@@ -90,18 +109,31 @@ export class TaskDialogComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
-    dueMode: new FormControl<DueTargetMode>(taskDueMode(this.context.task), {
-      nonNullable: true,
-    }),
-    dueDate: new FormControl(dateInputValue(this.context.task?.dueDate), {
-      nonNullable: true,
-    }),
+    dueMode: new FormControl<DueTargetMode>(
+      this.context.task ? taskDueMode(this.context.task) : "DATE",
+      {
+        nonNullable: true,
+      },
+    ),
+    dueDate: new FormControl(
+      dateInputValue(this.context.task?.dueDate) ||
+        (this.context.task ? "" : todayDateInputValue()),
+      {
+        nonNullable: true,
+      },
+    ),
     dueAt: new FormControl(dateTimeInputValue(this.context.task?.dueAt), {
       nonNullable: true,
     }),
   });
 
   constructor() {
+    this.form.controls.dueMode.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((mode) => {
+        if (mode !== "DATE") this.form.controls.dueDate.setValue("");
+        if (mode !== "DATE_TIME") this.form.controls.dueAt.setValue("");
+      });
     this.references
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -141,7 +173,7 @@ export class TaskDialogComponent {
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
       dueAt:
         value.dueMode === "DATE_TIME"
-          ? new Date(value.dueAt).toISOString()
+          ? this.toIsoDateTime(value.dueAt)
           : undefined,
     };
     if (value.dueMode === "DATE" && !request.dueDate) {
@@ -160,5 +192,9 @@ export class TaskDialogComponent {
       next: (task) => this.dialogRef.close(task),
       error: () => this.saving.set(false),
     });
+  }
+
+  private toIsoDateTime(value: string): string {
+    return new Date(value).toISOString();
   }
 }

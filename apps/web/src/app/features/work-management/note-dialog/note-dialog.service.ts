@@ -14,7 +14,8 @@ export class NoteDialogService {
       NoteDialogComponent,
       {
         context,
-        contentClass: "sm:max-w-2xl max-h-[90dvh] overflow-y-auto",
+        contentClass:
+          "sm:max-w-2xl h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
       },
     ).closed$;
   }
