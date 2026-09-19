@@ -208,8 +208,20 @@
                   } @else {
                     <div
                       class="assistant-markdown"
-                      [innerHTML]="message.content | assistantMarkdown"
+                      [innerHTML]="
+                        message.content
+                          | assistantMarkdown: citationMarkers(message)
+                      "
                     ></div>
+                  }
+                  @if (message.citations?.length) {
+                    <section class="message-sources" aria-label="{{ 'assistant.sources' | translate }}">
+                      <h3>{{ "assistant.sources" | translate }}</h3>
+                      <app-citation-list
+                        [citations]="message.citations ?? []"
+                        idPrefix="message-citation"
+                      />
+                    </section>
                   }
                   @if (message.attachments.length) {
                     <ul class="message-attachments">

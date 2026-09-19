@@ -434,6 +434,29 @@
   white-space: nowrap;
 }
 
+.message-sources {
+  margin: 0.75rem 0 0;
+}
+
+.message-sources h3 {
+  margin: 0 0 0.375rem;
+  color: var(--muted-foreground);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.citation-marker-link {
+  color: var(--primary);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.citation-marker-link:hover {
+  text-decoration: underline;
+}
+
 .assistant-empty-state {
   display: grid;
   width: min(100%, 28rem);

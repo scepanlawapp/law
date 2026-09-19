@@ -891,6 +891,7 @@ describe("ChatService", () => {
         data: {
           content: "Opšti pravni odgovor.",
           status: "COMPLETED",
+          metadata: { outcome: "ANSWER" },
         },
       }),
     );

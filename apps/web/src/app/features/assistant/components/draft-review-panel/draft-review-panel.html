@@ -67,6 +67,17 @@
       }
     </div>
 
+    @if (draft.citations?.length) {
+      <app-collapsible-section
+        class="draft-sources"
+        [title]="'assistant.sources' | translate"
+        [expanded]="sourcesExpanded()"
+        (expandedChange)="sourcesExpanded.set($event)"
+      >
+        <app-citation-list [citations]="draft.citations ?? []" />
+      </app-collapsible-section>
+    }
+
     <div class="draft-toolbar">
       <span>{{ "assistant.script" | translate }}</span>
       <div

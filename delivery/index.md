@@ -15,6 +15,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Legal Knowledge Grounding for Drafting & Answering](./tracks/legal_knowledge_grounding_20260919/index.md)
 - [PostgreSQL Legal Knowledge Retrieval](./tracks/legal_knowledge_pgvector_20260919/index.md)
 - [Agent Delivery Conductor (AGENTS.md)](./tracks/agents_delivery_conductor_20260919/index.md)
 - [Work-Tracking UX (Team/My/Calendar/Case)](./tracks/work_tracking_ux_20260919/index.md)

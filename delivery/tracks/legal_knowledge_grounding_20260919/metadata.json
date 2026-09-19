@@ -1,0 +1,19 @@
+{
+  "track_id": "legal_knowledge_grounding_20260919",
+  "parent_track_id": "legal_knowledge_pgvector_20260919",
+  "type": "feature",
+  "status": "in_progress",
+  "prd_reference": null,
+  "created_at": "2026-09-19T00:00:00Z",
+  "updated_at": "2026-09-19T23:00:00Z",
+  "keywords": [
+    "pgvector",
+    "legal-knowledge",
+    "drafting",
+    "answering",
+    "citations",
+    "grounding",
+    "rag"
+  ],
+  "priority": "high"
+}

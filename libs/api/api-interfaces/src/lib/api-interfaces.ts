@@ -202,6 +202,7 @@ export interface ChatMessageResponse {
   correlationId?: string | null;
   feedback?: ChatMessageFeedback | null;
   outcome?: ChatMessageOutcome | null;
+  citations?: LegalCitationResponse[];
   createdAt: string;
   attachments: ChatAttachmentSummary[];
 }
@@ -346,6 +347,15 @@ export interface BriefExtractionResultResponse {
   createdAt: string;
 }
 
+export interface LegalCitationResponse {
+  marker: number;
+  articleNumber: string | null;
+  sourceTitle: string;
+  sourceUrl: string;
+  snippet: string;
+  score: number;
+}
+
 export interface DraftResultResponse {
   id: string;
   jobId: string;
@@ -357,6 +367,7 @@ export interface DraftResultResponse {
   finalDocumentText?: string | null;
   warnings: string[];
   missingFields?: string[];
+  citations: LegalCitationResponse[];
   promptChars: number;
   truncated: boolean;
   model: string;

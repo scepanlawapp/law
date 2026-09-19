@@ -3,6 +3,7 @@ import {
   ChatMessageResponse,
   ChatSessionSummary,
   DraftResultResponse,
+  LegalCitationResponse,
   WorkflowProgressStage,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
@@ -82,6 +83,7 @@ export function toMessage(message: {
     correlationId: message.correlationId,
     feedback: feedbackFromMetadata(message.metadata),
     outcome: outcomeFromMetadata(message.metadata),
+    citations: citationsFromMetadata(message.metadata),
     createdAt: message.createdAt.toISOString(),
     attachments: message.attachments.map((attachment) =>
       toAttachment(attachment),
@@ -115,6 +117,18 @@ function feedbackFromMetadata(
   }
   const feedback = (metadata as Record<string, unknown>)["feedback"];
   return feedback === "POSITIVE" || feedback === "NEGATIVE" ? feedback : null;
+}
+
+function citationsFromMetadata(
+  metadata: unknown,
+): LegalCitationResponse[] | undefined {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+  const citations = (metadata as Record<string, unknown>)["citations"];
+  return Array.isArray(citations)
+    ? (citations as LegalCitationResponse[])
+    : undefined;
 }
 
 export function toJob(job: {
@@ -175,6 +189,14 @@ export function toDraft(draft: {
   warnings: string[];
   missingFields?: string[];
   briefResult?: { missingFields: string[] } | null;
+  citations?: Array<{
+    marker: number;
+    articleNumber: string | null;
+    sourceTitle: string;
+    sourceUrl: string;
+    snippet: string;
+    score: number;
+  }>;
   promptChars: number;
   truncated: boolean;
   model: string;
@@ -205,6 +227,17 @@ export function toDraft(draft: {
     warnings: draft.warnings,
     missingFields:
       draft.briefResult?.missingFields ?? draft.missingFields ?? [],
+    citations: (draft.citations ?? [])
+      .slice()
+      .sort((left, right) => left.marker - right.marker)
+      .map((citation) => ({
+        marker: citation.marker,
+        articleNumber: citation.articleNumber,
+        sourceTitle: citation.sourceTitle,
+        sourceUrl: citation.sourceUrl,
+        snippet: citation.snippet,
+        score: citation.score,
+      })),
     promptChars: draft.promptChars,
     truncated: draft.truncated,
     model: draft.model,

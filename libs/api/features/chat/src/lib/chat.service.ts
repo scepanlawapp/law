@@ -237,7 +237,10 @@ export class ChatService {
       }),
       this.db.draftResult.findMany({
         where: { sessionId },
-        include: { briefResult: { select: { missingFields: true } } },
+        include: {
+          briefResult: { select: { missingFields: true } },
+          citations: true,
+        },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       }),
     ]);
@@ -450,7 +453,10 @@ export class ChatService {
   ): Promise<DraftResultResponse> {
     const draft = await this.db.draftResult.findFirst({
       where: { jobId, workspaceId },
-      include: { briefResult: { select: { missingFields: true } } },
+      include: {
+        briefResult: { select: { missingFields: true } },
+        citations: true,
+      },
     });
     if (!draft) throw new NotFoundException("Draft not found");
     const response = toDraft(draft);
@@ -506,7 +512,10 @@ export class ChatService {
         workspaceId,
         ...(sessionId ? { sessionId } : {}),
       },
-      include: { briefResult: { select: { missingFields: true } } },
+      include: {
+        briefResult: { select: { missingFields: true } },
+        citations: true,
+      },
       orderBy: { createdAt: "desc" },
     });
     return drafts.map((draft) => toDraft(draft));
@@ -534,6 +543,7 @@ export class ChatService {
         reviewedAt: new Date(),
         reviewNote: null,
       },
+      include: { citations: true },
     });
     await this.recordAuditEvent({
       workspaceId,
@@ -620,6 +630,7 @@ export class ChatService {
         reviewNote: note?.trim() ?? null,
         finalDocumentText: draft.finalDocumentText ?? draft.documentText,
       },
+      include: { citations: true },
     });
     await this.recordAuditEvent({
       workspaceId,

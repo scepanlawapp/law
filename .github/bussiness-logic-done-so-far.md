@@ -19,7 +19,10 @@ This document describes behavior that is currently implemented in code and wired
 - Versioned public legal sources and workspace-scoped sources are persisted with content hashes, parser metadata, Serbian source-script metadata, and article/paragraph chunk metadata.
 - The first source adapter fetches and validates Paragraf Lex's `Zakon o radu` page. `npm run legal:ingest -- --dry-run` reports the normalized chunk set without embedding or database writes; real ingestion uses BGE-M3 (1024 dimensions) through the server-side OpenRouter embeddings endpoint.
 - `POST /api/legal-knowledge/search` performs authenticated, workspace-filtered cosine search and returns source/article citation metadata with each result.
-- Retrieved law text is context for lawyer workflows only; assistant/drafting integration, hybrid search, reranking, and citation verification remain follow-up work.
+- The `drafting` workflow retrieves matching `Zakon o radu` chunks per `BriefResult` field (legal basis entries, factual description, claim summary), above a minimum similarity threshold, and instructs the drafting LLM to cite them inline with `[n]` markers; only markers the model actually used are persisted as `DraftCitation` rows (article, source, snippet, score) and returned on `DraftResultResponse.citations`.
+- The `answering` workflow performs the same single-query retrieval against the user's message and persists any `[n]` markers actually referenced as denormalized citations on `ChatMessage.metadata`, returned as `ChatMessageResponse.citations`.
+- The assistant frontend renders `[n]` markers in assistant chat replies as jump links and shows a compact "Izvori" (Sources) list under grounded messages; the draft review panel shows the same citations in a collapsible "Izvori" section (article/source/snippet/match/source link).
+- Hybrid search, reranking, and citation-accuracy verification against case law remain follow-up work.
 
 ## Authentication and account security
 

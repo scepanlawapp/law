@@ -19,6 +19,7 @@ export function buildDraftingUserPrompt(
   brief: BriefResult,
   maxChars: number,
   feedback?: DraftingFeedback,
+  groundingContextBlock?: string,
 ): DraftingContextResult {
   const header = "Izvučene činjenice (BriefResult) za nacrt tužbe:";
   let briefJson = serializeBrief(brief);
@@ -32,12 +33,15 @@ export function buildDraftingUserPrompt(
           previousDraft ? `Prethodni nacrt:\n${previousDraft}\n` : ""
         }${reviewerNote ? `Napomena recenzenta:\n${reviewerNote}` : ""}`
       : "";
-  let prompt = `${header}\n${briefJson}${feedbackSection}`;
+  const groundingSection = groundingContextBlock
+    ? `\n\n${groundingContextBlock}`
+    : "";
+  let prompt = `${header}\n${briefJson}${feedbackSection}${groundingSection}`;
   if (prompt.length > maxChars) {
     truncated = true;
     const overBy = prompt.length - maxChars;
     briefJson = `${briefJson.slice(0, Math.max(0, briefJson.length - overBy - 1))}…`;
-    prompt = `${header}\n${briefJson}${feedbackSection}`;
+    prompt = `${header}\n${briefJson}${feedbackSection}${groundingSection}`;
   }
 
   return { prompt, promptChars: prompt.length, truncated };

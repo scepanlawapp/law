@@ -22,6 +22,7 @@ const fullBrief: BriefResult = {
 const fullDraft = {
   documentText: "PRVI OSNOVNI SUD U BEOGRADU\n\nTUŽBA...",
   warnings: ["Adresa tuženog nije poznata."],
+  usedCitations: [1],
 };
 
 describe("draftResultSchema", () => {
@@ -29,9 +30,10 @@ describe("draftResultSchema", () => {
     expect(draftResultSchema.parse(fullDraft)).toEqual(fullDraft);
   });
 
-  it("defaults warnings to an empty array", () => {
+  it("defaults warnings and usedCitations to an empty array", () => {
     const parsed = draftResultSchema.parse({ documentText: "Tekst nacrta" });
     expect(parsed.warnings).toEqual([]);
+    expect(parsed.usedCitations).toEqual([]);
   });
 });
 
@@ -64,6 +66,17 @@ describe("buildDraftingUserPrompt", () => {
 
     expect(result.prompt).toContain("Prethodni tekst nacrta");
     expect(result.prompt).toContain("Dodati obrazloženje pravnog osnova.");
+  });
+
+  it("appends the grounding context block when provided", () => {
+    const result = buildDraftingUserPrompt(
+      fullBrief,
+      10_000,
+      undefined,
+      '[1] Član 76 (Zakon o radu) — "tekst"',
+    );
+
+    expect(result.prompt).toContain("[1] Član 76 (Zakon o radu)");
   });
 });
 

@@ -875,6 +875,8 @@ model LegalChunk {
 
   @@unique([versionId, ordinal])
   @@index([versionId, articleNumber, paragraphNumber])
+
+  citations DraftCitation[]
 }
 
 model ChatSession {
@@ -1014,10 +1016,30 @@ model DraftResult {
   briefResult       BriefExtractionResult? @relation(fields: [briefResultId], references: [id], onDelete: SetNull)
   previousDraft     DraftResult?           @relation("DraftResultHistory", fields: [previousDraftId], references: [id], onDelete: SetNull)
   modifiedDrafts    DraftResult[]          @relation("DraftResultHistory")
+  citations         DraftCitation[]
 
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])
   @@index([approvalStatus, reviewedAt])
+}
+
+// Snapshotted at generation time so a draft's sources stay stable even if the corpus changes later.
+model DraftCitation {
+  id            String       @id @default(uuid())
+  draftResultId String
+  chunkId       String?
+  marker        Int
+  articleNumber String?
+  sourceTitle   String
+  sourceUrl     String
+  snippet       String       @db.Text
+  score         Float
+  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
+  draftResult   DraftResult  @relation(fields: [draftResultId], references: [id], onDelete: Cascade)
+  chunk         LegalChunk?  @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+
+  @@unique([draftResultId, marker])
+  @@index([chunkId])
 }
 
 model TenantAuditEvent {

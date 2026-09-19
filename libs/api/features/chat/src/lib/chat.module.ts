@@ -3,6 +3,7 @@ import { MulterModule } from "@nestjs/platform-express";
 import { BullModule } from "@nestjs/bullmq";
 import { memoryStorage } from "multer";
 import { AuthModule } from "@law/auth";
+import { LegalKnowledgeModule } from "@law/legal-knowledge";
 import { ChatController } from "./chat.controller";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
@@ -16,6 +17,7 @@ import { WORKFLOW_QUEUE_NAME, WORKFLOW_QUEUE_PORT } from "./workflow-queue.types
 @Module({
   imports: [
     AuthModule,
+    LegalKnowledgeModule,
     MulterModule.register({ storage: memoryStorage() }),
     BullModule.forRootAsync({
       useFactory: () => {

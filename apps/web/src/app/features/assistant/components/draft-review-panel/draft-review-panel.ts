@@ -4,6 +4,7 @@ import {
   EventEmitter,
   Input,
   Output,
+  signal,
 } from "@angular/core";
 import { FormsModule } from "@angular/forms";
 import { NgIcon, provideIcons } from "@ng-icons/core";
@@ -22,6 +23,8 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { DraftResultResponse, DocumentScript } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
+import { CollapsibleSectionComponent } from "../../../../shared/ui/collapsible-section/collapsible-section.component";
+import { CitationListComponent } from "../citation-list/citation-list";
 
 @Component({
   selector: "app-draft-review-panel",
@@ -33,6 +36,8 @@ import { TranslatePipe } from "../../../../core/localization/translate.pipe";
     HlmTextarea,
     HlmTooltipImports,
     TranslatePipe,
+    CollapsibleSectionComponent,
+    CitationListComponent,
   ],
   templateUrl: "./draft-review-panel.html",
   styleUrl: "./draft-review-panel.scss",
@@ -68,6 +73,7 @@ export class DraftReviewPanelComponent {
   @Output() expandedChange = new EventEmitter<boolean>();
 
   protected readonly scripts: DocumentScript[] = ["latin", "cyrillic"];
+  protected readonly sourcesExpanded = signal(false);
 
   protected statusKey(): string {
     return `assistant.draftStatus.${this.draft.approvalStatus ?? "READY_FOR_SIGNOFF"}`;

@@ -15,6 +15,7 @@ const draft: DraftResultResponse = {
   documentText: "Initial draft",
   warnings: ["Check the filing date"],
   missingFields: ["Court"],
+  citations: [],
   promptChars: 100,
   truncated: false,
   model: "test-model",

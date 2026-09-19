@@ -66,6 +66,7 @@ import { AuthState } from "@law/security";
 import { finalize } from "rxjs";
 import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
+import { CitationListComponent } from "./components/citation-list/citation-list";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
@@ -135,6 +136,7 @@ interface SessionGroup {
     TranslatePipe,
     AssistantMarkdownPipe,
     DraftReviewPanelComponent,
+    CitationListComponent,
     HlmSpinner,
   ],
   templateUrl: "./assistant.component.html",
@@ -832,6 +834,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return "";
     return this.chat.downloadUrl(workspaceId, attachmentId);
+  }
+
+  protected citationMarkers(message: ChatMessageResponse): number[] {
+    return message.citations?.map((citation) => citation.marker) ?? [];
   }
 
   protected send(): void {
