@@ -20,6 +20,7 @@ const createDraft = (id: string): DraftResultResponse => ({
   documentText: `Document ${id}`,
   warnings: [],
   missingFields: [],
+  citations: [],
   promptChars: 100,
   truncated: false,
   model: "test-model",

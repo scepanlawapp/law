@@ -115,7 +115,11 @@ describe("WorkflowRunner", () => {
 
     expect(prisma.chatMessage.update).toHaveBeenLastCalledWith({
       where: { id: "message-answer" },
-      data: { content: "Opšti odgovor.", status: "COMPLETED" },
+      data: {
+        content: "Opšti odgovor.",
+        status: "COMPLETED",
+        metadata: { outcome: "ANSWER" },
+      },
     });
     expect(
       emitted

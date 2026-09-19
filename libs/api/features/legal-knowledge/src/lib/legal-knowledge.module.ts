@@ -27,5 +27,6 @@ import { LegalKnowledgeIngestionService } from "./legal-knowledge.ingestion";
     LegalKnowledgeService,
     LegalKnowledgeIngestionService,
   ],
+  exports: [LegalKnowledgeService],
 })
 export class LegalKnowledgeModule {}

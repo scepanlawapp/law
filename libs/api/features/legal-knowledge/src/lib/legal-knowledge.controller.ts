@@ -1,6 +1,6 @@
 import { Body, Controller, Post, UseGuards } from "@nestjs/common";
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
-import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
+import { WorkspaceAccess, WorkspaceAccessGuard, WorkspaceContextService } from "@law/core";
 import { LegalKnowledgeSearchDto } from "./legal-knowledge.dto";
 import { LegalKnowledgeService } from "./legal-knowledge.service";
 
@@ -12,6 +12,10 @@ export class LegalKnowledgeController {
 
   @Post("search")
   search(@Body() body: LegalKnowledgeSearchDto) {
-    return this.knowledge.search(body.query, body.limit);
+    return this.knowledge.search(
+      body.query,
+      body.limit,
+      WorkspaceContextService.required.workspaceId,
+    );
   }
 }

@@ -5,7 +5,7 @@ import {
   LegalSourceMetadata,
   LEGAL_EMBEDDING_MODEL,
 } from "@law/knowledge";
-import { PrismaService, WorkspaceContextService } from "@law/core";
+import { PrismaService } from "@law/core";
 import { toLatin } from "@law/transliteration";
 
 export const LEGAL_EMBEDDING_PROVIDER = Symbol("LEGAL_EMBEDDING_PROVIDER");
@@ -34,8 +34,8 @@ export class LegalKnowledgeService {
   async search(
     query: string,
     limit: number,
+    workspaceId: string,
   ): Promise<LegalKnowledgeSearchResult[]> {
-    const workspaceId = WorkspaceContextService.required.workspaceId;
     const [vector] = await this.embeddings.embed([toLatin(query.trim())]);
     if (!vector) return [];
 

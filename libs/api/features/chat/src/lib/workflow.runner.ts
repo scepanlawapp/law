@@ -18,6 +18,16 @@ import {
   runBriefExtractionLlm,
 } from "@law/brief-extraction";
 import { buildDraftingUserPrompt, runDraftingLlm } from "@law/drafting";
+import { LegalKnowledgeService } from "@law/legal-knowledge";
+import {
+  buildDraftGroundingQueries,
+  extractUsedMarkerNumbers,
+  filterUsedCitations,
+  formatGroundingContextBlock,
+  retrieveGroundingCitations,
+  type GroundingCitation,
+  type GroundingSearchHit,
+} from "@law/legal-grounding";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
@@ -89,10 +99,31 @@ export class WorkflowRunner {
     private readonly provider: ChatModelProvider | undefined,
     @Inject(WORKFLOW_QUEUE_PORT)
     private readonly workflowQueue: WorkflowQueuePort,
+    @Optional()
+    private readonly legalKnowledge?: LegalKnowledgeService,
   ) {}
 
   private get db(): PlatformPrismaService {
     return this.prisma;
+  }
+
+  private async retrieveGrounding(
+    workspaceId: string,
+    queries: readonly string[],
+  ): Promise<GroundingCitation[]> {
+    if (!this.legalKnowledge || !queries.length) return [];
+    const search = (query: string, limit: number): Promise<GroundingSearchHit[]> =>
+      this.legalKnowledge!.search(query, limit, workspaceId);
+    try {
+      return await retrieveGroundingCitations(search, queries);
+    } catch (error) {
+      this.logger.warn(
+        `Legal-knowledge grounding retrieval failed, continuing ungrounded: ${
+          error instanceof Error ? error.message : error
+        }`,
+      );
+      return [];
+    }
   }
 
   async run(name: WorkflowName, payload: WorkflowJobPayload): Promise<void> {
@@ -301,13 +332,18 @@ export class WorkflowRunner {
     });
 
     let content = "";
+    const groundingCitations = await this.retrieveGrounding(
+      payload.workspaceId,
+      [input.userText],
+    );
+    const groundingBlock = formatGroundingContextBlock(groundingCitations);
     try {
       const provider = resolveChatModelProvider(this.config, this.provider);
       for await (const delta of provider.streamText({
         messages: [
           {
             role: "system",
-            content: this.answerSystemPrompt(input.language),
+            content: this.answerSystemPrompt(input.language, groundingBlock),
           },
           { role: "user", content: input.userText },
         ],
@@ -327,9 +363,31 @@ export class WorkflowRunner {
           delta,
         });
       }
+      const usedCitations = filterUsedCitations(
+        groundingCitations,
+        extractUsedMarkerNumbers(content),
+      );
       const completed = await this.db.chatMessage.update({
         where: { id: assistant.id },
-        data: { content, status: "COMPLETED" },
+        data: {
+          content,
+          status: "COMPLETED",
+          metadata: {
+            outcome: "ANSWER",
+            ...(usedCitations.length
+              ? {
+                  citations: usedCitations.map((citation) => ({
+                    marker: citation.marker,
+                    articleNumber: citation.articleNumber,
+                    sourceTitle: citation.sourceTitle,
+                    sourceUrl: citation.sourceUrl,
+                    snippet: citation.snippet,
+                    score: citation.score,
+                  })),
+                }
+              : {}),
+          },
+        },
       });
       const mapped = toMessage({ ...completed, attachments: [] });
       this.emit({
@@ -370,15 +428,25 @@ export class WorkflowRunner {
     }
   }
 
-  private answerSystemPrompt(language: "sr" | "en"): string {
+  private answerSystemPrompt(
+    language: "sr" | "en",
+    groundingBlock?: string,
+  ): string {
     const responseLanguage = language === "en" ? "English" : "Serbian";
-    return [
+    const base = [
       "You are a legal assistant supporting a Serbian law office.",
       `Reply in ${responseLanguage}.`,
       "Provide general, unverified guidance and clearly recommend checking authoritative sources or a lawyer when precision matters.",
       "Do not invent article numbers, citations, case references, or source links.",
       "Use concise Markdown when it improves readability.",
-    ].join(" ");
+    ];
+    if (groundingBlock) {
+      base.push(
+        "If a list of 'Dostupni izvori' (available sources) is provided below, cite them inline using their bracketed number (e.g. [1]) only when they directly support a statement; never cite a number outside that list.",
+        groundingBlock,
+      );
+    }
+    return base.join(" ");
   }
 
   private async runBriefExtraction(
@@ -570,6 +638,11 @@ export class WorkflowRunner {
 
     try {
       const provider = resolveChatModelProvider(this.config, this.provider);
+      const groundingCitations = await this.retrieveGrounding(
+        payload.workspaceId,
+        buildDraftGroundingQueries(brief),
+      );
+      const groundingBlock = formatGroundingContextBlock(groundingCitations);
       const { prompt, promptChars, truncated } = buildDraftingUserPrompt(
         brief,
         this.config.draftingPromptMaxChars,
@@ -585,8 +658,13 @@ export class WorkflowRunner {
               reviewerNote: input.reviewerNote,
             }
           : undefined,
+        groundingBlock,
       );
       const draft = await runDraftingLlm(provider, prompt);
+      const usedCitations = filterUsedCitations(
+        groundingCitations,
+        draft.usedCitations,
+      );
 
       await this.transitionJob(record, payload, "RUNNING", {
         progressStage: "SAVING_FOR_REVIEW",
@@ -604,7 +682,21 @@ export class WorkflowRunner {
           truncated,
           model: this.config.openRouterModel,
           previousDraftId: input.previousDraftId ?? null,
+          citations: usedCitations.length
+            ? {
+                create: usedCitations.map((citation) => ({
+                  marker: citation.marker,
+                  chunkId: citation.chunkId,
+                  articleNumber: citation.articleNumber,
+                  sourceTitle: citation.sourceTitle,
+                  sourceUrl: citation.sourceUrl,
+                  snippet: citation.snippet,
+                  score: citation.score,
+                })),
+              }
+            : undefined,
         },
+        include: { citations: true },
       });
       const mappedDraft = toDraft(persistedDraft);
       this.emit({
@@ -852,6 +944,7 @@ export function createInlineWorkflowQueue(
   storage: ChatStorageService,
   config: ChatRuntimeConfig,
   provider: ChatModelProvider | undefined,
+  legalKnowledge?: LegalKnowledgeService,
 ): WorkflowQueuePort {
   const holder: { runner?: WorkflowRunner } = {};
   const queue: WorkflowQueuePort = {
@@ -869,6 +962,7 @@ export function createInlineWorkflowQueue(
     config,
     provider,
     queue,
+    legalKnowledge,
   );
   return queue;
 }

@@ -9,14 +9,15 @@
         <ng-icon name="lucideTriangleAlert" />
       </span>
       <div>
-        <strong id="draft-review-title"
-          >{{ "assistant.draftReview" | translate }}</strong
-        >
+        <strong id="draft-review-title">
+          {{ "assistant.draftReview" | translate }}
+        </strong>
         <span
           class="draft-status"
           [attr.data-status]="draft.approvalStatus || 'READY_FOR_SIGNOFF'"
-          >{{ statusKey() | translate }}</span
         >
+          {{ statusKey() | translate }}
+        </span>
       </div>
     </div>
     <button
@@ -67,6 +68,17 @@
       }
     </div>
 
+    @if (draft.citations?.length) {
+    <app-collapsible-section
+      class="draft-sources"
+      [title]="'assistant.sources' | translate"
+      [expanded]="sourcesExpanded()"
+      (expandedChange)="sourcesExpanded.set($event)"
+    >
+      <app-citation-list [citations]="draft.citations ?? []" />
+    </app-collapsible-section>
+    }
+
     <div class="draft-toolbar">
       <span>{{ "assistant.script" | translate }}</span>
       <div
@@ -88,9 +100,9 @@
       </div>
     </div>
 
-    <label class="draft-field-label" for="draft-document-text"
-      >{{ "assistant.draftDocument" | translate }}</label
-    >
+    <label class="draft-field-label" for="draft-document-text">
+      {{ "assistant.draftDocument" | translate }}
+    </label>
     <textarea
       hlmTextarea
       id="draft-document-text"
@@ -100,9 +112,9 @@
       (ngModelChange)="textChange.emit($event)"
     ></textarea>
 
-    <label class="draft-field-label" for="draft-review-note"
-      >{{ "assistant.reviewNote" | translate }}</label
-    >
+    <label class="draft-field-label" for="draft-review-note">
+      {{ "assistant.reviewNote" | translate }}
+    </label>
     <textarea
       hlmTextarea
       id="draft-review-note"
