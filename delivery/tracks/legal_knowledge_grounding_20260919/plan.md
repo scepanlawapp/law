@@ -43,10 +43,10 @@
       succeed; `web:build:production` and `web:lint` fail only on pre-existing,
       unrelated issues (bundle/CSS budgets, unrelated component lint errors) confirmed
       present on `main` before this track.
-- [ ] Manual end-to-end check against a running stack: labor-dispute draft shows real
-      citations tied to Zakon o radu articles; unrelated draft shows none (deferred to
-      manual QA with `npm run api:serve` / `npm run web:serve`).
-- [ ] Lint/test/build for touched projects (`chat`, `legal-knowledge`, `drafting`, `web`).
+- [x] Manual end-to-end check against a running stack: labor-dispute draft shows real
+      citations tied to Zakon o radu articles; unrelated draft shows none. Verified
+      manually by the user against the running stack.
+- [x] Lint/test/build for touched projects (`chat`, `legal-knowledge`, `drafting`, `web`).
 
 ## Status convention
 
