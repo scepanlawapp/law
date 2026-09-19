@@ -1,7 +1,7 @@
-<div class="flex flex-col gap-4">
+<div class="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
   @if (showTeamFilters()) {
     <div
-      class="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3"
+      class="flex shrink-0 flex-wrap items-end gap-3 rounded-lg border border-border p-3"
     >
       <div class="flex min-w-48 flex-col gap-1">
         <label class="text-sm font-medium">
@@ -184,7 +184,7 @@
       </div>
     </div>
   } @else {
-    <div class="flex flex-wrap items-end gap-3">
+    <div class="flex shrink-0 flex-wrap items-end gap-3">
       <hlm-select
         [value]="datePreset()"
         (valueChange)="setDatePreset($event ?? 'all')"
@@ -206,7 +206,7 @@
     </div>
   }
 
-  <div class="flex flex-wrap items-center justify-between gap-3">
+  <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
     <div class="flex items-center gap-2">
       <button
         hlmBtn
@@ -262,16 +262,16 @@
     <div
       appBottomReached
       (bottomReached)="loadMore()"
-      class="flex max-h-[65vh] flex-col gap-2 overflow-y-auto pe-1"
+      class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pe-1"
     >
-      <ul class="flex flex-col gap-2">
+      <ul class="flex shrink-0 flex-col gap-2">
         @for (item of workItems(); track item.sourceType + item.id) {
           <li
-            class="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+            class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
           >
             <button
               type="button"
-              class="flex flex-1 flex-col items-start text-start"
+              class="flex min-w-0 flex-1 flex-col items-start text-start wrap-break-word"
               (click)="openItem(item)"
             >
               <span class="text-sm font-medium">{{ item.title }}</span>
@@ -288,7 +288,7 @@
                 }
               </span>
             </button>
-            <div class="flex items-center gap-2">
+            <div class="flex shrink-0 flex-wrap items-center gap-2">
               <label
                 class="sr-only"
                 [for]="'work-view-status-' + item.sourceType + item.id"
@@ -355,17 +355,9 @@
           </li>
         }
       </ul>
-      @if (hasMore()) {
-        <div class="flex justify-center py-2">
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            [disabled]="loading()"
-            (click)="loadMore()"
-          >
-            {{ "work.loadMore" | translate }}
-          </button>
+      @if (hasMore() && loading()) {
+        <div class="flex shrink-0 justify-center py-2">
+          <hlm-spinner aria-label="{{ 'work.loadMore' | translate }}" />
         </div>
       }
     </div>
@@ -373,10 +365,10 @@
     <div
       appBottomReached
       (bottomReached)="loadMore()"
-      class="flex max-h-[65vh] flex-col gap-3 overflow-y-auto pe-1"
+      class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto overscroll-contain pe-1"
     >
       <div
-        class="grid gap-3"
+        class="grid shrink-0 gap-3"
         [style.grid-template-columns]="
           'repeat(' + boardColumns().length + ', minmax(240px, 1fr))'
         "
@@ -426,17 +418,9 @@
           </div>
         }
       </div>
-      @if (hasMore()) {
-        <div class="flex justify-center py-2">
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            [disabled]="loading()"
-            (click)="loadMore()"
-          >
-            {{ "work.loadMore" | translate }}
-          </button>
+      @if (hasMore() && loading()) {
+        <div class="flex shrink-0 justify-center py-2">
+          <hlm-spinner aria-label="{{ 'work.loadMore' | translate }}" />
         </div>
       }
     </div>
