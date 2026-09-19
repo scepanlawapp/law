@@ -1,0 +1,11 @@
+{
+  "track_id": "agents_delivery_conductor_20260919",
+  "parent_track_id": null,
+  "type": "chore",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-19T00:00:00Z",
+  "updated_at": "2026-09-19T00:00:00Z",
+  "keywords": ["agents", "delivery-tracks", "conductor", "AGENTS.md"],
+  "priority": "high"
+}

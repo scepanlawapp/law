@@ -29,7 +29,7 @@ libs/api/core            Prisma, pagination, WorkspaceAccessGuard, workspace con
 libs/api/features/*      Nest domain modules (auth, chat, clients, cases, …)
 libs/api/ai/*            Workflows, extraction, transliteration, LLM adapters
 libs/shared/frontend     api-clients, security, Spartan Helm UI
-delivery/tracks          Historical delivery specs (verify against code)
+delivery/tracks          Conductor specs (index/spec/plan/metadata); verify against code
 ```
 
 ## Dependency flow
@@ -56,6 +56,18 @@ Spartan Helm / Brain
 - **LLM stubs.** `evaluation`, `review`, and `template-retrieval` return placeholder strings. Do not treat them as implemented.
 - **Uploads.** Max 5 files per message. Disk: `tmp/chat-uploads/{workspaceId}/{sessionId}/{attachmentId}`.
 - **Auth.** HttpOnly cookie `law_session`. Workspace endpoints: `CsrfOriginGuard` + `AuthGuard` + `WorkspaceAccessGuard`.
+
+## Delivery tracks (conductor)
+
+Every implementation task is conducted by a delivery track. `spec.md` is what/why; `plan.md` is how (checkboxes). Never mix them. Skip only Q&A or exploration with no repo change.
+
+- Prefer updating an open parent track when this work continues it. Create a new folder for a distinct work item.
+- Folder: [delivery/tracks](delivery/tracks)/`<snake_case>_<YYYYMMDD>/`
+- Required files: `index.md`, `spec.md`, `plan.md`, `metadata.json`. Register a link in [delivery/index.md](delivery/index.md). There is no `tracks.md`.
+- `metadata.json`: `track_id`, `parent_track_id` (or `null`), `type` (`epic` | `feature` | `fix` | `chore`), `status` (`pending` | `in_progress` | `completed`), `created_at`, `updated_at`, `keywords`. Optional: `priority`, `prd_reference` (usually `null`; do not require a PRD).
+- **Plan mode:** include explicit steps for those four files plus the index link (`track_id`, parent, type, status, spec outline, plan checkboxes). Do not write the files while planning.
+- **Implement:** write or update the track files first, then code, then mark `plan.md` checkboxes and `metadata.json` status. Verify tracks against code.
+- Example: [work_tracking_ux_20260919](delivery/tracks/work_tracking_ux_20260919/).
 
 ## Done vs placeholder
 
@@ -90,7 +102,7 @@ readonly themeItemToString = createSelectItemToString(
 - Domain services read workspace from `WorkspaceContextService.required` and scope Prisma queries to that id.
 - Work-tracking mutations (events, tasks, deadlines, related case/client changes) write activity-log rows.
 - After Prisma shape or relation changes, update [apps/api/prisma/seed-demo-data.cjs](apps/api/prisma/seed-demo-data.cjs).
-- After business-behavior changes, update [.github/bussiness-logic-done-so-far.md](.github/bussiness-logic-done-so-far.md). Keep the current filename.
+- After business-behavior changes, update [.github/bussiness-logic-done-so-far.md](.github/bussiness-logic-done-so-far.md) and the delivery track (`plan.md` checkboxes, `metadata.json` status). Keep the current filename.
 
 ## Commands
 
@@ -130,4 +142,4 @@ Browser runtime settings: [apps/web/public/config.json](apps/web/public/config.j
 | Shared DTOs          | [libs/api/api-interfaces/src/lib/api-interfaces.ts](libs/api/api-interfaces/src/lib/api-interfaces.ts) |
 | Spartan/UI           | [.github/skills/spartan-ui/SKILL.md](.github/skills/spartan-ui/SKILL.md)                               |
 | Angular custom agent | [.github/agents/frontend-developer.agent.md](.github/agents/frontend-developer.agent.md)               |
-| Delivery history     | [delivery/index.md](delivery/index.md)                                                                 |
+| Delivery tracks      | [delivery/index.md](delivery/index.md)                                                                 |

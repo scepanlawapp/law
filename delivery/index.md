@@ -15,6 +15,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Agent Delivery Conductor (AGENTS.md)](./tracks/agents_delivery_conductor_20260919/index.md)
 - [Work-Tracking UX (Team/My/Calendar/Case)](./tracks/work_tracking_ux_20260919/index.md)
 - [Single Database Collapse & Hardcoded Workspace](./tracks/single_database_collapse_20260917/index.md)
 - [Assistant Live Workflow Experience](./tracks/assistant_live_workflow_20260915/index.md)
