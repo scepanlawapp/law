@@ -504,6 +504,7 @@ export interface CalendarItem {
   caseId: string | null;
   clientId: string | null;
   responsibleUserId: string | null;
+  assigneeUserIds: string[];
 }
 export interface CalendarResponse {
   items: CalendarItem[];

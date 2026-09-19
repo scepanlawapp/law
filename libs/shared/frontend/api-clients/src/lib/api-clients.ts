@@ -57,10 +57,14 @@ export interface CalendarQuery {
   to: string;
   limit?: number;
   userId?: string;
+  userIds?: string[];
   clientId?: string;
   caseId?: string;
   sourceType?: "EVENT" | "TASK" | "DEADLINE";
+  sourceTypes?: Array<"EVENT" | "TASK" | "DEADLINE">;
   status?: string;
+  statuses?: string[];
+  includeNoDueDate?: boolean;
 }
 
 export interface EventRequest {
@@ -85,6 +89,21 @@ export interface EventRequest {
   }>;
 }
 
+export interface EventListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  from?: string;
+  to?: string;
+  type?: EventDetail["type"];
+  status?: EventDetail["status"];
+  statuses?: EventDetail["status"][];
+  caseId?: string;
+  clientId?: string;
+  userId?: string;
+  userIds?: string[];
+}
+
 export interface TaskListQuery {
   page?: number;
   pageSize?: number;
@@ -92,8 +111,10 @@ export interface TaskListQuery {
   from?: string;
   to?: string;
   status?: TaskStatus;
+  statuses?: TaskStatus[];
   priority?: CasePriority;
   assigneeUserId?: string;
+  assigneeUserIds?: string[];
   caseId?: string;
   clientId?: string;
   deadlineId?: string;
@@ -119,8 +140,10 @@ export interface DeadlineListQuery {
   from?: string;
   to?: string;
   status?: DeadlineStatus;
+  statuses?: DeadlineStatus[];
   type?: DeadlineType;
   responsibleUserId?: string;
+  responsibleUserIds?: string[];
   caseId?: string;
   clientId?: string;
 }
@@ -969,6 +992,22 @@ export class EventsApiClient {
     return `${config.apiUrl}${config.apiPrefix}${path}`;
   }
 
+  list(query: EventListQuery = {}): Observable<PaginatedResponse<EventDetail>> {
+    return this.http.get<PaginatedResponse<EventDetail>>(
+      this.endpoint("/events"),
+      {
+        withCredentials: true,
+        params: queryParams(query),
+      },
+    );
+  }
+
+  get(eventId: string): Observable<EventDetail> {
+    return this.http.get<EventDetail>(this.endpoint(`/events/${eventId}`), {
+      withCredentials: true,
+    });
+  }
+
   create(request: EventRequest): Observable<EventDetail> {
     return this.http.post<EventDetail>(this.endpoint("/events"), request, {
       withCredentials: true,
@@ -979,6 +1018,16 @@ export class EventsApiClient {
     return this.http.patch<EventDetail>(
       this.endpoint(`/events/${eventId}`),
       request,
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  complete(eventId: string): Observable<EventDetail> {
+    return this.http.post<EventDetail>(
+      this.endpoint(`/events/${eventId}/complete`),
+      {},
       {
         withCredentials: true,
       },

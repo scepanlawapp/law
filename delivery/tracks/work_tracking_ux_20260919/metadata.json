@@ -1,0 +1,20 @@
+{
+  "created_at": "2026-09-19T00:00:00Z",
+  "keywords": [
+    "work-management",
+    "tasks",
+    "deadlines",
+    "events",
+    "calendar",
+    "team-work",
+    "my-work",
+    "board",
+    "list-view"
+  ],
+  "parent_track_id": "activities_tasks_deadlines_20260917",
+  "priority": "high",
+  "status": "completed",
+  "track_id": "work_tracking_ux_20260919",
+  "type": "feature",
+  "updated_at": "2026-09-19T00:00:00Z"
+}

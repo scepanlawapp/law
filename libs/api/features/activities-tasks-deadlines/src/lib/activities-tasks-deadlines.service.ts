@@ -207,21 +207,36 @@ export class ActivitiesTasksDeadlinesService {
     query: EventListQueryDto,
   ): Promise<PaginatedResponse<EventDetail>> {
     const { workspaceId } = this.context;
-    const where: Prisma.EventWhereInput = {
-      workspaceId,
-      ...(query.type && { type: query.type }),
-      ...(query.status && { status: query.status }),
-      ...(query.caseId && { caseId: query.caseId }),
-      ...(query.clientId && {
-        clients: { some: { clientId: query.clientId } },
-      }),
-      ...(query.userId && {
+    const userIds = query.userIds ?? (query.userId ? [query.userId] : []);
+    const conditions: Prisma.EventWhereInput[] = [{ workspaceId }];
+    if (query.type) conditions.push({ type: query.type });
+    if (query.statuses?.length) conditions.push({ status: { in: query.statuses } });
+    else if (query.status) conditions.push({ status: query.status });
+    if (query.caseId) conditions.push({ caseId: query.caseId });
+    if (query.clientId)
+      conditions.push({ clients: { some: { clientId: query.clientId } } });
+    if (userIds.length)
+      conditions.push({
         OR: [
-          { organizerUserId: query.userId },
-          { assignees: { some: { userId: query.userId } } },
+          { organizerUserId: { in: userIds } },
+          { assignees: { some: { userId: { in: userIds } } } },
         ],
-      }),
-    };
+      });
+    if (query.search?.trim())
+      conditions.push({
+        OR: [
+          { title: { contains: query.search.trim(), mode: "insensitive" } },
+          {
+            description: {
+              contains: query.search.trim(),
+              mode: "insensitive",
+            },
+          },
+        ],
+      });
+    if (query.from) conditions.push({ startsAt: { gte: new Date(query.from) } });
+    if (query.to) conditions.push({ startsAt: { lt: new Date(query.to) } });
+    const where: Prisma.EventWhereInput = { AND: conditions };
     const [total, items] = await this.db.$transaction([
       this.db.event.count({ where }),
       this.db.event.findMany({
@@ -413,15 +428,37 @@ export class ActivitiesTasksDeadlinesService {
     query: TaskListQueryDto,
   ): Promise<PaginatedResponse<TaskDetail>> {
     const { workspaceId } = this.context;
-    const where: Prisma.TaskWhereInput = {
-      workspaceId,
-      ...(query.status && { status: query.status }),
-      ...(query.priority && { priority: query.priority }),
-      ...(query.assigneeUserId && { assigneeUserId: query.assigneeUserId }),
-      ...(query.caseId && { caseId: query.caseId }),
-      ...(query.clientId && { clientId: query.clientId }),
-      ...(query.deadlineId && { deadlineId: query.deadlineId }),
-    };
+    const assigneeUserIds =
+      query.assigneeUserIds ??
+      (query.assigneeUserId ? [query.assigneeUserId] : []);
+    const conditions: Prisma.TaskWhereInput[] = [{ workspaceId }];
+    if (query.statuses?.length) conditions.push({ status: { in: query.statuses } });
+    else if (query.status) conditions.push({ status: query.status });
+    if (query.priority) conditions.push({ priority: query.priority });
+    if (assigneeUserIds.length)
+      conditions.push({ assigneeUserId: { in: assigneeUserIds } });
+    if (query.caseId) conditions.push({ caseId: query.caseId });
+    if (query.clientId) conditions.push({ clientId: query.clientId });
+    if (query.deadlineId) conditions.push({ deadlineId: query.deadlineId });
+    if (query.search?.trim())
+      conditions.push({
+        OR: [
+          { title: { contains: query.search.trim(), mode: "insensitive" } },
+          {
+            description: {
+              contains: query.search.trim(),
+              mode: "insensitive",
+            },
+          },
+        ],
+      });
+    if (query.from || query.to) {
+      const range: Prisma.DateTimeFilter = {};
+      if (query.from) range.gte = new Date(query.from);
+      if (query.to) range.lt = new Date(query.to);
+      conditions.push({ OR: [{ dueDate: range }, { dueAt: range }] });
+    }
+    const where: Prisma.TaskWhereInput = { AND: conditions };
     const [total, items] = await this.db.$transaction([
       this.db.task.count({ where }),
       this.db.task.findMany({
@@ -565,16 +602,36 @@ export class ActivitiesTasksDeadlinesService {
     query: DeadlineListQueryDto,
   ): Promise<PaginatedResponse<DeadlineDetail>> {
     const { workspaceId } = this.context;
-    const where: Prisma.DeadlineWhereInput = {
-      workspaceId,
-      ...(query.status && { status: query.status }),
-      ...(query.type && { type: query.type }),
-      ...(query.responsibleUserId && {
-        responsibleUserId: query.responsibleUserId,
-      }),
-      ...(query.caseId && { caseId: query.caseId }),
-      ...(query.clientId && { clientId: query.clientId }),
-    };
+    const responsibleUserIds =
+      query.responsibleUserIds ??
+      (query.responsibleUserId ? [query.responsibleUserId] : []);
+    const conditions: Prisma.DeadlineWhereInput[] = [{ workspaceId }];
+    if (query.statuses?.length) conditions.push({ status: { in: query.statuses } });
+    else if (query.status) conditions.push({ status: query.status });
+    if (query.type) conditions.push({ type: query.type });
+    if (responsibleUserIds.length)
+      conditions.push({ responsibleUserId: { in: responsibleUserIds } });
+    if (query.caseId) conditions.push({ caseId: query.caseId });
+    if (query.clientId) conditions.push({ clientId: query.clientId });
+    if (query.search?.trim())
+      conditions.push({
+        OR: [
+          { title: { contains: query.search.trim(), mode: "insensitive" } },
+          {
+            description: {
+              contains: query.search.trim(),
+              mode: "insensitive",
+            },
+          },
+        ],
+      });
+    if (query.from || query.to) {
+      const range: Prisma.DateTimeFilter = {};
+      if (query.from) range.gte = new Date(query.from);
+      if (query.to) range.lt = new Date(query.to);
+      conditions.push({ OR: [{ dueDate: range }, { dueAt: range }] });
+    }
+    const where: Prisma.DeadlineWhereInput = { AND: conditions };
     const [total, items] = await this.db.$transaction([
       this.db.deadline.count({ where }),
       this.db.deadline.findMany({
@@ -831,8 +888,19 @@ export class ActivitiesTasksDeadlinesService {
       throw new BadRequestException("Calendar range is limited to one year");
     const take = Math.min(Math.max(query.limit ?? 100, 1), 100);
     const { workspaceId } = this.context;
+    const sourceTypes = query.sourceTypes?.length
+      ? query.sourceTypes
+      : query.sourceType
+        ? [query.sourceType]
+        : (["EVENT", "TASK", "DEADLINE"] as const);
+    const userIds = query.userIds ?? (query.userId ? [query.userId] : []);
+    const statuses = query.statuses?.length
+      ? query.statuses
+      : query.status
+        ? [query.status]
+        : undefined;
     const [events, tasks, deadlines] = await Promise.all([
-      query.sourceType === "TASK" || query.sourceType === "DEADLINE"
+      !sourceTypes.includes("EVENT")
         ? Promise.resolve([])
         : this.db.event.findMany({
             where: {
@@ -843,19 +911,19 @@ export class ActivitiesTasksDeadlinesService {
               ...(query.clientId && {
                 clients: { some: { clientId: query.clientId } },
               }),
-              ...(query.userId && {
+              ...(userIds.length && {
                 OR: [
-                  { organizerUserId: query.userId },
-                  { assignees: { some: { userId: query.userId } } },
+                  { organizerUserId: { in: userIds } },
+                  { assignees: { some: { userId: { in: userIds } } } },
                 ],
               }),
-              ...(query.status && { status: query.status as any }),
+              ...(statuses && { status: { in: statuses as any } }),
             },
-            include: { clients: true },
+            include: { clients: true, assignees: true },
             take: take + 1,
             orderBy: [{ startsAt: "asc" }, { id: "asc" }],
           }),
-      query.sourceType === "EVENT" || query.sourceType === "DEADLINE"
+      !sourceTypes.includes("TASK")
         ? Promise.resolve([])
         : this.db.task.findMany({
             where: {
@@ -863,16 +931,19 @@ export class ActivitiesTasksDeadlinesService {
               OR: [
                 { dueAt: { gte: from, lt: to } },
                 { dueDate: { gte: from, lt: to } },
+                ...(query.includeNoDueDate
+                  ? [{ dueAt: null, dueDate: null }]
+                  : []),
               ],
               ...(query.caseId && { caseId: query.caseId }),
               ...(query.clientId && { clientId: query.clientId }),
-              ...(query.userId && { assigneeUserId: query.userId }),
-              ...(query.status && { status: query.status as any }),
+              ...(userIds.length && { assigneeUserId: { in: userIds } }),
+              ...(statuses && { status: { in: statuses as any } }),
             },
             take: take + 1,
             orderBy: [{ dueAt: "asc" }, { id: "asc" }],
           }),
-      query.sourceType === "EVENT" || query.sourceType === "TASK"
+      !sourceTypes.includes("DEADLINE")
         ? Promise.resolve([])
         : this.db.deadline.findMany({
             where: {
@@ -880,11 +951,14 @@ export class ActivitiesTasksDeadlinesService {
               OR: [
                 { dueAt: { gte: from, lt: to } },
                 { dueDate: { gte: from, lt: to } },
+                ...(query.includeNoDueDate
+                  ? [{ dueAt: null, dueDate: null }]
+                  : []),
               ],
               ...(query.caseId && { caseId: query.caseId }),
               ...(query.clientId && { clientId: query.clientId }),
-              ...(query.userId && { responsibleUserId: query.userId }),
-              ...(query.status && { status: query.status as any }),
+              ...(userIds.length && { responsibleUserId: { in: userIds } }),
+              ...(statuses && { status: { in: statuses as any } }),
             },
             take: take + 1,
             orderBy: [{ dueAt: "asc" }, { id: "asc" }],
@@ -904,6 +978,7 @@ export class ActivitiesTasksDeadlinesService {
         caseId: x.caseId,
         clientId: x.clients[0]?.clientId ?? null,
         responsibleUserId: x.organizerUserId,
+        assigneeUserIds: x.assignees.map((a) => a.userId),
       })),
       ...tasks.map((x) => ({
         calendarId: `TASK:${x.id}`,
@@ -918,6 +993,7 @@ export class ActivitiesTasksDeadlinesService {
         caseId: x.caseId,
         clientId: x.clientId,
         responsibleUserId: x.assigneeUserId,
+        assigneeUserIds: [x.assigneeUserId],
       })),
       ...deadlines.map((x) => ({
         calendarId: `DEADLINE:${x.id}`,
@@ -932,6 +1008,7 @@ export class ActivitiesTasksDeadlinesService {
         caseId: x.caseId,
         clientId: x.clientId,
         responsibleUserId: x.responsibleUserId,
+        assigneeUserIds: [x.responsibleUserId],
       })),
     ].sort(
       (a, b) =>

@@ -33,8 +33,9 @@ import {
 } from "../../shared/utils";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { EventDialogService } from "./event-dialog/event-dialog.service";
+import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 
-type CalendarView = "month" | "week" | "agenda";
+type CalendarView = "month" | "week" | "agenda" | "list" | "board";
 
 interface CalendarDay {
   date: string;
@@ -96,6 +97,7 @@ function mondayIndex(date: Date): number {
     HlmSelectImports,
     HlmSpinner,
     TranslatePipe,
+    WorkViewComponent,
   ],
   styleUrls: ["./calendar.component.scss"],
 })
@@ -663,6 +665,7 @@ export class CalendarComponent {
   }
 
   private loadRange(scrollToNow = true): void {
+    if (this.view() === "list" || this.view() === "board") return;
     const sequence = ++this.requestSequence;
     this.loading.set(true);
     this.error.set(false);
@@ -702,6 +705,10 @@ export class CalendarComponent {
         source: this.source() || null,
         lawyer: this.lawyerId() || null,
         closed: this.includeClosed() ? "1" : null,
+        presentation:
+          this.view() === "list" || this.view() === "board"
+            ? this.view()
+            : null,
       },
     });
   }
@@ -715,7 +722,13 @@ export class CalendarComponent {
 
   private initialView(): CalendarView {
     const value = this.route.snapshot.queryParamMap.get("view");
-    if (value === "month" || value === "week" || value === "agenda")
+    if (
+      value === "month" ||
+      value === "week" ||
+      value === "agenda" ||
+      value === "list" ||
+      value === "board"
+    )
       return value;
     return "week";
   }

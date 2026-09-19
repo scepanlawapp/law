@@ -12,7 +12,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from "class-validator";
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import { CasePriority } from "@prisma/client";
 import { PaginationQueryDto } from "@law/core";
 import {
@@ -23,6 +23,10 @@ import {
   NoteType,
   TaskStatus,
 } from "@prisma/client";
+
+// Normalizes a single query value or repeated query keys into a string array.
+const toArray = ({ value }: { value: unknown }): string[] | undefined =>
+  value === undefined ? undefined : Array.isArray(value) ? value : [value as string];
 
 @ValidatorConstraint({ name: "dateTimeXor", async: false })
 class DateTimeXorConstraint implements ValidatorConstraintInterface {
@@ -60,9 +64,19 @@ abstract class DueTargetDto {
 export class EventListQueryDto extends PaginationQueryDto {
   @IsOptional() @IsEnum(EventType) type?: EventType;
   @IsOptional() @IsEnum(EventStatus) status?: EventStatus;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsEnum(EventStatus, { each: true })
+  statuses?: EventStatus[];
   @IsOptional() @IsUUID() caseId?: string;
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsUUID() userId?: string;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  userIds?: string[];
 }
 
 export class CreateEventDto {
@@ -96,8 +110,18 @@ export class EventAttendeeDto {
 
 export class TaskListQueryDto extends PaginationQueryDto {
   @IsOptional() @IsEnum(TaskStatus) status?: TaskStatus;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsEnum(TaskStatus, { each: true })
+  statuses?: TaskStatus[];
   @IsOptional() @IsEnum(CasePriority) priority?: CasePriority;
   @IsOptional() @IsUUID() assigneeUserId?: string;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  assigneeUserIds?: string[];
   @IsOptional() @IsUUID() caseId?: string;
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsUUID() deadlineId?: string;
@@ -105,8 +129,18 @@ export class TaskListQueryDto extends PaginationQueryDto {
 
 export class DeadlineListQueryDto extends PaginationQueryDto {
   @IsOptional() @IsEnum(DeadlineStatus) status?: DeadlineStatus;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsEnum(DeadlineStatus, { each: true })
+  statuses?: DeadlineStatus[];
   @IsOptional() @IsEnum(DeadlineType) type?: DeadlineType;
   @IsOptional() @IsUUID() responsibleUserId?: string;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  responsibleUserIds?: string[];
   @IsOptional() @IsUUID() caseId?: string;
   @IsOptional() @IsUUID() clientId?: string;
 }
@@ -163,13 +197,29 @@ export class CalendarQueryDto {
   @IsOptional() @IsString() cursor?: string;
   @IsOptional() @Type(() => Number) limit = 100;
   @IsOptional() @IsUUID() userId?: string;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  userIds?: string[];
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsUUID() caseId?: string;
   @IsOptional() @IsIn(["EVENT", "TASK", "DEADLINE"]) sourceType?:
     | "EVENT"
     | "TASK"
     | "DEADLINE";
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsIn(["EVENT", "TASK", "DEADLINE"], { each: true })
+  sourceTypes?: Array<"EVENT" | "TASK" | "DEADLINE">;
   @IsOptional() @IsString() status?: string;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsString({ each: true })
+  statuses?: string[];
+  @IsOptional() @IsBoolean() @Type(() => Boolean) includeNoDueDate?: boolean;
 }
 
 export class ActivityListQueryDto extends PaginationQueryDto {

@@ -1,6 +1,6 @@
 # Business Logic Done So Far
 
-**Checked:** 2026-09-18  
+**Checked:** 2026-09-19  
 **Scope:** `apps/api`, `apps/web`, shared API contracts and API clients.
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
@@ -59,7 +59,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 ### Events
 
 - List, create, read, and update events.
-- Event filtering by type, status, case, client, and user.
+- Event filtering by type, status (single or multiple), case, client, and user (single or multiple, matching organizer or assignee).
 - Event completion and cancellation transitions.
 - Event validation ensures the end time is after the start time.
 - Events can reference cases, clients, workspace assignees, and client contacts as attendees.
@@ -68,7 +68,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 ### Tasks
 
 - List, create, read, and update tasks.
-- Filtering by status, priority, assignee, case, client, and deadline.
+- Filtering by status (single or multiple), priority, assignee (single or multiple), case, client, deadline, free-text search (title/description), and a due-date range.
 - Tasks support either a due date or a due timestamp, never both.
 - Task completion, cancellation, and reopening transitions.
 - Tasks can be associated with cases, clients, and deadlines.
@@ -76,7 +76,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 ### Deadlines
 
 - List, create, read, and update deadlines.
-- Filtering by status, type, responsible user, case, and client.
+- Filtering by status (single or multiple), type, responsible user (single or multiple), case, client, free-text search (title/description), and a due-date range.
 - Deadline validation requires exactly one due target: due date or due timestamp.
 - Deadline satisfaction, cancellation, and reopening transitions.
 - API responses calculate whether an open deadline is overdue.
@@ -86,14 +86,16 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 
 - List, create, read, and update notes.
 - Notes can be associated with cases, clients, or events.
-- Calendar aggregation returns events, tasks, and deadlines for a date range with filters for user, client, case, source type, status, cursor, and limit.
+- Calendar aggregation returns events, tasks, and deadlines for a date range with filters for user (single or multiple), client, case, source type (single or multiple), status (single or multiple), a flag to include tasks/deadlines with no due date, cursor, and limit.
+- Calendar items include the full assignee list for events (not just the organizer), so multi-assignee events can be attributed correctly.
 - Activity-log listing is available with case and client filters.
+- Free-text search and multi-value person/status filters were previously accepted by these endpoints but silently ignored; they are now actually applied server-side.
 
 ## Calendar frontend
 
 The calendar is the finished frontend surface for the event/calendar portion of the work-management API:
 
-- Month, week, and agenda views.
+- Month, week, and agenda views, plus List and Board presentations (see the shared work view below) selectable alongside them without disturbing the grid views' rendering or date math.
 - Date navigation and “today” navigation.
 - Search and source filtering for events, tasks, and deadlines.
 - Lawyer/user filtering through workspace references.
@@ -103,28 +105,22 @@ The calendar is the finished frontend surface for the event/calendar portion of 
 - Event form validation, including end-after-start validation, and API-backed create/update operations.
 - Calendar state is represented with Angular signals and uses the shared API clients.
 
-## Tasks and deadlines frontend
+## Team work, My work, and the shared work view
 
-The former Tasks & Deadlines placeholder has been replaced with a working Angular work-management page:
+The former Tasks & Deadlines page has been replaced by a single reusable `WorkView` component (List and Board presentations) reused across four contexts — Team work, My work, Calendar, and Case → Work:
 
-- The existing `/tasks-deadlines` route is preserved.
-- Tasks and Deadlines are separate tabs, with Tasks selected by default.
-- Selected tab, filters, and pagination are persisted in URL query state.
-- Both tabs load results through the existing `WorkManagementApiClient` using server pagination.
-- Task filters include search forwarding, status, priority, assignee, case, client, and linked deadline.
-- Deadline filters include search forwarding, status, type, responsible user, case, and client.
-- “My open” and “All accessible open” quick actions update the real assignee/status filters instead of filtering only the visible page.
-- Workspace-user references, case references, and client references are loaded through existing API clients for labels and links.
-- Task rows show title, status, priority, due date/time, assignee, related case/client, and explicit actions.
-- Deadline rows show title, due date/time, backend-calculated overdue state, type, responsible user, related case/client, status, and explicit actions.
-- Date-only values remain date-only, exact timestamps remain date/time values, and missing task due targets display as “No due date”.
-- Task actions include create, edit, complete, cancel, reopen, and detail inspection.
-- Deadline actions include create, edit, mark satisfied, cancel, reopen, and detail inspection.
-- Mutating actions use the existing confirmation dialog, toast feedback, and API transition endpoints.
-- Loading, retry, empty, no-results, pagination, and mutation error states are implemented.
-- The existing reusable Task and Deadline dialogs are used rather than creating duplicate forms.
-- Due-target mode changes clear the inactive date field, preventing both `dueDate` and `dueAt` from being submitted together.
-- English and Serbian translations were added for the new page, filters, statuses, actions, and empty/error states.
+- Routes: `/work/team` (Team work, full filter toolbar) and `/work/my` (My work, current-user work only, no team filter toolbar). The former `/tasks-deadlines` URL redirects to Team work, preserving query parameters. Sidebar navigation exposes both as separate entries.
+- Record types (Tasks, Events, Deadlines) are combined into one unified item list/board; the record-type filter selects one or several.
+- List view shows title, record type, status, owner/assignee, due date or event time, related case/client, and an overdue indicator.
+- Board view groups items into To do / In progress / Done columns using a presentation-only mapping (Task `IN_PROGRESS` is the only source of the In-progress column, since Events and Deadlines have no in-progress state); Cancelled items are only shown through an explicit open/history switch, never mixed into the active columns.
+- Filters: free-text search, record types, people (single or multiple, via a multi-select combobox), statuses (single or multiple), case, and a date preset (all dates / overdue / today / upcoming). My work hides the team filter toolbar and keeps the current user fixed; Case → Work keeps the case fixed. Neither fixed constraint can be cleared by switching presentation, changing filters, or resetting.
+- Pagination is server-driven per record type with an explicit “Load more” action; no page of results is presented as a complete list or board.
+- Item actions reuse the existing Task/Deadline/Event dialogs and transition endpoints (create, edit, complete/cancel/reopen for tasks and deadlines; complete/cancel for events, which have no reopen). Board also supports drag-and-drop between columns, restricted to the same backend-supported transitions as the action buttons — a drop with no corresponding transition (for example, dragging a cancelled item, or dragging an event back out of Completed/Cancelled) is rejected rather than silently allowed.
+- "My work" is defined per entity by existing domain relationships (task assignee, deadline responsible user, event organizer-or-assignee), not by who created the record.
+
+## Cases: Work tab
+
+The case detail page has an additional Work tab, alongside the existing Overview/Cases/Activities/Responsibilities tabs, rendering the same shared `WorkView` component with the case fixed. Creating a task, deadline, or event from this tab prefills the case. The existing activities/responsibilities tabs and their API calls are unchanged.
 
 ## Assistant, chat, and drafting
 
@@ -153,18 +149,20 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - Standalone Angular components with signal-based state in the implemented feature areas.
 - Reactive forms for clients, cases, events, assistant composition, and settings actions.
 - Shared API-client services for authentication, chat, clients, cases, references, settings, calendar, events, tasks, deadlines, notes, and activity logs.
-- Authenticated application layout and routes for dashboard, clients, cases, documents, calendar, notifications, finance, reports, tasks/deadlines, settings, and assistant.
+- Authenticated application layout and routes for dashboard, clients, cases, documents, calendar, notifications, finance, reports, Team work (`/work/team`), My work (`/work/my`), settings, and assistant.
 - Shared localization pipe/service, loading spinners, empty states, confirmation dialogs, toast feedback, and Spartan/UI components are used across the completed screens.
 
 ## Partial or not finished yet
 
 These areas have routes or backend groundwork but should not be described as completed end-to-end business workflows:
 
-- **Tasks and deadlines extensions:** the main list and transition workflow is implemented, but case/client detail integration, linked-task detail management, reusable notes lists, and client activity history integration are still pending.
 - **Client detail tabs:** the client detail page declares documents, activities, and financials tabs, but the inspected component primarily loads overview data and related cases. These tabs need their own complete UI/data workflows before they can be counted as finished.
 - **Documents, finance, reports, notifications, and dashboard:** routes/components exist, but their completion level should be assessed separately from the implemented client, case, calendar, and assistant workflows. A route alone is not evidence that the underlying business logic is finished.
-- **Automated backend coverage:** no feature-specific backend `*.spec.ts` files were found under `libs/api/features` during this review. The backend behavior is implemented, but regression coverage is currently stronger on the assistant frontend than on the backend domain services.
+- **Automated backend coverage:** no feature-specific backend `*.spec.ts` files were found under `libs/api/features` during this review. The backend behavior is implemented, but regression coverage is currently stronger on the assistant frontend than on the backend domain services; the new work-view frontend logic has focused unit tests, but the corresponding backend query extensions do not yet have dedicated spec tests.
+- **Reusable notes lists and client activity history integration:** notes and the ActivityLog remain read/history endpoints; they are not surfaced as their own reusable list component or integrated into client activity history yet.
+- **Board “Load more”:** pagination is tracked per record type (Task/Deadline/Event), not per rendered board column, so a column fed by more than one record type can require more than one “Load more” action to reveal further items of a specific type.
+- **Calendar List/Board filter persistence:** Calendar’s List/Board presentation deliberately does not sync its own filter state into the URL (to avoid overwriting the calendar’s `view`/`date` query parameters), so those filters reset on a full page reload, unlike the dedicated Team work/My work pages.
 
 ## Main conclusion
 
-The strongest completed product slices are authentication, client management, case management, calendar/events, assistant/chat/drafting, and the main Tasks & Deadlines workflow. The work-management backend and shared frontend integration now support paginated task/deadline management, contextual filtering, due-target forms, transitions, validation, workspace isolation, and activity logging. Case/client detail integration, notes/activity aggregation, focused frontend tests, and several backend query capabilities remain outstanding.
+The strongest completed product slices are authentication, client management, case management, calendar/events, assistant/chat/drafting, and the unified work-tracking experience (Team work, My work, Calendar List/Board, and Case → Work). The work-management backend now supports paginated, multi-value, and free-text-searchable task/deadline/event queries, contextual filtering, due-target forms, transitions, validation, workspace isolation, and activity logging, all consumed through one shared frontend component instead of duplicated screens. Client detail integration, reusable notes/activity aggregation, focused backend tests, and per-column board pagination remain outstanding.
