@@ -1,0 +1,52 @@
+<section
+  class="flex h-full flex-col gap-3 rounded-lg border border-border bg-card p-4"
+>
+  <header class="flex items-start justify-between gap-3">
+    <div>
+      <h2 class="text-base font-semibold">{{ titleKey() | translate }}</h2>
+      @if (descriptionKey(); as description) {
+        <p class="text-sm text-muted-foreground">
+          {{ description | translate }}
+        </p>
+      }
+    </div>
+    @if (actionLabelKey(); as actionLabel) {
+      @if (actionLink(); as link) {
+        <a hlmBtn variant="ghost" size="sm" [routerLink]="link">
+          {{ actionLabel | translate }}
+        </a>
+      }
+    }
+  </header>
+
+  <div class="min-h-0 flex-1">
+    @if (loading()) {
+      <div class="flex justify-center py-6">
+        <hlm-spinner aria-label="{{ titleKey() | translate }}" />
+      </div>
+    } @else if (error()) {
+      <div class="space-y-2 py-4 text-center text-sm" role="alert">
+        <p class="text-muted-foreground">{{ "work.loadError" | translate }}</p>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          size="sm"
+          (click)="retry.emit()"
+        >
+          {{ "work.retry" | translate }}
+        </button>
+      </div>
+    } @else if (unavailable()) {
+      <p class="py-4 text-sm text-muted-foreground">
+        {{ unavailableKey() | translate }}
+      </p>
+    } @else if (empty()) {
+      <p class="py-4 text-sm text-muted-foreground">
+        {{ emptyKey() | translate }}
+      </p>
+    } @else {
+      <ng-content />
+    }
+  </div>
+</section>

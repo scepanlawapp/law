@@ -122,6 +122,18 @@ The former Tasks & Deadlines page has been replaced by a single reusable `WorkVi
 
 The case detail page has an additional Work tab, alongside the existing Overview/Cases/Activities/Responsibilities tabs, rendering the same shared `WorkView` component with the case fixed. Creating a task, deadline, or event from this tab prefills the case. The existing activities/responsibilities tabs and their API calls are unchanged.
 
+## Dashboard
+
+The dashboard is a real, API-backed landing page (previously an empty placeholder), composed from a dashboard-scoped facade (`DashboardStore`) and reusable presentation components rather than one large component:
+
+- A greeting (authenticated user's name with a safe fallback) and an assistant prompt box that hands the entered text to the existing assistant page once, via a one-time query parameter the assistant consumes and immediately strips from the URL — no second chat implementation and no auto-sent/duplicated messages.
+- Four summary cards (active cases workspace-wide, upcoming hearings for the current user in the next 7 days, pending tasks assigned to the current user including tasks without due dates, and a documents count marked explicitly unavailable since document counting is not implemented). Counts use bounded queries (`pageSize: 1` reads against each existing list endpoint's authoritative `meta.totalItems`), never the length of a fetched page.
+- An Upcoming obligations panel built on the existing calendar aggregation endpoint (deduplicated, unfinished Task/Deadline/Event items for the current user in the next 7 days), with a separate overdue count/link into My work so overdue items remain visible outside the 7-day window, and item selection opens the existing Task/Deadline/Event dialogs.
+- A Recent activity panel built on the existing ActivityLog endpoint, reusing the same action-label mapping as the Team/My work views.
+- A Notifications panel and a Total documents stat explicitly render "not available yet" placeholders rather than fabricated content, since neither notifications delivery nor document management is implemented.
+- A Cases overview preview (5 most recently updated accessible cases) and Quick actions that reuse the existing case creation route and the existing Task/Deadline/Event/Client dialogs; affected dashboard sections refresh independently after a successful quick action.
+- Each section (stats, upcoming, activity, cases) has its own loading/error/empty state, so one failing request does not blank the rest of the dashboard.
+
 ## Assistant, chat, and drafting
 
 The assistant workflow is implemented across the chat API, Angular assistant screen, and shared contracts:
