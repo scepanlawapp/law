@@ -6,7 +6,7 @@ Nx monorepo for a Serbian law-firm automation platform. The initial workspace co
 
 - Node.js 22 LTS
 - npm
-- Docker Compose for local PostgreSQL, Redis, Qdrant, Ollama, and n8n
+- Docker Compose project `law` for local PostgreSQL with pgvector and Redis (Qdrant, Ollama, and n8n remain optional/commented)
 
 ## Install
 
@@ -20,7 +20,7 @@ The browser-safe runtime settings are in `apps/web/public/config.json`. Use `con
 ## Run
 
 ```bash
-npm run services:up // docker
+npm run services:up // Compose project `law`: postgres (pgvector) + redis
 npm run db:migrate // database migration
 npm run api:serve // backend
 npm run web:serve // frontend
@@ -62,4 +62,4 @@ npm run build
 npm run services:config
 ```
 
-Implemented so far: authentication and workspaces, chat with uploads and SSE, attachment extraction (PDF/DOCX/XLSX/TXT, image and scanned-PDF OCR) normalized to Serbian Latin, Portir triage, brief extraction and tužba drafting via OpenRouter. Not yet implemented: draft approval UI, DOCX export, evaluation loop, template retrieval (Qdrant), background queue, local Ollama completions, state-portal integrations, production TLS and zero-leakage controls. See [delivery/roadmap.md](delivery/roadmap.md) for the plan.
+Implemented so far: authentication and workspaces, chat with uploads and SSE, attachment extraction (PDF/DOCX/XLSX/TXT, image and scanned-PDF OCR) normalized to Serbian Latin, Portir triage, brief extraction and tužba drafting via OpenRouter, draft review/approval, and DOCX export. Local Postgres includes the `vector` extension for later embedding work. Not yet implemented: evaluation loop, template retrieval, local Ollama completions, state-portal integrations, production TLS and zero-leakage controls. See [delivery/roadmap.md](delivery/roadmap.md) for the plan.

@@ -1,6 +1,8 @@
+name: law
+
 services:
-  postgres-platform:
-    image: postgres:17-alpine
+  postgres:
+    image: pgvector/pgvector:pg17
     environment:
       POSTGRES_DB: law_platform
       POSTGRES_USER: law
@@ -8,7 +10,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres-platform-data:/var/lib/postgresql/data
+      - postgres-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U law -d law_platform"]
       interval: 5s
@@ -52,11 +54,11 @@ services:
   #   volumes:
   #     - n8n-data:/home/node/.n8n
   #   depends_on:
-  #     postgres-platform:
+  #     postgres:
   #       condition: service_healthy
 
 volumes:
-  postgres-platform-data:
+  postgres-data:
   redis-data:
   # qdrant-data:
   # ollama-data:
