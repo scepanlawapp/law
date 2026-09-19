@@ -6,7 +6,7 @@ Nx monorepo for a Serbian law-firm automation platform. The initial workspace co
 
 - Node.js 22 LTS
 - npm
-- Docker Compose project `law` for local PostgreSQL with pgvector and Redis (Qdrant, Ollama, and n8n remain optional/commented)
+- Docker Compose project `law` for local PostgreSQL with pgvector and Redis (Ollama and n8n remain optional/commented)
 
 ## Install
 
@@ -25,6 +25,7 @@ npm run db:migrate // database migration
 npm run api:serve // backend
 npm run web:serve // frontend
 npm run db:seed:auth // Insert first user
+npm run legal:ingest -- --dry-run // Fetch and inspect the first legal source
 ```
 
 The chat pipeline (triage -> brief-extraction -> drafting) runs as BullMQ jobs on a Redis-backed `workflow` queue, so `services:up` (which starts Redis) must be running before `api:serve`.
@@ -41,7 +42,7 @@ libs/api/core            Backend infrastructure boundary
 libs/api/ai/contracts    Typed workflow requests, results, and authorization context
 libs/api/ai/n8n          Server-side n8n integration boundary
 libs/api/ai/ollama       Local model adapter boundary
-libs/api/ai/qdrant       Template retrieval adapter boundary
+libs/api/ai/knowledge    Legal-source chunking and embedding boundary
 libs/api/ai/workflows    One Nx library per AI workflow
 libs/shared               Shared frontend and TypeScript libraries
 infra/docker              Local dependency composition
@@ -62,4 +63,4 @@ npm run build
 npm run services:config
 ```
 
-Implemented so far: authentication and workspaces, chat with uploads and SSE, attachment extraction (PDF/DOCX/XLSX/TXT, image and scanned-PDF OCR) normalized to Serbian Latin, Portir triage, brief extraction and tužba drafting via OpenRouter, draft review/approval, and DOCX export. Local Postgres includes the `vector` extension for later embedding work. Not yet implemented: evaluation loop, template retrieval, local Ollama completions, state-portal integrations, production TLS and zero-leakage controls. See [delivery/roadmap.md](delivery/roadmap.md) for the plan.
+Implemented so far: authentication and workspaces, chat with uploads and SSE, attachment extraction (PDF/DOCX/XLSX/TXT, image and scanned-PDF OCR) normalized to Serbian Latin, Portir triage, brief extraction and tužba drafting via OpenRouter, draft review/approval, DOCX export, and versioned legal-source ingestion/search through PostgreSQL `pgvector`. Not yet implemented: evaluation loop, assistant integration of retrieved law, hybrid/reranked retrieval, local Ollama completions, state-portal integrations, production TLS and zero-leakage controls. See [delivery/roadmap.md](delivery/roadmap.md) for the plan.

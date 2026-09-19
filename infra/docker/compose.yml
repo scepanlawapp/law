@@ -29,14 +29,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # qdrant:
-  #   image: qdrant/qdrant:v1.15.4
-  #   ports:
-  #     - "6333:6333"
-  #     - "6334:6334"
-  #   volumes:
-  #     - qdrant-data:/qdrant/storage
-
   # ollama:
   #   image: ollama/ollama:latest
   #   ports:
@@ -60,6 +52,5 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  # qdrant-data:
   # ollama-data:
   # n8n-data:

@@ -17,7 +17,7 @@ Treat [.github/bussiness-logic-done-so-far.md](.github/bussiness-logic-done-so-f
 - **API:** NestJS, Prisma, PostgreSQL (`law_platform`, local image `pgvector/pgvector:pg17`)
 - **Jobs:** Redis + BullMQ queue `workflow` (processors run inside the API process)
 - **Shared contracts:** `@law/api-interfaces`
-- **LLM (current):** OpenRouter via `ChatModelProvider`. Ollama, n8n, and Qdrant libraries are adapter stubs. Local Postgres includes the `vector` extension for later embeddings.
+- **LLM (current):** OpenRouter via `ChatModelProvider`. Ollama and n8n remain adapter stubs. Legal-source embeddings use PostgreSQL `pgvector` through the `@law/knowledge` boundary.
 
 ## Layout
 
@@ -44,7 +44,7 @@ Spartan Helm / Brain
 ```
 
 - Apps import libs. Libs never import apps.
-- The browser never calls n8n, Ollama, or Qdrant.
+- The browser never calls n8n, Ollama, or embedding providers.
 - `AppModule` only composes feature modules. Domain logic lives in `libs/api/features`.
 
 ## Hard invariants
@@ -53,7 +53,7 @@ Spartan Helm / Brain
 - **Shared types.** FE/BE contracts go in [libs/api/api-interfaces/src/lib/api-interfaces.ts](libs/api/api-interfaces/src/lib/api-interfaces.ts) (split into domain files and re-export if the barrel grows). UI-only and Nest-only types stay local.
 - **Script.** Canonical stored and prompted text is Serbian Latin (`@law/transliteration`). Cyrillic only on read/export (`script=cyrillic`, DOCX).
 - **Chat jobs.** `triage` → (`answering` | `brief-extraction` → `drafting`) run on BullMQ. `npm run services:up` (Redis) must be running before `api:serve`.
-- **LLM stubs.** `evaluation`, `review`, and `template-retrieval` return placeholder strings. Do not treat them as implemented.
+- **LLM stubs.** `evaluation` and `review` return placeholder strings. Do not treat them as implemented.
 - **Uploads.** Max 5 files per message. Disk: `tmp/chat-uploads/{workspaceId}/{sessionId}/{attachmentId}`.
 - **Auth.** HttpOnly cookie `law_session`. Workspace endpoints: `CsrfOriginGuard` + `AuthGuard` + `WorkspaceAccessGuard`.
 
@@ -63,6 +63,7 @@ Every implementation task is conducted by a delivery track. `spec.md` is what/wh
 
 - Prefer updating an open parent track when this work continues it. Create a new folder for a distinct work item.
 - Folder: [delivery/tracks](delivery/tracks)/`<snake_case>_<YYYYMMDD>/`
+- Implementation branches must be created before the first code edit and named exactly after the delivery track ID (for example, `legal_knowledge_pgvector_20260919`). Planning or Q&A without repository changes does not require a branch.
 - Required files: `index.md`, `spec.md`, `plan.md`, `metadata.json`. Register a link in [delivery/index.md](delivery/index.md). There is no `tracks.md`.
 - `metadata.json`: `track_id`, `parent_track_id` (or `null`), `type` (`epic` | `feature` | `fix` | `chore`), `status` (`pending` | `in_progress` | `completed`), `created_at`, `updated_at`, `keywords`. Optional: `priority`, `prd_reference` (usually `null`; do not require a PRD).
 - **Plan mode:** include explicit steps for those four files plus the index link (`track_id`, parent, type, status, spec outline, plan checkboxes). Do not write the files while planning.

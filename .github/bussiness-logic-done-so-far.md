@@ -13,6 +13,14 @@ This document describes behavior that is currently implemented in code and wired
 - API responses use shared contracts from `libs/api/api-interfaces` and paginated response metadata where list endpoints support pagination.
 - Domain mutations create activity-log entries for the activities/tasks/deadlines workflow, preserving the acting user and workspace context.
 
+## Legal knowledge retrieval
+
+- PostgreSQL `pgvector` is the sole vector-store direction; the former unused vector-store/template stubs are removed.
+- Versioned public legal sources and workspace-scoped sources are persisted with content hashes, parser metadata, Serbian source-script metadata, and article/paragraph chunk metadata.
+- The first source adapter fetches and validates Paragraf Lex's `Zakon o radu` page. `npm run legal:ingest -- --dry-run` reports the normalized chunk set without embedding or database writes; real ingestion uses BGE-M3 (1024 dimensions) through the server-side OpenRouter embeddings endpoint.
+- `POST /api/legal-knowledge/search` performs authenticated, workspace-filtered cosine search and returns source/article citation metadata with each result.
+- Retrieved law text is context for lawyer workflows only; assistant/drafting integration, hybrid search, reranking, and citation verification remain follow-up work.
+
 ## Authentication and account security
 
 Implemented in `libs/api/features/auth` and used by the web application:
