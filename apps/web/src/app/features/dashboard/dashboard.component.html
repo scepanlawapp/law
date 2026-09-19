@@ -1,210 +1,257 @@
-<section>
-  <div>
-    <p>
-      {{ "dashboard.greeting" | translate }} <span aria-hidden="true">👋</span>
-    </p>
-    <h1>{{ "dashboard.heading" | translate }}</h1>
-    <form
-      class="flex items-center"
-      [formGroup]="promptForm"
-      (ngSubmit)="submitPrompt()"
+<div class="flex flex-col gap-4 text-sm">
+  <!-- Row 1: greeting + assistant prompt, and a companion AI assistant card -->
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-3">
+    <section
+      class="flex flex-col justify-center gap-4 rounded-lg border border-border bg-card p-6 lg:col-span-2"
     >
-      <ng-icon name="lucideSparkles" aria-hidden="true" />
-      <textarea
-        hlmTextarea
-        formControlName="prompt"
-        rows="1"
-        [placeholder]="'dashboard.askAi' | translate"
-        [disabled]="sendingPrompt()"
-        (keydown.enter)="onPromptKeydown($event)"
-      ></textarea>
-      <button
-        hlmBtn
-        size="icon"
-        type="submit"
+      <div>
+        <h1 class="text-2xl font-semibold">
+          {{
+            (greetingName() ? "dashboard.greetingNamed" : "dashboard.greeting")
+              | translate: { name: greetingName() }
+          }}
+        </h1>
+        <p class="text-muted-foreground">
+          {{ "dashboard.heading" | translate }}
+        </p>
+      </div>
+      <form
+        class="flex flex-col gap-2"
+        (ngSubmit)="submitPrompt()"
         [attr.aria-label]="'dashboard.askAssistant' | translate"
-        [disabled]="sendingPrompt()"
       >
-        <ng-icon name="lucideArrowRight" />
-      </button>
-    </form>
-    @if (promptError()) {
-      <p role="alert">{{ promptError() }}</p>
-    }
-    <div class="flex items-center">
-      <button hlmBtn variant="outline" type="button">
-        <ng-icon name="lucideSparkles" />{{
-          "dashboard.summarizeCase" | translate
-        }}
-      </button>
-      <button hlmBtn variant="outline" type="button">
-        <ng-icon name="lucideGavel" />{{
-          "dashboard.analyzeDocument" | translate
-        }}
-      </button>
-      <button hlmBtn variant="outline" type="button">
-        <ng-icon name="lucideFolderOpen" />{{
-          "dashboard.findSimilarCases" | translate
-        }}
-      </button>
-      <button hlmBtn variant="outline" type="button">
-        <ng-icon name="lucideFileText" />{{
-          "dashboard.draftResponse" | translate
-        }}
-      </button>
-    </div>
-  </div>
-
-  <a class="flex items-center" routerLink="/assistant">
-    <span><ng-icon name="lucideBot" /></span>
-    <div>
-      <h2>{{ "dashboard.assistantTitle" | translate }}</h2>
-      <p>{{ "dashboard.assistantDescription" | translate }}</p>
-      <span
-        >{{ "dashboard.startConversation" | translate }}
-        <ng-icon name="lucideArrowRight"
-      /></span>
-    </div>
-  </a>
-
-  <div class="grid">
-    @for (stat of stats; track stat.title) {
-      <app-dashboard-stat-card
-        [title]="stat.title"
-        [value]="stat.value"
-        [trend]="stat.trend"
-        [trendDirection]="stat.trendDirection"
-        [trendDetail]="stat.trendDetail"
-        [icon]="stat.icon"
-        [chart]="stat.chart"
-      />
-    }
-  </div>
-
-  <div class="grid">
-    <section>
-      <div class="flex items-center justify-between">
-        <h2>{{ "dashboard.upcoming" | translate }}</h2>
-        <a routerLink="/calendar"
-          >{{ "dashboard.viewCalendar" | translate }}
-          <ng-icon name="lucideArrowRight"
-        /></a>
-      </div>
-      <div>
-        @for (event of upcomingEvents; track event.time + event.title) {
-          <div class="flex items-center">
-            <time>{{ event.time | translate }}</time>
-            <span><ng-icon [name]="event.icon" /></span>
-            <div class="flex">
-              <strong>{{ event.title | translate }}</strong
-              ><small>{{ event.detail | translate }}</small>
-            </div>
-            <span>{{ event.tag | translate }}</span>
-          </div>
-        }
-      </div>
-    </section>
-
-    <section>
-      <div class="flex items-center justify-between">
-        <h2>{{ "dashboard.recentActivity" | translate }}</h2>
-      </div>
-      <div>
-        @for (activity of recentActivity; track activity.title) {
-          <div class="flex items-center">
-            <span [class]="activity.tone"
-              ><ng-icon [name]="activity.icon"
-            /></span>
-            <div class="flex">
-              <strong>{{ activity.title | translate }}</strong
-              ><small>{{ activity.detail | translate }}</small>
-            </div>
-            <time>{{ activity.time | translate }}</time>
-          </div>
-        }
-      </div>
-    </section>
-
-    <section>
-      <div class="flex items-center justify-between">
-        <h2>{{ "header.notifications" | translate }}</h2>
-        <a routerLink="/notifications"
-          >{{ "dashboard.viewAll" | translate }}
-          <ng-icon name="lucideArrowRight"
-        /></a>
-      </div>
-      <div>
-        @for (notification of notifications; track notification.title) {
-          <div class="flex items-center">
-            <span [class]="notification.tone"
-              ><ng-icon [name]="notification.icon"
-            /></span>
-            <div class="flex">
-              <strong>{{ notification.title | translate }}</strong
-              ><small>{{ notification.detail | translate }}</small>
-            </div>
-            <time>{{ notification.time | translate }}</time>
-          </div>
-        }
-      </div>
-    </section>
-  </div>
-
-  <div>
-    <section>
-      <div class="flex items-center justify-between">
-        <h2>{{ "dashboard.casesOverview" | translate }}</h2>
-        <button hlmBtn variant="ghost" type="button" routerLink="/cases">
-          {{ "dashboard.viewAllCases" | translate }}
-          <ng-icon name="lucideArrowRight" />
-        </button>
-      </div>
-      <div>
-        <table>
-          <thead>
-            <tr>
-              <th>{{ "dashboard.caseNumber" | translate }}</th>
-              <th>{{ "dashboard.client" | translate }}</th>
-              <th>{{ "dashboard.type" | translate }}</th>
-              <th>{{ "dashboard.status" | translate }}</th>
-              <th>{{ "dashboard.court" | translate }}</th>
-              <th>{{ "dashboard.deadline" | translate }}</th>
-            </tr>
-          </thead>
-          <tbody>
-            @for (caseItem of cases; track caseItem.number) {
-              <tr>
-                <td>{{ caseItem.number }}</td>
-                <td>{{ caseItem.client }}</td>
-                <td>{{ caseItem.type | translate }}</td>
-                <td>
-                  <span [class]="caseItem.statusClass"
-                    ><i></i>{{ translateStatus(caseItem.status) }}</span
-                  >
-                </td>
-                <td>{{ caseItem.court | translate }}</td>
-                <td>{{ caseItem.deadline }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <section>
-      <div class="flex items-center justify-between">
-        <h2>{{ "dashboard.quickActions" | translate }}</h2>
-      </div>
-      <div>
-        @for (action of quickActions; track action.title) {
-          <button hlmBtn variant="ghost" type="button">
-            <ng-icon [name]="action.icon" /><span>{{
-              action.title | translate
-            }}</span
-            ><ng-icon name="lucideChevronRight" />
+        <div class="flex gap-2">
+          <input
+            hlmInput
+            class="flex-1"
+            [formControl]="promptControl"
+            [placeholder]="'dashboard.askAi' | translate"
+          />
+          <button
+            hlmBtn
+            type="submit"
+            size="icon"
+            [disabled]="!promptControl.value.trim()"
+            [attr.aria-label]="'dashboard.askAssistant' | translate"
+          >
+            <ng-icon name="lucideArrowUp" />
           </button>
-        }
-      </div>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          @for (key of suggestionKeys; track key) {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              size="sm"
+              (click)="applySuggestion(key)"
+            >
+              {{ key | translate }}
+            </button>
+          }
+        </div>
+      </form>
+    </section>
+
+    <section
+      class="flex flex-col gap-3 rounded-lg border border-border bg-card p-6"
+    >
+      <span
+        class="grid size-9 place-items-center rounded-lg bg-muted text-muted-foreground"
+        aria-hidden="true"
+      >
+        <ng-icon name="lucideBot" />
+      </span>
+      <h2 class="text-base font-semibold">
+        {{ "dashboard.assistantTitle" | translate }}
+      </h2>
+      <p class="text-muted-foreground">
+        {{ "dashboard.assistantDescription" | translate }}
+      </p>
+      <a
+        hlmBtn
+        variant="outline"
+        size="sm"
+        routerLink="/assistant"
+        class="w-fit"
+      >
+        <ng-icon name="lucideSparkles" aria-hidden="true" />
+        {{ "dashboard.openAssistant" | translate }}
+      </a>
     </section>
   </div>
-</section>
+
+  <!-- Row 2: four equal summary cards -->
+  <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <app-dashboard-stat-card
+      title="dashboard.statActiveCases"
+      icon="lucideFolderOpen"
+      [value]="store.activeCasesCount() ?? undefined"
+      [loading]="store.statsLoading()"
+      subtitleKey="dashboard.scopeWorkspace"
+      routerLink="/cases"
+      [queryParams]="{ caseStatus: 'ACTIVE' }"
+    />
+    <app-dashboard-stat-card
+      title="dashboard.statUpcomingHearings"
+      icon="lucideCalendar"
+      [value]="store.upcomingHearingsCount() ?? undefined"
+      [loading]="store.statsLoading()"
+      subtitleKey="dashboard.scopeNextSevenDays"
+      routerLink="/calendar"
+    />
+    <app-dashboard-stat-card
+      title="dashboard.statPendingTasks"
+      icon="lucideSquareCheck"
+      [value]="store.pendingTasksCount() ?? undefined"
+      [loading]="store.statsLoading()"
+      subtitleKey="dashboard.scopeMine"
+      routerLink="/work/my"
+    />
+    <app-dashboard-stat-card
+      title="dashboard.statTotalDocuments"
+      icon="lucideFileText"
+      [unavailable]="true"
+    />
+  </div>
+  @if (store.statsError()) {
+    <p class="text-sm text-destructive" role="alert">
+      {{ "work.loadError" | translate }}
+    </p>
+  }
+
+  <!-- Row 3: Upcoming obligations, Recent activity, Notifications -->
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
+    <div class="lg:col-span-2">
+      <app-section-panel
+        titleKey="dashboard.upcoming"
+        actionLabelKey="dashboard.viewCalendar"
+        actionLink="/calendar"
+        [loading]="store.obligationsLoading()"
+        [error]="store.obligationsError()"
+        [empty]="
+          !store.obligationsLoading() && store.obligations().length === 0
+        "
+        emptyKey="dashboard.noUpcomingObligations"
+        (retry)="store.loadObligations()"
+      >
+        @if ((store.overdueCount() ?? 0) > 0) {
+          <a
+            routerLink="/work/my"
+            [queryParams]="{ datePreset: 'overdue' }"
+            class="mb-2 flex items-center gap-2 text-sm text-destructive hover:underline"
+          >
+            <ng-icon name="lucideClock" aria-hidden="true" />
+            {{
+              "dashboard.overdueIndicator"
+                | translate: { count: store.overdueCount() ?? 0 }
+            }}
+          </a>
+        }
+        <app-obligation-list
+          [items]="store.obligations()"
+          (itemSelected)="openObligation($event)"
+        />
+      </app-section-panel>
+    </div>
+
+    <app-section-panel
+      titleKey="dashboard.recentActivity"
+      [loading]="store.activityLoading()"
+      [error]="store.activityError()"
+      [empty]="!store.activityLoading() && store.activityItems().length === 0"
+      (retry)="store.loadActivity()"
+    >
+      <app-activity-feed [items]="store.activityItems()" />
+    </app-section-panel>
+
+    <app-section-panel
+      titleKey="dashboard.notifications"
+      [unavailable]="true"
+      unavailableKey="dashboard.notificationsUnavailable"
+    />
+  </div>
+
+  <!-- Row 4: Cases overview and Quick actions -->
+  <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
+    <div class="lg:col-span-3">
+      <app-section-panel
+        titleKey="dashboard.casesOverview"
+        actionLabelKey="dashboard.viewAllCases"
+        actionLink="/cases"
+        [loading]="store.casesLoading()"
+        [error]="store.casesError()"
+        [empty]="!store.casesLoading() && store.casesPreview().length === 0"
+        (retry)="store.loadCasesPreview()"
+      >
+        <div hlmTableContainer>
+          <table hlmTable>
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "dashboard.caseNumber" | translate }}</th>
+                <th hlmTh>{{ "dashboard.client" | translate }}</th>
+                <th hlmTh>{{ "dashboard.status" | translate }}</th>
+                <th hlmTh>{{ "dashboard.responsibleLawyer" | translate }}</th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (row of store.casesPreview(); track row.id) {
+                <tr hlmTr>
+                  <td hlmTd>
+                    <a
+                      [routerLink]="['/cases', row.id]"
+                      class="font-medium hover:underline"
+                    >
+                      {{ row.caseNumber }}
+                    </a>
+                    <span class="block text-muted-foreground">
+                      {{ row.name }}
+                    </span>
+                  </td>
+                  <td hlmTd>{{ row.clientName }}</td>
+                  <td hlmTd>
+                    {{ "cases.status." + row.status | translate }}
+                  </td>
+                  <td hlmTd>{{ row.responsibleUserName }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </app-section-panel>
+    </div>
+
+    <app-section-panel titleKey="dashboard.quickActions">
+      <div class="flex flex-col gap-2">
+        <button hlmBtn variant="outline" type="button" (click)="createCase()">
+          <ng-icon name="lucideFolderPlus" aria-hidden="true" />
+          {{ "dashboard.createNewCase" | translate }}
+        </button>
+        <button hlmBtn variant="outline" type="button" (click)="addClient()">
+          <ng-icon name="lucideUserPlus" aria-hidden="true" />
+          {{ "dashboard.addClient" | translate }}
+        </button>
+        <button hlmBtn variant="outline" type="button" (click)="createTask()">
+          <ng-icon name="lucideSquareCheck" aria-hidden="true" />
+          {{ "dashboard.createTask" | translate }}
+        </button>
+        <button hlmBtn variant="outline" type="button" (click)="addDeadline()">
+          <ng-icon name="lucideFilePlus" aria-hidden="true" />
+          {{ "dashboard.addDeadline" | translate }}
+        </button>
+        <button
+          hlmBtn
+          variant="outline"
+          type="button"
+          (click)="scheduleEvent()"
+        >
+          <ng-icon name="lucideCalendarPlus" aria-hidden="true" />
+          {{ "dashboard.scheduleEvent" | translate }}
+        </button>
+        <p class="text-xs text-muted-foreground">
+          {{ "dashboard.documentUploadUnavailable" | translate }}
+        </p>
+      </div>
+    </app-section-panel>
+  </div>
+</div>

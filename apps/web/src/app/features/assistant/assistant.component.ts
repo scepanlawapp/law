@@ -14,6 +14,7 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
+import { ActivatedRoute, Router } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideArrowUp,
@@ -170,6 +171,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly authState = inject(AuthState);
   private readonly chat = inject(ChatApiClient);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
+  private readonly router = inject(Router);
   protected readonly speechRecognition = inject(SpeechRecognitionService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
@@ -282,6 +285,20 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.elapsedTimer = setInterval(() => this.clock.set(Date.now()), 1000);
     this.loadSessions();
     this.listenWorkspace();
+    this.consumeHandoffPrompt();
+  }
+
+  /** One-time handoff from the dashboard's prompt box; never resent on reload/back-nav. */
+  private consumeHandoffPrompt(): void {
+    const prompt = this.route.snapshot.queryParamMap.get("prompt");
+    if (!prompt) return;
+    this.composerForm.controls.draft.setValue(prompt);
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: { prompt: null },
+      queryParamsHandling: "merge",
+      replaceUrl: true,
+    });
   }
 
   ngAfterViewInit(): void {
@@ -1112,7 +1129,12 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   private focusDraftTextarea(): void {
-    requestAnimationFrame(() => this.draftTextarea?.nativeElement.focus());
+    requestAnimationFrame(() => {
+      const textarea = this.draftTextarea?.nativeElement;
+      if (!textarea) return;
+      textarea.focus();
+      if (textarea.value) this.resizeTextareaElement(textarea);
+    });
   }
 
   private isAllowedMimeType(mimeType: string): boolean {

@@ -7,9 +7,16 @@ import { WorkViewComponent } from "../work-view/work-view.component";
   standalone: true,
   imports: [WorkViewComponent, TranslatePipe],
   template: `
-    <div class="flex flex-col gap-4 p-4">
-      <h1 class="text-xl font-semibold">{{ "nav.teamWork" | translate }}</h1>
-      <app-work-view mode="team" [showTeamFilters]="true" />
+    <div class="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden p-4">
+      <h1 class="shrink-0 text-xl font-semibold">
+        {{ "nav.teamWork" | translate }}
+      </h1>
+
+      <app-work-view
+        mode="team"
+        class="block min-h-0 min-w-0 flex-1"
+        [showTeamFilters]="true"
+      />
     </div>
   `,
 })

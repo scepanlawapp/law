@@ -1,370 +1,207 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { Component, DestroyRef, computed, inject } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
+import { FormControl, ReactiveFormsModule } from "@angular/forms";
+import { Router, RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
-  lucideArrowRight,
+  lucideArrowUp,
   lucideBot,
-  lucideCalendar,
-  lucideChevronRight,
-  lucideFileText,
-  lucideFolderOpen,
-  lucideGavel,
-  lucideInfo,
-  lucideMessageCircle,
+  lucideCalendarPlus,
+  lucideClock,
+  lucideFilePlus,
+  lucideFolderPlus,
   lucideSparkles,
   lucideSquareCheck,
-  lucideTriangleAlert,
-  lucideUpload,
-  lucideUsers,
-  lucideWallet,
+  lucideUserPlus,
 } from "@ng-icons/lucide";
-import { Router, RouterLink } from "@angular/router";
-import { ChatApiClient } from "@law/api-clients";
-import { AuthState } from "@law/security";
+import {
+  HlmTable,
+  HlmTableContainer,
+  HlmTBody,
+  HlmTd,
+  HlmTh,
+  HlmTHead,
+  HlmTr,
+} from "@spartan-ng/helm/table";
 import { HlmButton } from "@spartan-ng/helm/button";
-import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { HlmInput } from "@spartan-ng/helm/input";
+import { CalendarItem, DeadlineDetail, TaskDetail } from "@law/api-interfaces";
+import { WorkManagementApiClient } from "@law/api-clients";
+import { AuthState } from "@law/security";
+import { ActivityFeedComponent } from "../../shared/components/activity-feed/activity-feed.component";
 import { DashboardStatCardComponent } from "../../shared/components/dashboard-stat-card/dashboard-stat-card.component";
-import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ObligationListComponent } from "../../shared/components/obligation-list/obligation-list.component";
+import { SectionPanelComponent } from "../../shared/components/section-panel/section-panel.component";
 import { LocalizationService } from "../../core/localization/localization.service";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
+import { EventDialogService } from "../calendar/event-dialog/event-dialog.service";
+import { DeadlineDialogService } from "../work-management/deadline-dialog/deadline-dialog.service";
+import { TaskDialogService } from "../work-management/task-dialog/task-dialog.service";
+import { todayDateInputValue } from "../work-management/work-management-utils";
+import { ObligationItem, obligationToCalendarItem } from "./dashboard.models";
+import { DashboardStore } from "./dashboard.store";
 
-type CaseStatus = "Active" | "Pending" | "Closed";
-
-interface DashboardEvent {
-  time: string;
-  title: string;
-  detail: string;
-  icon: string;
-  tag: string;
-}
-
-interface DashboardActivity {
-  title: string;
-  detail: string;
-  time: string;
-  icon: string;
-  tone: "blue" | "orange" | "green" | "purple";
-}
-
-interface DashboardNotification {
-  title: string;
-  detail: string;
-  time: string;
-  icon: string;
-  tone: "blue" | "orange" | "red" | "purple";
-}
-
-interface CaseOverview {
-  number: string;
-  client: string;
-  type: string;
-  status: CaseStatus;
-  statusClass: Lowercase<CaseStatus>;
-  court: string;
-  deadline: string;
-}
-
-interface QuickAction {
-  title: string;
-  icon: string;
-}
+const PROMPT_SUGGESTION_KEYS = [
+  "dashboard.suggestSummarizeCase",
+  "dashboard.suggestDraftResponse",
+  "dashboard.suggestExplainDeadline",
+  "dashboard.suggestFindSimilarCases",
+] as const;
 
 @Component({
   selector: "app-dashboard",
   standalone: true,
+  templateUrl: "./dashboard.component.html",
+  styleUrls: ["./dashboard.component.scss"],
   imports: [
-    DashboardStatCardComponent,
-    HlmButton,
-    HlmTextarea,
-    NgIcon,
     ReactiveFormsModule,
     RouterLink,
+    NgIcon,
+    HlmTable,
+    HlmTableContainer,
+    HlmTBody,
+    HlmTd,
+    HlmTh,
+    HlmTHead,
+    HlmTr,
+    HlmButton,
+    HlmInput,
+    ActivityFeedComponent,
+    DashboardStatCardComponent,
+    ObligationListComponent,
+    SectionPanelComponent,
     TranslatePipe,
   ],
-  templateUrl: "./dashboard.component.html",
-  styleUrl: "./dashboard.component.scss",
   providers: [
+    DashboardStore,
     provideIcons({
-      lucideArrowRight,
+      lucideArrowUp,
       lucideBot,
-      lucideCalendar,
-      lucideChevronRight,
-      lucideFileText,
-      lucideFolderOpen,
-      lucideGavel,
-      lucideInfo,
-      lucideMessageCircle,
+      lucideCalendarPlus,
+      lucideClock,
+      lucideFilePlus,
+      lucideFolderPlus,
       lucideSparkles,
       lucideSquareCheck,
-      lucideTriangleAlert,
-      lucideUpload,
-      lucideUsers,
-      lucideWallet,
+      lucideUserPlus,
     }),
   ],
 })
 export class DashboardComponent {
-  private readonly localization = inject(LocalizationService);
-  private readonly authState = inject(AuthState);
-  private readonly chat = inject(ChatApiClient);
+  protected readonly store = inject(DashboardStore);
+  private readonly auth = inject(AuthState);
   private readonly router = inject(Router);
+  private readonly localization = inject(LocalizationService);
+  private readonly workApi = inject(WorkManagementApiClient);
+  private readonly taskDialog = inject(TaskDialogService);
+  private readonly deadlineDialog = inject(DeadlineDialogService);
+  private readonly eventDialog = inject(EventDialogService);
+  private readonly clientDialog = inject(ClientFormDialogService);
   private readonly destroyRef = inject(DestroyRef);
 
-  protected readonly promptForm = new FormGroup({
-    prompt: new FormControl("", { nonNullable: true }),
+  protected readonly promptControl = new FormControl("", { nonNullable: true });
+  protected readonly suggestionKeys = PROMPT_SUGGESTION_KEYS;
+
+  protected readonly greetingName = computed(() => {
+    const user = this.auth.session()?.user;
+    if (!user) return "";
+    if (user.name?.trim()) return user.name.trim();
+    return (user.email.split("@", 1)[0] || "").split(/[._-]+/)[0] || "";
   });
-  protected readonly sendingPrompt = signal(false);
-  protected readonly promptError = signal("");
 
-  protected onPromptKeydown(event: Event): void {
-    if ((event as KeyboardEvent).shiftKey) return;
+  constructor() {
+    this.store.refreshAll();
+  }
 
-    event.preventDefault();
-    this.submitPrompt();
+  protected applySuggestion(key: string): void {
+    this.promptControl.setValue(this.localization.translate(key));
   }
 
   protected submitPrompt(): void {
-    const content = this.promptForm.controls.prompt.value.trim();
-    const workspaceId = this.authState.session()?.memberships[0]?.workspaceId;
-    if (!content || !workspaceId || this.sendingPrompt()) return;
+    const prompt = this.promptControl.value.trim();
+    if (!prompt) return;
+    void this.router.navigate(["/assistant"], { queryParams: { prompt } });
+  }
 
-    this.sendingPrompt.set(true);
-    this.promptError.set("");
-    this.chat
-      .createSession({ workspaceId })
+  protected openObligation(item: ObligationItem): void {
+    if (item.sourceType === "EVENT") {
+      this.openEventDialog(item);
+      return;
+    }
+    if (item.sourceType === "TASK") {
+      this.workApi
+        .getTask(item.sourceId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((task) => this.openTaskDialog(task));
+      return;
+    }
+    this.workApi
+      .getDeadline(item.sourceId)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (session) => {
-          this.chat
-            .sendMessage(workspaceId, session.id, content)
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-              next: () => {
-                this.router.navigateByUrl("/assistant");
-              },
-              error: () => {
-                this.sendingPrompt.set(false);
-                this.promptError.set("Unable to send that message.");
-              },
-            });
-        },
-        error: () => {
-          this.sendingPrompt.set(false);
-          this.promptError.set("Unable to create a conversation.");
-        },
+      .subscribe((deadline) => this.openDeadlineDialog(deadline));
+  }
+
+  private openEventDialog(item: ObligationItem): void {
+    const calendarItem: CalendarItem = obligationToCalendarItem(item);
+    this.eventDialog
+      .open({ item: calendarItem })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result) this.refreshAfterMutation();
       });
   }
 
-  translateStatus(status: CaseStatus): string {
-    return this.localization.translate(`dashboard.${status.toLowerCase()}`);
+  private openTaskDialog(task?: TaskDetail): void {
+    this.taskDialog
+      .open({ task })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result) this.refreshAfterMutation();
+      });
   }
 
-  readonly stats = [
-    {
-      title: "dashboard.statActiveCases",
-      value: "24",
-      trend: "2",
-      trendDetail: "dashboard.thisMonth",
-      trendDirection: "up" as const,
-      icon: "lucideFolderOpen",
-      chart: [25, 40, 35, 55, 48, 68, 58, 75],
-    },
-    {
-      title: "dashboard.statUpcomingHearings",
-      value: "5",
-      trend: "Next:",
-      trendDetail: "dashboard.tomorrow",
-      trendDirection: "neutral" as const,
-      icon: "lucideCalendar",
-      chart: [],
-    },
-    {
-      title: "dashboard.statPendingTasks",
-      value: "12",
-      trend: "4",
-      trendDetail: "dashboard.dueToday",
-      trendDirection: "down" as const,
-      icon: "lucideSquareCheck",
-      chart: [36, 45, 30, 58, 48, 67, 54, 80],
-    },
-    {
-      title: "dashboard.statTotalDocuments",
-      value: "156",
-      trend: "12",
-      trendDetail: "dashboard.thisMonth",
-      trendDirection: "up" as const,
-      icon: "lucideFileText",
-      chart: [20, 30, 28, 48, 42, 62, 52, 78],
-    },
-  ];
+  private openDeadlineDialog(deadline?: DeadlineDetail): void {
+    this.deadlineDialog
+      .open({ deadline })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result) this.refreshAfterMutation();
+      });
+  }
 
-  readonly upcomingEvents: DashboardEvent[] = [
-    {
-      time: "10:00",
-      title: "dashboard.courtHearing",
-      detail: "dashboard.eventCaseMarko",
-      icon: "lucideGavel",
-      tag: "dashboard.today",
-    },
-    {
-      time: "14:30",
-      title: "dashboard.clientMeeting",
-      detail: "dashboard.eventClientAna",
-      icon: "lucideUsers",
-      tag: "dashboard.today",
-    },
-    {
-      time: "16:00",
-      title: "dashboard.deadlineEvent",
-      detail: "dashboard.submitAppeal",
-      icon: "lucideFileText",
-      tag: "dashboard.today",
-    },
-    {
-      time: "dashboard.sep14",
-      title: "dashboard.courtHearing",
-      detail: "dashboard.eventCaseMilica",
-      icon: "lucideGavel",
-      tag: "dashboard.tomorrow",
-    },
-    {
-      time: "dashboard.sep16",
-      title: "dashboard.meeting",
-      detail: "dashboard.eventContractReview",
-      icon: "lucideCalendar",
-      tag: "dashboard.inTwoDays",
-    },
-  ];
+  protected createCase(): void {
+    void this.router.navigate(["/cases/new"]);
+  }
 
-  readonly recentActivity: DashboardActivity[] = [
-    {
-      title: "dashboard.documentUploaded",
-      detail: "dashboard.activityContract",
-      time: "dashboard.tenMinutesAgo",
-      icon: "lucideFileText",
-      tone: "blue",
-    },
-    {
-      title: "dashboard.caseUpdated",
-      detail: "dashboard.statusChangedActive",
-      time: "dashboard.oneHourAgo",
-      icon: "lucideFolderOpen",
-      tone: "orange",
-    },
-    {
-      title: "dashboard.taskCreated",
-      detail: "dashboard.prepareCourtResponse",
-      time: "dashboard.twoHoursAgo",
-      icon: "lucideSquareCheck",
-      tone: "green",
-    },
-    {
-      title: "dashboard.clientAdded",
-      detail: "dashboard.activityClientNikola",
-      time: "dashboard.threeHoursAgo",
-      icon: "lucideUsers",
-      tone: "purple",
-    },
-    {
-      title: "dashboard.paymentReceived",
-      detail: "dashboard.invoiceReceived",
-      time: "dashboard.fiveHoursAgo",
-      icon: "lucideWallet",
-      tone: "orange",
-    },
-  ];
+  protected addClient(): void {
+    this.clientDialog
+      .create()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
 
-  readonly notifications: DashboardNotification[] = [
-    {
-      title: "dashboard.newDocumentUploaded",
-      detail: "dashboard.notificationContract",
-      time: "dashboard.tenMinutesShort",
-      icon: "lucideFileText",
-      tone: "blue",
-    },
-    {
-      title: "dashboard.hearingReminder",
-      detail: "dashboard.notificationHearing",
-      time: "dashboard.oneHourShort",
-      icon: "lucideCalendar",
-      tone: "blue",
-    },
-    {
-      title: "dashboard.deadlineApproaching",
-      detail: "dashboard.notificationDeadline",
-      time: "dashboard.threeHoursShort",
-      icon: "lucideTriangleAlert",
-      tone: "red",
-    },
-    {
-      title: "dashboard.newClientMessage",
-      detail: "dashboard.notificationClientAna",
-      time: "dashboard.fiveHoursShort",
-      icon: "lucideMessageCircle",
-      tone: "blue",
-    },
-    {
-      title: "dashboard.systemUpdate",
-      detail: "dashboard.backupCompleted",
-      time: "dashboard.oneDayShort",
-      icon: "lucideInfo",
-      tone: "purple",
-    },
-  ];
+  protected createTask(): void {
+    this.openTaskDialog(undefined);
+  }
 
-  readonly cases: CaseOverview[] = [
-    {
-      number: "P-123/2026",
-      client: "Marko Petrović",
-      type: "dashboard.civil",
-      status: "Active",
-      statusClass: "active",
-      court: "dashboard.basicCourtSubotica",
-      deadline: "Sep 14, 2025",
-    },
-    {
-      number: "P-124/2026",
-      client: "Ana Jovanović",
-      type: "dashboard.criminal",
-      status: "Active",
-      statusClass: "active",
-      court: "dashboard.highCourtBelgrade",
-      deadline: "Sep 21, 2025",
-    },
-    {
-      number: "P-125/2026",
-      client: "Nikola Ilić",
-      type: "dashboard.commercial",
-      status: "Pending",
-      statusClass: "pending",
-      court: "dashboard.commercialCourt",
-      deadline: "Sep 28, 2025",
-    },
-    {
-      number: "P-126/2026",
-      client: "Jelena Stojanović",
-      type: "dashboard.family",
-      status: "Closed",
-      statusClass: "closed",
-      court: "dashboard.basicCourtNoviSad",
-      deadline: "Aug 30, 2025",
-    },
-    {
-      number: "P-127/2026",
-      client: "Petar Marković",
-      type: "dashboard.labor",
-      status: "Active",
-      statusClass: "active",
-      court: "dashboard.highCourtBelgrade",
-      deadline: "Oct 05, 2025",
-    },
-  ];
+  protected addDeadline(): void {
+    this.openDeadlineDialog(undefined);
+  }
 
-  readonly quickActions: QuickAction[] = [
-    { title: "dashboard.createNewCase", icon: "lucideFolderOpen" },
-    { title: "dashboard.uploadDocument", icon: "lucideUpload" },
-    { title: "dashboard.addClient", icon: "lucideUsers" },
-    { title: "dashboard.createTask", icon: "lucideSquareCheck" },
-    { title: "dashboard.scheduleEvent", icon: "lucideCalendar" },
-  ];
+  protected scheduleEvent(): void {
+    this.eventDialog
+      .open({ date: todayDateInputValue(), hour: 9 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result) this.refreshAfterMutation();
+      });
+  }
+
+  private refreshAfterMutation(): void {
+    this.store.loadStats();
+    this.store.loadObligations();
+    this.store.loadActivity();
+    this.store.loadCasesPreview();
+  }
 }

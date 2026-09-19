@@ -1,11 +1,9 @@
 import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
+import { ActivatedRoute, Router, convertToParamMap } from "@angular/router";
 import { NEVER, of } from "rxjs";
 import { ChatApiClient } from "@law/api-clients";
-import {
-  ChatMessageResponse,
-  DraftResultResponse,
-} from "@law/api-interfaces";
+import { ChatMessageResponse, DraftResultResponse } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
@@ -91,6 +89,13 @@ describe("AssistantComponent review state", () => {
           provide: ToastService,
           useValue: toast,
         },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: { queryParamMap: convertToParamMap({}) },
+          },
+        },
+        { provide: Router, useValue: { navigate: jest.fn() } },
       ],
     }).compileComponents();
   });
@@ -155,9 +160,7 @@ describe("AssistantComponent review state", () => {
       ".mobile-conversation-trigger",
     ) as HTMLButtonElement;
     expect(trigger.hasAttribute("hlmSheetTrigger")).toBe(true);
-    expect(trigger.getAttribute("aria-label")).toBe(
-      "assistant.conversations",
-    );
+    expect(trigger.getAttribute("aria-label")).toBe("assistant.conversations");
     expect(
       document.querySelector(".sheet-accessible-header h2")?.textContent,
     ).toContain("assistant.conversations");
