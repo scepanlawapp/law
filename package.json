@@ -11,6 +11,7 @@
     "services:config": "docker compose -f infra/docker/compose.yml config",
     "services:up": "docker compose -f infra/docker/compose.yml up -d",
     "services:down": "docker compose -f infra/docker/compose.yml down",
+    "services:down:volumes": "docker compose -f infra/docker/compose.yml down -v",
     "db:seed:auth": "node apps/api/prisma/seed.cjs",
     "db:seed:demo": "node apps/api/prisma/seed-demo-data.cjs",
     "tessdata:download": "bash scripts/download-tessdata.sh",

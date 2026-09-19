@@ -14,10 +14,10 @@ Treat [.github/bussiness-logic-done-so-far.md](.github/bussiness-logic-done-so-f
 
 - **Monorepo:** Nx, TypeScript, Node 22
 - **Web:** Angular 22 (standalone, signals, typed reactive forms), Tailwind CSS v4, Spartan/UI
-- **API:** NestJS, Prisma, PostgreSQL (`law_platform`)
+- **API:** NestJS, Prisma, PostgreSQL (`law_platform`, local image `pgvector/pgvector:pg17`)
 - **Jobs:** Redis + BullMQ queue `workflow` (processors run inside the API process)
 - **Shared contracts:** `@law/api-interfaces`
-- **LLM (current):** OpenRouter via `ChatModelProvider`. Ollama, n8n, and Qdrant libraries are adapter stubs.
+- **LLM (current):** OpenRouter via `ChatModelProvider`. Ollama, n8n, and Qdrant libraries are adapter stubs. Local Postgres includes the `vector` extension for later embeddings.
 
 ## Layout
 
@@ -97,7 +97,7 @@ readonly themeItemToString = createSelectItemToString(
 ```bash
 npm install
 cp .env.example .env
-npm run services:up      # docker: postgres, redis, …
+npm run services:up      # Compose project `law`: postgres (pgvector) + redis
 npm run db:migrate
 npm run api:serve        # http://localhost:3000/api
 npm run web:serve        # http://localhost:4200
