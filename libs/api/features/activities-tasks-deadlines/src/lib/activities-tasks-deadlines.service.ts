@@ -38,6 +38,22 @@ import {
   UpdateTaskDto,
 } from "./activities-tasks-deadlines.dto";
 
+// CalendarQueryDto.statuses is one combined string[] filter shared across Event/Task/Deadline;
+// each record type only accepts its own enum, so requested values must be narrowed per type.
+const EVENT_STATUSES = ["SCHEDULED", "COMPLETED", "CANCELLED"] as const;
+const TASK_STATUSES = ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"] as const;
+const DEADLINE_STATUSES = ["OPEN", "SATISFIED", "CANCELLED"] as const;
+
+function narrowStatuses<T extends string>(
+  statuses: string[] | undefined,
+  allowed: readonly T[],
+): T[] | undefined {
+  if (!statuses) return undefined;
+  return statuses.filter((status): status is T =>
+    (allowed as readonly string[]).includes(status),
+  );
+}
+
 @Injectable()
 export class ActivitiesTasksDeadlinesService {
   constructor(private readonly db: PlatformPrismaService) {}
@@ -210,7 +226,8 @@ export class ActivitiesTasksDeadlinesService {
     const userIds = query.userIds ?? (query.userId ? [query.userId] : []);
     const conditions: Prisma.EventWhereInput[] = [{ workspaceId }];
     if (query.type) conditions.push({ type: query.type });
-    if (query.statuses?.length) conditions.push({ status: { in: query.statuses } });
+    if (query.statuses?.length)
+      conditions.push({ status: { in: query.statuses } });
     else if (query.status) conditions.push({ status: query.status });
     if (query.caseId) conditions.push({ caseId: query.caseId });
     if (query.clientId)
@@ -234,7 +251,8 @@ export class ActivitiesTasksDeadlinesService {
           },
         ],
       });
-    if (query.from) conditions.push({ startsAt: { gte: new Date(query.from) } });
+    if (query.from)
+      conditions.push({ startsAt: { gte: new Date(query.from) } });
     if (query.to) conditions.push({ startsAt: { lt: new Date(query.to) } });
     const where: Prisma.EventWhereInput = { AND: conditions };
     const [total, items] = await this.db.$transaction([
@@ -432,7 +450,8 @@ export class ActivitiesTasksDeadlinesService {
       query.assigneeUserIds ??
       (query.assigneeUserId ? [query.assigneeUserId] : []);
     const conditions: Prisma.TaskWhereInput[] = [{ workspaceId }];
-    if (query.statuses?.length) conditions.push({ status: { in: query.statuses } });
+    if (query.statuses?.length)
+      conditions.push({ status: { in: query.statuses } });
     else if (query.status) conditions.push({ status: query.status });
     if (query.priority) conditions.push({ priority: query.priority });
     if (assigneeUserIds.length)
@@ -606,7 +625,8 @@ export class ActivitiesTasksDeadlinesService {
       query.responsibleUserIds ??
       (query.responsibleUserId ? [query.responsibleUserId] : []);
     const conditions: Prisma.DeadlineWhereInput[] = [{ workspaceId }];
-    if (query.statuses?.length) conditions.push({ status: { in: query.statuses } });
+    if (query.statuses?.length)
+      conditions.push({ status: { in: query.statuses } });
     else if (query.status) conditions.push({ status: query.status });
     if (query.type) conditions.push({ type: query.type });
     if (responsibleUserIds.length)
@@ -899,8 +919,11 @@ export class ActivitiesTasksDeadlinesService {
       : query.status
         ? [query.status]
         : undefined;
+    const eventStatuses = narrowStatuses(statuses, EVENT_STATUSES);
+    const taskStatuses = narrowStatuses(statuses, TASK_STATUSES);
+    const deadlineStatuses = narrowStatuses(statuses, DEADLINE_STATUSES);
     const [events, tasks, deadlines] = await Promise.all([
-      !sourceTypes.includes("EVENT")
+      !sourceTypes.includes("EVENT") || eventStatuses?.length === 0
         ? Promise.resolve([])
         : this.db.event.findMany({
             where: {
@@ -917,13 +940,13 @@ export class ActivitiesTasksDeadlinesService {
                   { assignees: { some: { userId: { in: userIds } } } },
                 ],
               }),
-              ...(statuses && { status: { in: statuses as any } }),
+              ...(eventStatuses && { status: { in: eventStatuses } }),
             },
             include: { clients: true, assignees: true },
             take: take + 1,
             orderBy: [{ startsAt: "asc" }, { id: "asc" }],
           }),
-      !sourceTypes.includes("TASK")
+      !sourceTypes.includes("TASK") || taskStatuses?.length === 0
         ? Promise.resolve([])
         : this.db.task.findMany({
             where: {
@@ -938,12 +961,12 @@ export class ActivitiesTasksDeadlinesService {
               ...(query.caseId && { caseId: query.caseId }),
               ...(query.clientId && { clientId: query.clientId }),
               ...(userIds.length && { assigneeUserId: { in: userIds } }),
-              ...(statuses && { status: { in: statuses as any } }),
+              ...(taskStatuses && { status: { in: taskStatuses } }),
             },
             take: take + 1,
             orderBy: [{ dueAt: "asc" }, { id: "asc" }],
           }),
-      !sourceTypes.includes("DEADLINE")
+      !sourceTypes.includes("DEADLINE") || deadlineStatuses?.length === 0
         ? Promise.resolve([])
         : this.db.deadline.findMany({
             where: {
@@ -958,7 +981,7 @@ export class ActivitiesTasksDeadlinesService {
               ...(query.caseId && { caseId: query.caseId }),
               ...(query.clientId && { clientId: query.clientId }),
               ...(userIds.length && { responsibleUserId: { in: userIds } }),
-              ...(statuses && { status: { in: statuses as any } }),
+              ...(deadlineStatuses && { status: { in: deadlineStatuses } }),
             },
             take: take + 1,
             orderBy: [{ dueAt: "asc" }, { id: "asc" }],

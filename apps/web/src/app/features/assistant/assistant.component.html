@@ -215,7 +215,10 @@
                     ></div>
                   }
                   @if (message.citations?.length) {
-                    <section class="message-sources" aria-label="{{ 'assistant.sources' | translate }}">
+                    <section
+                      class="message-sources"
+                      aria-label="{{ 'assistant.sources' | translate }}"
+                    >
                       <h3>{{ "assistant.sources" | translate }}</h3>
                       <app-citation-list
                         [citations]="message.citations ?? []"

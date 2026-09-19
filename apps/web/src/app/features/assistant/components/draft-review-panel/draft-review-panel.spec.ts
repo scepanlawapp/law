@@ -1,8 +1,5 @@
 import { TestBed } from "@angular/core/testing";
-import {
-  DraftApprovalStatus,
-  DraftResultResponse,
-} from "@law/api-interfaces";
+import { DraftApprovalStatus, DraftResultResponse } from "@law/api-interfaces";
 import { DraftReviewPanelComponent } from "./draft-review-panel";
 
 const draft: DraftResultResponse = {
@@ -124,7 +121,10 @@ describe("DraftReviewPanelComponent", () => {
     "CHANGES_REQUESTED",
   ])("exposes the %s status for translated semantic styling", (status) => {
     const fixture = TestBed.createComponent(DraftReviewPanelComponent);
-    fixture.componentRef.setInput("draft", { ...draft, approvalStatus: status });
+    fixture.componentRef.setInput("draft", {
+      ...draft,
+      approvalStatus: status,
+    });
     fixture.componentRef.setInput("text", draft.documentText);
     fixture.detectChanges();
 

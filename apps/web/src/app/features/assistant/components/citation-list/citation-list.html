@@ -1,41 +1,36 @@
 @if (citations().length) {
-  <ul class="citation-list">
-    @for (citation of citations(); track citation.marker) {
-      <li class="citation-item" [id]="anchorId(citation.marker)">
-        <span class="citation-marker">{{ citation.marker }}</span>
-        <div class="citation-body">
-          <div class="citation-heading">
-            <strong>
-              {{
-                citation.articleNumber
-                  ? ("assistant.sourceArticle"
-                    | translate: { number: citation.articleNumber })
-                  : ("assistant.sourceGeneralProvision" | translate)
-              }}
-            </strong>
-            <span class="citation-source-title">{{ citation.sourceTitle }}</span>
-          </div>
-          <p class="citation-snippet">{{ citation.snippet }}</p>
-          <div class="citation-footer">
-            <span class="citation-match">
-              <ng-icon name="lucideScale" aria-hidden="true" />
-              {{
-                "assistant.sourceMatch"
-                  | translate: { percent: matchPercent(citation.score) }
-              }}
-            </span>
-            <a
-              [href]="citation.sourceUrl"
-              target="_blank"
-              rel="noreferrer noopener"
-              class="citation-link"
-            >
-              <ng-icon name="lucideExternalLink" aria-hidden="true" />
-              {{ "assistant.openSource" | translate }}
-            </a>
-          </div>
-        </div>
-      </li>
-    }
-  </ul>
+<ul class="citation-list">
+  @for (citation of citations(); track citation.marker) {
+  <li class="citation-item" [id]="anchorId(citation.marker)">
+    <span class="citation-marker">{{ citation.marker }}</span>
+    <div class="citation-body">
+      <div class="citation-heading">
+        <strong>
+          {{ citation.articleNumber ? ("assistant.sourceArticle" | translate: {
+          number: citation.articleNumber }) :
+          ("assistant.sourceGeneralProvision" | translate) }}
+        </strong>
+        <span class="citation-source-title">{{ citation.sourceTitle }}</span>
+      </div>
+      <p class="citation-snippet">{{ citation.snippet }}</p>
+      <div class="citation-footer">
+        <span class="citation-match">
+          <ng-icon name="lucideScale" aria-hidden="true" />
+          {{ "assistant.sourceMatch" | translate: { percent:
+          matchPercent(citation.score) } }}
+        </span>
+        <a
+          [href]="citation.sourceUrl"
+          target="_blank"
+          rel="noreferrer noopener"
+          class="citation-link"
+        >
+          <ng-icon name="lucideExternalLink" aria-hidden="true" />
+          {{ "assistant.openSource" | translate }}
+        </a>
+      </div>
+    </div>
+  </li>
+  }
+</ul>
 }

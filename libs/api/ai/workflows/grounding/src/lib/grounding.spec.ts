@@ -31,7 +31,10 @@ describe("retrieveGroundingCitations", () => {
       .mockResolvedValueOnce([hit({ id: "a", score: 0.6 })])
       .mockResolvedValueOnce([hit({ id: "a", score: 0.9 })]);
 
-    const citations = await retrieveGroundingCitations(search, ["upit-1", "upit-2"]);
+    const citations = await retrieveGroundingCitations(search, [
+      "upit-1",
+      "upit-2",
+    ]);
 
     expect(citations).toHaveLength(1);
     expect(citations[0]).toMatchObject({ marker: 1, chunkId: "a", score: 0.9 });
@@ -40,7 +43,10 @@ describe("retrieveGroundingCitations", () => {
   it("drops hits below the minimum score threshold", async () => {
     const search = jest
       .fn()
-      .mockResolvedValue([hit({ id: "a", score: 0.4 }), hit({ id: "b", score: 0.7 })]);
+      .mockResolvedValue([
+        hit({ id: "a", score: 0.4 }),
+        hit({ id: "b", score: 0.7 }),
+      ]);
 
     const citations = await retrieveGroundingCitations(search, ["upit-1"], {
       minScore: 0.5,
@@ -50,11 +56,13 @@ describe("retrieveGroundingCitations", () => {
   });
 
   it("caps the number of citations and assigns markers by descending score", async () => {
-    const search = jest.fn().mockResolvedValue([
-      hit({ id: "a", score: 0.6 }),
-      hit({ id: "b", score: 0.9 }),
-      hit({ id: "c", score: 0.75 }),
-    ]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([
+        hit({ id: "a", score: 0.6 }),
+        hit({ id: "b", score: 0.9 }),
+        hit({ id: "c", score: 0.75 }),
+      ]);
 
     const citations = await retrieveGroundingCitations(search, ["upit-1"], {
       totalLimit: 2,
@@ -76,7 +84,9 @@ describe("retrieveGroundingCitations", () => {
 
   it("truncates long snippets", async () => {
     const longText = "reč ".repeat(200);
-    const search = jest.fn().mockResolvedValue([hit({ id: "a", text: longText })]);
+    const search = jest
+      .fn()
+      .mockResolvedValue([hit({ id: "a", text: longText })]);
 
     const citations = await retrieveGroundingCitations(search, ["upit-1"], {
       snippetMaxChars: 50,
@@ -113,11 +123,29 @@ describe("formatGroundingContextBlock", () => {
 describe("filterUsedCitations", () => {
   it("keeps only citations whose marker was referenced", () => {
     const citations = [
-      { marker: 1, chunkId: "a", articleNumber: null, sourceTitle: "", sourceUrl: "", snippet: "", score: 0.9 },
-      { marker: 2, chunkId: "b", articleNumber: null, sourceTitle: "", sourceUrl: "", snippet: "", score: 0.8 },
+      {
+        marker: 1,
+        chunkId: "a",
+        articleNumber: null,
+        sourceTitle: "",
+        sourceUrl: "",
+        snippet: "",
+        score: 0.9,
+      },
+      {
+        marker: 2,
+        chunkId: "b",
+        articleNumber: null,
+        sourceTitle: "",
+        sourceUrl: "",
+        snippet: "",
+        score: 0.8,
+      },
     ];
 
-    expect(filterUsedCitations(citations, [2]).map((c) => c.chunkId)).toEqual(["b"]);
+    expect(filterUsedCitations(citations, [2]).map((c) => c.chunkId)).toEqual([
+      "b",
+    ]);
   });
 });
 

@@ -8,7 +8,8 @@ const baseBrief: BriefResult = {
   competentCourt: "Prvi osnovni sud u Beogradu",
   claimValue: "150.000 RSD",
   legalBasis: ["ZOO čl. 154", "Zakon o radu čl. 76"],
-  factualDescription: "Poslodavac nije isplatio naknadu za neiskorišćeni odmor.",
+  factualDescription:
+    "Poslodavac nije isplatio naknadu za neiskorišćeni odmor.",
   evidence: ["ugovor.pdf"],
   reliefSought: "Isplata naknade za neiskorišćeni godišnji odmor.",
   missingFields: [],
