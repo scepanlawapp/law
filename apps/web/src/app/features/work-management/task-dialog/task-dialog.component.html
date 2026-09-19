@@ -4,7 +4,14 @@
   </h2>
   <p hlmDialogDescription>{{ "work.tasks.formDescription" | translate }}</p>
 </hlm-dialog-header>
-<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
+<form
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  class="flex min-h-0 flex-1 flex-col gap-4 text-sm"
+  novalidate
+>
+  <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="grid gap-4">
   <div hlmField>
     <label hlmFieldLabel for="task-title">{{ "work.title" | translate }}</label>
     <input hlmInput id="task-title" formControlName="title" />
@@ -24,31 +31,45 @@
       <label hlmFieldLabel for="task-assignee">
         {{ "work.responsible" | translate }}
       </label>
-      <select
-        id="task-assignee"
+      <hlm-select
         formControlName="assigneeUserId"
-        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        [itemToString]="userItemToString"
       >
-        @for (user of users(); track user.id) {
-          <option [value]="user.id">{{ user.name }}</option>
-        }
-      </select>
+        <hlm-select-trigger id="task-assignee" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (user of users(); track user.id) {
+              <hlm-select-item [value]="user.id">
+                {{ user.name }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     <div hlmField>
       <label hlmFieldLabel for="task-priority">
         {{ "work.priority" | translate }}
       </label>
-      <select
-        id="task-priority"
+      <hlm-select
         formControlName="priority"
-        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        [itemToString]="priorityItemToString"
       >
-        @for (priority of priorities; track priority) {
-          <option [value]="priority">
-            {{ "work.priority." + priority.toLowerCase() | translate }}
-          </option>
-        }
-      </select>
+        <hlm-select-trigger id="task-priority" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (priority of priorities; track priority) {
+              <hlm-select-item [value]="priority">
+                {{ "work.priority." + priority.toLowerCase() | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
   </div>
   <div class="grid gap-4 md:grid-cols-3">
@@ -56,33 +77,45 @@
       <label hlmFieldLabel for="task-status">
         {{ "work.status" | translate }}
       </label>
-      <select
-        id="task-status"
+      <hlm-select
         formControlName="status"
-        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        [itemToString]="taskStatusItemToString"
       >
-        @for (status of statuses; track status) {
-          <option [value]="status">
-            {{ "work.taskStatus." + status.toLowerCase() | translate }}
-          </option>
-        }
-      </select>
+        <hlm-select-trigger id="task-status" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (status of statuses; track status) {
+              <hlm-select-item [value]="status">
+                {{ "work.taskStatus." + status.toLowerCase() | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     <div hlmField>
       <label hlmFieldLabel for="task-due-mode">
         {{ "work.dueTarget" | translate }}
       </label>
-      <select
-        id="task-due-mode"
+      <hlm-select
         formControlName="dueMode"
-        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        [itemToString]="dueModeItemToString"
       >
-        @for (mode of dueModes; track mode) {
-          <option [value]="mode">
-            {{ "work.dueMode." + mode.toLowerCase() | translate }}
-          </option>
-        }
-      </select>
+        <hlm-select-trigger id="task-due-mode" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (mode of dueModes; track mode) {
+              <hlm-select-item [value]="mode">
+                {{ "work.dueMode." + mode.toLowerCase() | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     @if (form.controls.dueMode.value === "DATE") {
       <div hlmField>
@@ -110,6 +143,8 @@
         />
       </div>
     }
+  </div>
+    </div>
   </div>
   <hlm-dialog-footer class="flex justify-end gap-2">
     <button

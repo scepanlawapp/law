@@ -24,6 +24,8 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import {
   dateInputValue,
@@ -49,6 +51,7 @@ type DeadlineDueMode = "DATE" | "DATE_TIME";
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    HlmSelectImports,
     HlmSpinner,
     HlmTextarea,
     TranslatePipe,
@@ -58,6 +61,7 @@ export class DeadlineDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly context = injectBrnDialogContext<DeadlineDialogContext>();
+  private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly dialogRef = inject(BrnDialogRef<DeadlineDetail>);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
@@ -71,6 +75,18 @@ export class DeadlineDialogComponent {
     "OTHER",
   ];
   readonly dueModes: DeadlineDueMode[] = ["DATE", "DATE_TIME"];
+  readonly deadlineTypeItemToString = (
+    value: string | null | undefined,
+  ): string =>
+    value
+      ? this.localization.translate(`work.deadlineType.${value.toLowerCase()}`)
+      : "";
+  readonly dueModeItemToString = (value: string | null | undefined): string =>
+    value
+      ? this.localization.translate(`work.dueMode.${value.toLowerCase()}`)
+      : "";
+  readonly userItemToString = (value: string | null | undefined): string =>
+    this.users().find((user) => user.id === value)?.name ?? "";
   readonly form = new FormGroup({
     title: new FormControl(this.context.deadline?.title ?? "", {
       nonNullable: true,

@@ -6,7 +6,14 @@
   </h2>
   <p hlmDialogDescription>{{ "work.deadlines.formDescription" | translate }}</p>
 </hlm-dialog-header>
-<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
+<form
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  class="flex min-h-0 flex-1 flex-col gap-4 text-sm"
+  novalidate
+>
+  <div class="min-h-0 flex-1 overflow-y-auto">
+    <div class="grid gap-4">
   <div hlmField>
     <label hlmFieldLabel for="deadline-title">
       {{ "work.title" | translate }}
@@ -28,31 +35,45 @@
       <label hlmFieldLabel for="deadline-type">
         {{ "work.type" | translate }}
       </label>
-      <select
-        id="deadline-type"
+      <hlm-select
         formControlName="type"
-        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        [itemToString]="deadlineTypeItemToString"
       >
-        @for (type of types; track type) {
-          <option [value]="type">
-            {{ "work.deadlineType." + type.toLowerCase() | translate }}
-          </option>
-        }
-      </select>
+        <hlm-select-trigger id="deadline-type" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (type of types; track type) {
+              <hlm-select-item [value]="type">
+                {{ "work.deadlineType." + type.toLowerCase() | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     <div hlmField>
       <label hlmFieldLabel for="deadline-responsible">
         {{ "work.responsible" | translate }}
       </label>
-      <select
-        id="deadline-responsible"
+      <hlm-select
         formControlName="responsibleUserId"
-        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        [itemToString]="userItemToString"
       >
-        @for (user of users(); track user.id) {
-          <option [value]="user.id">{{ user.name }}</option>
-        }
-      </select>
+        <hlm-select-trigger id="deadline-responsible" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (user of users(); track user.id) {
+              <hlm-select-item [value]="user.id">
+                {{ user.name }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
   </div>
   <div class="grid gap-4 md:grid-cols-2">
@@ -60,17 +81,23 @@
       <label hlmFieldLabel for="deadline-due-mode">
         {{ "work.dueTarget" | translate }}
       </label>
-      <select
-        id="deadline-due-mode"
+      <hlm-select
         formControlName="dueMode"
-        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+        [itemToString]="dueModeItemToString"
       >
-        @for (mode of dueModes; track mode) {
-          <option [value]="mode">
-            {{ "work.dueMode." + mode.toLowerCase() | translate }}
-          </option>
-        }
-      </select>
+        <hlm-select-trigger id="deadline-due-mode" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (mode of dueModes; track mode) {
+              <hlm-select-item [value]="mode">
+                {{ "work.dueMode." + mode.toLowerCase() | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     @if (form.controls.dueMode.value === "DATE") {
       <div hlmField>
@@ -104,6 +131,8 @@
       {{ "work.sourceDescription" | translate }}
     </label>
     <input hlmInput id="deadline-source" formControlName="sourceDescription" />
+  </div>
+    </div>
   </div>
   <hlm-dialog-footer class="flex justify-end gap-2">
     <button

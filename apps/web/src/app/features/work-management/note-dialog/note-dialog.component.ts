@@ -20,6 +20,8 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { dateTimeInputValue } from "../work-management-utils";
 import { NoteDialogContext } from "./note-dialog.models";
@@ -38,6 +40,7 @@ import { NoteDialogContext } from "./note-dialog.models";
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    HlmSelectImports,
     HlmSpinner,
     HlmTextarea,
     TranslatePipe,
@@ -46,6 +49,7 @@ import { NoteDialogContext } from "./note-dialog.models";
 export class NoteDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
   private readonly context = injectBrnDialogContext<NoteDialogContext>();
+  private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly dialogRef = inject(BrnDialogRef<NoteDetail>);
   readonly saving = signal(false);
@@ -56,6 +60,10 @@ export class NoteDialogComponent {
     "MEETING_SUMMARY",
     "CASE_UPDATE",
   ];
+  readonly noteTypeItemToString = (value: string | null | undefined): string =>
+    value
+      ? this.localization.translate(`work.noteType.${value.toLowerCase()}`)
+      : "";
   readonly form = new FormGroup({
     type: new FormControl<NoteType>(
       this.context.note?.type ?? this.context.type ?? "GENERAL",

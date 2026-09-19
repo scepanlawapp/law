@@ -25,6 +25,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import {
   dateInputValue,
@@ -59,6 +60,7 @@ export class TaskDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly context = injectBrnDialogContext<TaskDialogContext>();
+  private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly dialogRef = inject(BrnDialogRef<TaskDetail>);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
@@ -72,6 +74,22 @@ export class TaskDialogComponent {
     "CANCELLED",
   ];
   readonly dueModes: DueTargetMode[] = ["NONE", "DATE", "DATE_TIME"];
+  readonly taskStatusItemToString = (
+    value: string | null | undefined,
+  ): string =>
+    value
+      ? this.localization.translate(`work.taskStatus.${value.toLowerCase()}`)
+      : "";
+  readonly priorityItemToString = (value: string | null | undefined): string =>
+    value
+      ? this.localization.translate(`work.priority.${value.toLowerCase()}`)
+      : "";
+  readonly dueModeItemToString = (value: string | null | undefined): string =>
+    value
+      ? this.localization.translate(`work.dueMode.${value.toLowerCase()}`)
+      : "";
+  readonly userItemToString = (value: string | null | undefined): string =>
+    this.users().find((user) => user.id === value)?.name ?? "";
   readonly form = new FormGroup({
     title: new FormControl(this.context.task?.title ?? "", {
       nonNullable: true,
