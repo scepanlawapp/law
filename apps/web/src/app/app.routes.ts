@@ -23,7 +23,9 @@ import { CaseDetailComponent } from "./features/cases/case-detail.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
 import { FinanceComponent } from "./features/finance/finance.component";
 import { ReportsComponent } from "./features/reports/reports.component";
-import { TasksDeadlinesComponent } from "./features/tasks-deadlines/tasks-deadlines.component";
+import { TeamWorkComponent } from "./features/work-management/team-work/team-work.component";
+import { MyWorkComponent } from "./features/work-management/my-work/my-work.component";
+import { TasksDeadlinesRedirectComponent } from "./features/work-management/tasks-deadlines-redirect.component";
 
 export const appRoutes: Route[] = [
   {
@@ -60,7 +62,12 @@ export const appRoutes: Route[] = [
       { path: "notifications", component: NotificationsComponent },
       { path: "finance", component: FinanceComponent },
       { path: "reports", component: ReportsComponent },
-      { path: "tasks-deadlines", component: TasksDeadlinesComponent },
+      { path: "work/team", component: TeamWorkComponent },
+      { path: "work/my", component: MyWorkComponent },
+      {
+        path: "tasks-deadlines",
+        component: TasksDeadlinesRedirectComponent,
+      },
       {
         path: "settings",
         component: SettingsComponent,

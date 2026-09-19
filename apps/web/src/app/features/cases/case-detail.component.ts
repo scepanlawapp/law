@@ -31,6 +31,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 
 @Component({
   selector: "app-case-detail",
@@ -52,6 +53,7 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
     HlmTabsTrigger,
     KeyValuePipe,
     TranslatePipe,
+    WorkViewComponent,
   ],
 })
 export class CaseDetailComponent {

@@ -83,11 +83,20 @@
     </p>
     <a
       class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/tasks-deadlines"
+      routerLink="/work/team"
       routerLinkActive="premium-primary"
       [routerLinkActiveOptions]="{ exact: true }"
       ><ng-icon name="lucideSquareCheck" /><span>{{
-        "nav.tasksDeadlines" | translate
+        "nav.teamWork" | translate
+      }}</span></a
+    >
+    <a
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
+      routerLink="/work/my"
+      routerLinkActive="premium-primary"
+      [routerLinkActiveOptions]="{ exact: true }"
+      ><ng-icon name="lucideUserCheck" /><span>{{
+        "nav.myWork" | translate
       }}</span></a
     >
     <a

@@ -129,3 +129,6 @@ Changing `data-accent` overrides the `--primary`, `--primary-foreground`, `--rin
 - **Headless + Tailwind:** Spartan/UI provides headless accessibility and state signals (`@spartan-ui/brain`) styled with Tailwind CSS directives (`@spartan-ui/helm`).
 - **Skill Reference:** Refer to [.github/skills/spartan-ui/SKILL.md](.github/skills/spartan-ui/SKILL.md) whenever scaffolding or styling UI components.
 - **Component Reusability:** Keep components small, focused, and token-driven so global theme or accent changes apply seamlessly across the entire legal management platform.
+
+IMPORTANT: im bussiness-logic we are holding data what is done about bussiness logic. So it is crucial to document all changes and decisions related to business logic. After every change update bussines-logic-done-so-far.md file.
+IMPORTANT: if there is changes in object structure on relations update script apps/api/prisma/seed-demo-data.cjs accordingly for fill data with demo content properly.

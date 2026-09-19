@@ -1,0 +1,444 @@
+<div class="flex flex-col gap-4">
+  @if (showTeamFilters()) {
+    <div
+      class="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3"
+    >
+      <div class="flex min-w-48 flex-col gap-1">
+        <label class="text-sm font-medium">
+          {{ "work.filters.search" | translate }}
+        </label>
+        <input
+          hlmInput
+          [formControl]="search"
+          [placeholder]="'work.filters.searchPlaceholder' | translate"
+        />
+      </div>
+
+      <div class="flex min-w-56 flex-col gap-1">
+        <label class="text-sm font-medium">
+          {{ "work.filters.recordTypes" | translate }}
+        </label>
+        <div
+          hlmComboboxMultiple
+          [value]="recordTypes()"
+          (valueChange)="setRecordTypes($event ?? [])"
+          [itemToString]="recordTypeItemToString"
+        >
+          <hlm-combobox-chips>
+            <div *hlmComboboxValues="let values">
+              @for (value of values; track value) {
+                <hlm-combobox-chip [value]="value">
+                  {{ recordTypeItemToString(value) }}
+                </hlm-combobox-chip>
+              }
+            </div>
+            <input
+              hlmComboboxChipInput
+              [placeholder]="'work.filters.recordTypesPlaceholder' | translate"
+            />
+          </hlm-combobox-chips>
+          <hlm-combobox-content *hlmComboboxPortal>
+            <hlm-combobox-empty>
+              {{ "work.filters.noResults" | translate }}
+            </hlm-combobox-empty>
+            <div hlmComboboxList>
+              @for (option of recordTypeOptions; track option.value) {
+                <hlm-combobox-item [value]="option.value">
+                  {{ option.label | translate }}
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </div>
+      </div>
+
+      @if (!fixedUserId()) {
+        <div class="flex min-w-56 flex-col gap-1">
+          <label class="text-sm font-medium">
+            {{ "work.filters.people" | translate }}
+          </label>
+          <div
+            hlmComboboxMultiple
+            [value]="peopleIds()"
+            (valueChange)="setPeopleIds($event ?? [])"
+            [itemToString]="userItemToString"
+          >
+            <hlm-combobox-chips>
+              <div *hlmComboboxValues="let values">
+                @for (id of values; track id) {
+                  <hlm-combobox-chip [value]="id">
+                    {{ userItemToString(id) }}
+                  </hlm-combobox-chip>
+                }
+              </div>
+              <input
+                hlmComboboxChipInput
+                [placeholder]="'work.filters.peoplePlaceholder' | translate"
+              />
+            </hlm-combobox-chips>
+            <hlm-combobox-content *hlmComboboxPortal>
+              <hlm-combobox-empty>
+                {{ "work.filters.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (user of users(); track user.id) {
+                  <hlm-combobox-item [value]="user.id">
+                    {{ user.name }}
+                  </hlm-combobox-item>
+                }
+              </div>
+            </hlm-combobox-content>
+          </div>
+        </div>
+      }
+
+      <div class="flex min-w-56 flex-col gap-1">
+        <label class="text-sm font-medium">
+          {{ "work.filters.statuses" | translate }}
+        </label>
+        <div
+          hlmComboboxMultiple
+          [value]="statuses()"
+          (valueChange)="setStatuses($event ?? [])"
+          [itemToString]="statusItemToString"
+        >
+          <hlm-combobox-chips>
+            <div *hlmComboboxValues="let values">
+              @for (value of values; track value) {
+                <hlm-combobox-chip [value]="value">
+                  {{ statusItemToString(value) }}
+                </hlm-combobox-chip>
+              }
+            </div>
+            <input
+              hlmComboboxChipInput
+              [placeholder]="'work.filters.statusesPlaceholder' | translate"
+            />
+          </hlm-combobox-chips>
+          <hlm-combobox-content *hlmComboboxPortal>
+            <hlm-combobox-empty>
+              {{ "work.filters.noResults" | translate }}
+            </hlm-combobox-empty>
+            <div hlmComboboxList>
+              @for (option of statusOptions; track option.value) {
+                <hlm-combobox-item [value]="option.value">
+                  {{ option.label | translate }}
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </div>
+      </div>
+
+      @if (!fixedCaseId()) {
+        <div class="flex min-w-56 flex-col gap-1">
+          <label class="text-sm font-medium" for="work-view-case">
+            {{ "work.filters.case" | translate }}
+          </label>
+          <hlm-select
+            [value]="caseFilter()"
+            (valueChange)="setCaseFilter($event ?? '')"
+            [itemToString]="caseItemToString"
+          >
+            <hlm-select-trigger id="work-view-case" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.filters.allCases" | translate }}
+                </hlm-select-item>
+                @for (item of cases(); track item.id) {
+                  <hlm-select-item [value]="item.id">
+                    {{ item.caseNumber }} — {{ item.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+      }
+
+      <div class="flex min-w-40 flex-col gap-1">
+        <label class="text-sm font-medium" for="work-view-date-preset">
+          {{ "work.filters.dateRange" | translate }}
+        </label>
+        <hlm-select
+          [value]="datePreset()"
+          (valueChange)="setDatePreset($event ?? 'all')"
+          [itemToString]="datePresetItemToString"
+        >
+          <hlm-select-trigger id="work-view-date-preset" class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              @for (option of datePresetOptions; track option.value) {
+                <hlm-select-item [value]="option.value">
+                  {{ option.label | translate }}
+                </hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+      </div>
+    </div>
+  } @else {
+    <div class="flex flex-wrap items-end gap-3">
+      <hlm-select
+        [value]="datePreset()"
+        (valueChange)="setDatePreset($event ?? 'all')"
+        [itemToString]="datePresetItemToString"
+      >
+        <hlm-select-trigger class="w-48">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of datePresetOptions; track option.value) {
+              <hlm-select-item [value]="option.value">
+                {{ option.label | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+  }
+
+  <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <button
+        hlmBtn
+        type="button"
+        size="sm"
+        [variant]="presentation() === 'list' ? 'default' : 'outline'"
+        (click)="setPresentation('list')"
+      >
+        {{ "work.view.list" | translate }}
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        size="sm"
+        [variant]="presentation() === 'board' ? 'default' : 'outline'"
+        (click)="setPresentation('board')"
+      >
+        {{ "work.view.board" | translate }}
+      </button>
+    </div>
+
+    <div class="flex items-center gap-2">
+      <button
+        hlmBtn
+        type="button"
+        size="sm"
+        [variant]="statusMode() === 'open' ? 'default' : 'outline'"
+        (click)="setStatusMode('open')"
+      >
+        {{ "work.statusMode.open" | translate }}
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        size="sm"
+        [variant]="statusMode() === 'history' ? 'default' : 'outline'"
+        (click)="setStatusMode('history')"
+      >
+        {{ "work.statusMode.history" | translate }}
+      </button>
+    </div>
+  </div>
+
+  @if (loading() && workItems().length === 0) {
+    <div class="flex justify-center py-8">
+      <hlm-spinner />
+    </div>
+  } @else if (workItems().length === 0) {
+    <p class="py-8 text-center text-sm text-muted-foreground">
+      {{ "work.empty" | translate }}
+    </p>
+  } @else if (presentation() === "list") {
+    <div
+      appBottomReached
+      (bottomReached)="loadMore()"
+      class="flex max-h-[65vh] flex-col gap-2 overflow-y-auto pe-1"
+    >
+      <ul class="flex flex-col gap-2">
+        @for (item of workItems(); track item.sourceType + item.id) {
+          <li
+            class="flex items-center justify-between gap-3 rounded-lg border border-border p-3"
+          >
+            <button
+              type="button"
+              class="flex flex-1 flex-col items-start text-start"
+              (click)="openItem(item)"
+            >
+              <span class="text-sm font-medium">{{ item.title }}</span>
+              <span class="text-sm text-muted-foreground">
+                {{
+                  "work.recordType." + item.sourceType.toLowerCase() | translate
+                }}
+                · {{ formatDue(item) }}
+                @if (item.overdue) {
+                  ·
+                  <span class="text-destructive">
+                    {{ "work.overdue" | translate }}
+                  </span>
+                }
+              </span>
+            </button>
+            <div class="flex items-center gap-2">
+              <label
+                class="sr-only"
+                [for]="'work-view-status-' + item.sourceType + item.id"
+              >
+                {{ "work.status" | translate }}
+              </label>
+              <hlm-select
+                [value]="item.presentationStatus"
+                (valueChange)="
+                  onStatusSelect(item, $event ?? item.presentationStatus)
+                "
+                [itemToString]="statusItemToString"
+              >
+                <hlm-select-trigger
+                  [id]="'work-view-status-' + item.sourceType + item.id"
+                  class="w-36"
+                >
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (target of statusTargetsFor(item); track target) {
+                      <hlm-select-item [value]="target">
+                        {{ statusItemToString(target) }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+              @if (canComplete(item)) {
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  (click)="complete(item)"
+                >
+                  {{ "work.actions.complete" | translate }}
+                </button>
+              }
+              @if (canCancel(item)) {
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  (click)="cancel(item)"
+                >
+                  {{ "work.actions.cancel" | translate }}
+                </button>
+              }
+              @if (canReopen(item)) {
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  (click)="reopen(item)"
+                >
+                  {{ "work.actions.reopen" | translate }}
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+      @if (hasMore()) {
+        <div class="flex justify-center py-2">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="loading()"
+            (click)="loadMore()"
+          >
+            {{ "work.loadMore" | translate }}
+          </button>
+        </div>
+      }
+    </div>
+  } @else {
+    <div
+      appBottomReached
+      (bottomReached)="loadMore()"
+      class="flex max-h-[65vh] flex-col gap-3 overflow-y-auto pe-1"
+    >
+      <div
+        class="grid gap-3"
+        [style.grid-template-columns]="
+          'repeat(' + boardColumns().length + ', minmax(240px, 1fr))'
+        "
+        cdkDropListGroup
+      >
+        @for (column of boardColumns(); track column) {
+          <div
+            class="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2"
+          >
+            <h3 class="px-1 text-sm font-semibold">
+              {{ "work.board." + column.toLowerCase() | translate }}
+            </h3>
+            <div
+              cdkDropList
+              [id]="column"
+              [cdkDropListData]="column"
+              [cdkDropListEnterPredicate]="dropListEnterPredicate"
+              (cdkDropListDropped)="onDrop($event)"
+              class="flex min-h-24 flex-col gap-2"
+            >
+              @for (
+                item of itemsForColumn(column);
+                track item.sourceType + item.id
+              ) {
+                <div
+                  cdkDrag
+                  [cdkDragData]="item"
+                  class="rounded-lg border border-border bg-card p-2 shadow-xs"
+                >
+                  <button
+                    type="button"
+                    class="flex w-full flex-col items-start text-start"
+                    (click)="openItem(item)"
+                  >
+                    <span class="text-sm font-medium">{{ item.title }}</span>
+                    <span class="text-sm text-muted-foreground">
+                      {{
+                        "work.recordType." + item.sourceType.toLowerCase()
+                          | translate
+                      }}
+                      · {{ formatDue(item) }}
+                    </span>
+                  </button>
+                </div>
+              }
+            </div>
+          </div>
+        }
+      </div>
+      @if (hasMore()) {
+        <div class="flex justify-center py-2">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="loading()"
+            (click)="loadMore()"
+          >
+            {{ "work.loadMore" | translate }}
+          </button>
+        </div>
+      }
+    </div>
+  }
+</div>

@@ -212,6 +212,22 @@
           >
             {{ "calendar.agenda" | translate }}
           </button>
+          <button
+            hlmBtn
+            type="button"
+            [variant]="view() === 'list' ? 'default' : 'outline'"
+            (click)="setView('list')"
+          >
+            {{ "calendar.list" | translate }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            [variant]="view() === 'board' ? 'default' : 'outline'"
+            (click)="setView('board')"
+          >
+            {{ "calendar.board" | translate }}
+          </button>
         </div>
       </div>
       @if (incomplete()) {
@@ -378,6 +394,17 @@
               }
             </div>
           </div>
+        </section>
+      } @else if (view() === "list" || view() === "board") {
+        <section
+          class="calendar-viewport"
+          aria-label="{{ 'calendar.workView' | translate }}"
+        >
+          <app-work-view
+            [mode]="'team'"
+            [showTeamFilters]="true"
+            [syncQueryParams]="false"
+          />
         </section>
       } @else {
         <section

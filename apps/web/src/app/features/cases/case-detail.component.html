@@ -84,6 +84,9 @@
       >
         {{ "cases.responsibilities" | translate }}
       </button>
+      <button hlmTabsTrigger="work">
+        {{ "cases.work" | translate }}
+      </button>
     </div>
     <section hlmTabsContent="overview">
       <p>{{ caseItem.description }}</p>
@@ -168,6 +171,9 @@
           }
         </p>
       }
+    </section>
+    <section hlmTabsContent="work">
+      <app-work-view [mode]="'case'" [fixedCaseId]="id" />
     </section>
   </div>
 }
