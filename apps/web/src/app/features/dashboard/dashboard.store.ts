@@ -20,7 +20,7 @@ import {
   caseSummaryToPreviewRow,
 } from "./dashboard.models";
 
-const UPCOMING_WINDOW_DAYS = 7;
+const UPCOMING_WINDOW_DAYS = 365;
 const UNFINISHED_EVENT_TASK_DEADLINE_STATUSES = [
   "SCHEDULED",
   "TODO",
@@ -180,7 +180,7 @@ export class DashboardStore {
         userIds: [userId],
         sourceTypes: ["EVENT", "TASK", "DEADLINE"],
         statuses: UNFINISHED_EVENT_TASK_DEADLINE_STATUSES,
-        limit: 20,
+        limit: 4,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -200,7 +200,7 @@ export class DashboardStore {
     this.activityError.set(false);
 
     forkJoin({
-      activity: this.workApi.listActivity({ page: 1, pageSize: 8 }),
+      activity: this.workApi.listActivity({ page: 1, pageSize: 4 }),
       users: this.referencesApi.users().pipe(catchError(() => of([]))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))

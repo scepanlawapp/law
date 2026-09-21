@@ -8,8 +8,12 @@ import {
   UserSettingsTheme,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
-import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
-import { HlmLabel } from "@spartan-ng/helm/label";
+import {
+  HlmField,
+  HlmFieldLabel,
+  HlmFieldLegend,
+  HlmFieldSet,
+} from "@spartan-ng/helm/field";
 import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { UserSettingsApiClient } from "@law/api-clients";
@@ -40,13 +44,17 @@ import {
     HlmButton,
     HlmField,
     HlmFieldLabel,
-    HlmLabel,
+    HlmFieldLegend,
+    HlmFieldSet,
     HlmRadioGroupImports,
     HlmSelectImports,
     TranslatePipe,
   ],
   templateUrl: "./appearance-settings.component.html",
   styleUrl: "./settings-pages.component.scss",
+  host: {
+    class: "block min-w-0",
+  },
 })
 export class AppearanceSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);
@@ -94,37 +102,40 @@ export class AppearanceSettingsComponent {
     }),
   });
   // The finish picker is only meaningful for the GOLD accent's premium gradients.
-  readonly accentColorValue = toSignal(this.form.controls.accentColor.valueChanges, {
-    initialValue: this.form.controls.accentColor.value,
-  });
+  readonly accentColorValue = toSignal(
+    this.form.controls.accentColor.valueChanges,
+    {
+      initialValue: this.form.controls.accentColor.value,
+    },
+  );
   constructor() {
     this.form.controls.accentColor.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((accentColor) => {
-      if (accentColor !== "GOLD") {
-        this.form.controls.finish.setValue(DEFAULT_FINISH);
-      }
-    });
+        if (accentColor !== "GOLD") {
+          this.form.controls.finish.setValue(DEFAULT_FINISH);
+        }
+      });
     this.api
       .get()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: (s) => {
-        this.form.patchValue({
-          ...s.preferences,
-          theme: normalizeTheme(s.preferences.theme),
-          accentColor: normalizeAccent(s.preferences.accentColor),
-          finish: normalizeFinish(s.preferences.finish),
-        });
-        this.loading.set(false);
-      },
-      error: () => {
-        this.toast.error(
-          this.localization.translate("settings.appearanceLoadError"),
-        );
-        this.loading.set(false);
-      },
-    });
+        next: (s) => {
+          this.form.patchValue({
+            ...s.preferences,
+            theme: normalizeTheme(s.preferences.theme),
+            accentColor: normalizeAccent(s.preferences.accentColor),
+            finish: normalizeFinish(s.preferences.finish),
+          });
+          this.loading.set(false);
+        },
+        error: () => {
+          this.toast.error(
+            this.localization.translate("settings.appearanceLoadError"),
+          );
+          this.loading.set(false);
+        },
+      });
   }
   save(): void {
     this.saving.set(true);
@@ -132,24 +143,26 @@ export class AppearanceSettingsComponent {
       .update({ preferences: this.form.getRawValue() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: async () => {
-        await this.localization.setLanguage(this.form.controls.language.value);
-        this.theme.apply(
-          this.form.controls.theme.value,
-          this.form.controls.accentColor.value,
-          this.form.controls.finish.value,
-        );
-        this.toast.success(
-          this.localization.translate("settings.appearanceSaved"),
-        );
-        this.saving.set(false);
-      },
-      error: () => {
-        this.toast.error(
-          this.localization.translate("settings.appearanceSaveError"),
-        );
-        this.saving.set(false);
-      },
-    });
+        next: async () => {
+          await this.localization.setLanguage(
+            this.form.controls.language.value,
+          );
+          this.theme.apply(
+            this.form.controls.theme.value,
+            this.form.controls.accentColor.value,
+            this.form.controls.finish.value,
+          );
+          this.toast.success(
+            this.localization.translate("settings.appearanceSaved"),
+          );
+          this.saving.set(false);
+        },
+        error: () => {
+          this.toast.error(
+            this.localization.translate("settings.appearanceSaveError"),
+          );
+          this.saving.set(false);
+        },
+      });
   }
 }

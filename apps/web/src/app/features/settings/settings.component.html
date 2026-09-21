@@ -1,31 +1,46 @@
-<section>
-  <header>
-    <div>
-      <p>{{ "settings.eyebrow" | translate }}</p>
-      <h1>{{ "settings.title" | translate }}</h1>
-      <p>{{ "settings.description" | translate }}</p>
+<section class="flex min-w-0 flex-col bg-background md:flex-row">
+  <aside
+    class="border-sidebar-border bg-sidebar text-sidebar-foreground border-b px-4 py-5 md:w-64 md:shrink-0 md:border-r md:border-b-0"
+  >
+    <div class="mb-5 flex items-start gap-3">
+      <span
+        class="bg-accent text-primary grid size-9 shrink-0 place-items-center rounded-md"
+        aria-hidden="true"
+      >
+        <ng-icon name="lucideSettings" />
+      </span>
+      <div class="min-w-0">
+        <h1 class="text-base leading-tight font-semibold">
+          {{ "settings.title" | translate }}
+        </h1>
+        <p class="text-muted-foreground mt-1 text-sm leading-snug">
+          {{ "settings.description" | translate }}
+        </p>
+      </div>
     </div>
-  </header>
 
-  <div class="flex">
     <nav
-      class="settings-nav"
+      class="flex flex-wrap gap-1 md:flex-col md:flex-nowrap"
       [attr.aria-label]="'settings.navigation' | translate"
     >
       @for (item of menu; track item.path) {
-        <div>
-          <a
-            [routerLink]="item.path"
-            routerLinkActive="settings-nav-item-active"
-            [routerLinkActiveOptions]="{ exact: true }"
-          >
-            <ng-icon [name]="item.icon" />
-            <span>{{ item.label | translate }}</span>
-          </a>
-        </div>
+        <a
+          class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
+          [routerLink]="item.path"
+          routerLinkActive="bg-accent text-accent-foreground"
+          [routerLinkActiveOptions]="{ exact: true }"
+          ariaCurrentWhenActive="page"
+        >
+          <ng-icon class="size-4 shrink-0" [name]="item.icon" />
+          <span class="min-w-0 text-left text-pretty">
+            {{ item.label | translate }}
+          </span>
+        </a>
       }
     </nav>
+  </aside>
 
-    <div><router-outlet /></div>
+  <div class="min-w-0 flex-1">
+    <router-outlet />
   </div>
 </section>

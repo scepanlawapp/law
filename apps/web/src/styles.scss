@@ -745,9 +745,9 @@ select optgroup {
     background-color: var(--primary);
     background-image: var(--primary-surface);
     border: 1px solid var(--premium-border);
-    border-radius: 0.375rem;
-    width: 2rem;
-    height: 1.25rem;
+    border-radius: 9999px;
+    width: 1.5rem;
+    height: 1.5rem;
     display: inline-block;
   }
 }

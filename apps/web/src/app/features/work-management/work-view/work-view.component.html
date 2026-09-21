@@ -1,79 +1,45 @@
 <div class="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden">
-  @if (showTeamFilters()) {
-    <div
-      class="flex shrink-0 flex-wrap items-end gap-3 rounded-lg border border-border p-3"
-    >
-      <div class="flex min-w-48 flex-col gap-1">
-        <label class="text-sm font-medium">
-          {{ "work.filters.search" | translate }}
-        </label>
-        <input
-          hlmInput
-          [formControl]="search"
-          [placeholder]="'work.filters.searchPlaceholder' | translate"
-        />
-      </div>
-
-      <div class="flex min-w-56 flex-col gap-1">
-        <label class="text-sm font-medium">
-          {{ "work.filters.recordTypes" | translate }}
-        </label>
-        <div
-          hlmComboboxMultiple
-          [value]="recordTypes()"
-          (valueChange)="setRecordTypes($event ?? [])"
-          [itemToString]="recordTypeItemToString"
-        >
-          <hlm-combobox-chips>
-            <div *hlmComboboxValues="let values">
-              @for (value of values; track value) {
-                <hlm-combobox-chip [value]="value">
-                  {{ recordTypeItemToString(value) }}
-                </hlm-combobox-chip>
-              }
-            </div>
-            <input
-              hlmComboboxChipInput
-              [placeholder]="'work.filters.recordTypesPlaceholder' | translate"
-            />
-          </hlm-combobox-chips>
-          <hlm-combobox-content *hlmComboboxPortal>
-            <hlm-combobox-empty>
-              {{ "work.filters.noResults" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (option of recordTypeOptions; track option.value) {
-                <hlm-combobox-item [value]="option.value">
-                  {{ option.label | translate }}
-                </hlm-combobox-item>
-              }
-            </div>
-          </hlm-combobox-content>
+  <div class="filters">
+    @if (showTeamFilters()) {
+      <div
+        class="flex shrink-0 flex-wrap items-end gap-3 rounded-lg border border-border p-3"
+      >
+        <div class="flex min-w-48 flex-col gap-1">
+          <label class="text-sm font-medium" for="work-view-search">
+            {{ "work.filters.search" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="work-view-search"
+            [formControl]="search"
+            [placeholder]="'work.filters.searchPlaceholder' | translate"
+          />
         </div>
-      </div>
 
-      @if (!fixedUserId()) {
         <div class="flex min-w-56 flex-col gap-1">
-          <label class="text-sm font-medium">
-            {{ "work.filters.people" | translate }}
+          <label class="text-sm font-medium" for="work-view-record-types">
+            {{ "work.filters.recordTypes" | translate }}
           </label>
           <div
             hlmComboboxMultiple
-            [value]="peopleIds()"
-            (valueChange)="setPeopleIds($event ?? [])"
-            [itemToString]="userItemToString"
+            [value]="recordTypes()"
+            (valueChange)="setRecordTypes($event ?? [])"
+            [itemToString]="recordTypeItemToString"
           >
             <hlm-combobox-chips>
               <div *hlmComboboxValues="let values">
-                @for (id of values; track id) {
-                  <hlm-combobox-chip [value]="id">
-                    {{ userItemToString(id) }}
+                @for (value of values; track value) {
+                  <hlm-combobox-chip [value]="value">
+                    {{ recordTypeItemToString(value) }}
                   </hlm-combobox-chip>
                 }
               </div>
               <input
                 hlmComboboxChipInput
-                [placeholder]="'work.filters.peoplePlaceholder' | translate"
+                id="work-view-record-types"
+                [placeholder]="
+                  'work.filters.recordTypesPlaceholder' | translate
+                "
               />
             </hlm-combobox-chips>
             <hlm-combobox-content *hlmComboboxPortal>
@@ -81,94 +47,157 @@
                 {{ "work.filters.noResults" | translate }}
               </hlm-combobox-empty>
               <div hlmComboboxList>
-                @for (user of users(); track user.id) {
-                  <hlm-combobox-item [value]="user.id">
-                    {{ user.name }}
+                @for (option of recordTypeOptions; track option.value) {
+                  <hlm-combobox-item [value]="option.value">
+                    {{ option.label | translate }}
                   </hlm-combobox-item>
                 }
               </div>
             </hlm-combobox-content>
           </div>
         </div>
-      }
 
-      <div class="flex min-w-56 flex-col gap-1">
-        <label class="text-sm font-medium">
-          {{ "work.filters.statuses" | translate }}
-        </label>
-        <div
-          hlmComboboxMultiple
-          [value]="statuses()"
-          (valueChange)="setStatuses($event ?? [])"
-          [itemToString]="statusItemToString"
-        >
-          <hlm-combobox-chips>
-            <div *hlmComboboxValues="let values">
-              @for (value of values; track value) {
-                <hlm-combobox-chip [value]="value">
-                  {{ statusItemToString(value) }}
-                </hlm-combobox-chip>
-              }
+        @if (!fixedUserId()) {
+          <div class="flex min-w-56 flex-col gap-1">
+            <label class="text-sm font-medium" for="work-view-people">
+              {{ "work.filters.people" | translate }}
+            </label>
+            <div
+              hlmComboboxMultiple
+              [value]="peopleIds()"
+              (valueChange)="setPeopleIds($event ?? [])"
+              [itemToString]="userItemToString"
+            >
+              <hlm-combobox-chips>
+                <div *hlmComboboxValues="let values">
+                  @for (id of values; track id) {
+                    <hlm-combobox-chip [value]="id">
+                      {{ userItemToString(id) }}
+                    </hlm-combobox-chip>
+                  }
+                </div>
+                <input
+                  hlmComboboxChipInput
+                  id="work-view-people"
+                  [placeholder]="'work.filters.peoplePlaceholder' | translate"
+                />
+              </hlm-combobox-chips>
+              <hlm-combobox-content *hlmComboboxPortal>
+                <hlm-combobox-empty>
+                  {{ "work.filters.noResults" | translate }}
+                </hlm-combobox-empty>
+                <div hlmComboboxList>
+                  @for (user of users(); track user.id) {
+                    <hlm-combobox-item [value]="user.id">
+                      {{ user.name }}
+                    </hlm-combobox-item>
+                  }
+                </div>
+              </hlm-combobox-content>
             </div>
-            <input
-              hlmComboboxChipInput
-              [placeholder]="'work.filters.statusesPlaceholder' | translate"
-            />
-          </hlm-combobox-chips>
-          <hlm-combobox-content *hlmComboboxPortal>
-            <hlm-combobox-empty>
-              {{ "work.filters.noResults" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (option of statusOptions; track option.value) {
-                <hlm-combobox-item [value]="option.value">
-                  {{ option.label | translate }}
-                </hlm-combobox-item>
-              }
-            </div>
-          </hlm-combobox-content>
-        </div>
-      </div>
+          </div>
+        }
 
-      @if (!fixedCaseId()) {
         <div class="flex min-w-56 flex-col gap-1">
-          <label class="text-sm font-medium" for="work-view-case">
-            {{ "work.filters.case" | translate }}
+          <label class="text-sm font-medium" for="work-view-statuses">
+            {{ "work.filters.statuses" | translate }}
+          </label>
+          <div
+            hlmComboboxMultiple
+            [value]="statuses()"
+            (valueChange)="setStatuses($event ?? [])"
+            [itemToString]="statusItemToString"
+          >
+            <hlm-combobox-chips>
+              <div *hlmComboboxValues="let values">
+                @for (value of values; track value) {
+                  <hlm-combobox-chip [value]="value">
+                    {{ statusItemToString(value) }}
+                  </hlm-combobox-chip>
+                }
+              </div>
+              <input
+                hlmComboboxChipInput
+                id="work-view-statuses"
+                [placeholder]="'work.filters.statusesPlaceholder' | translate"
+              />
+            </hlm-combobox-chips>
+            <hlm-combobox-content *hlmComboboxPortal>
+              <hlm-combobox-empty>
+                {{ "work.filters.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (option of statusOptions; track option.value) {
+                  <hlm-combobox-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-combobox-item>
+                }
+              </div>
+            </hlm-combobox-content>
+          </div>
+        </div>
+
+        @if (!fixedCaseId()) {
+          <div class="flex min-w-56 flex-col gap-1">
+            <label class="text-sm font-medium" for="work-view-case">
+              {{ "work.filters.case" | translate }}
+            </label>
+            <hlm-select
+              [value]="caseFilter()"
+              (valueChange)="setCaseFilter($event ?? '')"
+              [itemToString]="caseItemToString"
+            >
+              <hlm-select-trigger id="work-view-case" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  <hlm-select-item value="">
+                    {{ "work.filters.allCases" | translate }}
+                  </hlm-select-item>
+                  @for (item of cases(); track item.id) {
+                    <hlm-select-item [value]="item.id">
+                      {{ item.caseNumber }} — {{ item.name }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        }
+
+        <div class="flex min-w-40 flex-col gap-1">
+          <label class="text-sm font-medium" for="work-view-date-preset">
+            {{ "work.filters.dateRange" | translate }}
           </label>
           <hlm-select
-            [value]="caseFilter()"
-            (valueChange)="setCaseFilter($event ?? '')"
-            [itemToString]="caseItemToString"
+            [value]="datePreset()"
+            (valueChange)="setDatePreset($event ?? 'all')"
+            [itemToString]="datePresetItemToString"
           >
-            <hlm-select-trigger id="work-view-case" class="w-full">
+            <hlm-select-trigger id="work-view-date-preset" class="w-full">
               <hlm-select-value />
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal>
               <hlm-select-group>
-                <hlm-select-item value="">
-                  {{ "work.filters.allCases" | translate }}
-                </hlm-select-item>
-                @for (item of cases(); track item.id) {
-                  <hlm-select-item [value]="item.id">
-                    {{ item.caseNumber }} — {{ item.name }}
+                @for (option of datePresetOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
                   </hlm-select-item>
                 }
               </hlm-select-group>
             </hlm-select-content>
           </hlm-select>
         </div>
-      }
-
-      <div class="flex min-w-40 flex-col gap-1">
-        <label class="text-sm font-medium" for="work-view-date-preset">
-          {{ "work.filters.dateRange" | translate }}
-        </label>
+      </div>
+    } @else {
+      <div class="flex shrink-0 flex-wrap items-end gap-3">
         <hlm-select
           [value]="datePreset()"
           (valueChange)="setDatePreset($event ?? 'all')"
           [itemToString]="datePresetItemToString"
         >
-          <hlm-select-trigger id="work-view-date-preset" class="w-full">
+          <hlm-select-trigger class="w-48">
             <hlm-select-value />
           </hlm-select-trigger>
           <hlm-select-content *hlmSelectPortal>
@@ -182,71 +211,50 @@
           </hlm-select-content>
         </hlm-select>
       </div>
-    </div>
-  } @else {
-    <div class="flex shrink-0 flex-wrap items-end gap-3">
-      <hlm-select
-        [value]="datePreset()"
-        (valueChange)="setDatePreset($event ?? 'all')"
-        [itemToString]="datePresetItemToString"
-      >
-        <hlm-select-trigger class="w-48">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (option of datePresetOptions; track option.value) {
-              <hlm-select-item [value]="option.value">
-                {{ option.label | translate }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-  }
+    }
 
-  <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
-    <div class="flex items-center gap-2">
-      <button
-        hlmBtn
-        type="button"
-        size="sm"
-        [variant]="presentation() === 'list' ? 'default' : 'outline'"
-        (click)="setPresentation('list')"
-      >
-        {{ "work.view.list" | translate }}
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        size="sm"
-        [variant]="presentation() === 'board' ? 'default' : 'outline'"
-        (click)="setPresentation('board')"
-      >
-        {{ "work.view.board" | translate }}
-      </button>
-    </div>
+    <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
+      <div class="flex items-center gap-2">
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          [variant]="presentation() === 'list' ? 'default' : 'outline'"
+          (click)="setPresentation('list')"
+        >
+          {{ "work.view.list" | translate }}
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          [variant]="presentation() === 'board' ? 'default' : 'outline'"
+          (click)="setPresentation('board')"
+        >
+          {{ "work.view.board" | translate }}
+        </button>
+      </div>
 
-    <div class="flex items-center gap-2">
-      <button
-        hlmBtn
-        type="button"
-        size="sm"
-        [variant]="statusMode() === 'open' ? 'default' : 'outline'"
-        (click)="setStatusMode('open')"
-      >
-        {{ "work.statusMode.open" | translate }}
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        size="sm"
-        [variant]="statusMode() === 'history' ? 'default' : 'outline'"
-        (click)="setStatusMode('history')"
-      >
-        {{ "work.statusMode.history" | translate }}
-      </button>
+      <div class="flex items-center gap-2">
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          [variant]="statusMode() === 'open' ? 'default' : 'outline'"
+          (click)="setStatusMode('open')"
+        >
+          {{ "work.statusMode.open" | translate }}
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          size="sm"
+          [variant]="statusMode() === 'history' ? 'default' : 'outline'"
+          (click)="setStatusMode('history')"
+        >
+          {{ "work.statusMode.history" | translate }}
+        </button>
+      </div>
     </div>
   </div>
 

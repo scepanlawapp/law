@@ -1,35 +1,4 @@
-@reference "tailwindcss";
-
-.settings-form {
-  @apply flex flex-col;
-}
-.settings-form-grid {
-  @apply grid;
-}
-.profile-avatar {
-  @apply flex flex-wrap items-center;
-}
-.profile-avatar > span {
-  @apply flex items-center justify-center;
-}
-.profile-avatar div {
-  @apply flex flex-col;
-}
-.settings-actions {
-  @apply flex flex-wrap items-center justify-end;
-}
-.accent-options {
-  @apply flex flex-wrap;
-}
-.accent-option {
-  @apply flex items-center;
-}
-.accent-option input {
-  @apply sr-only;
-}
-.settings-toggle-row {
-  @apply flex items-center justify-between;
-}
-.danger-zone {
-  @apply flex flex-wrap items-center justify-between;
+:host {
+  display: block;
+  min-width: 0;
 }

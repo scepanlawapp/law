@@ -15,6 +15,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Settings Pages Restyle](./tracks/settings_pages_restyle_20260921/index.md)
 - [Legal Knowledge Grounding for Drafting & Answering](./tracks/legal_knowledge_grounding_20260919/index.md)
 - [PostgreSQL Legal Knowledge Retrieval](./tracks/legal_knowledge_pgvector_20260919/index.md)
 - [Agent Delivery Conductor (AGENTS.md)](./tracks/agents_delivery_conductor_20260919/index.md)

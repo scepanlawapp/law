@@ -8,9 +8,10 @@ import { WorkViewComponent } from "../work-view/work-view.component";
   standalone: true,
   imports: [WorkViewComponent, TranslatePipe],
   template: `
-    <div class="flex flex-col gap-4 p-4">
+    <div class="flex h-full min-h-0 min-w-0 flex-col gap-4 overflow-hidden p-4">
       <h1 class="text-xl font-semibold">{{ "nav.myWork" | translate }}</h1>
       <app-work-view
+        class="block min-h-0 min-w-0 flex-1"
         mode="my"
         [showTeamFilters]="false"
         [fixedUserId]="userId"
