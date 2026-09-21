@@ -159,6 +159,10 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - Draft text editing, review notes, approval, rejection, and DOCX export endpoints.
 - The assistant frontend supports session navigation/search, message rendering, file upload state, live workflow activity updates, retry/resync behavior, feedback, regeneration, draft review, localization, and speech input.
 - Assistant workflow state, markdown rendering, and the main assistant component have focused frontend tests.
+- A chat session can be created or later linked to an existing workspace case. New drafts copy that case id. Approved drafts stay on their original case if the session is relinked.
+- After brief extraction, the lawyer confirms a client and case separately from tasks. Plaintiff becomes the client (existing match or a new individual). Defendant is stored as opposing-party text on the case. Confirmed missing fields and evidence become tasks with no due date.
+- Confirmed creates write activity-log rows with `metadata.source = "AI_ASSISTED"`. The approving user is the actor.
+- Linked sessions and drafts appear on the case overview. Opening the assistant with `?caseId=` preselects that case and does not send a message.
 
 ## References and user settings
 

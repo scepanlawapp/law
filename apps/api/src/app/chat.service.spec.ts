@@ -32,10 +32,24 @@ function prismaMock() {
 
   const prisma = {
     chatSession: {
+      create: jest.fn(({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: "session-created",
+          status: "ACTIVE",
+          isDeleted: false,
+          createdAt: now,
+          updatedAt: now,
+          title: "New chat",
+          ...data,
+        }),
+      ),
       findFirst: jest.fn(),
       findMany: jest.fn(),
       count: jest.fn(),
       update: jest.fn(),
+    },
+    case: {
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     chatMessage: {
       create: jest.fn(
@@ -129,6 +143,7 @@ function prismaMock() {
       findUnique: jest.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(briefExtractionResults.get(where.id) ?? null),
       ),
+      findFirst: jest.fn().mockResolvedValue(null),
     },
     draftResult: {
       create: jest.fn(),

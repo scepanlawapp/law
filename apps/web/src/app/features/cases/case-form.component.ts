@@ -134,6 +134,8 @@ export class CaseFormComponent {
       validators: [Validators.required],
     }),
     description: new FormControl(""),
+    opposingPartyName: new FormControl(""),
+    opposingPartyAddress: new FormControl(""),
     caseTypeId: new FormControl(""),
     practiceAreaId: new FormControl(""),
     status: new FormControl<CaseStatus>("ACTIVE", { nonNullable: true }),
@@ -292,6 +294,8 @@ export class CaseFormComponent {
       openedDate: raw.openedDate || undefined,
       externalReference: raw.externalReference?.trim() || undefined,
       confidentialityLevel: raw.confidentialityLevel?.trim() || undefined,
+      opposingPartyName: raw.opposingPartyName?.trim() || undefined,
+      opposingPartyAddress: raw.opposingPartyAddress?.trim() || undefined,
     };
     this.saving.set(true);
     const action = this.caseId

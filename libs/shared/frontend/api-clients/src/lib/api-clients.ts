@@ -6,6 +6,12 @@ import {
   ChatSendMessageResponse,
   ChatMessageFeedback,
   ChatMessageResponse,
+  BriefApplyPreview,
+  BriefApplyRequest,
+  BriefApplyResponse,
+  BriefTaskApplyRequest,
+  BriefTaskApplyResponse,
+  BriefTaskPreview,
   ChatSessionCreateRequest,
   ChatSessionDetail,
   ChatSessionListResponse,
@@ -314,6 +320,86 @@ export class ChatApiClient {
     );
   }
 
+  linkSessionCase(
+    workspaceId: string,
+    sessionId: string,
+    caseId: string | null,
+  ): Observable<ChatSessionSummary> {
+    return this.http.post<ChatSessionSummary>(
+      this.endpoint(`/chat/sessions/${sessionId}/case`),
+      { caseId },
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  previewBrief(
+    workspaceId: string,
+    sessionId: string,
+    briefId: string,
+  ): Observable<BriefApplyPreview> {
+    return this.http.post<BriefApplyPreview>(
+      this.endpoint(`/chat/sessions/${sessionId}/briefs/${briefId}/preview`),
+      {},
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  applyBrief(
+    workspaceId: string,
+    sessionId: string,
+    briefId: string,
+    body: BriefApplyRequest,
+  ): Observable<BriefApplyResponse> {
+    return this.http.post<BriefApplyResponse>(
+      this.endpoint(`/chat/sessions/${sessionId}/briefs/${briefId}/apply`),
+      body,
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  previewBriefTasks(
+    workspaceId: string,
+    sessionId: string,
+    briefId: string,
+  ): Observable<BriefTaskPreview> {
+    return this.http.post<BriefTaskPreview>(
+      this.endpoint(
+        `/chat/sessions/${sessionId}/briefs/${briefId}/task-preview`,
+      ),
+      {},
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  applyBriefTasks(
+    workspaceId: string,
+    sessionId: string,
+    briefId: string,
+    body: BriefTaskApplyRequest,
+  ): Observable<BriefTaskApplyResponse> {
+    return this.http.post<BriefTaskApplyResponse>(
+      this.endpoint(`/chat/sessions/${sessionId}/briefs/${briefId}/tasks`),
+      body,
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  caseLinks(workspaceId: string, caseId: string) {
+    return this.http.get<{
+      sessions: Array<{ id: string; title: string | null; updatedAt: string }>;
+      drafts: Array<{
+        id: string;
+        sessionId: string;
+        approvalStatus: string;
+        reviewedAt: string | null;
+        createdAt: string;
+      }>;
+    }>(
+      this.endpoint(`/chat/cases/${caseId}/links`),
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
   getSession(
     workspaceId: string,
     sessionId: string,
@@ -619,6 +705,8 @@ export interface CaseRequest {
   externalReference?: string;
   confidentialityLevel?: string;
   tagIds?: string[];
+  opposingPartyName?: string;
+  opposingPartyAddress?: string;
 }
 
 export interface ActivityRequest {

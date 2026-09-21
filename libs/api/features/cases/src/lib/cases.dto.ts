@@ -14,10 +14,7 @@ import {
   MaxLength,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
-import {
-  CASE_NUMBER_FORMATS,
-  CaseNumberFormat,
-} from "@law/api-interfaces";
+import { CASE_NUMBER_FORMATS, CaseNumberFormat } from "@law/api-interfaces";
 import { ActivityType, CasePriority, CaseStatus } from "@prisma/client";
 
 export class CaseNumberSuggestionQueryDto {
@@ -42,7 +39,10 @@ export class CaseListQueryDto extends PaginationQueryDto {
 
 export class CreateCaseDto {
   @IsUUID() clientId!: string;
-  @IsString() @IsNotEmpty() @MaxLength(40) @Matches(/^[A-Za-z0-9/.-]+$/)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  @Matches(/^[A-Za-z0-9/.-]+$/)
   caseNumber!: string;
   @IsString() @MaxLength(320) name!: string;
   @IsOptional() @IsString() @MaxLength(10000) description?: string;
@@ -53,13 +53,19 @@ export class CreateCaseDto {
   @IsUUID() responsibleUserId!: string;
   @IsOptional() @IsDateString() openedDate?: string;
   @IsOptional() @IsString() @MaxLength(320) externalReference?: string;
+  @IsOptional() @IsString() @MaxLength(320) opposingPartyName?: string;
+  @IsOptional() @IsString() @MaxLength(500) opposingPartyAddress?: string;
   @IsOptional() @IsString() @MaxLength(160) confidentialityLevel?: string;
   @IsOptional() @IsArray() @IsUUID("4", { each: true }) tagIds?: string[];
   @IsOptional() @IsObject() customFields?: Record<string, unknown>;
 }
 
 export class UpdateCaseDto {
-  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(40) @Matches(/^[A-Za-z0-9/.-]+$/)
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  @Matches(/^[A-Za-z0-9/.-]+$/)
   caseNumber?: string;
   @IsOptional() @IsString() @MaxLength(320) name?: string;
   @IsOptional() @IsString() @MaxLength(10000) description?: string;
@@ -69,6 +75,8 @@ export class UpdateCaseDto {
   @IsOptional() @IsEnum(CasePriority) priority?: CasePriority;
   @IsOptional() @IsDateString() openedDate?: string;
   @IsOptional() @IsString() @MaxLength(320) externalReference?: string;
+  @IsOptional() @IsString() @MaxLength(320) opposingPartyName?: string;
+  @IsOptional() @IsString() @MaxLength(500) opposingPartyAddress?: string;
   @IsOptional() @IsString() @MaxLength(160) confidentialityLevel?: string;
   @IsOptional() @IsArray() @IsUUID("4", { each: true }) tagIds?: string[];
   @IsOptional() @IsObject() customFields?: Record<string, unknown>;

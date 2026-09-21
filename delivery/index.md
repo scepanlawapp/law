@@ -6,6 +6,10 @@ Tracks are organized by implementation area and updated as work progresses.
 
 - [AI Legal Workflow Optimization Roadmap](./roadmap.md) — analysis and 90-day phases; each phase maps to the tracks below.
 
+## Completed
+
+- [Assistant Matter Link](./tracks/assistant_matter_link_20260921/index.md)
+
 ## Phase 1 — Quick Wins
 
 - [Script Normalization (Cyrillic/Latin) + Scanned-PDF OCR](./tracks/script_normalization_20260909/index.md)

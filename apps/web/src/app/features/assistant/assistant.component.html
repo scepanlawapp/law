@@ -74,6 +74,9 @@
               <strong>
                 {{ session.title || ("assistant.newChat" | translate) }}
               </strong>
+              @if (session.case) {
+                <small>{{ session.case.caseNumber }}</small>
+              }
               @if (session.activity?.activeJobCount) {
                 <small>{{ "assistant.conversationWorking" | translate }}</small>
               } @else if (session.activity?.hasDraft) {
@@ -556,6 +559,14 @@
         </footer>
       </section>
 
+      @if (workspaceId(); as workspace) {
+        <app-assistant-matter-link
+          [workspaceId]="workspace"
+          [session]="selectedSession()"
+          [briefId]="latestBriefId()"
+          (linked)="onSessionLinked($event)"
+        />
+      }
       @if (draft(); as draftItem) {
         <app-draft-review-panel
           class="review-pane"

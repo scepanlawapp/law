@@ -112,7 +112,10 @@ export class WorkflowRunner {
     queries: readonly string[],
   ): Promise<GroundingCitation[]> {
     if (!this.legalKnowledge || !queries.length) return [];
-    const search = (query: string, limit: number): Promise<GroundingSearchHit[]> =>
+    const search = (
+      query: string,
+      limit: number,
+    ): Promise<GroundingSearchHit[]> =>
       this.legalKnowledge!.search(query, limit, workspaceId);
     try {
       return await retrieveGroundingCitations(search, queries);
@@ -345,7 +348,14 @@ export class WorkflowRunner {
             role: "system",
             content: this.answerSystemPrompt(input.language, groundingBlock),
           },
-          { role: "user", content: input.userText },
+          {
+            role: "user",
+            content: await this.withCaseContext(
+              payload.workspaceId,
+              payload.sessionId,
+              input.userText,
+            ),
+          },
         ],
       })) {
         content += delta;
@@ -643,6 +653,10 @@ export class WorkflowRunner {
         buildDraftGroundingQueries(brief),
       );
       const groundingBlock = formatGroundingContextBlock(groundingCitations);
+      const caseContext = await this.caseContextBlock(
+        payload.workspaceId,
+        payload.sessionId,
+      );
       const { prompt, promptChars, truncated } = buildDraftingUserPrompt(
         brief,
         this.config.draftingPromptMaxChars,
@@ -658,7 +672,7 @@ export class WorkflowRunner {
               reviewerNote: input.reviewerNote,
             }
           : undefined,
-        groundingBlock,
+        [groundingBlock, caseContext].filter(Boolean).join("\n\n"),
       );
       const draft = await runDraftingLlm(provider, prompt);
       const usedCitations = filterUsedCitations(
@@ -669,11 +683,16 @@ export class WorkflowRunner {
       await this.transitionJob(record, payload, "RUNNING", {
         progressStage: "SAVING_FOR_REVIEW",
       });
+      const sessionCase = await this.db.chatSession.findFirst({
+        where: { id: payload.sessionId, workspaceId: payload.workspaceId },
+        select: { caseId: true },
+      });
       const persistedDraft = await this.db.draftResult.create({
         data: {
           jobId: record.id,
           workspaceId: payload.workspaceId,
           sessionId: payload.sessionId,
+          caseId: sessionCase?.caseId ?? null,
           messageId: input.messageId ?? null,
           briefResultId: input.briefResultId,
           documentText: draft.documentText,
@@ -791,13 +810,17 @@ export class WorkflowRunner {
     });
   }
 
-  private async extractAttachment(attachment: {
-    id: string;
-    workspaceId: string;
-    sessionId: string;
-    storedName: string;
-    mimeType: string;
-  }, payload: WorkflowJobPayload, summary?: ChatAttachmentSummary): Promise<{
+  private async extractAttachment(
+    attachment: {
+      id: string;
+      workspaceId: string;
+      sessionId: string;
+      storedName: string;
+      mimeType: string;
+    },
+    payload: WorkflowJobPayload,
+    summary?: ChatAttachmentSummary,
+  ): Promise<{
     status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
     text?: string;
   }> {
@@ -866,6 +889,43 @@ export class WorkflowRunner {
     });
   }
 
+  private async withCaseContext(
+    workspaceId: string,
+    sessionId: string,
+    userText: string,
+  ): Promise<string> {
+    const block = await this.caseContextBlock(workspaceId, sessionId);
+    return block ? `${block}\n\n${userText}` : userText;
+  }
+
+  private async caseContextBlock(
+    workspaceId: string,
+    sessionId: string,
+  ): Promise<string | null> {
+    const session = await this.db.chatSession.findFirst({
+      where: { id: sessionId, workspaceId, caseId: { not: null } },
+      select: { caseId: true },
+    });
+    if (!session?.caseId) return null;
+    const item = await this.db.case.findFirst({
+      where: { id: session.caseId, workspaceId },
+      include: { client: { select: { displayName: true } } },
+    });
+    if (!item) return null;
+    return [
+      "Povezani predmet (kontekst, ne menjati zapise):",
+      `Broj: ${item.caseNumber}`,
+      `Naziv: ${item.name}`,
+      `Klijent: ${item.client.displayName}`,
+      item.opposingPartyName
+        ? `Protivna strana: ${item.opposingPartyName}`
+        : null,
+      item.description?.trim() ? `Opis: ${item.description.trim()}` : null,
+    ]
+      .filter((line): line is string => Boolean(line))
+      .join("\n");
+  }
+
   private truncateForJobOutput(text: string | undefined): string | undefined {
     if (!text) return text;
     const max = this.config.extractionTextMaxChars;
@@ -877,7 +937,9 @@ export class WorkflowRunner {
     payload: WorkflowJobPayload,
     errorCode: string,
   ): Promise<void> {
-    const record = await this.db.workflowJob.findUnique({ where: { id: jobId } });
+    const record = await this.db.workflowJob.findUnique({
+      where: { id: jobId },
+    });
     if (!record) return;
     await this.transitionJob(record, payload, "FAILED", undefined, errorCode);
   }
