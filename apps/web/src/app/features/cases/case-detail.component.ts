@@ -31,6 +31,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
 import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 
 @Component({
@@ -63,6 +64,7 @@ export class CaseDetailComponent {
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly uploadDialog = inject(DocumentUploadDialogService);
   private readonly destroyRef = inject(DestroyRef);
   readonly id = this.route.snapshot.paramMap.get("caseId")!;
   readonly item = signal<CaseDetail | null>(null);
@@ -131,6 +133,20 @@ export class CaseDetailComponent {
       });
     this.reload();
   }
+
+  openDocumentsUpload(): void {
+    const item = this.item();
+    if (!item) return;
+    this.uploadDialog
+      .open({
+        caseId: item.id,
+        caseLabel: `${item.caseNumber} ${item.name}`.trim(),
+        lockCase: true,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+
   reload(): void {
     this.loading.set(true);
     this.api

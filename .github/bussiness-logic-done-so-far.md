@@ -65,13 +65,20 @@ The cases backend and frontend implement the main case lifecycle:
 
 ## Workspace documents (backend)
 
-Authenticated document APIs are implemented; the Angular documents screen remains a placeholder.
+Authenticated document APIs are implemented. The Angular documents library (list, archive, download) is still a placeholder; a reusable upload modal is implemented.
 
 - `POST /api/documents` uploads one streamed file (`multipart` field `file`) with title and optional `caseIds`/`clientIds`. `Idempotency-Key` is required.
 - Paginated list (`archived` defaults to active-only; `true`/`false`/`all`), detail, metadata/link patch (arrays replace when present), version upload/list, current and historical download, archive, and restore.
 - Bytes live under `FILE_STORAGE_ROOT` with generated keys. Metadata and the recorded storage connection stay in PostgreSQL. Chat uploads are not moved.
 - Linked cases and clients must belong to the workspace (400 when unavailable). Archive hides from the default list; authorized detail and download still work.
 - There is no virus-scanning claim, no cloud adapter, and no permanent delete in this slice.
+
+## Workspace documents (upload modal)
+
+- Documents, client detail, and case detail can open a reusable upload dialog against `POST /api/documents`.
+- Each selected file is its own document. Title is required (max 320). Case/client links are locked on those detail pages and searchable on the documents page.
+- Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Category is a disabled placeholder (not sent). Version-mode queue exists; there is no version UI entry in this slice.
+- Removing a row only drops it from the local queue. It does not archive or delete a stored document.
 
 ## Calendar, events, tasks, deadlines, and notes API
 

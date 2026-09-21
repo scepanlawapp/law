@@ -1,5 +1,10 @@
 import { inject, Injectable } from "@angular/core";
-import { HttpClient, HttpParams } from "@angular/common/http";
+import {
+  HttpClient,
+  HttpContext,
+  HttpEvent,
+  HttpParams,
+} from "@angular/common/http";
 import { Observable } from "rxjs";
 import {
   AuthSessionResponse,
@@ -1534,5 +1539,38 @@ export class DocumentsApiClient {
       );
     }
     return this.endpoint(`/documents/${documentId}/download`);
+  }
+
+  create(
+    body: FormData,
+    idempotencyKey: string,
+    options?: { context?: HttpContext },
+  ): Observable<HttpEvent<DocumentDetail>> {
+    return this.http.post<DocumentDetail>(this.endpoint("/documents"), body, {
+      withCredentials: true,
+      observe: "events",
+      reportProgress: true,
+      headers: { "Idempotency-Key": idempotencyKey },
+      context: options?.context,
+    });
+  }
+
+  addVersion(
+    documentId: string,
+    body: FormData,
+    idempotencyKey: string,
+    options?: { context?: HttpContext },
+  ): Observable<HttpEvent<DocumentDetail>> {
+    return this.http.post<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}/versions`),
+      body,
+      {
+        withCredentials: true,
+        observe: "events",
+        reportProgress: true,
+        headers: { "Idempotency-Key": idempotencyKey },
+        context: options?.context,
+      },
+    );
   }
 }

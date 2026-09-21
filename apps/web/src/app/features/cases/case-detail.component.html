@@ -87,6 +87,9 @@
       <button hlmTabsTrigger="work">
         {{ "cases.work" | translate }}
       </button>
+      <button hlmTabsTrigger="documents">
+        {{ "cases.documents" | translate }}
+      </button>
     </div>
     <section hlmTabsContent="overview">
       <p>{{ caseItem.description }}</p>
@@ -174,6 +177,17 @@
     </section>
     <section hlmTabsContent="work">
       <app-work-view [mode]="'case'" [fixedCaseId]="id" />
+    </section>
+    <section hlmTabsContent="documents" class="space-y-3 pt-6">
+      <h2 class="text-xl font-semibold">
+        {{ "cases.documents" | translate }}
+      </h2>
+      <p class="text-muted-foreground">
+        {{ "common.notAvailableYet" | translate }}
+      </p>
+      <button hlmBtn type="button" (click)="openDocumentsUpload()">
+        {{ "documents.upload.action" | translate }}
+      </button>
     </section>
   </div>
 }
