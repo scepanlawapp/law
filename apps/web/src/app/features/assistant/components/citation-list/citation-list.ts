@@ -5,7 +5,7 @@ import { LegalCitationResponse } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
 
 @Component({
-  selector: "app-citation-list",
+  selector: "law-citation-list",
   standalone: true,
   imports: [NgIcon, TranslatePipe],
   templateUrl: "./citation-list.html",

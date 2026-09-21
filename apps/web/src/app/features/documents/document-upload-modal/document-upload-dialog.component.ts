@@ -92,7 +92,7 @@ import { DocumentUploadQueue } from "./document-upload.queue";
 import { formatFileSize } from "./document-upload.utils";
 
 @Component({
-  selector: "app-document-upload-dialog",
+  selector: "law-document-upload-dialog",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./document-upload-dialog.component.html",

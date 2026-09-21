@@ -114,7 +114,7 @@ interface SessionGroup {
 }
 
 @Component({
-  selector: "app-assistant",
+  selector: "law-assistant",
   standalone: true,
   imports: [
     BottomReachedDirective,

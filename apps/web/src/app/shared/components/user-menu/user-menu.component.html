@@ -2,18 +2,14 @@
   hlmBtn
   variant="ghost"
   type="button"
-  class="flex items-center"
+  class="flex items-center gap-2"
   [hlmDropdownMenuTrigger]="userMenu"
   (hlmDropdownMenuOpened)="menuOpen.set(true)"
   (hlmDropdownMenuClosed)="menuOpen.set(false)"
   [attr.aria-label]="'header.userMenu' | translate"
 >
-  @if (user().avatarUrl; as avatarUrl) {
-    <img [src]="avatarUrl" alt="" />
-  } @else {
-    <span aria-hidden="true">{{ initials() }}</span>
-  }
-  <span>{{ displayName() }}</span>
+  <law-user-avatar [user]="avatarUser()" size="sm" />
+  <span class="truncate">{{ displayName() }}</span>
   <ng-icon
     [name]="menuOpen() ? 'lucideChevronUp' : 'lucideChevronDown'"
     aria-hidden="true"
@@ -23,17 +19,11 @@
 <ng-template #userMenu>
   <hlm-dropdown-menu aria-label="User menu">
     <hlm-dropdown-menu-group>
-      <div class="flex items-center p-1">
-        @if (user().avatarUrl; as avatarUrl) {
-          <img [src]="avatarUrl" alt="" />
-        } @else {
-          <span aria-hidden="true">
-            {{ initials() }}
-          </span>
-        }
-        <div>
-          <strong>{{ displayName() }}</strong>
-          <small>{{ user().email }}</small>
+      <div class="flex items-center gap-2 p-2">
+        <law-user-avatar [user]="avatarUser()" size="sm" />
+        <div class="min-w-0">
+          <strong class="block truncate text-sm font-medium">{{ displayName() }}</strong>
+          <small class="text-muted-foreground block truncate text-xs">{{ user().email }}</small>
         </div>
       </div>
       <div class="p-1">

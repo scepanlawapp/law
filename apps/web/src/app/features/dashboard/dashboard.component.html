@@ -83,7 +83,7 @@
 
   <!-- Row 2: four equal summary cards -->
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-    <app-dashboard-stat-card
+    <law-dashboard-stat-card
       title="dashboard.statActiveCases"
       icon="lucideFolderOpen"
       [value]="store.activeCasesCount() ?? undefined"
@@ -92,7 +92,7 @@
       routerLink="/cases"
       [queryParams]="{ caseStatus: 'ACTIVE' }"
     />
-    <app-dashboard-stat-card
+    <law-dashboard-stat-card
       title="dashboard.statUpcomingHearings"
       icon="lucideCalendar"
       [value]="store.upcomingHearingsCount() ?? undefined"
@@ -100,7 +100,7 @@
       subtitleKey="dashboard.scopeNextSevenDays"
       routerLink="/calendar"
     />
-    <app-dashboard-stat-card
+    <law-dashboard-stat-card
       title="dashboard.statPendingTasks"
       icon="lucideSquareCheck"
       [value]="store.pendingTasksCount() ?? undefined"
@@ -108,7 +108,7 @@
       subtitleKey="dashboard.scopeMine"
       routerLink="/work/my"
     />
-    <app-dashboard-stat-card
+    <law-dashboard-stat-card
       title="dashboard.statTotalDocuments"
       icon="lucideFileText"
       [unavailable]="true"
@@ -123,7 +123,7 @@
   <!-- Row 3: Upcoming obligations, Recent activity, Notifications -->
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
     <div class="lg:col-span-2">
-      <app-section-panel
+      <law-section-panel
         titleKey="dashboard.upcoming"
         actionLabelKey="dashboard.viewCalendar"
         actionLink="/calendar"
@@ -148,24 +148,24 @@
             }}
           </a>
         }
-        <app-obligation-list
+        <law-obligation-list
           [items]="store.obligations()"
           (itemSelected)="openObligation($event)"
         />
-      </app-section-panel>
+      </law-section-panel>
     </div>
 
-    <app-section-panel
+    <law-section-panel
       titleKey="dashboard.recentActivity"
       [loading]="store.activityLoading()"
       [error]="store.activityError()"
       [empty]="!store.activityLoading() && store.activityItems().length === 0"
       (retry)="store.loadActivity()"
     >
-      <app-activity-feed [items]="store.activityItems()" />
-    </app-section-panel>
+      <law-activity-feed [items]="store.activityItems()" />
+    </law-section-panel>
 
-    <app-section-panel
+    <law-section-panel
       titleKey="dashboard.notifications"
       [unavailable]="true"
       unavailableKey="dashboard.notificationsUnavailable"
@@ -175,7 +175,7 @@
   <!-- Row 4: Cases overview and Quick actions -->
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
     <div class="lg:col-span-3">
-      <app-section-panel
+      <law-section-panel
         titleKey="dashboard.casesOverview"
         actionLabelKey="dashboard.viewAllCases"
         actionLink="/cases"
@@ -218,10 +218,10 @@
             </tbody>
           </table>
         </div>
-      </app-section-panel>
+      </law-section-panel>
     </div>
 
-    <app-section-panel titleKey="dashboard.quickActions">
+    <law-section-panel titleKey="dashboard.quickActions">
       <div class="flex flex-col gap-2">
         <button hlmBtn variant="outline" type="button" (click)="createCase()">
           <ng-icon name="lucideFolderPlus" aria-hidden="true" />
@@ -252,6 +252,6 @@
           {{ "dashboard.documentUploadUnavailable" | translate }}
         </p>
       </div>
-    </app-section-panel>
+    </law-section-panel>
   </div>
 </div>

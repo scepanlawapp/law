@@ -84,7 +84,7 @@ function mondayIndex(date: Date): number {
 }
 
 @Component({
-  selector: "app-calendar",
+  selector: "law-calendar",
   standalone: true,
   templateUrl: "./calendar.component.html",
   changeDetection: ChangeDetectionStrategy.OnPush,

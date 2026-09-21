@@ -9,7 +9,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
  * shared loading/empty/error/unavailable state handling around projected content.
  */
 @Component({
-  selector: "app-section-panel",
+  selector: "law-section-panel",
   standalone: true,
   imports: [RouterLink, HlmButton, HlmSpinner, TranslatePipe],
   templateUrl: "./section-panel.component.html",

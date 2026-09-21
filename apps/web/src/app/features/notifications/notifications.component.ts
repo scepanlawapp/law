@@ -1,7 +1,7 @@
 import { Component } from "@angular/core";
 
 @Component({
-  selector: "app-notifications",
+  selector: "law-notifications",
   standalone: true,
   templateUrl: "./notifications.component.html",
 })

@@ -22,7 +22,7 @@ export default [
                 "error",
                 {
                     type: "element",
-                    prefix: "app",
+                    prefix: "law",
                     style: "kebab-case"
                 }
             ]

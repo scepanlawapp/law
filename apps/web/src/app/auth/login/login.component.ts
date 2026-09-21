@@ -31,7 +31,7 @@ interface FeatureItem {
 }
 
 @Component({
-  selector: "app-login",
+  selector: "law-login",
   standalone: true,
   host: {
     class: "block h-full min-h-0 w-full",

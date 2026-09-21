@@ -1,4 +1,5 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { Component, computed, DestroyRef, effect, inject, signal } from "@angular/core";
+import { UserAvatarComponent } from "../../shared/components/user-avatar/user-avatar.component";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   FormControl,
@@ -9,15 +10,16 @@ import {
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
-import { UserSettingsApiClient } from "@law/api-clients";
 import { AuthApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { AuthState } from "@law/security";
+import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 
 @Component({
-  selector: "app-profile-settings",
+  selector: "law-profile-settings",
   standalone: true,
   imports: [
     ReactiveFormsModule,
@@ -27,6 +29,7 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
     HlmInput,
     TranslatePipe,
     HlmSpinner,
+    UserAvatarComponent,
   ],
   templateUrl: "./profile-settings.component.html",
   styleUrls: ["./settings-pages.component.scss"],
@@ -35,13 +38,18 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
   },
 })
 export class ProfileSettingsComponent {
-  private readonly api = inject(UserSettingsApiClient);
+  private readonly settingsStore = inject(UserSettingsStore);
   private readonly authApi = inject(AuthApiClient);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
-  readonly loading = signal(true);
+  private readonly authState = inject(AuthState);
+
+  readonly profile = this.settingsStore.profile;
+  readonly loading = this.settingsStore.loading;
+  readonly session = this.authState.session;
   readonly saving = signal(false);
+
   readonly form = new FormGroup({
     firstName: new FormControl(""),
     lastName: new FormControl(""),
@@ -61,30 +69,31 @@ export class ProfileSettingsComponent {
     }),
   });
 
+  readonly avatarUser = computed(() => {
+    const profile = this.profile();
+    return {
+      firstName: this.form.controls.firstName.value || profile?.firstName || "",
+      lastName: this.form.controls.lastName.value || profile?.lastName || "",
+      username: this.form.controls.username.value || profile?.username || "",
+      email: profile?.email || "",
+      avatarUrl: this.form.controls.avatarUrl.value || profile?.avatarUrl || "",
+    };
+  });
+
   constructor() {
-    this.api
-      .get()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (settings) => {
-          this.form.patchValue({
-            ...settings.profile,
-            firstName: settings.profile.firstName ?? "",
-            lastName: settings.profile.lastName ?? "",
-            username: settings.profile.username ?? "",
-            phone: settings.profile.phone ?? "",
-            jobTitle: settings.profile.jobTitle ?? "",
-            avatarUrl: settings.profile.avatarUrl ?? "",
-          });
-          this.loading.set(false);
-        },
-        error: () => {
-          this.toast.error(
-            this.localization.translate("settings.profileLoadError"),
-          );
-          this.loading.set(false);
-        },
-      });
+    effect(() => {
+      const profile = this.profile();
+      if (profile && this.form.pristine) {
+        this.form.patchValue({
+          firstName: profile.firstName ?? "",
+          lastName: profile.lastName ?? "",
+          username: profile.username ?? "",
+          phone: profile.phone ?? "",
+          jobTitle: profile.jobTitle ?? "",
+          avatarUrl: profile.avatarUrl ?? "",
+        });
+      }
+    });
   }
 
   save(): void {
@@ -94,7 +103,7 @@ export class ProfileSettingsComponent {
     }
     this.saving.set(true);
     const profile = this.form.getRawValue();
-    this.api
+    this.settingsStore
       .update({
         profile: {
           ...profile,
@@ -104,6 +113,7 @@ export class ProfileSettingsComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: () => {
+          this.form.markAsPristine();
           this.toast.success(
             this.localization.translate("settings.profileSaved"),
           );

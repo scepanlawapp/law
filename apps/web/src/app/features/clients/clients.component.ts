@@ -28,7 +28,7 @@ import {
 } from "@spartan-ng/helm/empty";
 
 @Component({
-  selector: "app-clients",
+  selector: "law-clients",
   standalone: true,
   templateUrl: "./clients.component.html",
   imports: [

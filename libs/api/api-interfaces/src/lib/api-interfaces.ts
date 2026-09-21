@@ -42,6 +42,7 @@ export interface UserSettingsProfile {
   firstName: string | null;
   lastName: string | null;
   username: string | null;
+  email: string;
   phone: string | null;
   jobTitle: string | null;
   avatarUrl: string | null;

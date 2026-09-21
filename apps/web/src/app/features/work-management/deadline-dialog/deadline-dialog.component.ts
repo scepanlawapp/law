@@ -38,7 +38,7 @@ import { DeadlineDialogContext } from "./deadline-dialog.models";
 type DeadlineDueMode = "DATE" | "DATE_TIME";
 
 @Component({
-  selector: "app-deadline-dialog",
+  selector: "law-deadline-dialog",
   standalone: true,
   templateUrl: "./deadline-dialog.component.html",
   imports: [

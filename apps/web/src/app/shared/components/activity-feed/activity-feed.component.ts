@@ -9,7 +9,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
  * caller (dashboard today; case/client-scoped screens can reuse this later).
  */
 @Component({
-  selector: "app-activity-feed",
+  selector: "law-activity-feed",
   standalone: true,
   imports: [RouterLink, DatePipe, TranslatePipe],
   templateUrl: "./activity-feed.component.html",

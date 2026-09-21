@@ -32,7 +32,7 @@ import { CountryOption, loadCountryOptions } from "../../utils/countries";
 let nextCountrySelectId = 0;
 
 @Component({
-  selector: "app-country-select",
+  selector: "law-country-select",
   standalone: true,
   imports: [
     HlmCombobox,

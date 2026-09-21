@@ -3,7 +3,7 @@
 | ID    | Status | Affected files                                                              | Next action |
 | ----- | ------ | --------------------------------------------------------------------------- | ----------- |
 | DU-00 | done   | `delivery/tracks/document_upload_modal_20260921/*`                          | —           |
-| DU-01 | done        | Helm progress, HTTP XHR, API client, modal, i18n, tests, case/client wiring | —           |
+| DU-01 | done   | Helm progress, HTTP XHR, API client, modal, i18n, tests, case/client wiring | —           |
 | DU-02 | done   | Category API + client-first associations + compact table                    | —           |
 
 ## Verification

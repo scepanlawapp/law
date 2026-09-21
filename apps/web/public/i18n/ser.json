@@ -488,6 +488,7 @@
   "settings.data": "Podaci",
   "settings.navigation": "Navigacija podešavanja",
   "settings.loading": "Učitavanje...",
+  "settings.changeProfilePhoto": "Promeni profilnu fotografiju",
   "settings.profilePhoto": "Profilna fotografija",
   "settings.profilePhotoHint": "Dodajte javni URL fotografije ili koristite inicijale.",
   "settings.firstName": "Ime",

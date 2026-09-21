@@ -35,7 +35,7 @@ import { DocumentUploadDialogService } from "../documents/document-upload-modal/
 import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 
 @Component({
-  selector: "app-case-detail",
+  selector: "law-case-detail",
   standalone: true,
   templateUrl: "./case-detail.component.html",
   imports: [

@@ -14,6 +14,7 @@
     "services:down:volumes": "docker compose -f infra/docker/compose.yml down -v",
     "db:seed:auth": "node apps/api/prisma/seed.cjs",
     "db:seed:demo": "node apps/api/prisma/seed-demo-data.cjs",
+    "db:seed:demo-stojkovic": "node apps/api/prisma/seed-demo-data-stojkovic.cjs",
     "tessdata:download": "bash scripts/download-tessdata.sh",
     "legal:ingest": "tsx --tsconfig tsconfig.base.json scripts/ingest-legal-source.ts",
     "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma",

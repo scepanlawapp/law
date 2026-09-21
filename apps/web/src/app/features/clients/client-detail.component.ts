@@ -40,7 +40,7 @@ type ClientTab =
   | "financials";
 
 @Component({
-  selector: "app-client-detail",
+  selector: "law-client-detail",
   standalone: true,
   templateUrl: "./client-detail.component.html",
   imports: [

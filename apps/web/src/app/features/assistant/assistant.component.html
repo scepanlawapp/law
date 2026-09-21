@@ -220,7 +220,7 @@
                       aria-label="{{ 'assistant.sources' | translate }}"
                     >
                       <h3>{{ "assistant.sources" | translate }}</h3>
-                      <app-citation-list
+                      <law-citation-list
                         [citations]="message.citations"
                         idPrefix="message-citation"
                       />
@@ -557,7 +557,7 @@
       </section>
 
       @if (draft(); as draftItem) {
-        <app-draft-review-panel
+        <law-draft-review-panel
           class="review-pane"
           [class.is-expanded]="draftReviewExpanded()"
           [draft]="draftItem"

@@ -56,6 +56,7 @@ export class UserSettingsService {
         firstName: user.firstName,
         lastName: user.lastName,
         username: user.username,
+        email: user.email,
         phone: user.phone,
         jobTitle: user.jobTitle,
         avatarUrl: user.avatarUrl,
@@ -74,6 +75,7 @@ export class UserSettingsService {
 }
 
 type UserSettingsUser = Pick<UserSettingsResponse["profile"], never> & {
+  email: string;
   firstName: string | null;
   lastName: string | null;
   username: string | null;

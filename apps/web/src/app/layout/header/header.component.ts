@@ -35,7 +35,7 @@ const LEGAL_QUOTE_KEYS = Array.from(
 );
 
 @Component({
-  selector: "app-header",
+  selector: "law-header",
   standalone: true,
   templateUrl: "./header.component.html",
   imports: [

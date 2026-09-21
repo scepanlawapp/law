@@ -488,6 +488,7 @@
   "settings.data": "Data",
   "settings.navigation": "Settings navigation",
   "settings.loading": "Loading...",
+  "settings.changeProfilePhoto": "Change profile photo",
   "settings.profilePhoto": "Profile photo",
   "settings.profilePhotoHint": "Add a public photo URL or use your initials.",
   "settings.firstName": "First name",

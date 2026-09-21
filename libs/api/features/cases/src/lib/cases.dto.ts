@@ -14,10 +14,7 @@ import {
   MaxLength,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
-import {
-  CASE_NUMBER_FORMATS,
-  CaseNumberFormat,
-} from "@law/api-interfaces";
+import { CASE_NUMBER_FORMATS, CaseNumberFormat } from "@law/api-interfaces";
 import { ActivityType, CasePriority, CaseStatus } from "@prisma/client";
 
 export class CaseNumberSuggestionQueryDto {
@@ -54,7 +51,10 @@ export class CaseListQueryDto extends PaginationQueryDto {
 
 export class CreateCaseDto {
   @IsUUID() clientId!: string;
-  @IsString() @IsNotEmpty() @MaxLength(40) @Matches(/^[A-Za-z0-9/.-]+$/)
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  @Matches(/^[A-Za-z0-9/.-]+$/)
   caseNumber!: string;
   @IsString() @MaxLength(320) name!: string;
   @IsOptional() @IsString() @MaxLength(10000) description?: string;
@@ -71,7 +71,11 @@ export class CreateCaseDto {
 }
 
 export class UpdateCaseDto {
-  @IsOptional() @IsString() @IsNotEmpty() @MaxLength(40) @Matches(/^[A-Za-z0-9/.-]+$/)
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(40)
+  @Matches(/^[A-Za-z0-9/.-]+$/)
   caseNumber?: string;
   @IsOptional() @IsString() @MaxLength(320) name?: string;
   @IsOptional() @IsString() @MaxLength(10000) description?: string;

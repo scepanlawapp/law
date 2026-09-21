@@ -361,9 +361,7 @@ describe("FileService", () => {
       caseIds: [] as string[],
       clientIds: [] as string[],
     };
-    expect(
-      uploadFingerprint({ ...base, category: null }),
-    ).not.toBe(
+    expect(uploadFingerprint({ ...base, category: null })).not.toBe(
       uploadFingerprint({ ...base, category: "CONTRACT_AGREEMENT" }),
     );
   });

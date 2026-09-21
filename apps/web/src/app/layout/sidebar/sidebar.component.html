@@ -133,7 +133,7 @@
     class="mt-auto flex items-center gap-3 border-t border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground"
   >
     @if (session()?.user; as user) {
-      <app-user-menu [user]="user" (logoutRequested)="logout()" />
+      <law-user-menu [user]="user" (logoutRequested)="logout()" />
     }
   </footer>
 </aside>

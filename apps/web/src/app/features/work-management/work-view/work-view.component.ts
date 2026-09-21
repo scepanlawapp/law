@@ -165,7 +165,7 @@ function eventToCalendarItem(event: EventDetail): CalendarItem {
 }
 
 @Component({
-  selector: "app-work-view",
+  selector: "law-work-view",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./work-view.component.html",
@@ -217,7 +217,7 @@ export class WorkViewComponent {
   private readonly initialParams = this.route.snapshot.queryParamMap;
 
   readonly presentation = signal<Presentation>(
-    (this.initialParams.get("presentation") as Presentation) || "list",
+    (this.initialParams.get("presentation") as Presentation) || "board",
   );
   readonly recordTypes = signal<WorkSourceType[]>(this.initialRecordTypes());
   readonly peopleIds = signal<string[]>(

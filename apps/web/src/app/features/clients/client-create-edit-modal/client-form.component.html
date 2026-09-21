@@ -194,7 +194,7 @@
           </div>
         </div>
 
-        <app-collapsible-section
+        <law-collapsible-section
           [title]="'clients.additionalBasicInfo' | translate"
           [expanded]="expandedBasicMore()"
           (expandedChange)="expandedBasicMore.set($event)"
@@ -223,10 +223,10 @@
               />
             </div>
           </div>
-        </app-collapsible-section>
+        </law-collapsible-section>
       </section>
 
-      <app-collapsible-section
+      <law-collapsible-section
         [title]="'clients.addresses' | translate"
         [expanded]="expandedAddresses()"
         (expandedChange)="expandedAddresses.set($event)"
@@ -266,7 +266,7 @@
                 <label hlmFieldLabel [for]="'address-country-' + $index">
                   {{ "clients.country" | translate }}
                 </label>
-                <app-country-select
+                <law-country-select
                   [inputId]="'address-country-' + $index"
                   [required]="true"
                   formControlName="country"
@@ -309,7 +309,7 @@
               </div>
             </div>
 
-            <app-collapsible-section
+            <law-collapsible-section
               [title]="'clients.additionalAddressInfo' | translate"
               [expanded]="isAddressExtraExpanded(address)"
               (expandedChange)="setAddressExtraExpanded(address, $event)"
@@ -349,7 +349,7 @@
                   ></textarea>
                 </div>
               </div>
-            </app-collapsible-section>
+            </law-collapsible-section>
 
             <div class="flex flex-wrap items-center justify-between gap-2">
               <label hlmLabel class="flex cursor-pointer items-center gap-2">
@@ -370,9 +370,9 @@
         <button hlmBtn type="button" (click)="addAddress()">
           {{ "clients.addAddress" | translate }}
         </button>
-      </app-collapsible-section>
+      </law-collapsible-section>
 
-      <app-collapsible-section
+      <law-collapsible-section
         [title]="'clients.contacts' | translate"
         [expanded]="expandedContacts()"
         (expandedChange)="expandedContacts.set($event)"
@@ -438,7 +438,7 @@
               />
             </div>
 
-            <app-collapsible-section
+            <law-collapsible-section
               [title]="'clients.contactNotes' | translate"
               [expanded]="isContactNotesExpanded(contact)"
               (expandedChange)="setContactNotesExpanded(contact, $event)"
@@ -453,7 +453,7 @@
                   formControlName="notes"
                 ></textarea>
               </div>
-            </app-collapsible-section>
+            </law-collapsible-section>
 
             <div class="flex flex-wrap items-center justify-between gap-2">
               <label hlmLabel class="flex cursor-pointer items-center gap-2">
@@ -474,9 +474,9 @@
         <button hlmBtn type="button" (click)="addContact()">
           {{ "clients.addContact" | translate }}
         </button>
-      </app-collapsible-section>
+      </law-collapsible-section>
 
-      <app-collapsible-section
+      <law-collapsible-section
         [title]="'clients.identificationSection' | translate"
         [expanded]="expandedIdentification()"
         (expandedChange)="expandedIdentification.set($event)"
@@ -512,7 +512,7 @@
               <label hlmFieldLabel [for]="'document-country-' + $index">
                 {{ "clients.country" | translate }}
               </label>
-              <app-country-select
+              <law-country-select
                 [inputId]="'document-country-' + $index"
                 formControlName="country"
               />
@@ -555,9 +555,9 @@
         <button hlmBtn type="button" (click)="addIdentificationDocument()">
           {{ "clients.addDocument" | translate }}
         </button>
-      </app-collapsible-section>
+      </law-collapsible-section>
 
-      <app-collapsible-section
+      <law-collapsible-section
         [title]="'clients.additionalInformation' | translate"
         [expanded]="expandedAdditional()"
         (expandedChange)="expandedAdditional.set($event)"
@@ -583,7 +583,7 @@
           </label>
           <textarea hlmTextarea id="notes" formControlName="notes"></textarea>
         </div>
-      </app-collapsible-section>
+      </law-collapsible-section>
     </div>
     <hlm-dialog-footer class="shrink-0">
       <button hlmBtn variant="ghost" type="button" (click)="cancel()">

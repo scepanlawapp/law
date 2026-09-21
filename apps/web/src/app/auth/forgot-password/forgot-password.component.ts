@@ -10,7 +10,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 
 @Component({
-  selector: "app-forgot-password",
+  selector: "law-forgot-password",
   standalone: true,
   imports: [
     FormsModule,

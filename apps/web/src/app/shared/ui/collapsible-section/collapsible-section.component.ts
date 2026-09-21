@@ -10,7 +10,7 @@ import {
 let nextSectionId = 0;
 
 @Component({
-  selector: "app-collapsible-section",
+  selector: "law-collapsible-section",
   standalone: true,
   imports: [HlmCollapsible, HlmCollapsibleTrigger, HlmCollapsibleContent, NgIcon],
   providers: [provideIcons({ lucideChevronDown })],

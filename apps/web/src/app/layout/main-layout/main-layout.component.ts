@@ -4,7 +4,7 @@ import { HeaderComponent } from "../header/header.component";
 import { RouterModule } from "@angular/router";
 
 @Component({
-  selector: "app-main-layout",
+  selector: "law-main-layout",
   standalone: true,
   host: {
     class: "grid h-screen min-h-0 grid-cols-[auto_1fr] overflow-hidden",

@@ -53,7 +53,7 @@ type CaseSort =
   | "name:desc";
 
 @Component({
-  selector: "app-cases-list",
+  selector: "law-cases-list",
   standalone: true,
   templateUrl: "./cases-list.component.html",
   imports: [

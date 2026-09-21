@@ -8,7 +8,7 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { ToastService } from "../../shared/ui/toast/toast.service";
 
 @Component({
-  selector: "app-data-settings",
+  selector: "law-data-settings",
   standalone: true,
   imports: [HlmButton, TranslatePipe],
   templateUrl: "./data-settings.component.html",

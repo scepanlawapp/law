@@ -12,7 +12,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
 
 @Component({
-  selector: "app-documents",
+  selector: "law-documents",
   standalone: true,
   templateUrl: "./documents.component.html",
   imports: [
