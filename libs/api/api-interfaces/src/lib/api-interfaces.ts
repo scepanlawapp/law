@@ -616,7 +616,8 @@ export interface DocumentSummary {
 
 export type DocumentDetail = DocumentSummary;
 export type DocumentListResponse = PaginatedResponse<DocumentSummary>;
-export type DocumentVersionListResponse = PaginatedResponse<DocumentVersionSummary>;
+export type DocumentVersionListResponse =
+  PaginatedResponse<DocumentVersionSummary>;
 
 export interface DocumentListQuery extends PaginationQuery {
   caseId?: string;

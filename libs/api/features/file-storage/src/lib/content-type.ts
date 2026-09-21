@@ -53,7 +53,6 @@ export function detectMimeType(buffer: Buffer): string | null {
 
 export function isAllowedDocumentMime(mime: string | null): boolean {
   return (
-    !!mime &&
-    (DOCUMENT_ALLOWED_MIME_TYPES as readonly string[]).includes(mime)
+    !!mime && (DOCUMENT_ALLOWED_MIME_TYPES as readonly string[]).includes(mime)
   );
 }

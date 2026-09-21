@@ -335,10 +335,15 @@ export class DocumentsService {
     query: DocumentVersionListQueryDto,
   ): Promise<DocumentVersionListResponse> {
     const document = await this.requireDocument(id);
-    const sort = parseSort(query.sort, ["createdAt", "versionNumber"], [
-      { field: "versionNumber", direction: "desc" },
-    ]);
-    const where = { documentId: document.id, workspaceId: this.context.workspaceId };
+    const sort = parseSort(
+      query.sort,
+      ["createdAt", "versionNumber"],
+      [{ field: "versionNumber", direction: "desc" }],
+    );
+    const where = {
+      documentId: document.id,
+      workspaceId: this.context.workspaceId,
+    };
     const [totalItems, rows] = await this.prisma.$transaction([
       this.prisma.documentVersion.count({ where }),
       this.prisma.documentVersion.findMany({
@@ -355,7 +360,10 @@ export class DocumentsService {
     };
   }
 
-  async openDownload(documentId: string, versionId?: string): Promise<{
+  async openDownload(
+    documentId: string,
+    versionId?: string,
+  ): Promise<{
     stream: Readable;
     mimeType: string;
     sizeBytes: number;
@@ -494,7 +502,9 @@ export class DocumentsService {
       archivedAt: row.archivedAt?.toISOString() ?? null,
       caseIds: row.cases.map((item) => item.caseId),
       clientIds: row.clients.map((item) => item.clientId),
-      currentVersion: row.currentVersion ? this.toVersion(row.currentVersion) : null,
+      currentVersion: row.currentVersion
+        ? this.toVersion(row.currentVersion)
+        : null,
       createdByUserId: row.createdByUserId,
       updatedByUserId: row.updatedByUserId,
       createdAt: row.createdAt.toISOString(),

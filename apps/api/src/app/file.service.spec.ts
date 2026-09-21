@@ -29,20 +29,35 @@ describe("FileService", () => {
 
   const prisma = {
     uploadOperation: {
-      findUnique: jest.fn(async ({ where }: { where: { workspaceId_idempotencyKey?: { idempotencyKey: string }; id?: string } }) => {
-        if (where.id) return operations.get(where.id) ?? null;
-        const key = where.workspaceId_idempotencyKey?.idempotencyKey;
-        return [...operations.values()].find((row) => row.idempotencyKey === key) ?? null;
-      }),
-      findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => {
-        const row = operations.get(where.id);
-        if (!row) throw new Error("missing");
-        return {
-          ...row,
-          fileLocation: locations.get(String(row.fileLocationId)),
-          storedFile: files.get(String(row.storedFileId)),
-        };
-      }),
+      findUnique: jest.fn(
+        async ({
+          where,
+        }: {
+          where: {
+            workspaceId_idempotencyKey?: { idempotencyKey: string };
+            id?: string;
+          };
+        }) => {
+          if (where.id) return operations.get(where.id) ?? null;
+          const key = where.workspaceId_idempotencyKey?.idempotencyKey;
+          return (
+            [...operations.values()].find(
+              (row) => row.idempotencyKey === key,
+            ) ?? null
+          );
+        },
+      ),
+      findUniqueOrThrow: jest.fn(
+        async ({ where }: { where: { id: string } }) => {
+          const row = operations.get(where.id);
+          if (!row) throw new Error("missing");
+          return {
+            ...row,
+            fileLocation: locations.get(String(row.fileLocationId)),
+            storedFile: files.get(String(row.storedFileId)),
+          };
+        },
+      ),
       findFirst: jest.fn(),
       findMany: jest.fn(async () => []),
       create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
@@ -50,11 +65,19 @@ describe("FileService", () => {
         operations.set(String(row.id), row);
         return row;
       }),
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const next = { ...operations.get(where.id), ...data, id: where.id };
-        operations.set(where.id, next);
-        return next;
-      }),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Record<string, unknown>;
+        }) => {
+          const next = { ...operations.get(where.id), ...data, id: where.id };
+          operations.set(where.id, next);
+          return next;
+        },
+      ),
     },
     storedFile: {
       create: jest.fn(async ({ data }: { data: { id: string } }) => {
@@ -62,12 +85,22 @@ describe("FileService", () => {
         files.set(data.id, row);
         return row;
       }),
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const next = { ...files.get(where.id), ...data };
-        files.set(where.id, next);
-        return next;
-      }),
-      findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => files.get(where.id)),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Record<string, unknown>;
+        }) => {
+          const next = { ...files.get(where.id), ...data };
+          files.set(where.id, next);
+          return next;
+        },
+      ),
+      findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) =>
+        files.get(where.id),
+      ),
       findFirst: jest.fn(),
     },
     fileLocation: {
@@ -76,12 +109,22 @@ describe("FileService", () => {
         locations.set(String(row.id), row);
         return row;
       }),
-      update: jest.fn(async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
-        const next = { ...locations.get(where.id), ...data };
-        locations.set(where.id, next);
-        return next;
-      }),
-      findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) => locations.get(where.id)),
+      update: jest.fn(
+        async ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Record<string, unknown>;
+        }) => {
+          const next = { ...locations.get(where.id), ...data };
+          locations.set(where.id, next);
+          return next;
+        },
+      ),
+      findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) =>
+        locations.get(where.id),
+      ),
     },
     storageConnection: {
       findFirst: jest.fn(async () => ({
@@ -165,7 +208,9 @@ describe("FileService", () => {
         stream: Readable.from([Buffer.from([0x00, 0x01, 0x02, 0xff])]),
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
-    const failed = [...operations.values()].find((row) => row.idempotencyKey === "key-bin");
+    const failed = [...operations.values()].find(
+      (row) => row.idempotencyKey === "key-bin",
+    );
     expect(failed?.status).toBe("FAILED");
   });
 
@@ -265,10 +310,12 @@ describe("FileService", () => {
         },
       ],
     });
-    prisma.storageConnection.findFirst.mockImplementation(async ({ where }: { where: { id?: string } }) => {
-      if (where.id === recordedConnection.id) return recordedConnection;
-      return { ...recordedConnection, id: "new-default", isDefault: true };
-    });
+    prisma.storageConnection.findFirst.mockImplementation(
+      async ({ where }: { where: { id?: string } }) => {
+        if (where.id === recordedConnection.id) return recordedConnection;
+        return { ...recordedConnection, id: "new-default", isDefault: true };
+      },
+    );
     const key = `${workspaceId}/${storedFileId}/content`;
     await adapter.write(key, Readable.from([Buffer.from("%PDF")]), {
       maxBytes: 1000,

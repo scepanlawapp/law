@@ -43,7 +43,8 @@ export function createFileStorageConfig(overrides: {
   mkdirSync(overrides.root, { recursive: true, mode: 0o700 });
   return {
     root: overrides.root,
-    maxBytes: overrides.maxBytes ?? Number(process.env.UPLOAD_MAX_BYTES ?? 25_000_000),
+    maxBytes:
+      overrides.maxBytes ?? Number(process.env.UPLOAD_MAX_BYTES ?? 25_000_000),
     staleHeartbeatMs:
       overrides.staleHeartbeatMs ??
       Number(process.env.FILE_STORAGE_STALE_HEARTBEAT_MS ?? 15 * 60 * 1000),

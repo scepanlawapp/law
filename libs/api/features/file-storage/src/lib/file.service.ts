@@ -205,7 +205,10 @@ export class FileService {
         include: { fileLocation: true, storedFile: true },
       });
       for (const operation of stale) {
-        if (operation.documentVersionId || operation.storedFile.lifecycle === "AVAILABLE") {
+        if (
+          operation.documentVersionId ||
+          operation.storedFile.lifecycle === "AVAILABLE"
+        ) {
           continue;
         }
         try {
@@ -224,7 +227,11 @@ export class FileService {
           }),
           this.prisma.uploadOperation.update({
             where: { id: operation.id },
-            data: { status: "ABANDONED", errorCode: "STALE", completedAt: new Date() },
+            data: {
+              status: "ABANDONED",
+              errorCode: "STALE",
+              completedAt: new Date(),
+            },
           }),
         ]);
       }
@@ -321,10 +328,14 @@ export class FileService {
         where: { id: operationId },
         data: { lastHeartbeatAt: new Date(), status: "WRITING" },
       });
-      const written = await adapter.write(operation.fileLocation.storageKey, stream.pipe(headTap), {
-        maxBytes: this.config.maxBytes,
-        tempSuffix: operationId,
-      });
+      const written = await adapter.write(
+        operation.fileLocation.storageKey,
+        stream.pipe(headTap),
+        {
+          maxBytes: this.config.maxBytes,
+          tempSuffix: operationId,
+        },
+      );
       const mimeType = detectMimeType(Buffer.concat(headChunks));
       if (!isAllowedDocumentMime(mimeType)) {
         await adapter.delete(operation.fileLocation.storageKey);
@@ -359,7 +370,10 @@ export class FileService {
         documentVersionId: operation.documentVersionId,
       };
     } catch (error) {
-      if (error instanceof BadRequestException || error instanceof ConflictException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
       await this.fail(operationId, "WRITE_FAILED");
@@ -367,7 +381,9 @@ export class FileService {
     }
   }
 
-  private async finishFromDisk(operationId: string): Promise<UploadIngestResult> {
+  private async finishFromDisk(
+    operationId: string,
+  ): Promise<UploadIngestResult> {
     const operation = await this.prisma.uploadOperation.findUniqueOrThrow({
       where: { id: operationId },
       include: { fileLocation: true, storedFile: true },
@@ -388,7 +404,8 @@ export class FileService {
         storageKey: operation.fileLocation.storageKey,
         sizeBytes: stat.bytes,
         sha256: operation.storedFile.sha256 ?? "",
-        mimeType: operation.storedFile.detectedMimeType ?? "application/octet-stream",
+        mimeType:
+          operation.storedFile.detectedMimeType ?? "application/octet-stream",
         documentId: operation.documentId,
         documentVersionId: operation.documentVersionId,
       };
@@ -420,7 +437,10 @@ export class FileService {
 
   private mapStorageError(error: unknown): never {
     if (error instanceof StorageError) {
-      if (error.code === "DISABLED_CONNECTION" || error.code === "UNSUPPORTED_CONNECTION") {
+      if (
+        error.code === "DISABLED_CONNECTION" ||
+        error.code === "UNSUPPORTED_CONNECTION"
+      ) {
         throw new ServiceUnavailableException(error.message);
       }
       if (error.code === "NO_DEFAULT_CONNECTION") {

@@ -46,7 +46,8 @@ export function parseDocumentUpload(
 
     busboy.on("field", (name, value) => {
       if (name === "title") title = String(value);
-      else if (name === "caseIds" || name === "caseIds[]") pushId(caseIds, value);
+      else if (name === "caseIds" || name === "caseIds[]")
+        pushId(caseIds, value);
       else if (name === "clientIds" || name === "clientIds[]") {
         pushId(clientIds, value);
       }
@@ -89,7 +90,9 @@ export function parseDocumentUpload(
   });
 }
 
-export function requireIdempotencyKey(value: string | string[] | undefined): string {
+export function requireIdempotencyKey(
+  value: string | string[] | undefined,
+): string {
   const key = Array.isArray(value) ? value[0] : value;
   if (!key?.trim()) {
     throw new BadRequestException("Idempotency-Key header is required");
@@ -101,6 +104,9 @@ export function requireIdempotencyKey(value: string | string[] | undefined): str
 }
 
 export function sanitizeDownloadFilename(name: string): string {
-  const base = name.replace(/[\r\n"]/g, "").replace(/[/\\]/g, "_").trim();
+  const base = name
+    .replace(/[\r\n"]/g, "")
+    .replace(/[/\\]/g, "_")
+    .trim();
   return base || "document";
 }

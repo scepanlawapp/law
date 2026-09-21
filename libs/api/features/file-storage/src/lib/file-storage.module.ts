@@ -5,7 +5,12 @@ import { LocalStorageAdapter } from "./local-storage.adapter";
 import { StorageRouter } from "./storage.router";
 
 @Module({
-  providers: [FileStorageConfig, LocalStorageAdapter, StorageRouter, FileService],
+  providers: [
+    FileStorageConfig,
+    LocalStorageAdapter,
+    StorageRouter,
+    FileService,
+  ],
   exports: [FileService, StorageRouter, LocalStorageAdapter, FileStorageConfig],
 })
 export class FileStorageModule {}

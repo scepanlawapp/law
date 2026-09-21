@@ -171,7 +171,9 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - Assistant workflow state, markdown rendering, and the main assistant component have focused frontend tests.
 
 ## References and user settings
-documents, 
+
+documents,
+
 - Workspace reference data, including users, is available to frontend forms and display components.
 - User settings can be read and updated through authenticated API endpoints.
 - The frontend has profile, appearance, workspace, and data settings pages.

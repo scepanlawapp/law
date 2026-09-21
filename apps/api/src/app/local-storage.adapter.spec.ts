@@ -23,10 +23,14 @@ describe("LocalStorageAdapter", () => {
   });
 
   it("writes bytes exclusively and refuses overwrite", async () => {
-    const first = await adapter.write(key, Readable.from([Buffer.from("%PDF-1.4 ok")]), {
-      maxBytes: 1_000_000,
-      tempSuffix: "op-1",
-    });
+    const first = await adapter.write(
+      key,
+      Readable.from([Buffer.from("%PDF-1.4 ok")]),
+      {
+        maxBytes: 1_000_000,
+        tempSuffix: "op-1",
+      },
+    );
     expect(first.bytes).toBeGreaterThan(0);
     const stored = await readFile(join(root, key));
     expect(stored.toString("utf8")).toContain("%PDF-1.4");
@@ -36,11 +40,15 @@ describe("LocalStorageAdapter", () => {
         maxBytes: 1_000_000,
         tempSuffix: "op-2",
       }),
-    ).rejects.toMatchObject({ code: "ALREADY_EXISTS" } satisfies Partial<StorageError>);
+    ).rejects.toMatchObject({
+      code: "ALREADY_EXISTS",
+    } satisfies Partial<StorageError>);
   });
 
   it("rejects traversal keys", () => {
-    expect(() => adapter.resolvePath("../outside/content")).toThrow(StorageError);
+    expect(() => adapter.resolvePath("../outside/content")).toThrow(
+      StorageError,
+    );
     expect(() => adapter.resolvePath("/etc/passwd")).toThrow(StorageError);
   });
 

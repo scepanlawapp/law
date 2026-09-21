@@ -14,7 +14,11 @@ import { Readable, Transform } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { FileStorageConfig } from "./file-storage.config";
 import { StorageError } from "./storage.errors";
-import { StorageAdapter, StorageStat, StorageWriteResult } from "./storage.types";
+import {
+  StorageAdapter,
+  StorageStat,
+  StorageWriteResult,
+} from "./storage.types";
 import { assertStorageKey } from "./storage-key";
 
 @Injectable()
@@ -49,7 +53,11 @@ export class LocalStorageAdapter implements StorageAdapter {
     });
 
     try {
-      await pipeline(stream, limiter, createWriteStream(tempPath, { mode: 0o600 }));
+      await pipeline(
+        stream,
+        limiter,
+        createWriteStream(tempPath, { mode: 0o600 }),
+      );
       await this.finalizeExclusive(tempPath, dest);
       return { bytes, sha256: hash.digest("hex") };
     } catch (error) {
@@ -155,7 +163,10 @@ export class LocalStorageAdapter implements StorageAdapter {
     }
   }
 
-  private async finalizeExclusive(tempPath: string, dest: string): Promise<void> {
+  private async finalizeExclusive(
+    tempPath: string,
+    dest: string,
+  ): Promise<void> {
     try {
       // link(2) fails with EEXIST and does not overwrite. Same-filesystem is required.
       await link(tempPath, dest);

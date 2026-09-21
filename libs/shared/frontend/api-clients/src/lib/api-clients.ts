@@ -1529,7 +1529,9 @@ export class DocumentsApiClient {
 
   downloadUrl(documentId: string, versionId?: string): string {
     if (versionId) {
-      return this.endpoint(`/documents/${documentId}/versions/${versionId}/download`);
+      return this.endpoint(
+        `/documents/${documentId}/versions/${versionId}/download`,
+      );
     }
     return this.endpoint(`/documents/${documentId}/download`);
   }

@@ -15,7 +15,10 @@ export class StorageRouter {
 
   adapterFor(connection: PersistedStorageConnection): StorageAdapter {
     if (!connection.enabled) {
-      throw new StorageError("Storage connection is disabled", "DISABLED_CONNECTION");
+      throw new StorageError(
+        "Storage connection is disabled",
+        "DISABLED_CONNECTION",
+      );
     }
     if (connection.providerType !== "LOCAL") {
       throw new StorageError(

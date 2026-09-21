@@ -97,12 +97,17 @@ describe("DocumentsService", () => {
     prisma.case.count.mockResolvedValue(1);
     prisma.client.count.mockResolvedValue(1);
     prisma.document.create.mockResolvedValue({ id: "doc-1" });
-    prisma.documentVersion.create.mockResolvedValue({ id: "ver-1", versionNumber: 1 });
+    prisma.documentVersion.create.mockResolvedValue({
+      id: "ver-1",
+      versionNumber: 1,
+    });
     prisma.document.update.mockResolvedValue({});
     prisma.document.findFirst.mockResolvedValue(documentRow);
     prisma.document.findMany.mockResolvedValue([documentRow]);
     prisma.document.count.mockResolvedValue(1);
-    prisma.documentVersion.aggregate.mockResolvedValue({ _max: { versionNumber: 1 } });
+    prisma.documentVersion.aggregate.mockResolvedValue({
+      _max: { versionNumber: 1 },
+    });
     files.ingest.mockResolvedValue({
       replay: false,
       operationId: "op-1",
@@ -135,9 +140,9 @@ describe("DocumentsService", () => {
 
   it("returns 404 for another workspace document id", async () => {
     prisma.document.findFirst.mockResolvedValue(null);
-    await expect(run(() => service.get("doc-1"), otherWorkspaceId)).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      run(() => service.get("doc-1"), otherWorkspaceId),
+    ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.document.findFirst).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({ workspaceId: otherWorkspaceId }),
@@ -161,18 +166,27 @@ describe("DocumentsService", () => {
         data: expect.objectContaining({
           action: "DOCUMENT_CREATED",
           entityType: "Document",
-          metadata: expect.objectContaining({ caseIds: [caseId], clientIds: [clientId] }),
+          metadata: expect.objectContaining({
+            caseIds: [caseId],
+            clientIds: [clientId],
+          }),
         }),
       }),
     );
     expect(files.commitAvailable).toHaveBeenCalledWith(
-      expect.objectContaining({ documentId: "doc-1", documentVersionId: "ver-1" }),
+      expect.objectContaining({
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      }),
     );
     expect(created.id).toBe("doc-1");
   });
 
   it("adds a version without replacing the previous stored file id", async () => {
-    prisma.documentVersion.create.mockResolvedValue({ id: "ver-2", versionNumber: 2 });
+    prisma.documentVersion.create.mockResolvedValue({
+      id: "ver-2",
+      versionNumber: 2,
+    });
     files.ingest.mockResolvedValue({
       replay: false,
       operationId: "op-2",
@@ -242,7 +256,9 @@ describe("DocumentsService", () => {
   });
 
   it("replaces case/client arrays on patch when provided", async () => {
-    await run(() => service.update("doc-1", { caseIds: [], clientIds: [clientId] }));
+    await run(() =>
+      service.update("doc-1", { caseIds: [], clientIds: [clientId] }),
+    );
     expect(prisma.documentCase.deleteMany).toHaveBeenCalled();
     expect(prisma.documentCase.createMany).not.toHaveBeenCalled();
     expect(prisma.documentClient.createMany).toHaveBeenCalled();

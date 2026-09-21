@@ -38,7 +38,9 @@ export class DocumentsController {
 
   @Post()
   async create(@Req() request: IncomingMessage) {
-    const idempotencyKey = requireIdempotencyKey(request.headers["idempotency-key"]);
+    const idempotencyKey = requireIdempotencyKey(
+      request.headers["idempotency-key"],
+    );
     const upload = await parseDocumentUpload(request);
     return this.documents.create({
       title: upload.title ?? "",
@@ -62,7 +64,9 @@ export class DocumentsController {
 
   @Post(":id/versions")
   async addVersion(@Param("id") id: string, @Req() request: IncomingMessage) {
-    const idempotencyKey = requireIdempotencyKey(request.headers["idempotency-key"]);
+    const idempotencyKey = requireIdempotencyKey(
+      request.headers["idempotency-key"],
+    );
     const upload = await parseDocumentUpload(request);
     return this.documents.addVersion({
       documentId: id,
