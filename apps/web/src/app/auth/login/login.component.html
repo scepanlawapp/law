@@ -1,85 +1,123 @@
-<main aria-label="Sign in form" class="form flex h-full min-w-0 w-full">
+<main
+  aria-label="Sign in form"
+  class="flex h-full min-h-0 min-w-0 w-full"
+>
   <div
     aria-hidden="true"
     class="hidden min-w-0 flex-1 bg-[url('/login.png')] bg-center bg-cover md:block"
   ></div>
-  <div class="flex w-full max-w-md shrink-0 flex-col">
-    <header class="flex">
-      <a href="#">{{ "auth.needHelp" | translate }}<span>?</span></a>
-    </header>
 
-    <div>
-      <h3>{{ "auth.welcomeBack" | translate }}</h3>
-      <p>{{ "auth.signInDescription" | translate }}</p>
+  <div
+    class="bg-background flex h-full min-h-0 w-full shrink-0 flex-col overflow-y-auto md:w-[28rem]"
+  >
+    <div class="flex min-h-full flex-col px-6 py-8 sm:px-10">
+      <div class="min-h-0 flex-1" aria-hidden="true"></div>
 
-      <form [formGroup]="loginForm" (ngSubmit)="login()" novalidate>
-        <div hlmField>
-          <label hlmFieldLabel for="email">{{
-            "auth.emailAddress" | translate
-          }}</label>
-          <div class="flex items-center">
-            <ng-icon name="lucideMail" aria-hidden="true" />
-            <input
-              hlmInput
-              id="email"
-              type="email"
-              formControlName="email"
-              required
-              autocomplete="email"
-              [placeholder]="'auth.emailPlaceholder' | translate"
-            />
+      <div class="mx-auto w-full min-w-0 max-w-[360px]">
+        <img
+          src="/logo.png"
+          alt="Legal AI"
+          class="mx-auto block h-auto w-[60%]"
+        />
+
+        <section class="mt-8 text-left">
+          <h1 class="text-xl font-semibold">
+            {{ "auth.welcomeBack" | translate }}
+          </h1>
+          <p class="text-muted-foreground mt-2 text-sm leading-snug">
+            {{ "auth.signInDescription" | translate }}
+          </p>
+        </section>
+
+        <form
+          class="mt-8 flex w-full flex-col gap-5"
+          [formGroup]="loginForm"
+          (ngSubmit)="login()"
+          novalidate
+        >
+          <div hlmField>
+            <label hlmFieldLabel for="email">
+              {{ "auth.emailAddress" | translate }}
+            </label>
+            <hlm-input-group class="w-full">
+              <hlm-input-group-addon>
+                <ng-icon name="lucideMail" aria-hidden="true" />
+              </hlm-input-group-addon>
+              <input
+                hlmInputGroupInput
+                id="email"
+                type="email"
+                formControlName="email"
+                required
+                autocomplete="email"
+                [placeholder]="'auth.emailPlaceholder' | translate"
+              />
+            </hlm-input-group>
           </div>
-        </div>
 
-        <div hlmField>
-          <label hlmFieldLabel for="password">{{
-            "auth.password" | translate
-          }}</label>
-          <div class="flex items-center">
-            <ng-icon name="lucideLock" aria-hidden="true" />
-            <input
-              hlmInput
-              id="password"
-              [type]="showPassword ? 'text' : 'password'"
-              formControlName="password"
-              required
-              autocomplete="current-password"
-              [placeholder]="'auth.passwordPlaceholder' | translate"
-            />
-
-            <button
-              hlmBtn
-              variant="ghost"
-              size="icon"
-              type="button"
-              [attr.aria-label]="'auth.togglePassword' | translate"
-              (click)="togglePasswordVisibility()"
-            >
-              <ng-icon [name]="showPassword ? 'lucideEyeOff' : 'lucideEye'" />
-            </button>
+          <div hlmField>
+            <label hlmFieldLabel for="password">
+              {{ "auth.password" | translate }}
+            </label>
+            <hlm-input-group class="w-full">
+              <hlm-input-group-addon>
+                <ng-icon name="lucideLock" aria-hidden="true" />
+              </hlm-input-group-addon>
+              <input
+                hlmInputGroupInput
+                id="password"
+                [type]="showPassword ? 'text' : 'password'"
+                formControlName="password"
+                required
+                autocomplete="current-password"
+                [placeholder]="'auth.passwordPlaceholder' | translate"
+              />
+              <hlm-input-group-addon align="inline-end">
+                <button
+                  hlmInputGroupButton
+                  size="icon-xs"
+                  type="button"
+                  [attr.aria-label]="'auth.togglePassword' | translate"
+                  (click)="togglePasswordVisibility()"
+                >
+                  <ng-icon
+                    [name]="showPassword ? 'lucideEyeOff' : 'lucideEye'"
+                  />
+                </button>
+              </hlm-input-group-addon>
+            </hlm-input-group>
           </div>
-        </div>
 
-        @if (error) {
-          <p role="alert">{{ error }}</p>
-        }
+          @if (error) {
+            <p class="text-destructive text-sm" role="alert">{{ error }}</p>
+          }
 
-        <a routerLink="/forgot-password">{{
-          "auth.forgotPassword" | translate
-        }}</a>
+          <a
+            hlmBtn
+            variant="link"
+            class="self-end px-0 text-sm"
+            routerLink="/forgot-password"
+          >
+            {{ "auth.forgotPassword" | translate }}
+          </a>
 
-        <button hlmBtn type="submit" [disabled]="submitting">
-          <span>{{
-            (submitting ? "auth.signingIn" : "auth.signIn") | translate
-          }}</span>
-          <ng-icon name="lucideArrowRight" aria-hidden="true" />
-        </button>
-      </form>
+          <button
+            hlmBtn
+            class="mt-1 w-full"
+            type="submit"
+            [disabled]="submitting"
+          >
+            <span>
+              {{
+                (submitting ? "auth.signingIn" : "auth.signIn") | translate
+              }}
+            </span>
+            <ng-icon name="lucideArrowRight" aria-hidden="true" />
+          </button>
+        </form>
+      </div>
+
+      <div class="min-h-0 flex-1" aria-hidden="true"></div>
     </div>
-
-    <footer class="flex">
-      <span>{{ "auth.dontHaveAccount" | translate }}</span>
-      <a href="#">{{ "auth.contactAdministrator" | translate }}</a>
-    </footer>
   </div>
 </main>

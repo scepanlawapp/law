@@ -1,73 +1,105 @@
-<div>
-  <div>
-    <h2>{{ "settings.workspace" | translate }}</h2>
-    <p>{{ "settings.workspaceDescription" | translate }}</p>
-  </div>
-</div>
-@if (loading()) {
-  <hlm-spinner aria-label="{{ 'settings.loading' | translate }}" />
-} @else {
-  <form [formGroup]="form" (ngSubmit)="save()">
-    <div>
-      <div>
-        <strong>{{ "settings.workspaceNotifications" | translate }}</strong>
-        <p>{{ "settings.workspaceNotificationsHint" | translate }}</p>
+<div class="px-4 py-6 md:px-8">
+  <header class="max-w-4xl border-b border-border pb-4">
+    <h2 class="text-base font-semibold">
+      {{ "settings.workspace" | translate }}
+    </h2>
+    <p class="text-muted-foreground mt-1 text-sm leading-snug">
+      {{ "settings.workspaceDescription" | translate }}
+    </p>
+  </header>
+
+  @if (loading()) {
+    <div class="mt-8 flex items-center gap-2">
+      <hlm-spinner aria-label="{{ 'settings.loading' | translate }}" />
+    </div>
+  } @else {
+    <form
+      class="mt-8 flex max-w-4xl flex-col gap-10"
+      [formGroup]="form"
+      (ngSubmit)="save()"
+    >
+      <section class="flex flex-col gap-4">
+        <h3 class="text-sm font-semibold">
+          {{ "settings.workspaceNotifications" | translate }}
+        </h3>
+        <div
+          class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-8"
+        >
+          <div class="min-w-0">
+            <strong class="block text-sm font-medium">
+              {{ "settings.workspaceNotifications" | translate }}
+            </strong>
+            <p class="text-muted-foreground mt-1 text-sm leading-snug">
+              {{ "settings.workspaceNotificationsHint" | translate }}
+            </p>
+          </div>
+          <hlm-switch
+            class="shrink-0 self-start sm:self-center"
+            formControlName="workspaceNotifications"
+            [attr.aria-label]="'settings.workspaceNotifications' | translate"
+          />
+        </div>
+      </section>
+
+      <section class="flex flex-col gap-4">
+        <h3 class="text-sm font-semibold">
+          {{ "settings.regionalPreferences" | translate }}
+        </h3>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="date-time-format-select">
+              {{ "settings.dateTimeFormat" | translate }}
+            </label>
+            <hlm-select
+              formControlName="dateTimeFormat"
+              [itemToString]="dateTimeFormatItemToString"
+            >
+              <hlm-select-trigger id="date-time-format-select" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (option of dateTimeFormatOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ dateTimeFormatItemToString(option.value) }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="time-zone-select">
+              {{ "settings.timeZone" | translate }}
+            </label>
+            <hlm-select
+              formControlName="timeZone"
+              [itemToString]="timeZoneItemToString"
+            >
+              <hlm-select-trigger id="time-zone-select" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (option of timeZoneOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ timeZoneItemToString(option.value) }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        </div>
+      </section>
+
+      <div class="flex justify-end">
+        <button hlmBtn type="submit" [disabled]="saving()">
+          {{
+            (saving() ? "settings.saving" : "settings.saveChanges") | translate
+          }}
+        </button>
       </div>
-      <hlm-switch
-        formControlName="workspaceNotifications"
-        [attr.aria-label]="'settings.workspaceNotifications' | translate"
-      />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="date-time-format-select">
-        {{ "settings.dateTimeFormat" | translate }}
-      </label>
-      <hlm-select
-        formControlName="dateTimeFormat"
-        [itemToString]="dateTimeFormatItemToString"
-      >
-        <hlm-select-trigger id="date-time-format-select" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (option of dateTimeFormatOptions; track option.value) {
-              <hlm-select-item [value]="option.value">
-                {{ dateTimeFormatItemToString(option.value) }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="time-zone-select">
-        {{ "settings.timeZone" | translate }}
-      </label>
-      <hlm-select
-        formControlName="timeZone"
-        [itemToString]="timeZoneItemToString"
-      >
-        <hlm-select-trigger id="time-zone-select" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (option of timeZoneOptions; track option.value) {
-              <hlm-select-item [value]="option.value">
-                {{ timeZoneItemToString(option.value) }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div>
-      <button hlmBtn type="submit" [disabled]="saving()">
-        {{
-          (saving() ? "settings.saving" : "settings.saveChanges") | translate
-        }}
-      </button>
-    </div>
-  </form>
-}
+    </form>
+  }
+</div>

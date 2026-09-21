@@ -30,6 +30,9 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
   ],
   templateUrl: "./profile-settings.component.html",
   styleUrls: ["./settings-pages.component.scss"],
+  host: {
+    class: "block min-w-0",
+  },
 })
 export class ProfileSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);

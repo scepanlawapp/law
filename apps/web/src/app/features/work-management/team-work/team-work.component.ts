@@ -13,8 +13,8 @@ import { WorkViewComponent } from "../work-view/work-view.component";
       </h1>
 
       <app-work-view
-        mode="team"
         class="block min-h-0 min-w-0 flex-1"
+        mode="team"
         [showTeamFilters]="true"
       />
     </div>

@@ -1,101 +1,146 @@
-<div class="settings-section-header">
-  <div>
-    <h2>{{ "settings.appearance" | translate }}</h2>
-    <p>{{ "settings.appearanceDescription" | translate }}</p>
-  </div>
-</div>
-@if (loading()) {
-  <p class="settings-state">{{ "settings.loading" | translate }}</p>
-} @else {
-  <form class="settings-form" [formGroup]="form" (ngSubmit)="save()">
-    <div hlmField>
-      <label hlmFieldLabel for="theme-select">{{
-        "settings.theme" | translate
-      }}</label>
-      <hlm-select formControlName="theme" [itemToString]="themeItemToString">
-        <hlm-select-trigger id="theme-select" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            <hlm-select-label>{{
-              "settings.theme" | translate
-            }}</hlm-select-label>
-            @for (option of themeOptions; track option.value) {
-              <hlm-select-item [value]="option.value">{{
-                themeItemToString(option.value)
-              }}</hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="language-select">{{
-        "settings.language" | translate
-      }}</label>
-      <hlm-select
-        formControlName="language"
-        [itemToString]="languageItemToString"
-      >
-        <hlm-select-trigger id="language-select" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            @for (option of languageOptions; track option.value) {
-              <hlm-select-item [value]="option.value">{{
-                languageItemToString(option.value)
-              }}</hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <fieldset>
-      <legend>{{ "settings.accentColor" | translate }}</legend>
-      <hlm-radio-group formControlName="accentColor" class="accent-options">
-        @for (color of accentOptions; track color.name) {
-          <div class="accent-option">
-            <hlm-radio [value]="color.name" [inputId]="'accent-' + color.name">
-              <hlm-radio-indicator indicator />
-            </hlm-radio>
-            <span [style.backgroundColor]="color.value"></span>
-            <label hlmLabel [for]="'accent-' + color.name">{{
-              "settings.accent." + color.name | translate
-            }}</label>
+<div class="px-4 py-6 md:px-8">
+  <header class="max-w-4xl border-b border-border pb-4">
+    <h2 class="text-base font-semibold">
+      {{ "settings.appearance" | translate }}
+    </h2>
+    <p class="text-muted-foreground mt-1 text-sm leading-snug">
+      {{ "settings.appearanceDescription" | translate }}
+    </p>
+  </header>
+
+  @if (loading()) {
+    <p class="text-muted-foreground mt-8 text-sm">
+      {{ "settings.loading" | translate }}
+    </p>
+  } @else {
+    <form
+      class="mt-8 flex max-w-4xl flex-col gap-10"
+      [formGroup]="form"
+      (ngSubmit)="save()"
+    >
+      <section class="flex flex-col gap-4">
+        <h3 class="text-sm font-semibold">
+          {{ "settings.themeAndLanguage" | translate }}
+        </h3>
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="theme-select">
+              {{ "settings.theme" | translate }}
+            </label>
+            <hlm-select
+              formControlName="theme"
+              [itemToString]="themeItemToString"
+            >
+              <hlm-select-trigger id="theme-select" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  <hlm-select-label>
+                    {{ "settings.theme" | translate }}
+                  </hlm-select-label>
+                  @for (option of themeOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ themeItemToString(option.value) }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
           </div>
-        }
-      </hlm-radio-group>
-    </fieldset>
-    @if (accentColorValue() === "GOLD") {
-      <fieldset>
-        <legend>{{ "settings.finish" | translate }}</legend>
-        <hlm-radio-group formControlName="finish" class="accent-options">
-          @for (finish of finishOptions; track finish) {
-            <div class="accent-option">
-              <hlm-radio [value]="finish" [inputId]="'finish-' + finish">
-                <hlm-radio-indicator indicator />
-              </hlm-radio>
+          <div hlmField>
+            <label hlmFieldLabel for="language-select">
+              {{ "settings.language" | translate }}
+            </label>
+            <hlm-select
+              formControlName="language"
+              [itemToString]="languageItemToString"
+            >
+              <hlm-select-trigger id="language-select" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (option of languageOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ languageItemToString(option.value) }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        </div>
+      </section>
+
+      <fieldset hlmFieldSet>
+        <legend hlmFieldLegend>
+          {{ "settings.accentColor" | translate }}
+        </legend>
+        <hlm-radio-group
+          formControlName="accentColor"
+          class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          @for (color of accentOptions; track color.name) {
+            <hlm-radio
+              class="border-border hover:bg-muted/50 data-[checked=true]:border-primary data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground flex min-h-16 w-full cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-left"
+              [value]="color.name"
+              [inputId]="'accent-' + color.name"
+              [aria-label]="'settings.accent.' + color.name | translate"
+            >
+              <hlm-radio-indicator indicator />
               <span
-                class="finish-swatch"
-                [attr.data-finish]="finish.toLowerCase()"
-                data-accent="gold"
+                class="border-border mt-0.5 size-6 shrink-0 rounded-full border"
+                [style.backgroundColor]="color.value"
+                aria-hidden="true"
               ></span>
-              <label hlmLabel [for]="'finish-' + finish">{{
-                "settings.finish." + finish | translate
-              }}</label>
-            </div>
+              <span class="min-w-0 flex-1 text-sm leading-5 text-pretty">
+                {{ "settings.accent." + color.name | translate }}
+              </span>
+            </hlm-radio>
           }
         </hlm-radio-group>
       </fieldset>
-    }
-    <div class="settings-actions">
-      <button hlmBtn type="submit" [disabled]="saving()">
-        {{
-          (saving() ? "settings.saving" : "settings.saveChanges") | translate
-        }}
-      </button>
-    </div>
-  </form>
-}
+
+      @if (accentColorValue() === "GOLD") {
+        <fieldset hlmFieldSet>
+          <legend hlmFieldLegend>
+            {{ "settings.finish" | translate }}
+          </legend>
+          <hlm-radio-group
+            formControlName="finish"
+            class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5"
+          >
+            @for (finish of finishOptions; track finish) {
+              <hlm-radio
+                class="border-border hover:bg-muted/50 data-[checked=true]:border-primary data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground flex min-h-16 w-full cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-left"
+                [value]="finish"
+                [inputId]="'finish-' + finish"
+                [aria-label]="'settings.finish.' + finish | translate"
+              >
+                <hlm-radio-indicator indicator />
+                <span
+                  class="finish-swatch border-border mt-0.5 size-6 shrink-0 rounded-full border"
+                  [attr.data-finish]="finish.toLowerCase()"
+                  data-accent="gold"
+                  aria-hidden="true"
+                ></span>
+                <span class="min-w-0 flex-1 text-sm leading-5 text-pretty">
+                  {{ "settings.finish." + finish | translate }}
+                </span>
+              </hlm-radio>
+            }
+          </hlm-radio-group>
+        </fieldset>
+      }
+
+      <div class="flex justify-end">
+        <button hlmBtn type="submit" [disabled]="saving()">
+          {{
+            (saving() ? "settings.saving" : "settings.saveChanges") | translate
+          }}
+        </button>
+      </div>
+    </form>
+  }
+</div>

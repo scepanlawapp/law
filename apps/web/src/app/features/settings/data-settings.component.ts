@@ -13,6 +13,9 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
   imports: [HlmButton, TranslatePipe],
   templateUrl: "./data-settings.component.html",
   styleUrl: "./settings-pages.component.scss",
+  host: {
+    class: "block min-w-0",
+  },
 })
 export class DataSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);
@@ -39,19 +42,19 @@ export class DataSettingsComponent {
           .clearConversationHistory()
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
-          next: () => {
-            this.toast.success(
-              this.localization.translate("settings.historyDeleted"),
-            );
-            this.clearing.set(false);
-          },
-          error: () => {
-            this.toast.error(
-              this.localization.translate("settings.historyDeleteError"),
-            );
-            this.clearing.set(false);
-          },
-        });
+            next: () => {
+              this.toast.success(
+                this.localization.translate("settings.historyDeleted"),
+              );
+              this.clearing.set(false);
+            },
+            error: () => {
+              this.toast.error(
+                this.localization.translate("settings.historyDeleteError"),
+              );
+              this.clearing.set(false);
+            },
+          });
       });
   }
 }

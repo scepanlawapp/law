@@ -31,6 +31,9 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
   ],
   templateUrl: "./workspace-settings.component.html",
   styleUrl: "./settings-pages.component.scss",
+  host: {
+    class: "block min-w-0",
+  },
 })
 export class WorkspaceSettingsComponent {
   private readonly api = inject(UserSettingsApiClient);

@@ -18,7 +18,7 @@ import {
 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
-import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { AuthState } from "@law/security";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
@@ -34,14 +34,14 @@ interface FeatureItem {
   selector: "app-login",
   standalone: true,
   host: {
-    class: "block h-full w-full",
+    class: "block h-full min-h-0 w-full",
   },
   imports: [
     ReactiveFormsModule,
     HlmButton,
     HlmField,
     HlmFieldLabel,
-    HlmInput,
+    HlmInputGroupImports,
     NgIcon,
     TranslatePipe,
     RouterLink,
@@ -119,26 +119,27 @@ export class LoginComponent {
     this.submitting = true;
     this.error = "";
 
-    this.auth.login(email, password)
+    this.auth
+      .login(email, password)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-      next: () => {
-        void this.router.navigate(["/"]);
-      },
-      error: (error: HttpErrorResponse) => {
-        if (error.status === 401) {
-          this.error = "";
-          this.toast.error(
-            this.localization.translate("auth.invalidCredentials"),
-          );
-        } else {
-          this.error = "Unable to sign in with those credentials.";
-        }
-        this.submitting = false;
-      },
-      complete: () => {
-        this.submitting = false;
-      },
-    });
+        next: () => {
+          void this.router.navigate(["/"]);
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.status === 401) {
+            this.error = "";
+            this.toast.error(
+              this.localization.translate("auth.invalidCredentials"),
+            );
+          } else {
+            this.error = "Unable to sign in with those credentials.";
+          }
+          this.submitting = false;
+        },
+        complete: () => {
+          this.submitting = false;
+        },
+      });
   }
 }
