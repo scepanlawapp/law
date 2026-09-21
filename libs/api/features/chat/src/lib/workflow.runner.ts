@@ -551,7 +551,7 @@ export class WorkflowRunner {
           },
         });
 
-        output = { ...output, brief };
+        output = { ...output, brief, briefResultId: briefResult.id };
         if (brief.jobType === "lawsuit") {
           draftingTrigger = { briefResultId: briefResult.id };
         }

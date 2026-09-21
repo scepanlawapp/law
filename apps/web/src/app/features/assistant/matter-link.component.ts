@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   computed,
+  effect,
   inject,
   input,
   output,
@@ -213,6 +214,7 @@ export class AssistantMatterLinkComponent {
   readonly selectedClientId = signal<string | null>(null);
   readonly selectedTaskKeys = signal<ReadonlySet<string>>(new Set());
   readonly canConfirm = computed(() => !this.saving());
+  private loadedKey: string | null = null;
   readonly form = new FormGroup({
     firstName: new FormControl(""),
     lastName: new FormControl(""),
@@ -222,6 +224,17 @@ export class AssistantMatterLinkComponent {
     opposingPartyName: new FormControl(""),
     opposingPartyAddress: new FormControl(""),
   });
+
+  constructor() {
+    effect(() => {
+      const briefId = this.briefId();
+      const sessionId = this.session()?.id ?? null;
+      const key = briefId && sessionId ? `${sessionId}:${briefId}` : null;
+      if (!key || key === this.loadedKey) return;
+      this.loadedKey = key;
+      this.loadBrief();
+    });
+  }
 
   loadBrief(): void {
     const workspaceId = this.workspaceId();

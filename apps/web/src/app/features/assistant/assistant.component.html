@@ -354,6 +354,17 @@
                 <p>{{ "assistant.description" | translate }}</p>
               </div>
             }
+            @if (latestBriefId(); as briefId) {
+              @if (workspaceId(); as workspace) {
+                <app-assistant-matter-link
+                  class="matter-link"
+                  [workspaceId]="workspace"
+                  [session]="selectedSession()"
+                  [briefId]="briefId"
+                  (linked)="onSessionLinked($event)"
+                />
+              }
+            }
             <ng-template #workflowActivityTemplate let-activity>
               <section
                 class="workflow-activity"
@@ -559,14 +570,6 @@
         </footer>
       </section>
 
-      @if (workspaceId(); as workspace) {
-        <app-assistant-matter-link
-          [workspaceId]="workspace"
-          [session]="selectedSession()"
-          [briefId]="latestBriefId()"
-          (linked)="onSessionLinked($event)"
-        />
-      }
       @if (draft(); as draftItem) {
         <app-draft-review-panel
           class="review-pane"

@@ -280,6 +280,12 @@
   padding: 1.5rem clamp(1rem, 3vw, 2.5rem) 2rem;
 }
 
+.matter-link {
+  display: block;
+  width: min(100%, 40rem);
+  margin: 0 0 1.25rem 3.25rem;
+}
+
 .message {
   display: flex;
   align-items: flex-start;

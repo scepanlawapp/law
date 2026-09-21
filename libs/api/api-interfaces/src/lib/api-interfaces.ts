@@ -302,6 +302,7 @@ export interface WorkflowJobResponse {
   status: WorkflowJobStatus;
   correlationId: string;
   progressStage?: WorkflowProgressStage | null;
+  briefResultId?: string | null;
   errorCode?: string | null;
   createdAt: string;
   updatedAt: string;

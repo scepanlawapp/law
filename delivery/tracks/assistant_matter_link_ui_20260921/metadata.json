@@ -1,0 +1,11 @@
+{
+  "track_id": "assistant_matter_link_ui_20260921",
+  "parent_track_id": "assistant_matter_link_20260921",
+  "type": "fix",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-21T22:30:00Z",
+  "updated_at": "2026-09-21T23:10:00Z",
+  "keywords": ["assistant", "matter-link", "layout", "brief-suggestion"],
+  "priority": "high"
+}

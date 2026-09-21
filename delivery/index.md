@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Assistant Matter Link UI](./tracks/assistant_matter_link_ui_20260921/index.md)
 - [Assistant Matter Link](./tracks/assistant_matter_link_20260921/index.md)
 
 ## Phase 1 — Quick Wins

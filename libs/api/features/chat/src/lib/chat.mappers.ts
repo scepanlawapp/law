@@ -169,10 +169,19 @@ export function toJob(job: {
     status: job.status,
     correlationId: job.correlationId,
     progressStage: progressStageFromOutput(job.output),
+    briefResultId: briefResultIdFromOutput(job.output),
     errorCode: job.errorCode ?? null,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
   };
+}
+
+function briefResultIdFromOutput(output: unknown): string | null {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return null;
+  }
+  const briefResultId = (output as Record<string, unknown>)["briefResultId"];
+  return typeof briefResultId === "string" ? briefResultId : null;
 }
 
 function progressStageFromOutput(
