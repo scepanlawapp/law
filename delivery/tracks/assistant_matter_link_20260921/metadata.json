@@ -1,0 +1,18 @@
+{
+  "track_id": "assistant_matter_link_20260921",
+  "parent_track_id": "assistant_live_workflow_20260915",
+  "type": "feature",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-21T00:00:00Z",
+  "updated_at": "2026-09-21T21:30:00Z",
+  "keywords": [
+    "assistant",
+    "case-link",
+    "brief",
+    "client",
+    "tasks",
+    "confirmation"
+  ],
+  "priority": "high"
+}

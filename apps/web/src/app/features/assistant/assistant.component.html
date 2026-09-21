@@ -74,6 +74,9 @@
               <strong>
                 {{ session.title || ("assistant.newChat" | translate) }}
               </strong>
+              @if (session.case) {
+                <small>{{ session.case.caseNumber }}</small>
+              }
               @if (session.activity?.activeJobCount) {
                 <small>{{ "assistant.conversationWorking" | translate }}</small>
               } @else if (session.activity?.hasDraft) {
@@ -350,6 +353,17 @@
                 <h2>{{ "assistant.emptyTitle" | translate }}</h2>
                 <p>{{ "assistant.description" | translate }}</p>
               </div>
+            }
+            @if (latestBriefId(); as briefId) {
+              @if (workspaceId(); as workspace) {
+                <app-assistant-matter-link
+                  class="matter-link"
+                  [workspaceId]="workspace"
+                  [session]="selectedSession()"
+                  [briefId]="briefId"
+                  (linked)="onSessionLinked($event)"
+                />
+              }
             }
             <ng-template #workflowActivityTemplate let-activity>
               <section

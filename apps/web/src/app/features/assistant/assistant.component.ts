@@ -57,14 +57,17 @@ import { ChatApiClient } from "@law/api-clients";
 import {
   ChatMessageResponse,
   ChatMessageFeedback,
+  ChatSessionDetail,
   ChatSessionSummary,
   ChatStreamEvent,
   DocumentScript,
   DraftResultResponse,
+  WorkflowJobResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { finalize } from "rxjs";
 import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
+import { AssistantMatterLinkComponent } from "./matter-link.component";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
 import { CitationListComponent } from "./components/citation-list/citation-list";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -135,6 +138,7 @@ interface SessionGroup {
     ReactiveFormsModule,
     TranslatePipe,
     AssistantMarkdownPipe,
+    AssistantMatterLinkComponent,
     DraftReviewPanelComponent,
     CitationListComponent,
     HlmSpinner,
@@ -231,6 +235,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   });
   protected readonly messages = signal<ChatMessageResponse[]>([]);
   protected readonly selectedSessionId = signal<string | null>(null);
+  protected readonly pendingCaseId = signal<string | null>(null);
+  protected readonly latestBriefId = signal<string | null>(null);
   protected readonly selectedSessionTitle = computed(
     () =>
       this.sessions().find((session) => session.id === this.selectedSessionId())
@@ -285,6 +291,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       this.speechRecognition.reset();
     });
     this.elapsedTimer = setInterval(() => this.clock.set(Date.now()), 1000);
+    this.pendingCaseId.set(this.route.snapshot.queryParamMap.get("caseId"));
     this.loadSessions();
     this.listenWorkspace();
     this.consumeHandoffPrompt();
@@ -439,7 +446,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (!workspaceId) return;
 
     this.chat
-      .createSession({ workspaceId })
+      .createSession({ workspaceId, caseId: this.pendingCaseId() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (session) => {
@@ -451,6 +458,22 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         },
         error: () => this.error.set("Unable to create a conversation."),
       });
+  }
+
+  protected selectedSession(): ChatSessionSummary | null {
+    return (
+      this.sessions().find(
+        (session) => session.id === this.selectedSessionId(),
+      ) ?? null
+    );
+  }
+
+  protected onSessionLinked(session: ChatSessionSummary): void {
+    this.sessions.update((items) =>
+      items.map((item) =>
+        item.id === session.id ? { ...item, ...session } : item,
+      ),
+    );
   }
 
   protected selectSession(sessionId: string): void {
@@ -472,6 +495,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.scheduleMessagesScroll();
           const latestDraft = detail.drafts[detail.drafts.length - 1] ?? null;
           this.applyDraft(latestDraft);
+          this.latestBriefId.set(this.briefIdFromDetail(detail));
         },
         error: () => this.error.set("Unable to load this conversation."),
       });
@@ -805,7 +829,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const hasSelectedSession = Boolean(this.selectedSessionId());
     if (!hasSelectedSession && workspaceId) {
       this.chat
-        .createSession({ workspaceId })
+        .createSession({ workspaceId, caseId: this.pendingCaseId() })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (session) => {
@@ -851,7 +875,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     }
 
     this.chat
-      .createSession({ workspaceId })
+      .createSession({ workspaceId, caseId: this.pendingCaseId() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (session) => {
@@ -1012,6 +1036,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
           this.applyDraft(detail.drafts[detail.drafts.length - 1] ?? null);
+          this.latestBriefId.set(this.briefIdFromDetail(detail));
           this.scheduleMessagesScroll();
         },
         error: () => undefined,
@@ -1039,6 +1064,14 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (event.type === "draft.updated" && event.draft) {
       this.applyDraft(event.draft);
     }
+    if (
+      event.type === "job.updated" &&
+      event.job?.workflowName === "brief-extraction" &&
+      event.job.status === "COMPLETED" &&
+      event.job.briefResultId
+    ) {
+      this.latestBriefId.set(event.job.briefResultId);
+    }
     if (event.type === "session.title.updated") {
       this.upsertSessionTitle(event.sessionId, event.title ?? null);
     }
@@ -1047,6 +1080,18 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         event.error ?? "The assistant could not process this message.",
       );
     }
+  }
+
+  private briefIdFromDetail(detail: ChatSessionDetail): string | null {
+    const fromJob = [...detail.jobs]
+      .reverse()
+      .find(
+        (job): job is WorkflowJobResponse & { briefResultId: string } =>
+          job.workflowName === "brief-extraction" &&
+          job.status === "COMPLETED" &&
+          Boolean(job.briefResultId),
+      );
+    return fromJob?.briefResultId ?? detail.latestBriefId;
   }
 
   private upsertSessionTitle(sessionId: string, title: string | null): void {

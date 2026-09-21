@@ -9,9 +9,11 @@ import {
 } from "@angular/forms";
 import { ActivatedRoute, RouterLink } from "@angular/router";
 import { CaseDetail } from "@law/api-interfaces";
+import { AuthState } from "@law/security";
 import {
   CaseResponsibility,
   CasesApiClient,
+  ChatApiClient,
   DomainActivity,
   ReferencesApiClient,
 } from "@law/api-clients";
@@ -58,6 +60,8 @@ import { WorkViewComponent } from "../work-management/work-view/work-view.compon
 })
 export class CaseDetailComponent {
   private readonly api = inject(CasesApiClient);
+  private readonly chat = inject(ChatApiClient);
+  private readonly auth = inject(AuthState);
   private readonly refs = inject(ReferencesApiClient);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
@@ -71,6 +75,10 @@ export class CaseDetailComponent {
   readonly responsibilities = signal<CaseResponsibility[]>([]);
   readonly users = signal(new Map<string, string>());
   readonly showCloseForm = signal(false);
+  readonly assistantLinks = signal<{
+    sessions: Array<{ id: string; title: string | null; updatedAt: string }>;
+    drafts: Array<{ id: string; sessionId: string; approvalStatus: string }>;
+  } | null>(null);
   readonly activityTypeOptions: ReadonlyArray<DomainActivity["type"]> = [
     "NOTE",
     "PHONE_CALL",
@@ -140,12 +148,21 @@ export class CaseDetailComponent {
         next: (item) => {
           this.item.set(item);
           this.loading.set(false);
+          this.loadAssistantLinks();
         },
         error: () => {
           this.loading.set(false);
           this.toast.error(this.local.translate("cases.loadError"));
         },
       });
+  }
+  private loadAssistantLinks(): void {
+    const workspaceId = this.auth.session()?.memberships[0]?.workspaceId;
+    if (!workspaceId) return;
+    this.chat
+      .caseLinks(workspaceId, this.id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: (links) => this.assistantLinks.set(links) });
   }
   load(tab: string): void {
     if (tab === "activities")

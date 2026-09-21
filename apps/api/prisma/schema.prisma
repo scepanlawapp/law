@@ -481,6 +481,8 @@ model Case {
   closedDate           DateTime?            @db.Timestamptz(3)
   closingNote          String?
   externalReference    String?
+  opposingPartyName    String?
+  opposingPartyAddress String?
   confidentialityLevel String?
   customFields         Json?
   createdByUserId      String
@@ -500,6 +502,9 @@ model Case {
   deadlines            Deadline[]           @relation("DeadlineCase")
   notes                Note[]               @relation("NoteCase")
   activityLogs         ActivityLog[]        @relation("ActivityCase")
+  chatSessions         ChatSession[]
+  draftResults         DraftResult[]
+  appliedBriefs        BriefExtractionResult[] @relation("BriefAppliedCase")
 
   @@unique([workspaceId, caseNumber])
   @@index([workspaceId, clientId, status, updatedAt])
@@ -883,6 +888,7 @@ model ChatSession {
   id                     String                  @id @default(uuid())
   workspaceId            String
   createdByUserId        String
+  caseId                 String?
   title                  String?
   status                 ChatSessionStatus       @default(ACTIVE)
   isDeleted              Boolean                 @default(false)
@@ -890,12 +896,14 @@ model ChatSession {
   updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
   workspace              Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   createdBy              User                    @relation("ChatSessionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  case                   Case?                   @relation(fields: [caseId], references: [id], onDelete: SetNull)
   messages               ChatMessage[]
   attachments            ChatAttachment[]
   workflowJobs           WorkflowJob[]
   briefExtractionResults BriefExtractionResult[]
   draftResults           DraftResult[]
 
+  @@index([workspaceId, caseId])
   @@index([workspaceId, updatedAt])
   @@index([createdByUserId, isDeleted, createdAt])
 }
@@ -965,27 +973,31 @@ model WorkflowJob {
 }
 
 model BriefExtractionResult {
-  id            String        @id @default(uuid())
-  jobId         String        @unique
-  workspaceId   String
-  sessionId     String
-  messageId     String?
-  brief         Json
-  confidence    Float?
-  missingFields String[]      @default([])
-  promptChars   Int
-  truncated     Boolean       @default(false)
-  model         String
-  errorCode     String?
-  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
-  job           WorkflowJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  workspace     Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  session       ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  message       ChatMessage?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
-  draftResults  DraftResult[]
+  id              String        @id @default(uuid())
+  jobId           String        @unique
+  workspaceId     String
+  sessionId       String
+  messageId       String?
+  brief           Json
+  confidence      Float?
+  missingFields   String[]      @default([])
+  appliedCaseId   String?
+  appliedTaskKeys String[]      @default([])
+  promptChars     Int
+  truncated       Boolean       @default(false)
+  model           String
+  errorCode       String?
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  job             WorkflowJob   @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  workspace       Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session         ChatSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  message         ChatMessage?  @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  appliedCase     Case?         @relation("BriefAppliedCase", fields: [appliedCaseId], references: [id], onDelete: SetNull)
+  draftResults    DraftResult[]
 
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])
+  @@index([appliedCaseId])
 }
 
 model DraftResult {
@@ -993,6 +1005,7 @@ model DraftResult {
   jobId             String                 @unique
   workspaceId       String
   sessionId         String
+  caseId            String?
   messageId         String?
   briefResultId     String?
   documentText      String                 @db.Text
@@ -1012,6 +1025,7 @@ model DraftResult {
   job               WorkflowJob            @relation(fields: [jobId], references: [id], onDelete: Cascade)
   workspace         Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   session           ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  case              Case?                  @relation(fields: [caseId], references: [id], onDelete: SetNull)
   message           ChatMessage?           @relation(fields: [messageId], references: [id], onDelete: SetNull)
   briefResult       BriefExtractionResult? @relation(fields: [briefResultId], references: [id], onDelete: SetNull)
   previousDraft     DraftResult?           @relation("DraftResultHistory", fields: [previousDraftId], references: [id], onDelete: SetNull)
@@ -1019,6 +1033,7 @@ model DraftResult {
   citations         DraftCitation[]
 
   @@index([workspaceId, createdAt])
+  @@index([workspaceId, caseId])
   @@index([sessionId, createdAt])
   @@index([approvalStatus, reviewedAt])
 }

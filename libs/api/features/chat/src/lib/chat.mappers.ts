@@ -17,16 +17,34 @@ export function toSessionSummary(session: {
   id: string;
   workspaceId: string;
   createdByUserId: string;
+  caseId?: string | null;
   title: string | null;
   status: "ACTIVE" | "ARCHIVED";
   isDeleted: boolean;
   createdAt: Date;
   updatedAt: Date;
+  case?: {
+    id: string;
+    caseNumber: string;
+    name: string;
+    clientId: string;
+    client?: { displayName: string } | null;
+  } | null;
 }): ChatSessionSummary {
   return {
     id: session.id,
     workspaceId: session.workspaceId,
     createdByUserId: session.createdByUserId,
+    caseId: session.caseId ?? null,
+    case: session.case
+      ? {
+          id: session.case.id,
+          caseNumber: session.case.caseNumber,
+          name: session.case.name,
+          clientId: session.case.clientId,
+          clientDisplayName: session.case.client?.displayName ?? null,
+        }
+      : null,
     title: session.title,
     status: session.status,
     isDeleted: session.isDeleted,
@@ -151,10 +169,19 @@ export function toJob(job: {
     status: job.status,
     correlationId: job.correlationId,
     progressStage: progressStageFromOutput(job.output),
+    briefResultId: briefResultIdFromOutput(job.output),
     errorCode: job.errorCode ?? null,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
   };
+}
+
+function briefResultIdFromOutput(output: unknown): string | null {
+  if (!output || typeof output !== "object" || Array.isArray(output)) {
+    return null;
+  }
+  const briefResultId = (output as Record<string, unknown>)["briefResultId"];
+  return typeof briefResultId === "string" ? briefResultId : null;
 }
 
 function progressStageFromOutput(
@@ -182,6 +209,7 @@ export function toDraft(draft: {
   jobId: string;
   workspaceId: string;
   sessionId: string;
+  caseId?: string | null;
   messageId: string | null;
   briefResultId: string | null;
   documentText: string;
@@ -220,6 +248,7 @@ export function toDraft(draft: {
     jobId: draft.jobId,
     workspaceId: draft.workspaceId,
     sessionId: draft.sessionId,
+    caseId: draft.caseId ?? null,
     messageId: draft.messageId,
     briefResultId: draft.briefResultId,
     documentText: draft.documentText,
