@@ -29,6 +29,10 @@
       "@law/legal-knowledge": [
         "./libs/api/features/legal-knowledge/src/index.ts"
       ],
+      "@law/file-storage": ["./libs/api/features/file-storage/src/index.ts"],
+      "@law/workspace-documents": [
+        "./libs/api/features/workspace-documents/src/index.ts"
+      ],
       "@law/core": ["./libs/api/core/src/index.ts"],
       "@law/llm": ["./libs/api/ai/llm/src/index.ts"],
       "@law/contracts": ["./libs/api/ai/contracts/src/index.ts"],

@@ -11,6 +11,7 @@ import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
 import { LegalKnowledgeModule } from "@law/legal-knowledge";
+import { WorkspaceDocumentsModule } from "@law/workspace-documents";
 import { validateEnvironment } from "./config.validation";
 
 @Module({
@@ -25,6 +26,7 @@ import { validateEnvironment } from "./config.validation";
     UserSettingsModule,
     ActivitiesTasksDeadlinesModule,
     LegalKnowledgeModule,
+    WorkspaceDocumentsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,0 +1,17 @@
+{
+  "track_id": "document_storage_backend_20260921",
+  "parent_track_id": null,
+  "type": "feature",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-21T00:00:00Z",
+  "updated_at": "2026-09-21T15:23:00Z",
+  "keywords": [
+    "documents",
+    "file-storage",
+    "local-adapter",
+    "prisma",
+    "workspace"
+  ],
+  "priority": "high"
+}

@@ -41,6 +41,11 @@ import {
   PaginatedResponse,
   TaskDetail,
   TaskStatus,
+  DocumentDetail,
+  DocumentListQuery,
+  DocumentListResponse,
+  DocumentUpdateRequest,
+  DocumentVersionListResponse,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -1459,5 +1464,73 @@ export class ReferencesApiClient {
       request,
       { withCredentials: true },
     );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class DocumentsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(query: DocumentListQuery = {}): Observable<DocumentListResponse> {
+    return this.http.get<DocumentListResponse>(this.endpoint("/documents"), {
+      withCredentials: true,
+      params: queryParams(query),
+    });
+  }
+
+  get(documentId: string): Observable<DocumentDetail> {
+    return this.http.get<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}`),
+      { withCredentials: true },
+    );
+  }
+
+  update(
+    documentId: string,
+    request: DocumentUpdateRequest,
+  ): Observable<DocumentDetail> {
+    return this.http.patch<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}`),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  listVersions(
+    documentId: string,
+    query: PaginationQuery = {},
+  ): Observable<DocumentVersionListResponse> {
+    return this.http.get<DocumentVersionListResponse>(
+      this.endpoint(`/documents/${documentId}/versions`),
+      { withCredentials: true, params: queryParams(query) },
+    );
+  }
+
+  archive(documentId: string): Observable<DocumentDetail> {
+    return this.http.post<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}/archive`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  restore(documentId: string): Observable<DocumentDetail> {
+    return this.http.post<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}/restore`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  downloadUrl(documentId: string, versionId?: string): string {
+    if (versionId) {
+      return this.endpoint(`/documents/${documentId}/versions/${versionId}/download`);
+    }
+    return this.endpoint(`/documents/${documentId}/download`);
   }
 }

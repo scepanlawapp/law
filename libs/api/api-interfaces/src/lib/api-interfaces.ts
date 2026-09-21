@@ -588,3 +588,44 @@ export type CaseListResponse = PaginatedResponse<CaseSummary>;
 export interface CaseNextNumberResponse {
   caseNumber: string;
 }
+
+export interface DocumentVersionSummary {
+  id: string;
+  versionNumber: number;
+  originalFilename: string;
+  mimeType: string;
+  sizeBytes: number;
+  sha256: string | null;
+  uploadedByUserId: string;
+  createdAt: string;
+}
+
+export interface DocumentSummary {
+  id: string;
+  title: string;
+  archived: boolean;
+  archivedAt: string | null;
+  caseIds: string[];
+  clientIds: string[];
+  currentVersion: DocumentVersionSummary | null;
+  createdByUserId: string;
+  updatedByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type DocumentDetail = DocumentSummary;
+export type DocumentListResponse = PaginatedResponse<DocumentSummary>;
+export type DocumentVersionListResponse = PaginatedResponse<DocumentVersionSummary>;
+
+export interface DocumentListQuery extends PaginationQuery {
+  caseId?: string;
+  clientId?: string;
+  archived?: "true" | "false" | "all";
+}
+
+export interface DocumentUpdateRequest {
+  title?: string;
+  caseIds?: string[];
+  clientIds?: string[];
+}

@@ -1,17 +1,17 @@
 # Business Logic Done So Far
 
-**Checked:** 2026-09-19  
+**Checked:** 2026-09-21  
 **Scope:** `apps/api`, `apps/web`, shared API contracts and API clients.
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
 
 ## Backend foundation
 
-- The API is an Nx/NestJS application composed from feature modules for authentication, chat, clients, cases, references, user settings, and activities/tasks/deadlines.
+- The API is an Nx/NestJS application composed from feature modules for authentication, chat, clients, cases, references, user settings, activities/tasks/deadlines, legal knowledge, and workspace documents.
 - Prisma is used for persistence through the shared platform database service.
 - Workspace-aware endpoints use authentication, CSRF/origin protection, and workspace membership checks. Domain services validate that referenced cases, clients, client contacts, deadlines, and active workspace users belong to the current workspace.
 - API responses use shared contracts from `libs/api/api-interfaces` and paginated response metadata where list endpoints support pagination.
-- Domain mutations create activity-log entries for the activities/tasks/deadlines workflow, preserving the acting user and workspace context.
+- Domain mutations create activity-log entries for the activities/tasks/deadlines workflow and for document create/update/version/archive/restore, preserving the acting user and workspace context.
 
 ## Legal knowledge retrieval
 
@@ -62,6 +62,16 @@ The cases backend and frontend implement the main case lifecycle:
 - Case responsibilities: list, add, update, end, and set a primary responsible user.
 - Case/client relationship validation is enforced in the backend.
 - The frontend includes case list, case creation/edit form, case detail, lifecycle controls, activities, responsibilities, confirmation dialogs, and save/error feedback.
+
+## Workspace documents (backend)
+
+Authenticated document APIs are implemented; the Angular documents screen remains a placeholder.
+
+- `POST /api/documents` uploads one streamed file (`multipart` field `file`) with title and optional `caseIds`/`clientIds`. `Idempotency-Key` is required.
+- Paginated list (`archived` defaults to active-only; `true`/`false`/`all`), detail, metadata/link patch (arrays replace when present), version upload/list, current and historical download, archive, and restore.
+- Bytes live under `FILE_STORAGE_ROOT` with generated keys. Metadata and the recorded storage connection stay in PostgreSQL. Chat uploads are not moved.
+- Linked cases and clients must belong to the workspace (400 when unavailable). Archive hides from the default list; authorized detail and download still work.
+- There is no virus-scanning claim, no cloud adapter, and no permanent delete in this slice.
 
 ## Calendar, events, tasks, deadlines, and notes API
 
@@ -161,7 +171,7 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - Assistant workflow state, markdown rendering, and the main assistant component have focused frontend tests.
 
 ## References and user settings
-
+documents, 
 - Workspace reference data, including users, is available to frontend forms and display components.
 - User settings can be read and updated through authenticated API endpoints.
 - The frontend has profile, appearance, workspace, and data settings pages.
@@ -180,7 +190,7 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 These areas have routes or backend groundwork but should not be described as completed end-to-end business workflows:
 
 - **Client detail tabs:** the client detail page declares documents, activities, and financials tabs, but the inspected component primarily loads overview data and related cases. These tabs need their own complete UI/data workflows before they can be counted as finished.
-- **Documents, finance, reports, notifications, and dashboard:** routes/components exist, but their completion level should be assessed separately from the implemented client, case, calendar, and assistant workflows. A route alone is not evidence that the underlying business logic is finished.
+- **Documents UI, finance, reports, notifications, and dashboard:** the documents **backend** is implemented; the web documents route/component is still a placeholder. Finance, reports, notifications, and dashboard completion should be assessed separately from the implemented client, case, calendar, assistant, and document-API workflows. A route alone is not evidence that the underlying business logic is finished.
 - **Automated backend coverage:** no feature-specific backend `*.spec.ts` files were found under `libs/api/features` during this review. The backend behavior is implemented, but regression coverage is currently stronger on the assistant frontend than on the backend domain services; the new work-view frontend logic has focused unit tests, but the corresponding backend query extensions do not yet have dedicated spec tests.
 - **Reusable notes lists and client activity history integration:** notes and the ActivityLog remain read/history endpoints; they are not surfaced as their own reusable list component or integrated into client activity history yet.
 - **Board “Load more”:** pagination is tracked per record type (Task/Deadline/Event), not per rendered board column, so a column fed by more than one record type can require more than one “Load more” action to reveal further items of a specific type.
