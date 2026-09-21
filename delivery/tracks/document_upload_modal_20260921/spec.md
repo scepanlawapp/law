@@ -10,8 +10,8 @@ Version mode is supported by the same queue/transport for a future explicit entr
 
 ## Out of scope
 
-- Document list, archive/restore, metadata PATCH, downloads
-- Category / description / document-date persistence
+- Document list, archive/restore, downloads, bulk category assignment
+- Description / document-date persistence
 - Chat attachment migration
 - Cancel-as-rollback, resumable uploads after reload
 - Cloud storage
@@ -23,4 +23,5 @@ Version mode is supported by the same queue/transport for a future explicit entr
 - Bounded concurrency (2)
 - Real `HttpClient` upload progress (`observe: 'events'`, `reportProgress: true`) over XHR (`withXhr()`)
 - Per-row errors; partial success returned on close
-- Category column disabled: “Category is not available yet.”
+- Optional per-row category autocomplete (stable codes on `Document.category`)
+- Client-first associations: Clients before Cases; selected clients constrain paginated case search (ANY-of `clientIds`)

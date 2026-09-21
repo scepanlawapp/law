@@ -77,7 +77,7 @@ Authenticated document APIs are implemented. The Angular documents library (list
 
 - Documents, client detail, and case detail can open a reusable upload dialog against `POST /api/documents`.
 - Each selected file is its own document. Title is required (max 320). Case/client links are locked on those detail pages and searchable on the documents page.
-- Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Category is a disabled placeholder (not sent). Version-mode queue exists; there is no version UI entry in this slice.
+- Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Optional per-row category codes are stored on `Document.category`. Clients are selected before cases; case search is constrained by selected clients. Version-mode queue exists; there is no version UI entry in this slice.
 - Removing a row only drops it from the local queue. It does not archive or delete a stored document.
 
 ## Calendar, events, tasks, deadlines, and notes API

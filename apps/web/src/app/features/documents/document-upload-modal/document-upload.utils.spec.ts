@@ -35,12 +35,14 @@ describe("document-upload.utils", () => {
     const file = new File(["pdf"], "ugovor.pdf", { type: "application/pdf" });
     const body = buildDocumentCreateFormData({
       title: "Ugovor",
+      category: "CONTRACT_AGREEMENT",
       caseIds: ["case-1", "case-2"],
       clientIds: ["client-1"],
       file,
     });
     expect([...body.keys()]).toEqual([
       "title",
+      "category",
       "caseIds",
       "caseIds",
       "clientIds",

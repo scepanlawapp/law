@@ -5,6 +5,7 @@ import { Readable } from "node:stream";
 
 export interface ParsedDocumentUpload {
   title?: string;
+  category?: string;
   caseIds: string[];
   clientIds: string[];
   originalFilename: string;
@@ -30,6 +31,7 @@ export function parseDocumentUpload(
     const caseIds: string[] = [];
     const clientIds: string[] = [];
     let title: string | undefined;
+    let category: string | undefined;
     let originalFilename: string | undefined;
     let stream: Readable | undefined;
 
@@ -46,6 +48,7 @@ export function parseDocumentUpload(
 
     busboy.on("field", (name, value) => {
       if (name === "title") title = String(value);
+      else if (name === "category") category = String(value);
       else if (name === "caseIds" || name === "caseIds[]")
         pushId(caseIds, value);
       else if (name === "clientIds" || name === "clientIds[]") {
@@ -69,6 +72,7 @@ export function parseDocumentUpload(
       settled = true;
       resolve({
         title,
+        category,
         caseIds,
         clientIds,
         originalFilename,

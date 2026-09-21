@@ -163,6 +163,7 @@ describe("FileService", () => {
       fingerprint: uploadFingerprint({
         purpose: "CREATE_DOCUMENT",
         originalFilename: "a.pdf",
+        category: null,
         caseIds: [],
         clientIds: [],
       }),
@@ -351,5 +352,19 @@ describe("FileService", () => {
     ]);
     await service.reconcile();
     expect(prisma.storedFile.update).not.toHaveBeenCalled();
+  });
+
+  it("changes the upload fingerprint when category changes", () => {
+    const base = {
+      purpose: "CREATE_DOCUMENT",
+      originalFilename: "a.pdf",
+      caseIds: [] as string[],
+      clientIds: [] as string[],
+    };
+    expect(
+      uploadFingerprint({ ...base, category: null }),
+    ).not.toBe(
+      uploadFingerprint({ ...base, category: "CONTRACT_AGREEMENT" }),
+    );
   });
 });

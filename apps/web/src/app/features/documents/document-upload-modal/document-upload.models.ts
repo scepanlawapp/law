@@ -1,5 +1,9 @@
 import { FormControl } from "@angular/forms";
-import { DocumentDetail } from "@law/api-interfaces";
+import {
+  DOCUMENT_CATEGORIES,
+  DocumentCategory,
+  DocumentDetail,
+} from "@law/api-interfaces";
 
 export const DOCUMENT_UPLOAD_MAX_BYTES = 25_000_000;
 export const DOCUMENT_TITLE_MAX = 320;
@@ -31,8 +35,14 @@ export type DocumentUploadRowStatus =
   | "failed"
   | "outcome_unknown";
 
+export const DOCUMENT_CATEGORY_LABEL_KEYS: Record<DocumentCategory, string> =
+  Object.fromEntries(
+    DOCUMENT_CATEGORIES.map((code) => [code, `documents.category.${code}`]),
+  ) as Record<DocumentCategory, string>;
+
 export interface FrozenCreatePayload {
   title: string;
+  category: string | null;
   caseIds: string[];
   clientIds: string[];
   originalFilename: string;
@@ -47,6 +57,7 @@ export interface DocumentUploadRow {
   id: string;
   file: File;
   titleControl: FormControl<string>;
+  category: string | null;
   status: DocumentUploadRowStatus;
   loaded: number;
   total: number | null;

@@ -589,6 +589,7 @@ export interface CaseListQuery {
   status?: CaseStatus;
   priority?: CasePriority;
   clientId?: string;
+  clientIds?: string[];
   responsibleUserId?: string;
   caseTypeId?: string;
   practiceAreaId?: string;

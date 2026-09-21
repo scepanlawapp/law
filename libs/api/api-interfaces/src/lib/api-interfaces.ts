@@ -589,6 +589,29 @@ export interface CaseNextNumberResponse {
   caseNumber: string;
 }
 
+export const DOCUMENT_CATEGORIES = [
+  "CONTRACT_AGREEMENT",
+  "POWER_OF_ATTORNEY",
+  "PLEADING_SUBMISSION",
+  "COURT_AUTHORITY_DECISION",
+  "SUMMONS_OFFICIAL_NOTICE",
+  "MINUTES_OFFICIAL_RECORD",
+  "EVIDENCE",
+  "EXPERT_REPORT",
+  "CORRESPONDENCE",
+  "IDENTITY_REGISTRATION",
+  "CERTIFICATE_EXTRACT",
+  "FINANCIAL_DOCUMENT",
+  "LEGAL_OPINION_ANALYSIS",
+  "OTHER",
+] as const;
+
+export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+
+export function isDocumentCategory(value: string): value is DocumentCategory {
+  return (DOCUMENT_CATEGORIES as readonly string[]).includes(value);
+}
+
 export interface DocumentVersionSummary {
   id: string;
   versionNumber: number;
@@ -603,6 +626,7 @@ export interface DocumentVersionSummary {
 export interface DocumentSummary {
   id: string;
   title: string;
+  category: string | null;
   archived: boolean;
   archivedAt: string | null;
   caseIds: string[];
@@ -623,10 +647,13 @@ export interface DocumentListQuery extends PaginationQuery {
   caseId?: string;
   clientId?: string;
   archived?: "true" | "false" | "all";
+  category?: DocumentCategory;
+  uncategorized?: boolean;
 }
 
 export interface DocumentUpdateRequest {
   title?: string;
+  category?: DocumentCategory | null;
   caseIds?: string[];
   clientIds?: string[];
 }

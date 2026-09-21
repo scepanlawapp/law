@@ -15,4 +15,4 @@
 
 ## Current checkpoint
 
-Reusable Angular upload modal using existing `POST /api/documents` (and version) APIs. Category is a disabled placeholder. No document list/archive/download UI in this track.
+Reusable Angular upload modal: client-first associations, compact expandable table, and end-to-end optional `Document.category` codes. No document list/archive/download UI in this track.

@@ -46,90 +46,125 @@
             }
           </p>
         }
-        @if (allowAssociationPickers) {
+        @if (allowClientPicker || allowCasePicker) {
           <div class="grid gap-3 md:grid-cols-2">
-            <div class="flex min-w-0 flex-col gap-1">
-              <label class="text-sm font-medium" for="upload-cases">
-                {{ "documents.upload.cases" | translate }}
-              </label>
-              <div
-                hlmComboboxMultiple
-                [value]="selectedCaseIds()"
-                (valueChange)="setCaseIds($event ?? [])"
-                [itemToString]="caseItemToString"
-              >
-                <hlm-combobox-chips>
-                  <div *hlmComboboxValues="let values">
-                    @for (id of values; track id) {
-                      <hlm-combobox-chip [value]="id">
-                        {{ caseItemToString(id) }}
-                      </hlm-combobox-chip>
+            @if (allowClientPicker) {
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-sm font-medium" for="upload-clients">
+                  {{ "documents.upload.clients" | translate }}
+                </label>
+                <div
+                  hlmComboboxMultiple
+                  [value]="selectedClientIds()"
+                  (valueChange)="setClientIds($event ?? [])"
+                  [itemToString]="clientItemToString"
+                  [disabled]="associationsLocked()"
+                >
+                  <hlm-combobox-chips>
+                    <div *hlmComboboxValues="let values">
+                      @for (id of values; track id) {
+                        <hlm-combobox-chip [value]="id">
+                          {{ clientItemToString(id) }}
+                        </hlm-combobox-chip>
+                      }
+                    </div>
+                    <input
+                      hlmComboboxChipInput
+                      id="upload-clients"
+                      [placeholder]="
+                        'documents.upload.clientsPlaceholder' | translate
+                      "
+                      (input)="onClientSearch($event)"
+                    />
+                  </hlm-combobox-chips>
+                  <hlm-combobox-content *hlmComboboxPortal>
+                    @if (clientOptionsLoading()) {
+                      <div
+                        class="flex items-center gap-2 p-2 text-muted-foreground"
+                      >
+                        <hlm-spinner class="size-4" />
+                        {{ "documents.upload.loading" | translate }}
+                      </div>
+                    } @else if (clientOptionsError()) {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.errorLoading" | translate }}
+                      </hlm-combobox-empty>
+                    } @else {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.noResults" | translate }}
+                      </hlm-combobox-empty>
+                      <div hlmComboboxList>
+                        @for (option of clientOptions(); track option.id) {
+                          <hlm-combobox-item [value]="option.id">
+                            {{ option.label }}
+                          </hlm-combobox-item>
+                        }
+                      </div>
                     }
-                  </div>
-                  <input
-                    hlmComboboxChipInput
-                    id="upload-cases"
-                    [placeholder]="
-                      'documents.upload.casesPlaceholder' | translate
-                    "
-                    (input)="onCaseSearch($event)"
-                  />
-                </hlm-combobox-chips>
-                <hlm-combobox-content *hlmComboboxPortal>
-                  <hlm-combobox-empty>
-                    {{ "documents.upload.noResults" | translate }}
-                  </hlm-combobox-empty>
-                  <div hlmComboboxList>
-                    @for (option of caseOptions(); track option.id) {
-                      <hlm-combobox-item [value]="option.id">
-                        {{ option.label }}
-                      </hlm-combobox-item>
-                    }
-                  </div>
-                </hlm-combobox-content>
+                  </hlm-combobox-content>
+                </div>
               </div>
-            </div>
-            <div class="flex min-w-0 flex-col gap-1">
-              <label class="text-sm font-medium" for="upload-clients">
-                {{ "documents.upload.clients" | translate }}
-              </label>
-              <div
-                hlmComboboxMultiple
-                [value]="selectedClientIds()"
-                (valueChange)="setClientIds($event ?? [])"
-                [itemToString]="clientItemToString"
-              >
-                <hlm-combobox-chips>
-                  <div *hlmComboboxValues="let values">
-                    @for (id of values; track id) {
-                      <hlm-combobox-chip [value]="id">
-                        {{ clientItemToString(id) }}
-                      </hlm-combobox-chip>
+            }
+            @if (allowCasePicker) {
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-sm font-medium" for="upload-cases">
+                  {{ "documents.upload.cases" | translate }}
+                </label>
+                <div
+                  hlmComboboxMultiple
+                  [value]="selectedCaseIds()"
+                  (valueChange)="setCaseIds($event ?? [])"
+                  [itemToString]="caseItemToString"
+                  [disabled]="!casesEnabled()"
+                >
+                  <hlm-combobox-chips>
+                    <div *hlmComboboxValues="let values">
+                      @for (id of values; track id) {
+                        <hlm-combobox-chip [value]="id">
+                          {{ caseItemToString(id) }}
+                        </hlm-combobox-chip>
+                      }
+                    </div>
+                    <input
+                      hlmComboboxChipInput
+                      id="upload-cases"
+                      [placeholder]="
+                        (casesEnabled()
+                          ? 'documents.upload.casesPlaceholder'
+                          : 'documents.upload.selectClientFirst'
+                        ) | translate
+                      "
+                      (input)="onCaseSearch($event)"
+                    />
+                  </hlm-combobox-chips>
+                  <hlm-combobox-content *hlmComboboxPortal>
+                    @if (caseOptionsLoading()) {
+                      <div
+                        class="flex items-center gap-2 p-2 text-muted-foreground"
+                      >
+                        <hlm-spinner class="size-4" />
+                        {{ "documents.upload.loading" | translate }}
+                      </div>
+                    } @else if (caseOptionsError()) {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.errorLoading" | translate }}
+                      </hlm-combobox-empty>
+                    } @else {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.noResults" | translate }}
+                      </hlm-combobox-empty>
+                      <div hlmComboboxList>
+                        @for (option of caseOptions(); track option.id) {
+                          <hlm-combobox-item [value]="option.id">
+                            {{ option.label }}
+                          </hlm-combobox-item>
+                        }
+                      </div>
                     }
-                  </div>
-                  <input
-                    hlmComboboxChipInput
-                    id="upload-clients"
-                    [placeholder]="
-                      'documents.upload.clientsPlaceholder' | translate
-                    "
-                    (input)="onClientSearch($event)"
-                  />
-                </hlm-combobox-chips>
-                <hlm-combobox-content *hlmComboboxPortal>
-                  <hlm-combobox-empty>
-                    {{ "documents.upload.noResults" | translate }}
-                  </hlm-combobox-empty>
-                  <div hlmComboboxList>
-                    @for (option of clientOptions(); track option.id) {
-                      <hlm-combobox-item [value]="option.id">
-                        {{ option.label }}
-                      </hlm-combobox-item>
-                    }
-                  </div>
-                </hlm-combobox-content>
+                  </hlm-combobox-content>
+                </div>
               </div>
-            </div>
+            }
           </div>
         }
       </section>
@@ -146,7 +181,10 @@
       />
       <button
         type="button"
-        class="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 py-8 text-center"
+        class="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-center"
+        [class.px-4]="true"
+        [class.py-3]="compactDropzone()"
+        [class.py-8]="!compactDropzone()"
         [class.bg-muted]="dragging()"
         (click)="fileInput.click()"
         (drop)="onDrop($event)"
@@ -157,18 +195,20 @@
         <span class="font-medium">
           {{ "documents.upload.chooseFiles" | translate }}
         </span>
-        <span class="text-muted-foreground">
-          {{ "documents.upload.dropHint" | translate }}
-        </span>
-        <span class="text-muted-foreground">
-          {{ "documents.upload.formats" | translate }}
-        </span>
-        <span class="text-muted-foreground">
-          {{
-            "documents.upload.sizeLimit"
-              | translate: { size: formatSize(maxBytes) }
-          }}
-        </span>
+        @if (!compactDropzone()) {
+          <span class="text-muted-foreground">
+            {{ "documents.upload.dropHint" | translate }}
+          </span>
+          <span class="text-muted-foreground">
+            {{ "documents.upload.formats" | translate }}
+          </span>
+          <span class="text-muted-foreground">
+            {{
+              "documents.upload.sizeLimit"
+                | translate: { size: formatSize(maxBytes) }
+            }}
+          </span>
+        }
       </button>
     </section>
 
@@ -186,6 +226,7 @@
                 </span>
               </th>
               <th hlmTh>{{ "documents.upload.columnTitle" | translate }}</th>
+              <th hlmTh>{{ "documents.upload.columnFile" | translate }}</th>
               <th hlmTh>{{ "documents.upload.columnCategory" | translate }}</th>
               <th hlmTh>{{ "documents.upload.columnStatus" | translate }}</th>
               <th hlmTh class="w-12">
@@ -233,23 +274,68 @@
                     } @else {
                       <span>{{ row.titleControl.value }}</span>
                     }
-                    <p class="text-muted-foreground">{{ row.file.name }}</p>
                   </div>
                 </td>
                 <td hlmTd>
-                  <input
-                    hlmInput
-                    disabled
-                    [attr.aria-label]="
-                      'documents.upload.categoryUnavailable' | translate
-                    "
-                    [placeholder]="
-                      'documents.upload.categoryPlaceholder' | translate
-                    "
-                  />
+                  <span
+                    class="block max-w-40 truncate"
+                    [attr.title]="row.file.name"
+                  >
+                    {{ row.file.name }}
+                  </span>
                 </td>
                 <td hlmTd>
-                  <div class="min-w-40 space-y-1">
+                  @if (canEditCategory(row)) {
+                    <div
+                      hlmCombobox
+                      class="w-full min-w-40"
+                      [value]="row.category"
+                      (valueChange)="setCategory(row.id, $event ?? null)"
+                      [itemToString]="categoryItemToString"
+                      [filter]="categoryFilter"
+                    >
+                      <hlm-combobox-trigger
+                        class="w-full justify-between"
+                        [buttonId]="'upload-category-' + row.id"
+                      >
+                        <hlm-combobox-value
+                          [placeholder]="
+                            'documents.upload.categoryUnclassified' | translate
+                          "
+                        />
+                      </hlm-combobox-trigger>
+                      <hlm-combobox-content *hlmComboboxPortal>
+                        <hlm-combobox-input
+                          [placeholder]="
+                            'documents.upload.categorySearch' | translate
+                          "
+                          [showTrigger]="false"
+                          showClear
+                        />
+                        <hlm-combobox-empty>
+                          {{ "documents.upload.noResults" | translate }}
+                        </hlm-combobox-empty>
+                        <div hlmComboboxList>
+                          @for (code of categoryCodes; track code) {
+                            <hlm-combobox-item [value]="code">
+                              {{ categoryItemToString(code) }}
+                            </hlm-combobox-item>
+                          }
+                        </div>
+                      </hlm-combobox-content>
+                    </div>
+                  } @else {
+                    <span>
+                      {{
+                        categoryItemToString(
+                          row.frozenCreate?.category ?? row.category
+                        )
+                      }}
+                    </span>
+                  }
+                </td>
+                <td hlmTd>
+                  <div class="min-w-28 space-y-1">
                     <p>{{ statusLabel(row) }}</p>
                     @if (
                       row.status === "uploading" || row.status === "processing"
@@ -291,7 +377,7 @@
               </tr>
               @if (row.expanded) {
                 <tr hlmTr [id]="'upload-details-' + row.id">
-                  <td hlmTd colspan="5">
+                  <td hlmTd colspan="6">
                     <dl class="grid gap-1 text-muted-foreground">
                       <div>
                         <dt class="inline font-medium text-foreground">

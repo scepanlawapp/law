@@ -44,6 +44,7 @@ export class DocumentsController {
     const upload = await parseDocumentUpload(request);
     return this.documents.create({
       title: upload.title ?? "",
+      category: upload.category,
       caseIds: upload.caseIds,
       clientIds: upload.clientIds,
       originalFilename: upload.originalFilename,

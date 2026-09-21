@@ -1,4 +1,4 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   IsArray,
   IsBoolean,
@@ -26,10 +26,22 @@ export class CaseNumberSuggestionQueryDto {
   format?: CaseNumberFormat;
 }
 
+const toArray = ({ value }: { value: unknown }): string[] | undefined =>
+  value === undefined || value === ""
+    ? undefined
+    : Array.isArray(value)
+      ? value.map(String)
+      : [String(value)];
+
 export class CaseListQueryDto extends PaginationQueryDto {
   @IsOptional() @IsEnum(CaseStatus) status?: CaseStatus;
   @IsOptional() @IsEnum(CasePriority) priority?: CasePriority;
   @IsOptional() @IsUUID() clientId?: string;
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  clientIds?: string[];
   @IsOptional() @IsUUID() responsibleUserId?: string;
   @IsOptional() @IsUUID() caseTypeId?: string;
   @IsOptional() @IsUUID() practiceAreaId?: string;

@@ -140,4 +140,8 @@ export class ProfileSettingsComponent {
           ),
       });
   }
+
+  changeProfileImage(): void {
+    // Implement the logic to change the profile image here
+  }
 }

@@ -16,6 +16,7 @@ function documentDetail(id: string): DocumentDetail {
   return {
     id,
     title: id,
+    category: null,
     archived: false,
     archivedAt: null,
     caseIds: [],
@@ -46,6 +47,7 @@ describe("DocumentUploadQueue", () => {
     );
 
     queue.addFiles([file("one.pdf"), file("two.pdf"), file("three.pdf")]);
+    queue.setCategory(queue.rows[0].id, "EVIDENCE");
     queue.startReady(["case-1"], []);
 
     expect(create).toHaveBeenCalledTimes(2);
@@ -95,8 +97,12 @@ describe("DocumentUploadQueue", () => {
     expect(create.mock.calls[3]?.[1]).toBe(failedKey);
 
     queue.rows[0].titleControl.setValue("changed");
+    queue.setCategory(queue.rows[0].id, "OTHER");
     expect(queue.rows[0].frozenCreate?.title).toBe("one");
+    expect(queue.rows[0].frozenCreate?.category).toBe("EVIDENCE");
+    expect(queue.rows[0].category).toBe("EVIDENCE");
     expect(firstKey).toBe(queue.rows[0].idempotencyKey);
+    expect(create.mock.calls[0]?.[0].get("category")).toBe("EVIDENCE");
   });
 
   it("keeps invalid oversized rows and still uploads valid siblings", () => {

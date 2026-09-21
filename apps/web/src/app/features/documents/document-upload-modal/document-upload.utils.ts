@@ -59,12 +59,14 @@ export function clampPercent(loaded: number, total: number): number {
 
 export function buildDocumentCreateFormData(input: {
   title: string;
+  category?: string | null;
   caseIds: string[];
   clientIds: string[];
   file: File;
 }): FormData {
   const body = new FormData();
   body.append("title", input.title);
+  if (input.category) body.append("category", input.category);
   for (const id of input.caseIds) body.append("caseIds", id);
   for (const id of input.clientIds) body.append("clientIds", id);
   body.append("file", input.file, input.file.name);

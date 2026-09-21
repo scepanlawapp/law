@@ -465,6 +465,7 @@ export function uploadFingerprint(input: {
   purpose: string;
   documentId?: string;
   title?: string;
+  category?: string | null;
   caseIds: string[];
   clientIds: string[];
   originalFilename: string;
@@ -473,6 +474,7 @@ export function uploadFingerprint(input: {
     input.purpose,
     input.documentId ?? "",
     input.title ?? "",
+    input.category ?? "",
     [...input.caseIds].sort().join(","),
     [...input.clientIds].sort().join(","),
     input.originalFilename,

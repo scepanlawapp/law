@@ -1125,6 +1125,7 @@ model Document {
   id               String            @id @default(uuid())
   workspaceId      String
   title            String
+  category         String?
   currentVersionId String?           @unique
   archivedAt       DateTime?         @db.Timestamptz(3)
   archivedByUserId String?
@@ -1144,6 +1145,7 @@ model Document {
 
   @@index([workspaceId, archivedAt, updatedAt])
   @@index([workspaceId, title])
+  @@index([workspaceId, category])
 }
 
 model DocumentCase {

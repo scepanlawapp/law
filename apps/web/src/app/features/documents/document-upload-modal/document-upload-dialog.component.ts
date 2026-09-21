@@ -22,12 +22,15 @@ import {
 import {
   Observable,
   Subject,
+  catchError,
   debounceTime,
   distinctUntilChanged,
   firstValueFrom,
+  of,
 } from "rxjs";
+import { comboboxContainsFilter } from "@spartan-ng/brain/combobox";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { DocumentDetail } from "@law/api-interfaces";
+import { DOCUMENT_CATEGORIES, DocumentDetail } from "@law/api-interfaces";
 import {
   CasesApiClient,
   ClientsApiClient,
@@ -35,15 +38,19 @@ import {
 } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
   HlmComboboxChip,
   HlmComboboxChipInput,
   HlmComboboxChips,
   HlmComboboxContent,
   HlmComboboxEmpty,
+  HlmComboboxInput,
   HlmComboboxItem,
   HlmComboboxList,
   HlmComboboxMultiple,
   HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
   HlmComboboxValues,
 } from "@spartan-ng/helm/combobox";
 import {
@@ -55,6 +62,7 @@ import {
 import { HlmField } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmProgressImports } from "@spartan-ng/helm/progress";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
   HlmTable,
   HlmTableContainer,
@@ -74,6 +82,7 @@ import {
   DocumentUploadDialogResult,
 } from "./document-upload-dialog.models";
 import {
+  DOCUMENT_CATEGORY_LABEL_KEYS,
   DOCUMENT_FILE_ACCEPT,
   DOCUMENT_UPLOAD_MAX_BYTES,
   DocumentUploadAssociation,
@@ -91,16 +100,21 @@ import { formatFileSize } from "./document-upload.utils";
     ReactiveFormsModule,
     NgIcon,
     HlmButton,
+    HlmCombobox,
     HlmComboboxChip,
     HlmComboboxChipInput,
     HlmComboboxChips,
     HlmComboboxContent,
     HlmComboboxEmpty,
+    HlmComboboxInput,
     HlmComboboxItem,
     HlmComboboxList,
     HlmComboboxMultiple,
     HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmComboboxValues,
+    HlmSpinner,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
@@ -153,12 +167,19 @@ export class DocumentUploadDialogComponent {
         label: this.context.clientLabel ?? "",
       }
     : null;
-  readonly allowAssociationPickers =
-    this.mode === "create" && !this.lockedCase && !this.lockedClient;
+  readonly allowClientPicker = this.mode === "create" && !this.lockedClient;
+  readonly allowCasePicker = this.mode === "create" && !this.lockedCase;
+  readonly categoryCodes = DOCUMENT_CATEGORIES;
+  readonly categoryFilter = comboboxContainsFilter;
 
   readonly dragging = signal(false);
   readonly caseOptions = signal<DocumentUploadAssociation[]>([]);
   readonly clientOptions = signal<DocumentUploadAssociation[]>([]);
+  readonly caseOptionsLoading = signal(false);
+  readonly caseOptionsError = signal(false);
+  readonly clientOptionsLoading = signal(false);
+  readonly clientOptionsError = signal(false);
+  private lastCaseSearch = "";
   readonly selectedCaseIds = signal<string[]>(
     this.context.caseId ? [this.context.caseId] : [],
   );
@@ -207,6 +228,21 @@ export class DocumentUploadDialogComponent {
   readonly hasUnknown = computed(() =>
     this.rows().some((row) => row.status === "outcome_unknown"),
   );
+  readonly associationsLocked = computed(() =>
+    this.rows().some(
+      (row) =>
+        !!row.frozenCreate ||
+        !!row.frozenVersion ||
+        ["queued", "uploading", "processing"].includes(row.status),
+    ),
+  );
+  readonly compactDropzone = computed(() => this.rows().length > 0);
+  readonly casesEnabled = computed(
+    () =>
+      this.allowCasePicker &&
+      !this.associationsLocked() &&
+      this.effectiveClientIds().length > 0,
+  );
   readonly allDone = computed(() => {
     const rows = this.rows();
     const finished = rows.filter((row) =>
@@ -228,9 +264,9 @@ export class DocumentUploadDialogComponent {
 
   constructor() {
     this.destroyRef.onDestroy(() => this.queue.destroy());
-    if (this.allowAssociationPickers) {
-      this.searchCases("");
+    if (!this.versionMode) {
       this.searchClients("");
+      if (this.effectiveClientIds().length) this.searchCases("");
       this.caseSearch
         .pipe(
           debounceTime(250),
@@ -266,12 +302,38 @@ export class DocumentUploadDialogComponent {
   }
 
   setCaseIds(ids: string[]): void {
+    if (this.associationsLocked()) return;
     this.selectedCaseIds.set(ids);
   }
 
   setClientIds(ids: string[]): void {
+    if (this.associationsLocked()) return;
+    const previous = this.selectedClientIds();
     this.selectedClientIds.set(ids);
+    if (this.lockedCase) return;
+    const same =
+      previous.length === ids.length &&
+      previous.every((id, index) => id === ids[index]);
+    if (same) return;
+    this.selectedCaseIds.set([]);
+    this.caseOptions.set([]);
+    this.caseOptionsError.set(false);
+    if (ids.length) this.searchCases(this.lastCaseSearch);
   }
+
+  setCategory(id: string, category: string | null): void {
+    this.queue.setCategory(id, category);
+  }
+
+  canEditCategory(row: DocumentUploadRow): boolean {
+    return this.canEditTitle(row);
+  }
+
+  categoryItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.t("documents.upload.categoryUnclassified");
+    const key = DOCUMENT_CATEGORY_LABEL_KEYS[value as keyof typeof DOCUMENT_CATEGORY_LABEL_KEYS];
+    return key ? this.t(key) : this.t("documents.upload.categoryUnknown");
+  };
 
   onFileInput(event: Event): void {
     const input = event.target as HTMLInputElement;
@@ -397,32 +459,65 @@ export class DocumentUploadDialogComponent {
   }
 
   private searchCases(term: string): void {
+    this.lastCaseSearch = term;
+    const clientIds = this.effectiveClientIds();
+    if (!this.allowCasePicker || !clientIds.length) {
+      this.caseOptions.set([]);
+      this.caseOptionsLoading.set(false);
+      return;
+    }
+    this.caseOptionsLoading.set(true);
+    this.caseOptionsError.set(false);
     this.casesApi
-      .list({ search: term || undefined, pageSize: 20, page: 1 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .list({
+        search: term || undefined,
+        pageSize: 20,
+        page: 1,
+        clientIds,
+      })
+      .pipe(
+        catchError(() => {
+          this.caseOptionsError.set(true);
+          return of({ items: [] as never[] });
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: (response) =>
+        next: (response) => {
           this.caseOptions.set(
-            response.items.map((item) => ({
+            (response.items ?? []).map((item) => ({
               id: item.id,
               label: `${item.caseNumber} ${item.name}`.trim(),
             })),
-          ),
+          );
+          this.caseOptionsLoading.set(false);
+        },
       });
   }
 
   private searchClients(term: string): void {
+    if (!this.allowClientPicker && !this.lockedClient) return;
+    this.clientOptionsLoading.set(true);
+    this.clientOptionsError.set(false);
     this.clientsApi
       .list({ search: term || undefined, pageSize: 20, page: 1 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        catchError(() => {
+          this.clientOptionsError.set(true);
+          return of({ items: [] as never[] });
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: (response) =>
+        next: (response) => {
           this.clientOptions.set(
-            response.items.map((item) => ({
+            (response.items ?? []).map((item) => ({
               id: item.id,
               label: item.displayName,
             })),
-          ),
+          );
+          this.clientOptionsLoading.set(false);
+        },
       });
   }
 

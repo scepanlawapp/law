@@ -9,6 +9,7 @@ import {
   DocumentListResponse,
   DocumentVersionListResponse,
   DocumentVersionSummary,
+  isDocumentCategory,
 } from "@law/api-interfaces";
 import {
   paginationMeta,
@@ -41,6 +42,7 @@ export class DocumentsService {
 
   async create(input: {
     title: string;
+    category?: string;
     caseIds: string[];
     clientIds: string[];
     originalFilename: string;
@@ -48,10 +50,12 @@ export class DocumentsService {
     idempotencyKey: string;
   }): Promise<DocumentDetail> {
     let title: string;
+    let category: string | null;
     const caseIds = uniqueIds(input.caseIds);
     const clientIds = uniqueIds(input.clientIds);
     try {
       title = this.requireTitle(input.title);
+      category = this.requireCategory(input.category);
       await this.requireLinks(caseIds, clientIds);
     } catch (error) {
       input.stream.resume();
@@ -66,6 +70,7 @@ export class DocumentsService {
       fingerprint: uploadFingerprint({
         purpose: "CREATE_DOCUMENT",
         title,
+        category,
         caseIds,
         clientIds,
         originalFilename: input.originalFilename,
@@ -83,6 +88,7 @@ export class DocumentsService {
         data: {
           workspaceId: this.context.workspaceId,
           title,
+          category,
           createdByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
         },
@@ -107,7 +113,7 @@ export class DocumentsService {
         entityId: document.id,
         caseId: caseIds[0],
         clientId: clientIds[0],
-        metadata: { caseIds, clientIds, versionId: version.id },
+        metadata: { caseIds, clientIds, category, versionId: version.id },
       });
       return { documentId: document.id, versionId: version.id };
     });
@@ -210,8 +216,15 @@ export class DocumentsService {
     const where: Prisma.DocumentWhereInput = { workspaceId };
     if (archived === "false") where.archivedAt = null;
     if (archived === "true") where.archivedAt = { not: null };
+    if (query.category && query.uncategorized) {
+      throw new BadRequestException(
+        "category and uncategorized cannot be combined",
+      );
+    }
     if (query.caseId) where.cases = { some: { caseId: query.caseId } };
     if (query.clientId) where.clients = { some: { clientId: query.clientId } };
+    if (query.category) where.category = query.category;
+    if (query.uncategorized) where.category = null;
     if (query.search?.trim()) {
       where.title = { contains: query.search.trim(), mode: "insensitive" };
     }
@@ -239,6 +252,10 @@ export class DocumentsService {
     const existing = await this.requireDocument(id);
     const title =
       body.title === undefined ? existing.title : this.requireTitle(body.title);
+    const category =
+      body.category === undefined
+        ? existing.category
+        : this.requireCategory(body.category);
     const caseIds =
       body.caseIds === undefined
         ? existing.cases.map((row) => row.caseId)
@@ -253,7 +270,7 @@ export class DocumentsService {
     await this.prisma.$transaction(async (tx) => {
       await tx.document.update({
         where: { id: existing.id },
-        data: { title, updatedByUserId: this.context.userId },
+        data: { title, category, updatedByUserId: this.context.userId },
       });
       if (body.caseIds !== undefined || body.clientIds !== undefined) {
         await this.replaceLinks(
@@ -272,7 +289,7 @@ export class DocumentsService {
         entityId: existing.id,
         caseId: caseIds[0],
         clientId: clientIds[0],
-        metadata: { caseIds, clientIds },
+        metadata: { caseIds, clientIds, category },
       });
     });
     return this.get(id);
@@ -483,9 +500,20 @@ export class DocumentsService {
     return title;
   }
 
+  private requireCategory(value: string | null | undefined): string | null {
+    if (value == null) return null;
+    const category = value.trim();
+    if (!category) return null;
+    if (!isDocumentCategory(category)) {
+      throw new BadRequestException("Category is invalid");
+    }
+    return category;
+  }
+
   private toDetail(row: {
     id: string;
     title: string;
+    category: string | null;
     archivedAt: Date | null;
     createdByUserId: string;
     updatedByUserId: string;
@@ -498,6 +526,7 @@ export class DocumentsService {
     return {
       id: row.id,
       title: row.title,
+      category: row.category,
       archived: !!row.archivedAt,
       archivedAt: row.archivedAt?.toISOString() ?? null,
       caseIds: row.cases.map((item) => item.caseId),

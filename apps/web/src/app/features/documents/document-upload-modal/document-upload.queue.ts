@@ -103,6 +103,12 @@ export class DocumentUploadQueue {
     this.patch(id, this.validationPatch(row));
   }
 
+  setCategory(id: string, category: string | null): void {
+    const row = this.rows.find((item) => item.id === id);
+    if (!row || row.frozenCreate || row.frozenVersion) return;
+    this.patch(id, { category });
+  }
+
   startReady(caseIds: string[], clientIds: string[]): void {
     const next = this.rows.map((row) => {
       if (row.status !== "ready") return row;
@@ -149,6 +155,7 @@ export class DocumentUploadQueue {
       id: newRowId(),
       file,
       titleControl: control,
+      category: null,
       status: "ready",
       loaded: 0,
       total: null,
@@ -205,6 +212,7 @@ export class DocumentUploadQueue {
     const title = row.titleControl.value.trim();
     const frozen: FrozenCreatePayload = {
       title,
+      category: row.category,
       caseIds: [...caseIds],
       clientIds: [...clientIds],
       originalFilename: row.file.name,
@@ -257,6 +265,8 @@ export class DocumentUploadQueue {
     const frozen = row.frozenCreate;
     const body = new FormData();
     body.append("title", frozen?.title ?? row.titleControl.value.trim());
+    const category = frozen?.category ?? row.category;
+    if (category) body.append("category", category);
     for (const caseId of frozen?.caseIds ?? []) body.append("caseIds", caseId);
     for (const clientId of frozen?.clientIds ?? []) {
       body.append("clientIds", clientId);

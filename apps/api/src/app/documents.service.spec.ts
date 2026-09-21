@@ -50,6 +50,7 @@ describe("DocumentsService", () => {
   const documentRow = {
     id: "doc-1",
     title: "Contract",
+    category: null,
     archivedAt: null,
     createdByUserId: userId,
     updatedByUserId: userId,
@@ -262,5 +263,101 @@ describe("DocumentsService", () => {
     expect(prisma.documentCase.deleteMany).toHaveBeenCalled();
     expect(prisma.documentCase.createMany).not.toHaveBeenCalled();
     expect(prisma.documentClient.createMany).toHaveBeenCalled();
+  });
+
+  it("stores a valid category on create and rejects unknown codes before ingest", async () => {
+    await run(() =>
+      service.create({
+        title: "Contract",
+        category: "CONTRACT_AGREEMENT",
+        caseIds: [],
+        clientIds: [],
+        originalFilename: "a.pdf",
+        stream: Readable.from([Buffer.from("%PDF-1.4")]),
+        idempotencyKey: "k-cat",
+      }),
+    );
+    expect(prisma.document.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: "CONTRACT_AGREEMENT" }),
+      }),
+    );
+
+    await expect(
+      run(() =>
+        service.create({
+          title: "Contract",
+          category: "NOT_A_CATEGORY",
+          caseIds: [],
+          clientIds: [],
+          originalFilename: "a.pdf",
+          stream: Readable.from([Buffer.from("%PDF-1.4")]),
+          idempotencyKey: "k-bad",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(files.ingest).toHaveBeenCalledTimes(1);
+  });
+
+  it("omits category on patch to leave it unchanged and null to clear it", async () => {
+    prisma.document.findFirst.mockResolvedValue({
+      ...documentRow,
+      category: "EVIDENCE",
+    });
+    await run(() => service.update("doc-1", { title: "Renamed" }));
+    expect(prisma.document.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          title: "Renamed",
+          category: "EVIDENCE",
+        }),
+      }),
+    );
+
+    await run(() => service.update("doc-1", { category: null }));
+    expect(prisma.document.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ category: null }),
+      }),
+    );
+  });
+
+  it("filters by exact category or uncategorized, but not both", async () => {
+    await run(() =>
+      service.list({
+        page: 1,
+        pageSize: 20,
+        category: "EVIDENCE",
+      } as never),
+    );
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ category: "EVIDENCE" }),
+      }),
+    );
+
+    await run(() =>
+      service.list({
+        page: 1,
+        pageSize: 20,
+        uncategorized: true,
+      } as never),
+    );
+    expect(prisma.document.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ category: null }),
+      }),
+    );
+
+    await expect(
+      run(() =>
+        service.list({
+          page: 1,
+          pageSize: 20,
+          category: "EVIDENCE",
+          uncategorized: true,
+        } as never),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

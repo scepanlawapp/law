@@ -24,6 +24,9 @@
           <h3 class="text-sm font-semibold">
             {{ "settings.personalInformation" | translate }}
           </h3>
+          <button hlmBtn type="button" (click)="changeProfileImage()">
+            {{ "settings.changeProfilePhoto" | translate }}
+          </button>
           <div class="flex items-start gap-4">
             @if (form.controls.avatarUrl.value) {
               <img
