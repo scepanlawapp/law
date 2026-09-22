@@ -268,6 +268,8 @@ export class CasesService {
       practiceAreaId: item.practiceAreaId,
       closingNote: item.closingNote,
       externalReference: item.externalReference,
+      opposingPartyName: item.opposingPartyName,
+      opposingPartyAddress: item.opposingPartyAddress,
       confidentialityLevel: item.confidentialityLevel,
       customFields: item.customFields as Record<string, unknown> | null,
       tags: item.tags.map(({ tag }) => ({
@@ -309,6 +311,8 @@ export class CasesService {
               ? new Date(input.openedDate)
               : undefined,
             externalReference: input.externalReference?.trim(),
+            opposingPartyName: input.opposingPartyName?.trim(),
+            opposingPartyAddress: input.opposingPartyAddress?.trim(),
             confidentialityLevel: input.confidentialityLevel?.trim(),
             customFields: input.customFields as
               | Prisma.InputJsonValue
@@ -381,6 +385,12 @@ export class CasesService {
             }),
             ...(input.externalReference !== undefined && {
               externalReference: input.externalReference.trim() || null,
+            }),
+            ...(input.opposingPartyName !== undefined && {
+              opposingPartyName: input.opposingPartyName.trim() || null,
+            }),
+            ...(input.opposingPartyAddress !== undefined && {
+              opposingPartyAddress: input.opposingPartyAddress.trim() || null,
             }),
             ...(input.confidentialityLevel !== undefined && {
               confidentialityLevel: input.confidentialityLevel.trim() || null,

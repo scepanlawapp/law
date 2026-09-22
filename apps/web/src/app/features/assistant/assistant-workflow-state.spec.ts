@@ -23,9 +23,7 @@ const job = (
   status,
   correlationId,
   progressStage:
-    workflowName === "answering"
-      ? "PREPARING_ANSWER"
-      : "UNDERSTANDING_REQUEST",
+    workflowName === "answering" ? "PREPARING_ANSWER" : "UNDERSTANDING_REQUEST",
   errorCode: null,
   createdAt: "2026-09-15T11:59:00.000Z",
   updatedAt,
@@ -43,6 +41,7 @@ const detail = (jobs: WorkflowJobResponse[]): ChatSessionDetail => ({
   messages: [],
   jobs,
   drafts: [],
+  latestBriefId: null,
 });
 
 describe("assistant workflow state", () => {

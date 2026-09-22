@@ -23,6 +23,10 @@ import {
   ChatSendMessageResponse,
   ChatSessionDetail,
   ChatSessionListResponse,
+  BriefApplyPreview,
+  BriefApplyResponse,
+  BriefTaskApplyResponse,
+  BriefTaskPreview,
   ChatSessionSummary,
   ChatStreamEvent,
   DraftResultResponse,
@@ -30,8 +34,11 @@ import {
 } from "@law/api-interfaces";
 import {
   ChatSessionListQueryDto,
+  BriefApplyDto,
+  BriefTaskApplyDto,
   CreateChatSessionDto,
   DraftExportQueryDto,
+  LinkChatSessionCaseDto,
   DraftQueryDto,
   ReviewDraftDto,
   UpdateChatSessionDto,
@@ -67,6 +74,21 @@ export class ChatController {
       request.workspace!.workspaceId,
       request.auth!.user.id,
       body.title,
+      body.caseId,
+    );
+  }
+
+  @Post("sessions/:sessionId/case")
+  linkSessionCase(
+    @Req() request: WorkspaceRequest,
+    @Param("sessionId") sessionId: string,
+    @Body() body: LinkChatSessionCaseDto,
+  ): Promise<ChatSessionSummary> {
+    return this.chat.linkSessionCase(
+      request.workspace!.workspaceId,
+      request.auth!.user.id,
+      sessionId,
+      body.caseId,
     );
   }
 
@@ -89,6 +111,70 @@ export class ChatController {
     @Param("sessionId") sessionId: string,
   ): Promise<ChatSessionDetail> {
     return this.chat.getSession(request.workspace!.workspaceId, sessionId);
+  }
+
+  @Post("sessions/:sessionId/briefs/:briefId/preview")
+  previewBrief(
+    @Req() request: WorkspaceRequest,
+    @Param("sessionId") sessionId: string,
+    @Param("briefId") briefId: string,
+  ): Promise<BriefApplyPreview> {
+    return this.chat.previewBrief(
+      request.workspace!.workspaceId,
+      request.auth!.user.id,
+      sessionId,
+      briefId,
+    );
+  }
+
+  @Post("sessions/:sessionId/briefs/:briefId/apply")
+  applyBrief(
+    @Req() request: WorkspaceRequest,
+    @Param("sessionId") sessionId: string,
+    @Param("briefId") briefId: string,
+    @Body() body: BriefApplyDto,
+  ): Promise<BriefApplyResponse> {
+    return this.chat.applyBrief(
+      request.workspace!.workspaceId,
+      request.auth!.user.id,
+      sessionId,
+      briefId,
+      body,
+    );
+  }
+
+  @Post("sessions/:sessionId/briefs/:briefId/task-preview")
+  previewBriefTasks(
+    @Req() request: WorkspaceRequest,
+    @Param("sessionId") sessionId: string,
+    @Param("briefId") briefId: string,
+  ): Promise<BriefTaskPreview> {
+    return this.chat.previewBriefTasks(
+      request.workspace!.workspaceId,
+      sessionId,
+      briefId,
+    );
+  }
+
+  @Post("sessions/:sessionId/briefs/:briefId/tasks")
+  applyBriefTasks(
+    @Req() request: WorkspaceRequest,
+    @Param("sessionId") sessionId: string,
+    @Param("briefId") briefId: string,
+    @Body() body: BriefTaskApplyDto,
+  ): Promise<BriefTaskApplyResponse> {
+    return this.chat.applyBriefTasks(
+      request.workspace!.workspaceId,
+      request.auth!.user.id,
+      sessionId,
+      briefId,
+      body,
+    );
+  }
+
+  @Get("cases/:caseId/links")
+  caseLinks(@Req() request: WorkspaceRequest, @Param("caseId") caseId: string) {
+    return this.chat.caseLinks(request.workspace!.workspaceId, caseId);
   }
 
   @Delete("sessions/:sessionId")
@@ -174,10 +260,7 @@ export class ChatController {
   }
 
   @Post("jobs/:jobId/retry")
-  retryJob(
-    @Req() request: WorkspaceRequest,
-    @Param("jobId") jobId: string,
-  ) {
+  retryJob(@Req() request: WorkspaceRequest, @Param("jobId") jobId: string) {
     return this.chat.retryJob(request.workspace!.workspaceId, jobId);
   }
 
@@ -230,7 +313,10 @@ export class ChatController {
       "Content-Type",
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     );
-    response.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
     response.setHeader("Content-Length", String(buffer.length));
     response.send(buffer);
   }

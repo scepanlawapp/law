@@ -38,6 +38,7 @@ import { ChatStorageService } from "./chat.storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
 import { toDraft, toJob, toMessage, toSessionSummary } from "./chat.mappers";
+import { MatterLinkService } from "./matter-link.service";
 import { createInlineWorkflowQueue } from "./workflow.runner";
 import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
 
@@ -66,6 +67,9 @@ export class ChatService {
     @Optional()
     @Inject(WORKFLOW_QUEUE_PORT)
     workflowQueue?: WorkflowQueuePort,
+    @Optional()
+    @Inject(MatterLinkService)
+    private readonly matterLink?: MatterLinkService,
   ) {
     this.workflowQueue =
       workflowQueue ??
@@ -144,6 +148,9 @@ export class ChatService {
         orderBy,
         skip: (page - 1) * pageSize,
         take: pageSize,
+        include: {
+          case: { include: { client: { select: { displayName: true } } } },
+        },
       }),
       this.db.chatSession.count({ where }),
     ]);
@@ -189,15 +196,54 @@ export class ChatService {
     workspaceId: string,
     userId: string,
     title?: string,
+    caseId?: string | null,
   ): Promise<ChatSessionSummary> {
+    if (this.matterLink) {
+      return this.matterLink.createSession({
+        workspaceId,
+        userId,
+        title,
+        caseId,
+      });
+    }
     const session = await this.db.chatSession.create({
       data: {
         workspaceId,
         createdByUserId: userId,
         title: title?.trim() || "New chat",
+        caseId: caseId ?? null,
       },
     });
     return toSessionSummary(session);
+  }
+
+  private requireMatterLink(): MatterLinkService {
+    if (!this.matterLink) {
+      throw new BadRequestException("Matter link is not available");
+    }
+    return this.matterLink;
+  }
+
+  async linkSessionCase(
+    workspaceId: string,
+    userId: string,
+    sessionId: string,
+    caseId: string | null,
+  ): Promise<ChatSessionSummary> {
+    const updated = await this.requireMatterLink().linkSession({
+      workspaceId,
+      userId,
+      sessionId,
+      caseId,
+    });
+    this.emit({
+      type: "session.title.updated",
+      workspaceId,
+      sessionId,
+      createdAt: updated.updatedAt,
+      title: updated.title,
+    });
+    return updated;
   }
 
   async updateSession(
@@ -225,7 +271,7 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionDetail> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const [messages, jobs, drafts] = await Promise.all([
+    const [messages, jobs, drafts, latestBrief] = await Promise.all([
       this.db.chatMessage.findMany({
         where: { sessionId },
         include: { attachments: true },
@@ -243,12 +289,18 @@ export class ChatService {
         },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       }),
+      this.db.briefExtractionResult.findFirst({
+        where: { sessionId, workspaceId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      }),
     ]);
     return {
       ...toSessionSummary(session),
       messages: messages.map((message) => toMessage(message)),
       jobs: jobs.map((job) => toJob(job)),
       drafts: drafts.map((draft) => toDraft(draft)),
+      latestBriefId: latestBrief?.id ?? null,
     };
   }
 
@@ -268,6 +320,64 @@ export class ChatService {
       createdAt: updated.updatedAt.toISOString(),
     });
     return toSessionSummary(updated);
+  }
+
+  previewBrief(
+    workspaceId: string,
+    userId: string,
+    sessionId: string,
+    briefId: string,
+  ) {
+    return this.requireMatterLink().previewBrief({
+      workspaceId,
+      userId,
+      sessionId,
+      briefId,
+    });
+  }
+
+  applyBrief(
+    workspaceId: string,
+    userId: string,
+    sessionId: string,
+    briefId: string,
+    body: Parameters<MatterLinkService["applyBrief"]>[0]["body"],
+  ) {
+    return this.requireMatterLink().applyBrief({
+      workspaceId,
+      userId,
+      sessionId,
+      briefId,
+      body,
+    });
+  }
+
+  previewBriefTasks(workspaceId: string, sessionId: string, briefId: string) {
+    return this.requireMatterLink().previewTasks({
+      workspaceId,
+      sessionId,
+      briefId,
+    });
+  }
+
+  applyBriefTasks(
+    workspaceId: string,
+    userId: string,
+    sessionId: string,
+    briefId: string,
+    body: Parameters<MatterLinkService["applyTasks"]>[0]["body"],
+  ) {
+    return this.requireMatterLink().applyTasks({
+      workspaceId,
+      userId,
+      sessionId,
+      briefId,
+      body,
+    });
+  }
+
+  caseLinks(workspaceId: string, caseId: string) {
+    return this.requireMatterLink().listForCase(workspaceId, caseId);
   }
 
   async sendMessage(params: {
@@ -797,7 +907,9 @@ export class ChatService {
     if (!message) throw new NotFoundException("Chat message not found");
     await this.requireSession(workspaceId, message.sessionId);
     if (message.role !== "ASSISTANT") {
-      throw new BadRequestException("Feedback is only allowed on assistant messages");
+      throw new BadRequestException(
+        "Feedback is only allowed on assistant messages",
+      );
     }
     const metadata =
       message.metadata &&
@@ -1016,6 +1128,9 @@ export class ChatService {
   private async requireSession(workspaceId: string, sessionId: string) {
     const session = await this.db.chatSession.findFirst({
       where: { id: sessionId, workspaceId, isDeleted: false },
+      include: {
+        case: { include: { client: { select: { displayName: true } } } },
+      },
     });
     if (!session) throw new NotFoundException("Chat session not found");
     return session;

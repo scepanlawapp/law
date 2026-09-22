@@ -92,6 +92,20 @@
       </button>
     </div>
     <section hlmTabsContent="overview">
+      @if (assistantLinks(); as links) {
+        <h3>{{ "cases.assistantSessions" | translate }}</h3>
+        @for (session of links.sessions; track session.id) {
+          <p>
+            <a [routerLink]="['/assistant']" [queryParams]="{ caseId: id }">
+              {{ session.title || ("assistant.newChat" | translate) }}
+            </a>
+          </p>
+        }
+        <h3>{{ "cases.assistantDrafts" | translate }}</h3>
+        @for (draft of links.drafts; track draft.id) {
+          <p>{{ draft.approvalStatus }}</p>
+        }
+      }
       <p>{{ caseItem.description }}</p>
       <p>{{ caseItem.priority }}</p>
       <p>{{ caseItem.openedDate }}</p>

@@ -212,10 +212,20 @@ export interface ChatMessageResponse {
   attachments: ChatAttachmentSummary[];
 }
 
+export interface ChatSessionCaseSummary {
+  id: string;
+  caseNumber: string;
+  name: string;
+  clientId: string;
+  clientDisplayName: string | null;
+}
+
 export interface ChatSessionSummary {
   id: string;
   workspaceId: string;
   createdByUserId: string;
+  caseId?: string | null;
+  case?: ChatSessionCaseSummary | null;
   title?: string | null;
   status: ChatSessionStatus;
   isDeleted: boolean;
@@ -267,11 +277,17 @@ export interface ChatSessionDetail extends ChatSessionSummary {
   messages: ChatMessageResponse[];
   jobs: WorkflowJobResponse[];
   drafts: DraftResultResponse[];
+  latestBriefId: string | null;
 }
 
 export interface ChatSessionCreateRequest {
   workspaceId: string;
   title?: string;
+  caseId?: string | null;
+}
+
+export interface ChatSessionLinkCaseRequest {
+  caseId: string | null;
 }
 
 export interface ChatSendMessageResponse {
@@ -291,6 +307,7 @@ export interface WorkflowJobResponse {
   status: WorkflowJobStatus;
   correlationId: string;
   progressStage?: WorkflowProgressStage | null;
+  briefResultId?: string | null;
   errorCode?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -345,11 +362,97 @@ export interface BriefExtractionResultResponse {
   brief: BriefResult;
   confidence: number | null;
   missingFields: string[];
+  appliedCaseId?: string | null;
+  appliedTaskKeys?: string[];
   promptChars: number;
   truncated: boolean;
   model: string;
   errorCode?: string | null;
   createdAt: string;
+}
+
+export interface BriefClientMatch {
+  id: string;
+  displayName: string;
+  clientNumber: string;
+}
+
+export interface BriefApplyPreview {
+  briefId: string;
+  alreadyApplied: boolean;
+  appliedCaseId: string | null;
+  plaintiffName: string | null;
+  plaintiffAddress: string | null;
+  nameNeedsSplit: boolean;
+  suggestedFirstName: string | null;
+  suggestedLastName: string | null;
+  clientMatches: BriefClientMatch[];
+  defendantName: string | null;
+  defendantAddress: string | null;
+  suggestedCaseName: string;
+  suggestedDescription: string;
+  suggestedCaseNumber: string;
+  responsibleUserId: string;
+  missingFields: string[];
+  warnings: string[];
+  confidence: number | null;
+}
+
+export interface BriefApplyClientChoice {
+  mode: "existing" | "create";
+  clientId?: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export interface BriefApplyRequest {
+  client: BriefApplyClientChoice;
+  caseNumber: string;
+  name: string;
+  description?: string;
+  responsibleUserId: string;
+  opposingPartyName?: string | null;
+  opposingPartyAddress?: string | null;
+}
+
+export interface BriefApplyResponse {
+  briefId: string;
+  caseId: string;
+  clientId: string;
+  createdClient: boolean;
+  sessionId: string;
+}
+
+export interface BriefTaskProposal {
+  key: string;
+  source: "missing" | "evidence";
+  title: string;
+  description: string;
+  assigneeUserId: string;
+  alreadyApplied: boolean;
+}
+
+export interface BriefTaskPreview {
+  briefId: string;
+  caseId: string;
+  proposals: BriefTaskProposal[];
+}
+
+export interface BriefTaskApplyItem {
+  key: string;
+  title?: string;
+  assigneeUserId?: string;
+}
+
+export interface BriefTaskApplyRequest {
+  tasks: BriefTaskApplyItem[];
+}
+
+export interface BriefTaskApplyResponse {
+  briefId: string;
+  caseId: string;
+  createdTaskIds: string[];
+  skippedKeys: string[];
 }
 
 export interface LegalCitationResponse {
@@ -366,6 +469,7 @@ export interface DraftResultResponse {
   jobId: string;
   workspaceId: string;
   sessionId: string;
+  caseId?: string | null;
   messageId: string | null;
   briefResultId: string | null;
   documentText: string;
@@ -583,6 +687,8 @@ export interface CaseDetail extends CaseSummary {
   practiceAreaId: string | null;
   closingNote: string | null;
   externalReference: string | null;
+  opposingPartyName: string | null;
+  opposingPartyAddress: string | null;
   confidentialityLevel: string | null;
   customFields: Record<string, unknown> | null;
   tags: ReferenceSummary[];

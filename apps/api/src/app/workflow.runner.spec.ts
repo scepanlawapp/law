@@ -49,6 +49,8 @@ function prismaMock() {
         workflowJobs.set(id, { id, createdAt: now, updatedAt: now, ...record });
       },
     },
+    chatSession: { findFirst: jest.fn().mockResolvedValue(null) },
+    case: { findFirst: jest.fn().mockResolvedValue(null) },
     chatMessage: { create: jest.fn(), update: jest.fn() },
     chatAttachment: { findMany: jest.fn().mockResolvedValue([]) },
     briefExtractionResult: {

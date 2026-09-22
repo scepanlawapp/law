@@ -65,6 +65,8 @@ export class CreateCaseDto {
   @IsUUID() responsibleUserId!: string;
   @IsOptional() @IsDateString() openedDate?: string;
   @IsOptional() @IsString() @MaxLength(320) externalReference?: string;
+  @IsOptional() @IsString() @MaxLength(320) opposingPartyName?: string;
+  @IsOptional() @IsString() @MaxLength(500) opposingPartyAddress?: string;
   @IsOptional() @IsString() @MaxLength(160) confidentialityLevel?: string;
   @IsOptional() @IsArray() @IsUUID("4", { each: true }) tagIds?: string[];
   @IsOptional() @IsObject() customFields?: Record<string, unknown>;
@@ -85,6 +87,8 @@ export class UpdateCaseDto {
   @IsOptional() @IsEnum(CasePriority) priority?: CasePriority;
   @IsOptional() @IsDateString() openedDate?: string;
   @IsOptional() @IsString() @MaxLength(320) externalReference?: string;
+  @IsOptional() @IsString() @MaxLength(320) opposingPartyName?: string;
+  @IsOptional() @IsString() @MaxLength(500) opposingPartyAddress?: string;
   @IsOptional() @IsString() @MaxLength(160) confidentialityLevel?: string;
   @IsOptional() @IsArray() @IsUUID("4", { each: true }) tagIds?: string[];
   @IsOptional() @IsObject() customFields?: Record<string, unknown>;

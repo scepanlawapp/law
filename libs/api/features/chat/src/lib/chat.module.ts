@@ -4,20 +4,30 @@ import { BullModule } from "@nestjs/bullmq";
 import { memoryStorage } from "multer";
 import { AuthModule } from "@law/auth";
 import { LegalKnowledgeModule } from "@law/legal-knowledge";
+import { CasesModule } from "@law/cases";
+import { ClientsModule } from "@law/clients";
+import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
 import { ChatController } from "./chat.controller";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { ChatService } from "./chat.service";
+import { MatterLinkService } from "./matter-link.service";
 import { ChatStorageService } from "./chat.storage";
 import { WorkflowQueueService } from "./workflow-queue.service";
 import { WorkflowProcessor } from "./workflow.processor";
 import { WorkflowRunner } from "./workflow.runner";
-import { WORKFLOW_QUEUE_NAME, WORKFLOW_QUEUE_PORT } from "./workflow-queue.types";
+import {
+  WORKFLOW_QUEUE_NAME,
+  WORKFLOW_QUEUE_PORT,
+} from "./workflow-queue.types";
 
 @Module({
   imports: [
     AuthModule,
     LegalKnowledgeModule,
+    CasesModule,
+    ClientsModule,
+    ActivitiesTasksDeadlinesModule,
     MulterModule.register({ storage: memoryStorage() }),
     BullModule.forRootAsync({
       useFactory: () => {
@@ -39,6 +49,7 @@ import { WORKFLOW_QUEUE_NAME, WORKFLOW_QUEUE_PORT } from "./workflow-queue.types
   controllers: [ChatController],
   providers: [
     ChatService,
+    MatterLinkService,
     ChatEventBus,
     ChatStorageService,
     ChatRuntimeConfig,
