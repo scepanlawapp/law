@@ -36,7 +36,7 @@ import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { NgIcon, provideIcons } from "@ng-icons/core";
-import { lucideKanban, lucideList } from "@ng-icons/lucide";
+import { lucideKanban, lucideList, lucidePlus } from "@ng-icons/lucide";
 import { Observable, debounceTime, distinctUntilChanged } from "rxjs";
 import { BottomReachedDirective } from "../../../core/directives/bottom-reached.directive";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
@@ -45,6 +45,7 @@ import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { TaskDialogComponent } from "../task-dialog/task-dialog.component";
 import { TaskDialogContext } from "../task-dialog/task-dialog.models";
+import { TaskDialogService } from "../task-dialog/task-dialog.service";
 import { DialogPanelComponent } from "../../../shared/ui/dialog-panel/dialog-panel.component";
 import { dueLabel } from "../work-management-utils";
 import {
@@ -133,6 +134,7 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     provideIcons({
       lucideKanban,
       lucideList,
+      lucidePlus,
     }),
   ],
 })
@@ -148,6 +150,7 @@ export class WorkViewComponent {
   private readonly casesApi = inject(CasesApiClient);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly taskDialog = inject(TaskDialogService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
@@ -401,6 +404,15 @@ export class WorkViewComponent {
   openItem(item?: WorkItem): void {
     if (!item) return;
     this.openTask(item.raw as TaskDetail);
+  }
+
+  createTask(): void {
+    this.taskDialog
+      .open({ caseId: this.effectiveCaseId() })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result) this.reload();
+      });
   }
 
   openTask(task?: TaskDetail): void {

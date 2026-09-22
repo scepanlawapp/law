@@ -465,7 +465,13 @@ export class CalendarComponent {
   weekDayDoubleClick(event: MouseEvent, day: string): void {
     const target = event.target as HTMLElement | null;
     if (target?.closest("[data-calendar-item-trigger]")) return;
-    this.openCreateEvent(day, 9);
+    const timeline = event.currentTarget as HTMLElement;
+    const offset = event.clientY - timeline.getBoundingClientRect().top;
+    const hour = Math.min(
+      23,
+      Math.max(0, Math.floor(offset / this.hourHeight)),
+    );
+    this.openCreateEvent(day, hour);
   }
 
   editEvent(event: MouseEvent, item: CalendarItem): void {
