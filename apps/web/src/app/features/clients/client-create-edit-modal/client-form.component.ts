@@ -62,7 +62,7 @@ type ClientAddressType =
 const DEFAULT_COUNTRY_CODE = "RS";
 
 @Component({
-  selector: "app-client-form",
+  selector: "law-client-form",
   standalone: true,
   templateUrl: "./client-form.component.html",
   imports: [

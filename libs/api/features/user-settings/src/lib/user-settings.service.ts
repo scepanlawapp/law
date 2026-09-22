@@ -1,11 +1,33 @@
-import { Injectable } from "@nestjs/common";
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from "@nestjs/common";
 import { PrismaService } from "@law/core";
 import {
+  UserAvatarResponse,
   UserSettingsAccent,
   UserSettingsFinish,
   UserSettingsResponse,
 } from "@law/api-interfaces";
+import {
+  detectMimeType,
+  FileStorageConfig,
+  LocalStorageAdapter,
+} from "@law/file-storage";
+import { Readable } from "node:stream";
+import { randomUUID } from "node:crypto";
+import { extname } from "node:path";
 import { UpdateUserSettingsDto } from "./user-settings.dto";
+
+const ALLOWED_IMAGE_MIME_TYPES = new Set([
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+]);
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024; // 5 MB
 
 const DEFAULT_SETTINGS: UserSettingsRecord = {
   theme: "CHARCOAL",
@@ -19,7 +41,11 @@ const DEFAULT_SETTINGS: UserSettingsRecord = {
 
 @Injectable()
 export class UserSettingsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly storageAdapter: LocalStorageAdapter,
+    private readonly storageConfig: FileStorageConfig,
+  ) {}
 
   async get(userId: string): Promise<UserSettingsResponse> {
     const user = await this.prisma.user.findUniqueOrThrow({
@@ -47,6 +73,152 @@ export class UserSettingsService {
     return this.toResponse(user, settings);
   }
 
+  async uploadAvatar(
+    userId: string,
+    file: {
+      buffer: Buffer;
+      mimetype?: string;
+      originalname?: string;
+      size?: number;
+    },
+  ): Promise<UserAvatarResponse> {
+    if (!file || !file.buffer || file.buffer.length === 0) {
+      throw new BadRequestException("An image file is required");
+    }
+
+    const size = file.size ?? file.buffer.length;
+    if (size > MAX_AVATAR_BYTES) {
+      throw new BadRequestException("Avatar image exceeds the 5MB size limit");
+    }
+
+    const detectedMime = detectMimeType(file.buffer);
+    const mime = detectedMime ?? file.mimetype ?? "";
+    if (!ALLOWED_IMAGE_MIME_TYPES.has(mime)) {
+      throw new BadRequestException(
+        "Invalid image format. Allowed formats: JPEG, PNG, WebP, GIF",
+      );
+    }
+
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, avatarUrl: true },
+    });
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    let extension = ".png";
+    if (mime === "image/jpeg") extension = ".jpg";
+    else if (mime === "image/webp") extension = ".webp";
+    else if (mime === "image/gif") extension = ".gif";
+    else if (file.originalname) {
+      const ext = extname(file.originalname).toLowerCase();
+      if (ext) extension = ext;
+    }
+
+    const filename = `${userId}-${randomUUID()}${extension}`;
+    const storageKey = `avatars/${filename}`;
+
+    await this.storageAdapter.write(storageKey, Readable.from(file.buffer), {
+      maxBytes: MAX_AVATAR_BYTES,
+      tempSuffix: randomUUID(),
+    });
+
+    const oldAvatarUrl = user.avatarUrl;
+    const avatarUrl = `/api/users/me/avatar/${filename}`;
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl },
+    });
+
+    if (oldAvatarUrl) {
+      await this.deleteAvatarFile(oldAvatarUrl);
+    }
+
+    return { avatarUrl };
+  }
+
+  async deleteAvatar(userId: string): Promise<UserAvatarResponse> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, avatarUrl: true },
+    });
+    if (!user) {
+      throw new NotFoundException("User not found");
+    }
+
+    const oldAvatarUrl = user.avatarUrl;
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { avatarUrl: null },
+    });
+
+    if (oldAvatarUrl) {
+      await this.deleteAvatarFile(oldAvatarUrl);
+    }
+
+    return { avatarUrl: null };
+  }
+
+  async getAvatarFile(filename: string): Promise<{
+    stream: Readable;
+    contentType: string;
+    sizeBytes: number;
+  }> {
+    if (
+      !filename ||
+      filename.includes("..") ||
+      filename.includes("/") ||
+      filename.includes("\0")
+    ) {
+      throw new BadRequestException("Invalid filename");
+    }
+
+    const storageKey = `avatars/${filename}`;
+    try {
+      const stat = await this.storageAdapter.stat(storageKey);
+      const stream = await this.storageAdapter.read(storageKey);
+      const ext = extname(filename).toLowerCase();
+      let contentType = "application/octet-stream";
+      if (ext === ".jpg" || ext === ".jpeg") contentType = "image/jpeg";
+      else if (ext === ".png") contentType = "image/png";
+      else if (ext === ".webp") contentType = "image/webp";
+      else if (ext === ".gif") contentType = "image/gif";
+
+      return {
+        stream,
+        contentType,
+        sizeBytes: stat.bytes,
+      };
+    } catch {
+      throw new NotFoundException("Avatar not found");
+    }
+  }
+
+  private async deleteAvatarFile(avatarUrl: string): Promise<void> {
+    const prefix = "/api/users/me/avatar/";
+    if (!avatarUrl.startsWith(prefix)) {
+      return;
+    }
+    const filename = avatarUrl.slice(prefix.length);
+    if (
+      !filename ||
+      filename.includes("..") ||
+      filename.includes("/") ||
+      filename.includes("\0")
+    ) {
+      return;
+    }
+    const storageKey = `avatars/${filename}`;
+    try {
+      await this.storageAdapter.delete(storageKey);
+    } catch {
+      // Ignore cleanup error if already missing
+    }
+  }
+
   private toResponse(
     user: UserSettingsUser,
     settings: UserSettingsRecord,
@@ -56,6 +228,7 @@ export class UserSettingsService {
         firstName: user.firstName,
         lastName: user.lastName,
         username: user.username,
+        email: user.email,
         phone: user.phone,
         jobTitle: user.jobTitle,
         avatarUrl: user.avatarUrl,
@@ -74,6 +247,7 @@ export class UserSettingsService {
 }
 
 type UserSettingsUser = Pick<UserSettingsResponse["profile"], never> & {
+  email: string;
   firstName: string | null;
   lastName: string | null;
   username: string | null;

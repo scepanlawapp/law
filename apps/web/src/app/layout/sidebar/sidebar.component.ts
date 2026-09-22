@@ -21,7 +21,7 @@ import { AuthState } from "@law/security";
 import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
 @Component({
-  selector: "app-sidebar",
+  selector: "law-sidebar",
   standalone: true,
   templateUrl: "./sidebar.component.html",
   imports: [

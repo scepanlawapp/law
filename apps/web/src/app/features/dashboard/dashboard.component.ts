@@ -50,7 +50,7 @@ const PROMPT_SUGGESTION_KEYS = [
 ] as const;
 
 @Component({
-  selector: "app-dashboard",
+  selector: "law-dashboard",
   standalone: true,
   templateUrl: "./dashboard.component.html",
   styleUrls: ["./dashboard.component.scss"],

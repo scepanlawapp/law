@@ -28,11 +28,18 @@ function caseRecord(
 
 describe("CasesService", () => {
   const platformPrisma = {
-    $transaction: jest.fn(async (callback: (transaction: unknown) => unknown) =>
-      callback(platformPrisma),
-    ),
+    $transaction: jest.fn(async (arg: unknown) => {
+      if (typeof arg === "function") return arg(platformPrisma);
+      if (Array.isArray(arg)) return Promise.all(arg);
+      return arg;
+    }),
     workspaceMember: { findUnique: jest.fn() },
-    case: { findFirst: jest.fn(), findMany: jest.fn(), update: jest.fn() },
+    case: {
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+      count: jest.fn(),
+    },
     caseActivity: { create: jest.fn() },
   };
   const db = platformPrisma;
@@ -136,5 +143,34 @@ describe("CasesService", () => {
         caseNumber: "2026-1",
       });
     });
+  });
+
+  it("filters cases by the union of clientId and clientIds", async () => {
+    db.case.count.mockResolvedValue(0);
+    db.case.findMany.mockResolvedValue([]);
+    await WorkspaceContextService.run(context as never, async () => {
+      await service.list({
+        page: 1,
+        pageSize: 20,
+        clientId: "11111111-1111-4111-a111-111111111111",
+        clientIds: [
+          "22222222-2222-4222-a222-222222222222",
+          "11111111-1111-4111-a111-111111111111",
+        ],
+      } as never);
+    });
+    expect(db.case.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          workspaceId,
+          clientId: {
+            in: [
+              "11111111-1111-4111-a111-111111111111",
+              "22222222-2222-4222-a222-222222222222",
+            ],
+          },
+        }),
+      }),
+    );
   });
 });

@@ -1,0 +1,54 @@
+@if (editable()) {
+  <button
+    type="button"
+    class="group relative inline-flex shrink-0 cursor-pointer items-center justify-center overflow-hidden rounded-full bg-muted font-medium text-muted-foreground select-none transition-transform active:scale-95 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    [class]="sizeClasses()"
+    [attr.aria-label]="editAriaLabel()"
+    (click)="onAvatarClick($event)"
+  >
+    <span aria-hidden="true">{{ initials() }}</span>
+
+    @for (url of imageSources(); track url) {
+      <img
+        class="absolute inset-0 h-full w-full object-cover transition-opacity duration-150 group-hover:opacity-75"
+        [src]="url"
+        alt=""
+        decoding="async"
+        (error)="onImageError(url)"
+      />
+    }
+
+    <span
+      class="absolute inset-0 flex items-center justify-center bg-black/50 text-white opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-visible:opacity-100"
+      aria-hidden="true"
+    >
+      <ng-icon name="lucideCamera" [class]="cameraIconSize()" />
+    </span>
+  </button>
+} @else {
+  <span
+    class="relative inline-flex shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted font-medium text-muted-foreground select-none"
+    [class]="sizeClasses()"
+    [attr.role]="showName() ? null : 'img'"
+    [attr.aria-label]="showName() ? null : displayName()"
+    [attr.aria-hidden]="showName() ? 'true' : null"
+  >
+    <span aria-hidden="true">{{ initials() }}</span>
+
+    @for (url of imageSources(); track url) {
+      <img
+        class="absolute inset-0 h-full w-full object-cover"
+        [src]="url"
+        alt=""
+        decoding="async"
+        (error)="onImageError(url)"
+      />
+    }
+  </span>
+}
+
+@if (showName()) {
+  <span class="min-w-0 truncate" [title]="displayName()">
+    {{ displayName() }}
+  </span>
+}

@@ -24,7 +24,7 @@ export interface ReferenceCreateDialogData {
 }
 
 @Component({
-  selector: "app-reference-create-dialog",
+  selector: "law-reference-create-dialog",
   standalone: true,
   imports: [
     ReactiveFormsModule,

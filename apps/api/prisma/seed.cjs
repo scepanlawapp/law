@@ -70,6 +70,23 @@ async function main() {
       },
     });
 
+    await prisma.storageConnection.upsert({
+      where: {
+        workspaceId_configRef: {
+          workspaceId: workspace.id,
+          configRef: "local-default",
+        },
+      },
+      update: { enabled: true, isDefault: true, providerType: "LOCAL" },
+      create: {
+        workspaceId: workspace.id,
+        providerType: "LOCAL",
+        enabled: true,
+        isDefault: true,
+        configRef: "local-default",
+      },
+    });
+
     console.log(`Bootstrap user ready: ${email}`);
     console.log(`Bootstrap workspace ready: ${workspace.id}`);
   } finally {

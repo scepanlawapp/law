@@ -12,7 +12,7 @@ import { lucideCircleAlert, lucideTriangleAlert } from "@ng-icons/lucide";
 import type { ConfirmDialogData } from "./confirm-dialog.service";
 
 @Component({
-  selector: "app-confirm-dialog",
+  selector: "law-confirm-dialog",
   standalone: true,
   imports: [
     HlmButton,

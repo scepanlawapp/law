@@ -69,14 +69,14 @@
     </div>
 
     @if (draft.citations.length) {
-    <app-collapsible-section
+    <law-collapsible-section
       class="draft-sources"
       [title]="'assistant.sources' | translate"
       [expanded]="sourcesExpanded()"
       (expandedChange)="sourcesExpanded.set($event)"
     >
-      <app-citation-list [citations]="draft.citations" />
-    </app-collapsible-section>
+      <law-citation-list [citations]="draft.citations" />
+    </law-collapsible-section>
     }
 
     <div class="draft-toolbar">

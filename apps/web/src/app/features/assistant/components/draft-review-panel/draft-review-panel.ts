@@ -27,7 +27,7 @@ import { CollapsibleSectionComponent } from "../../../../shared/ui/collapsible-s
 import { CitationListComponent } from "../citation-list/citation-list";
 
 @Component({
-  selector: "app-draft-review-panel",
+  selector: "law-draft-review-panel",
   standalone: true,
   imports: [
     FormsModule,

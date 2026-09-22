@@ -25,21 +25,13 @@
             {{ "settings.personalInformation" | translate }}
           </h3>
           <div class="flex items-start gap-4">
-            @if (form.controls.avatarUrl.value) {
-              <img
-                class="border-border size-16 shrink-0 rounded-full border object-cover"
-                [src]="form.controls.avatarUrl.value"
-                [alt]="'settings.profilePhoto' | translate"
-              />
-            } @else {
-              <span
-                class="bg-muted text-foreground flex size-16 shrink-0 items-center justify-center rounded-full text-sm font-semibold tracking-wide"
-                aria-hidden="true"
-              >
-                {{ (form.controls.firstName.value || "L").charAt(0)
-                }}{{ (form.controls.lastName.value || "A").charAt(0) }}
-              </span>
-            }
+            <law-user-avatar
+              [user]="avatarUser()"
+              size="xl"
+              [editable]="true"
+              [editLabel]="'settings.changeProfilePhoto' | translate"
+              (avatarClick)="changeProfileImage()"
+            />
             <div class="min-w-0">
               <strong class="block text-sm font-medium">
                 {{ "settings.profilePhoto" | translate }}
@@ -80,7 +72,7 @@
               </label>
               <input hlmInput id="jobTitle" formControlName="jobTitle" />
             </div>
-            <div hlmField class="md:col-span-2">
+            <div hlmField class="md:col-span-2 hidden">
               <label hlmFieldLabel for="avatarUrl">
                 {{ "settings.profilePhotoUrl" | translate }}
               </label>

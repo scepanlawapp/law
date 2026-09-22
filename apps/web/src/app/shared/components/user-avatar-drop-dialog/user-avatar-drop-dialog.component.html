@@ -1,0 +1,86 @@
+<hlm-dialog-header>
+  <h3 hlmDialogTitle>{{ "settings.avatarCrop.title" | translate }}</h3>
+  <p hlmDialogDescription>
+    {{ "settings.avatarCrop.description" | translate }}
+  </p>
+</hlm-dialog-header>
+
+<div class="flex min-w-0 flex-col gap-4">
+  <input
+    #fileInput
+    type="file"
+    accept="image/jpeg,image/png,image/webp"
+    class="hidden"
+    [disabled]="cropping()"
+    (change)="selectImage($event)"
+  />
+
+  <button
+    hlmBtn
+    variant="outline"
+    type="button"
+    [disabled]="cropping()"
+    (click)="fileInput.click()"
+  >
+    {{
+      (imageFile()
+        ? "settings.avatarCrop.chooseAnother"
+        : "settings.avatarCrop.choose"
+      ) | translate
+    }}
+  </button>
+
+  @if (imageFile(); as file) {
+    <div class="max-h-[55vh] overflow-auto rounded-lg bg-muted">
+      <image-cropper
+        [imageFile]="file"
+        [maintainAspectRatio]="true"
+        [aspectRatio]="1"
+        [roundCropper]="true"
+        [resizeToWidth]="512"
+        [resizeToHeight]="512"
+        [onlyScaleDown]="true"
+        [autoCrop]="false"
+        [disabled]="cropping()"
+        format="png"
+        output="blob"
+        [imageAltText]="'settings.avatarCrop.imageAlt' | translate"
+        [cropperFrameAriaLabel]="'settings.avatarCrop.frameAria' | translate"
+        (cropperReady)="ready.set(true)"
+        (loadImageFailed)="imageFailed()"
+      />
+    </div>
+  }
+
+  @if (error()) {
+    <p role="alert" class="text-sm text-destructive">
+      {{ error() }}
+    </p>
+  }
+
+  <div class="flex justify-end gap-2">
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [disabled]="cropping()"
+      (click)="cancel()"
+    >
+      {{ "common.cancel" | translate }}
+    </button>
+
+    <button
+      hlmBtn
+      type="button"
+      [disabled]="!ready() || cropping()"
+      (click)="apply()"
+    >
+      {{
+        (cropping()
+          ? "settings.avatarCrop.cropping"
+          : "settings.avatarCrop.apply"
+        ) | translate
+      }}
+    </button>
+  </div>
+</div>

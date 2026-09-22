@@ -220,11 +220,12 @@ export class CasesService {
       ],
       [{ field: "updatedAt", direction: "desc" }],
     );
+    const clientFilter = clientIdFilter(query);
     const where: Prisma.CaseWhereInput = {
       workspaceId,
       ...(query.status && { status: query.status }),
       ...(query.priority && { priority: query.priority }),
-      ...(query.clientId && { clientId: query.clientId }),
+      ...(clientFilter && { clientId: clientFilter }),
       ...(query.responsibleUserId && {
         responsibleUserId: query.responsibleUserId,
       }),
@@ -707,4 +708,20 @@ export class CasesService {
       });
     });
   }
+}
+
+function uniqueIds(values: string[]): string[] {
+  return [...new Set(values.map((value) => value.trim()).filter(Boolean))];
+}
+
+function clientIdFilter(
+  query: CaseListQueryDto,
+): string | { in: string[] } | undefined {
+  const ids = uniqueIds([
+    ...(query.clientId ? [query.clientId] : []),
+    ...(query.clientIds ?? []),
+  ]);
+  if (!ids.length) return undefined;
+  if (ids.length === 1) return ids[0];
+  return { in: ids };
 }

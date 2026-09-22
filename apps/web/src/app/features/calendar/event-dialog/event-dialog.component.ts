@@ -31,7 +31,7 @@ function localDateTime(value: string): string {
 }
 
 @Component({
-  selector: "app-event-dialog",
+  selector: "law-event-dialog",
   standalone: true,
   templateUrl: "./event-dialog.component.html",
   imports: [

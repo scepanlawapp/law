@@ -8,7 +8,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
  * Selection is delegated to the caller so it can open the right inspect/edit dialog.
  */
 @Component({
-  selector: "app-obligation-list",
+  selector: "law-obligation-list",
   standalone: true,
   imports: [TranslatePipe],
   templateUrl: "./obligation-list.component.html",

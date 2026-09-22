@@ -1101,6 +1101,23 @@ async function main() {
       );
     }
 
+    await prisma.storageConnection.upsert({
+      where: {
+        workspaceId_configRef: {
+          workspaceId,
+          configRef: "local-default",
+        },
+      },
+      update: { enabled: true, isDefault: true, providerType: "LOCAL" },
+      create: {
+        workspaceId,
+        providerType: "LOCAL",
+        enabled: true,
+        isDefault: true,
+        configRef: "local-default",
+      },
+    });
+
     const users = await ensureUsers(prisma, workspaceId);
     const adminUser = users[0];
     const lawyers = users; // include admin in the assignable pool too

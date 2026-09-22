@@ -1,0 +1,513 @@
+<hlm-dialog-header class="relative shrink-0 pr-10">
+  <h2 hlmDialogTitle>
+    {{
+      (versionMode ? "documents.upload.versionTitle" : "documents.upload.title")
+        | translate
+    }}
+  </h2>
+  <p hlmDialogDescription>
+    {{
+      (versionMode
+        ? "documents.upload.versionDescription"
+        : "documents.upload.description"
+      ) | translate
+    }}
+  </p>
+  <button
+    hlmBtn
+    type="button"
+    variant="ghost"
+    size="icon-sm"
+    class="absolute end-0 top-0"
+    [disabled]="busy() || hasUnknown()"
+    [attr.aria-label]="'common.close' | translate"
+    (click)="requestClose()"
+  >
+    <ng-icon name="lucideX" />
+  </button>
+</hlm-dialog-header>
+
+<div class="flex min-h-0 flex-1 flex-col gap-4 overflow-hidden text-sm">
+  <div class="min-h-0 flex-1 space-y-4 overflow-y-auto">
+    @if (!versionMode) {
+      <section class="space-y-2" aria-labelledby="upload-context-heading">
+        <h3 id="upload-context-heading" class="text-sm font-medium">
+          {{ "documents.upload.context" | translate }}
+        </h3>
+        @if (lockedCase || lockedClient) {
+          <p>
+            @if (lockedCase) {
+              {{ "documents.upload.linkedCase" | translate }}:
+              {{ lockedCase.label }}
+            }
+            @if (lockedClient) {
+              {{ "documents.upload.linkedClient" | translate }}:
+              {{ lockedClient.label }}
+            }
+          </p>
+        }
+        @if (allowClientPicker || allowCasePicker) {
+          <div class="grid gap-3 md:grid-cols-2">
+            @if (allowClientPicker) {
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-sm font-medium" for="upload-clients">
+                  {{ "documents.upload.clients" | translate }}
+                </label>
+                <div
+                  hlmComboboxMultiple
+                  [value]="selectedClientIds()"
+                  (valueChange)="setClientIds($event ?? [])"
+                  [itemToString]="clientItemToString"
+                  [disabled]="associationsLocked()"
+                >
+                  <hlm-combobox-chips>
+                    <div *hlmComboboxValues="let values">
+                      @for (id of values; track id) {
+                        <hlm-combobox-chip [value]="id">
+                          {{ clientItemToString(id) }}
+                        </hlm-combobox-chip>
+                      }
+                    </div>
+                    <input
+                      hlmComboboxChipInput
+                      id="upload-clients"
+                      [placeholder]="
+                        'documents.upload.clientsPlaceholder' | translate
+                      "
+                      (input)="onClientSearch($event)"
+                    />
+                  </hlm-combobox-chips>
+                  <hlm-combobox-content *hlmComboboxPortal>
+                    @if (clientOptionsLoading()) {
+                      <div
+                        class="flex items-center gap-2 p-2 text-muted-foreground"
+                      >
+                        <hlm-spinner class="size-4" />
+                        {{ "documents.upload.loading" | translate }}
+                      </div>
+                    } @else if (clientOptionsError()) {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.errorLoading" | translate }}
+                      </hlm-combobox-empty>
+                    } @else {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.noResults" | translate }}
+                      </hlm-combobox-empty>
+                      <div hlmComboboxList>
+                        @for (option of clientOptions(); track option.id) {
+                          <hlm-combobox-item [value]="option.id">
+                            {{ option.label }}
+                          </hlm-combobox-item>
+                        }
+                      </div>
+                    }
+                  </hlm-combobox-content>
+                </div>
+              </div>
+            }
+            @if (allowCasePicker) {
+              <div class="flex min-w-0 flex-col gap-1">
+                <label class="text-sm font-medium" for="upload-cases">
+                  {{ "documents.upload.cases" | translate }}
+                </label>
+                <div
+                  hlmComboboxMultiple
+                  [value]="selectedCaseIds()"
+                  (valueChange)="setCaseIds($event ?? [])"
+                  [itemToString]="caseItemToString"
+                  [disabled]="!casesEnabled()"
+                >
+                  <hlm-combobox-chips>
+                    <div *hlmComboboxValues="let values">
+                      @for (id of values; track id) {
+                        <hlm-combobox-chip [value]="id">
+                          {{ caseItemToString(id) }}
+                        </hlm-combobox-chip>
+                      }
+                    </div>
+                    <input
+                      hlmComboboxChipInput
+                      id="upload-cases"
+                      [placeholder]="
+                        (casesEnabled()
+                          ? 'documents.upload.casesPlaceholder'
+                          : 'documents.upload.selectClientFirst'
+                        ) | translate
+                      "
+                      (input)="onCaseSearch($event)"
+                    />
+                  </hlm-combobox-chips>
+                  <hlm-combobox-content *hlmComboboxPortal>
+                    @if (caseOptionsLoading()) {
+                      <div
+                        class="flex items-center gap-2 p-2 text-muted-foreground"
+                      >
+                        <hlm-spinner class="size-4" />
+                        {{ "documents.upload.loading" | translate }}
+                      </div>
+                    } @else if (caseOptionsError()) {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.errorLoading" | translate }}
+                      </hlm-combobox-empty>
+                    } @else {
+                      <hlm-combobox-empty>
+                        {{ "documents.upload.noResults" | translate }}
+                      </hlm-combobox-empty>
+                      <div hlmComboboxList>
+                        @for (option of caseOptions(); track option.id) {
+                          <hlm-combobox-item [value]="option.id">
+                            {{ option.label }}
+                          </hlm-combobox-item>
+                        }
+                      </div>
+                    }
+                  </hlm-combobox-content>
+                </div>
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    <section>
+      <input
+        #fileInput
+        class="sr-only"
+        type="file"
+        [accept]="accept"
+        [multiple]="!versionMode"
+        (change)="onFileInput($event)"
+      />
+      <button
+        type="button"
+        class="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-center"
+        [class.px-4]="true"
+        [class.py-3]="compactDropzone()"
+        [class.py-8]="!compactDropzone()"
+        [class.bg-muted]="dragging()"
+        (click)="fileInput.click()"
+        (drop)="onDrop($event)"
+        (dragover)="onDragOver($event)"
+        (dragleave)="onDragLeave()"
+      >
+        <ng-icon name="lucideUpload" size="20" />
+        <span class="font-medium">
+          {{ "documents.upload.chooseFiles" | translate }}
+        </span>
+        @if (!compactDropzone()) {
+          <span class="text-muted-foreground">
+            {{ "documents.upload.dropHint" | translate }}
+          </span>
+          <span class="text-muted-foreground">
+            {{ "documents.upload.formats" | translate }}
+          </span>
+          <span class="text-muted-foreground">
+            {{
+              "documents.upload.sizeLimit"
+                | translate: { size: formatSize(maxBytes) }
+            }}
+          </span>
+        }
+      </button>
+    </section>
+
+    @if (rows().length) {
+      <div hlmTableContainer>
+        <table hlmTable>
+          <caption class="sr-only">
+            {{ "documents.upload.tableCaption" | translate }}
+          </caption>
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh class="w-10">
+                <span class="sr-only">
+                  {{ "documents.upload.expand" | translate }}
+                </span>
+              </th>
+              <th hlmTh>{{ "documents.upload.columnTitle" | translate }}</th>
+              <th hlmTh>{{ "documents.upload.columnFile" | translate }}</th>
+              <th hlmTh>{{ "documents.upload.columnCategory" | translate }}</th>
+              <th hlmTh>{{ "documents.upload.columnStatus" | translate }}</th>
+              <th hlmTh class="w-12">
+                <span class="sr-only">
+                  {{ "documents.upload.remove" | translate }}
+                </span>
+              </th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (row of rows(); track row.id) {
+              <tr hlmTr>
+                <td hlmTd>
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    [attr.aria-expanded]="row.expanded"
+                    [attr.aria-controls]="'upload-details-' + row.id"
+                    [attr.aria-label]="'documents.upload.expandRow' | translate"
+                    (click)="toggleExpanded(row.id)"
+                  >
+                    <ng-icon
+                      [name]="
+                        row.expanded
+                          ? 'lucideChevronDown'
+                          : 'lucideChevronRight'
+                      "
+                    />
+                  </button>
+                </td>
+                <td hlmTd>
+                  <div hlmField>
+                    @if (canEditTitle(row)) {
+                      <label class="sr-only" [for]="'upload-title-' + row.id">
+                        {{ "documents.upload.columnTitle" | translate }}
+                      </label>
+                      <input
+                        hlmInput
+                        [id]="'upload-title-' + row.id"
+                        [formControl]="row.titleControl"
+                        (blur)="onTitleChange(row.id)"
+                      />
+                    } @else {
+                      <span>{{ row.titleControl.value }}</span>
+                    }
+                  </div>
+                </td>
+                <td hlmTd>
+                  <span
+                    class="block max-w-40 truncate"
+                    [attr.title]="row.file.name"
+                  >
+                    {{ row.file.name }}
+                  </span>
+                </td>
+                <td hlmTd>
+                  @if (canEditCategory(row)) {
+                    <div
+                      hlmCombobox
+                      class="w-full min-w-40"
+                      [value]="row.category"
+                      (valueChange)="setCategory(row.id, $event ?? null)"
+                      [itemToString]="categoryItemToString"
+                      [filter]="categoryFilter"
+                    >
+                      <hlm-combobox-trigger
+                        class="w-full justify-between"
+                        [buttonId]="'upload-category-' + row.id"
+                      >
+                        <hlm-combobox-value
+                          [placeholder]="
+                            'documents.upload.categoryUnclassified' | translate
+                          "
+                        />
+                      </hlm-combobox-trigger>
+                      <hlm-combobox-content *hlmComboboxPortal>
+                        <hlm-combobox-input
+                          [placeholder]="
+                            'documents.upload.categorySearch' | translate
+                          "
+                          [showTrigger]="false"
+                          showClear
+                        />
+                        <hlm-combobox-empty>
+                          {{ "documents.upload.noResults" | translate }}
+                        </hlm-combobox-empty>
+                        <div hlmComboboxList>
+                          @for (code of categoryCodes; track code) {
+                            <hlm-combobox-item [value]="code">
+                              {{ categoryItemToString(code) }}
+                            </hlm-combobox-item>
+                          }
+                        </div>
+                      </hlm-combobox-content>
+                    </div>
+                  } @else {
+                    <span>
+                      {{
+                        categoryItemToString(
+                          row.frozenCreate?.category ?? row.category
+                        )
+                      }}
+                    </span>
+                  }
+                </td>
+                <td hlmTd>
+                  <div class="min-w-28 space-y-1">
+                    <p>{{ statusLabel(row) }}</p>
+                    @if (
+                      row.status === "uploading" || row.status === "processing"
+                    ) {
+                      <hlm-progress
+                        [value]="row.percent"
+                        [attr.aria-label]="statusLabel(row)"
+                      >
+                        <hlm-progress-indicator />
+                      </hlm-progress>
+                    }
+                    @if (row.status === "invalid" || row.status === "failed") {
+                      <p class="text-destructive">{{ errorLabel(row) }}</p>
+                    }
+                  </div>
+                </td>
+                <td hlmTd>
+                  @if (row.status === "succeeded") {
+                    <ng-icon
+                      name="lucideCheck"
+                      [attr.aria-label]="
+                        'documents.upload.statusUploaded' | translate
+                      "
+                    />
+                  } @else if (canRemove(row)) {
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      [hlmTooltip]="'documents.upload.remove' | translate"
+                      [attr.aria-label]="'documents.upload.remove' | translate"
+                      (click)="remove(row.id)"
+                    >
+                      <ng-icon name="lucideTrash2" />
+                    </button>
+                  }
+                </td>
+              </tr>
+              @if (row.expanded) {
+                <tr hlmTr [id]="'upload-details-' + row.id">
+                  <td hlmTd colspan="6">
+                    <dl class="grid gap-1 text-muted-foreground">
+                      <div>
+                        <dt class="inline font-medium text-foreground">
+                          {{ "documents.upload.originalFilename" | translate }}:
+                        </dt>
+                        <dd class="inline">{{ row.file.name }}</dd>
+                      </div>
+                      <div>
+                        <dt class="inline font-medium text-foreground">
+                          {{ "documents.upload.fileSize" | translate }}:
+                        </dt>
+                        <dd class="inline">{{ formatSize(row.file.size) }}</dd>
+                      </div>
+                      <div>
+                        <dt class="inline font-medium text-foreground">
+                          {{ "documents.upload.browserType" | translate }}:
+                        </dt>
+                        <dd class="inline">
+                          {{
+                            row.file.type ||
+                              ("documents.upload.unknownType" | translate)
+                          }}
+                          ({{ "documents.upload.unverified" | translate }})
+                        </dd>
+                      </div>
+                      @if (row.advisoryMimeWarning) {
+                        <p>{{ "documents.upload.advisoryType" | translate }}</p>
+                      }
+                      @if (row.result; as document) {
+                        @if (document.currentVersion; as version) {
+                          <div>
+                            <dt class="inline font-medium text-foreground">
+                              {{
+                                "documents.upload.confirmedType" | translate
+                              }}:
+                            </dt>
+                            <dd class="inline">{{ version.mimeType }}</dd>
+                          </div>
+                          <div>
+                            <dt class="inline font-medium text-foreground">
+                              {{ "documents.upload.version" | translate }}:
+                            </dt>
+                            <dd class="inline">{{ version.versionNumber }}</dd>
+                          </div>
+                          <div>
+                            <dt class="inline font-medium text-foreground">
+                              {{ "documents.upload.createdAt" | translate }}:
+                            </dt>
+                            <dd class="inline">{{ version.createdAt }}</dd>
+                          </div>
+                        }
+                      }
+                      @if (
+                        row.status === "failed" ||
+                        row.status === "outcome_unknown"
+                      ) {
+                        <p class="text-destructive">{{ errorLabel(row) }}</p>
+                        @if (row.status === "failed") {
+                          <button
+                            hlmBtn
+                            type="button"
+                            variant="outline"
+                            (click)="retryRow(row.id)"
+                          >
+                            {{ "documents.upload.retry" | translate }}
+                          </button>
+                        }
+                      }
+                    </dl>
+                  </td>
+                </tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </div>
+</div>
+
+<hlm-dialog-footer class="shrink-0">
+  <p class="me-auto text-muted-foreground" aria-live="polite">
+    @if (busy() || allDone()) {
+      {{
+        "documents.upload.footerProgress"
+          | translate
+            : {
+                succeeded: succeededCount(),
+                failed: failedCount(),
+              }
+      }}
+    } @else {
+      {{
+        "documents.upload.footerSelected"
+          | translate
+            : {
+                count: rows().length,
+                size: formatSize(selectedBytes()),
+              }
+      }}
+      @if (invalidCount()) {
+        {{
+          "documents.upload.footerInvalid"
+            | translate: { count: invalidCount() }
+        }}
+      }
+    }
+  </p>
+  <button
+    hlmBtn
+    type="button"
+    variant="outline"
+    [disabled]="busy() || hasUnknown()"
+    (click)="requestClose()"
+  >
+    {{ (allDone() ? "common.close" : "common.cancel") | translate }}
+  </button>
+  @if (failedCount() && allDone()) {
+    <button hlmBtn type="button" variant="outline" (click)="retryFailed()">
+      {{ "documents.upload.retryFailed" | translate }}
+    </button>
+  }
+  @if (!allDone()) {
+    <button
+      hlmBtn
+      type="button"
+      [disabled]="busy() || readyCount() === 0"
+      (click)="startUpload()"
+    >
+      {{ "documents.upload.uploadCount" | translate: { count: readyCount() } }}
+    </button>
+  }
+</hlm-dialog-footer>

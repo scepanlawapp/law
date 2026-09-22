@@ -190,6 +190,37 @@ enum CasePriority {
   URGENT
 }
 
+enum StorageProviderType {
+  LOCAL
+}
+
+enum StoredFileLifecycle {
+  PENDING
+  AVAILABLE
+  FAILED
+  ABANDONED
+}
+
+enum FileLocationState {
+  PENDING
+  AVAILABLE
+  FAILED
+}
+
+enum UploadOperationStatus {
+  ACCEPTED
+  WRITING
+  FINALIZING
+  COMMITTED
+  FAILED
+  ABANDONED
+}
+
+enum UploadOperationPurpose {
+  CREATE_DOCUMENT
+  ADD_VERSION
+}
+
 model User {
   id                   String            @id @default(uuid())
   email                String            @unique
@@ -220,6 +251,11 @@ model User {
   createdNotes         Note[]            @relation("NoteCreator")
   activityLogs         ActivityLog[]     @relation("ActivityActor")
   chatSessions         ChatSession[]     @relation("ChatSessionCreator")
+  createdDocuments     Document[]        @relation("DocumentCreator")
+  updatedDocuments     Document[]        @relation("DocumentUpdater")
+  archivedDocuments    Document[]        @relation("DocumentArchiver")
+  uploadedVersions     DocumentVersion[] @relation("DocumentVersionUploader")
+  uploadOperations     UploadOperation[] @relation("UploadOperationActor")
   settings             UserSettings?
 }
 
@@ -269,6 +305,14 @@ model Workspace {
   activityLogs           ActivityLog[]
   tenantAuditEvents      TenantAuditEvent[]
   legalSources           LegalSource[]
+  storageConnections     StorageConnection[]
+  documents              Document[]
+  documentCases          DocumentCase[]
+  documentClients        DocumentClient[]
+  documentVersions       DocumentVersion[]
+  storedFiles            StoredFile[]
+  fileLocations          FileLocation[]
+  uploadOperations       UploadOperation[]
 }
 
 model WorkspaceConfig {
@@ -373,6 +417,7 @@ model Client {
   addresses               ClientAddress[]                @relation("ClientAddresses")
   identificationDocuments ClientIdentificationDocument[]
   contacts                ClientContact[]
+  documentClients         DocumentClient[]
   activities              ClientActivity[]
   cases                   Case[]
   tags                    ClientTag[]
@@ -502,6 +547,7 @@ model Case {
   deadlines            Deadline[]           @relation("DeadlineCase")
   notes                Note[]               @relation("NoteCase")
   activityLogs         ActivityLog[]        @relation("ActivityCase")
+  documentCases        DocumentCase[]
   chatSessions         ChatSession[]
   draftResults         DraftResult[]
   appliedBriefs        BriefExtractionResult[] @relation("BriefAppliedCase")
@@ -1071,4 +1117,163 @@ model TenantAuditEvent {
   @@index([userId, createdAt])
   @@index([workspaceId, createdAt])
   @@index([eventType, createdAt])
+}
+
+model StorageConnection {
+  id          String              @id @default(uuid())
+  workspaceId String
+  providerType StorageProviderType
+  enabled     Boolean             @default(true)
+  isDefault   Boolean             @default(false)
+  configRef   String
+  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
+  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  locations   FileLocation[]
+  operations  UploadOperation[]
+
+  @@unique([workspaceId, configRef])
+  @@index([workspaceId, isDefault, enabled])
+}
+
+model Document {
+  id               String            @id @default(uuid())
+  workspaceId      String
+  title            String
+  category         String?
+  currentVersionId String?           @unique
+  archivedAt       DateTime?         @db.Timestamptz(3)
+  archivedByUserId String?
+  createdByUserId  String
+  updatedByUserId  String
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  currentVersion   DocumentVersion?  @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  createdBy        User              @relation("DocumentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy        User              @relation("DocumentUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  archivedBy       User?             @relation("DocumentArchiver", fields: [archivedByUserId], references: [id], onDelete: SetNull)
+  versions         DocumentVersion[] @relation("DocumentVersions")
+  cases            DocumentCase[]
+  clients          DocumentClient[]
+  operations       UploadOperation[]
+
+  @@index([workspaceId, archivedAt, updatedAt])
+  @@index([workspaceId, title])
+  @@index([workspaceId, category])
+}
+
+model DocumentCase {
+  documentId  String
+  caseId      String
+  workspaceId String
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  case        Case      @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, caseId])
+  @@index([workspaceId, caseId])
+  @@index([caseId])
+}
+
+model DocumentClient {
+  documentId  String
+  clientId    String
+  workspaceId String
+  document    Document  @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([documentId, clientId])
+  @@index([workspaceId, clientId])
+  @@index([clientId])
+}
+
+model DocumentVersion {
+  id               String            @id @default(uuid())
+  documentId       String
+  workspaceId      String
+  versionNumber    Int
+  storedFileId     String
+  originalFilename String
+  uploadedByUserId String
+  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
+  document         Document          @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
+  currentFor       Document?         @relation("DocumentCurrentVersion")
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  storedFile       StoredFile        @relation(fields: [storedFileId], references: [id], onDelete: Restrict)
+  uploadedBy       User              @relation("DocumentVersionUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  operations       UploadOperation[]
+
+  @@unique([documentId, versionNumber])
+  @@index([workspaceId, documentId, createdAt])
+  @@index([storedFileId])
+}
+
+model StoredFile {
+  id               String              @id @default(uuid())
+  workspaceId      String
+  lifecycle        StoredFileLifecycle @default(PENDING)
+  detectedMimeType String?
+  sizeBytes        BigInt              @default(0)
+  sha256           String?
+  createdAt        DateTime            @default(now()) @db.Timestamptz(3)
+  finalizedAt      DateTime?           @db.Timestamptz(3)
+  workspace        Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  locations        FileLocation[]
+  versions         DocumentVersion[]
+  operations       UploadOperation[]
+
+  @@index([workspaceId, lifecycle])
+}
+
+model FileLocation {
+  id                  String            @id @default(uuid())
+  storedFileId        String
+  workspaceId         String
+  storageConnectionId String
+  storageKey          String
+  state               FileLocationState @default(PENDING)
+  isActive            Boolean           @default(false)
+  verifiedAt          DateTime?         @db.Timestamptz(3)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
+  storedFile          StoredFile        @relation(fields: [storedFileId], references: [id], onDelete: Cascade)
+  workspace           Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  connection          StorageConnection @relation(fields: [storageConnectionId], references: [id], onDelete: Restrict)
+  operations          UploadOperation[]
+
+  @@unique([storageConnectionId, storageKey])
+  @@index([storedFileId, isActive])
+  @@index([workspaceId])
+}
+
+model UploadOperation {
+  id                String                 @id @default(uuid())
+  workspaceId       String
+  idempotencyKey    String
+  actorUserId       String
+  purpose           UploadOperationPurpose
+  status            UploadOperationStatus  @default(ACCEPTED)
+  requestFingerprint String
+  documentId        String?
+  documentVersionId String?
+  storedFileId      String
+  fileLocationId    String
+  storageConnectionId String
+  errorCode         String?
+  lastHeartbeatAt   DateTime               @default(now()) @db.Timestamptz(3)
+  completedAt       DateTime?              @db.Timestamptz(3)
+  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
+  workspace         Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor             User                   @relation("UploadOperationActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  document          Document?              @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  documentVersion   DocumentVersion?       @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  storedFile        StoredFile             @relation(fields: [storedFileId], references: [id], onDelete: Restrict)
+  fileLocation      FileLocation           @relation(fields: [fileLocationId], references: [id], onDelete: Restrict)
+  storageConnection StorageConnection      @relation(fields: [storageConnectionId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, idempotencyKey])
+  @@index([workspaceId, status, lastHeartbeatAt])
+  @@index([storedFileId])
 }

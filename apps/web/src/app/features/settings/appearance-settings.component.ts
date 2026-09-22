@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { Component, DestroyRef, effect, inject, signal } from "@angular/core";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import {
@@ -16,11 +16,11 @@ import {
 } from "@spartan-ng/helm/field";
 import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
-import { UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ThemeService } from "../../core/theme/theme.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 import {
   createSelectItemToString,
   type SelectOption,
@@ -37,7 +37,7 @@ import {
 } from "../../core/theme/theme-options";
 
 @Component({
-  selector: "app-appearance-settings",
+  selector: "law-appearance-settings",
   standalone: true,
   imports: [
     ReactiveFormsModule,
@@ -57,12 +57,13 @@ import {
   },
 })
 export class AppearanceSettingsComponent {
-  private readonly api = inject(UserSettingsApiClient);
+  private readonly settingsStore = inject(UserSettingsStore);
   private readonly localization = inject(LocalizationService);
   private readonly theme = inject(ThemeService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
-  readonly loading = signal(true);
+  readonly preferences = this.settingsStore.preferences;
+  readonly loading = this.settingsStore.loading;
   readonly saving = signal(false);
   readonly themeOptions: ReadonlyArray<SelectOption<UserSettingsTheme>> = [
     { value: "MIDNIGHT", label: "settings.themeMidnight" },
@@ -116,34 +117,27 @@ export class AppearanceSettingsComponent {
           this.form.controls.finish.setValue(DEFAULT_FINISH);
         }
       });
-    this.api
-      .get()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (s) => {
-          this.form.patchValue({
-            ...s.preferences,
-            theme: normalizeTheme(s.preferences.theme),
-            accentColor: normalizeAccent(s.preferences.accentColor),
-            finish: normalizeFinish(s.preferences.finish),
-          });
-          this.loading.set(false);
-        },
-        error: () => {
-          this.toast.error(
-            this.localization.translate("settings.appearanceLoadError"),
-          );
-          this.loading.set(false);
-        },
-      });
+
+    effect(() => {
+      const preferences = this.preferences();
+      if (preferences && this.form.pristine) {
+        this.form.patchValue({
+          ...preferences,
+          theme: normalizeTheme(preferences.theme),
+          accentColor: normalizeAccent(preferences.accentColor),
+          finish: normalizeFinish(preferences.finish),
+        });
+      }
+    });
   }
   save(): void {
     this.saving.set(true);
-    this.api
+    this.settingsStore
       .update({ preferences: this.form.getRawValue() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: async () => {
+          this.form.markAsPristine();
           await this.localization.setLanguage(
             this.form.controls.language.value,
           );

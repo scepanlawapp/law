@@ -1,3 +1,4 @@
+import { isAbsolute } from "node:path";
 import { ConfigService } from "@nestjs/config";
 
 function requiredUrl(config: ConfigService, key: string): string {
@@ -48,6 +49,15 @@ export function validateEnvironment(
   } catch {
     throw new Error("OPENROUTER_BASE_URL must be a valid URL");
   }
+  const fileStorageRoot = environment.FILE_STORAGE_ROOT
+    ? String(environment.FILE_STORAGE_ROOT).trim()
+    : "";
+  if (fileStorageRoot && !isAbsolute(fileStorageRoot)) {
+    throw new Error("FILE_STORAGE_ROOT must be an absolute directory path");
+  }
+  if (nodeEnv === "production" && !fileStorageRoot) {
+    throw new Error("FILE_STORAGE_ROOT is required in production");
+  }
   const uploadMaxBytes = Number(environment.UPLOAD_MAX_BYTES ?? 25_000_000);
   if (!Number.isInteger(uploadMaxBytes) || uploadMaxBytes < 1) {
     throw new Error("UPLOAD_MAX_BYTES must be a positive integer");
@@ -80,6 +90,7 @@ export function validateEnvironment(
     ...environment,
     NODE_ENV: nodeEnv,
     PORT: port,
+    FILE_STORAGE_ROOT: fileStorageRoot || undefined,
     SMTP_PORT: smtpPort,
     AUTH_FRONTEND_ORIGIN: origin,
     OPENROUTER_BASE_URL: openRouterBaseUrl,

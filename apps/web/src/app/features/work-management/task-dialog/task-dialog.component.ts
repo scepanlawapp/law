@@ -37,7 +37,7 @@ import {
 import { TaskDialogContext } from "./task-dialog.models";
 
 @Component({
-  selector: "app-task-dialog",
+  selector: "law-task-dialog",
   standalone: true,
   templateUrl: "./task-dialog.component.html",
   imports: [

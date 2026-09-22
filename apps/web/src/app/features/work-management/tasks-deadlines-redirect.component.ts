@@ -3,7 +3,7 @@ import { ActivatedRoute, Router } from "@angular/router";
 
 /** Preserves legacy /tasks-deadlines?... links by forwarding them to Team work. */
 @Component({
-  selector: "app-tasks-deadlines-redirect",
+  selector: "law-tasks-deadlines-redirect",
   standalone: true,
   template: "",
 })

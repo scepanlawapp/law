@@ -32,6 +32,12 @@ The chat pipeline (triage -> brief-extraction -> drafting) runs as BullMQ jobs o
 
 The API is available at `http://localhost:3000/api`, with health at `http://localhost:3000/api/health`. The Angular client is available at `http://localhost:4200`.
 
+## Document file storage
+
+Workspace documents stream to a local directory (`FILE_STORAGE_ROOT`, absolute path required in production; development default is `<repo>/tmp/file-storage`). Chat attachments stay under `CHAT_UPLOAD_DIR` and are a separate store.
+
+The file tree is not a backup. Restore needs PostgreSQL **and** this directory together. A single API process is assumed unless operators put `FILE_STORAGE_ROOT` on shared filesystem storage. Do not point the directory at source, `public/`, or chat upload paths.
+
 ## Workspace layout
 
 ```text

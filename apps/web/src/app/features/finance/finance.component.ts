@@ -10,7 +10,7 @@ import {
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
-  selector: "app-finance",
+  selector: "law-finance",
   standalone: true,
   templateUrl: "./finance.component.html",
   imports: [

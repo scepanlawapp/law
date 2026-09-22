@@ -42,7 +42,7 @@ function toDateInputValue(value: string | null | undefined): string {
 }
 
 @Component({
-  selector: "app-case-form",
+  selector: "law-case-form",
   standalone: true,
   templateUrl: "./case-form.component.html",
   imports: [

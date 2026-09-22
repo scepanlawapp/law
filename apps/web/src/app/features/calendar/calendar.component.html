@@ -220,14 +220,6 @@
           >
             {{ "calendar.list" | translate }}
           </button>
-          <button
-            hlmBtn
-            type="button"
-            [variant]="view() === 'board' ? 'default' : 'outline'"
-            (click)="setView('board')"
-          >
-            {{ "calendar.board" | translate }}
-          </button>
         </div>
       </div>
       @if (incomplete()) {
@@ -398,12 +390,15 @@
       } @else if (view() === "list" || view() === "board") {
         <section
           class="calendar-viewport"
-          aria-label="{{ 'calendar.workView' | translate }}"
+          aria-label="{{ 'calendar.list' | translate }}"
         >
-          <app-work-view
-            [mode]="'team'"
-            [showTeamFilters]="true"
-            [syncQueryParams]="false"
+          <law-calendar-events-list
+            [items]="filteredItems()"
+            [loading]="loading()"
+            [selectedItem]="selectedItem()"
+            (itemSelect)="selectItem($event.event, $event.item)"
+            (itemEdit)="editEvent($event.event, $event.item)"
+            (itemContextMenu)="openEventMenu($event.event, $event.item)"
           />
         </section>
       } @else {

@@ -27,7 +27,7 @@ import { dateTimeInputValue } from "../work-management-utils";
 import { NoteDialogContext } from "./note-dialog.models";
 
 @Component({
-  selector: "app-note-dialog",
+  selector: "law-note-dialog",
   standalone: true,
   templateUrl: "./note-dialog.component.html",
   imports: [

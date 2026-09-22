@@ -1,4 +1,5 @@
-import { Component } from "@angular/core";
+import { Component, DestroyRef, inject } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmEmpty,
@@ -8,9 +9,10 @@ import {
   HlmEmptyTitle,
 } from "@spartan-ng/helm/empty";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
 
 @Component({
-  selector: "app-documents",
+  selector: "law-documents",
   standalone: true,
   templateUrl: "./documents.component.html",
   imports: [
@@ -23,4 +25,14 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
     TranslatePipe,
   ],
 })
-export class DocumentsComponent {}
+export class DocumentsComponent {
+  private readonly uploadDialog = inject(DocumentUploadDialogService);
+  private readonly destroyRef = inject(DestroyRef);
+
+  openUpload(): void {
+    this.uploadDialog
+      .open()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+}

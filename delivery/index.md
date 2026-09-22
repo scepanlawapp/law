@@ -20,6 +20,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Document Upload Modal](./tracks/document_upload_modal_20260921/index.md)
+- [Document and File Storage Backend](./tracks/document_storage_backend_20260921/index.md)
 - [Settings Pages Restyle](./tracks/settings_pages_restyle_20260921/index.md)
 - [Legal Knowledge Grounding for Drafting & Answering](./tracks/legal_knowledge_grounding_20260919/index.md)
 - [PostgreSQL Legal Knowledge Retrieval](./tracks/legal_knowledge_pgvector_20260919/index.md)

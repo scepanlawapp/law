@@ -11,7 +11,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
-  selector: "app-settings",
+  selector: "law-settings",
   standalone: true,
   templateUrl: "./settings.component.html",
   styleUrl: "./settings.component.scss",

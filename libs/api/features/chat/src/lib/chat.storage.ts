@@ -3,6 +3,11 @@ import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { ChatRuntimeConfig } from "./chat.config";
 
+/**
+ * Chat attachments stay on this dedicated disk layout. Workspace document
+ * storage (`@law/file-storage`) is a separate stack and must not relocate
+ * these files.
+ */
 @Injectable()
 export class ChatStorageService {
   constructor(private readonly config: ChatRuntimeConfig) {}

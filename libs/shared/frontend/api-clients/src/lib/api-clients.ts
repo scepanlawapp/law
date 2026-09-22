@@ -1,5 +1,10 @@
 import { inject, Injectable } from "@angular/core";
-import { HttpClient, HttpParams } from "@angular/common/http";
+import {
+  HttpClient,
+  HttpContext,
+  HttpEvent,
+  HttpParams,
+} from "@angular/common/http";
 import { Observable } from "rxjs";
 import {
   AuthSessionResponse,
@@ -47,6 +52,11 @@ import {
   PaginatedResponse,
   TaskDetail,
   TaskStatus,
+  DocumentDetail,
+  DocumentListQuery,
+  DocumentListResponse,
+  DocumentUpdateRequest,
+  DocumentVersionListResponse,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -621,6 +631,14 @@ export class UserSettingsApiClient {
       { withCredentials: true },
     );
   }
+
+  meAvatar(body: FormData): Observable<{ avatarUrl: string }> {
+    return this.http.post<{ avatarUrl: string }>(
+      this.endpoint("/users/me/avatar"),
+      body,
+      { withCredentials: true },
+    );
+  }
 }
 
 @Injectable({ providedIn: "root" })
@@ -665,6 +683,7 @@ export interface CaseListQuery {
   status?: CaseStatus;
   priority?: CasePriority;
   clientId?: string;
+  clientIds?: string[];
   responsibleUserId?: string;
   caseTypeId?: string;
   practiceAreaId?: string;
@@ -1546,6 +1565,109 @@ export class ReferencesApiClient {
       this.endpoint("/references/practice-areas"),
       request,
       { withCredentials: true },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class DocumentsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(query: DocumentListQuery = {}): Observable<DocumentListResponse> {
+    return this.http.get<DocumentListResponse>(this.endpoint("/documents"), {
+      withCredentials: true,
+      params: queryParams(query),
+    });
+  }
+
+  get(documentId: string): Observable<DocumentDetail> {
+    return this.http.get<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}`),
+      { withCredentials: true },
+    );
+  }
+
+  update(
+    documentId: string,
+    request: DocumentUpdateRequest,
+  ): Observable<DocumentDetail> {
+    return this.http.patch<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}`),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  listVersions(
+    documentId: string,
+    query: PaginationQuery = {},
+  ): Observable<DocumentVersionListResponse> {
+    return this.http.get<DocumentVersionListResponse>(
+      this.endpoint(`/documents/${documentId}/versions`),
+      { withCredentials: true, params: queryParams(query) },
+    );
+  }
+
+  archive(documentId: string): Observable<DocumentDetail> {
+    return this.http.post<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}/archive`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  restore(documentId: string): Observable<DocumentDetail> {
+    return this.http.post<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}/restore`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  downloadUrl(documentId: string, versionId?: string): string {
+    if (versionId) {
+      return this.endpoint(
+        `/documents/${documentId}/versions/${versionId}/download`,
+      );
+    }
+    return this.endpoint(`/documents/${documentId}/download`);
+  }
+
+  create(
+    body: FormData,
+    idempotencyKey: string,
+    options?: { context?: HttpContext },
+  ): Observable<HttpEvent<DocumentDetail>> {
+    return this.http.post<DocumentDetail>(this.endpoint("/documents"), body, {
+      withCredentials: true,
+      observe: "events",
+      reportProgress: true,
+      headers: { "Idempotency-Key": idempotencyKey },
+      context: options?.context,
+    });
+  }
+
+  addVersion(
+    documentId: string,
+    body: FormData,
+    idempotencyKey: string,
+    options?: { context?: HttpContext },
+  ): Observable<HttpEvent<DocumentDetail>> {
+    return this.http.post<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}/versions`),
+      body,
+      {
+        withCredentials: true,
+        observe: "events",
+        reportProgress: true,
+        headers: { "Idempotency-Key": idempotencyKey },
+        context: options?.context,
+      },
     );
   }
 }

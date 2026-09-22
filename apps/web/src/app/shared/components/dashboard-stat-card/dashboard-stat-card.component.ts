@@ -18,7 +18,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
  * plain counts and for an "unavailable" placeholder (no real data source yet).
  */
 @Component({
-  selector: "app-dashboard-stat-card",
+  selector: "law-dashboard-stat-card",
   standalone: true,
   imports: [NgIcon, RouterLink, HlmSpinner, TranslatePipe],
   templateUrl: "./dashboard-stat-card.component.html",

@@ -3,7 +3,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { WorkViewComponent } from "../work-view/work-view.component";
 
 @Component({
-  selector: "app-team-work",
+  selector: "law-team-work",
   standalone: true,
   imports: [WorkViewComponent, TranslatePipe],
   template: `
@@ -12,11 +12,7 @@ import { WorkViewComponent } from "../work-view/work-view.component";
         {{ "nav.teamWork" | translate }}
       </h1>
 
-      <app-work-view
-        class="block min-h-0 min-w-0 flex-1"
-        mode="team"
-        [showTeamFilters]="true"
-      />
+      <law-work-view class="block min-h-0 min-w-0 flex-1" mode="team" />
     </div>
   `,
 })

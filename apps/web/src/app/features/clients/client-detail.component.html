@@ -503,7 +503,7 @@
           </a>
         </div>
         @if (casesOpened()) {
-          <app-cases-list [clientId]="item.id" [showHeading]="false" />
+          <law-cases-list [clientId]="item.id" [showHeading]="false" />
         }
       </section>
 
@@ -514,6 +514,9 @@
         <p class="text-muted-foreground">
           {{ "common.notAvailableYet" | translate }}
         </p>
+        <button hlmBtn type="button" (click)="openDocumentsUpload()">
+          {{ "documents.upload.action" | translate }}
+        </button>
       </section>
       <section hlmTabsContent="activities" class="space-y-3 pt-6">
         <h2 class="text-xl font-semibold">

@@ -8,7 +8,7 @@ import {
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
-  selector: "app-reports",
+  selector: "law-reports",
   standalone: true,
   templateUrl: "./reports.component.html",
   imports: [
