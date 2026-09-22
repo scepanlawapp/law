@@ -6,6 +6,14 @@ export interface HlmDropdownMenuConfig {
 	side: MenuSide;
 }
 
+export interface HlmDropdownMenuTriggerContext {
+	triggerWidth(): number;
+}
+
+export const HLM_DROPDOWN_MENU_TRIGGER = new InjectionToken<HlmDropdownMenuTriggerContext>(
+	'HlmDropdownMenuTrigger',
+);
+
 const defaultConfig: HlmDropdownMenuConfig = {
 	align: 'start',
 	side: 'bottom',

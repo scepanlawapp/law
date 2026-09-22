@@ -6,7 +6,7 @@
       <div
         class="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3"
       >
-        <div class="flex min-w-48 flex-col gap-1">
+        <div class="flex w-48 max-w-full flex-col gap-1">
           <label class="text-sm font-medium" for="work-view-search">
             {{ "work.filters.search" | translate }}
           </label>
@@ -19,7 +19,7 @@
         </div>
 
         @if (!fixedUserId()) {
-          <div class="flex min-w-56 flex-col gap-1">
+          <div class="flex w-56 max-w-full flex-col gap-1">
             <label class="text-sm font-medium" for="work-view-people">
               {{ "work.filters.people" | translate }}
             </label>
@@ -29,21 +29,18 @@
               (valueChange)="setPeopleIds($event ?? [])"
               [itemToString]="userItemToString"
             >
-              <hlm-combobox-chips>
-                <div *hlmComboboxValues="let values">
-                  @for (id of values; track id) {
-                    <hlm-combobox-chip [value]="id">
-                      {{ userItemToString(id) }}
-                    </hlm-combobox-chip>
+              <hlm-combobox-trigger buttonId="work-view-people" class="w-full">
+                <span data-slot="combobox-value" class="truncate">
+                  @if (selectedPeopleLabel(); as label) {
+                    {{ label }}
+                  } @else {
+                    <span class="text-muted-foreground">
+                      {{ "work.filters.peoplePlaceholder" | translate }}
+                    </span>
                   }
-                </div>
-                <input
-                  hlmComboboxChipInput
-                  id="work-view-people"
-                  [placeholder]="'work.filters.peoplePlaceholder' | translate"
-                />
-              </hlm-combobox-chips>
-              <hlm-combobox-content *hlmComboboxPortal>
+                </span>
+              </hlm-combobox-trigger>
+              <hlm-combobox-content *hlmComboboxPortal width="content">
                 <hlm-combobox-empty>
                   {{ "work.filters.noResults" | translate }}
                 </hlm-combobox-empty>
@@ -59,7 +56,7 @@
           </div>
         }
 
-        <div class="flex min-w-56 flex-col gap-1">
+        <div class="flex w-56 max-w-full flex-col gap-1">
           <label class="text-sm font-medium" for="work-view-statuses">
             {{ "work.filters.statuses" | translate }}
           </label>
@@ -80,7 +77,7 @@
                 }
               </span>
             </hlm-combobox-trigger>
-            <hlm-combobox-content *hlmComboboxPortal>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
               <hlm-combobox-empty>
                 {{ "work.filters.noResults" | translate }}
               </hlm-combobox-empty>
@@ -96,7 +93,7 @@
         </div>
 
         @if (!fixedCaseId()) {
-          <div class="flex min-w-56 flex-col gap-1">
+          <div class="flex w-56 max-w-full flex-col gap-1">
             <label class="text-sm font-medium" for="work-view-case">
               {{ "work.filters.case" | translate }}
             </label>
@@ -108,7 +105,7 @@
               <hlm-select-trigger id="work-view-case" class="w-full">
                 <hlm-select-value />
               </hlm-select-trigger>
-              <hlm-select-content *hlmSelectPortal>
+              <hlm-select-content *hlmSelectPortal width="content">
                 <hlm-select-group>
                   <hlm-select-item value="">
                     {{ "work.filters.allCases" | translate }}

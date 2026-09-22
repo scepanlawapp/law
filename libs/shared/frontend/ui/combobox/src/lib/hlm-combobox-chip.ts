@@ -14,7 +14,7 @@ import { HlmComboboxChipRemove } from './hlm-combobox-chip-remove';
 	hostDirectives: [{ directive: BrnComboboxChip, inputs: ['value'] }],
 	host: { 'data-slot': 'combobox-chip' },
 	template: `
-		<ng-content />
+		<span class="truncate"><ng-content /></span>
 
 		@if (showRemove()) {
 			<button hlmComboboxChipRemove>
@@ -29,7 +29,7 @@ export class HlmComboboxChip {
 	constructor() {
 		classes(
 			() =>
-				'bg-muted text-foreground flex h-[calc(--spacing(5.25))] w-fit items-center justify-center gap-1 rounded-sm px-1.5 text-xs font-medium whitespace-nowrap has-data-[slot=combobox-chip-remove]:pe-0 has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50',
+				'bg-muted text-foreground flex h-[calc(--spacing(5.25))] w-fit min-w-0 max-w-full items-center justify-center gap-1 overflow-hidden rounded-sm px-1.5 text-xs font-medium whitespace-nowrap has-data-[slot=combobox-chip-remove]:pe-0 has-disabled:pointer-events-none has-disabled:cursor-not-allowed has-disabled:opacity-50 [&_[data-slot=combobox-chip-remove]]:shrink-0',
 		);
 	}
 }

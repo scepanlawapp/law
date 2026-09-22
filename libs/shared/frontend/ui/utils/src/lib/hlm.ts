@@ -12,6 +12,8 @@ import {
 import { type ClassValue, clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 
+export type HlmOverlayWidth = 'trigger' | 'content';
+
 export function hlm(...inputs: ClassValue[]) {
 	return twMerge(clsx(inputs));
 }

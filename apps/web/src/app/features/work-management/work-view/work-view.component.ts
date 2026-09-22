@@ -23,9 +23,6 @@ import {
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
-  HlmComboboxChip,
-  HlmComboboxChipInput,
-  HlmComboboxChips,
   HlmComboboxContent,
   HlmComboboxEmpty,
   HlmComboboxItem,
@@ -33,7 +30,6 @@ import {
   HlmComboboxMultiple,
   HlmComboboxPortal,
   HlmComboboxTrigger,
-  HlmComboboxValues,
 } from "@spartan-ng/helm/combobox";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -109,9 +105,6 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     ReactiveFormsModule,
     BottomReachedDirective,
     HlmButton,
-    HlmComboboxChip,
-    HlmComboboxChipInput,
-    HlmComboboxChips,
     HlmComboboxContent,
     HlmComboboxEmpty,
     HlmComboboxItem,
@@ -119,7 +112,6 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     HlmComboboxMultiple,
     HlmComboboxPortal,
     HlmComboboxTrigger,
-    HlmComboboxValues,
     HlmInput,
     HlmSelectImports,
     HlmSpinner,
@@ -204,6 +196,9 @@ export class WorkViewComponent {
     value
       ? (this.users().find((user) => user.id === value)?.name ?? value)
       : "";
+  readonly selectedPeopleLabel = computed(() =>
+    this.peopleIds().map(this.userItemToString).join(", "),
+  );
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("work.filters.allCases");
     const item = this.cases().find((option) => option.id === value);
