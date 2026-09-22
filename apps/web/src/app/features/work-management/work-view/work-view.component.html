@@ -18,47 +18,6 @@
           />
         </div>
 
-        <div class="flex min-w-56 flex-col gap-1">
-          <label class="text-sm font-medium" for="work-view-record-types">
-            {{ "work.filters.recordTypes" | translate }}
-          </label>
-          <div
-            hlmComboboxMultiple
-            [value]="recordTypes()"
-            (valueChange)="setRecordTypes($event ?? [])"
-            [itemToString]="recordTypeItemToString"
-          >
-            <hlm-combobox-chips>
-              <div *hlmComboboxValues="let values">
-                @for (value of values; track value) {
-                  <hlm-combobox-chip [value]="value">
-                    {{ recordTypeItemToString(value) }}
-                  </hlm-combobox-chip>
-                }
-              </div>
-              <input
-                hlmComboboxChipInput
-                id="work-view-record-types"
-                [placeholder]="
-                  'work.filters.recordTypesPlaceholder' | translate
-                "
-              />
-            </hlm-combobox-chips>
-            <hlm-combobox-content *hlmComboboxPortal>
-              <hlm-combobox-empty>
-                {{ "work.filters.noResults" | translate }}
-              </hlm-combobox-empty>
-              <div hlmComboboxList>
-                @for (option of recordTypeOptions; track option.value) {
-                  <hlm-combobox-item [value]="option.value">
-                    {{ option.label | translate }}
-                  </hlm-combobox-item>
-                }
-              </div>
-            </hlm-combobox-content>
-          </div>
-        </div>
-
         @if (!fixedUserId()) {
           <div class="flex min-w-56 flex-col gap-1">
             <label class="text-sm font-medium" for="work-view-people">
@@ -110,20 +69,17 @@
             (valueChange)="setStatuses($event ?? [])"
             [itemToString]="statusItemToString"
           >
-            <hlm-combobox-chips>
-              <div *hlmComboboxValues="let values">
-                @for (value of values; track value) {
-                  <hlm-combobox-chip [value]="value">
-                    {{ statusItemToString(value) }}
-                  </hlm-combobox-chip>
+            <hlm-combobox-trigger buttonId="work-view-statuses" class="w-full">
+              <span data-slot="combobox-value" class="truncate">
+                @if (selectedStatusesLabel(); as label) {
+                  {{ label }}
+                } @else {
+                  <span class="text-muted-foreground">
+                    {{ "work.filters.statusesPlaceholder" | translate }}
+                  </span>
                 }
-              </div>
-              <input
-                hlmComboboxChipInput
-                id="work-view-statuses"
-                [placeholder]="'work.filters.statusesPlaceholder' | translate"
-              />
-            </hlm-combobox-chips>
+              </span>
+            </hlm-combobox-trigger>
             <hlm-combobox-content *hlmComboboxPortal>
               <hlm-combobox-empty>
                 {{ "work.filters.noResults" | translate }}
@@ -168,73 +124,29 @@
           </div>
         }
 
-        <div class="flex min-w-40 flex-col gap-1">
-          <label class="text-sm font-medium" for="work-view-date-preset">
-            {{ "work.filters.dateRange" | translate }}
-          </label>
-          <hlm-select
-            [value]="datePreset()"
-            (valueChange)="setDatePreset($event ?? 'all')"
-            [itemToString]="datePresetItemToString"
-          >
-            <hlm-select-trigger id="work-view-date-preset" class="w-full">
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
-                @for (option of datePresetOptions; track option.value) {
-                  <hlm-select-item [value]="option.value">
-                    {{ option.label | translate }}
-                  </hlm-select-item>
-                }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
-        </div>
-        <div class="flex items-center gap-2">
-          <hlm-select
-            [value]="statusMode()"
-            (valueChange)="setStatusMode($event ?? 'open')"
-            [itemToString]="statusModeItemToString"
-          >
-            <hlm-select-trigger class="w-36">
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
-                @for (option of statusModeOptions; track option.value) {
-                  <hlm-select-item [value]="option.value">
-                    {{ option.label | translate }}
-                  </hlm-select-item>
-                }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
-        </div>
-      </div>
-
-      <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
-        <div class="flex items-center gap-2">
-          <button
-            hlmBtn
-            type="button"
-            [variant]="presentation() === 'board' ? 'default' : 'outline'"
-            [hlmTooltip]="'work.view.showBoard' | translate"
-            [attr.aria-label]="'work.view.showBoard' | translate"
-            (click)="setPresentation('board')"
-          >
-            <ng-icon name="lucideKanban" />
-          </button>
-          <button
-            hlmBtn
-            type="button"
-            [variant]="presentation() === 'list' ? 'default' : 'outline'"
-            [hlmTooltip]="'work.view.showList' | translate"
-            [attr.aria-label]="'work.view.showList' | translate"
-            (click)="setPresentation('list')"
-          >
-            <ng-icon name="lucideList" />
-          </button>
+        <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
+          <div class="flex items-center gap-2">
+            <button
+              hlmBtn
+              type="button"
+              [variant]="presentation() === 'board' ? 'default' : 'outline'"
+              [hlmTooltip]="'work.view.showBoard' | translate"
+              [attr.aria-label]="'work.view.showBoard' | translate"
+              (click)="setPresentation('board')"
+            >
+              <ng-icon name="lucideKanban" />
+            </button>
+            <button
+              hlmBtn
+              type="button"
+              [variant]="presentation() === 'list' ? 'default' : 'outline'"
+              [hlmTooltip]="'work.view.showList' | translate"
+              [attr.aria-label]="'work.view.showList' | translate"
+              (click)="setPresentation('list')"
+            >
+              <ng-icon name="lucideList" />
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -265,11 +177,7 @@
               >
                 <span class="text-sm font-medium">{{ item.title }}</span>
                 <span class="text-sm text-muted-foreground">
-                  {{
-                    "work.recordType." + item.sourceType.toLowerCase()
-                      | translate
-                  }}
-                  · {{ formatDue(item) }}
+                  {{ formatDue(item) }}
                   @if (item.overdue) {
                     ·
                     <span class="text-destructive">
@@ -382,11 +290,7 @@
                     >
                       <span class="text-sm font-medium">{{ item.title }}</span>
                       <span class="text-sm text-muted-foreground">
-                        {{
-                          "work.recordType." + item.sourceType.toLowerCase()
-                            | translate
-                        }}
-                        · {{ formatDue(item) }}
+                        {{ formatDue(item) }}
                       </span>
                     </button>
                   </div>
@@ -406,7 +310,7 @@
     }
   </div>
 
-  @if (showSidePanel() && editPanel(); as panel) {
+  @if (editPanel(); as panel) {
     <div
       class="flex h-full w-[26rem] min-w-[22rem] shrink-0 flex-col overflow-hidden"
     >

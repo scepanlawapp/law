@@ -20,6 +20,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Work Item Side Panel](./tracks/work_item_side_panel_20260922/index.md)
+- [Project Name Consistency](./tracks/project_name_consistency_20260922/index.md)
 - [Document Upload Modal](./tracks/document_upload_modal_20260921/index.md)
 - [Document and File Storage Backend](./tracks/document_storage_backend_20260921/index.md)
 - [Settings Pages Restyle](./tracks/settings_pages_restyle_20260921/index.md)
