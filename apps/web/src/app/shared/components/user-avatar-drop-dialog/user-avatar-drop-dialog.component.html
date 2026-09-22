@@ -61,6 +61,16 @@
   <div class="flex justify-end gap-2">
     <button
       hlmBtn
+      variant="destructive"
+      type="button"
+      [disabled]="cropping()"
+      (click)="removeProfileImage()"
+    >
+      {{ "settings.avatarCrop.remove" | translate }}
+    </button>
+
+    <button
+      hlmBtn
       variant="outline"
       type="button"
       [disabled]="cropping()"

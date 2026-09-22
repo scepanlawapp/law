@@ -9,6 +9,7 @@ import {
 } from "@spartan-ng/helm/dialog";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideCircleAlert, lucideTriangleAlert } from "@ng-icons/lucide";
+import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import type { ConfirmDialogData } from "./confirm-dialog.service";
 
 @Component({
@@ -21,6 +22,7 @@ import type { ConfirmDialogData } from "./confirm-dialog.service";
     HlmDialogHeader,
     HlmDialogTitle,
     NgIcon,
+    TranslatePipe,
   ],
   providers: [provideIcons({ lucideCircleAlert, lucideTriangleAlert })],
   templateUrl: "./confirm-dialog.component.html",

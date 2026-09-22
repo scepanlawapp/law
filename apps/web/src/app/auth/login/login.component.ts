@@ -66,25 +66,23 @@ export class LoginComponent {
 
   readonly features: FeatureItem[] = [
     {
-      title: "AI Assistant",
-      description:
-        "Get instant answers, analyze documents, and get legal insights.",
+      title: "auth.feature.aiAssistant",
+      description: "auth.feature.aiAssistantDescription",
       icon: "lucideBot",
     },
     {
-      title: "Case Management",
-      description: "Keep track of your cases, deadlines, and court hearings.",
+      title: "auth.feature.caseManagement",
+      description: "auth.feature.caseManagementDescription",
       icon: "lucideFolderOpen",
     },
     {
-      title: "Document Intelligence",
-      description: "Extract key information and analyze documents with AI.",
+      title: "auth.feature.documentIntelligence",
+      description: "auth.feature.documentIntelligenceDescription",
       icon: "lucideFileText",
     },
     {
-      title: "Stay Organized",
-      description:
-        "Manage tasks, calendar and never miss an important deadline.",
+      title: "auth.feature.stayOrganized",
+      description: "auth.feature.stayOrganizedDescription",
       icon: "lucideCalendar",
     },
   ];
@@ -111,7 +109,7 @@ export class LoginComponent {
   login(): void {
     if (this.loginForm.invalid) {
       this.loginForm.markAllAsTouched();
-      this.error = "Email and password are required.";
+      this.error = this.localization.translate("auth.loginFormRequired");
       return;
     }
 
@@ -133,7 +131,7 @@ export class LoginComponent {
               this.localization.translate("auth.invalidCredentials"),
             );
           } else {
-            this.error = "Unable to sign in with those credentials.";
+            this.error = this.localization.translate("auth.loginFailed");
           }
           this.submitting = false;
         },

@@ -84,7 +84,7 @@
   <!-- Row 2: four equal summary cards -->
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
     <law-dashboard-stat-card
-      title="dashboard.statActiveCases"
+      [title]="'dashboard.statActiveCases' | translate"
       icon="lucideFolderOpen"
       [value]="store.activeCasesCount() ?? undefined"
       [loading]="store.statsLoading()"
@@ -93,7 +93,7 @@
       [queryParams]="{ caseStatus: 'ACTIVE' }"
     />
     <law-dashboard-stat-card
-      title="dashboard.statUpcomingHearings"
+      [title]="'dashboard.statUpcomingHearings' | translate"
       icon="lucideCalendar"
       [value]="store.upcomingHearingsCount() ?? undefined"
       [loading]="store.statsLoading()"
@@ -101,7 +101,7 @@
       routerLink="/calendar"
     />
     <law-dashboard-stat-card
-      title="dashboard.statPendingTasks"
+      [title]="'dashboard.statPendingTasks' | translate"
       icon="lucideSquareCheck"
       [value]="store.pendingTasksCount() ?? undefined"
       [loading]="store.statsLoading()"
@@ -109,7 +109,7 @@
       routerLink="/work/my"
     />
     <law-dashboard-stat-card
-      title="dashboard.statTotalDocuments"
+      [title]="'dashboard.statTotalDocuments' | translate"
       icon="lucideFileText"
       [unavailable]="true"
     />

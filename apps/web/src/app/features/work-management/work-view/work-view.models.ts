@@ -129,7 +129,7 @@ export function mergePage<T extends { id: string }>(
   return merged;
 }
 
-export type DragTransitionAction =
+export type StatusTransitionAction =
   | "task-set-todo"
   | "task-set-in-progress"
   | "task-complete"
@@ -138,18 +138,14 @@ export type DragTransitionAction =
   | "deadline-reopen"
   | "event-complete";
 
-export interface DragTransition {
-  action: DragTransitionAction;
+export interface StatusTransition {
+  action: StatusTransitionAction;
 }
 
-/**
- * Only returns a transition when the backend actually exposes it. Cancelling and
- * event-reopen are intentionally never returned since no drag target covers them.
- */
-export function allowedDrop(
+export function statusTransition(
   item: WorkItem,
   target: BoardColumnKey,
-): DragTransition | null {
+): StatusTransition | null {
   if (item.presentationStatus === target) return null;
   if (target === "CANCELLED") return null;
   if (item.presentationStatus === "CANCELLED") return null;

@@ -1,5 +1,5 @@
 <main
-  aria-label="Sign in form"
+  [attr.aria-label]="'auth.signInForm' | translate"
   class="flex h-full min-h-0 min-w-0 w-full"
 >
   <div
@@ -16,7 +16,7 @@
       <div class="mx-auto w-full min-w-0 max-w-[360px]">
         <img
           src="/logo.png"
-          alt="Legal AI"
+          [attr.alt]="'brand.legalAi' | translate"
           class="mx-auto block h-auto w-[60%]"
         />
 
@@ -108,9 +108,7 @@
             [disabled]="submitting"
           >
             <span>
-              {{
-                (submitting ? "auth.signingIn" : "auth.signIn") | translate
-              }}
+              {{ (submitting ? "auth.signingIn" : "auth.signIn") | translate }}
             </span>
             <ng-icon name="lucideArrowRight" aria-hidden="true" />
           </button>
