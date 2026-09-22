@@ -9,13 +9,14 @@
       </label>
       <div class="flex items-center gap-2">
         <hlm-select
+          class="min-w-0 flex-1"
           formControlName="clientId"
           [itemToString]="clientItemToString"
         >
           <hlm-select-trigger id="clientId" class="w-full">
             <hlm-select-value />
           </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
+          <hlm-select-content *hlmSelectPortal width="content">
             <hlm-select-group>
               @for (client of clients(); track client.id) {
                 <hlm-select-item [value]="client.id">
@@ -45,13 +46,14 @@
         {{ "cases.responsible" | translate }}
       </label>
       <hlm-select
+        class="w-full"
         formControlName="responsibleUserId"
         [itemToString]="responsibleUserItemToString"
       >
         <hlm-select-trigger id="responsibleUserId" class="w-full">
           <hlm-select-value />
         </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
+        <hlm-select-content *hlmSelectPortal width="content">
           <hlm-select-group>
             @for (user of users(); track user.id) {
               <hlm-select-item [value]="user.id">
@@ -64,11 +66,15 @@
     </div>
     <div hlmField>
       <label hlmFieldLabel for="status">{{ "cases.status" | translate }}</label>
-      <hlm-select formControlName="status" [itemToString]="statusItemToString">
+      <hlm-select
+        class="w-full"
+        formControlName="status"
+        [itemToString]="statusItemToString"
+      >
         <hlm-select-trigger id="status" class="w-full">
           <hlm-select-value />
         </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
+        <hlm-select-content *hlmSelectPortal width="content">
           <hlm-select-group>
             @for (option of statusOptions; track option.value) {
               <hlm-select-item [value]="option.value">
@@ -84,13 +90,14 @@
         {{ "cases.priority" | translate }}
       </label>
       <hlm-select
+        class="w-full"
         formControlName="priority"
         [itemToString]="priorityItemToString"
       >
         <hlm-select-trigger id="priority" class="w-full">
           <hlm-select-value />
         </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
+        <hlm-select-content *hlmSelectPortal width="content">
           <hlm-select-group>
             @for (option of priorityOptions; track option.value) {
               <hlm-select-item [value]="option.value">
@@ -107,14 +114,14 @@
       </label>
       <div class="flex items-center gap-2">
         <hlm-select
-          class="w-full"
+          class="min-w-0 flex-1"
           formControlName="caseTypeId"
           [itemToString]="caseTypeItemToString"
         >
           <hlm-select-trigger id="caseTypeId" class="w-full">
             <hlm-select-value />
           </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
+          <hlm-select-content *hlmSelectPortal width="content">
             <hlm-select-group>
               <hlm-select-item value=""></hlm-select-item>
               @for (type of types(); track type.id) {
@@ -125,13 +132,7 @@
             </hlm-select-group>
           </hlm-select-content>
         </hlm-select>
-        <button
-          hlmBtn
-          variant="outline"
-          size="sm"
-          type="button"
-          (click)="openCaseTypeDialog()"
-        >
+        <button hlmBtn size="sm" type="button" (click)="openCaseTypeDialog()">
           {{ "common.create" | translate }}
         </button>
       </div>
@@ -142,14 +143,14 @@
       </label>
       <div class="flex items-center gap-2">
         <hlm-select
-          class="w-full"
+          class="min-w-0 flex-1"
           formControlName="practiceAreaId"
           [itemToString]="practiceAreaItemToString"
         >
           <hlm-select-trigger id="practiceAreaId" class="w-full">
             <hlm-select-value />
           </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
+          <hlm-select-content *hlmSelectPortal width="content">
             <hlm-select-group>
               <hlm-select-item value=""></hlm-select-item>
               @for (area of areas(); track area.id) {
@@ -162,7 +163,6 @@
         </hlm-select>
         <button
           hlmBtn
-          variant="outline"
           size="sm"
           type="button"
           (click)="openPracticeAreaDialog()"

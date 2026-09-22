@@ -101,6 +101,12 @@ export class EventDialogComponent {
         endsAt: `${this.context.date}T${String((this.context.hour ?? 9) + 1).padStart(2, "0")}:00`,
       });
     }
+
+    this.form.controls.startsAt.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((startsAt) => {
+        this.form.controls.endsAt.setValue(startsAt);
+      });
   }
 
   submit(): void {

@@ -3,39 +3,83 @@
     class="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
   >
     <div class="filters flex">
-      <div
-        class="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3"
-      >
-        <div class="flex w-48 max-w-full flex-col gap-1">
-          <label class="text-sm font-medium" for="work-view-search">
-            {{ "work.filters.search" | translate }}
-          </label>
-          <input
-            hlmInput
-            id="work-view-search"
-            [formControl]="search"
-            [placeholder]="'work.filters.searchPlaceholder' | translate"
-          />
-        </div>
+      <div class="flex w-full justify-between gap-3">
+        <div
+          class="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3"
+        >
+          <div class="flex w-48 max-w-full flex-col gap-1">
+            <label class="text-sm font-medium" for="work-view-search">
+              {{ "work.filters.search" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="work-view-search"
+              [formControl]="search"
+              [placeholder]="'work.filters.searchPlaceholder' | translate"
+            />
+          </div>
 
-        @if (!fixedUserId()) {
+          @if (!fixedUserId()) {
+            <div class="flex w-56 max-w-full flex-col gap-1">
+              <label class="text-sm font-medium" for="work-view-people">
+                {{ "work.filters.people" | translate }}
+              </label>
+              <div
+                hlmComboboxMultiple
+                [value]="peopleIds()"
+                (valueChange)="setPeopleIds($event ?? [])"
+                [itemToString]="userItemToString"
+              >
+                <hlm-combobox-trigger
+                  buttonId="work-view-people"
+                  class="w-full"
+                >
+                  <span data-slot="combobox-value" class="truncate">
+                    @if (selectedPeopleLabel(); as label) {
+                      {{ label }}
+                    } @else {
+                      <span class="text-muted-foreground">
+                        {{ "work.filters.peoplePlaceholder" | translate }}
+                      </span>
+                    }
+                  </span>
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-empty>
+                    {{ "work.filters.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    @for (user of users(); track user.id) {
+                      <hlm-combobox-item [value]="user.id">
+                        {{ user.name }}
+                      </hlm-combobox-item>
+                    }
+                  </div>
+                </hlm-combobox-content>
+              </div>
+            </div>
+          }
+
           <div class="flex w-56 max-w-full flex-col gap-1">
-            <label class="text-sm font-medium" for="work-view-people">
-              {{ "work.filters.people" | translate }}
+            <label class="text-sm font-medium" for="work-view-statuses">
+              {{ "work.filters.statuses" | translate }}
             </label>
             <div
               hlmComboboxMultiple
-              [value]="peopleIds()"
-              (valueChange)="setPeopleIds($event ?? [])"
-              [itemToString]="userItemToString"
+              [value]="statuses()"
+              (valueChange)="setStatuses($event ?? [])"
+              [itemToString]="statusItemToString"
             >
-              <hlm-combobox-trigger buttonId="work-view-people" class="w-full">
+              <hlm-combobox-trigger
+                buttonId="work-view-statuses"
+                class="w-full"
+              >
                 <span data-slot="combobox-value" class="truncate">
-                  @if (selectedPeopleLabel(); as label) {
+                  @if (selectedStatusesLabel(); as label) {
                     {{ label }}
                   } @else {
                     <span class="text-muted-foreground">
-                      {{ "work.filters.peoplePlaceholder" | translate }}
+                      {{ "work.filters.statusesPlaceholder" | translate }}
                     </span>
                   }
                 </span>
@@ -45,106 +89,76 @@
                   {{ "work.filters.noResults" | translate }}
                 </hlm-combobox-empty>
                 <div hlmComboboxList>
-                  @for (user of users(); track user.id) {
-                    <hlm-combobox-item [value]="user.id">
-                      {{ user.name }}
+                  @for (option of statusOptions; track option.value) {
+                    <hlm-combobox-item [value]="option.value">
+                      {{ option.label | translate }}
                     </hlm-combobox-item>
                   }
                 </div>
               </hlm-combobox-content>
             </div>
           </div>
-        }
 
-        <div class="flex w-56 max-w-full flex-col gap-1">
-          <label class="text-sm font-medium" for="work-view-statuses">
-            {{ "work.filters.statuses" | translate }}
-          </label>
-          <div
-            hlmComboboxMultiple
-            [value]="statuses()"
-            (valueChange)="setStatuses($event ?? [])"
-            [itemToString]="statusItemToString"
-          >
-            <hlm-combobox-trigger buttonId="work-view-statuses" class="w-full">
-              <span data-slot="combobox-value" class="truncate">
-                @if (selectedStatusesLabel(); as label) {
-                  {{ label }}
-                } @else {
-                  <span class="text-muted-foreground">
-                    {{ "work.filters.statusesPlaceholder" | translate }}
-                  </span>
-                }
-              </span>
-            </hlm-combobox-trigger>
-            <hlm-combobox-content *hlmComboboxPortal width="content">
-              <hlm-combobox-empty>
-                {{ "work.filters.noResults" | translate }}
-              </hlm-combobox-empty>
-              <div hlmComboboxList>
-                @for (option of statusOptions; track option.value) {
-                  <hlm-combobox-item [value]="option.value">
-                    {{ option.label | translate }}
-                  </hlm-combobox-item>
-                }
-              </div>
-            </hlm-combobox-content>
-          </div>
-        </div>
-
-        @if (!fixedCaseId()) {
-          <div class="flex w-56 max-w-full flex-col gap-1">
-            <label class="text-sm font-medium" for="work-view-case">
-              {{ "work.filters.case" | translate }}
-            </label>
-            <hlm-select
-              [value]="caseFilter()"
-              (valueChange)="setCaseFilter($event ?? '')"
-              [itemToString]="caseItemToString"
-            >
-              <hlm-select-trigger id="work-view-case" class="w-full">
-                <hlm-select-value />
-              </hlm-select-trigger>
-              <hlm-select-content *hlmSelectPortal width="content">
-                <hlm-select-group>
-                  <hlm-select-item value="">
-                    {{ "work.filters.allCases" | translate }}
-                  </hlm-select-item>
-                  @for (item of cases(); track item.id) {
-                    <hlm-select-item [value]="item.id">
-                      {{ item.caseNumber }} — {{ item.name }}
+          @if (!fixedCaseId()) {
+            <div class="flex w-56 max-w-full flex-col gap-1">
+              <label class="text-sm font-medium" for="work-view-case">
+                {{ "work.filters.case" | translate }}
+              </label>
+              <hlm-select
+                [value]="caseFilter()"
+                (valueChange)="setCaseFilter($event ?? '')"
+                [itemToString]="caseItemToString"
+              >
+                <hlm-select-trigger id="work-view-case" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal width="content">
+                  <hlm-select-group>
+                    <hlm-select-item value="">
+                      {{ "work.filters.allCases" | translate }}
                     </hlm-select-item>
-                  }
-                </hlm-select-group>
-              </hlm-select-content>
-            </hlm-select>
-          </div>
-        }
+                    @for (item of cases(); track item.id) {
+                      <hlm-select-item [value]="item.id">
+                        {{ item.caseNumber }} — {{ item.name }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+          }
 
-        <div class="flex shrink-0 flex-wrap items-center justify-between gap-3">
-          <div class="flex items-center gap-2">
-            <button
-              hlmBtn
-              type="button"
-              [variant]="presentation() === 'board' ? 'default' : 'outline'"
-              [hlmTooltip]="'work.view.showBoard' | translate"
-              [attr.aria-label]="'work.view.showBoard' | translate"
-              (click)="setPresentation('board')"
-            >
-              <ng-icon name="lucideKanban" />
-            </button>
-            <button
-              hlmBtn
-              type="button"
-              [variant]="presentation() === 'list' ? 'default' : 'outline'"
-              [hlmTooltip]="'work.view.showList' | translate"
-              [attr.aria-label]="'work.view.showList' | translate"
-              (click)="setPresentation('list')"
-            >
-              <ng-icon name="lucideList" />
-            </button>
+          <div
+            class="flex shrink-0 flex-wrap items-center justify-between gap-3"
+          >
+            <div class="flex items-center gap-2">
+              <button
+                hlmBtn
+                type="button"
+                [variant]="presentation() === 'board' ? 'default' : 'outline'"
+                [hlmTooltip]="'work.view.showBoard' | translate"
+                [attr.aria-label]="'work.view.showBoard' | translate"
+                (click)="setPresentation('board')"
+              >
+                <ng-icon name="lucideKanban" />
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                [variant]="presentation() === 'list' ? 'default' : 'outline'"
+                [hlmTooltip]="'work.view.showList' | translate"
+                [attr.aria-label]="'work.view.showList' | translate"
+                (click)="setPresentation('list')"
+              >
+                <ng-icon name="lucideList" />
+              </button>
+            </div>
           </div>
         </div>
+        <button hlmBtn type="button" class="self-end" (click)="createTask()">
+          <ng-icon name="lucidePlus" aria-hidden="true" />
+          {{ "work.tasks.create" | translate }}
+        </button>
       </div>
     </div>
 

@@ -24,14 +24,6 @@
       >
         {{ miniMonthLabel() }}
       </button>
-      <button
-        hlmBtn
-        type="button"
-        variant="outline"
-        (click)="openCreateEvent(selectedDay() ?? today)"
-      >
-        {{ "calendar.create" | translate }}
-      </button>
       <button hlmBtn type="button" variant="outline" (click)="goToday()">
         {{ "calendar.today" | translate }}
       </button>
@@ -52,6 +44,14 @@
         aria-label="{{ 'calendar.next' | translate }}"
       >
         ›
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        size="lg"
+        (click)="openCreateEvent(selectedDay() ?? today)"
+      >
+        {{ "calendar.create" | translate }}
       </button>
     </div>
   </header>
