@@ -8,19 +8,18 @@
       [attr.aria-label]="'brand.legalAi' | translate"
     >
       <div>
-        <img src="/logo.png" [attr.alt]="'brand.legalAi' | translate" class="w-[100px]" />
+        <img
+          src="/logo.png"
+          [attr.alt]="'brand.legalAi' | translate"
+          class="w-[100px]"
+        />
       </div>
     </a>
   </header>
-  <nav class="flex flex-col gap-1 px-3" [attr.aria-label]="'nav.mainNavigation' | translate">
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/assistant"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideBot" aria-hidden="true" />
-      <span>{{ "nav.aiAssistant" | translate }}</span>
-    </a>
+  <nav
+    class="flex flex-col gap-1 px-3"
+    [attr.aria-label]="'nav.mainNavigation' | translate"
+  >
     <a
       class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
       routerLink="/dashboard"
@@ -29,9 +28,20 @@
       <ng-icon name="lucideHome" />
       <span>{{ "nav.dashboard" | translate }}</span>
     </a>
+    <a
+      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
+      routerLink="/assistant"
+      routerLinkActive="premium-primary"
+    >
+      <ng-icon name="lucideBot" aria-hidden="true" />
+      <span>{{ "nav.aiAssistant" | translate }}</span>
+    </a>
   </nav>
 
-  <section class="flex flex-col gap-1 px-3" [attr.aria-label]="'nav.workspace' | translate">
+  <section
+    class="flex flex-col gap-1 px-3"
+    [attr.aria-label]="'nav.workspace' | translate"
+  >
     <p
       class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
     >
@@ -63,7 +73,10 @@
     </a>
   </section>
 
-  <section class="flex flex-col gap-1 px-3" [attr.aria-label]="'nav.work' | translate">
+  <section
+    class="flex flex-col gap-1 px-3"
+    [attr.aria-label]="'nav.work' | translate"
+  >
     <p
       class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
     >
@@ -95,7 +108,10 @@
     </a>
   </section>
 
-  <section class="flex flex-col gap-1 px-3" [attr.aria-label]="'nav.business' | translate">
+  <section
+    class="flex flex-col gap-1 px-3"
+    [attr.aria-label]="'nav.business' | translate"
+  >
     <p
       class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
     >

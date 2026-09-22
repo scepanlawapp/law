@@ -41,6 +41,7 @@ import { TaskDialogService } from "../work-management/task-dialog/task-dialog.se
 import { todayDateInputValue } from "../work-management/work-management-utils";
 import { ObligationItem, obligationToCalendarItem } from "./dashboard.models";
 import { DashboardStore } from "./dashboard.store";
+import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 
 const PROMPT_SUGGESTION_KEYS = [
   "dashboard.suggestSummarizeCase",
@@ -99,15 +100,25 @@ export class DashboardComponent {
   private readonly eventDialog = inject(EventDialogService);
   private readonly clientDialog = inject(ClientFormDialogService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly settingsStore = inject(UserSettingsStore);
 
   protected readonly promptControl = new FormControl("", { nonNullable: true });
   protected readonly suggestionKeys = PROMPT_SUGGESTION_KEYS;
 
   protected readonly greetingName = computed(() => {
+    if (this.settingsStore.profile()?.firstName?.trim()) {
+      return this.settingsStore.profile()?.firstName?.trim();
+    } else if (this.settingsStore.profile()?.lastName?.trim()) {
+      return this.settingsStore.profile()?.lastName?.trim();
+    } else if (this.settingsStore.profile()?.username?.trim()) {
+      return this.settingsStore.profile()?.username?.trim();
+    }
+    let name = "";
     const user = this.auth.session()?.user;
     if (!user) return "";
-    if (user.name?.trim()) return user.name.trim();
-    return (user.email.split("@", 1)[0] || "").split(/[._-]+/)[0] || "";
+    if (user.name?.trim()) name = user.name.trim();
+    else name = (user.email.split("@", 1)[0] || "").split(/[._-]+/)[0] || "";
+    return name;
   });
 
   constructor() {
