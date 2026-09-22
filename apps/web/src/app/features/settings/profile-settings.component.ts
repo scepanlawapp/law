@@ -27,7 +27,11 @@ import { UserSettingsStore } from "../../core/user-settings/user-settings.store"
 import { HttpClient } from "@angular/common/http";
 import { HlmDialogService } from "@spartan-ng/helm/dialog";
 import { filter, finalize, switchMap, tap } from "rxjs";
-import { AvatarCropDialogComponent } from "../../shared/components/user-avatar-drop-dialog/user-avatar-drop-dialog.component";
+import {
+  AvatarCropDialogComponent,
+  AvatarCropDialogResult,
+  REMOVE_PROFILE_IMAGE,
+} from "../../shared/components/user-avatar-drop-dialog/user-avatar-drop-dialog.component";
 
 @Component({
   selector: "law-profile-settings",
@@ -186,17 +190,30 @@ export class ProfileSettingsComponent {
 
     dialogRef.closed$
       .pipe(
-        filter((result): result is File => result instanceof File),
+        filter(
+          (result): result is AvatarCropDialogResult =>
+            result instanceof File || result === REMOVE_PROFILE_IMAGE,
+        ),
 
-        switchMap((file) => {
+        switchMap((result) => {
+          if (result === REMOVE_PROFILE_IMAGE) {
+            return this.userSettingsApi.deleteAvatar();
+          }
+
           const body = new FormData();
-          body.append("file", file, file.name);
+          body.append("file", result, result.name);
 
           return this.userSettingsApi.meAvatar(body);
         }),
 
         tap(({ avatarUrl }) => {
-          if (!avatarUrl?.trim()) {
+          if (avatarUrl === null) {
+            this.form.controls.avatarUrl.setValue("");
+            this.settingsStore.patchProfile({ avatarUrl: null });
+            return;
+          }
+
+          if (!avatarUrl.trim()) {
             throw new Error("The API did not return an avatar URL.");
           }
 

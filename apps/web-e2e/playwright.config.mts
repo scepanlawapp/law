@@ -34,6 +34,7 @@ export default defineConfig({
     command: 'npx nx run web:serve',
     url: 'http://localhost:4200',
     reuseExistingServer: true,
+    stdout: 'ignore',
     cwd: workspaceRoot
   },
   projects: [

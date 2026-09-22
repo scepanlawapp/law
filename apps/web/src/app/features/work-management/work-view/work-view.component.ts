@@ -2,6 +2,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  ElementRef,
   computed,
   effect,
   inject,
@@ -32,6 +33,7 @@ import {
   TaskRequest,
   WorkManagementApiClient,
 } from "@law/api-clients";
+import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmComboboxChip,
@@ -57,9 +59,16 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
+import { EventDialogComponent } from "../../calendar/event-dialog/event-dialog.component";
+import { EventDialogContext } from "../../calendar/event-dialog/event-dialog.models";
 import { EventDialogService } from "../../calendar/event-dialog/event-dialog.service";
+import { DeadlineDialogComponent } from "../deadline-dialog/deadline-dialog.component";
+import { DeadlineDialogContext } from "../deadline-dialog/deadline-dialog.models";
 import { DeadlineDialogService } from "../deadline-dialog/deadline-dialog.service";
+import { TaskDialogComponent } from "../task-dialog/task-dialog.component";
+import { TaskDialogContext } from "../task-dialog/task-dialog.models";
 import { TaskDialogService } from "../task-dialog/task-dialog.service";
+import { DialogPanelComponent } from "../../../shared/ui/dialog-panel/dialog-panel.component";
 import { dueLabel } from "../work-management-utils";
 import {
   createSelectItemToString,
@@ -83,9 +92,22 @@ export type WorkViewMode = "team" | "my" | "case";
 type DatePreset = "all" | "overdue" | "today" | "upcoming";
 type StatusMode = "open" | "history";
 type Presentation = "list" | "board";
+type EditPanelState =
+  | { component: typeof TaskDialogComponent; context: TaskDialogContext }
+  | {
+      component: typeof DeadlineDialogComponent;
+      context: DeadlineDialogContext;
+    }
+  | { component: typeof EventDialogComponent; context: EventDialogContext };
 
 const PAGE_SIZE = 20;
 const ALL_RECORD_TYPES: WorkSourceType[] = ["TASK", "DEADLINE", "EVENT"];
+// Below this width there isn't enough room for filters/list beside an edit panel, so fall back to a modal.
+const SIDE_PANEL_MIN_WIDTH = 1200;
+
+function workViewModeFromRoute(value: string | null): WorkViewMode {
+  return value === "my" || value === "case" ? value : "team";
+}
 
 function taskStatusesFor(
   presentations: PresentationStatus[],
@@ -185,6 +207,7 @@ function eventToCalendarItem(event: EventDetail): CalendarItem {
     HlmTooltip,
     NgIcon,
     TranslatePipe,
+    DialogPanelComponent,
   ],
   providers: [
     provideIcons({
@@ -194,12 +217,13 @@ function eventToCalendarItem(event: EventDetail): CalendarItem {
   ],
 })
 export class WorkViewComponent {
-  readonly mode = input<WorkViewMode>("team");
+  readonly mode = input<WorkViewMode>();
   readonly fixedUserId = input<string | undefined>(undefined);
   readonly fixedCaseId = input<string | undefined>(undefined);
   readonly syncQueryParams = input<boolean>(true);
 
   private readonly workApi = inject(WorkManagementApiClient);
+  private readonly auth = inject(AuthState);
   private readonly eventsApi = inject(EventsApiClient);
   private readonly usersApi = inject(ReferencesApiClient);
   private readonly casesApi = inject(CasesApiClient);
@@ -212,8 +236,24 @@ export class WorkViewComponent {
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly elementRef = inject(ElementRef<HTMLElement>);
 
   private readonly initialParams = this.route.snapshot.queryParamMap;
+  private readonly routeMode = signal<WorkViewMode>(
+    workViewModeFromRoute(this.route.snapshot.paramMap.get("mode")),
+  );
+  readonly viewMode = computed<WorkViewMode>(() => {
+    return this.mode() ?? this.routeMode();
+  });
+
+  readonly editPanel = signal<EditPanelState | null>(null);
+  private readonly containerWidth = signal(
+    this.elementRef.nativeElement.clientWidth,
+  );
+  readonly showSidePanel = computed(
+    () => this.containerWidth() >= SIDE_PANEL_MIN_WIDTH,
+  );
+  private resizeObserver?: ResizeObserver;
 
   readonly presentation = signal<Presentation>(
     (this.initialParams.get("presentation") as Presentation) || "board",
@@ -355,6 +395,12 @@ export class WorkViewComponent {
   });
 
   constructor() {
+    this.route.paramMap
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((params) =>
+        this.routeMode.set(workViewModeFromRoute(params.get("mode"))),
+      );
+
     this.usersApi
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -388,9 +434,16 @@ export class WorkViewComponent {
     effect(() => {
       this.fixedUserId();
       this.fixedCaseId();
-      this.mode();
+      this.viewMode();
       untracked(() => this.reload());
     });
+
+    this.resizeObserver = new ResizeObserver((entries) => {
+      const width = entries[0]?.contentRect.width;
+      if (width !== undefined) this.containerWidth.set(width);
+    });
+    this.resizeObserver.observe(this.elementRef.nativeElement);
+    this.destroyRef.onDestroy(() => this.resizeObserver?.disconnect());
   }
 
   private initialRecordTypes(): WorkSourceType[] {
@@ -405,14 +458,17 @@ export class WorkViewComponent {
   private effectiveUserIds(): string[] | undefined {
     const fixed = this.fixedUserId()?.trim();
     if (fixed) return [fixed];
-    if (this.mode() === "my") return undefined;
+    if (this.viewMode() === "my") {
+      const userId = this.auth.session()?.user.id;
+      return userId ? [userId] : undefined;
+    }
     return this.peopleIds().length ? this.peopleIds() : undefined;
   }
 
   private effectiveCaseId(): string | undefined {
     const fixed = this.fixedCaseId()?.trim();
     if (fixed) return fixed;
-    if (this.mode() === "case") return undefined;
+    if (this.viewMode() === "case") return undefined;
     return this.caseFilter()?.trim() || undefined;
   }
 
@@ -455,7 +511,7 @@ export class WorkViewComponent {
             ? null
             : this.recordTypes(),
         people:
-          this.fixedUserId() || this.mode() === "my"
+          this.fixedUserId() || this.viewMode() === "my"
             ? null
             : this.peopleIds().length
               ? this.peopleIds()
@@ -463,7 +519,7 @@ export class WorkViewComponent {
         statusMode: this.statusMode(),
         datePreset: this.datePreset(),
         case:
-          this.fixedCaseId() || this.mode() === "case"
+          this.fixedCaseId() || this.viewMode() === "case"
             ? null
             : this.caseFilter() || null,
         search: this.search.value || null,
@@ -483,7 +539,7 @@ export class WorkViewComponent {
   }
 
   setPeopleIds(values: string[]): void {
-    if (this.fixedUserId() || this.mode() === "my") return;
+    if (this.fixedUserId() || this.viewMode() === "my") return;
     this.peopleIds.set(values);
     this.syncQuery();
     this.reload();
@@ -508,20 +564,20 @@ export class WorkViewComponent {
   }
 
   setCaseFilter(value: string): void {
-    if (this.fixedCaseId() || this.mode() === "case") return;
+    if (this.fixedCaseId() || this.viewMode() === "case") return;
     this.caseFilter.set(value);
     this.syncQuery();
     this.reload();
   }
 
   reload(): void {
-    if (this.mode() === "my" && !this.effectiveUserIds()?.length) {
+    if (this.viewMode() === "my" && !this.effectiveUserIds()?.length) {
       this.tasks.set([]);
       this.deadlines.set([]);
       this.events.set([]);
       return;
     }
-    if (this.mode() === "case" && !this.effectiveCaseId()) {
+    if (this.viewMode() === "case" && !this.effectiveCaseId()) {
       this.tasks.set([]);
       this.deadlines.set([]);
       this.events.set([]);
@@ -671,12 +727,17 @@ export class WorkViewComponent {
   }
 
   openTask(task?: TaskDetail): void {
+    const context: TaskDialogContext = {
+      task,
+      caseId: task?.caseId ?? this.effectiveCaseId(),
+      clientId: task?.clientId ?? undefined,
+    };
+    if (this.showSidePanel()) {
+      this.editPanel.set({ component: TaskDialogComponent, context });
+      return;
+    }
     this.taskDialog
-      .open({
-        task,
-        caseId: task?.caseId ?? this.effectiveCaseId(),
-        clientId: task?.clientId ?? undefined,
-      })
+      .open(context)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => {
         if (result) this.reload();
@@ -684,12 +745,17 @@ export class WorkViewComponent {
   }
 
   openDeadline(deadline?: DeadlineDetail): void {
+    const context: DeadlineDialogContext = {
+      deadline,
+      caseId: deadline?.caseId ?? this.effectiveCaseId(),
+      clientId: deadline?.clientId ?? undefined,
+    };
+    if (this.showSidePanel()) {
+      this.editPanel.set({ component: DeadlineDialogComponent, context });
+      return;
+    }
     this.deadlineDialog
-      .open({
-        deadline,
-        caseId: deadline?.caseId ?? this.effectiveCaseId(),
-        clientId: deadline?.clientId ?? undefined,
-      })
+      .open(context)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => {
         if (result) this.reload();
@@ -697,12 +763,28 @@ export class WorkViewComponent {
   }
 
   openEvent(event?: EventDetail): void {
+    const context: EventDialogContext = {
+      item: event ? eventToCalendarItem(event) : undefined,
+    };
+    if (this.showSidePanel()) {
+      this.editPanel.set({ component: EventDialogComponent, context });
+      return;
+    }
     this.eventDialog
-      .open({ item: event ? eventToCalendarItem(event) : undefined })
+      .open(context)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => {
         if (result) this.reload();
       });
+  }
+
+  closeEditPanel(): void {
+    this.editPanel.set(null);
+  }
+
+  onEditPanelClosed(result: unknown): void {
+    this.editPanel.set(null);
+    if (result) this.reload();
   }
 
   canCancel(item: WorkItem): boolean {

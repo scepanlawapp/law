@@ -639,6 +639,13 @@ export class UserSettingsApiClient {
       { withCredentials: true },
     );
   }
+
+  deleteAvatar(): Observable<{ avatarUrl: null }> {
+    return this.http.delete<{ avatarUrl: null }>(
+      this.endpoint("/users/me/avatar"),
+      { withCredentials: true },
+    );
+  }
 }
 
 @Injectable({ providedIn: "root" })

@@ -10,6 +10,9 @@ import { ImageCropperComponent } from "ngx-image-cropper";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 
+export const REMOVE_PROFILE_IMAGE = "remove-profile-image" as const;
+export type AvatarCropDialogResult = File | typeof REMOVE_PROFILE_IMAGE;
+
 @Component({
   selector: "law-avatar-crop-dialog",
   standalone: true,
@@ -76,6 +79,14 @@ export class AvatarCropDialogComponent {
 
   cancel(): void {
     this.dialogRef.close();
+  }
+
+  removeProfileImage(): void {
+    if (this.cropping()) {
+      return;
+    }
+
+    this.dialogRef.close(REMOVE_PROFILE_IMAGE);
   }
 
   async apply(): Promise<void> {

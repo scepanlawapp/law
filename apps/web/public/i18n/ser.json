@@ -552,6 +552,7 @@
   "settings.avatarCrop.loadError": "Ova slika se ne može otvoriti. Izaberite drugu sliku.",
   "settings.avatarCrop.cropError": "Slika se ne može iseći. Pokušajte ponovo.",
   "settings.avatarCrop.apply": "Upotrebi sliku",
+  "settings.avatarCrop.remove": "Ukloni profilnu sliku",
   "settings.avatarCrop.cropping": "Isecanje…",
   "settings.profilePhoto": "Profilna fotografija",
   "settings.profilePhotoHint": "Dodajte javni URL fotografije ili koristite inicijale.",

@@ -553,6 +553,7 @@
   "settings.avatarCrop.loadError": "This image could not be opened. Choose another image.",
   "settings.avatarCrop.cropError": "The image could not be cropped. Please try again.",
   "settings.avatarCrop.apply": "Use picture",
+  "settings.avatarCrop.remove": "Remove profile image",
   "settings.avatarCrop.cropping": "Cropping…",
   "settings.profilePhoto": "Profile photo",
   "settings.profilePhotoHint": "Add a public photo URL or use your initials.",
