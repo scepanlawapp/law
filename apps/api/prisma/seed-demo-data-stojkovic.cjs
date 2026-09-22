@@ -20,6 +20,7 @@ const PERSONAS = [
     "Advokat ortak",
     "ADMIN",
     "+381 64 110 2002",
+    "FEMALE",
   ],
   [
     3,
@@ -29,6 +30,7 @@ const PERSONAS = [
     "Advokat",
     "LAWYER",
     "+381 64 110 2003",
+    "MALE",
   ],
   [
     4,
@@ -38,6 +40,7 @@ const PERSONAS = [
     "Advokat",
     "LAWYER",
     "+381 64 110 2004",
+    "FEMALE",
   ],
   [
     5,
@@ -47,6 +50,7 @@ const PERSONAS = [
     "Advokat",
     "LAWYER",
     "+381 64 110 2005",
+    "FEMALE",
   ],
   [
     6,
@@ -56,6 +60,7 @@ const PERSONAS = [
     "Advokat",
     "LAWYER",
     "+381 64 110 2006",
+    "MALE",
   ],
   [
     7,
@@ -65,6 +70,7 @@ const PERSONAS = [
     "Advokatski pripravnik",
     "LAWYER",
     "+381 64 110 2007",
+    "MALE",
   ],
   [
     8,
@@ -74,6 +80,7 @@ const PERSONAS = [
     "Advokatski pripravnik",
     "LAWYER",
     "+381 64 110 2008",
+    "FEMALE",
   ],
   [
     9,
@@ -83,6 +90,7 @@ const PERSONAS = [
     "Office desk",
     "MEMBER",
     "+381 11 555 2009",
+    "MALE",
   ],
 ];
 let state = 20260919;
@@ -152,6 +160,7 @@ async function ensureUsers(db, workspaceId) {
     jobTitle,
     role,
     phone,
+    gender,
   ] of PERSONAS) {
     const email = (
       process.env[`AUTH_BOOTSTRAP_EMAIL${suffix}`] || `${login}@law.rs`
@@ -174,6 +183,7 @@ async function ensureUsers(db, workspaceId) {
       lastName,
       username: login,
       phone,
+      gender,
       jobTitle,
       status: "ACTIVE",
     };

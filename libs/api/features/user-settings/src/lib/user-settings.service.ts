@@ -231,6 +231,7 @@ export class UserSettingsService {
         email: user.email,
         phone: user.phone,
         jobTitle: user.jobTitle,
+        gender: user.gender,
         avatarUrl: user.avatarUrl,
       },
       preferences: {
@@ -253,6 +254,7 @@ type UserSettingsUser = Pick<UserSettingsResponse["profile"], never> & {
   username: string | null;
   phone: string | null;
   jobTitle: string | null;
+  gender: UserSettingsResponse["profile"]["gender"];
   avatarUrl: string | null;
 };
 type UserSettingsRecord = Omit<

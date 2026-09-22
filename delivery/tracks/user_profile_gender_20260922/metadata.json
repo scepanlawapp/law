@@ -1,0 +1,11 @@
+{
+  "created_at": "2026-09-22T00:00:00Z",
+  "keywords": ["user profile", "gender", "settings", "prisma", "angular"],
+  "parent_track_id": "settings_pages_restyle_20260921",
+  "priority": "medium",
+  "prd_reference": null,
+  "status": "completed",
+  "track_id": "user_profile_gender_20260922",
+  "type": "feature",
+  "updated_at": "2026-09-22T17:52:00Z"
+}

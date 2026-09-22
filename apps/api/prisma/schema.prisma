@@ -13,6 +13,11 @@ enum UserStatus {
   DISABLED
 }
 
+enum UserGender {
+  MALE
+  FEMALE
+}
+
 enum WorkspaceRole {
   OWNER
   ADMIN
@@ -230,6 +235,7 @@ model User {
   username             String?           @unique
   phone                String?
   jobTitle             String?
+  gender               UserGender?
   avatarUrl            String?
   status               UserStatus        @default(INVITED)
   passwordChangedAt    DateTime?         @db.Timestamptz(3)
@@ -511,7 +517,7 @@ model ClientActivity {
 }
 
 model Case {
-  id                   String               @id @default(uuid())
+  id                   String                  @id @default(uuid())
   workspaceId          String
   caseNumber           String
   clientId             String
@@ -519,11 +525,11 @@ model Case {
   description          String?
   caseTypeId           String?
   practiceAreaId       String?
-  status               CaseStatus           @default(DRAFT)
-  priority             CasePriority         @default(NORMAL)
+  status               CaseStatus              @default(DRAFT)
+  priority             CasePriority            @default(NORMAL)
   responsibleUserId    String
-  openedDate           DateTime?            @db.Timestamptz(3)
-  closedDate           DateTime?            @db.Timestamptz(3)
+  openedDate           DateTime?               @db.Timestamptz(3)
+  closedDate           DateTime?               @db.Timestamptz(3)
   closingNote          String?
   externalReference    String?
   opposingPartyName    String?
@@ -532,21 +538,21 @@ model Case {
   customFields         Json?
   createdByUserId      String
   updatedByUserId      String
-  createdAt            DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime             @updatedAt @db.Timestamptz(3)
-  workspace            Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client               Client               @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  caseType             CaseType?            @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
-  practiceArea         PracticeArea?        @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
+  createdAt            DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                @updatedAt @db.Timestamptz(3)
+  workspace            Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client               Client                  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  caseType             CaseType?               @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
+  practiceArea         PracticeArea?           @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
   activities           CaseActivity[]
-  clientActivities     ClientActivity[]     @relation("ClientActivityRelatedCase")
+  clientActivities     ClientActivity[]        @relation("ClientActivityRelatedCase")
   responsibilities     CaseResponsibility[]
   tags                 CaseTag[]
-  events               Event[]              @relation("EventCase")
-  tasks                Task[]               @relation("TaskCase")
-  deadlines            Deadline[]           @relation("DeadlineCase")
-  notes                Note[]               @relation("NoteCase")
-  activityLogs         ActivityLog[]        @relation("ActivityCase")
+  events               Event[]                 @relation("EventCase")
+  tasks                Task[]                  @relation("TaskCase")
+  deadlines            Deadline[]              @relation("DeadlineCase")
+  notes                Note[]                  @relation("NoteCase")
+  activityLogs         ActivityLog[]           @relation("ActivityCase")
   documentCases        DocumentCase[]
   chatSessions         ChatSession[]
   draftResults         DraftResult[]
@@ -871,63 +877,63 @@ model AuditEvent {
 }
 
 model LegalSource {
-  id             String               @id @default(uuid())
-  workspaceId    String?
-  slug           String
-  title          String
-  publisher      String
-  sourceUrl      String
-  canonicalUrl   String
-  jurisdiction   String
-  language       String               @default("sr")
-  visibility     String               @default("PUBLIC")
-  createdAt      DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime             @updatedAt @db.Timestamptz(3)
-  workspace      Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  versions       LegalSourceVersion[]
+  id           String               @id @default(uuid())
+  workspaceId  String?
+  slug         String
+  title        String
+  publisher    String
+  sourceUrl    String
+  canonicalUrl String
+  jurisdiction String
+  language     String               @default("sr")
+  visibility   String               @default("PUBLIC")
+  createdAt    DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime             @updatedAt @db.Timestamptz(3)
+  workspace    Workspace?           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  versions     LegalSourceVersion[]
 
   @@index([workspaceId, visibility, slug])
   @@index([canonicalUrl])
 }
 
 model LegalSourceVersion {
-  id               String       @id @default(uuid())
-  sourceId         String
-  contentHash      String
-  versionLabel     String?
-  sourceScript     String       @default("LATIN")
-  retrievedAt      DateTime     @default(now()) @db.Timestamptz(3)
-  parserVersion    String
-  embeddingModel   String
+  id                  String       @id @default(uuid())
+  sourceId            String
+  contentHash         String
+  versionLabel        String?
+  sourceScript        String       @default("LATIN")
+  retrievedAt         DateTime     @default(now()) @db.Timestamptz(3)
+  parserVersion       String
+  embeddingModel      String
   embeddingDimensions Int
-  indexingStatus   String       @default("PENDING")
-  indexingError    String?
-  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
-  source           LegalSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
-  chunks           LegalChunk[]
+  indexingStatus      String       @default("PENDING")
+  indexingError       String?
+  createdAt           DateTime     @default(now()) @db.Timestamptz(3)
+  source              LegalSource  @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+  chunks              LegalChunk[]
 
   @@unique([sourceId, contentHash])
   @@index([sourceId, indexingStatus, createdAt])
 }
 
 model LegalChunk {
-  id             String             @id @default(uuid())
-  versionId      String
-  ordinal        Int
-  text           String             @db.Text
-  articleNumber  String?
-  paragraphNumber Int?
-  pointNumber    Int?
-  embedding      Unsupported("vector(1024)")?
-  embeddingModel String
+  id                  String                       @id @default(uuid())
+  versionId           String
+  ordinal             Int
+  text                String                       @db.Text
+  articleNumber       String?
+  paragraphNumber     Int?
+  pointNumber         Int?
+  embedding           Unsupported("vector(1024)")?
+  embeddingModel      String
   embeddingDimensions Int
-  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
-  version        LegalSourceVersion @relation(fields: [versionId], references: [id], onDelete: Cascade)
+  createdAt           DateTime                     @default(now()) @db.Timestamptz(3)
+  version             LegalSourceVersion           @relation(fields: [versionId], references: [id], onDelete: Cascade)
+
+  citations DraftCitation[]
 
   @@unique([versionId, ordinal])
   @@index([versionId, articleNumber, paragraphNumber])
-
-  citations DraftCitation[]
 }
 
 model ChatSession {
@@ -1086,18 +1092,18 @@ model DraftResult {
 
 // Snapshotted at generation time so a draft's sources stay stable even if the corpus changes later.
 model DraftCitation {
-  id            String       @id @default(uuid())
+  id            String      @id @default(uuid())
   draftResultId String
   chunkId       String?
   marker        Int
   articleNumber String?
   sourceTitle   String
   sourceUrl     String
-  snippet       String       @db.Text
+  snippet       String      @db.Text
   score         Float
-  createdAt     DateTime     @default(now()) @db.Timestamptz(3)
-  draftResult   DraftResult  @relation(fields: [draftResultId], references: [id], onDelete: Cascade)
-  chunk         LegalChunk?  @relation(fields: [chunkId], references: [id], onDelete: SetNull)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  draftResult   DraftResult @relation(fields: [draftResultId], references: [id], onDelete: Cascade)
+  chunk         LegalChunk? @relation(fields: [chunkId], references: [id], onDelete: SetNull)
 
   @@unique([draftResultId, marker])
   @@index([chunkId])
@@ -1120,17 +1126,17 @@ model TenantAuditEvent {
 }
 
 model StorageConnection {
-  id          String              @id @default(uuid())
-  workspaceId String
+  id           String              @id @default(uuid())
+  workspaceId  String
   providerType StorageProviderType
-  enabled     Boolean             @default(true)
-  isDefault   Boolean             @default(false)
-  configRef   String
-  createdAt   DateTime            @default(now()) @db.Timestamptz(3)
-  updatedAt   DateTime            @updatedAt @db.Timestamptz(3)
-  workspace   Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  locations   FileLocation[]
-  operations  UploadOperation[]
+  enabled      Boolean             @default(true)
+  isDefault    Boolean             @default(false)
+  configRef    String
+  createdAt    DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime            @updatedAt @db.Timestamptz(3)
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  locations    FileLocation[]
+  operations   UploadOperation[]
 
   @@unique([workspaceId, configRef])
   @@index([workspaceId, isDefault, enabled])
@@ -1248,30 +1254,30 @@ model FileLocation {
 }
 
 model UploadOperation {
-  id                String                 @id @default(uuid())
-  workspaceId       String
-  idempotencyKey    String
-  actorUserId       String
-  purpose           UploadOperationPurpose
-  status            UploadOperationStatus  @default(ACCEPTED)
-  requestFingerprint String
-  documentId        String?
-  documentVersionId String?
-  storedFileId      String
-  fileLocationId    String
+  id                  String                 @id @default(uuid())
+  workspaceId         String
+  idempotencyKey      String
+  actorUserId         String
+  purpose             UploadOperationPurpose
+  status              UploadOperationStatus  @default(ACCEPTED)
+  requestFingerprint  String
+  documentId          String?
+  documentVersionId   String?
+  storedFileId        String
+  fileLocationId      String
   storageConnectionId String
-  errorCode         String?
-  lastHeartbeatAt   DateTime               @default(now()) @db.Timestamptz(3)
-  completedAt       DateTime?              @db.Timestamptz(3)
-  createdAt         DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime               @updatedAt @db.Timestamptz(3)
-  workspace         Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  actor             User                   @relation("UploadOperationActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  document          Document?              @relation(fields: [documentId], references: [id], onDelete: SetNull)
-  documentVersion   DocumentVersion?       @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
-  storedFile        StoredFile             @relation(fields: [storedFileId], references: [id], onDelete: Restrict)
-  fileLocation      FileLocation           @relation(fields: [fileLocationId], references: [id], onDelete: Restrict)
-  storageConnection StorageConnection      @relation(fields: [storageConnectionId], references: [id], onDelete: Restrict)
+  errorCode           String?
+  lastHeartbeatAt     DateTime               @default(now()) @db.Timestamptz(3)
+  completedAt         DateTime?              @db.Timestamptz(3)
+  createdAt           DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime               @updatedAt @db.Timestamptz(3)
+  workspace           Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  actor               User                   @relation("UploadOperationActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  document            Document?              @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  documentVersion     DocumentVersion?       @relation(fields: [documentVersionId], references: [id], onDelete: SetNull)
+  storedFile          StoredFile             @relation(fields: [storedFileId], references: [id], onDelete: Restrict)
+  fileLocation        FileLocation           @relation(fields: [fileLocationId], references: [id], onDelete: Restrict)
+  storageConnection   StorageConnection      @relation(fields: [storageConnectionId], references: [id], onDelete: Restrict)
 
   @@unique([workspaceId, idempotencyKey])
   @@index([workspaceId, status, lastHeartbeatAt])

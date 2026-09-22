@@ -42,6 +42,7 @@ import { todayDateInputValue } from "../work-management/work-management-utils";
 import { ObligationItem, obligationToCalendarItem } from "./dashboard.models";
 import { DashboardStore } from "./dashboard.store";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
+import { nameInVocative } from "../../shared/utils";
 
 const PROMPT_SUGGESTION_KEYS = [
   "dashboard.suggestSummarizeCase",
@@ -106,13 +107,29 @@ export class DashboardComponent {
   protected readonly suggestionKeys = PROMPT_SUGGESTION_KEYS;
 
   protected readonly greetingName = computed(() => {
-    if (this.settingsStore.profile()?.firstName?.trim()) {
-      return this.settingsStore.profile()?.firstName?.trim();
-    } else if (this.settingsStore.profile()?.lastName?.trim()) {
-      return this.settingsStore.profile()?.lastName?.trim();
-    } else if (this.settingsStore.profile()?.username?.trim()) {
-      return this.settingsStore.profile()?.username?.trim();
+    const profile = this.settingsStore.profile();
+    const firstName = profile?.firstName?.trim();
+    const lastName = profile?.lastName?.trim();
+    const username = profile?.username?.trim();
+
+    if (
+      this.localization.language() === "SR" &&
+      firstName &&
+      profile?.gender
+    ) {
+      return nameInVocative(firstName, profile.gender);
     }
+    if (lastName && profile?.gender) {
+      const salutation = this.localization.translate(
+        profile.gender === "MALE"
+          ? "dashboard.salutationMale"
+          : "dashboard.salutationFemale",
+      );
+      return `${salutation} ${lastName}`;
+    }
+    if (firstName) return firstName;
+    if (username) return username;
+
     let name = "";
     const user = this.auth.session()?.user;
     if (!user) return "";

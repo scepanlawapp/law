@@ -37,6 +37,7 @@ export type UserSettingsFinish =
   | "LUXURY";
 export type UserSettingsLanguage = "SR" | "EN";
 export type UserSettingsDateTimeFormat = "TWELVE_HOUR" | "TWENTY_FOUR_HOUR";
+export type UserProfileGender = "MALE" | "FEMALE";
 
 export interface UserSettingsProfile {
   firstName: string | null;
@@ -45,6 +46,7 @@ export interface UserSettingsProfile {
   email: string;
   phone: string | null;
   jobTitle: string | null;
+  gender: UserProfileGender | null;
   avatarUrl: string | null;
 }
 
