@@ -57,6 +57,12 @@ import {
   statusTransition,
   taskToWorkItem,
 } from "./work-view.models";
+import {
+  CdkDrag,
+  CdkDragDrop,
+  CdkDropList,
+  CdkDropListGroup,
+} from "@angular/cdk/drag-drop";
 
 export type WorkViewMode = "team" | "my" | "case";
 type Presentation = "list" | "board";
@@ -119,6 +125,9 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     NgIcon,
     TranslatePipe,
     DialogPanelComponent,
+    CdkDrag,
+    CdkDropList,
+    CdkDropListGroup,
   ],
   providers: [
     provideIcons({
@@ -216,6 +225,8 @@ export class WorkViewComponent {
   readonly boardColumns = computed<BoardColumnKey[]>(() => {
     return ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"];
   });
+  readonly draggingItem = signal<WorkItem | null>(null);
+  readonly hoveredColumn = signal<BoardColumnKey | null>(null);
 
   constructor() {
     this.route.paramMap
@@ -432,11 +443,11 @@ export class WorkViewComponent {
   }
 
   complete(item: WorkItem): void {
-    this.runTransition(item, "task-complete");
+    this.runTransition(item, "task-complete", "DONE");
   }
 
   reopen(item: WorkItem): void {
-    this.runTransition(item, "task-reopen");
+    this.runTransition(item, "task-reopen", "TODO");
   }
 
   cancel(item: WorkItem): void {
@@ -471,22 +482,37 @@ export class WorkViewComponent {
 
   onStatusSelect(item: WorkItem, value: string): void {
     const target = value as BoardColumnKey;
-    if (target === item.presentationStatus) return;
+
+    if (target === item.presentationStatus) {
+      return;
+    }
+
     const transition = statusTransition(item, target);
+
     if (!transition) {
       this.toast.error(this.localization.translate("work.invalidTransition"));
       return;
     }
-    this.runTransition(item, transition.action);
+
+    this.runTransition(item, transition.action, target);
   }
 
-  private runTransition(item: WorkItem, action: StatusTransitionAction): void {
+  private runTransition(
+    item: WorkItem,
+    action: StatusTransitionAction,
+    target: BoardColumnKey,
+  ): void {
     const call = this.transitionCall(item, action);
+
     if (!call) return;
+
     call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => this.reload(),
-      error: () =>
-        this.toast.error(this.localization.translate("work.saveError")),
+      next: () => {
+        this.updateTaskStatusLocally(item.id, target as TaskStatus);
+      },
+      error: () => {
+        this.toast.error(this.localization.translate("work.saveError"));
+      },
     });
   }
 
@@ -512,5 +538,91 @@ export class WorkViewComponent {
       default:
         return undefined;
     }
+  }
+
+  readonly canEnterColumn = (
+    drag: CdkDrag<WorkItem>,
+    drop: CdkDropList<BoardColumnKey>,
+  ): boolean => {
+    const item = drag.data;
+    const target = drop.data;
+
+    // Always allow returning to original column.
+    if (target === item.presentationStatus) {
+      return true;
+    }
+
+    // CANCELLED is special in your existing implementation.
+    if (target === "CANCELLED") {
+      return this.canCancel(item);
+    }
+
+    return statusTransition(item, target) !== null;
+  };
+
+  onDragStarted(item: WorkItem): void {
+    this.draggingItem.set(item);
+  }
+
+  onDragEnded(): void {
+    this.draggingItem.set(null);
+    this.hoveredColumn.set(null);
+  }
+
+  onColumnEntered(column: BoardColumnKey): void {
+    const item = this.draggingItem();
+
+    if (!item || column === item.presentationStatus) {
+      return;
+    }
+
+    this.hoveredColumn.set(column);
+  }
+
+  onColumnExited(column: BoardColumnKey): void {
+    if (this.hoveredColumn() === column) {
+      this.hoveredColumn.set(null);
+    }
+  }
+
+  onBoardDrop(
+    event: CdkDragDrop<BoardColumnKey, BoardColumnKey, WorkItem>,
+  ): void {
+    const item = event.item.data;
+    const target = event.container.data;
+
+    this.draggingItem.set(null);
+    this.hoveredColumn.set(null);
+
+    if (target === item.presentationStatus) {
+      return;
+    }
+
+    if (target === "CANCELLED") {
+      this.cancel(item);
+      return;
+    }
+
+    const transition = statusTransition(item, target);
+
+    if (!transition) {
+      this.toast.error(this.localization.translate("work.invalidTransition"));
+      return;
+    }
+
+    this.runTransition(item, transition.action, target);
+  }
+
+  private updateTaskStatusLocally(taskId: string, status: TaskStatus): void {
+    this.tasks.update((tasks) =>
+      tasks.map((task) =>
+        task.id === taskId
+          ? {
+              ...task,
+              status,
+            }
+          : task,
+      ),
+    );
   }
 }
