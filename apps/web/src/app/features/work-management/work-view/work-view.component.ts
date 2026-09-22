@@ -13,12 +13,6 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import {
-  CdkDrag,
-  CdkDragDrop,
-  CdkDropList,
-  CdkDropListGroup,
-} from "@angular/cdk/drag-drop";
-import {
   CalendarItem,
   CaseSummary,
   DeadlineDetail,
@@ -73,15 +67,15 @@ import {
 } from "../../../shared/utils";
 import {
   BoardColumnKey,
-  DragTransitionAction,
   PresentationStatus,
+  StatusTransitionAction,
   WorkItem,
   WorkSourceType,
-  allowedDrop,
   deadlineToWorkItem,
   eventToWorkItem,
   mergePage,
   sortWorkItems,
+  statusTransition,
   taskToWorkItem,
 } from "./work-view.models";
 
@@ -170,12 +164,10 @@ function eventToCalendarItem(event: EventDetail): CalendarItem {
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./work-view.component.html",
+  styleUrl: "./work-view.component.scss",
   imports: [
     ReactiveFormsModule,
     BottomReachedDirective,
-    CdkDrag,
-    CdkDropList,
-    CdkDropListGroup,
     HlmButton,
     HlmComboboxChip,
     HlmComboboxChipInput,
@@ -227,9 +219,7 @@ export class WorkViewComponent {
     (this.initialParams.get("presentation") as Presentation) || "board",
   );
   readonly recordTypes = signal<WorkSourceType[]>(this.initialRecordTypes());
-  readonly peopleIds = signal<string[]>(
-    this.initialParams.getAll("people"),
-  );
+  readonly peopleIds = signal<string[]>(this.initialParams.getAll("people"));
   readonly statusMode = signal<StatusMode>(
     (this.initialParams.get("statusMode") as StatusMode) || "open",
   );
@@ -237,9 +227,7 @@ export class WorkViewComponent {
   readonly datePreset = signal<DatePreset>(
     (this.initialParams.get("datePreset") as DatePreset) || "all",
   );
-  readonly caseFilter = signal<string>(
-    this.initialParams.get("case") ?? "",
-  );
+  readonly caseFilter = signal<string>(this.initialParams.get("case") ?? "");
   readonly search = new FormControl(this.initialParams.get("search") ?? "", {
     nonNullable: true,
   });
@@ -430,8 +418,9 @@ export class WorkViewComponent {
 
   private effectivePresentationStatuses(): PresentationStatus[] {
     if (this.statuses().length) return this.statuses();
+    // The board always renders a DONE column, so "open" must fetch it too.
     return this.statusMode() === "open"
-      ? ["TODO", "IN_PROGRESS"]
+      ? ["TODO", "IN_PROGRESS", "DONE"]
       : ["DONE", "CANCELLED"];
   }
 
@@ -775,37 +764,19 @@ export class WorkViewComponent {
       });
   }
 
-  onDrop(event: CdkDragDrop<BoardColumnKey, BoardColumnKey, WorkItem>): void {
-    if (event.previousContainer === event.container) return;
-    const item = event.item.data;
-    const target = event.container.data as BoardColumnKey;
-    const transition = allowedDrop(item, target);
-    if (!transition) {
-      this.toast.error(this.localization.translate("work.invalidTransition"));
-      return;
-    }
-    this.runTransition(item, transition.action);
-  }
-
-  dropListEnterPredicate = (
-    drag: CdkDrag<WorkItem>,
-    drop: CdkDropList<BoardColumnKey>,
-  ): boolean => allowedDrop(drag.data, drop.data) !== null;
-
-  // List-view equivalent of a board drag: same allowed-transition rules, no cancel target.
   statusTargetsFor(item: WorkItem): BoardColumnKey[] {
     const candidates: BoardColumnKey[] = ["TODO", "IN_PROGRESS", "DONE"];
     return candidates.filter(
       (target) =>
         target === item.presentationStatus ||
-        allowedDrop(item, target) !== null,
+        statusTransition(item, target) !== null,
     );
   }
 
   onStatusSelect(item: WorkItem, value: string): void {
     const target = value as BoardColumnKey;
     if (target === item.presentationStatus) return;
-    const transition = allowedDrop(item, target);
+    const transition = statusTransition(item, target);
     if (!transition) {
       this.toast.error(this.localization.translate("work.invalidTransition"));
       return;
@@ -813,7 +784,7 @@ export class WorkViewComponent {
     this.runTransition(item, transition.action);
   }
 
-  private runTransition(item: WorkItem, action: DragTransitionAction): void {
+  private runTransition(item: WorkItem, action: StatusTransitionAction): void {
     const call = this.transitionCall(item, action);
     if (!call) return;
     call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -825,7 +796,7 @@ export class WorkViewComponent {
 
   private transitionCall(
     item: WorkItem,
-    action: DragTransitionAction,
+    action: StatusTransitionAction,
   ): Observable<unknown> | undefined {
     switch (action) {
       case "task-set-todo":

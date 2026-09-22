@@ -12,11 +12,51 @@ const TODAY = new Date(NOW.getFullYear(), NOW.getMonth(), NOW.getDate());
 const FALLBACK_PASSWORD = "!QAZ2wsx!QAZ2wsx"; // Local demo only; env passwords take precedence.
 const CASES_PER_LAWYER = 2;
 const PERSONAS = [
-  [2, "bojana.stojkovic", "Bojana", "Stojković", "Advokat ortak", "ADMIN"],
-  [3, "djordje.nikolic", "Đorđe", "Nikolić", "Advokat", "LAWYER"],
-  [4, "marija.bradic", "Marija", "Bradić", "Advokat", "LAWYER"],
-  [5, "ljubica.gajic", "Ljubica", "Gajić", "Advokat", "LAWYER"],
-  [6, "vladimir.joksimovic", "Vladimir", "Joksimović", "Advokat", "LAWYER"],
+  [
+    2,
+    "bojana.stojkovic",
+    "Bojana",
+    "Stojković",
+    "Advokat ortak",
+    "ADMIN",
+    "+381 64 110 2002",
+  ],
+  [
+    3,
+    "djordje.nikolic",
+    "Đorđe",
+    "Nikolić",
+    "Advokat",
+    "LAWYER",
+    "+381 64 110 2003",
+  ],
+  [
+    4,
+    "marija.bradic",
+    "Marija",
+    "Bradić",
+    "Advokat",
+    "LAWYER",
+    "+381 64 110 2004",
+  ],
+  [
+    5,
+    "ljubica.gajic",
+    "Ljubica",
+    "Gajić",
+    "Advokat",
+    "LAWYER",
+    "+381 64 110 2005",
+  ],
+  [
+    6,
+    "vladimir.joksimovic",
+    "Vladimir",
+    "Joksimović",
+    "Advokat",
+    "LAWYER",
+    "+381 64 110 2006",
+  ],
   [
     7,
     "petar.petrovic.pripravnik",
@@ -24,6 +64,7 @@ const PERSONAS = [
     "Petrović",
     "Advokatski pripravnik",
     "LAWYER",
+    "+381 64 110 2007",
   ],
   [
     8,
@@ -32,6 +73,7 @@ const PERSONAS = [
     "Milić",
     "Advokatski pripravnik",
     "LAWYER",
+    "+381 64 110 2008",
   ],
   [
     9,
@@ -40,6 +82,7 @@ const PERSONAS = [
     "Stefanović",
     "Office desk",
     "MEMBER",
+    "+381 11 555 2009",
   ],
 ];
 let state = 20260919;
@@ -99,9 +142,17 @@ async function ensureUsers(db, workspaceId) {
     throw new Error(
       "Bootstrap user must be an active member of this workspace.",
     );
-  const users = [admin],
+  const demoUsers = [],
     emails = new Set([email]);
-  for (const [suffix, login, firstName, lastName, jobTitle, role] of PERSONAS) {
+  for (const [
+    suffix,
+    login,
+    firstName,
+    lastName,
+    jobTitle,
+    role,
+    phone,
+  ] of PERSONAS) {
     const email = (
       process.env[`AUTH_BOOTSTRAP_EMAIL${suffix}`] || `${login}@law.rs`
     )
@@ -118,7 +169,14 @@ async function ensureUsers(db, workspaceId) {
       throw new Error(
         `Password for ${email} must have at least 12 characters.`,
       );
-    const profile = { firstName, lastName, jobTitle, status: "ACTIVE" };
+    const profile = {
+      firstName,
+      lastName,
+      username: login,
+      phone,
+      jobTitle,
+      status: "ACTIVE",
+    };
     const user = await db.user.upsert({
       where: { email },
       update: profile,
@@ -134,47 +192,70 @@ async function ensureUsers(db, workspaceId) {
       update: { role, status: "ACTIVE" },
       create: { userId: user.id, workspaceId, role, status: "ACTIVE" },
     });
-    users.push(user);
+    demoUsers.push(user);
   }
-  return users;
+  // The bootstrap account is deliberately kept outside demoUsers. It is only
+  // validated here and receives no seeded clients, cases, tasks, or activities.
+  return demoUsers;
 }
 async function ensureReferences(db, workspaceId, actorUserId) {
   const result = {};
-  for (const [model, names] of Object.entries({
+  for (const [model, definitions] of Object.entries({
     caseType: [
-      "Parnica",
-      "Krivični postupak",
-      "Privredni spor",
-      "Radni spor",
-      "Nasleđivanje",
-      "Nepokretnosti",
+      ["Parnica", "Građanski parnični postupak pred sudom opšte nadležnosti."],
+      [
+        "Krivični postupak",
+        "Odbrana i zastupanje oštećenih u krivičnom postupku.",
+      ],
+      [
+        "Privredni spor",
+        "Sporovi između privrednih subjekata i naplata poslovnih potraživanja.",
+      ],
+      ["Radni spor", "Postupci iz radnog odnosa, otkaz i naknada štete."],
+      ["Nasleđivanje", "Ostavinski postupci i sporovi naslednika."],
+      ["Nepokretnosti", "Svojinski, zakupni i katastarski postupci."],
     ],
     practiceArea: [
-      "Građansko pravo",
-      "Krivično pravo",
-      "Privredno pravo",
-      "Radno pravo",
-      "Porodično pravo",
-      "Pravo nekretnina",
+      [
+        "Građansko pravo",
+        "Ugovori, naknada štete, dugovanja i druga građanskopravna pitanja.",
+      ],
+      ["Krivično pravo", "Krivične prijave, odbrana i zastupanje oštećenih."],
+      [
+        "Privredno pravo",
+        "Statusna pitanja, ugovori i sporovi privrednih društava.",
+      ],
+      ["Radno pravo", "Prava zaposlenih i poslodavaca i radni sporovi."],
+      ["Porodično pravo", "Razvod, vršenje roditeljskog prava i izdržavanje."],
+      [
+        "Pravo nekretnina",
+        "Promet, zakup, svojina i upis prava na nepokretnostima.",
+      ],
     ],
     tag: [
-      "Hitno",
-      "VIP klijent",
-      "Pro bono",
-      "Naplata u kašnjenju",
-      "Strani klijent",
-      "Medijacija",
+      ["Hitno", null, "#DC2626"],
+      ["VIP klijent", null, "#7C3AED"],
+      ["Pro bono", null, "#0284C7"],
+      ["Naplata u kašnjenju", null, "#D97706"],
+      ["Strani klijent", null, "#059669"],
+      ["Medijacija", null, "#4F46E5"],
     ],
   })) {
     result[model] = [];
-    for (const name of names)
+    for (const [name, description, color] of definitions)
       result[model].push(
         await db[model].upsert({
           where: { workspaceId_name: { workspaceId, name } },
-          update: {},
+          update: {
+            ...(model !== "tag" ? { description } : {}),
+            ...(model === "tag" ? { color } : {}),
+            isActive: true,
+          },
           create: {
             workspaceId,
             name,
+            ...(model !== "tag" ? { description } : {}),
+            ...(model === "tag" ? { color } : {}),
             createdByUserId: actorUserId,
             updatedByUserId: actorUserId,
           },
@@ -221,16 +302,48 @@ const LAST_NAMES = [
   "Dimitrijević",
 ];
 const ORGANIZATIONS = [
-  { name: "Alfa Trade d.o.o.", tax: "PIB100001", reg: "MB20001" },
+  {
+    name: "Alfa Trade d.o.o.",
+    tax: "109100001",
+    reg: "21100001",
+    industry: "Veleprodaja tehničke robe",
+    website: "https://www.alfatrade.example",
+  },
   {
     name: "Beogradska tekstilna industrija a.d.",
-    tax: "PIB100002",
-    reg: "MB20002",
+    tax: "109100002",
+    reg: "21100002",
+    industry: "Proizvodnja tekstila",
+    website: "https://www.bti.example",
   },
-  { name: "Nova Energija d.o.o.", tax: "PIB100003", reg: "MB20003" },
-  { name: "Dunav Logistika d.o.o.", tax: "PIB100004", reg: "MB20004" },
-  { name: "Srbija Agro a.d.", tax: "PIB100005", reg: "MB20005" },
-  { name: "Grand Nekretnine d.o.o.", tax: "PIB100006", reg: "MB20006" },
+  {
+    name: "Nova Energija d.o.o.",
+    tax: "109100003",
+    reg: "21100003",
+    industry: "Obnovljivi izvori energije",
+    website: "https://www.novaenergija.example",
+  },
+  {
+    name: "Dunav Logistika d.o.o.",
+    tax: "109100004",
+    reg: "21100004",
+    industry: "Transport i logistika",
+    website: "https://www.dunavlogistika.example",
+  },
+  {
+    name: "Srbija Agro a.d.",
+    tax: "109100005",
+    reg: "21100005",
+    industry: "Poljoprivreda i prerada hrane",
+    website: "https://www.srbijaagro.example",
+  },
+  {
+    name: "Grand Nekretnine d.o.o.",
+    tax: "109100006",
+    reg: "21100006",
+    industry: "Razvoj i upravljanje nekretninama",
+    website: "https://www.grandnekretnine.example",
+  },
 ];
 const CITIES = [
   { city: "Beograd", postal: "11000" },
@@ -277,12 +390,50 @@ const CASE_TITLE_TEMPLATES = [
   "Spor o zakupu poslovnog prostora",
   "Osporavanje otkaza ugovora o radu",
 ];
+const CASE_CLASSIFICATIONS = [
+  ["Parnica", "Građansko pravo"],
+  ["Privredni spor", "Privredno pravo"],
+  ["Radni spor", "Radno pravo"],
+  ["Parnica", "Porodično pravo"],
+  ["Parnica", "Građansko pravo"],
+  ["Privredni spor", "Privredno pravo"],
+  ["Nasleđivanje", "Građansko pravo"],
+  ["Privredni spor", "Privredno pravo"],
+  ["Nepokretnosti", "Pravo nekretnina"],
+  ["Krivični postupak", "Krivično pravo"],
+  ["Radni spor", "Radno pravo"],
+  ["Privredni spor", "Privredno pravo"],
+  ["Parnica", "Građansko pravo"],
+  ["Parnica", "Građansko pravo"],
+  ["Parnica", "Građansko pravo"],
+  ["Parnica", "Građansko pravo"],
+  ["Nepokretnosti", "Pravo nekretnina"],
+  ["Radni spor", "Radno pravo"],
+];
+
+const OPPOSING_PARTIES = [
+  "Delta Invest d.o.o.",
+  "Milan Marković",
+  "Banka Meridian a.d.",
+  "Grad Beograd - Gradska uprava",
+  "Osiguranje Sava a.d.",
+  "Jelena Ilić",
+  "Metalpromet d.o.o.",
+];
+
+const CASE_DESCRIPTIONS = [
+  "Klijent zahteva pravnu analizu, pripremu procesne strategije i zastupanje do pravnosnažnog okončanja postupka.",
+  "Predmet obuhvata pregled ugovorne dokumentacije, procenu rizika, pregovore sa suprotnom stranom i eventualno pokretanje postupka.",
+  "Potrebno je objediniti dokaze, utvrditi hronologiju događaja i pripremiti podneske u rokovima koje je odredio sud.",
+  "Klijent je dostavio početnu dokumentaciju. Slede provera činjeničnog stanja, pravno istraživanje i dogovor o daljim koracima.",
+];
 
 async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
   const clients = [];
   let seq = 1;
 
   for (let i = 0; i < 8; i++) {
+    const isForeign = i === 7;
     const isMale = i % 2 === 0;
     const firstName = pick(isMale ? MALE_NAMES : FEMALE_NAMES);
     const lastName = pick(LAST_NAMES);
@@ -290,6 +441,12 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
     const clientNumber = `K-${pad(seq++)}`;
     const displayName = `${firstName} ${lastName}`;
     const clientTags = random() < 0.4 ? pickMany(tags, 1) : [];
+    if (isForeign) {
+      const foreignTag = tags.find((tag) => tag.name === "Strani klijent");
+      if (foreignTag && !clientTags.some((tag) => tag.id === foreignTag.id))
+        clientTags.push(foreignTag);
+    }
+    const street = pick(STREETS);
     const client = await prisma.client.upsert({
       where: { workspaceId_clientNumber: { workspaceId, clientNumber } },
       update: {},
@@ -300,12 +457,29 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
         displayName,
         firstName,
         lastName,
-        isDomestic: true,
-        jmbg: `${1000000000000 + seq}`.slice(0, 13),
+        isDomestic: !isForeign,
+        jmbg: isForeign
+          ? null
+          : `${1000000000000 + i * 7919 + seq}`.slice(0, 13),
         status: "ACTIVE",
         email: `${localPart(firstName, lastName)}${seq}@primer.test`,
-        phone: `+381 6${randomInt(0, 9)} ${randomInt(100, 999)} ${randomInt(1000, 9999)}`,
-        preferredLanguage: "SR",
+        phone: isForeign
+          ? `+49 30 ${randomInt(1000000, 9999999)}`
+          : `+381 6${randomInt(0, 9)} ${randomInt(100, 999)} ${randomInt(1000, 9999)}`,
+        preferredLanguage: isForeign ? "EN" : "SR",
+        notes:
+          i % 3 === 0
+            ? "Klijent preferira komunikaciju elektronskom poštom. Pre slanja podnesaka obavezno potvrditi konačnu verziju."
+            : "Dokumentacija se čuva elektronski. Kontaktirati klijenta najmanje tri dana pre svakog zakazanog termina.",
+        customFields: {
+          preferredContactMethod: i % 2 === 0 ? "EMAIL" : "PHONE",
+          referralSource: [
+            "Preporuka klijenta",
+            "Internet",
+            "Poslovni partner",
+          ][i % 3],
+          billingModel: i % 3 === 0 ? "HOURLY" : "FIXED_FEE",
+        },
         responsibleUserId: pick(lawyers).id,
         createdByUserId: actorUserId,
         updatedByUserId: actorUserId,
@@ -313,10 +487,13 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
           create: [
             {
               addressType: "HOME",
-              street: `${pick(STREETS)} ${randomInt(1, 120)}`,
-              city: location.city,
-              postalCode: location.postal,
-              country: "RS",
+              street: `${street} ${randomInt(1, 120)}`,
+              streetAdditional: i % 2 === 0 ? `stan ${randomInt(1, 35)}` : null,
+              city: isForeign ? "Berlin" : location.city,
+              postalCode: isForeign ? "10115" : location.postal,
+              stateOrRegion: isForeign ? "Berlin" : "Srbija",
+              country: isForeign ? "DE" : "RS",
+              note: "Adresa za dostavu pošte i službenih pismena.",
               isPrimary: true,
             },
           ],
@@ -324,12 +501,15 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
         identificationDocuments: {
           create: [
             {
-              type: "LICNA_KARTA",
+              type: isForeign ? "PASSPORT" : "LICNA_KARTA",
               number: `${randomInt(100000000, 999999999)}`,
               issuedDate: new Date(
                 `202${randomInt(0, 3)}-0${randomInt(1, 9)}-10`,
               ),
-              country: "RS",
+              expiredDate: new Date(
+                `203${randomInt(0, 3)}-0${randomInt(1, 9)}-10`,
+              ),
+              country: isForeign ? "DE" : "RS",
             },
           ],
         },
@@ -346,7 +526,10 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
     const clientNumber = `K-${pad(seq++)}`;
     const repFirst = pick(MALE_NAMES.concat(FEMALE_NAMES));
     const repLast = pick(LAST_NAMES);
+    const financeFirst = pick(MALE_NAMES.concat(FEMALE_NAMES));
+    const financeLast = pick(LAST_NAMES);
     const clientTags = random() < 0.5 ? pickMany(tags, 1) : [];
+    const domain = slugify(org.name.split(" ")[0]);
     const client = await prisma.client.upsert({
       where: { workspaceId_clientNumber: { workspaceId, clientNumber } },
       update: {},
@@ -360,9 +543,18 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
         taxNumber: org.tax,
         registrationNumber: org.reg,
         status: "ACTIVE",
-        email: `office@${slugify(org.name.split(" ")[0])}.test`,
+        email: `office@${domain}.test`,
         phone: `+381 11 ${randomInt(1000000, 9999999)}`,
+        website: org.website,
         preferredLanguage: "SR",
+        notes:
+          "Pravno lice sa aktivnim okvirnim angažovanjem. Za procesne odluke kontaktirati zakonskog zastupnika, a račune slati finansijama.",
+        customFields: {
+          industry: org.industry,
+          preferredContactMethod: "EMAIL",
+          billingModel: "MONTHLY_RETAINER",
+          invoiceReferenceRequired: true,
+        },
         responsibleUserId: pick(lawyers).id,
         createdByUserId: actorUserId,
         updatedByUserId: actorUserId,
@@ -373,9 +565,25 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
               street: `${pick(STREETS)} ${randomInt(1, 120)}`,
               city: location.city,
               postalCode: location.postal,
+              stateOrRegion: "Srbija",
               country: "RS",
+              note: "Sedište registrovano u APR-u.",
               isPrimary: true,
             },
+            ...(seq % 2 === 0
+              ? [
+                  {
+                    addressType: "BRANCH",
+                    street: `${pick(STREETS)} ${randomInt(1, 120)}`,
+                    city: "Beograd",
+                    postalCode: "11000",
+                    stateOrRegion: "Srbija",
+                    country: "RS",
+                    note: "Operativna poslovnica za sastanke i prijem dokumentacije.",
+                    isPrimary: false,
+                  },
+                ]
+              : []),
           ],
         },
         contacts: {
@@ -383,10 +591,24 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
             {
               firstName: repFirst,
               lastName: repLast,
-              position: "Zastupnik",
-              email: `${localPart(repFirst, repLast)}@${slugify(org.name.split(" ")[0])}.test`,
+              position: "Zakonski zastupnik",
+              email: `${localPart(repFirst, repLast)}@${domain}.test`,
               phone: `+381 6${randomInt(0, 9)} ${randomInt(100, 999)} ${randomInt(1000, 9999)}`,
               isPrimary: true,
+              notes:
+                "Odobrava pravnu strategiju, poravnanja i konačne verzije ugovora.",
+              status: "ACTIVE",
+            },
+            {
+              firstName: financeFirst,
+              lastName: financeLast,
+              position: "Finansije i administracija",
+              email: `${localPart(financeFirst, financeLast)}@${domain}.test`,
+              phone: `+381 11 ${randomInt(1000000, 9999999)}`,
+              isPrimary: false,
+              notes:
+                "Kontakt za fakture, potvrde o uplati i dostavljanje poslovne dokumentacije.",
+              status: "ACTIVE",
             },
           ],
         },
@@ -401,21 +623,39 @@ async function ensureClients(prisma, workspaceId, actorUserId, lawyers, tags) {
   return clients;
 }
 
-async function seedWork(db, workspaceId, users, clients, refs) {
-  const actorUserId = users[0].id;
-  const lawyers = users.slice(0, -1); // Owner, lawyers, and both trainees; never office desk.
+async function seedWork(db, workspaceId, demoUsers, clients, refs) {
+  const actorUserId = demoUsers[0].id;
+  const lawyers = demoUsers.slice(0, -1); // Demo lawyers and trainees; never office desk.
   const audit = {
     workspaceId,
     createdByUserId: actorUserId,
     updatedByUserId: actorUserId,
   };
-  const logs = [],
-    cases = [];
+  const logs = [];
+  const cases = [];
+  const counters = { tasks: 0, deadlines: 0, notes: 0, events: 0 };
   const createdAt = atDay(-14);
+  const clientsById = new Map(clients.map((client) => [client.id, client]));
+  const contacts = await db.clientContact.findMany({
+    where: {
+      clientId: { in: clients.map((client) => client.id) },
+      status: "ACTIVE",
+    },
+    orderBy: [{ isPrimary: "desc" }, { createdAt: "asc" }],
+  });
+  const primaryContactByClientId = new Map();
+  for (const contact of contacts)
+    if (!primaryContactByClientId.has(contact.clientId))
+      primaryContactByClientId.set(contact.clientId, contact);
+
   async function create(model, data) {
     const item = await db[model].create({
       data: { workspaceId, createdByUserId: actorUserId, createdAt, ...data },
     });
+    if (model === "task") counters.tasks++;
+    if (model === "deadline") counters.deadlines++;
+    if (model === "note") counters.notes++;
+    if (model === "event") counters.events++;
     logs.push({
       workspaceId,
       actorUserId,
@@ -425,17 +665,43 @@ async function seedWork(db, workspaceId, users, clients, refs) {
       clientId: item.clientId ?? null,
       entityType: model[0].toUpperCase() + model.slice(1),
       entityId: item.id,
+      metadata: {
+        title: item.title ?? null,
+        type: item.type ?? null,
+        status: item.status ?? null,
+      },
     });
     return item;
   }
-  async function event(user, type, title, day, hour, linkedCase = null) {
+  async function event(
+    user,
+    type,
+    title,
+    day,
+    hour,
+    linkedCase = null,
+    options = {},
+  ) {
     const startsAt = atDay(day, hour),
-      endsAt = new Date(startsAt.getTime() + 60 * 60000);
+      endsAt = new Date(
+        startsAt.getTime() + (options.durationMinutes ?? 60) * 60000,
+      );
     const status = endsAt <= NOW ? "COMPLETED" : "SCHEDULED";
     const court = type === "HEARING" ? pick(COURTS) : null;
+    const linkedClient = linkedCase
+      ? clientsById.get(linkedCase.clientId)
+      : null;
+    const linkedContact = linkedClient
+      ? primaryContactByClientId.get(linkedClient.id)
+      : null;
     const item = await create("event", {
       type,
       title,
+      description:
+        options.description ??
+        (type === "HEARING"
+          ? "Prisustvo zakazanom ročištu. Poneti punomoćje, dokazni materijal i poslednju verziju procesne beleške."
+          : "Termin je evidentiran radi koordinacije tima i blagovremene pripreme dokumentacije."),
       startsAt,
       endsAt,
       timeZone: "Europe/Belgrade",
@@ -443,12 +709,27 @@ async function seedWork(db, workspaceId, users, clients, refs) {
       status,
       organizerUserId: user.id,
       caseId: linkedCase?.id ?? null,
-      location: court || "Kancelarija",
+      location: options.location ?? court ?? "Kancelarija - sala za sastanke",
+      meetingUrl: options.meetingUrl ?? null,
       courtName: court,
       courtroom: court ? `Sudnica ${randomInt(1, 12)}` : null,
       assignees: { create: [{ workspaceId, userId: user.id }] },
       clients: linkedCase
         ? { create: [{ workspaceId, clientId: linkedCase.clientId }] }
+        : undefined,
+      attendees: linkedClient
+        ? {
+            create: [
+              {
+                workspaceId,
+                clientContactId: linkedContact?.id ?? null,
+                displayName: linkedContact
+                  ? `${linkedContact.firstName} ${linkedContact.lastName}`
+                  : linkedClient.displayName,
+                email: linkedContact?.email ?? linkedClient.email,
+              },
+            ],
+          }
         : undefined,
     });
     if (status === "COMPLETED")
@@ -460,28 +741,68 @@ async function seedWork(db, workspaceId, users, clients, refs) {
         caseId: item.caseId,
         entityType: "Event",
         entityId: item.id,
+        metadata: { title: item.title, completedAutomatically: true },
       });
+    return item;
   }
+
   for (let i = 0; i < lawyers.length * CASES_PER_LAWYER; i++) {
     const owner = lawyers[i % lawyers.length],
       client = clients[i % clients.length];
     const title = CASE_TITLE_TEMPLATES[i % CASE_TITLE_TEMPLATES.length];
+    const [caseTypeName, practiceAreaName] =
+      CASE_CLASSIFICATIONS[i % CASE_CLASSIFICATIONS.length];
+    const caseType = refs.caseType.find((value) => value.name === caseTypeName);
+    const practiceArea = refs.practiceArea.find(
+      (value) => value.name === practiceAreaName,
+    );
+    const opposingParty = OPPOSING_PARTIES[i % OPPOSING_PARTIES.length];
+    const priority = i % 7 === 0 ? "HIGH" : i % 11 === 0 ? "URGENT" : "NORMAL";
+    const caseTags = [refs.tag[i % refs.tag.length]];
+    if (priority === "URGENT" && !caseTags.some((tag) => tag.name === "Hitno"))
+      caseTags.push(refs.tag.find((tag) => tag.name === "Hitno"));
     const item = await db.case.create({
       data: {
         ...audit,
         caseNumber: `DEMO-${TODAY.getFullYear()}-${pad(i + 1)}`,
         name: `${title} - ${client.displayName}`,
-        description: `Predmet za klijenta ${client.displayName}.`,
+        description: `${CASE_DESCRIPTIONS[i % CASE_DESCRIPTIONS.length]} Klijent: ${client.displayName}. Predmet: ${title.toLowerCase()}.`,
         clientId: client.id,
         responsibleUserId: owner.id,
-        status: "ACTIVE",
-        priority: "NORMAL",
-        caseTypeId: refs.caseType[i % refs.caseType.length].id,
-        practiceAreaId: refs.practiceArea[i % refs.practiceArea.length].id,
-        openedDate: dateOnly(-30),
+        status: i === 9 ? "ON_HOLD" : "ACTIVE",
+        priority,
+        caseTypeId: caseType.id,
+        practiceAreaId: practiceArea.id,
+        openedDate: atDay(-90 + i * 4, 9),
+        externalReference: `P-${TODAY.getFullYear()}/${pad(150 + i)}`,
+        opposingPartyName: opposingParty,
+        opposingPartyAddress: `${pick(STREETS)} ${randomInt(1, 140)}, ${pick(CITIES).city}`,
+        confidentialityLevel: i % 5 === 0 ? "RESTRICTED" : "INTERNAL",
+        customFields: {
+          courtFileNumber: `${randomInt(1, 9999)}/${TODAY.getFullYear()}`,
+          valueInDisputeRsd: randomInt(2, 95) * 100000,
+          proceduralStage: ["PRIPREMA", "PRVOSTEPENI_POSTUPAK", "PREGOVORI"][
+            i % 3
+          ],
+          billingCode: `BILL-${pad(i + 1)}`,
+        },
+        tags: {
+          create: caseTags.filter(Boolean).map((tag) => ({ tagId: tag.id })),
+        },
       },
     });
     cases.push(item);
+    logs.push({
+      workspaceId,
+      actorUserId,
+      action: "CASE_CREATED",
+      occurredAt: item.createdAt,
+      caseId: item.id,
+      clientId: item.clientId,
+      entityType: "Case",
+      entityId: item.id,
+      metadata: { caseNumber: item.caseNumber, priority: item.priority },
+    });
     await db.caseResponsibility.create({
       data: {
         ...audit,
@@ -491,35 +812,157 @@ async function seedWork(db, workspaceId, users, clients, refs) {
         startedAt: atDay(-30),
       },
     });
-    await db.caseActivity.create({
-      data: {
-        ...audit,
-        caseId: item.id,
+    if (i % 2 === 0) {
+      const collaborator = lawyers[(i + 1) % lawyers.length];
+      await db.caseResponsibility.create({
+        data: {
+          ...audit,
+          caseId: item.id,
+          userId: collaborator.id,
+          isPrimary: false,
+          startedAt: atDay(-14),
+        },
+      });
+    }
+    const activities = [
+      {
         type: "MEETING",
-        title: "Dogovor o narednim koracima",
-        description: "Utvrđene obaveze, odgovorno lice i naredni rokovi.",
-        activityDate: atDay(-2),
-        source: "MANUAL",
+        title: "Uvodni sastanak i analiza zahteva",
+        description:
+          "Sa klijentom je rekonstruisana hronologija događaja, evidentirani su ciljevi angažovanja i dogovorena lista potrebne dokumentacije.",
+        activityDate: atDay(-20, 11),
       },
+      {
+        type: "EMAIL",
+        title: "Primljena dopunska dokumentacija",
+        description:
+          "Klijent je dostavio ugovore, prepisku i dokaz o uplati. Dokumenti su evidentirani za pravnu analizu.",
+        activityDate: atDay(-8, 14),
+      },
+      {
+        type: "PHONE_CALL",
+        title: "Dogovor o narednim koracima",
+        description:
+          "Klijent je obavešten o trenutnom statusu. Potvrđeni su odgovorno lice, prioriteti i naredni procesni rok.",
+        activityDate: atDay(-2, 10),
+      },
+    ];
+    for (const activity of activities) {
+      const createdActivity = await db.caseActivity.create({
+        data: { ...audit, caseId: item.id, source: "MANUAL", ...activity },
+      });
+      logs.push({
+        workspaceId,
+        actorUserId: owner.id,
+        action: "CASE_ACTIVITY_CREATED",
+        occurredAt: createdActivity.activityDate,
+        caseId: item.id,
+        clientId: item.clientId,
+        entityType: "CaseActivity",
+        entityId: createdActivity.id,
+        metadata: { type: createdActivity.type, title: createdActivity.title },
+      });
+    }
+
+    const hearingDay = randomInt(5, 12);
+    // Exactly one overdue deadline; other deadlines are today or within three weeks.
+    const deadline = await create("deadline", {
+      title: `Procesni rok - ${title}`,
+      description:
+        "Krajnji rok za proveru dokaza, internu reviziju podneska i dostavljanje odobrene verzije nadležnom organu.",
+      type: i % 4 === 0 ? "COURT" : i % 4 === 1 ? "STATUTORY" : "INTERNAL",
+      status: "OPEN",
+      responsibleUserId: owner.id,
+      caseId: item.id,
+      clientId: client.id,
+      timeZone: "Europe/Belgrade",
+      dueDate: dateOnly(i === 2 ? -1 : i % 4 === 0 ? 0 : randomInt(5, 21)),
+      dueAt: null,
+      sourceDescription:
+        i % 4 === 0
+          ? "Rok evidentiran prema nalogu suda i potvrđen pregledom primljenog pismena."
+          : "Interni rok kancelarije postavljen pre zvaničnog roka radi kontrole kvaliteta.",
     });
-    // Per case: completed history + present work + two upcoming tasks.
+    if (i % 4 === 0)
+      await create("deadline", {
+        title: `Dostavljanje početne dokumentacije - ${title}`,
+        description:
+          "Raniji interni rok za prikupljanje punomoćja, identifikacionih podataka i osnovnih dokaza od klijenta.",
+        type: "INTERNAL",
+        dueDate: dateOnly(-15),
+        dueAt: null,
+        timeZone: "Europe/Belgrade",
+        status: "SATISFIED",
+        responsibleUserId: owner.id,
+        caseId: item.id,
+        clientId: client.id,
+        sourceDescription: "Rok definisan na uvodnom sastanku sa klijentom.",
+        satisfiedAt: atDay(-16, 14),
+        satisfiedByUserId: owner.id,
+      });
+
+    // Per case: completed history, present work and three upcoming obligations.
     // Exactly two tasks across the entire seed are overdue.
     const tasks = [
-      ["Pregled dokumentacije", "DONE", -3],
-      ["Priprema podneska", "IN_PROGRESS", i < 2 ? -2 : 0],
-      ["Priprema za ročište", "TODO", randomInt(1, 4)],
-      ["Kontakt sa klijentom", "TODO", randomInt(10, 21)],
+      {
+        title: "Pregled i klasifikacija dokumentacije",
+        description:
+          "Proveriti potpunost spisa, označiti ključne dokaze i evidentirati dokumente koje klijent još treba da dostavi.",
+        status: "DONE",
+        day: -7,
+      },
+      {
+        title: "Pravna analiza i izbor procesne strategije",
+        description:
+          "Analizirati relevantne propise i praksu, izdvojiti rizike i pripremiti preporuku za odgovornog advokata.",
+        status: "IN_PROGRESS",
+        day: i < 2 ? -2 : randomInt(1, 4),
+      },
+      {
+        title: "Priprema nacrta podneska",
+        description:
+          "Izraditi nacrt, uneti dokazne predloge i proslediti ga na internu reviziju pre procesnog roka.",
+        status: "TODO",
+        day: randomInt(3, 7),
+        deadlineId: deadline.id,
+      },
+      {
+        title: "Potvrda činjenica sa klijentom",
+        description:
+          "Zakazati kratak poziv, potvrditi sporne činjenice i zabeležiti eventualne izmene zahteva.",
+        status: "TODO",
+        day: randomInt(5, 10),
+        exactTime: 14,
+      },
+      {
+        title: "Priprema za zakazani termin",
+        description:
+          "Pripremiti hronologiju, pitanja, procesnu belešku i komplet dokumenata za zakazani termin.",
+        status: "TODO",
+        day: Math.max(1, hearingDay - 1),
+      },
     ];
-    for (const [title, status, day] of tasks) {
+    for (const taskDefinition of tasks) {
+      const {
+        title: taskTitle,
+        description,
+        status,
+        day,
+        deadlineId,
+        exactTime,
+      } = taskDefinition;
       const task = await create("task", {
-        title: `${title} - ${item.name}`,
+        title: `${taskTitle} - ${item.name}`,
+        description,
         status,
         priority: day < 0 && status !== "DONE" ? "HIGH" : "NORMAL",
         assigneeUserId: owner.id,
         caseId: item.id,
-        dueDate: dateOnly(day),
-        dueAt: null,
-        completedAt: status === "DONE" ? atDay(-3, 15) : null,
+        clientId: client.id,
+        deadlineId: deadlineId ?? null,
+        dueDate: exactTime ? null : dateOnly(day),
+        dueAt: exactTime ? atDay(day, exactTime) : null,
+        completedAt: status === "DONE" ? atDay(-6, 15) : null,
         completedByUserId: status === "DONE" ? owner.id : null,
       });
       if (status === "DONE")
@@ -531,59 +974,153 @@ async function seedWork(db, workspaceId, users, clients, refs) {
           caseId: item.id,
           entityType: "Task",
           entityId: task.id,
+          metadata: { title: task.title },
         });
     }
-    // Exactly one overdue deadline; other deadlines are today or within three weeks.
-    await create("deadline", {
-      title: `Interni rok za pripremu predmeta - ${item.name}`,
-      type: "INTERNAL",
-      status: "OPEN",
-      responsibleUserId: owner.id,
+    await create("note", {
       caseId: item.id,
-      timeZone: "Europe/Belgrade",
-      dueDate: dateOnly(i === 2 ? -1 : i % 4 === 0 ? 0 : randomInt(5, 21)),
-      dueAt: null,
-      sourceDescription: "Demonstracioni interni rok.",
+      clientId: client.id,
+      type: "CASE_UPDATE",
+      occurredAt: atDay(-2),
+      body: "Predmet je aktivan. Dokumentacija je uglavnom kompletirana, a otvorena pitanja su označena u radnoj belešci. Slede interna revizija nacrta, potvrda činjenica sa klijentom i praćenje procesnog roka.",
     });
     await create("note", {
       caseId: item.id,
-      type: "CASE_UPDATE",
-      occurredAt: atDay(-2),
-      body: "Predmet je u toku. Pripremiti dokumentaciju, potvrditi termin i pratiti naredne rokove.",
+      clientId: client.id,
+      type: "CALL_SUMMARY",
+      occurredAt: atDay(-5, 13),
+      body: "Klijent je telefonom potvrdio hronologiju i saglasio se sa predloženim narednim koracima. Dogovoreno je da preostalu dokumentaciju dostavi elektronskom poštom.",
     });
-    await event(
+    const hearing = await event(
       owner,
       "HEARING",
       `Ročište - ${item.name}`,
-      randomInt(5, 9),
+      hearingDay,
       i < lawyers.length ? 10 : 13,
       item,
+      { durationMinutes: 90 },
     );
-  }
-  // Everyone, including office desk, has today's event and several future events.
-  // Each user has separate day windows to avoid clashes with their hearings.
-  for (const user of users) {
-    const templates = [
-      ["MEETING", "Dnevni dogovor u kancelariji", 0],
-      ["MEETING", "Sastanak o planu rada", randomInt(1, 3)],
-      ["CALL", "Telefonska konsultacija", randomInt(10, 14)],
-      ["OTHER", "Pregled pristigle dokumentacije", randomInt(15, 21)],
-    ];
-    for (const [type, title, day] of templates)
-      await event(user, type, title, day, randomInt(9, 15));
-  }
-  for (const client of clients)
-    await db.clientActivity.create({
-      data: {
-        ...audit,
-        clientId: client.id,
-        type: "PHONE_CALL",
-        title: "Provera kontakt podataka",
-        description: "Potvrđeni kontakt podaci klijenta.",
-        activityDate: atDay(-4),
-        source: "MANUAL",
-      },
+    await create("note", {
+      caseId: item.id,
+      clientId: client.id,
+      eventId: hearing.id,
+      type: "GENERAL",
+      occurredAt: atDay(-1, 16),
+      body: "Za zakazano ročište proveriti original punomoćja, pripremiti tri primerka priloga i potvrditi dolazak klijenta dan ranije.",
     });
+    if (i % 3 === 0)
+      await event(
+        owner,
+        "MEETING",
+        `Pripremni sastanak sa klijentom - ${client.displayName}`,
+        randomInt(1, 4),
+        15,
+        item,
+        {
+          description:
+            "Pregled nacrta podneska, potvrda činjenica i priprema klijenta za narednu procesnu radnju.",
+          durationMinutes: 45,
+        },
+      );
+  }
+
+  // Every generated persona, including office desk, has useful calendar data.
+  // The real bootstrap account is intentionally excluded.
+  for (const user of demoUsers) {
+    const templates = [
+      {
+        type: "CALL",
+        title: "Završena statusna konsultacija",
+        day: -7,
+        description:
+          "Klijentu je prenet status predmeta i evidentirana su pitanja za naredni period.",
+      },
+      {
+        type: "MEETING",
+        title: "Jutarnji sastanak tima",
+        day: 0,
+        description:
+          "Pregled današnjih ročišta, rokova i raspodele hitnih zadataka.",
+      },
+      {
+        type: "MEETING",
+        title: "Nedeljni pregled aktivnih predmeta",
+        day: randomInt(1, 3),
+        description:
+          "Kratak pregled napretka, blokera i obaveza koje dospevaju naredne nedelje.",
+      },
+      {
+        type: "CALL",
+        title: "Telefonska konsultacija sa klijentom",
+        day: randomInt(10, 14),
+        description:
+          "Termin rezervisan za statusno obaveštenje i prikupljanje dopunskih činjenica.",
+        meetingUrl: "https://meet.example/legal-team",
+        location: "Online sastanak",
+      },
+      {
+        type: "OTHER",
+        title: "Pregled pristigle pošte i dokumentacije",
+        day: randomInt(15, 21),
+        description:
+          "Obrada sudske pošte, evidentiranje novih rokova i raspodela dokumentacije timu.",
+      },
+    ];
+    for (const template of templates)
+      await event(
+        user,
+        template.type,
+        template.title,
+        template.day,
+        randomInt(9, 15),
+        null,
+        {
+          description: template.description,
+          meetingUrl: template.meetingUrl,
+          location: template.location,
+        },
+      );
+  }
+  for (const [index, client] of clients.entries()) {
+    const relatedCase = cases.find((item) => item.clientId === client.id);
+    const clientActivities = [
+      {
+        type: "PHONE_CALL",
+        title: "Provera kontakt podataka i načina komunikacije",
+        description:
+          "Potvrđeni su telefon, adresa elektronske pošte, primarni kontakt i poželjan način komunikacije.",
+        activityDate: atDay(-12 + (index % 4), 10),
+      },
+      {
+        type: "EMAIL",
+        title: "Poslato statusno obaveštenje",
+        description:
+          "Klijentu je poslat sažetak aktivnih predmeta, narednih rokova i dokumentacije koju treba dostaviti.",
+        activityDate: atDay(-4 + (index % 2), 15),
+      },
+    ];
+    for (const activity of clientActivities) {
+      const createdActivity = await db.clientActivity.create({
+        data: {
+          ...audit,
+          clientId: client.id,
+          relatedCaseId: relatedCase?.id ?? null,
+          source: "MANUAL",
+          ...activity,
+        },
+      });
+      logs.push({
+        workspaceId,
+        actorUserId: client.responsibleUserId ?? actorUserId,
+        action: "CLIENT_ACTIVITY_CREATED",
+        occurredAt: createdActivity.activityDate,
+        clientId: client.id,
+        entityType: "ClientActivity",
+        entityId: createdActivity.id,
+        metadata: { type: createdActivity.type, title: createdActivity.title },
+      });
+    }
+  }
   logs.push({
     workspaceId,
     actorUserId,
@@ -594,8 +1131,8 @@ async function seedWork(db, workspaceId, users, clients, refs) {
   });
   await db.activityLog.createMany({ data: logs });
   console.log(
-    `Created ${cases.length} cases, ${cases.length * 4} tasks, ${cases.length} deadlines, ` +
-      `${cases.length} notes and ${cases.length + users.length * 4} events. Exactly 3 overdue obligations.`,
+    `Created ${cases.length} detailed cases, ${counters.tasks} tasks, ${counters.deadlines} deadlines, ` +
+      `${counters.notes} notes and ${counters.events} events. Exactly 3 overdue obligations.`,
   );
 }
 async function main() {
@@ -611,7 +1148,7 @@ async function main() {
         if (!(await db.workspace.findUnique({ where: { id: workspaceId } }))) {
           throw new Error("Workspace missing. Run db:seed:auth first.");
         }
-        const users = await ensureUsers(db, workspaceId);
+        const demoUsers = await ensureUsers(db, workspaceId);
         const marker = await db.activityLog.findFirst({
           where: { workspaceId, action: "DEMO_SEED_COMPLETED" },
         });
@@ -635,15 +1172,17 @@ async function main() {
             providerType: "LOCAL",
           },
         });
-        const refs = await ensureReferences(db, workspaceId, users[0].id);
+        const demoActor = demoUsers[0];
+        const demoLawyers = demoUsers.slice(0, -1);
+        const refs = await ensureReferences(db, workspaceId, demoActor.id);
         const clients = await ensureClients(
           db,
           workspaceId,
-          users[0].id,
-          users.slice(0, -1),
+          demoActor.id,
+          demoLawyers,
           refs.tag,
         );
-        await seedWork(db, workspaceId, users, clients, refs);
+        await seedWork(db, workspaceId, demoUsers, clients, refs);
       },
       { maxWait: 10000, timeout: 120000 },
     );

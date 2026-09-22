@@ -25,6 +25,7 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { AuthState } from "@law/security";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import {
@@ -35,7 +36,7 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { EventDialogService } from "./event-dialog/event-dialog.service";
 import { CalendarEventsListComponent } from "./calendar-events-list/calendar-events-list.component";
 
-type CalendarView = "month" | "week" | "agenda" | "list" | "board";
+type CalendarView = "month" | "week" | "list" | "board";
 
 interface CalendarDay {
   date: string;
@@ -108,6 +109,7 @@ export class CalendarComponent {
   private readonly eventDialog = inject(EventDialogService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
+  private readonly authState = inject(AuthState);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
@@ -121,14 +123,15 @@ export class CalendarComponent {
   readonly view = signal<CalendarView>(this.initialView());
   readonly source = signal<CalendarSourceType | "">("");
   readonly lawyerId = signal(
-    this.route.snapshot.queryParamMap.get("lawyer") ?? "",
+    this.route.snapshot.queryParamMap.get("lawyer") ??
+      this.authState.session()?.user.id ??
+      "",
   );
   readonly lawyers = signal<Array<{ id: string; name: string }>>([]);
   readonly sourceOptions: ReadonlyArray<SelectOption<CalendarSourceType | "">> =
     [
       { value: "", label: "calendar.allSources" },
       { value: "EVENT", label: "calendar.source.event" },
-      { value: "TASK", label: "calendar.source.task" },
       { value: "DEADLINE", label: "calendar.source.deadline" },
     ];
   readonly sourceItemToString = createSelectItemToString(
@@ -155,8 +158,12 @@ export class CalendarComponent {
 
   readonly today = dateKey(new Date());
   readonly monthDays = computed(() => this.buildMonthDays(this.anchor()));
+  readonly miniAnchor = signal(this.anchor());
+  readonly miniMonthDays = computed(() =>
+    this.buildMonthDays(this.miniAnchor()),
+  );
   readonly miniWeeks = computed(() => {
-    const days = this.monthDays();
+    const days = this.miniMonthDays();
     return Array.from({ length: Math.ceil(days.length / 7) }, (_, index) =>
       days.slice(index * 7, index * 7 + 7),
     );
@@ -304,7 +311,7 @@ export class CalendarComponent {
       : dateKey(this.viewEnd(this.anchor())),
   );
   readonly rangeLabel = computed(() =>
-    this.view() === "week" || this.view() === "agenda"
+    this.view() === "week"
       ? `${this.weekDays()[0]?.date} - ${this.weekDays()[6]?.date}`
       : new Intl.DateTimeFormat(undefined, {
           month: "long",
@@ -315,7 +322,7 @@ export class CalendarComponent {
     new Intl.DateTimeFormat(undefined, {
       month: "long",
       year: "numeric",
-    }).format(this.anchor()),
+    }).format(this.miniAnchor()),
   );
   readonly filteredItems = computed(() => {
     const query = this.search.value.trim().toLocaleLowerCase();
@@ -341,6 +348,9 @@ export class CalendarComponent {
       this.lawyerId();
       this.includeClosed();
       this.loadRange();
+    });
+    effect(() => {
+      this.miniAnchor.set(this.anchor());
     });
     effect(() => {
       const next = this.source();
@@ -381,8 +391,7 @@ export class CalendarComponent {
 
   previous(): void {
     const date = new Date(this.anchor());
-    if (this.view() === "week" || this.view() === "agenda")
-      date.setDate(date.getDate() - 7);
+    if (this.view() === "week") date.setDate(date.getDate() - 7);
     else date.setMonth(date.getMonth() - 1);
     this.anchor.set(date);
     this.selectedDay.set(dateKey(date));
@@ -391,12 +400,23 @@ export class CalendarComponent {
 
   next(): void {
     const date = new Date(this.anchor());
-    if (this.view() === "week" || this.view() === "agenda")
-      date.setDate(date.getDate() + 7);
+    if (this.view() === "week") date.setDate(date.getDate() + 7);
     else date.setMonth(date.getMonth() + 1);
     this.anchor.set(date);
     this.selectedDay.set(dateKey(date));
     this.persistUrl();
+  }
+
+  previousMiniMonth(): void {
+    const date = new Date(this.miniAnchor());
+    date.setMonth(date.getMonth() - 1);
+    this.miniAnchor.set(date);
+  }
+
+  nextMiniMonth(): void {
+    const date = new Date(this.miniAnchor());
+    date.setMonth(date.getMonth() + 1);
+    this.miniAnchor.set(date);
   }
 
   goToday(): void {
@@ -486,9 +506,17 @@ export class CalendarComponent {
   }
 
   selectMiniDay(date: string): void {
-    this.anchor.set(new Date(`${date}T00:00:00`));
+    const clicked = new Date(`${date}T00:00:00`);
     this.selectedDay.set(date);
-    this.view.set("week");
+    const isMonthChanged =
+      clicked.getFullYear() !== this.anchor().getFullYear() ||
+      clicked.getMonth() !== this.anchor().getMonth();
+    if (this.view() !== "month") {
+      this.anchor.set(clicked);
+      this.view.set("week");
+    } else if (isMonthChanged) {
+      this.anchor.set(clicked);
+    }
     this.persistUrl();
   }
 
@@ -725,7 +753,6 @@ export class CalendarComponent {
     if (
       value === "month" ||
       value === "week" ||
-      value === "agenda" ||
       value === "list" ||
       value === "board"
     )
@@ -770,10 +797,7 @@ export class CalendarComponent {
 
   private viewEnd(anchor: Date): Date {
     const date = this.viewStart(anchor);
-    date.setDate(
-      date.getDate() +
-        (this.view() === "week" || this.view() === "agenda" ? 6 : 0),
-    );
+    date.setDate(date.getDate() + (this.view() === "week" ? 6 : 0));
     return date;
   }
 

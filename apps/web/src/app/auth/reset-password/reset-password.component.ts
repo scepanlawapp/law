@@ -8,6 +8,7 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { LocalizationService } from "../../core/localization/localization.service";
 
 @Component({
   selector: "law-reset-password",
@@ -28,6 +29,7 @@ export class ResetPasswordComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly token = this.route.snapshot.queryParamMap.get("token") ?? "";
   password = "";
@@ -45,7 +47,7 @@ export class ResetPasswordComponent {
           setTimeout(() => void this.router.navigate(["/login"]), 1200);
         },
         error: () => {
-          this.toast.error("This reset link is invalid or expired.");
+          this.toast.error(this.localization.translate("auth.resetLinkInvalid"));
           this.submitting.set(false);
         },
       });

@@ -5,15 +5,15 @@
       data.variant === 'default' ? 'lucideCircleAlert' : 'lucideTriangleAlert'
     "
   />
-  <h2 hlmDialogTitle>{{ data.title }}</h2>
-  <p hlmDialogDescription>{{ data.message }}</p>
+  <h2 hlmDialogTitle>{{ data.title | translate }}</h2>
+  <p hlmDialogDescription>{{ data.message | translate }}</p>
 </div>
 
 <div hlmDialogFooter class="flex justify-end">
   <button hlmBtn variant="ghost" type="button" (click)="cancel()">
-    {{ data.cancelText }}
+    {{ data.cancelText | translate }}
   </button>
   <button hlmBtn type="button" (click)="confirm()">
-    {{ data.confirmText }}
+    {{ data.confirmText | translate }}
   </button>
 </div>

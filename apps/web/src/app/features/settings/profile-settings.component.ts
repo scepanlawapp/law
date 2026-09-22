@@ -204,9 +204,8 @@ export class ProfileSettingsComponent {
           // This preserves unsaved edits and the form's dirty state.
           this.form.controls.avatarUrl.setValue(avatarUrl);
 
-          // Also synchronize UserSettingsStore and AuthState here
-          // using their existing local-state update methods.
-          // Do not send another profile-update HTTP request.
+          // Sync the shared store so avatars elsewhere (user menu, etc.) update too.
+          this.settingsStore.patchProfile({ avatarUrl });
         }),
 
         finalize(() => {

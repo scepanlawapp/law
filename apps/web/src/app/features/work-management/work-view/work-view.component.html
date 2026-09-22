@@ -343,42 +343,30 @@
       }
     </div>
   } @else {
-    <div
-      appBottomReached
-      (bottomReached)="loadMore()"
-      class="flex min-h-0 min-w-0 flex-1 flex-col gap-3 overflow-auto overscroll-contain pe-1"
-    >
+    <div class="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
       <div
-        class="grid shrink-0 gap-3"
+        class="grid h-full min-h-0 gap-3"
         [style.grid-template-columns]="
           'repeat(' + boardColumns().length + ', minmax(240px, 1fr))'
         "
-        cdkDropListGroup
       >
         @for (column of boardColumns(); track column) {
           <div
-            class="flex flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2"
+            class="flex h-full min-h-0 flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2"
           >
             <h3 class="px-1 text-sm font-semibold">
               {{ "work.board." + column.toLowerCase() | translate }}
             </h3>
             <div
-              cdkDropList
-              [id]="column"
-              [cdkDropListData]="column"
-              [cdkDropListEnterPredicate]="dropListEnterPredicate"
-              (cdkDropListDropped)="onDrop($event)"
-              class="flex min-h-24 flex-col gap-2"
+              appBottomReached
+              (bottomReached)="loadMore()"
+              class="flex min-h-24 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pe-1"
             >
               @for (
                 item of itemsForColumn(column);
                 track item.sourceType + item.id
               ) {
-                <div
-                  cdkDrag
-                  [cdkDragData]="item"
-                  class="rounded-lg border border-border bg-card p-2 shadow-xs"
-                >
+                <div class="rounded-lg border border-border bg-card p-2 shadow-xs">
                   <button
                     type="button"
                     class="flex w-full flex-col items-start text-start"
@@ -395,15 +383,15 @@
                   </button>
                 </div>
               }
+              @if (hasMore() && loading()) {
+                <div class="flex shrink-0 justify-center py-2">
+                  <hlm-spinner aria-label="{{ 'work.loadMore' | translate }}" />
+                </div>
+              }
             </div>
           </div>
         }
       </div>
-      @if (hasMore() && loading()) {
-        <div class="flex shrink-0 justify-center py-2">
-          <hlm-spinner aria-label="{{ 'work.loadMore' | translate }}" />
-        </div>
-      }
     </div>
   }
 </div>

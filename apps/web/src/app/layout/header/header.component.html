@@ -23,14 +23,14 @@
       size="icon"
       class="relative"
       type="button"
-      aria-label="Notifications"
+      [attr.aria-label]="'header.notifications' | translate"
       [hlmDropdownMenuTrigger]="notificationMenu"
     >
       <ng-icon name="lucideBell" />
       <span class="absolute">3</span>
     </button>
     <ng-template #notificationMenu>
-      <hlm-dropdown-menu aria-label="Recent notifications">
+      <hlm-dropdown-menu [attr.aria-label]="'header.notifications' | translate">
         <hlm-dropdown-menu-group>
           <div class="flex items-center justify-between">
             <h2>{{ "header.notifications" | translate }}</h2>
@@ -38,14 +38,14 @@
               {{ "header.newNotifications" | translate: { count: 10 } }}
             </span>
           </div>
-          @for (notification of notifications; track notification.title) {
+          @for (notification of notifications; track notification.titleKey) {
             <div class="flex items-center">
               <span [class]="notification.tone">
                 <ng-icon [name]="notification.icon" />
               </span>
               <span>
-                <strong>{{ notification.title }}</strong>
-                <small>{{ notification.detail }}</small>
+                <strong>{{ notification.titleKey | translate }}</strong>
+                <small>{{ notification.detailKey | translate }}</small>
               </span>
               <time>{{ notification.time }}</time>
             </div>

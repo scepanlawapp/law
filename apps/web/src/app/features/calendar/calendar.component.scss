@@ -200,12 +200,6 @@
   min-width: 0;
 }
 
-.calendar-agenda-meta {
-  min-width: 0;
-  max-width: 40%;
-  overflow-wrap: anywhere;
-}
-
 @container calendar-page (min-width: 45rem) {
   .calendar-filters {
     grid-template-columns: minmax(0, 1fr) minmax(0, 10rem) minmax(0, 14rem);

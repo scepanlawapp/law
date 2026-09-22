@@ -61,16 +61,31 @@
       class="calendar-sidebar h-fit rounded-md border border-border bg-card p-4"
     >
       <div class="mb-4 flex items-center justify-between gap-2">
-        <h2 class="font-semibold capitalize">{{ miniMonthLabel() }}</h2>
-        <button
-          hlmBtn
-          type="button"
-          variant="ghost"
-          size="sm"
-          (click)="goToday()"
-        >
-          {{ "calendar.today" | translate }}
-        </button>
+        <h2 class="min-w-0 flex-1 truncate font-semibold capitalize">
+          {{ miniMonthLabel() }}
+        </h2>
+        <div class="flex shrink-0 items-center gap-1">
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="{{ 'calendar.previous' | translate }}"
+            (click)="previousMiniMonth()"
+          >
+            ▲
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            size="sm"
+            aria-label="{{ 'calendar.next' | translate }}"
+            (click)="nextMiniMonth()"
+          >
+            ▼
+          </button>
+        </div>
       </div>
       <div
         class="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground"
@@ -207,14 +222,6 @@
           <button
             hlmBtn
             type="button"
-            [variant]="view() === 'agenda' ? 'default' : 'outline'"
-            (click)="setView('agenda')"
-          >
-            {{ "calendar.agenda" | translate }}
-          </button>
-          <button
-            hlmBtn
-            type="button"
             [variant]="view() === 'list' ? 'default' : 'outline'"
             (click)="setView('list')"
           >
@@ -245,53 +252,6 @@
             {{ "calendar.retry" | translate }}
           </button>
         </div>
-      } @else if (view() === "agenda") {
-        @if (filteredItems().length === 0) {
-          <div class="rounded-md border border-border bg-card p-8 text-center">
-            <h2 class="text-lg font-semibold">
-              {{ "calendar.emptyTitle" | translate }}
-            </h2>
-            <p class="mt-2 text-sm text-muted-foreground">
-              {{ "calendar.emptyDescription" | translate }}
-            </p>
-          </div>
-        } @else {
-          <section
-            class="calendar-viewport space-y-3"
-            aria-label="{{ 'calendar.agenda' | translate }}"
-          >
-            @for (item of filteredItems(); track trackItem($index, item)) {
-              <button
-                type="button"
-                data-calendar-item-trigger
-                class="flex w-full items-start justify-between gap-4 rounded-md border border-border bg-card p-4 text-left hover:bg-accent"
-                (click)="selectItem($event, item)"
-                (contextmenu)="openEventMenu($event, item)"
-              >
-                <span class="min-w-0">
-                  <span class="block text-sm text-muted-foreground">
-                    {{ itemDate(item) }} ·
-                    {{
-                      itemTime(item) ||
-                        (item.date
-                          ? ("calendar.dateOnly" | translate)
-                          : ("calendar.allDay" | translate))
-                    }}
-                  </span>
-                  <span class="block truncate font-medium">
-                    {{ item.title }}
-                  </span>
-                </span>
-                <span
-                  class="calendar-agenda-meta text-sm text-muted-foreground"
-                >
-                  {{ sourceLabel(item) | translate }} ·
-                  {{ statusLabel(item.status) | translate }}
-                </span>
-              </button>
-            }
-          </section>
-        }
       } @else if (view() === "week") {
         <section
           #scheduleViewport

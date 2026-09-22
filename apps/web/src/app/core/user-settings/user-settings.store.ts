@@ -68,4 +68,15 @@ export class UserSettingsStore {
       }),
     );
   }
+
+  /** Patch the cached profile locally, e.g. after an avatar upload that bypasses `update()`. */
+  patchProfile(patch: Partial<UserSettingsProfile>): void {
+    const current = this.settings();
+    if (!current) return;
+
+    this.settings.set({
+      ...current,
+      profile: { ...current.profile, ...patch },
+    });
+  }
 }

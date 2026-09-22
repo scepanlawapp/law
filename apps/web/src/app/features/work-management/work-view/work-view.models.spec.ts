@@ -1,10 +1,10 @@
 import { DeadlineDetail, EventDetail, TaskDetail } from "@law/api-interfaces";
 import {
-  allowedDrop,
   deadlineToWorkItem,
   eventToWorkItem,
   mergePage,
   sortWorkItems,
+  statusTransition,
   taskToWorkItem,
   WorkItem,
 } from "./work-view.models";
@@ -166,43 +166,47 @@ describe("mergePage", () => {
   });
 });
 
-describe("allowedDrop", () => {
+describe("statusTransition", () => {
   it("allows a task to move between to-do, in-progress and done", () => {
     const todo = taskToWorkItem(makeTask({ status: "TODO" }));
     const inProgress = taskToWorkItem(makeTask({ status: "IN_PROGRESS" }));
     const done = taskToWorkItem(makeTask({ status: "DONE" }));
 
-    expect(allowedDrop(todo, "IN_PROGRESS")).toEqual({
+    expect(statusTransition(todo, "IN_PROGRESS")).toEqual({
       action: "task-set-in-progress",
     });
-    expect(allowedDrop(inProgress, "TODO")).toEqual({
+    expect(statusTransition(inProgress, "TODO")).toEqual({
       action: "task-set-todo",
     });
-    expect(allowedDrop(todo, "DONE")).toEqual({ action: "task-complete" });
-    expect(allowedDrop(done, "TODO")).toEqual({ action: "task-reopen" });
+    expect(statusTransition(todo, "DONE")).toEqual({ action: "task-complete" });
+    expect(statusTransition(done, "TODO")).toEqual({ action: "task-reopen" });
   });
 
   it("never allows dragging into or out of cancelled", () => {
     const todo = taskToWorkItem(makeTask({ status: "TODO" }));
     const cancelled = taskToWorkItem(makeTask({ status: "CANCELLED" }));
-    expect(allowedDrop(todo, "CANCELLED")).toBeNull();
-    expect(allowedDrop(cancelled, "TODO")).toBeNull();
-    expect(allowedDrop(cancelled, "DONE")).toBeNull();
+    expect(statusTransition(todo, "CANCELLED")).toBeNull();
+    expect(statusTransition(cancelled, "TODO")).toBeNull();
+    expect(statusTransition(cancelled, "DONE")).toBeNull();
   });
 
   it("never allows a deadline into the in-progress column", () => {
     const open = deadlineToWorkItem(makeDeadline({ status: "OPEN" }));
-    expect(allowedDrop(open, "IN_PROGRESS")).toBeNull();
-    expect(allowedDrop(open, "DONE")).toEqual({ action: "deadline-satisfy" });
+    expect(statusTransition(open, "IN_PROGRESS")).toBeNull();
+    expect(statusTransition(open, "DONE")).toEqual({
+      action: "deadline-satisfy",
+    });
   });
 
   it("never allows an event to reopen from done or cancelled", () => {
     const done = eventToWorkItem(makeEvent({ status: "COMPLETED" }));
     const cancelled = eventToWorkItem(makeEvent({ status: "CANCELLED" }));
-    expect(allowedDrop(done, "TODO")).toBeNull();
-    expect(allowedDrop(cancelled, "TODO")).toBeNull();
+    expect(statusTransition(done, "TODO")).toBeNull();
+    expect(statusTransition(cancelled, "TODO")).toBeNull();
     const todo = eventToWorkItem(makeEvent({ status: "SCHEDULED" }));
-    expect(allowedDrop(todo, "DONE")).toEqual({ action: "event-complete" });
-    expect(allowedDrop(todo, "IN_PROGRESS")).toBeNull();
+    expect(statusTransition(todo, "DONE")).toEqual({
+      action: "event-complete",
+    });
+    expect(statusTransition(todo, "IN_PROGRESS")).toBeNull();
   });
 });

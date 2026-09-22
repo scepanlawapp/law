@@ -22,8 +22,8 @@ import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 interface HeaderNotification {
-  title: string;
-  detail: string;
+  titleKey: string;
+  detailKey: string;
   time: string;
   icon: string;
   tone: "blue" | "orange" | "red" | "purple";
@@ -71,71 +71,71 @@ export class HeaderComponent {
 
   readonly notifications: HeaderNotification[] = [
     {
-      title: "New document uploaded",
-      detail: "Contract.pdf in case P-123/2026",
+      titleKey: "header.notification.documentUploaded",
+      detailKey: "header.notification.documentUploadedDetail",
       time: "10m",
       icon: "lucideFileText",
       tone: "blue",
     },
     {
-      title: "Hearing reminder",
-      detail: "Court hearing tomorrow at 10:00",
+      titleKey: "header.notification.hearingReminder",
+      detailKey: "header.notification.hearingReminderDetail",
       time: "1h",
       icon: "lucideCalendar",
       tone: "blue",
     },
     {
-      title: "Deadline approaching",
-      detail: "Submit appeal in 2 days",
+      titleKey: "header.notification.deadlineApproaching",
+      detailKey: "header.notification.deadlineApproachingDetail",
       time: "3h",
       icon: "lucideTriangleAlert",
       tone: "red",
     },
     {
-      title: "New message from client",
-      detail: "Ana Jovanović",
+      titleKey: "header.notification.newClientMessage",
+      detailKey: "header.notification.newClientMessageDetail",
       time: "5h",
       icon: "lucideMessageCircle",
       tone: "blue",
     },
     {
-      title: "System update",
-      detail: "Backup completed successfully",
+      titleKey: "header.notification.systemUpdate",
+      detailKey: "header.notification.systemUpdateDetail",
       time: "1d",
       icon: "lucideInfo",
       tone: "purple",
     },
     {
-      title: "Payment received",
-      detail: "Invoice #INV-0042 was paid",
+      titleKey: "header.notification.paymentReceived",
+      detailKey: "header.notification.paymentReceivedDetail",
       time: "1d",
       icon: "lucideCreditCard",
       tone: "orange",
     },
     {
-      title: "Case status changed",
-      detail: "P-124/2026 is now Active",
+      titleKey: "header.notification.caseStatusChanged",
+      detailKey: "header.notification.caseStatusChangedDetail",
       time: "2d",
       icon: "lucideFolderOpen",
       tone: "orange",
     },
     {
-      title: "New client added",
-      detail: "Nikola Petrović joined your workspace",
+      titleKey: "header.notification.newClientAdded",
+      detailKey: "header.notification.newClientAddedDetail",
       time: "2d",
       icon: "lucideUsers",
       tone: "blue",
     },
     {
-      title: "Task completed",
-      detail: "Prepare response to court",
+      titleKey: "header.notification.taskCompleted",
+      detailKey: "header.notification.taskCompletedDetail",
       time: "3d",
       icon: "lucideSquareCheck",
       tone: "purple",
     },
     {
-      title: "Document review finished",
-      detail: "Ugovor.pdf is ready for review",
+      titleKey: "header.notification.documentReviewFinished",
+      detailKey: "header.notification.documentReviewFinishedDetail",
       time: "3d",
       icon: "lucideFileCheck",
       tone: "blue",

@@ -8,6 +8,7 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { TranslatePipe } from "./core/localization/translate.pipe";
 import { ToastService } from "./shared/ui/toast/toast.service";
+import { LocalizationService } from "./core/localization/localization.service";
 
 @Component({
   standalone: true,
@@ -22,11 +23,13 @@ import { ToastService } from "./shared/ui/toast/toast.service";
   template: `
     <main>
       <section>
-        <p>Law workspace</p>
+        <p>{{ "brand.workspace" | translate }}</p>
         <h1>{{ "auth.acceptInvitation" | translate }}</h1>
         <form (ngSubmit)="submit()">
           <div hlmField>
-            <label hlmFieldLabel for="password">Password</label>
+            <label hlmFieldLabel for="password">
+              {{ "auth.password" | translate }}
+            </label>
             <input
               hlmInput
               id="password"
@@ -57,6 +60,7 @@ export class AcceptInvitationComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
+  private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly token = this.route.snapshot.queryParamMap.get("token") ?? "";
   password = "";
@@ -74,7 +78,9 @@ export class AcceptInvitationComponent {
           setTimeout(() => void this.router.navigate(["/login"]), 800);
         },
         error: () => {
-          this.toast.error("This invitation is invalid or expired.");
+          this.toast.error(
+            this.localization.translate("auth.invitationInvalid"),
+          );
           this.submitting.set(false);
         },
       });

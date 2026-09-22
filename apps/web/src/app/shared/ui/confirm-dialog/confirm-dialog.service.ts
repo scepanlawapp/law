@@ -33,8 +33,8 @@ export class ConfirmDialogService {
         context: {
           title: options.title,
           message: options.message,
-          confirmText: options.confirmText ?? "Confirm",
-          cancelText: options.cancelText ?? "Cancel",
+          confirmText: options.confirmText ?? "common.confirm",
+          cancelText: options.cancelText ?? "common.cancel",
           variant: options.variant ?? "default",
         },
         disableClose: options.disableClose ?? false,
