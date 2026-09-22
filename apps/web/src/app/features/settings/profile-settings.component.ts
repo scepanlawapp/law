@@ -17,7 +17,9 @@ import {
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { AuthApiClient, UserSettingsApiClient } from "@law/api-clients";
+import { UserProfileGender } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
@@ -32,6 +34,7 @@ import {
   AvatarCropDialogResult,
   REMOVE_PROFILE_IMAGE,
 } from "../../shared/components/user-avatar-drop-dialog/user-avatar-drop-dialog.component";
+import { createSelectItemToString, SelectOption } from "../../shared/utils";
 
 @Component({
   selector: "law-profile-settings",
@@ -42,6 +45,7 @@ import {
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    HlmSelectImports,
     TranslatePipe,
     HlmSpinner,
     UserAvatarComponent,
@@ -68,6 +72,16 @@ export class ProfileSettingsComponent {
   readonly session = this.authState.session;
   readonly saving = signal(false);
   readonly changingProfileImage = signal(false);
+  readonly genderOptions: ReadonlyArray<SelectOption<UserProfileGender | "">> =
+    [
+      { value: "", label: "settings.genderUnspecified" },
+      { value: "MALE", label: "settings.genderMale" },
+      { value: "FEMALE", label: "settings.genderFemale" },
+    ];
+  readonly genderItemToString = createSelectItemToString(
+    this.genderOptions,
+    (key) => this.localization.translate(key),
+  );
 
   readonly form = new FormGroup({
     firstName: new FormControl(""),
@@ -75,6 +89,9 @@ export class ProfileSettingsComponent {
     username: new FormControl(""),
     phone: new FormControl(""),
     jobTitle: new FormControl(""),
+    gender: new FormControl<UserProfileGender | "">("", {
+      nonNullable: true,
+    }),
     avatarUrl: new FormControl(""),
   });
   readonly passwordForm = new FormGroup({
@@ -113,6 +130,7 @@ export class ProfileSettingsComponent {
           username: profile.username ?? "",
           phone: profile.phone ?? "",
           jobTitle: profile.jobTitle ?? "",
+          gender: profile.gender ?? "",
           avatarUrl: profile.avatarUrl ?? "",
         });
       }
@@ -133,6 +151,7 @@ export class ProfileSettingsComponent {
       .update({
         profile: {
           ...profile,
+          gender: profile.gender || null,
           avatarUrl: profile.avatarUrl?.trim() || undefined,
         },
       })

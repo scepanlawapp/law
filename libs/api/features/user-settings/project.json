@@ -4,6 +4,12 @@
   "sourceRoot": "libs/api/features/user-settings/src",
   "projectType": "library",
   "targets": {
-    "test": { "executor": "@nx/jest:jest", "options": { "passWithNoTests": true } }
+    "test": {
+      "executor": "@nx/jest:jest",
+      "options": {
+        "jestConfig": "libs/api/features/user-settings/jest.config.cts",
+        "passWithNoTests": true
+      }
+    }
   }
 }

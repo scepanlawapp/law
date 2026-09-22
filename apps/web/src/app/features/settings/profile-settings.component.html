@@ -66,6 +66,30 @@
               </label>
               <input hlmInput id="phone" formControlName="phone" />
             </div>
+            <div hlmField>
+              <label hlmFieldLabel for="gender-select">
+                {{ "settings.gender" | translate }}
+              </label>
+              <hlm-select
+                formControlName="gender"
+                [itemToString]="genderItemToString"
+              >
+                <hlm-select-trigger id="gender-select" class="w-full">
+                  <hlm-select-value
+                    [placeholder]="'settings.genderUnspecified' | translate"
+                  />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (option of genderOptions; track option.value) {
+                      <hlm-select-item [value]="option.value">
+                        {{ genderItemToString(option.value) }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
             <div hlmField class="md:col-span-2">
               <label hlmFieldLabel for="jobTitle">
                 {{ "settings.jobTitle" | translate }}

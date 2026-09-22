@@ -1,6 +1,6 @@
 # Business Logic Done So Far
 
-**Checked:** 2026-09-21  
+**Checked:** 2026-09-21
 **Scope:** `apps/api`, `apps/web`, shared API contracts and API clients.
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
@@ -187,6 +187,7 @@ documents,
 
 - Workspace reference data, including users, is available to frontend forms and display components.
 - User settings can be read and updated through authenticated API endpoints.
+- User profiles can optionally store `MALE` or `FEMALE` gender. Profile Settings exposes translated Male, Female, and Not specified choices; Not specified clears the stored value.
 - The frontend has profile, appearance, workspace, and data settings pages.
 - Conversation history can be cleared for the current user and workspace, using a confirmation dialog and success/error feedback.
 

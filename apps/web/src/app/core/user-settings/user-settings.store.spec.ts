@@ -14,6 +14,7 @@ const mockResponse: UserSettingsResponse = {
     email: "petar@example.com",
     phone: "+381601234567",
     jobTitle: "Advokat",
+    gender: "MALE",
     avatarUrl: "https://example.com/avatar.jpg",
   },
   preferences: {
@@ -65,6 +66,7 @@ describe("UserSettingsStore", () => {
       expect(result).toEqual(mockResponse);
       expect(store.settings()).toEqual(mockResponse);
       expect(store.profile()?.email).toBe("petar@example.com");
+      expect(store.profile()?.gender).toBe("MALE");
       expect(store.preferences()?.theme).toBe("CHARCOAL");
       expect(store.loading()).toBe(false);
       expect(store.error()).toBe(false);
