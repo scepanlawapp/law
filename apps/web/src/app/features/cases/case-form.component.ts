@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   FormControl,
@@ -67,7 +67,7 @@ export class CaseFormComponent {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly toast = inject(ToastService);
-  private readonly local = inject(LocalizationService);
+  readonly local = inject(LocalizationService);
   private readonly dialog = inject(HlmDialogService);
   private readonly clientDialog = inject(ClientFormDialogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -77,41 +77,16 @@ export class CaseFormComponent {
   );
   readonly saving = signal(false);
   readonly loading = signal(!!this.caseId);
+  readonly formSubmitted = signal(false);
   readonly clients = signal<Array<{ id: string; name: string }>>([]);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
-  readonly types = this.referenceData.caseTypes;
-  readonly areas = this.referenceData.practiceAreas;
-  readonly priorityOptions: ReadonlyArray<SelectOption<CasePriority>> = [
-    { value: "LOW", label: "cases.priority.LOW" },
-    { value: "NORMAL", label: "cases.priority.NORMAL" },
-    { value: "HIGH", label: "cases.priority.HIGH" },
-    { value: "URGENT", label: "cases.priority.URGENT" },
-  ];
-  readonly statusOptions: ReadonlyArray<SelectOption<CaseStatus>> = [
-    { value: "DRAFT", label: "cases.status.DRAFT" },
-    { value: "ACTIVE", label: "cases.status.ACTIVE" },
-    { value: "ON_HOLD", label: "cases.status.ON_HOLD" },
-    { value: "CLOSED", label: "cases.status.CLOSED" },
-    { value: "ARCHIVED", label: "cases.status.ARCHIVED" },
-  ];
-  readonly clientItemToString = (value: string | null | undefined): string =>
-    this.clients().find((client) => client.id === value)?.name ?? "";
-  readonly responsibleUserItemToString = (
-    value: string | null | undefined,
-  ): string => this.users().find((user) => user.id === value)?.name ?? "";
-  readonly priorityItemToString = createSelectItemToString(
-    this.priorityOptions,
-    (key) => this.local.translate(key),
-  );
-  readonly statusItemToString = createSelectItemToString(
-    this.statusOptions,
-    (key) => this.local.translate(key),
-  );
-  readonly caseTypeItemToString = (value: string | null | undefined): string =>
-    this.types().find((type) => type.id === value)?.name ?? "";
-  readonly practiceAreaItemToString = (
-    value: string | null | undefined,
-  ): string => this.areas().find((area) => area.id === value)?.name ?? "";
+  readonly tags = signal<
+    Array<{ id: string; name: string; isActive: boolean }>
+  >([]);
+  readonly tagSearch = signal("");
+  readonly caseClosedDate = signal<string | null>(null);
+  readonly typeOptions = this.referenceData.caseTypes;
+  readonly areaOptions = this.referenceData.practiceAreas;
   readonly form = new FormGroup({
     clientId: new FormControl(
       this.route.snapshot.queryParamMap.get("clientId") ?? "",
@@ -133,17 +108,83 @@ export class CaseFormComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
-    description: new FormControl(""),
-    opposingPartyName: new FormControl(""),
-    opposingPartyAddress: new FormControl(""),
+    description: new FormControl("", {
+      validators: [Validators.maxLength(10000)],
+    }),
+    opposingPartyName: new FormControl("", {
+      validators: [Validators.maxLength(320)],
+    }),
+    opposingPartyAddress: new FormControl("", {
+      validators: [Validators.maxLength(500)],
+    }),
     caseTypeId: new FormControl(""),
     practiceAreaId: new FormControl(""),
     status: new FormControl<CaseStatus>("ACTIVE", { nonNullable: true }),
     priority: new FormControl<CasePriority>("NORMAL", { nonNullable: true }),
     openedDate: new FormControl(this.caseId ? "" : todayDateInputValue()),
-    externalReference: new FormControl(""),
-    confidentialityLevel: new FormControl(""),
+    externalReference: new FormControl("", {
+      validators: [Validators.maxLength(320)],
+    }),
+    confidentialityLevel: new FormControl("", {
+      validators: [Validators.maxLength(160)],
+    }),
+    tagIds: new FormControl<string[]>([], { nonNullable: true }),
   });
+  readonly descriptionLength = computed(
+    () => (this.form.controls.description.value ?? "").length,
+  );
+  readonly priorityOptions: ReadonlyArray<SelectOption<CasePriority>> = [
+    { value: "LOW", label: "cases.priority.LOW" },
+    { value: "NORMAL", label: "cases.priority.NORMAL" },
+    { value: "HIGH", label: "cases.priority.HIGH" },
+    { value: "URGENT", label: "cases.priority.URGENT" },
+  ];
+  readonly statusOptions: ReadonlyArray<SelectOption<CaseStatus>> = [
+    { value: "DRAFT", label: "cases.status.DRAFT" },
+    { value: "ACTIVE", label: "cases.status.ACTIVE" },
+    { value: "ON_HOLD", label: "cases.status.ON_HOLD" },
+    { value: "ARCHIVED", label: "cases.status.ARCHIVED" },
+  ];
+  readonly editStatusOptions = computed(() => {
+    const current = this.form.controls.status.value;
+    const list = this.statusOptions.filter(
+      (option) => option.value !== "CLOSED",
+    );
+    if (current === "CLOSED") {
+      return [{ value: "CLOSED", label: "cases.status.CLOSED" }, ...list];
+    }
+    return list;
+  });
+  readonly filteredTags = computed(() => {
+    const query = this.tagSearch().trim().toLowerCase();
+    return this.tags().filter(
+      (tag) => !query || tag.name.toLowerCase().includes(query),
+    );
+  });
+  readonly selectedTags = computed(() =>
+    this.tags().filter((tag) =>
+      this.form.controls.tagIds.value.includes(tag.id),
+    ),
+  );
+  readonly clientItemToString = (value: string | null | undefined): string =>
+    this.clients().find((client) => client.id === value)?.name ?? "";
+  readonly responsibleUserItemToString = (
+    value: string | null | undefined,
+  ): string => this.users().find((user) => user.id === value)?.name ?? "";
+  readonly priorityItemToString = createSelectItemToString(
+    this.priorityOptions,
+    (key) => this.local.translate(key),
+  );
+  readonly statusItemToString = createSelectItemToString(
+    this.editStatusOptions(),
+    (key) => this.local.translate(key),
+  );
+  readonly caseTypeItemToString = (value: string | null | undefined): string =>
+    this.typeOptions().find((type) => type.id === value)?.name ?? "";
+  readonly practiceAreaItemToString = (
+    value: string | null | undefined,
+  ): string => this.areaOptions().find((area) => area.id === value)?.name ?? "";
+
   constructor() {
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
@@ -174,17 +215,31 @@ export class CaseFormComponent {
             })),
           ),
       });
+    this.refs
+      .tags()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) => this.tags.set(items.filter((item) => item.isActive)),
+      });
     if (!this.caseId) {
+      const currentUserId = this.auth.session()?.user.id;
+      if (currentUserId) {
+        this.form.controls.responsibleUserId.setValue(currentUserId);
+      }
       const format = this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
       this.api
         .nextNumber(format)
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-          next: (value) =>
-            this.form.controls.caseNumber.setValue(value.caseNumber),
+          next: (value) => {
+            const current = this.form.controls.caseNumber.value;
+            if (!current.trim()) {
+              this.form.controls.caseNumber.setValue(value.caseNumber);
+            }
+          },
         });
     }
-    if (this.caseId)
+    if (this.caseId) {
       this.api
         .get(this.caseId)
         .pipe(takeUntilDestroyed(this.destroyRef))
@@ -192,10 +247,15 @@ export class CaseFormComponent {
           next: (item) => {
             this.form.patchValue({
               ...item,
+              tagIds: item.tags.map((tag) => tag.id),
               openedDate: toDateInputValue(item.openedDate),
             });
+            this.caseClosedDate.set(item.closedDate ?? null);
             this.form.controls.clientId.disable();
             this.form.controls.responsibleUserId.disable();
+            if (item.status === "CLOSED") {
+              this.form.controls.status.disable();
+            }
             this.loading.set(false);
           },
           error: () => {
@@ -203,6 +263,41 @@ export class CaseFormComponent {
             this.toast.error(this.local.translate("cases.loadError"));
           },
         });
+    }
+  }
+
+  readonly isCreateMode = computed(() => !this.caseId);
+  readonly isEditMode = computed(() => !!this.caseId);
+  readonly unsupportedStatus = computed(
+    () => this.form.controls.status.value === "CLOSED",
+  );
+
+  showError(controlName: string, validatorName?: string): boolean {
+    const control = this.form.get(controlName);
+    if (!control) return false;
+    if (!(control.touched || this.formSubmitted())) return false;
+    return validatorName ? control.hasError(validatorName) : control.invalid;
+  }
+
+  validationMessage(controlName: string): string | null {
+    const control = this.form.get(controlName);
+    if (!control || !(control.touched || this.formSubmitted())) return null;
+
+    if (control.hasError("required")) {
+      return this.local.translate("validation.required");
+    }
+    if (control.hasError("maxlength")) {
+      const error = control.getError("maxlength") as {
+        requiredLength?: number;
+      } | null;
+      return this.local.translate("validation.maxLength", {
+        max: error?.requiredLength ?? 0,
+      });
+    }
+    if (control.hasError("pattern")) {
+      return this.local.translate("validation.pattern");
+    }
+    return null;
   }
 
   openClientDialog(): void {
@@ -217,6 +312,30 @@ export class CaseFormComponent {
         ]);
         this.form.controls.clientId.setValue(client.id);
       });
+  }
+
+  suggestCaseNumber(): void {
+    const current = this.form.controls.caseNumber.value;
+    if (current.trim() && this.form.controls.caseNumber.dirty) {
+      return;
+    }
+    const format = this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
+    this.api
+      .nextNumber(format)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (value) =>
+          this.form.controls.caseNumber.setValue(value.caseNumber),
+        error: () => this.toast.error(this.local.translate("cases.saveError")),
+      });
+  }
+
+  toggleTag(tagId: string): void {
+    const current = this.form.controls.tagIds.value ?? [];
+    const next = current.includes(tagId)
+      ? current.filter((id) => id !== tagId)
+      : [...current, tagId];
+    this.form.controls.tagIds.setValue(next);
   }
 
   openCaseTypeDialog(): void {
@@ -276,10 +395,21 @@ export class CaseFormComponent {
   }
 
   submit(): void {
+    this.saveCase(false);
+  }
+
+  saveDraft(): void {
+    if (this.caseId) return;
+    this.saveCase(true);
+  }
+
+  private saveCase(isDraft: boolean): void {
     if (this.form.invalid || this.saving()) {
+      this.formSubmitted.set(true);
       this.form.markAllAsTouched();
       return;
     }
+
     const raw = this.form.getRawValue();
     const request: CaseRequest = {
       clientId: raw.clientId,
@@ -289,18 +419,21 @@ export class CaseFormComponent {
       description: raw.description?.trim() || undefined,
       caseTypeId: raw.caseTypeId || undefined,
       practiceAreaId: raw.practiceAreaId || undefined,
-      status: raw.status,
+      status: isDraft ? "DRAFT" : (raw.status ?? "ACTIVE"),
       priority: raw.priority,
       openedDate: raw.openedDate || undefined,
       externalReference: raw.externalReference?.trim() || undefined,
       confidentialityLevel: raw.confidentialityLevel?.trim() || undefined,
       opposingPartyName: raw.opposingPartyName?.trim() || undefined,
       opposingPartyAddress: raw.opposingPartyAddress?.trim() || undefined,
+      tagIds: raw.tagIds.length ? raw.tagIds : undefined,
     };
+
     this.saving.set(true);
     const action = this.caseId
       ? this.api.update(this.caseId, request)
       : this.api.create(request);
+
     action.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (item) => {
         this.toast.success(this.local.translate("cases.saved"));

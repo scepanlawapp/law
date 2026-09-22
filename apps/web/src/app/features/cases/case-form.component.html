@@ -1,242 +1,602 @@
-<h1>{{ (caseId ? "cases.edit" : "cases.create") | translate }}</h1>
 @if (loading()) {
-  <hlm-spinner aria-label="{{ 'clients.loading' | translate }}" />
+  <div class="flex min-h-[320px] items-center justify-center">
+    <hlm-spinner aria-label="{{ 'cases.loading' | translate }}" />
+  </div>
 } @else {
-  <form [formGroup]="form" (ngSubmit)="submit()" novalidate>
-    <div hlmField>
-      <label hlmFieldLabel for="clientId">
-        {{ "cases.client" | translate }}
-      </label>
-      <div class="flex items-center gap-2">
-        <hlm-select
-          class="min-w-0 flex-1"
-          formControlName="clientId"
-          [itemToString]="clientItemToString"
-        >
-          <hlm-select-trigger id="clientId" class="w-full">
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal width="content">
-            <hlm-select-group>
-              @for (client of clients(); track client.id) {
-                <hlm-select-item [value]="client.id">
-                  {{ client.name }}
-                </hlm-select-item>
-              }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
-        <button hlmBtn size="sm" type="button" (click)="openClientDialog()">
-          {{ "clients.create" | translate }}
-        </button>
+  <form
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    novalidate
+    class="mx-auto max-w-6xl space-y-6 px-4 py-6"
+  >
+    <header
+      class="border-border bg-card flex flex-col gap-4 rounded-xl border p-5 shadow-sm"
+    >
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div class="space-y-2">
+          <h1 class="text-2xl font-semibold tracking-tight">
+            {{ (caseId ? "cases.edit" : "cases.create") | translate }}
+          </h1>
+          <p class="text-muted-foreground text-sm">
+            {{
+              (caseId
+                ? "cases.form.editDescription"
+                : "cases.form.createDescription") | translate
+            }}
+          </p>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2 lg:justify-end">
+          <a
+            hlmBtn
+            variant="outline"
+            type="button"
+            [routerLink]="returnUrl || '/cases'"
+          >
+            {{ "cases.cancel" | translate }}
+          </a>
+          @if (!caseId) {
+            <button
+              hlmBtn
+              variant="outline"
+              type="button"
+              [disabled]="saving()"
+              (click)="saveDraft()"
+            >
+              {{ (saving() ? "cases.saving" : "cases.form.saveDraft") | translate }}
+            </button>
+          }
+          <button hlmBtn type="submit" [disabled]="saving()">
+            {{
+              (saving()
+                ? "cases.saving"
+                : caseId
+                  ? "cases.form.saveChanges"
+                  : "cases.form.createCase") | translate
+            }}
+          </button>
+        </div>
       </div>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="caseNumber">
-        {{ "cases.internalCaseNumber" | translate }}
-      </label>
-      <input hlmInput id="caseNumber" formControlName="caseNumber" required />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="name">{{ "cases.name" | translate }}</label>
-      <input hlmInput id="name" formControlName="name" required />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="responsibleUserId">
-        {{ "cases.responsible" | translate }}
-      </label>
-      <hlm-select
-        class="w-full"
-        formControlName="responsibleUserId"
-        [itemToString]="responsibleUserItemToString"
-      >
-        <hlm-select-trigger id="responsibleUserId" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal width="content">
-          <hlm-select-group>
-            @for (user of users(); track user.id) {
-              <hlm-select-item [value]="user.id">
-                {{ user.name }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="status">{{ "cases.status" | translate }}</label>
-      <hlm-select
-        class="w-full"
-        formControlName="status"
-        [itemToString]="statusItemToString"
-      >
-        <hlm-select-trigger id="status" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal width="content">
-          <hlm-select-group>
-            @for (option of statusOptions; track option.value) {
-              <hlm-select-item [value]="option.value">
-                {{ statusItemToString(option.value) }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="priority">
-        {{ "cases.priority" | translate }}
-      </label>
-      <hlm-select
-        class="w-full"
-        formControlName="priority"
-        [itemToString]="priorityItemToString"
-      >
-        <hlm-select-trigger id="priority" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal width="content">
-          <hlm-select-group>
-            @for (option of priorityOptions; track option.value) {
-              <hlm-select-item [value]="option.value">
-                {{ priorityItemToString(option.value) }}
-              </hlm-select-item>
-            }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="caseTypeId">
-        {{ "cases.type" | translate }}
-      </label>
-      <div class="flex items-center gap-2">
-        <hlm-select
-          class="min-w-0 flex-1"
-          formControlName="caseTypeId"
-          [itemToString]="caseTypeItemToString"
-        >
-          <hlm-select-trigger id="caseTypeId" class="w-full">
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal width="content">
-            <hlm-select-group>
-              <hlm-select-item value=""></hlm-select-item>
-              @for (type of types(); track type.id) {
-                <hlm-select-item [value]="type.id">
-                  {{ type.name }}
-                </hlm-select-item>
+    </header>
+
+    <div class="grid gap-6 xl:grid-cols-[1.7fr_0.95fr]">
+      <div class="space-y-6">
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-5">
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.basicInformation" | translate }}
+            </h2>
+            <p class="text-muted-foreground mt-1 text-sm">
+              {{ "cases.form.basicInformationDescription" | translate }}
+            </p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <div hlmField class="md:col-span-1">
+              <label hlmFieldLabel for="clientId" class="flex items-center gap-1">
+                <span>{{ "cases.client" | translate }}</span>
+                <span class="text-destructive">*</span>
+              </label>
+              <div class="flex items-center gap-2">
+                <hlm-select
+                  class="min-w-0 flex-1"
+                  formControlName="clientId"
+                  [itemToString]="clientItemToString"
+                >
+                  <hlm-select-trigger id="clientId" class="w-full">
+                    <hlm-select-value />
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal width="content">
+                    <hlm-select-group>
+                      @for (client of clients(); track client.id) {
+                        <hlm-select-item [value]="client.id">
+                          {{ client.name }}
+                        </hlm-select-item>
+                      }
+                    </hlm-select-group>
+                  </hlm-select-content>
+                </hlm-select>
+                <button
+                  hlmBtn
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  (click)="openClientDialog()"
+                >
+                  {{ "clients.create" | translate }}
+                </button>
+              </div>
+              <p class="text-muted-foreground mt-1 text-xs">
+                {{ "cases.form.clientImmutableHint" | translate }}
+              </p>
+              @if (showError("clientId", "required")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{ "validation.required" | translate }}
+                </p>
               }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
-        <button hlmBtn size="sm" type="button" (click)="openCaseTypeDialog()">
-          {{ "common.create" | translate }}
-        </button>
-      </div>
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="practiceAreaId">
-        {{ "cases.area" | translate }}
-      </label>
-      <div class="flex items-center gap-2">
-        <hlm-select
-          class="min-w-0 flex-1"
-          formControlName="practiceAreaId"
-          [itemToString]="practiceAreaItemToString"
-        >
-          <hlm-select-trigger id="practiceAreaId" class="w-full">
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal width="content">
-            <hlm-select-group>
-              <hlm-select-item value=""></hlm-select-item>
-              @for (area of areas(); track area.id) {
-                <hlm-select-item [value]="area.id">
-                  {{ area.name }}
-                </hlm-select-item>
+            </div>
+
+            <div hlmField class="md:col-span-1">
+              <label hlmFieldLabel for="caseNumber" class="flex items-center gap-1">
+                <span>{{ "cases.internalCaseNumber" | translate }}</span>
+                <span class="text-destructive">*</span>
+              </label>
+              <div class="flex items-end gap-2">
+                <div class="min-w-0 flex-1">
+                  <input
+                    hlmInput
+                    id="caseNumber"
+                    formControlName="caseNumber"
+                    maxlength="40"
+                    class="w-full"
+                    required
+                  />
+                </div>
+                <button
+                  hlmBtn
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  (click)="suggestCaseNumber()"
+                >
+                  {{ "cases.form.suggest" | translate }}
+                </button>
+              </div>
+              <p class="text-muted-foreground mt-1 text-xs">
+                {{ "cases.form.caseNumberHint" | translate }}
+              </p>
+              @if (showError("caseNumber", "required")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{ "validation.required" | translate }}
+                </p>
+              } @else if (showError("caseNumber", "maxlength")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{
+                    "validation.maxLength" | translate : { max: 40 }
+                  }}
+                </p>
+              } @else if (showError("caseNumber", "pattern")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{ "validation.pattern" | translate }}
+                </p>
               }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
-        <button
-          hlmBtn
-          size="sm"
-          type="button"
-          (click)="openPracticeAreaDialog()"
-        >
-          {{ "common.create" | translate }}
-        </button>
+            </div>
+          </div>
+
+          <div hlmField class="mt-4">
+            <label hlmFieldLabel for="name" class="flex items-center gap-1">
+              <span>{{ "cases.name" | translate }}</span>
+              <span class="text-destructive">*</span>
+            </label>
+            <input
+              hlmInput
+              id="name"
+              formControlName="name"
+              maxlength="320"
+              required
+            />
+            <div class="mt-1 flex items-center justify-between gap-2 text-xs">
+              <p class="text-muted-foreground">
+                {{ "cases.form.caseNameHint" | translate }}
+              </p>
+              <span class="text-muted-foreground">
+                {{ form.controls.name.value.length }} / 320
+              </span>
+            </div>
+            @if (showError("name", "required")) {
+              <p class="text-destructive mt-1 text-xs">
+                {{ "validation.required" | translate }}
+              </p>
+            } @else if (showError("name", "maxlength")) {
+              <p class="text-destructive mt-1 text-xs">
+                {{ "validation.maxLength" | translate : { max: 320 } }}
+              </p>
+            }
+          </div>
+
+          <div hlmField class="mt-4">
+            <label hlmFieldLabel for="description">
+              {{ "cases.description" | translate }}
+            </label>
+            <textarea
+              hlmTextarea
+              id="description"
+              formControlName="description"
+              maxlength="10000"
+              class="min-h-[140px] resize-y"
+            ></textarea>
+            <div class="mt-1 flex justify-end text-xs text-muted-foreground">
+              <span>{{ descriptionLength() }} / 10,000</span>
+            </div>
+            @if (showError("description", "maxlength")) {
+              <p class="text-destructive mt-1 text-xs">
+                {{ "validation.maxLength" | translate : { max: 10000 } }}
+              </p>
+            }
+          </div>
+        </section>
+
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-5">
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.classification" | translate }}
+            </h2>
+            <p class="text-muted-foreground mt-1 text-sm">
+              {{ "cases.form.classificationDescription" | translate }}
+            </p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <div hlmField>
+              <label hlmFieldLabel for="caseTypeId">
+                {{ "cases.type" | translate }}
+              </label>
+              <div class="flex items-center gap-2">
+                <hlm-select
+                  class="min-w-0 flex-1"
+                  formControlName="caseTypeId"
+                  [itemToString]="caseTypeItemToString"
+                >
+                  <hlm-select-trigger id="caseTypeId" class="w-full">
+                    <hlm-select-value />
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal width="content">
+                    <hlm-select-group>
+                      <hlm-select-item value=""></hlm-select-item>
+                      @for (type of typeOptions(); track type.id) {
+                        <hlm-select-item [value]="type.id">
+                          {{ type.name }}
+                        </hlm-select-item>
+                      }
+                    </hlm-select-group>
+                  </hlm-select-content>
+                </hlm-select>
+                <button
+                  hlmBtn
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  (click)="openCaseTypeDialog()"
+                >
+                  {{ "common.create" | translate }}
+                </button>
+              </div>
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="practiceAreaId">
+                {{ "cases.area" | translate }}
+              </label>
+              <div class="flex items-center gap-2">
+                <hlm-select
+                  class="min-w-0 flex-1"
+                  formControlName="practiceAreaId"
+                  [itemToString]="practiceAreaItemToString"
+                >
+                  <hlm-select-trigger id="practiceAreaId" class="w-full">
+                    <hlm-select-value />
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal width="content">
+                    <hlm-select-group>
+                      <hlm-select-item value=""></hlm-select-item>
+                      @for (area of areaOptions(); track area.id) {
+                        <hlm-select-item [value]="area.id">
+                          {{ area.name }}
+                        </hlm-select-item>
+                      }
+                    </hlm-select-group>
+                  </hlm-select-content>
+                </hlm-select>
+                <button
+                  hlmBtn
+                  size="sm"
+                  type="button"
+                  variant="outline"
+                  (click)="openPracticeAreaDialog()"
+                >
+                  {{ "common.create" | translate }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-5">
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.peopleAndParties" | translate }}
+            </h2>
+            <p class="text-muted-foreground mt-1 text-sm">
+              {{ "cases.form.peopleAndPartiesDescription" | translate }}
+            </p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <div hlmField>
+              <label hlmFieldLabel for="responsibleUserId" class="flex items-center gap-1">
+                <span>{{ "cases.responsible" | translate }}</span>
+                <span class="text-destructive">*</span>
+              </label>
+              <hlm-select
+                class="w-full"
+                formControlName="responsibleUserId"
+                [itemToString]="responsibleUserItemToString"
+              >
+                <hlm-select-trigger id="responsibleUserId" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal width="content">
+                  <hlm-select-group>
+                    @for (user of users(); track user.id) {
+                      <hlm-select-item [value]="user.id">
+                        {{ user.name }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+              <p class="text-muted-foreground mt-1 text-xs">
+                {{ "cases.form.responsibleImmutableHint" | translate }}
+              </p>
+              @if (showError("responsibleUserId", "required")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{ "validation.required" | translate }}
+                </p>
+              }
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="opposingPartyName">
+                {{ "cases.opposingParty" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="opposingPartyName"
+                formControlName="opposingPartyName"
+                maxlength="320"
+              />
+              @if (showError("opposingPartyName", "maxlength")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{ "validation.maxLength" | translate : { max: 320 } }}
+                </p>
+              }
+            </div>
+          </div>
+
+          <div hlmField class="mt-4">
+            <label hlmFieldLabel for="opposingPartyAddress">
+              {{ "cases.opposingPartyAddress" | translate }}
+            </label>
+            <textarea
+              hlmTextarea
+              id="opposingPartyAddress"
+              formControlName="opposingPartyAddress"
+              maxlength="500"
+              class="min-h-[96px] resize-y"
+            ></textarea>
+            @if (showError("opposingPartyAddress", "maxlength")) {
+              <p class="text-destructive mt-1 text-xs">
+                {{ "validation.maxLength" | translate : { max: 500 } }}
+              </p>
+            }
+          </div>
+        </section>
       </div>
+
+      <aside class="space-y-6">
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-4">
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.statusPriority" | translate }}
+            </h2>
+          </div>
+
+          <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <div hlmField>
+              <label hlmFieldLabel for="status">{{ "cases.status" | translate }}</label>
+              <hlm-select
+                class="w-full"
+                formControlName="status"
+                [itemToString]="statusItemToString"
+              >
+                <hlm-select-trigger id="status" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal width="content">
+                  <hlm-select-group>
+                    @for (option of editStatusOptions(); track option.value) {
+                      <hlm-select-item [value]="option.value">
+                        {{ local.translate(option.label) }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="priority">
+                {{ "cases.priority" | translate }}
+              </label>
+              <hlm-select
+                class="w-full"
+                formControlName="priority"
+                [itemToString]="priorityItemToString"
+              >
+                <hlm-select-trigger id="priority" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal width="content">
+                  <hlm-select-group>
+                    @for (option of priorityOptions; track option.value) {
+                      <hlm-select-item [value]="option.value">
+                        {{ priorityItemToString(option.value) }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+          </div>
+        </section>
+
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-4">
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.keyDates" | translate }}
+            </h2>
+          </div>
+
+          <div hlmField>
+            <label hlmFieldLabel for="openedDate">
+              {{ "cases.opened" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="openedDate"
+              type="date"
+              formControlName="openedDate"
+            />
+          </div>
+
+          @if (caseClosedDate()) {
+            <div class="mt-4 rounded-md border border-border bg-muted p-3 text-sm">
+              <p class="text-muted-foreground text-xs uppercase tracking-wide">
+                {{ "cases.status.CLOSED" | translate }}
+              </p>
+              <p class="mt-1 font-medium">{{ caseClosedDate() }}</p>
+            </div>
+          }
+        </section>
+
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-4">
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.additionalInformation" | translate }}
+            </h2>
+          </div>
+
+          <div class="space-y-4">
+            <div hlmField>
+              <label hlmFieldLabel for="externalReference">
+                {{ "cases.reference" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="externalReference"
+                formControlName="externalReference"
+                maxlength="320"
+              />
+              <p class="text-muted-foreground mt-1 text-xs">
+                {{ "cases.form.externalReferenceHint" | translate }}
+              </p>
+              @if (showError("externalReference", "maxlength")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{ "validation.maxLength" | translate : { max: 320 } }}
+                </p>
+              }
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="confidentialityLevel">
+                {{ "cases.confidentiality" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="confidentialityLevel"
+                formControlName="confidentialityLevel"
+                maxlength="160"
+                placeholder="{{ 'cases.form.confidentialityHintPlaceholder' | translate }}"
+              />
+              <p class="text-muted-foreground mt-1 text-xs">
+                {{ "cases.form.confidentialityHint" | translate }}
+              </p>
+              @if (showError("confidentialityLevel", "maxlength")) {
+                <p class="text-destructive mt-1 text-xs">
+                  {{ "validation.maxLength" | translate : { max: 160 } }}
+                </p>
+              }
+            </div>
+          </div>
+        </section>
+
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-4">
+            <h2 class="text-lg font-medium">{{ "cases.form.tags" | translate }}</h2>
+          </div>
+
+          <div class="space-y-3">
+            <input
+              hlmInput
+              [value]="tagSearch()"
+              (input)="tagSearch.set($any($event.target).value)"
+              placeholder="{{ 'cases.form.searchTags' | translate }}"
+            />
+
+            @if (filteredTags().length) {
+              <div class="flex max-h-48 flex-wrap gap-2 overflow-y-auto">
+                @for (tag of filteredTags(); track tag.id) {
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="rounded-full"
+                    [class.bg-primary]="form.controls.tagIds.value.includes(tag.id)"
+                    [class.text-primary-foreground]="form.controls.tagIds.value.includes(tag.id)"
+                    (click)="toggleTag(tag.id)"
+                  >
+                    {{ tag.name }}
+                  </button>
+                }
+              </div>
+            }
+
+            @if (selectedTags().length) {
+              <div class="flex flex-wrap gap-2">
+                @for (tag of selectedTags(); track tag.id) {
+                  <button
+                    type="button"
+                    class="border-border bg-muted text-foreground inline-flex items-center gap-1 rounded-full border px-2 py-1 text-xs"
+                    (click)="toggleTag(tag.id)"
+                  >
+                    <span>{{ tag.name }}</span>
+                    <span aria-hidden="true">×</span>
+                  </button>
+                }
+              </div>
+            }
+
+            @if (!tags().length) {
+              <p class="text-muted-foreground text-xs">
+                {{ "cases.form.tagsTodo" | translate }}
+              </p>
+            }
+          </div>
+        </section>
+
+        <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
+          <div class="mb-3">
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.whatHappensNext" | translate }}
+            </h2>
+          </div>
+          <ul class="text-muted-foreground space-y-2 text-sm">
+            @if (caseId) {
+              <li>• {{ "cases.form.whatHappensNextEdit1" | translate }}</li>
+              <li>• {{ "cases.form.whatHappensNextEdit2" | translate }}</li>
+              <li>• {{ "cases.form.whatHappensNextEdit3" | translate }}</li>
+              <li>• {{ "cases.form.whatHappensNextEdit4" | translate }}</li>
+            } @else {
+              <li>• {{ "cases.form.whatHappensNextCreate1" | translate }}</li>
+              <li>• {{ "cases.form.whatHappensNextCreate2" | translate }}</li>
+              <li>• {{ "cases.form.whatHappensNextCreate3" | translate }}</li>
+              <li>• {{ "cases.form.whatHappensNextCreate4" | translate }}</li>
+              <li>• {{ "cases.form.whatHappensNextCreate5" | translate }}</li>
+            }
+          </ul>
+        </section>
+      </aside>
     </div>
-    <div hlmField>
-      <label hlmFieldLabel for="openedDate">
-        {{ "cases.opened" | translate }}
-      </label>
-      <input
-        hlmInput
-        id="openedDate"
-        type="date"
-        formControlName="openedDate"
-      />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="externalReference">
-        {{ "cases.reference" | translate }}
-      </label>
-      <input
-        hlmInput
-        id="externalReference"
-        formControlName="externalReference"
-      />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="confidentialityLevel">
-        {{ "cases.confidentiality" | translate }}
-      </label>
-      <input
-        hlmInput
-        id="confidentialityLevel"
-        formControlName="confidentialityLevel"
-      />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="opposingPartyName">
-        {{ "cases.opposingParty" | translate }}
-      </label>
-      <input
-        hlmInput
-        id="opposingPartyName"
-        formControlName="opposingPartyName"
-      />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="opposingPartyAddress">
-        {{ "cases.opposingPartyAddress" | translate }}
-      </label>
-      <input
-        hlmInput
-        id="opposingPartyAddress"
-        formControlName="opposingPartyAddress"
-      />
-    </div>
-    <div hlmField>
-      <label hlmFieldLabel for="description">
-        {{ "cases.description" | translate }}
-      </label>
-      <textarea
-        hlmTextarea
-        id="description"
-        formControlName="description"
-      ></textarea>
-    </div>
-    <button hlmBtn type="submit" [disabled]="saving()">
-      {{ (saving() ? "cases.saving" : "cases.save") | translate }}
-    </button>
-    <a hlmBtn [routerLink]="returnUrl || '/cases'">
-      {{ "cases.cancel" | translate }}
-    </a>
   </form>
 }
