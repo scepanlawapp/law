@@ -33,7 +33,7 @@ import {
 } from "../../shared/utils";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { EventDialogService } from "./event-dialog/event-dialog.service";
-import { WorkViewComponent } from "../work-management/work-view/work-view.component";
+import { CalendarEventsListComponent } from "./calendar-events-list/calendar-events-list.component";
 
 type CalendarView = "month" | "week" | "agenda" | "list" | "board";
 
@@ -97,7 +97,7 @@ function mondayIndex(date: Date): number {
     HlmSelectImports,
     HlmSpinner,
     TranslatePipe,
-    WorkViewComponent,
+    CalendarEventsListComponent,
   ],
   styleUrls: ["./calendar.component.scss"],
 })
@@ -293,12 +293,12 @@ export class CalendarComponent {
     );
   });
   readonly visibleFrom = computed(() =>
-    this.view() === "month"
+    this.view() === "month" || this.view() === "list" || this.view() === "board"
       ? (this.monthDays()[0]?.date ?? dateKey(this.anchor()))
       : dateKey(this.viewStart(this.anchor())),
   );
   readonly visibleTo = computed(() =>
-    this.view() === "month"
+    this.view() === "month" || this.view() === "list" || this.view() === "board"
       ? (this.monthDays()[this.monthDays().length - 1]?.date ??
         dateKey(this.anchor()))
       : dateKey(this.viewEnd(this.anchor())),
@@ -665,7 +665,6 @@ export class CalendarComponent {
   }
 
   private loadRange(scrollToNow = true): void {
-    if (this.view() === "list" || this.view() === "board") return;
     const sequence = ++this.requestSequence;
     this.loading.set(true);
     this.error.set(false);
@@ -673,6 +672,7 @@ export class CalendarComponent {
       from: `${this.visibleFrom()}T00:00:00.000Z`,
       to: `${this.nextDate(this.visibleTo())}T00:00:00.000Z`,
       limit: 100,
+      sourceType: "EVENT",
       ...(this.lawyerId() && { userId: this.lawyerId() }),
     };
     this.api

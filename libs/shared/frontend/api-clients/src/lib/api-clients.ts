@@ -545,6 +545,14 @@ export class UserSettingsApiClient {
       { withCredentials: true },
     );
   }
+
+  meAvatar(body: FormData): Observable<{ avatarUrl: string }> {
+    return this.http.post<{ avatarUrl: string }>(
+      this.endpoint("/users/me/avatar"),
+      body,
+      { withCredentials: true },
+    );
+  }
 }
 
 @Injectable({ providedIn: "root" })

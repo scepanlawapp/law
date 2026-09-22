@@ -48,6 +48,10 @@ export interface UserSettingsProfile {
   avatarUrl: string | null;
 }
 
+export interface UserAvatarResponse {
+  avatarUrl: string | null;
+}
+
 export interface UserSettingsPreferences {
   theme: UserSettingsTheme;
   language: UserSettingsLanguage;

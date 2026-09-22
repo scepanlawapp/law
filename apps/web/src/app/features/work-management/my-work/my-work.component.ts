@@ -1,4 +1,4 @@
-import { Component, inject } from "@angular/core";
+import { Component, computed, inject } from "@angular/core";
 import { AuthState } from "@law/security";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { WorkViewComponent } from "../work-view/work-view.component";
@@ -13,13 +13,12 @@ import { WorkViewComponent } from "../work-view/work-view.component";
       <law-work-view
         class="block min-h-0 min-w-0 flex-1"
         mode="my"
-        [showTeamFilters]="false"
-        [fixedUserId]="userId"
+        [fixedUserId]="userId()"
       />
     </div>
   `,
 })
 export class MyWorkComponent {
   private readonly auth = inject(AuthState);
-  readonly userId = this.auth.session()?.user.id ?? "";
+  readonly userId = computed(() => this.auth.session()?.user.id ?? "");
 }

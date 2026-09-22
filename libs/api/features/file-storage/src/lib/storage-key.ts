@@ -9,9 +9,21 @@ export function buildStorageKey(
 }
 
 export function assertStorageKey(key: string): {
-  workspaceId: string;
-  storedFileId: string;
+  workspaceId?: string;
+  storedFileId?: string;
 } {
+  if (key.startsWith("avatars/")) {
+    const filename = key.slice("avatars/".length);
+    if (
+      !filename ||
+      filename.includes("/") ||
+      filename.includes("..") ||
+      filename.includes("\0")
+    ) {
+      throw new Error("Invalid storage key");
+    }
+    return {};
+  }
   const parts = key.split("/");
   if (parts.length !== 3 || parts[2] !== "content") {
     throw new Error("Invalid storage key");
@@ -24,6 +36,14 @@ export function assertStorageKey(key: string): {
 }
 
 export function isPartialStorageKey(key: string): boolean {
+  if (key.startsWith("avatars/")) {
+    const filename = key.slice("avatars/".length);
+    return (
+      !filename.includes("/") &&
+      !filename.includes("..") &&
+      /\.partial-[A-Za-z0-9-]+$/.test(filename)
+    );
+  }
   const parts = key.split("/");
   return (
     parts.length === 3 &&

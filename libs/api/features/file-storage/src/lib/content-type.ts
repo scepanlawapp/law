@@ -3,6 +3,8 @@ import { DOCUMENT_ALLOWED_MIME_TYPES } from "./storage.types";
 const PDF = Buffer.from("%PDF");
 const JPEG = Buffer.from([0xff, 0xd8, 0xff]);
 const PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+const GIF87 = Buffer.from("GIF87a");
+const GIF89 = Buffer.from("GIF89a");
 const RIFF = Buffer.from("RIFF");
 const WEBP = Buffer.from("WEBP");
 const ZIP = Buffer.from([0x50, 0x4b, 0x03, 0x04]);
@@ -29,6 +31,9 @@ export function detectMimeType(buffer: Buffer): string | null {
   if (startsWith(buffer, PDF)) return "application/pdf";
   if (startsWith(buffer, JPEG)) return "image/jpeg";
   if (startsWith(buffer, PNG)) return "image/png";
+  if (startsWith(buffer, GIF87) || startsWith(buffer, GIF89)) {
+    return "image/gif";
+  }
   if (
     startsWith(buffer, RIFF) &&
     buffer.length >= 12 &&

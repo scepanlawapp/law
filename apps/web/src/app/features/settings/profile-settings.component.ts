@@ -1,6 +1,13 @@
-import { Component, computed, DestroyRef, effect, inject, signal } from "@angular/core";
+import {
+  Component,
+  computed,
+  DestroyRef,
+  effect,
+  inject,
+  signal,
+} from "@angular/core";
 import { UserAvatarComponent } from "../../shared/components/user-avatar/user-avatar.component";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 import {
   FormControl,
   FormGroup,
@@ -10,13 +17,17 @@ import {
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
-import { AuthApiClient } from "@law/api-clients";
+import { AuthApiClient, UserSettingsApiClient } from "@law/api-clients";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { AuthState } from "@law/security";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
+import { HttpClient } from "@angular/common/http";
+import { HlmDialogService } from "@spartan-ng/helm/dialog";
+import { filter, finalize, switchMap, tap } from "rxjs";
+import { AvatarCropDialogComponent } from "../../shared/components/user-avatar-drop-dialog/user-avatar-drop-dialog.component";
 
 @Component({
   selector: "law-profile-settings",
@@ -40,15 +51,19 @@ import { UserSettingsStore } from "../../core/user-settings/user-settings.store"
 export class ProfileSettingsComponent {
   private readonly settingsStore = inject(UserSettingsStore);
   private readonly authApi = inject(AuthApiClient);
+  private readonly userSettingsApi = inject(UserSettingsApiClient);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly authState = inject(AuthState);
+  private readonly dialogService = inject(HlmDialogService);
+  private readonly http = inject(HttpClient);
 
   readonly profile = this.settingsStore.profile;
   readonly loading = this.settingsStore.loading;
   readonly session = this.authState.session;
   readonly saving = signal(false);
+  readonly changingProfileImage = signal(false);
 
   readonly form = new FormGroup({
     firstName: new FormControl(""),
@@ -70,14 +85,18 @@ export class ProfileSettingsComponent {
   });
 
   readonly avatarUser = computed(() => {
-    const profile = this.profile();
+    const value = this.formValue();
+
     return {
-      firstName: this.form.controls.firstName.value || profile?.firstName || "",
-      lastName: this.form.controls.lastName.value || profile?.lastName || "",
-      username: this.form.controls.username.value || profile?.username || "",
-      email: profile?.email || "",
-      avatarUrl: this.form.controls.avatarUrl.value || profile?.avatarUrl || "",
+      firstName: value.firstName ?? "",
+      lastName: value.lastName ?? "",
+      username: value.username ?? "",
+      email: this.profile()?.email ?? "",
+      avatarUrl: value.avatarUrl ?? "",
     };
+  });
+  private readonly formValue = toSignal(this.form.valueChanges, {
+    initialValue: this.form.getRawValue(),
   });
 
   constructor() {
@@ -97,6 +116,9 @@ export class ProfileSettingsComponent {
   }
 
   save(): void {
+    if (this.saving() || this.changingProfileImage()) {
+      return;
+    }
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -152,6 +174,58 @@ export class ProfileSettingsComponent {
   }
 
   changeProfileImage(): void {
-    // Implement the logic to change the profile image here
+    if (this.changingProfileImage() || this.saving()) {
+      return;
+    }
+
+    this.changingProfileImage.set(true);
+
+    const dialogRef = this.dialogService.open(AvatarCropDialogComponent, {
+      contentClass: "w-[calc(100vw-2rem)] max-w-lg",
+    });
+
+    dialogRef.closed$
+      .pipe(
+        filter((result): result is File => result instanceof File),
+
+        switchMap((file) => {
+          const body = new FormData();
+          body.append("file", file, file.name);
+
+          return this.userSettingsApi.meAvatar(body);
+        }),
+
+        tap(({ avatarUrl }) => {
+          if (!avatarUrl?.trim()) {
+            throw new Error("The API did not return an avatar URL.");
+          }
+
+          // Refresh the avatar displayed by this component.
+          // This preserves unsaved edits and the form's dirty state.
+          this.form.controls.avatarUrl.setValue(avatarUrl);
+
+          // Also synchronize UserSettingsStore and AuthState here
+          // using their existing local-state update methods.
+          // Do not send another profile-update HTTP request.
+        }),
+
+        finalize(() => {
+          this.changingProfileImage.set(false);
+        }),
+
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success(
+            this.localization.translate("settings.profileSaved"),
+          );
+        },
+        error: () => {
+          this.toast.error(
+            this.localization.translate("settings.profileSaveError"),
+          );
+        },
+      });
   }
 }

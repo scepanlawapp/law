@@ -62,7 +62,7 @@ export class ClientsComponent {
   readonly items = signal<ClientSummary[]>([]);
   readonly page = signal(1);
   readonly pageCount = signal(1);
-  readonly loading = signal(false);
+  readonly loading = signal(true);
   readonly error = signal(false);
   readonly users = signal(new Map<string, string>());
   private sequence = 0;

@@ -3,9 +3,11 @@ import {
   Component,
   DestroyRef,
   computed,
+  effect,
   inject,
   input,
   signal,
+  untracked,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
@@ -30,14 +32,12 @@ import {
   CasesApiClient,
   DeadlineListQuery,
   EventListQuery,
-  EventRequest,
   EventsApiClient,
   ReferencesApiClient,
   TaskListQuery,
   TaskRequest,
   WorkManagementApiClient,
 } from "@law/api-clients";
-import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmComboboxChip,
@@ -54,6 +54,9 @@ import {
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideKanban, lucideList } from "@ng-icons/lucide";
 import { Observable, debounceTime, distinctUntilChanged } from "rxjs";
 import { BottomReachedDirective } from "../../../core/directives/bottom-reached.directive";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
@@ -64,6 +67,10 @@ import { EventDialogService } from "../../calendar/event-dialog/event-dialog.ser
 import { DeadlineDialogService } from "../deadline-dialog/deadline-dialog.service";
 import { TaskDialogService } from "../task-dialog/task-dialog.service";
 import { dueLabel } from "../work-management-utils";
+import {
+  createSelectItemToString,
+  type SelectOption,
+} from "../../../shared/utils";
 import {
   BoardColumnKey,
   DragTransitionAction,
@@ -85,12 +92,6 @@ type Presentation = "list" | "board";
 
 const PAGE_SIZE = 20;
 const ALL_RECORD_TYPES: WorkSourceType[] = ["TASK", "DEADLINE", "EVENT"];
-const ALL_STATUSES: PresentationStatus[] = [
-  "TODO",
-  "IN_PROGRESS",
-  "DONE",
-  "CANCELLED",
-];
 
 function taskStatusesFor(
   presentations: PresentationStatus[],
@@ -189,21 +190,27 @@ function eventToCalendarItem(event: EventDetail): CalendarItem {
     HlmInput,
     HlmSelectImports,
     HlmSpinner,
+    HlmTooltip,
+    NgIcon,
     TranslatePipe,
+  ],
+  providers: [
+    provideIcons({
+      lucideKanban,
+      lucideList,
+    }),
   ],
 })
 export class WorkViewComponent {
   readonly mode = input<WorkViewMode>("team");
   readonly fixedUserId = input<string | undefined>(undefined);
   readonly fixedCaseId = input<string | undefined>(undefined);
-  readonly showTeamFilters = input<boolean>(true);
   readonly syncQueryParams = input<boolean>(true);
 
   private readonly workApi = inject(WorkManagementApiClient);
   private readonly eventsApi = inject(EventsApiClient);
   private readonly usersApi = inject(ReferencesApiClient);
   private readonly casesApi = inject(CasesApiClient);
-  private readonly auth = inject(AuthState);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly taskDialog = inject(TaskDialogService);
@@ -221,7 +228,7 @@ export class WorkViewComponent {
   );
   readonly recordTypes = signal<WorkSourceType[]>(this.initialRecordTypes());
   readonly peopleIds = signal<string[]>(
-    this.fixedUserId() ? [] : this.initialParams.getAll("people"),
+    this.initialParams.getAll("people"),
   );
   readonly statusMode = signal<StatusMode>(
     (this.initialParams.get("statusMode") as StatusMode) || "open",
@@ -231,7 +238,7 @@ export class WorkViewComponent {
     (this.initialParams.get("datePreset") as DatePreset) || "all",
   );
   readonly caseFilter = signal<string>(
-    this.fixedCaseId() ? "" : (this.initialParams.get("case") ?? ""),
+    this.initialParams.get("case") ?? "",
   );
   readonly search = new FormControl(this.initialParams.get("search") ?? "", {
     nonNullable: true,
@@ -281,6 +288,15 @@ export class WorkViewComponent {
     { value: "today", label: "work.datePreset.today" },
     { value: "upcoming", label: "work.datePreset.upcoming" },
   ];
+  readonly statusModeOptions: ReadonlyArray<SelectOption<StatusMode>> = [
+    { value: "open", label: "work.statusMode.open" },
+    { value: "history", label: "work.statusMode.history" },
+  ];
+
+  readonly statusModeItemToString = createSelectItemToString(
+    this.statusModeOptions,
+    (key) => this.localization.translate(key),
+  );
 
   readonly recordTypeItemToString = (
     value: WorkSourceType | null | undefined,
@@ -365,12 +381,10 @@ export class WorkViewComponent {
           })),
         ),
       );
-    if (this.showTeamFilters()) {
-      this.casesApi
-        .list({ page: 1, pageSize: 100 })
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe((response) => this.cases.set(response.items));
-    }
+    this.casesApi
+      .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.cases.set(response.items));
 
     this.search.valueChanges
       .pipe(
@@ -383,7 +397,12 @@ export class WorkViewComponent {
         this.reload();
       });
 
-    this.reload();
+    effect(() => {
+      this.fixedUserId();
+      this.fixedCaseId();
+      this.mode();
+      untracked(() => this.reload());
+    });
   }
 
   private initialRecordTypes(): WorkSourceType[] {
@@ -396,17 +415,24 @@ export class WorkViewComponent {
   }
 
   private effectiveUserIds(): string[] | undefined {
-    if (this.fixedUserId()) return [this.fixedUserId() as string];
+    const fixed = this.fixedUserId()?.trim();
+    if (fixed) return [fixed];
+    if (this.mode() === "my") return undefined;
     return this.peopleIds().length ? this.peopleIds() : undefined;
   }
 
   private effectiveCaseId(): string | undefined {
-    return this.fixedCaseId() ?? (this.caseFilter() || undefined);
+    const fixed = this.fixedCaseId()?.trim();
+    if (fixed) return fixed;
+    if (this.mode() === "case") return undefined;
+    return this.caseFilter()?.trim() || undefined;
   }
 
   private effectivePresentationStatuses(): PresentationStatus[] {
     if (this.statuses().length) return this.statuses();
-    return this.statusMode() === "open" ? ["TODO", "IN_PROGRESS"] : [];
+    return this.statusMode() === "open"
+      ? ["TODO", "IN_PROGRESS"]
+      : ["DONE", "CANCELLED"];
   }
 
   private dateRange(): { from?: string; to?: string } {
@@ -439,10 +465,18 @@ export class WorkViewComponent {
           this.recordTypes().length === ALL_RECORD_TYPES.length
             ? null
             : this.recordTypes(),
-        people: this.fixedUserId() ? null : this.peopleIds(),
+        people:
+          this.fixedUserId() || this.mode() === "my"
+            ? null
+            : this.peopleIds().length
+              ? this.peopleIds()
+              : null,
         statusMode: this.statusMode(),
         datePreset: this.datePreset(),
-        case: this.fixedCaseId() ? null : this.caseFilter() || null,
+        case:
+          this.fixedCaseId() || this.mode() === "case"
+            ? null
+            : this.caseFilter() || null,
         search: this.search.value || null,
       },
     });
@@ -460,7 +494,7 @@ export class WorkViewComponent {
   }
 
   setPeopleIds(values: string[]): void {
-    if (this.fixedUserId()) return;
+    if (this.fixedUserId() || this.mode() === "my") return;
     this.peopleIds.set(values);
     this.syncQuery();
     this.reload();
@@ -485,13 +519,26 @@ export class WorkViewComponent {
   }
 
   setCaseFilter(value: string): void {
-    if (this.fixedCaseId()) return;
+    if (this.fixedCaseId() || this.mode() === "case") return;
     this.caseFilter.set(value);
     this.syncQuery();
     this.reload();
   }
 
   reload(): void {
+    if (this.mode() === "my" && !this.effectiveUserIds()?.length) {
+      this.tasks.set([]);
+      this.deadlines.set([]);
+      this.events.set([]);
+      return;
+    }
+    if (this.mode() === "case" && !this.effectiveCaseId()) {
+      this.tasks.set([]);
+      this.deadlines.set([]);
+      this.events.set([]);
+      return;
+    }
+
     const types = this.recordTypes();
     if (types.includes("TASK")) this.loadTasks(true);
     else {

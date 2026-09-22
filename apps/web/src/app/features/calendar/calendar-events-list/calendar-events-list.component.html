@@ -1,0 +1,102 @@
+<div class="flex h-full min-h-0 min-w-0 flex-col gap-3 overflow-hidden">
+  @if (loading() && sortedItems().length === 0) {
+    <div class="flex justify-center py-12" role="status">
+      <hlm-spinner aria-label="{{ 'calendar.loading' | translate }}" />
+    </div>
+  } @else if (sortedItems().length === 0) {
+    <div class="rounded-lg border border-border bg-card p-8 text-center">
+      <h2 class="text-base font-semibold">
+        {{ emptyTitle() || ("calendar.emptyTitle" | translate) }}
+      </h2>
+      <p class="mt-1 text-sm text-muted-foreground">
+        {{ emptyDescription() || ("calendar.emptyDescription" | translate) }}
+      </p>
+    </div>
+  } @else {
+    <div class="min-h-0 flex-1 overflow-y-auto overscroll-contain pe-1">
+      <ul class="flex flex-col gap-2">
+        @for (item of sortedItems(); track item.calendarId) {
+          <li
+            class="group flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/40"
+            [class.border-primary]="
+              selectedItem()?.calendarId === item.calendarId
+            "
+            [class.ring-1]="selectedItem()?.calendarId === item.calendarId"
+            [class.ring-primary]="
+              selectedItem()?.calendarId === item.calendarId
+            "
+          >
+            <button
+              type="button"
+              data-calendar-item-trigger
+              class="flex min-w-0 flex-1 flex-col items-start rounded-xs text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              (click)="onItemClick($event, item)"
+              (dblclick)="onItemDblClick($event, item)"
+              (contextmenu)="onItemContextMenu($event, item)"
+            >
+              <span class="break-words text-sm font-medium text-foreground">
+                {{ item.title }}
+              </span>
+              <div
+                class="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground"
+              >
+                <span
+                  class="inline-flex items-center rounded-xs border px-1.5 py-0.5 font-medium"
+                  [class]="sourceBadgeClass(item.sourceType)"
+                >
+                  {{ sourceLabel(item) | translate }}
+                </span>
+                <span>·</span>
+                <span class="inline-flex items-center gap-1">
+                  <ng-icon
+                    name="lucideCalendar"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ formatDate(item) }}
+                </span>
+                <span>·</span>
+                <span class="inline-flex items-center gap-1">
+                  <ng-icon
+                    name="lucideClock"
+                    class="size-3.5"
+                    aria-hidden="true"
+                  />
+                  {{ formatTime(item) }}
+                </span>
+                @if (item.caseId) {
+                  <span>·</span>
+                  <span class="max-w-48 truncate font-medium">
+                    {{ item.caseId }}
+                  </span>
+                }
+              </div>
+            </button>
+
+            <div class="flex shrink-0 items-center gap-2">
+              <span
+                class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
+                [class]="statusBadgeClass(item.status)"
+              >
+                {{ statusLabel(item.status) | translate }}
+              </span>
+
+              @if (item.sourceType === "EVENT") {
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  [attr.aria-label]="'calendar.change' | translate"
+                  (click)="onEditClick($event, item)"
+                >
+                  <ng-icon name="lucidePencil" class="size-3.5" />
+                </button>
+              }
+            </div>
+          </li>
+        }
+      </ul>
+    </div>
+  }
+</div>

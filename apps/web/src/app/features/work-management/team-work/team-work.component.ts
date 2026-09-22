@@ -12,11 +12,7 @@ import { WorkViewComponent } from "../work-view/work-view.component";
         {{ "nav.teamWork" | translate }}
       </h1>
 
-      <law-work-view
-        class="block min-h-0 min-w-0 flex-1"
-        mode="team"
-        [showTeamFilters]="true"
-      />
+      <law-work-view class="block min-h-0 min-w-0 flex-1" mode="team" />
     </div>
   `,
 })

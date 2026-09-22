@@ -4,7 +4,7 @@
   "license": "MIT",
   "scripts": {
     "api:serve": "PORT=3000 npx nx serve api",
-    "web:serve": "PORT=4200 npx nx serve web --port=4200",
+    "web:serve": "PORT=4200 npx nx serve web --port=4200 --proxy-config=apps/web/proxy.conf.json",
     "lint": "npx nx run-many -t lint",
     "test": "npx nx run-many -t test",
     "build": "npx nx run-many -t build",
@@ -116,6 +116,7 @@
     "mammoth": "^1.12.2",
     "marked": "^18.0.13",
     "multer": "^2.0.2",
+    "ngx-image-cropper": "^9.1.7",
     "nodemailer": "^10.0.0",
     "pdf-parse": "^2.4.5",
     "reflect-metadata": "^0.2.0",
