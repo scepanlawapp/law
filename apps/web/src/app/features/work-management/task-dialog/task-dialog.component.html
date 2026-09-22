@@ -40,7 +40,7 @@
             <hlm-select-trigger id="task-assignee" class="w-full">
               <hlm-select-value />
             </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
+            <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
                 @for (user of users(); track user.id) {
                   <hlm-select-item [value]="user.id">
@@ -62,7 +62,7 @@
             <hlm-select-trigger id="task-priority" class="w-full">
               <hlm-select-value />
             </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
+            <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
                 @for (priority of priorities; track priority) {
                   <hlm-select-item [value]="priority">
@@ -86,7 +86,7 @@
             <hlm-select-trigger id="task-status" class="w-full">
               <hlm-select-value />
             </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
+            <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
                 @for (status of statuses; track status) {
                   <hlm-select-item [value]="status">
@@ -108,7 +108,7 @@
             <hlm-select-trigger id="task-due-mode" class="w-full">
               <hlm-select-value />
             </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
+            <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
                 @for (mode of dueModes; track mode) {
                   <hlm-select-item [value]="mode">
