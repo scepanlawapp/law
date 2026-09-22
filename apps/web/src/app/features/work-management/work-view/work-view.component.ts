@@ -2,7 +2,6 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
-  ElementRef,
   computed,
   effect,
   inject,
@@ -13,21 +12,9 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
-import {
-  CalendarItem,
-  CaseSummary,
-  DeadlineDetail,
-  DeadlineStatus,
-  EventDetail,
-  EventStatus,
-  TaskDetail,
-  TaskStatus,
-} from "@law/api-interfaces";
+import { CaseSummary, TaskDetail, TaskStatus } from "@law/api-interfaces";
 import {
   CasesApiClient,
-  DeadlineListQuery,
-  EventListQuery,
-  EventsApiClient,
   ReferencesApiClient,
   TaskListQuery,
   TaskRequest,
@@ -36,16 +23,13 @@ import {
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
-  HlmComboboxChip,
-  HlmComboboxChipInput,
-  HlmComboboxChips,
   HlmComboboxContent,
   HlmComboboxEmpty,
   HlmComboboxItem,
   HlmComboboxList,
   HlmComboboxMultiple,
   HlmComboboxPortal,
-  HlmComboboxValues,
+  HlmComboboxTrigger,
 } from "@spartan-ng/helm/combobox";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -59,29 +43,15 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
-import { EventDialogComponent } from "../../calendar/event-dialog/event-dialog.component";
-import { EventDialogContext } from "../../calendar/event-dialog/event-dialog.models";
-import { EventDialogService } from "../../calendar/event-dialog/event-dialog.service";
-import { DeadlineDialogComponent } from "../deadline-dialog/deadline-dialog.component";
-import { DeadlineDialogContext } from "../deadline-dialog/deadline-dialog.models";
-import { DeadlineDialogService } from "../deadline-dialog/deadline-dialog.service";
 import { TaskDialogComponent } from "../task-dialog/task-dialog.component";
 import { TaskDialogContext } from "../task-dialog/task-dialog.models";
-import { TaskDialogService } from "../task-dialog/task-dialog.service";
 import { DialogPanelComponent } from "../../../shared/ui/dialog-panel/dialog-panel.component";
 import { dueLabel } from "../work-management-utils";
-import {
-  createSelectItemToString,
-  type SelectOption,
-} from "../../../shared/utils";
 import {
   BoardColumnKey,
   PresentationStatus,
   StatusTransitionAction,
   WorkItem,
-  WorkSourceType,
-  deadlineToWorkItem,
-  eventToWorkItem,
   mergePage,
   sortWorkItems,
   statusTransition,
@@ -89,21 +59,13 @@ import {
 } from "./work-view.models";
 
 export type WorkViewMode = "team" | "my" | "case";
-type DatePreset = "all" | "overdue" | "today" | "upcoming";
-type StatusMode = "open" | "history";
 type Presentation = "list" | "board";
-type EditPanelState =
-  | { component: typeof TaskDialogComponent; context: TaskDialogContext }
-  | {
-      component: typeof DeadlineDialogComponent;
-      context: DeadlineDialogContext;
-    }
-  | { component: typeof EventDialogComponent; context: EventDialogContext };
+type EditPanelState = {
+  component: typeof TaskDialogComponent;
+  context: TaskDialogContext;
+};
 
 const PAGE_SIZE = 20;
-const ALL_RECORD_TYPES: WorkSourceType[] = ["TASK", "DEADLINE", "EVENT"];
-// Below this width there isn't enough room for filters/list beside an edit panel, so fall back to a modal.
-const SIDE_PANEL_MIN_WIDTH = 1200;
 
 function workViewModeFromRoute(value: string | null): WorkViewMode {
   return value === "my" || value === "case" ? value : "team";
@@ -116,36 +78,6 @@ function taskStatusesFor(
   return presentations.filter((status): status is TaskStatus =>
     (["TODO", "IN_PROGRESS", "DONE", "CANCELLED"] as string[]).includes(status),
   );
-}
-
-function deadlineStatusesFor(
-  presentations: PresentationStatus[],
-): DeadlineStatus[] | undefined {
-  if (!presentations.length) return undefined;
-  const mapped = presentations
-    .map((status): DeadlineStatus | null => {
-      if (status === "TODO") return "OPEN";
-      if (status === "DONE") return "SATISFIED";
-      if (status === "CANCELLED") return "CANCELLED";
-      return null;
-    })
-    .filter((status): status is DeadlineStatus => status !== null);
-  return mapped.length ? mapped : undefined;
-}
-
-function eventStatusesFor(
-  presentations: PresentationStatus[],
-): EventStatus[] | undefined {
-  if (!presentations.length) return undefined;
-  const mapped = presentations
-    .map((status): EventStatus | null => {
-      if (status === "TODO") return "SCHEDULED";
-      if (status === "DONE") return "COMPLETED";
-      if (status === "CANCELLED") return "CANCELLED";
-      return null;
-    })
-    .filter((status): status is EventStatus => status !== null);
-  return mapped.length ? mapped : undefined;
 }
 
 function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
@@ -163,24 +95,6 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
   };
 }
 
-function eventToCalendarItem(event: EventDetail): CalendarItem {
-  return {
-    calendarId: event.id,
-    sourceType: "EVENT",
-    sourceId: event.id,
-    title: event.title,
-    status: event.status,
-    startsAt: event.startsAt,
-    endsAt: event.endsAt,
-    date: null,
-    timeZone: event.timeZone,
-    caseId: event.caseId,
-    clientId: null,
-    responsibleUserId: event.organizerUserId,
-    assigneeUserIds: event.assigneeUserIds,
-  };
-}
-
 @Component({
   selector: "law-work-view",
   standalone: true,
@@ -191,16 +105,13 @@ function eventToCalendarItem(event: EventDetail): CalendarItem {
     ReactiveFormsModule,
     BottomReachedDirective,
     HlmButton,
-    HlmComboboxChip,
-    HlmComboboxChipInput,
-    HlmComboboxChips,
     HlmComboboxContent,
     HlmComboboxEmpty,
     HlmComboboxItem,
     HlmComboboxList,
     HlmComboboxMultiple,
     HlmComboboxPortal,
-    HlmComboboxValues,
+    HlmComboboxTrigger,
     HlmInput,
     HlmSelectImports,
     HlmSpinner,
@@ -224,19 +135,14 @@ export class WorkViewComponent {
 
   private readonly workApi = inject(WorkManagementApiClient);
   private readonly auth = inject(AuthState);
-  private readonly eventsApi = inject(EventsApiClient);
   private readonly usersApi = inject(ReferencesApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
-  private readonly taskDialog = inject(TaskDialogService);
-  private readonly deadlineDialog = inject(DeadlineDialogService);
-  private readonly eventDialog = inject(EventDialogService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly elementRef = inject(ElementRef<HTMLElement>);
 
   private readonly initialParams = this.route.snapshot.queryParamMap;
   private readonly routeMode = signal<WorkViewMode>(
@@ -247,26 +153,12 @@ export class WorkViewComponent {
   });
 
   readonly editPanel = signal<EditPanelState | null>(null);
-  private readonly containerWidth = signal(
-    this.elementRef.nativeElement.clientWidth,
-  );
-  readonly showSidePanel = computed(
-    () => this.containerWidth() >= SIDE_PANEL_MIN_WIDTH,
-  );
-  private resizeObserver?: ResizeObserver;
 
   readonly presentation = signal<Presentation>(
     (this.initialParams.get("presentation") as Presentation) || "board",
   );
-  readonly recordTypes = signal<WorkSourceType[]>(this.initialRecordTypes());
   readonly peopleIds = signal<string[]>(this.initialParams.getAll("people"));
-  readonly statusMode = signal<StatusMode>(
-    (this.initialParams.get("statusMode") as StatusMode) || "open",
-  );
   readonly statuses = signal<PresentationStatus[]>([]);
-  readonly datePreset = signal<DatePreset>(
-    (this.initialParams.get("datePreset") as DatePreset) || "all",
-  );
   readonly caseFilter = signal<string>(this.initialParams.get("case") ?? "");
   readonly search = new FormControl(this.initialParams.get("search") ?? "", {
     nonNullable: true,
@@ -279,25 +171,6 @@ export class WorkViewComponent {
   readonly tasksPage = signal(0);
   readonly tasksHasMore = signal(false);
   readonly tasksLoading = signal(false);
-
-  readonly deadlines = signal<DeadlineDetail[]>([]);
-  readonly deadlinesPage = signal(0);
-  readonly deadlinesHasMore = signal(false);
-  readonly deadlinesLoading = signal(false);
-
-  readonly events = signal<EventDetail[]>([]);
-  readonly eventsPage = signal(0);
-  readonly eventsHasMore = signal(false);
-  readonly eventsLoading = signal(false);
-
-  readonly recordTypeOptions: ReadonlyArray<{
-    value: WorkSourceType;
-    label: string;
-  }> = [
-    { value: "TASK", label: "work.recordType.task" },
-    { value: "DEADLINE", label: "work.recordType.deadline" },
-    { value: "EVENT", label: "work.recordType.event" },
-  ];
   readonly statusOptions: ReadonlyArray<{
     value: PresentationStatus;
     label: string;
@@ -307,34 +180,6 @@ export class WorkViewComponent {
     { value: "DONE", label: "work.status.done" },
     { value: "CANCELLED", label: "work.status.cancelled" },
   ];
-  readonly datePresetOptions: ReadonlyArray<{
-    value: DatePreset;
-    label: string;
-  }> = [
-    { value: "all", label: "work.datePreset.all" },
-    { value: "overdue", label: "work.datePreset.overdue" },
-    { value: "today", label: "work.datePreset.today" },
-    { value: "upcoming", label: "work.datePreset.upcoming" },
-  ];
-  readonly statusModeOptions: ReadonlyArray<SelectOption<StatusMode>> = [
-    { value: "open", label: "work.statusMode.open" },
-    { value: "history", label: "work.statusMode.history" },
-  ];
-
-  readonly statusModeItemToString = createSelectItemToString(
-    this.statusModeOptions,
-    (key) => this.localization.translate(key),
-  );
-
-  readonly recordTypeItemToString = (
-    value: WorkSourceType | null | undefined,
-  ): string =>
-    value
-      ? this.localization.translate(
-          this.recordTypeOptions.find((option) => option.value === value)
-            ?.label ?? "",
-        )
-      : "";
   readonly statusItemToString = (
     value: PresentationStatus | null | undefined,
   ): string =>
@@ -344,17 +189,16 @@ export class WorkViewComponent {
             "",
         )
       : "";
+  readonly selectedStatusesLabel = computed(() =>
+    this.statuses().map(this.statusItemToString).join(", "),
+  );
   readonly userItemToString = (value: string | null | undefined): string =>
     value
       ? (this.users().find((user) => user.id === value)?.name ?? value)
       : "";
-  readonly datePresetItemToString = (
-    value: DatePreset | null | undefined,
-  ): string =>
-    this.localization.translate(
-      this.datePresetOptions.find((option) => option.value === value)?.label ??
-        "",
-    );
+  readonly selectedPeopleLabel = computed(() =>
+    this.peopleIds().map(this.userItemToString).join(", "),
+  );
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("work.filters.allCases");
     const item = this.cases().find((option) => option.id === value);
@@ -362,36 +206,15 @@ export class WorkViewComponent {
   };
 
   readonly workItems = computed<WorkItem[]>(() => {
-    const types = this.recordTypes();
-    const items: WorkItem[] = [];
-    if (types.includes("TASK")) items.push(...this.tasks().map(taskToWorkItem));
-    if (types.includes("DEADLINE"))
-      items.push(...this.deadlines().map(deadlineToWorkItem));
-    if (types.includes("EVENT"))
-      items.push(...this.events().map(eventToWorkItem));
-    return sortWorkItems(items);
+    return sortWorkItems(this.tasks().map(taskToWorkItem));
   });
 
-  readonly loading = computed(
-    () =>
-      this.tasksLoading() || this.deadlinesLoading() || this.eventsLoading(),
-  );
+  readonly loading = computed(() => this.tasksLoading());
 
-  readonly hasMore = computed(() => {
-    const types = this.recordTypes();
-    return (
-      (types.includes("TASK") && this.tasksHasMore()) ||
-      (types.includes("DEADLINE") && this.deadlinesHasMore()) ||
-      (types.includes("EVENT") && this.eventsHasMore())
-    );
-  });
+  readonly hasMore = computed(() => this.tasksHasMore());
 
   readonly boardColumns = computed<BoardColumnKey[]>(() => {
-    const columns: BoardColumnKey[] = ["TODO"];
-    if (this.recordTypes().includes("TASK")) columns.push("IN_PROGRESS");
-    columns.push("DONE");
-    if (this.statusMode() === "history") columns.push("CANCELLED");
-    return columns;
+    return ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"];
   });
 
   constructor() {
@@ -437,22 +260,6 @@ export class WorkViewComponent {
       this.viewMode();
       untracked(() => this.reload());
     });
-
-    this.resizeObserver = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width;
-      if (width !== undefined) this.containerWidth.set(width);
-    });
-    this.resizeObserver.observe(this.elementRef.nativeElement);
-    this.destroyRef.onDestroy(() => this.resizeObserver?.disconnect());
-  }
-
-  private initialRecordTypes(): WorkSourceType[] {
-    const requested = this.initialParams
-      .getAll("recordType")
-      .filter((value): value is WorkSourceType =>
-        (ALL_RECORD_TYPES as string[]).includes(value),
-      );
-    return requested.length ? requested : [...ALL_RECORD_TYPES];
   }
 
   private effectiveUserIds(): string[] | undefined {
@@ -472,33 +279,6 @@ export class WorkViewComponent {
     return this.caseFilter()?.trim() || undefined;
   }
 
-  private effectivePresentationStatuses(): PresentationStatus[] {
-    if (this.statuses().length) return this.statuses();
-    // The board always renders a DONE column, so "open" must fetch it too.
-    return this.statusMode() === "open"
-      ? ["TODO", "IN_PROGRESS", "DONE"]
-      : ["DONE", "CANCELLED"];
-  }
-
-  private dateRange(): { from?: string; to?: string } {
-    const now = new Date();
-    switch (this.datePreset()) {
-      case "overdue":
-        return { to: now.toISOString() };
-      case "today": {
-        const start = new Date(now);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(now);
-        end.setHours(23, 59, 59, 999);
-        return { from: start.toISOString(), to: end.toISOString() };
-      }
-      case "upcoming":
-        return { from: now.toISOString() };
-      default:
-        return {};
-    }
-  }
-
   private syncQuery(): void {
     if (!this.syncQueryParams()) return;
     this.router.navigate([], {
@@ -506,18 +286,14 @@ export class WorkViewComponent {
       queryParamsHandling: "merge",
       queryParams: {
         presentation: this.presentation(),
-        recordType:
-          this.recordTypes().length === ALL_RECORD_TYPES.length
-            ? null
-            : this.recordTypes(),
         people:
           this.fixedUserId() || this.viewMode() === "my"
             ? null
             : this.peopleIds().length
               ? this.peopleIds()
               : null,
-        statusMode: this.statusMode(),
-        datePreset: this.datePreset(),
+        statusMode: null,
+        datePreset: null,
         case:
           this.fixedCaseId() || this.viewMode() === "case"
             ? null
@@ -530,12 +306,6 @@ export class WorkViewComponent {
   setPresentation(value: Presentation): void {
     this.presentation.set(value);
     this.syncQuery();
-  }
-
-  setRecordTypes(values: WorkSourceType[]): void {
-    this.recordTypes.set(values.length ? values : [...ALL_RECORD_TYPES]);
-    this.syncQuery();
-    this.reload();
   }
 
   setPeopleIds(values: string[]): void {
@@ -551,18 +321,6 @@ export class WorkViewComponent {
     this.reload();
   }
 
-  setStatusMode(value: StatusMode): void {
-    this.statusMode.set(value);
-    this.syncQuery();
-    this.reload();
-  }
-
-  setDatePreset(value: DatePreset): void {
-    this.datePreset.set(value);
-    this.syncQuery();
-    this.reload();
-  }
-
   setCaseFilter(value: string): void {
     if (this.fixedCaseId() || this.viewMode() === "case") return;
     this.caseFilter.set(value);
@@ -573,56 +331,29 @@ export class WorkViewComponent {
   reload(): void {
     if (this.viewMode() === "my" && !this.effectiveUserIds()?.length) {
       this.tasks.set([]);
-      this.deadlines.set([]);
-      this.events.set([]);
       return;
     }
     if (this.viewMode() === "case" && !this.effectiveCaseId()) {
       this.tasks.set([]);
-      this.deadlines.set([]);
-      this.events.set([]);
       return;
     }
 
-    const types = this.recordTypes();
-    if (types.includes("TASK")) this.loadTasks(true);
-    else {
-      this.tasks.set([]);
-      this.tasksHasMore.set(false);
-    }
-    if (types.includes("DEADLINE")) this.loadDeadlines(true);
-    else {
-      this.deadlines.set([]);
-      this.deadlinesHasMore.set(false);
-    }
-    if (types.includes("EVENT")) this.loadEvents(true);
-    else {
-      this.events.set([]);
-      this.eventsHasMore.set(false);
-    }
+    this.loadTasks(true);
   }
 
   loadMore(): void {
-    if (this.recordTypes().includes("TASK") && this.tasksHasMore())
-      this.loadTasks(false);
-    if (this.recordTypes().includes("DEADLINE") && this.deadlinesHasMore())
-      this.loadDeadlines(false);
-    if (this.recordTypes().includes("EVENT") && this.eventsHasMore())
-      this.loadEvents(false);
+    if (this.tasksHasMore()) this.loadTasks(false);
   }
 
   private loadTasks(reset: boolean): void {
     const page = reset ? 1 : this.tasksPage() + 1;
-    const range = this.dateRange();
     const query: TaskListQuery = {
       page,
       pageSize: PAGE_SIZE,
       search: this.search.value || undefined,
       assigneeUserIds: this.effectiveUserIds(),
       caseId: this.effectiveCaseId(),
-      statuses: taskStatusesFor(this.effectivePresentationStatuses()),
-      from: range.from,
-      to: range.to,
+      statuses: taskStatusesFor(this.statuses()),
     };
     this.tasksLoading.set(true);
     this.workApi
@@ -638,68 +369,6 @@ export class WorkViewComponent {
           this.tasksLoading.set(false);
         },
         error: () => this.tasksLoading.set(false),
-      });
-  }
-
-  private loadDeadlines(reset: boolean): void {
-    const page = reset ? 1 : this.deadlinesPage() + 1;
-    const range = this.dateRange();
-    const query: DeadlineListQuery = {
-      page,
-      pageSize: PAGE_SIZE,
-      search: this.search.value || undefined,
-      responsibleUserIds: this.effectiveUserIds(),
-      caseId: this.effectiveCaseId(),
-      statuses: deadlineStatusesFor(this.effectivePresentationStatuses()),
-      from: range.from,
-      to: range.to,
-    };
-    this.deadlinesLoading.set(true);
-    this.workApi
-      .listDeadlines(query)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          this.deadlines.set(
-            reset
-              ? response.items
-              : mergePage(this.deadlines(), response.items),
-          );
-          this.deadlinesPage.set(page);
-          this.deadlinesHasMore.set(page < response.meta.totalPages);
-          this.deadlinesLoading.set(false);
-        },
-        error: () => this.deadlinesLoading.set(false),
-      });
-  }
-
-  private loadEvents(reset: boolean): void {
-    const page = reset ? 1 : this.eventsPage() + 1;
-    const range = this.dateRange();
-    const query: EventListQuery = {
-      page,
-      pageSize: PAGE_SIZE,
-      search: this.search.value || undefined,
-      userIds: this.effectiveUserIds(),
-      caseId: this.effectiveCaseId(),
-      statuses: eventStatusesFor(this.effectivePresentationStatuses()),
-      from: range.from,
-      to: range.to,
-    };
-    this.eventsLoading.set(true);
-    this.eventsApi
-      .list(query)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          this.events.set(
-            reset ? response.items : mergePage(this.events(), response.items),
-          );
-          this.eventsPage.set(page);
-          this.eventsHasMore.set(page < response.meta.totalPages);
-          this.eventsLoading.set(false);
-        },
-        error: () => this.eventsLoading.set(false),
       });
   }
 
@@ -720,10 +389,7 @@ export class WorkViewComponent {
 
   openItem(item?: WorkItem): void {
     if (!item) return;
-    if (item.sourceType === "TASK") this.openTask(item.raw as TaskDetail);
-    else if (item.sourceType === "DEADLINE")
-      this.openDeadline(item.raw as DeadlineDetail);
-    else this.openEvent(item.raw as EventDetail);
+    this.openTask(item.raw as TaskDetail);
   }
 
   openTask(task?: TaskDetail): void {
@@ -732,50 +398,7 @@ export class WorkViewComponent {
       caseId: task?.caseId ?? this.effectiveCaseId(),
       clientId: task?.clientId ?? undefined,
     };
-    if (this.showSidePanel()) {
-      this.editPanel.set({ component: TaskDialogComponent, context });
-      return;
-    }
-    this.taskDialog
-      .open(context)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        if (result) this.reload();
-      });
-  }
-
-  openDeadline(deadline?: DeadlineDetail): void {
-    const context: DeadlineDialogContext = {
-      deadline,
-      caseId: deadline?.caseId ?? this.effectiveCaseId(),
-      clientId: deadline?.clientId ?? undefined,
-    };
-    if (this.showSidePanel()) {
-      this.editPanel.set({ component: DeadlineDialogComponent, context });
-      return;
-    }
-    this.deadlineDialog
-      .open(context)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        if (result) this.reload();
-      });
-  }
-
-  openEvent(event?: EventDetail): void {
-    const context: EventDialogContext = {
-      item: event ? eventToCalendarItem(event) : undefined,
-    };
-    if (this.showSidePanel()) {
-      this.editPanel.set({ component: EventDialogComponent, context });
-      return;
-    }
-    this.eventDialog
-      .open(context)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((result) => {
-        if (result) this.reload();
-      });
+    this.editPanel.set({ component: TaskDialogComponent, context });
   }
 
   closeEditPanel(): void {
@@ -803,23 +426,17 @@ export class WorkViewComponent {
 
   canReopen(item: WorkItem): boolean {
     return (
-      item.sourceType !== "EVENT" &&
-      (item.presentationStatus === "DONE" ||
-        item.presentationStatus === "CANCELLED")
+      item.presentationStatus === "DONE" ||
+      item.presentationStatus === "CANCELLED"
     );
   }
 
   complete(item: WorkItem): void {
-    if (item.sourceType === "TASK") this.runTransition(item, "task-complete");
-    else if (item.sourceType === "DEADLINE")
-      this.runTransition(item, "deadline-satisfy");
-    else this.runTransition(item, "event-complete");
+    this.runTransition(item, "task-complete");
   }
 
   reopen(item: WorkItem): void {
-    if (item.sourceType === "TASK") this.runTransition(item, "task-reopen");
-    else if (item.sourceType === "DEADLINE")
-      this.runTransition(item, "deadline-reopen");
+    this.runTransition(item, "task-reopen");
   }
 
   cancel(item: WorkItem): void {
@@ -832,17 +449,14 @@ export class WorkViewComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((confirmed) => {
         if (!confirmed) return;
-        const call: Observable<unknown> =
-          item.sourceType === "TASK"
-            ? this.workApi.cancelTask(item.id)
-            : item.sourceType === "DEADLINE"
-              ? this.workApi.cancelDeadline(item.id)
-              : this.eventsApi.cancel(item.id);
-        call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-          next: () => this.reload(),
-          error: () =>
-            this.toast.error(this.localization.translate("work.saveError")),
-        });
+        this.workApi
+          .cancelTask(item.id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => this.reload(),
+            error: () =>
+              this.toast.error(this.localization.translate("work.saveError")),
+          });
       });
   }
 
@@ -895,12 +509,6 @@ export class WorkViewComponent {
         return this.workApi.completeTask(item.id);
       case "task-reopen":
         return this.workApi.reopenTask(item.id);
-      case "deadline-satisfy":
-        return this.workApi.satisfyDeadline(item.id);
-      case "deadline-reopen":
-        return this.workApi.reopenDeadline(item.id);
-      case "event-complete":
-        return this.eventsApi.complete(item.id);
       default:
         return undefined;
     }

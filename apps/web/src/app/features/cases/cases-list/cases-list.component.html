@@ -18,7 +18,7 @@
         {{ "cases.status" | translate }}
       </label>
       <hlm-select [formControl]="status" [itemToString]="statusItemToString">
-        <hlm-select-trigger id="case-status-filter" class="w-full">
+        <hlm-select-trigger id="case-status-filter">
           <hlm-select-value />
         </hlm-select-trigger>
         <hlm-select-content *hlmSelectPortal>
@@ -40,7 +40,7 @@
         [formControl]="responsibleUserId"
         [itemToString]="userItemToString"
       >
-        <hlm-select-trigger id="case-responsible-filter" class="w-full">
+        <hlm-select-trigger id="case-responsible-filter">
           <hlm-select-value />
         </hlm-select-trigger>
         <hlm-select-content *hlmSelectPortal>
@@ -62,7 +62,7 @@
         {{ "cases.sort" | translate }}
       </label>
       <hlm-select [formControl]="sort" [itemToString]="sortItemToString">
-        <hlm-select-trigger id="case-sort" class="w-full">
+        <hlm-select-trigger id="case-sort">
           <hlm-select-value />
         </hlm-select-trigger>
         <hlm-select-content *hlmSelectPortal>
@@ -98,11 +98,20 @@
       </hlm-empty-header>
       <hlm-empty-content>
         @if (hasFilters()) {
-          <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            (click)="clearFilters()"
+          >
             {{ "cases.clearFilters" | translate }}
           </button>
         } @else {
-          <a hlmBtn routerLink="/cases/new" [queryParams]="caseCreateQueryParams()">
+          <a
+            hlmBtn
+            routerLink="/cases/new"
+            [queryParams]="caseCreateQueryParams()"
+          >
             {{ "cases.create" | translate }}
           </a>
         }
