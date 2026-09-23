@@ -105,7 +105,7 @@ export class TaskDialogComponent {
       this.context.task?.priority ?? "NORMAL",
       { nonNullable: true },
     ),
-    assigneeUserId: new FormControl(this.context.task?.assigneeUserId ?? "", {
+    assigneeUserId: new FormControl(this.context.task?.assigneeUser.id ?? "", {
       nonNullable: true,
       validators: [Validators.required],
     }),
@@ -165,9 +165,9 @@ export class TaskDialogComponent {
       status: value.status,
       priority: value.priority,
       assigneeUserId: value.assigneeUserId,
-      caseId: this.context.caseId ?? this.context.task?.caseId ?? undefined,
+      caseId: this.context.caseId ?? this.context.task?.case?.id ?? undefined,
       clientId:
-        this.context.clientId ?? this.context.task?.clientId ?? undefined,
+        this.context.clientId ?? this.context.task?.client?.id ?? undefined,
       deadlineId:
         this.context.deadlineId ?? this.context.task?.deadlineId ?? undefined,
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,

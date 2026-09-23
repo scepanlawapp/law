@@ -240,6 +240,8 @@ export class CaseFormComponent {
           next: (item) => {
             this.form.patchValue({
               ...item,
+              clientId: item.client.id,
+              responsibleUserId: item.responsibleUser.id,
               tagIds: item.tags.map((tag) => tag.id),
               openedDate: toDateInputValue(item.openedDate),
             });

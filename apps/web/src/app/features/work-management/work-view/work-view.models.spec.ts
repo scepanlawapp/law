@@ -16,14 +16,24 @@ function makeTask(overrides: Partial<TaskDetail> = {}): TaskDetail {
     description: null,
     status: "TODO",
     priority: "NORMAL",
-    assigneeUserId: "user-1",
+    assigneeUser: {
+      id: "user-1",
+      displayName: "Lawyer One",
+      email: "lawyer1@example.test",
+    },
     dueDate: null,
     dueAt: null,
-    caseId: "case-1",
-    clientId: null,
+    case: {
+      id: "case-1",
+      caseNumber: "P-1/2026",
+      name: "Case One",
+      status: "ACTIVE",
+      priority: "NORMAL",
+    },
+    client: null,
     deadlineId: null,
     completedAt: null,
-    completedByUserId: null,
+    completedByUser: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -41,12 +51,22 @@ function makeDeadline(overrides: Partial<DeadlineDetail> = {}): DeadlineDetail {
     timeZone: null,
     status: "OPEN",
     overdue: false,
-    responsibleUserId: "user-2",
-    caseId: "case-1",
-    clientId: null,
+    responsibleUser: {
+      id: "user-2",
+      displayName: "Lawyer Two",
+      email: "lawyer2@example.test",
+    },
+    case: {
+      id: "case-1",
+      caseNumber: "P-1/2026",
+      name: "Case One",
+      status: "ACTIVE",
+      priority: "NORMAL",
+    },
+    client: null,
     sourceDescription: null,
     satisfiedAt: null,
-    satisfiedByUserId: null,
+    satisfiedByUser: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     ...overrides,
@@ -68,10 +88,20 @@ function makeEvent(overrides: Partial<EventDetail> = {}): EventDetail {
     meetingUrl: null,
     courtName: null,
     courtroom: null,
-    organizerUserId: "user-3",
-    caseId: "case-1",
-    clientIds: [],
-    assigneeUserIds: [],
+    organizerUser: {
+      id: "user-3",
+      displayName: "Lawyer Three",
+      email: "lawyer3@example.test",
+    },
+    case: {
+      id: "case-1",
+      caseNumber: "P-1/2026",
+      name: "Case One",
+      status: "ACTIVE",
+      priority: "NORMAL",
+    },
+    clients: [],
+    assigneeUsers: [],
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",
     attendees: [],
@@ -122,13 +152,21 @@ describe("work-view.models status mapping", () => {
   });
 
   it("falls back to the organizer when an event has no assignees", () => {
-    const item = eventToWorkItem(makeEvent({ assigneeUserIds: [] }));
+    const item = eventToWorkItem(makeEvent({ assigneeUsers: [] }));
     expect(item.ownerUserIds).toEqual(["user-3"]);
   });
 
   it("prefers explicit assignees over the organizer", () => {
     const item = eventToWorkItem(
-      makeEvent({ assigneeUserIds: ["user-9"], organizerUserId: "user-3" }),
+      makeEvent({
+        assigneeUsers: [
+          {
+            id: "user-9",
+            displayName: "Lawyer Nine",
+            email: "lawyer9@example.test",
+          },
+        ],
+      }),
     );
     expect(item.ownerUserIds).toEqual(["user-9"]);
   });

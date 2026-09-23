@@ -64,10 +64,10 @@
                   />
                   {{ formatTime(item) }}
                 </span>
-                @if (item.caseId) {
+                @if (item.case) {
                   <span>·</span>
                   <span class="max-w-48 truncate font-medium">
-                    {{ item.caseId }}
+                    {{ item.case.caseNumber }} — {{ item.case.name }}
                   </span>
                 }
               </div>

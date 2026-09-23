@@ -58,8 +58,8 @@ export function calendarItemToObligation(item: CalendarItem): ObligationItem {
     startsAt: item.startsAt,
     endsAt: item.endsAt,
     date: item.date,
-    caseId: item.caseId,
-    clientId: item.clientId,
+    caseId: item.case?.id ?? null,
+    clientId: item.client?.id ?? null,
     overdue:
       UNFINISHED_STATUSES.has(item.status) &&
       !!target &&
@@ -81,18 +81,14 @@ export function activityLogToFeedItem(
   };
 }
 
-export function caseSummaryToPreviewRow(
-  item: CaseSummary,
-  clientName: string,
-  responsibleUserName: string,
-): CasePreviewRow {
+export function caseSummaryToPreviewRow(item: CaseSummary): CasePreviewRow {
   return {
     id: item.id,
     caseNumber: item.caseNumber,
     name: item.name,
     status: item.status,
-    clientName,
-    responsibleUserName,
+    clientName: item.client.displayName,
+    responsibleUserName: item.responsibleUser.displayName,
   };
 }
 
@@ -108,9 +104,9 @@ export function obligationToCalendarItem(item: ObligationItem): CalendarItem {
     endsAt: item.endsAt,
     date: item.date,
     timeZone: null,
-    caseId: item.caseId,
-    clientId: item.clientId,
-    responsibleUserId: null,
-    assigneeUserIds: [],
+    case: null,
+    client: null,
+    responsibleUser: null,
+    assigneeUsers: [],
   };
 }

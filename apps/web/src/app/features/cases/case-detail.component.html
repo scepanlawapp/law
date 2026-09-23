@@ -32,9 +32,9 @@
             <span aria-hidden="true">·</span>
             <a
               class="underline-offset-4 hover:underline"
-              [routerLink]="['/clients', caseItem.clientId]"
+              [routerLink]="['/clients', caseItem.client.id]"
             >
-              {{ "cases.client" | translate }}
+              {{ caseItem.client.displayName }}
             </a>
             <span aria-hidden="true">·</span>
             <span>{{ formatDate(caseItem.openedDate) }}</span>
@@ -54,7 +54,7 @@
             hlmBtn
             variant="outline"
             type="button"
-            [routerLink]="['/clients', caseItem.clientId]"
+            [routerLink]="['/clients', caseItem.client.id]"
           >
             {{ "cases.client" | translate }}
           </a>
@@ -465,21 +465,18 @@
                   <dd class="text-muted-foreground">
                     <a
                       class="underline-offset-4 hover:underline"
-                      [routerLink]="['/clients', caseItem.clientId]"
+                      [routerLink]="['/clients', caseItem.client.id]"
                     >
-                      {{
-                        caseItem.clientId || ("common.notProvided" | translate)
-                      }}
+                      {{ caseItem.client.displayName }}
                     </a>
                   </dd>
-                  <!-- TODO(case-client-label): Include/resolve the client's display name in CaseDetail. -->
                 </div>
                 <div>
                   <dt class="font-medium">
                     {{ "cases.responsible" | translate }}
                   </dt>
                   <dd class="text-muted-foreground">
-                    {{ userName(caseItem.responsibleUserId) }}
+                    {{ caseItem.responsibleUser.displayName }}
                   </dd>
                 </div>
                 <div>

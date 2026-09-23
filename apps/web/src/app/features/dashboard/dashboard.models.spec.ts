@@ -16,10 +16,10 @@ function calendarItem(overrides: Partial<CalendarItem>): CalendarItem {
     endsAt: new Date(Date.now() + 7_200_000).toISOString(),
     date: null,
     timeZone: "Europe/Belgrade",
-    caseId: null,
-    clientId: null,
-    responsibleUserId: null,
-    assigneeUserIds: [],
+    case: null,
+    client: null,
+    responsibleUser: null,
+    assigneeUsers: [],
     ...overrides,
   };
 }
@@ -108,18 +108,26 @@ describe("caseSummaryToPreviewRow", () => {
       {
         id: "c1",
         caseNumber: "P-1/2026",
-        clientId: "cl1",
+        client: {
+          id: "cl1",
+          clientNumber: "CL-1",
+          type: "ORGANIZATION",
+          displayName: "Client One",
+          status: "ACTIVE",
+        },
         name: "Test case",
         status: "ACTIVE",
         priority: "NORMAL",
-        responsibleUserId: "u1",
+        responsibleUser: {
+          id: "u1",
+          displayName: "Lawyer One",
+          email: "lawyer@example.test",
+        },
         openedDate: null,
         closedDate: null,
         createdAt: "2026-01-01T00:00:00.000Z",
         updatedAt: "2026-01-01T00:00:00.000Z",
       },
-      "Client One",
-      "Lawyer One",
     );
     expect(row).toMatchObject({
       caseNumber: "P-1/2026",

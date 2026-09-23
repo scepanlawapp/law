@@ -114,7 +114,7 @@ export class DeadlineDialogComponent {
       nonNullable: true,
     }),
     responsibleUserId: new FormControl(
-      this.context.deadline?.responsibleUserId ?? "",
+      this.context.deadline?.responsibleUser.id ?? "",
       { nonNullable: true, validators: [Validators.required] },
     ),
     sourceDescription: new FormControl(
@@ -162,9 +162,9 @@ export class DeadlineDialogComponent {
       timeZone: "Europe/Belgrade",
       responsibleUserId: value.responsibleUserId,
       sourceDescription: value.sourceDescription || undefined,
-      caseId: this.context.caseId ?? this.context.deadline?.caseId ?? undefined,
+      caseId: this.context.caseId ?? this.context.deadline?.case?.id ?? undefined,
       clientId:
-        this.context.clientId ?? this.context.deadline?.clientId ?? undefined,
+        this.context.clientId ?? this.context.deadline?.client?.id ?? undefined,
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
       dueAt:
         value.dueMode === "DATE_TIME"

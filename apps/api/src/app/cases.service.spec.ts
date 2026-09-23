@@ -14,6 +14,13 @@ function caseRecord(
     workspaceId,
     caseNumber: "CA-000001",
     clientId: "44444444-4444-4444-a444-444444444444",
+    client: {
+      id: "44444444-4444-4444-a444-444444444444",
+      clientNumber: "CL-000001",
+      type: "ORGANIZATION",
+      displayName: "Client One",
+      status: "ACTIVE",
+    },
     name: "Test case",
     status,
     priority: "NORMAL",
@@ -34,6 +41,7 @@ describe("CasesService", () => {
       return arg;
     }),
     workspaceMember: { findUnique: jest.fn() },
+    user: { findMany: jest.fn() },
     case: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -57,7 +65,17 @@ describe("CasesService", () => {
 
   afterAll(() => jest.useRealTimers());
 
-  beforeEach(() => jest.clearAllMocks());
+  beforeEach(() => {
+    jest.clearAllMocks();
+    db.user.findMany.mockResolvedValue([
+      {
+        id: userId,
+        firstName: "Ana",
+        lastName: "Advokat",
+        email: "ana@example.test",
+      },
+    ]);
+  });
 
   it("scopes detail lookups to the authenticated workspace", async () => {
     db.case.findFirst.mockResolvedValue(null);

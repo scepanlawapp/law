@@ -84,7 +84,7 @@
         <div>
           <dt class="font-medium">{{ "clients.responsible" | translate }}</dt>
           <dd class="text-muted-foreground">
-            {{ responsibleUserName(item.responsibleUserId) }}
+            {{ item.responsibleUser?.displayName || ("common.notProvided" | translate) }}
           </dd>
         </div>
       </dl>
@@ -259,7 +259,7 @@
                     {{ "clients.responsible" | translate }}
                   </dt>
                   <dd class="text-muted-foreground">
-                    {{ responsibleUserName(item.responsibleUserId) }}
+                    {{ item.responsibleUser?.displayName || ("common.notProvided" | translate) }}
                   </dd>
                 </div>
                 <div class="sm:col-span-2">

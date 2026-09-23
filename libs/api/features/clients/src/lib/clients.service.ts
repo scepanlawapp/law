@@ -14,6 +14,7 @@ import {
   ClientDetail,
   ClientListResponse,
   ClientSummary,
+  UserReference,
 } from "@law/api-interfaces";
 import {
   ClientActivityDto,
@@ -125,14 +126,53 @@ export class ClientsService {
     return `${name === "CLIENT" ? "CL" : "CA"}-${String(counter.value).padStart(6, "0")}`;
   }
 
+  private userDisplayName(user: {
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  }): string {
+    return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+  }
+
+  private async userReferenceMap(
+    userIds: readonly (string | null | undefined)[],
+  ): Promise<Map<string, UserReference>> {
+    const ids = [...new Set(userIds.filter((id): id is string => !!id))];
+    if (!ids.length) return new Map();
+    const users = await this.db.user.findMany({
+      where: {
+        id: { in: ids },
+        memberships: { some: { workspaceId: this.context.workspaceId } },
+      },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    return new Map(
+      users.map((user) => [
+        user.id,
+        {
+          id: user.id,
+          displayName: this.userDisplayName(user),
+          email: user.email,
+        },
+      ]),
+    );
+  }
+
   private toSummary(
     client: Client & { _count: { cases: number } },
+    users: Map<string, UserReference>,
   ): ClientSummary {
     return {
       ...client,
       email: client.email ?? null,
       phone: client.phone ?? null,
-      responsibleUserId: client.responsibleUserId ?? null,
+      responsibleUser: client.responsibleUserId
+        ? (users.get(client.responsibleUserId) ?? {
+            id: client.responsibleUserId,
+            displayName: client.responsibleUserId,
+            email: null,
+          })
+        : null,
       activeCaseCount: client._count.cases,
       createdAt: client.createdAt.toISOString(),
       updatedAt: client.updatedAt.toISOString(),
@@ -191,8 +231,11 @@ export class ClientsService {
         },
       }),
     ]);
+    const users = await this.userReferenceMap(
+      clients.map((client) => client.responsibleUserId),
+    );
     return {
-      items: clients.map((client) => this.toSummary(client)),
+      items: clients.map((client) => this.toSummary(client, users)),
       meta: paginationMeta(page, pageSize, totalItems, sort),
     };
   }
@@ -212,8 +255,9 @@ export class ClientsService {
       },
     });
     if (!client) throw new NotFoundException("Client not found");
+    const users = await this.userReferenceMap([client.responsibleUserId]);
     return {
-      ...this.toSummary(client),
+      ...this.toSummary(client, users),
       firstName: client.firstName,
       lastName: client.lastName,
       organizationName: client.organizationName,

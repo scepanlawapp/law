@@ -153,12 +153,12 @@
               <td hlmTd>
                 <a
                   class="underline-offset-4 hover:underline"
-                  [routerLink]="['/clients', caseItem.clientId]"
+                  [routerLink]="['/clients', caseItem.client.id]"
                 >
-                  {{ clientName(caseItem.clientId) }}
+                  {{ caseItem.client.displayName }}
                 </a>
               </td>
-              <td hlmTd>{{ userName(caseItem.responsibleUserId) }}</td>
+              <td hlmTd>{{ caseItem.responsibleUser.displayName }}</td>
               <td hlmTd>
                 {{ "cases.priority." + caseItem.priority | translate }}
               </td>

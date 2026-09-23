@@ -1,0 +1,10 @@
+{
+  "track_id": "documents_workspace_20260923",
+  "parent_track_id": null,
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-09-23T00:00:00Z",
+  "updated_at": "2026-09-23T00:00:00Z",
+  "keywords": ["documents", "angular", "workspace", "upload", "versioning"],
+  "priority": "high"
+}

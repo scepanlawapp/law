@@ -56,8 +56,30 @@ describe("DocumentsService", () => {
     updatedByUserId: userId,
     createdAt: new Date("2026-09-21T00:00:00.000Z"),
     updatedAt: new Date("2026-09-21T00:00:00.000Z"),
-    cases: [{ caseId }],
-    clients: [{ clientId }],
+    cases: [
+      {
+        caseId,
+        case: {
+          id: caseId,
+          caseNumber: "P-1/2026",
+          name: "Contract dispute",
+          status: "ACTIVE",
+          priority: "NORMAL",
+        },
+      },
+    ],
+    clients: [
+      {
+        clientId,
+        client: {
+          id: clientId,
+          clientNumber: "CL-1",
+          type: "ORGANIZATION",
+          displayName: "Client One",
+          status: "ACTIVE",
+        },
+      },
+    ],
     versions: [
       {
         id: "ver-1",
