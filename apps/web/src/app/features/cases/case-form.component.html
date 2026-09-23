@@ -12,7 +12,9 @@
     <header
       class="border-border bg-card flex flex-col gap-4 rounded-xl border p-5 shadow-sm"
     >
-      <div class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div
+        class="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"
+      >
         <div class="space-y-2">
           <h1 class="text-2xl font-semibold tracking-tight">
             {{ (caseId ? "cases.edit" : "cases.create") | translate }}
@@ -21,29 +23,26 @@
             {{
               (caseId
                 ? "cases.form.editDescription"
-                : "cases.form.createDescription") | translate
+                : "cases.form.createDescription"
+              ) | translate
             }}
           </p>
         </div>
 
         <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-          <a
-            hlmBtn
-            variant="outline"
-            type="button"
-            [routerLink]="returnUrl || '/cases'"
-          >
+          <a hlmBtn type="button" [routerLink]="returnUrl || '/cases'">
             {{ "cases.cancel" | translate }}
           </a>
           @if (!caseId) {
             <button
               hlmBtn
-              variant="outline"
               type="button"
               [disabled]="saving()"
               (click)="saveDraft()"
             >
-              {{ (saving() ? "cases.saving" : "cases.form.saveDraft") | translate }}
+              {{
+                (saving() ? "cases.saving" : "cases.form.saveDraft") | translate
+              }}
             </button>
           }
           <button hlmBtn type="submit" [disabled]="saving()">
@@ -52,7 +51,8 @@
                 ? "cases.saving"
                 : caseId
                   ? "cases.form.saveChanges"
-                  : "cases.form.createCase") | translate
+                  : "cases.form.createCase"
+              ) | translate
             }}
           </button>
         </div>
@@ -73,7 +73,11 @@
 
           <div class="grid gap-4 md:grid-cols-2">
             <div hlmField class="md:col-span-1">
-              <label hlmFieldLabel for="clientId" class="flex items-center gap-1">
+              <label
+                hlmFieldLabel
+                for="clientId"
+                class="flex items-center gap-1"
+              >
                 <span>{{ "cases.client" | translate }}</span>
                 <span class="text-destructive">*</span>
               </label>
@@ -100,7 +104,6 @@
                   hlmBtn
                   size="sm"
                   type="button"
-                  variant="outline"
                   (click)="openClientDialog()"
                 >
                   {{ "clients.create" | translate }}
@@ -117,7 +120,11 @@
             </div>
 
             <div hlmField class="md:col-span-1">
-              <label hlmFieldLabel for="caseNumber" class="flex items-center gap-1">
+              <label
+                hlmFieldLabel
+                for="caseNumber"
+                class="flex items-center gap-1"
+              >
                 <span>{{ "cases.internalCaseNumber" | translate }}</span>
                 <span class="text-destructive">*</span>
               </label>
@@ -136,7 +143,6 @@
                   hlmBtn
                   size="sm"
                   type="button"
-                  variant="outline"
                   (click)="suggestCaseNumber()"
                 >
                   {{ "cases.form.suggest" | translate }}
@@ -151,9 +157,7 @@
                 </p>
               } @else if (showError("caseNumber", "maxlength")) {
                 <p class="text-destructive mt-1 text-xs">
-                  {{
-                    "validation.maxLength" | translate : { max: 40 }
-                  }}
+                  {{ "validation.maxLength" | translate: { max: 40 } }}
                 </p>
               } @else if (showError("caseNumber", "pattern")) {
                 <p class="text-destructive mt-1 text-xs">
@@ -189,7 +193,7 @@
               </p>
             } @else if (showError("name", "maxlength")) {
               <p class="text-destructive mt-1 text-xs">
-                {{ "validation.maxLength" | translate : { max: 320 } }}
+                {{ "validation.maxLength" | translate: { max: 320 } }}
               </p>
             }
           </div>
@@ -210,7 +214,7 @@
             </div>
             @if (showError("description", "maxlength")) {
               <p class="text-destructive mt-1 text-xs">
-                {{ "validation.maxLength" | translate : { max: 10000 } }}
+                {{ "validation.maxLength" | translate: { max: 10000 } }}
               </p>
             }
           </div>
@@ -255,7 +259,6 @@
                   hlmBtn
                   size="sm"
                   type="button"
-                  variant="outline"
                   (click)="openCaseTypeDialog()"
                 >
                   {{ "common.create" | translate }}
@@ -291,7 +294,6 @@
                   hlmBtn
                   size="sm"
                   type="button"
-                  variant="outline"
                   (click)="openPracticeAreaDialog()"
                 >
                   {{ "common.create" | translate }}
@@ -313,7 +315,11 @@
 
           <div class="grid gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel for="responsibleUserId" class="flex items-center gap-1">
+              <label
+                hlmFieldLabel
+                for="responsibleUserId"
+                class="flex items-center gap-1"
+              >
                 <span>{{ "cases.responsible" | translate }}</span>
                 <span class="text-destructive">*</span>
               </label>
@@ -357,7 +363,7 @@
               />
               @if (showError("opposingPartyName", "maxlength")) {
                 <p class="text-destructive mt-1 text-xs">
-                  {{ "validation.maxLength" | translate : { max: 320 } }}
+                  {{ "validation.maxLength" | translate: { max: 320 } }}
                 </p>
               }
             </div>
@@ -376,7 +382,7 @@
             ></textarea>
             @if (showError("opposingPartyAddress", "maxlength")) {
               <p class="text-destructive mt-1 text-xs">
-                {{ "validation.maxLength" | translate : { max: 500 } }}
+                {{ "validation.maxLength" | translate: { max: 500 } }}
               </p>
             }
           </div>
@@ -393,7 +399,9 @@
 
           <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
             <div hlmField>
-              <label hlmFieldLabel for="status">{{ "cases.status" | translate }}</label>
+              <label hlmFieldLabel for="status">
+                {{ "cases.status" | translate }}
+              </label>
               <hlm-select
                 class="w-full"
                 formControlName="status"
@@ -460,7 +468,9 @@
           </div>
 
           @if (caseClosedDate()) {
-            <div class="mt-4 rounded-md border border-border bg-muted p-3 text-sm">
+            <div
+              class="mt-4 rounded-md border border-border bg-muted p-3 text-sm"
+            >
               <p class="text-muted-foreground text-xs uppercase tracking-wide">
                 {{ "cases.status.CLOSED" | translate }}
               </p>
@@ -492,7 +502,7 @@
               </p>
               @if (showError("externalReference", "maxlength")) {
                 <p class="text-destructive mt-1 text-xs">
-                  {{ "validation.maxLength" | translate : { max: 320 } }}
+                  {{ "validation.maxLength" | translate: { max: 320 } }}
                 </p>
               }
             </div>
@@ -506,14 +516,16 @@
                 id="confidentialityLevel"
                 formControlName="confidentialityLevel"
                 maxlength="160"
-                placeholder="{{ 'cases.form.confidentialityHintPlaceholder' | translate }}"
+                placeholder="{{
+                  'cases.form.confidentialityHintPlaceholder' | translate
+                }}"
               />
               <p class="text-muted-foreground mt-1 text-xs">
                 {{ "cases.form.confidentialityHint" | translate }}
               </p>
               @if (showError("confidentialityLevel", "maxlength")) {
                 <p class="text-destructive mt-1 text-xs">
-                  {{ "validation.maxLength" | translate : { max: 160 } }}
+                  {{ "validation.maxLength" | translate: { max: 160 } }}
                 </p>
               }
             </div>
@@ -522,7 +534,9 @@
 
         <section class="border-border bg-card rounded-xl border p-5 shadow-sm">
           <div class="mb-4">
-            <h2 class="text-lg font-medium">{{ "cases.form.tags" | translate }}</h2>
+            <h2 class="text-lg font-medium">
+              {{ "cases.form.tags" | translate }}
+            </h2>
           </div>
 
           <div class="space-y-3">
@@ -542,8 +556,12 @@
                     variant="outline"
                     size="sm"
                     class="rounded-full"
-                    [class.bg-primary]="form.controls.tagIds.value.includes(tag.id)"
-                    [class.text-primary-foreground]="form.controls.tagIds.value.includes(tag.id)"
+                    [class.bg-primary]="
+                      form.controls.tagIds.value.includes(tag.id)
+                    "
+                    [class.text-primary-foreground]="
+                      form.controls.tagIds.value.includes(tag.id)
+                    "
                     (click)="toggleTag(tag.id)"
                   >
                     {{ tag.name }}
@@ -567,10 +585,24 @@
               </div>
             }
 
-            @if (!tags().length) {
-              <p class="text-muted-foreground text-xs">
-                {{ "cases.form.tagsTodo" | translate }}
-              </p>
+            @if (!filteredTags().length) {
+              <div class="space-y-2">
+                <p class="text-muted-foreground text-xs">
+                  @if (tagSearch().trim()) {
+                    {{ "cases.form.searchTags" | translate }}
+                  } @else {
+                    {{ "cases.form.noTags" | translate }}
+                  }
+                </p>
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  (click)="createTagFromSearch()"
+                >
+                  {{ "cases.form.createTag" | translate }}
+                </button>
+              </div>
             }
           </div>
         </section>

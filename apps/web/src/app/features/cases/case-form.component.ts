@@ -80,9 +80,7 @@ export class CaseFormComponent {
   readonly formSubmitted = signal(false);
   readonly clients = signal<Array<{ id: string; name: string }>>([]);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
-  readonly tags = signal<
-    Array<{ id: string; name: string; isActive: boolean }>
-  >([]);
+  readonly tags = this.referenceData.tags;
   readonly tagSearch = signal("");
   readonly caseClosedDate = signal<string | null>(null);
   readonly typeOptions = this.referenceData.caseTypes;
@@ -198,6 +196,7 @@ export class CaseFormComponent {
             })),
           ),
       });
+    this.referenceData.loadTags();
     this.referenceData.loadCaseTypes();
     this.referenceData.loadPracticeAreas();
     this.refs
@@ -214,12 +213,6 @@ export class CaseFormComponent {
                   .join(" ") || item.user.email,
             })),
           ),
-      });
-    this.refs
-      .tags()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (items) => this.tags.set(items.filter((item) => item.isActive)),
       });
     if (!this.caseId) {
       const currentUserId = this.auth.session()?.user.id;
@@ -336,6 +329,45 @@ export class CaseFormComponent {
       ? current.filter((id) => id !== tagId)
       : [...current, tagId];
     this.form.controls.tagIds.setValue(next);
+  }
+
+  createTagFromSearch(): void {
+    const name = this.tagSearch().trim();
+    if (!name) {
+      this.openTagDialog();
+      return;
+    }
+
+    this.referenceData
+      .createTag(name)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (item) => {
+          this.tagSearch.set("");
+          this.toggleTag(item.id);
+        },
+        error: () =>
+          this.toast.error(this.local.translate("cases.referenceSaveError")),
+      });
+  }
+
+  openTagDialog(): void {
+    this.openReferenceDialog(
+      "cases.createTag",
+      "cases.createTagDescription",
+      "cases.tag",
+      (name) =>
+        this.referenceData
+          .createTag(name)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (item) => this.toggleTag(item.id),
+            error: () =>
+              this.toast.error(
+                this.local.translate("cases.referenceSaveError"),
+              ),
+          }),
+    );
   }
 
   openCaseTypeDialog(): void {

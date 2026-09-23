@@ -1,11 +1,17 @@
-<h1>{{ "clients.title" | translate }}</h1>
-<p>
+<div class="flex flex-wrap items-center justify-between gap-4">
+  <h1 class="text-2xl font-semibold">{{ "clients.title" | translate }}</h1>
   <button hlmBtn type="button" (click)="createClient()">
     {{ "clients.create" | translate }}
   </button>
-</p>
-<label for="client-search">{{ "clients.search" | translate }}</label>
-<input hlmInput id="client-search" [formControl]="search" />
+</div>
+<div class="filters">
+  <div class="flex w-56 max-w-full flex-col gap-1">
+    <label class="text-sm font-medium" for="client-search">
+      {{ "clients.search" | translate }}
+    </label>
+    <input hlmInput id="client-search" [formControl]="search" />
+  </div>
+</div>
 @if (loading()) {
   <hlm-spinner aria-label="{{ 'clients.loading' | translate }}"></hlm-spinner>
 }
@@ -93,24 +99,30 @@
         </tbody>
       </table>
     </div>
-    <p>
-      {{ "clients.page" | translate: { page: page(), total: pageCount() } }}
-    </p>
-    <button
-      hlmBtn
-      type="button"
-      (click)="changePage(page() - 1)"
-      [disabled]="page() === 1"
-    >
-      {{ "clients.previous" | translate }}
-    </button>
-    <button
-      hlmBtn
-      type="button"
-      (click)="changePage(page() + 1)"
-      [disabled]="page() === pageCount()"
-    >
-      {{ "clients.next" | translate }}
-    </button>
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <p class="text-sm text-muted-foreground">
+        {{ "clients.page" | translate: { page: page(), total: pageCount() } }}
+      </p>
+      <div class="flex gap-2">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="changePage(page() - 1)"
+          [disabled]="page() === 1 || loading()"
+        >
+          {{ "clients.previous" | translate }}
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="changePage(page() + 1)"
+          [disabled]="page() === pageCount() || loading()"
+        >
+          {{ "clients.next" | translate }}
+        </button>
+      </div>
+    </div>
   }
 }

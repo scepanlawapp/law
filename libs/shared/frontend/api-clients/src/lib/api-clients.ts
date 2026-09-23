@@ -1547,6 +1547,16 @@ export class ReferencesApiClient {
     >(this.endpoint("/references/case-types"), { withCredentials: true });
   }
 
+  createTag(
+    request: ReferenceRequest,
+  ): Observable<{ id: string; name: string; isActive: boolean }> {
+    return this.http.post<{ id: string; name: string; isActive: boolean }>(
+      this.endpoint("/references/tags"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
   createCaseType(
     request: ReferenceRequest,
   ): Observable<{ id: string; name: string; isActive: boolean }> {

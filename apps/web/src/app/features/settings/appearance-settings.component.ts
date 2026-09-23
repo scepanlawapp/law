@@ -88,6 +88,24 @@ export class AppearanceSettingsComponent {
     this.languageOptions,
     (key) => this.localization.translate(key),
   );
+  readonly themeSwatchColor = (theme: UserSettingsTheme): string => {
+    switch (theme) {
+      case "MIDNIGHT":
+        return "#0f172a";
+      case "DEEP_NAVY":
+        return "#1d3557";
+      case "CHARCOAL":
+        return "#334155";
+      case "DARK_TEAL":
+        return "#164e63";
+      case "BURGUNDY":
+        return "#7f1d1d";
+      case "IVORY":
+        return "#f3efe6";
+      default:
+        return "#c9a45c";
+    }
+  };
   readonly form = new FormGroup({
     theme: new FormControl<UserSettingsTheme>(DEFAULT_THEME, {
       nonNullable: true,
