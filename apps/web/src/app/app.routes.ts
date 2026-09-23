@@ -21,7 +21,7 @@ import { ClientDetailComponent } from "./features/clients/client-detail.componen
 import { CaseFormComponent } from "./features/cases/case-form.component";
 import { CaseDetailComponent } from "./features/cases/case-detail.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
-import { FinanceComponent } from "./features/finance/finance.component";
+import { FinanceOverviewComponent } from "./features/finance-overview/finance-overview.component";
 import { ReportsComponent } from "./features/reports/reports.component";
 import { WorkViewComponent } from "./features/work-management/work-view/work-view.component";
 import { TasksDeadlinesRedirectComponent } from "./features/work-management/tasks-deadlines-redirect.component";
@@ -59,7 +59,7 @@ export const appRoutes: Route[] = [
       { path: "documents", component: DocumentsComponent },
       { path: "calendar", component: CalendarComponent },
       { path: "notifications", component: NotificationsComponent },
-      { path: "finance", component: FinanceComponent },
+      { path: "finance", component: FinanceOverviewComponent },
       { path: "reports", component: ReportsComponent },
       { path: "work/:mode", component: WorkViewComponent },
       {

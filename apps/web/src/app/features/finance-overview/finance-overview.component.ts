@@ -10,9 +10,9 @@ import {
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
-  selector: "law-finance",
+  selector: "law-finance-overview",
   standalone: true,
-  templateUrl: "./finance.component.html",
+  templateUrl: "./finance-overview.component.html",
   imports: [
     HlmButton,
     HlmEmpty,
@@ -23,4 +23,4 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
     TranslatePipe,
   ],
 })
-export class FinanceComponent {}
+export class FinanceOverviewComponent {}
