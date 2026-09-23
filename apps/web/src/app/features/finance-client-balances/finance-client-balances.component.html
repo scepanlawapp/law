@@ -1,16 +1,9 @@
-<div class="space-y-6">
-  <h1>{{ "nav.finance" | translate }}</h1>
-  <hlm-empty>
-    <hlm-empty-header>
-      <h2 hlmEmptyTitle>{{ "finance.emptyTitle" | translate }}</h2>
-      <p hlmEmptyDescription>
-        {{ "finance.emptyDescription" | translate }}
-      </p>
-    </hlm-empty-header>
-    <hlm-empty-content>
-      <button hlmBtn type="button">
-        {{ "finance.create" | translate }}
-      </button>
-    </hlm-empty-content>
-  </hlm-empty>
+<div class="space-y-6 text-sm">
+  <header><h1 class="text-2xl font-semibold">{{ "finance.clientBalances" | translate }}</h1><p class="mt-2 text-muted-foreground">{{ "finance.externalUnpaidHint" | translate }}</p></header>
+  @if (loading() && !clients().length) { <div class="flex items-center gap-2 py-10"><hlm-spinner /><span>{{ "finance.loading" | translate }}</span></div> } @else if (error()) { <p role="alert" class="rounded-lg border border-destructive p-4">{{ "finance.loadError" | translate }}</p> } @else {
+    <div class="grid gap-6 xl:grid-cols-[minmax(16rem,22rem)_1fr]">
+      <section class="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm"><h2 class="font-semibold">{{ "finance.client" | translate }}</h2><input hlmInput [formControl]="search" placeholder="{{ 'finance.client' | translate }}" />@if (!visibleClients().length) {<p class="text-muted-foreground">{{ "finance.noClients" | translate }}</p>} @else {<div class="divide-y divide-border">@for (client of visibleClients(); track client.id) {<button type="button" class="block w-full px-2 py-3 text-left hover:bg-muted" [class.bg-muted]="selectedClient()?.id === client.id" (click)="open(client.id)"><span class="block font-medium">{{ client.displayName }}</span><span class="text-muted-foreground">{{ client.clientNumber }}</span></button>}</div>}</section>
+      @if (selectedClient(); as client) {<section class="space-y-5"><div class="flex flex-wrap items-start justify-between gap-3"><div><h2 class="text-xl font-semibold">{{ client.displayName }}</h2><p class="text-muted-foreground">{{ client.clientNumber }}</p></div><a hlmBtn variant="outline" [routerLink]="['/finance/client-statement']" [queryParams]="{ clientId: client.id }">{{ "finance.newStatement" | translate }}</a></div>@if (loading()) {<div class="flex items-center gap-2 py-8"><hlm-spinner /><span>{{ "finance.loading" | translate }}</span></div>} @else if (account(); as data) {<div class="grid gap-4 md:grid-cols-3"><div class="rounded-xl border border-border bg-card p-4"><span class="text-muted-foreground">{{ "finance.unbilled" | translate }}</span><strong class="mt-2 block">{{ totalEntries(data.entries) }}</strong></div><div class="rounded-xl border border-border bg-card p-4"><span class="text-muted-foreground">{{ "finance.sentStatements" | translate }}</span><strong class="mt-2 block">{{ data.statements.length }}</strong></div><div class="rounded-xl border border-border bg-card p-4"><span class="text-muted-foreground">{{ "finance.lastStatement" | translate }}</span><strong class="mt-2 block">{{ data.statements[0]?.statementNumber }}</strong></div></div><div class="space-y-3 rounded-xl border border-border bg-card p-5"><h3 class="font-semibold">{{ "finance.recordedWork" | translate }}</h3><div hlmTableContainer><table hlmTable class="w-full min-w-[700px]"><thead hlmTHead><tr hlmTr><th hlmTh>{{ "finance.workDate" | translate }}</th><th hlmTh>{{ "finance.serviceTitle" | translate }}</th><th hlmTh>{{ "finance.case" | translate }}</th><th hlmTh>{{ "finance.amount" | translate }}</th></tr></thead><tbody hlmTBody>@for (entry of data.entries; track entry.id) {<tr hlmTr><td hlmTd>{{ entry.workDate }}</td><td hlmTd>{{ entry.clientDescription }}</td><td hlmTd>{{ entry.case?.caseNumber ?? ("finance.noCase" | translate) }}</td><td hlmTd>{{ entry.amount }} {{ entry.currency }}</td></tr>}</tbody></table></div></div><div class="space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm"><h3 class="font-semibold">{{ "finance.clientStatements" | translate }}</h3><div hlmTableContainer><table hlmTable class="w-full min-w-[700px]"><thead hlmTHead><tr hlmTr><th hlmTh>{{ "finance.statementNumber" | translate }}</th><th hlmTh>{{ "finance.period" | translate }}</th><th hlmTh>{{ "finance.status" | translate }}</th><th hlmTh>{{ "finance.amount" | translate }}</th></tr></thead><tbody hlmTBody>@for (statement of data.statements; track statement.id) {<tr hlmTr><td hlmTd>{{ statement.statementNumber }}</td><td hlmTd>{{ formatDate(statement.periodStart) }} – {{ formatDate(statement.periodEnd) }}</td><td hlmTd>{{ statement.status }}</td><td hlmTd>{{ statementTotal(statement) }}</td></tr>}</tbody></table></div></div>}</section>} @else {<section class="rounded-xl border border-border bg-muted p-6 text-muted-foreground">{{ "finance.openAccount" | translate }}</section>}
+    </div>
+  }
 </div>

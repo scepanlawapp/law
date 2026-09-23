@@ -1,0 +1,9 @@
+{
+  "track_id": "financials_frontend_20260924",
+  "parent_track_id": "financials_backend_20260923",
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-09-24T00:00:00Z",
+  "updated_at": "2026-09-24T00:00:00Z",
+  "keywords": ["financials", "angular", "statements", "work-review", "price-sources"]
+}

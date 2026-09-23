@@ -69,6 +69,7 @@ export const appRoutes: Route[] = [
           { path: "", pathMatch: "full", redirectTo: "overview" },
           { path: "overview", component: FinanceOverviewComponent },
           { path: "client-balances", component: FinanceClientBalancesComponent },
+          { path: "client-statement/:statementId", component: FinanceClientStatementComponent },
           { path: "client-statement", component: FinanceClientStatementComponent },
           { path: "price-sources", component: FinancePriceSourcesComponent },
           { path: "work-review", component: FinanceWorkReviewComponent },

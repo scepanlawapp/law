@@ -59,7 +59,13 @@ import {
   DocumentVersionListResponse,
   BillingEntrySummary,
   BillingSuggestion,
-  BillingStatementSummary,
+  BillingSuggestionReview,
+  BillingStatement,
+  ClientAccount,
+  ExternalPaymentRecord,
+  FinanceOverview,
+  PriceSourceSummary,
+  PriceSourceVersion,
   PriceSourceScope,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
@@ -1702,8 +1708,8 @@ export class FinancialsApiClient {
     return `${config.apiUrl}${config.apiPrefix}${path}`;
   }
 
-  overview(): Observable<unknown> {
-    return this.http.get<unknown>(this.endpoint("/financials/overview"), {
+  overview(): Observable<FinanceOverview> {
+    return this.http.get<FinanceOverview>(this.endpoint("/financials/overview"), {
       withCredentials: true,
     });
   }
@@ -1717,8 +1723,8 @@ export class FinancialsApiClient {
     );
   }
 
-  dismissCandidate(candidateKey: string): Observable<unknown> {
-    return this.http.post<unknown>(
+  dismissCandidate(candidateKey: string): Observable<BillingSuggestionReview> {
+    return this.http.post<BillingSuggestionReview>(
       this.endpoint(
         `/financials/candidates/${encodeURIComponent(candidateKey)}/dismiss`,
       ),
@@ -1727,8 +1733,8 @@ export class FinancialsApiClient {
     );
   }
 
-  reopenCandidate(candidateKey: string): Observable<unknown> {
-    return this.http.post<unknown>(
+  reopenCandidate(candidateKey: string): Observable<BillingSuggestionReview> {
+    return this.http.post<BillingSuggestionReview>(
       this.endpoint(
         `/financials/candidates/${encodeURIComponent(candidateKey)}/reopen`,
       ),
@@ -1765,8 +1771,8 @@ export class FinancialsApiClient {
     );
   }
 
-  priceSources(): Observable<unknown[]> {
-    return this.http.get<unknown[]>(
+  priceSources(): Observable<PriceSourceSummary[]> {
+    return this.http.get<PriceSourceSummary[]>(
       this.endpoint("/financials/price-sources"),
       { withCredentials: true },
     );
@@ -1778,8 +1784,8 @@ export class FinancialsApiClient {
     rawText: string;
     clientId?: string;
     caseId?: string;
-  }): Observable<unknown> {
-    return this.http.post<unknown>(
+  }): Observable<PriceSourceVersion & { priceSource: PriceSourceSummary }> {
+    return this.http.post<PriceSourceVersion & { priceSource: PriceSourceSummary }>(
       this.endpoint("/financials/price-sources"),
       body,
       { withCredentials: true },
@@ -1789,16 +1795,16 @@ export class FinancialsApiClient {
   appendPriceSourceVersion(
     sourceId: string,
     rawText: string,
-  ): Observable<unknown> {
-    return this.http.post<unknown>(
+  ): Observable<PriceSourceVersion> {
+    return this.http.post<PriceSourceVersion>(
       this.endpoint(`/financials/price-sources/${sourceId}/versions`),
       { rawText },
       { withCredentials: true },
     );
   }
 
-  statements(): Observable<unknown[]> {
-    return this.http.get<unknown[]>(this.endpoint("/financials/statements"), {
+  statements(): Observable<BillingStatement[]> {
+    return this.http.get<BillingStatement[]>(this.endpoint("/financials/statements"), {
       withCredentials: true,
     });
   }
@@ -1810,16 +1816,16 @@ export class FinancialsApiClient {
     currency: string;
     entryIds: string[];
     idempotencyKey?: string;
-  }): Observable<BillingStatementSummary> {
-    return this.http.post<BillingStatementSummary>(
+  }): Observable<BillingStatement> {
+    return this.http.post<BillingStatement>(
       this.endpoint("/financials/statements"),
       body,
       { withCredentials: true },
     );
   }
 
-  statement(id: string): Observable<BillingStatementSummary> {
-    return this.http.get<BillingStatementSummary>(
+  statement(id: string): Observable<BillingStatement> {
+    return this.http.get<BillingStatement>(
       this.endpoint(`/financials/statements/${id}`),
       { withCredentials: true },
     );
@@ -1828,8 +1834,8 @@ export class FinancialsApiClient {
   updateStatement(
     id: string,
     body: { entryIds?: string[]; periodStart?: string; periodEnd?: string },
-  ): Observable<BillingStatementSummary> {
-    return this.http.patch<BillingStatementSummary>(
+  ): Observable<BillingStatement> {
+    return this.http.patch<BillingStatement>(
       this.endpoint(`/financials/statements/${id}`),
       body,
       { withCredentials: true },
@@ -1840,16 +1846,16 @@ export class FinancialsApiClient {
     id: string,
     sharedMethod?: string,
     idempotencyKey?: string,
-  ): Observable<BillingStatementSummary> {
-    return this.http.post<BillingStatementSummary>(
+  ): Observable<BillingStatement> {
+    return this.http.post<BillingStatement>(
       this.endpoint(`/financials/statements/${id}/send`),
       { sharedMethod, idempotencyKey },
       { withCredentials: true },
     );
   }
 
-  voidStatement(id: string): Observable<BillingStatementSummary> {
-    return this.http.post<BillingStatementSummary>(
+  voidStatement(id: string): Observable<BillingStatement> {
+    return this.http.post<BillingStatement>(
       this.endpoint(`/financials/statements/${id}/void`),
       {},
       { withCredentials: true },
@@ -1859,8 +1865,8 @@ export class FinancialsApiClient {
   linkExternalInvoice(
     id: string,
     body: { invoiceNumber?: string; invoiceDate?: string; reference?: string },
-  ): Observable<BillingStatementSummary> {
-    return this.http.patch<BillingStatementSummary>(
+  ): Observable<BillingStatement> {
+    return this.http.patch<BillingStatement>(
       this.endpoint(`/financials/statements/${id}/external-invoice`),
       body,
       { withCredentials: true },
@@ -1876,16 +1882,16 @@ export class FinancialsApiClient {
       externalReference?: string;
       idempotencyKey?: string;
     },
-  ): Observable<unknown> {
-    return this.http.post<unknown>(
+  ): Observable<ExternalPaymentRecord> {
+    return this.http.post<ExternalPaymentRecord>(
       this.endpoint(`/financials/statements/${id}/payments`),
       body,
       { withCredentials: true },
     );
   }
 
-  clientAccount(clientId: string): Observable<unknown> {
-    return this.http.get<unknown>(
+  clientAccount(clientId: string): Observable<ClientAccount> {
+    return this.http.get<ClientAccount>(
       this.endpoint(`/financials/clients/${clientId}/account`),
       { withCredentials: true },
     );

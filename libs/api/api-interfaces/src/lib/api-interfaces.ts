@@ -811,6 +811,96 @@ export type PriceSourceScope =
   | "WORKSPACE_PUBLIC_REFERENCE"
   | "CASE_OVERRIDE";
 
+export interface FinanceOverview {
+  unresolvedCandidateCount: number;
+  readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
+  reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
+  sentStatementCount: number;
+}
+
+export interface BillingSuggestionReview {
+  id?: string;
+  workspaceId: string;
+  candidateKey: string;
+  sourceType: string;
+  sourceId: string;
+  resolution: "PENDING" | "RECORDED" | "DISMISSED";
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  billingEntryId?: string | null;
+}
+
+export interface PriceSourceVersion {
+  id: string;
+  workspaceId: string;
+  priceSourceId: string;
+  version: number;
+  rawText: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  publishedAt: string | null;
+  createdByUserId: string;
+  createdAt: string;
+}
+
+export interface PriceSourceSummary {
+  id: string;
+  workspaceId: string;
+  scope: PriceSourceScope;
+  clientId: string | null;
+  caseId: string | null;
+  title: string;
+  sourceUrl: string | null;
+  documentId: string | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  versions: PriceSourceVersion[];
+}
+
+export interface ExternalPaymentRecord {
+  id: string;
+  workspaceId: string;
+  statementId: string;
+  amount: string;
+  currency: string;
+  paidDate: string;
+  externalReference: string | null;
+  reversedAt: string | null;
+  reversalReason: string | null;
+  recordedByUserId: string;
+  reversedByUserId: string | null;
+  createdAt: string;
+}
+
+export interface BillingStatement {
+  id: string;
+  workspaceId: string;
+  clientId: string;
+  statementNumber: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  status: BillingStatementStatus;
+  sharedAt: string | null;
+  sharedMethod: string | null;
+  externalInvoiceNumber: string | null;
+  externalInvoiceDate: string | null;
+  externalReference: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  client: FinancialClientReference;
+  lines: BillingStatementLineSummary[];
+  payments: ExternalPaymentRecord[];
+}
+
+export interface ClientAccount {
+  entries: BillingEntrySummary[];
+  statements: BillingStatement[];
+}
+
 export type FinancialClientReference = ClientReference;
 
 export type FinancialCaseReference = CaseReference;

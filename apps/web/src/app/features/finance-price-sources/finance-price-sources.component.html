@@ -1,16 +1,5 @@
-<div class="space-y-6">
-  <h1>{{ "nav.finance" | translate }}</h1>
-  <hlm-empty>
-    <hlm-empty-header>
-      <h2 hlmEmptyTitle>{{ "finance.emptyTitle" | translate }}</h2>
-      <p hlmEmptyDescription>
-        {{ "finance.emptyDescription" | translate }}
-      </p>
-    </hlm-empty-header>
-    <hlm-empty-content>
-      <button hlmBtn type="button">
-        {{ "finance.create" | translate }}
-      </button>
-    </hlm-empty-content>
-  </hlm-empty>
+<div class="space-y-6 text-sm">
+  <header><h1 class="text-2xl font-semibold">{{ "finance.priceSources" | translate }}</h1><p class="mt-2 text-muted-foreground">{{ "finance.aiLater" | translate }}</p></header>
+  <div class="flex flex-wrap gap-2"><button hlmBtn type="button" [variant]="tab() === 'CLIENT_AGREEMENT' ? 'default' : 'outline'" (click)="selectTab('CLIENT_AGREEMENT')">{{ "finance.clientAgreements" | translate }}</button><button hlmBtn type="button" [variant]="tab() === 'WORKSPACE_PUBLIC_REFERENCE' ? 'default' : 'outline'" (click)="selectTab('WORKSPACE_PUBLIC_REFERENCE')">{{ "finance.publicReferences" | translate }}</button></div>
+  @if (loading()) { <div class="flex items-center gap-2 py-10"><hlm-spinner /><span>{{ "finance.loading" | translate }}</span></div> } @else {<div class="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(22rem,30rem)]"><section class="space-y-3 rounded-xl border border-border bg-card p-5 shadow-sm"><h2 class="text-lg font-semibold">{{ "finance.versionHistory" | translate }}</h2>@if (!visibleSources().length) {<p class="rounded-lg bg-muted p-4 text-muted-foreground">{{ "finance.noPriceSources" | translate }}</p>} @else {@for (source of visibleSources(); track source.id) {<article class="space-y-2 rounded-lg border border-border p-4"><div class="flex flex-wrap items-start justify-between gap-3"><div><h3 class="font-semibold">{{ source.title }}</h3><p class="text-muted-foreground">{{ clientName(source.clientId) }} · {{ source.versions[0]?.version ? "v" + source.versions[0].version : "—" }}</p></div><span class="text-muted-foreground">{{ source.scope }}</span></div>@if (source.versions[0]; as version) {<p class="whitespace-pre-wrap text-muted-foreground">{{ version.rawText }}</p>}</article>}}</section><section class="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm"><h2 class="text-lg font-semibold">{{ "finance.newPriceSource" | translate }}</h2><form [formGroup]="form" (ngSubmit)="save()" class="space-y-4"><label class="block space-y-1"><span>{{ "finance.title" | translate }}</span><input hlmInput formControlName="title" /></label>@if (tab() === "CLIENT_AGREEMENT") {<label class="block space-y-1"><span>{{ "finance.client" | translate }}</span><select hlmInput formControlName="clientId"><option value="">{{ "finance.selectClient" | translate }}</option>@for (client of clients(); track client.id) {<option [value]="client.id">{{ client.displayName }}</option>}</select></label>}<label class="block space-y-1"><span>{{ "finance.sourceUrl" | translate }}</span><input hlmInput formControlName="sourceUrl" /></label><label class="block space-y-1"><span>{{ "finance.rawText" | translate }}</span><textarea hlmTextarea rows="14" formControlName="rawText"></textarea></label>@if (message()) {<p class="rounded-lg bg-muted p-3 text-muted-foreground">{{ message() | translate }}</p>}<button hlmBtn type="submit" [disabled]="saving()">{{ saving() ? ("finance.loading" | translate) : ("finance.saveVersion" | translate) }}</button></form></section></div>}
 </div>

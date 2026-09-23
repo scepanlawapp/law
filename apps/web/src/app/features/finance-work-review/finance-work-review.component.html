@@ -1,16 +1,48 @@
-<div class="space-y-6">
-  <h1>{{ "nav.finance" | translate }}</h1>
-  <hlm-empty>
-    <hlm-empty-header>
-      <h2 hlmEmptyTitle>{{ "finance.emptyTitle" | translate }}</h2>
-      <p hlmEmptyDescription>
-        {{ "finance.emptyDescription" | translate }}
-      </p>
-    </hlm-empty-header>
-    <hlm-empty-content>
-      <button hlmBtn type="button">
-        {{ "finance.create" | translate }}
-      </button>
-    </hlm-empty-content>
-  </hlm-empty>
+<div class="space-y-6 text-sm">
+  <header class="space-y-2">
+    <h1 class="text-2xl font-semibold">{{ "finance.reviewWork" | translate }}</h1>
+    <p class="text-muted-foreground">{{ "finance.needsAttentionDescription" | translate }}</p>
+  </header>
+
+  <div class="flex flex-wrap gap-2" role="tablist" aria-label="{{ 'finance.reviewWork' | translate }}">
+    <button hlmBtn type="button" [variant]="tab() === 'candidates' ? 'default' : 'outline'" (click)="selectTab('candidates')">{{ "finance.needsReview" | translate }}</button>
+    <button hlmBtn type="button" [variant]="tab() === 'entries' ? 'default' : 'outline'" (click)="selectTab('entries')">{{ "finance.recordedWork" | translate }}</button>
+  </div>
+
+  @if (tab() === "candidates") {
+    <section class="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div class="grid gap-3 md:grid-cols-2">
+        <label class="space-y-1"><span>{{ "finance.client" | translate }}</span><select hlmInput [formControl]="clientFilter"><option value="">{{ "finance.allClients" | translate }}</option>@for (client of clients(); track client.id) {<option [value]="client.id">{{ client.displayName }}</option>}</select></label>
+        <label class="space-y-1"><span>{{ "finance.source" | translate }}</span><select hlmInput [formControl]="sourceFilter"><option value="">{{ "finance.allSources" | translate }}</option><option value="EVENT">Event</option><option value="TASK">Task</option><option value="DEADLINE">Deadline</option><option value="CASE_ACTIVITY">Case activity</option><option value="CLIENT_ACTIVITY">Client activity</option></select></label>
+      </div>
+      @if (loading()) { <div class="flex items-center gap-2 py-8"><hlm-spinner /><span>{{ "finance.loading" | translate }}</span></div> } @else if (error()) { <p role="alert" class="rounded-lg border border-destructive p-4">{{ "finance.loadError" | translate }}</p> } @else if (!candidates().length) { <p class="rounded-lg bg-muted p-4 text-muted-foreground">{{ "finance.noSuggestions" | translate }}</p> } @else {
+        <div hlmTableContainer><table hlmTable class="w-full min-w-[760px]"><thead hlmTHead><tr hlmTr><th hlmTh>{{ "finance.workDate" | translate }}</th><th hlmTh>{{ "finance.source" | translate }}</th><th hlmTh>{{ "finance.client" | translate }}</th><th hlmTh>{{ "finance.performer" | translate }}</th><th hlmTh>{{ "finance.reason" | translate }}</th><th hlmTh>{{ "finance.actions" | translate }}</th></tr></thead><tbody hlmTBody>@for (item of candidates(); track item.candidateKey) {<tr hlmTr><td hlmTd>{{ formatDate(item.date) }}</td><td hlmTd><strong>{{ item.title }}</strong><br /><span class="text-muted-foreground">{{ item.sourceType }}</span></td><td hlmTd>{{ item.client?.displayName ?? ("finance.clientUnknown" | translate) }}<br />{{ item.case?.caseNumber ?? ("finance.noCase" | translate) }}</td><td hlmTd>{{ item.proposedPerformer?.displayName ?? "—" }}</td><td hlmTd>{{ item.reason }} @if (item.warnings.length) {<br /><span class="text-muted-foreground">{{ item.warnings[0] }}</span>}</td><td hlmTd><div class="flex flex-wrap gap-2">@if (item.resolution === "DISMISSED") {<button hlmBtn variant="outline" type="button" (click)="reopen(item)">{{ "finance.reopen" | translate }}</button>} @else {<button hlmBtn variant="outline" type="button" (click)="dismiss(item)">{{ "finance.dismiss" | translate }}</button>}<button hlmBtn type="button" (click)="selectTab('entries')">{{ "finance.recordWork" | translate }}</button></div></td></tr>}</tbody></table></div>
+      }
+    </section>
+  } @else {
+    <section class="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div class="flex flex-wrap items-center justify-between gap-3"><h2 class="text-lg font-semibold">{{ "finance.recordedWork" | translate }}</h2><span class="text-muted-foreground">{{ "finance.selectedEntries" | translate }}: {{ selected().size }}</span></div>
+      <label class="block max-w-sm space-y-1"><span>{{ "finance.client" | translate }}</span><select hlmInput [formControl]="entryFilter"><option value="">{{ "finance.allClients" | translate }}</option>@for (client of clients(); track client.id) {<option [value]="client.id">{{ client.displayName }}</option>}</select></label>
+      @if (loading()) { <div class="flex items-center gap-2 py-8"><hlm-spinner /><span>{{ "finance.loading" | translate }}</span></div> } @else if (!entries().length) { <p class="rounded-lg bg-muted p-4 text-muted-foreground">{{ "finance.noRecordedWork" | translate }}</p> } @else {<div hlmTableContainer><table hlmTable class="w-full min-w-[900px]"><thead hlmTHead><tr hlmTr><th hlmTh>{{ "finance.select" | translate }}</th><th hlmTh>{{ "finance.workDate" | translate }}</th><th hlmTh>{{ "finance.serviceTitle" | translate }}</th><th hlmTh>{{ "finance.client" | translate }}</th><th hlmTh>{{ "finance.performer" | translate }}</th><th hlmTh>{{ "finance.actualDuration" | translate }}</th><th hlmTh>{{ "finance.amount" | translate }}</th><th hlmTh>{{ "finance.lifecycle" | translate }}</th></tr></thead><tbody hlmTBody>@for (entry of entries(); track entry.id) {<tr hlmTr><td hlmTd><input type="checkbox" [checked]="selected().has(entry.id)" [disabled]="entry.lifecycle === 'STATEMENT_SENT' || entry.lifecycle === 'RESERVED' || entry.disposition === 'INTERNAL'" (change)="toggleEntry(entry)" [attr.aria-label]="entry.clientDescription" /></td><td hlmTd>{{ entry.workDate }}</td><td hlmTd>{{ entry.clientDescription }}</td><td hlmTd>{{ entry.client.displayName }}<br />{{ entry.case?.caseNumber ?? ("finance.noCase" | translate) }}</td><td hlmTd>{{ entry.performedBy.displayName }}</td><td hlmTd>{{ entry.durationMinutes ?? "—" }}</td><td hlmTd>{{ formatCurrency(entry.amount, entry.currency) }}<br /><span class="text-muted-foreground">{{ entry.disposition }}</span></td><td hlmTd>{{ entry.lifecycle }}</td></tr>}</tbody></table></div>}
+    </section>
+
+    <section class="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm">
+      <h2 class="text-lg font-semibold">{{ "finance.recordWorkTitle" | translate }}</h2>
+      <form [formGroup]="workForm" (ngSubmit)="saveWork()" class="grid gap-4 md:grid-cols-2">
+        <label class="space-y-1"><span>{{ "finance.workType" | translate }}</span><select hlmInput formControlName="kind"><option value="TIME">{{ "finance.time" | translate }}</option><option value="FIXED_FEE">{{ "finance.fixedFee" | translate }}</option><option value="EXPENSE">{{ "finance.expense" | translate }}</option></select></label>
+        <label class="space-y-1"><span>{{ "finance.workDate" | translate }}</span><input hlmInput type="date" formControlName="workDate" /></label>
+        <label class="space-y-1"><span>{{ "finance.client" | translate }}</span><select hlmInput formControlName="clientId"><option value="">{{ "finance.selectClient" | translate }}</option>@for (client of clients(); track client.id) {<option [value]="client.id">{{ client.displayName }}</option>}</select></label>
+        <label class="space-y-1"><span>{{ "finance.case" | translate }}</span><select hlmInput formControlName="caseId"><option value="">{{ "finance.noCase" | translate }}</option>@for (caseItem of cases(); track caseItem.id) {<option [value]="caseItem.id">{{ caseItem.caseNumber }} · {{ caseItem.name }}</option>}</select></label>
+        <label class="space-y-1 md:col-span-2"><span>{{ "finance.serviceTitle" | translate }}</span><input hlmInput formControlName="description" /></label>
+        <label class="space-y-1 md:col-span-2"><span>{{ "finance.clientDescription" | translate }}</span><input hlmInput formControlName="clientDescription" /></label>
+        <label class="space-y-1"><span>{{ "finance.duration" | translate }}</span><input hlmInput type="number" min="1" formControlName="durationMinutes" /></label>
+        <label class="space-y-1"><span>{{ "finance.amount" | translate }}</span><input hlmInput type="number" min="0" step="0.01" formControlName="amount" /></label>
+        <label class="space-y-1"><span>{{ "finance.currency" | translate }}</span><input hlmInput formControlName="currency" /></label>
+        <label class="space-y-1"><span>{{ "finance.disposition" | translate }}</span><select hlmInput formControlName="disposition"><option value="BILLABLE">{{ "finance.billable" | translate }}</option><option value="INCLUDED">{{ "finance.included" | translate }}</option><option value="NO_CHARGE">{{ "finance.noCharge" | translate }}</option><option value="INTERNAL">{{ "finance.internal" | translate }}</option></select></label>
+        <label class="space-y-1 md:col-span-2"><span>{{ "finance.zeroChargeReason" | translate }}</span><input hlmInput formControlName="noChargeReason" /></label>
+        @if (message()) { <p class="md:col-span-2 rounded-lg bg-muted p-3 text-muted-foreground">{{ message() | translate }}</p> }
+        <div class="md:col-span-2"><button hlmBtn type="submit" [disabled]="saving()">{{ saving() ? ("finance.loading" | translate) : ("finance.saveWork" | translate) }}</button></div>
+      </form>
+    </section>
+  }
 </div>
