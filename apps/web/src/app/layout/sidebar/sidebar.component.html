@@ -56,17 +56,54 @@
           <ul hlmSidebarMenu>
             @for (item of group.items; track item.route) {
               <li hlmSidebarMenuItem>
-                <a
-                  hlmSidebarMenuButton
-                  [routerLink]="item.route"
-                  routerLinkActive
-                  #groupActive="routerLinkActive"
-                  [isActive]="groupActive.isActive"
-                  [tooltip]="item.label | translate"
-                >
-                  <ng-icon [name]="item.icon" aria-hidden="true" />
-                  <span>{{ item.label | translate }}</span>
-                </a>
+                @if (item.children; as children) {
+                  <hlm-collapsible>
+                    <button
+                      hlmSidebarMenuButton
+                      hlmCollapsibleTrigger
+                      type="button"
+                      [tooltip]="item.label | translate"
+                    >
+                      <ng-icon [name]="item.icon" aria-hidden="true" />
+                      <span>{{ item.label | translate }}</span>
+                      <ng-icon
+                        name="lucideChevronRight"
+                        aria-hidden="true"
+                        class="ms-auto transition-transform group-data-[state=open]/collapsible:rotate-90"
+                      />
+                    </button>
+                    <div hlmCollapsibleContent>
+                      <ul hlmSidebarMenuSub>
+                        @for (child of children; track child.route) {
+                          <li hlmSidebarMenuSubItem>
+                            <a
+                              hlmSidebarMenuSubButton
+                              [routerLink]="child.route"
+                              routerLinkActive
+                              #financeChildActive="routerLinkActive"
+                              [isActive]="financeChildActive.isActive"
+                            >
+                              <ng-icon [name]="child.icon" aria-hidden="true" />
+                              <span>{{ child.label | translate }}</span>
+                            </a>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  </hlm-collapsible>
+                } @else {
+                  <a
+                    hlmSidebarMenuButton
+                    [routerLink]="item.route"
+                    routerLinkActive
+                    #groupActive="routerLinkActive"
+                    [isActive]="groupActive.isActive"
+                    [tooltip]="item.label | translate"
+                  >
+                    <ng-icon [name]="item.icon" aria-hidden="true" />
+                    <span>{{ item.label | translate }}</span>
+                  </a>
+                }
               </li>
             }
           </ul>

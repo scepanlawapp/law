@@ -13,9 +13,18 @@ import {
   lucideCalendar,
   lucideLandmark,
   lucideChartBar,
+  lucideLayoutDashboard,
+  lucideTags,
+  lucideClipboardCheck,
+  lucideChevronRight,
   lucideSettings,
 } from "@ng-icons/lucide";
 import { RouterLink, RouterLinkActive } from "@angular/router";
+import {
+  HlmCollapsible,
+  HlmCollapsibleContent,
+  HlmCollapsibleTrigger,
+} from "@spartan-ng/helm/collapsible";
 import {
   HlmSidebar,
   HlmSidebarContent,
@@ -27,6 +36,9 @@ import {
   HlmSidebarMenu,
   HlmSidebarMenuButton,
   HlmSidebarMenuItem,
+  HlmSidebarMenuSub,
+  HlmSidebarMenuSubButton,
+  HlmSidebarMenuSubItem,
   HlmSidebarTrigger,
 } from "@spartan-ng/helm/sidebar";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
@@ -37,6 +49,7 @@ interface SidebarNavigationItem {
   route: string;
   label: string;
   icon: string;
+  children?: SidebarNavigationItem[];
 }
 
 interface SidebarNavigationGroup {
@@ -50,6 +63,9 @@ interface SidebarNavigationGroup {
   templateUrl: "./sidebar.component.html",
   imports: [
     NgIcon,
+    HlmCollapsible,
+    HlmCollapsibleContent,
+    HlmCollapsibleTrigger,
     HlmSidebar,
     HlmSidebarContent,
     HlmSidebarFooter,
@@ -60,6 +76,9 @@ interface SidebarNavigationGroup {
     HlmSidebarMenu,
     HlmSidebarMenuButton,
     HlmSidebarMenuItem,
+    HlmSidebarMenuSub,
+    HlmSidebarMenuSubButton,
+    HlmSidebarMenuSubItem,
     HlmSidebarTrigger,
     RouterLink,
     RouterLinkActive,
@@ -79,6 +98,10 @@ interface SidebarNavigationGroup {
       lucideCalendar,
       lucideLandmark,
       lucideChartBar,
+      lucideLayoutDashboard,
+      lucideTags,
+      lucideClipboardCheck,
+      lucideChevronRight,
       lucideSettings,
     }),
   ],
@@ -117,7 +140,38 @@ export class SidebarComponent {
     {
       label: "nav.business",
       items: [
-        { route: "/finance", label: "nav.finance", icon: "lucideLandmark" },
+        {
+          route: "/finance",
+          label: "nav.finance",
+          icon: "lucideLandmark",
+          children: [
+            {
+              route: "/finance/overview",
+              label: "nav.financeOverview",
+              icon: "lucideLayoutDashboard",
+            },
+            {
+              route: "/finance/client-balances",
+              label: "nav.financeClientBalances",
+              icon: "lucideUsers",
+            },
+            {
+              route: "/finance/client-statement",
+              label: "nav.financeClientStatement",
+              icon: "lucideFileText",
+            },
+            {
+              route: "/finance/price-sources",
+              label: "nav.financePriceSources",
+              icon: "lucideTags",
+            },
+            {
+              route: "/finance/work-review",
+              label: "nav.financeWorkReview",
+              icon: "lucideClipboardCheck",
+            },
+          ],
+        },
         { route: "/reports", label: "nav.reports", icon: "lucideChartBar" },
       ],
     },
