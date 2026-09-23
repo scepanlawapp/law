@@ -22,6 +22,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Financials Backend](./tracks/financials_backend_20260923/index.md)
 - [Work Item Side Panel](./tracks/work_item_side_panel_20260922/index.md)
 - [Project Name Consistency](./tracks/project_name_consistency_20260922/index.md)
 - [Document Upload Modal](./tracks/document_upload_modal_20260921/index.md)

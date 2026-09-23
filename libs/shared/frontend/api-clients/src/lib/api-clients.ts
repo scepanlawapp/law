@@ -57,6 +57,10 @@ import {
   DocumentListResponse,
   DocumentUpdateRequest,
   DocumentVersionListResponse,
+  BillingEntrySummary,
+  BillingSuggestion,
+  BillingStatementSummary,
+  PriceSourceScope,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -1685,6 +1689,205 @@ export class DocumentsApiClient {
         headers: { "Idempotency-Key": idempotencyKey },
         context: options?.context,
       },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class FinancialsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  overview(): Observable<unknown> {
+    return this.http.get<unknown>(this.endpoint("/financials/overview"), {
+      withCredentials: true,
+    });
+  }
+
+  candidates(
+    query: Record<string, string | number | undefined>,
+  ): Observable<PaginatedResponse<BillingSuggestion>> {
+    return this.http.get<PaginatedResponse<BillingSuggestion>>(
+      this.endpoint("/financials/candidates"),
+      { params: queryParams(query), withCredentials: true },
+    );
+  }
+
+  dismissCandidate(candidateKey: string): Observable<unknown> {
+    return this.http.post<unknown>(
+      this.endpoint(
+        `/financials/candidates/${encodeURIComponent(candidateKey)}/dismiss`,
+      ),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  reopenCandidate(candidateKey: string): Observable<unknown> {
+    return this.http.post<unknown>(
+      this.endpoint(
+        `/financials/candidates/${encodeURIComponent(candidateKey)}/reopen`,
+      ),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  entries(
+    query: Record<string, string | number | undefined>,
+  ): Observable<PaginatedResponse<BillingEntrySummary>> {
+    return this.http.get<PaginatedResponse<BillingEntrySummary>>(
+      this.endpoint("/financials/entries"),
+      { params: queryParams(query), withCredentials: true },
+    );
+  }
+
+  createEntry(body: Record<string, unknown>): Observable<BillingEntrySummary> {
+    return this.http.post<BillingEntrySummary>(
+      this.endpoint("/financials/entries"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  updateEntry(
+    id: string,
+    body: Record<string, unknown>,
+  ): Observable<BillingEntrySummary> {
+    return this.http.patch<BillingEntrySummary>(
+      this.endpoint(`/financials/entries/${id}`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  priceSources(): Observable<unknown[]> {
+    return this.http.get<unknown[]>(
+      this.endpoint("/financials/price-sources"),
+      { withCredentials: true },
+    );
+  }
+
+  createPriceSource(body: {
+    scope: PriceSourceScope;
+    title: string;
+    rawText: string;
+    clientId?: string;
+    caseId?: string;
+  }): Observable<unknown> {
+    return this.http.post<unknown>(
+      this.endpoint("/financials/price-sources"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  appendPriceSourceVersion(
+    sourceId: string,
+    rawText: string,
+  ): Observable<unknown> {
+    return this.http.post<unknown>(
+      this.endpoint(`/financials/price-sources/${sourceId}/versions`),
+      { rawText },
+      { withCredentials: true },
+    );
+  }
+
+  statements(): Observable<unknown[]> {
+    return this.http.get<unknown[]>(this.endpoint("/financials/statements"), {
+      withCredentials: true,
+    });
+  }
+
+  createStatement(body: {
+    clientId: string;
+    periodStart: string;
+    periodEnd: string;
+    currency: string;
+    entryIds: string[];
+    idempotencyKey?: string;
+  }): Observable<BillingStatementSummary> {
+    return this.http.post<BillingStatementSummary>(
+      this.endpoint("/financials/statements"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  statement(id: string): Observable<BillingStatementSummary> {
+    return this.http.get<BillingStatementSummary>(
+      this.endpoint(`/financials/statements/${id}`),
+      { withCredentials: true },
+    );
+  }
+
+  updateStatement(
+    id: string,
+    body: { entryIds?: string[]; periodStart?: string; periodEnd?: string },
+  ): Observable<BillingStatementSummary> {
+    return this.http.patch<BillingStatementSummary>(
+      this.endpoint(`/financials/statements/${id}`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  sendStatement(
+    id: string,
+    sharedMethod?: string,
+    idempotencyKey?: string,
+  ): Observable<BillingStatementSummary> {
+    return this.http.post<BillingStatementSummary>(
+      this.endpoint(`/financials/statements/${id}/send`),
+      { sharedMethod, idempotencyKey },
+      { withCredentials: true },
+    );
+  }
+
+  voidStatement(id: string): Observable<BillingStatementSummary> {
+    return this.http.post<BillingStatementSummary>(
+      this.endpoint(`/financials/statements/${id}/void`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  linkExternalInvoice(
+    id: string,
+    body: { invoiceNumber?: string; invoiceDate?: string; reference?: string },
+  ): Observable<BillingStatementSummary> {
+    return this.http.patch<BillingStatementSummary>(
+      this.endpoint(`/financials/statements/${id}/external-invoice`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  addPayment(
+    id: string,
+    body: {
+      amount: number;
+      currency: string;
+      paidDate: string;
+      externalReference?: string;
+      idempotencyKey?: string;
+    },
+  ): Observable<unknown> {
+    return this.http.post<unknown>(
+      this.endpoint(`/financials/statements/${id}/payments`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  clientAccount(clientId: string): Observable<unknown> {
+    return this.http.get<unknown>(
+      this.endpoint(`/financials/clients/${clientId}/account`),
+      { withCredentials: true },
     );
   }
 }

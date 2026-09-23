@@ -203,6 +203,13 @@ documents,
 - Authenticated application layout and routes for dashboard, clients, cases, documents, calendar, notifications, finance, reports, Team work (`/work/team`), My work (`/work/my`), settings, and assistant.
 - Shared localization pipe/service, loading spinners, empty states, confirmation dialogs, toast feedback, and Spartan/UI components are used across the completed screens.
 
+## Financials backend foundation
+
+- The deterministic Financials backend now has workspace-scoped billing entries, live review candidates for completed work clues, append-only free-form price-source versions, draft/sent/void service statements, immutable statement lines, external invoice references, derived payment tracking, and finance-scoped idempotency records.
+- Finance access is restricted in the service layer: `OWNER`/`ADMIN` manage office-wide financials, `LAWYER` can record and view permitted own work, and ordinary `MEMBER` accounts do not receive unrestricted finance access.
+- The workflow does not issue tax/fiscal invoices, calculate tariffs or tax, process payments, create automatic charges, or call AI. A typed future proposal contract exists without a model/provider implementation.
+- The Angular financials UI and full statement composer workflow remain separate work; the backend API client and shared contracts are prepared for that track.
+
 ## Partial or not finished yet
 
 These areas have routes or backend groundwork but should not be described as completed end-to-end business workflows:
