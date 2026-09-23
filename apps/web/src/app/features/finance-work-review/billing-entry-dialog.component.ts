@@ -14,8 +14,10 @@ import {
 } from "@law/api-clients";
 import {
   BillingEntrySummary,
+  BillingSuggestion,
   CaseSummary,
   ClientSummary,
+  EntryProposalResponse,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -26,7 +28,7 @@ import {
 } from "@spartan-ng/helm/dialog";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
-import { LocalizationService } from "../../core/localization/localization.service";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { BillingEntryDialogContext } from "./billing-entry-dialog.models";
 
@@ -43,6 +45,7 @@ import { BillingEntryDialogContext } from "./billing-entry-dialog.models";
     HlmDialogTitle,
     HlmInput,
     HlmSpinner,
+    HlmTextarea,
     TranslatePipe,
   ],
 })
@@ -50,42 +53,46 @@ export class BillingEntryDialogComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly casesApi = inject(CasesApiClient);
-  private readonly localization = inject(LocalizationService);
-  private readonly destroyRef = inject(DestroyRef);
   private readonly context =
     injectBrnDialogContext<BillingEntryDialogContext>();
+  private readonly destroyRef = inject(DestroyRef);
   readonly dialogRef = inject(BrnDialogRef<BillingEntrySummary>);
   readonly clients = signal<ClientSummary[]>([]);
   readonly cases = signal<CaseSummary[]>([]);
+  readonly proposal = signal<EntryProposalResponse | null>(null);
+  readonly suggesting = signal(false);
   readonly saving = signal(false);
   readonly error = signal("");
-  readonly candidate = this.context.candidate;
+  readonly candidate: BillingSuggestion | undefined = this.context.candidate;
   readonly form = new FormGroup({
     kind: new FormControl<"TIME" | "FIXED_FEE" | "EXPENSE">(
       this.context.kind ?? "TIME",
       { nonNullable: true },
     ),
-    workDate: new FormControl(this.localDate(this.candidate?.date), {
+    workDate: new FormControl(this.context.candidate?.date ?? this.today(), {
       nonNullable: true,
       validators: Validators.required,
     }),
     clientId: new FormControl(
-      this.context.clientId ?? this.candidate?.client?.id ?? "",
-      { nonNullable: true, validators: Validators.required },
+      this.context.clientId ?? this.context.candidate?.client?.id ?? "",
+      {
+        nonNullable: true,
+        validators: Validators.required,
+      },
     ),
     caseId: new FormControl(
-      this.context.caseId ?? this.candidate?.case?.id ?? "",
-      { nonNullable: true },
+      this.context.caseId ?? this.context.candidate?.case?.id ?? "",
+      {
+        nonNullable: true,
+      },
     ),
-    description: new FormControl(this.candidate?.title ?? "", {
+    description: new FormControl(this.context.candidate?.title ?? "", {
       nonNullable: true,
       validators: Validators.required,
     }),
-    clientDescription: new FormControl(this.candidate?.title ?? "", {
-      nonNullable: true,
-    }),
+    clientDescription: new FormControl("", { nonNullable: true }),
     durationMinutes: new FormControl<number | null>(null),
-    amount: new FormControl<string>("", { nonNullable: true }),
+    amount: new FormControl<number | null>(null, Validators.min(0)),
     currency: new FormControl("RSD", {
       nonNullable: true,
       validators: Validators.required,
@@ -94,6 +101,7 @@ export class BillingEntryDialogComponent {
       "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL"
     >("BILLABLE", { nonNullable: true }),
     noChargeReason: new FormControl("", { nonNullable: true }),
+    userInstruction: new FormControl("", { nonNullable: true }),
   });
 
   constructor() {
@@ -101,65 +109,111 @@ export class BillingEntryDialogComponent {
       .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: (response) => this.clients.set(response.items) });
+    this.loadCases(this.form.controls.clientId.value);
     this.form.controls.clientId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((clientId) => {
         this.form.controls.caseId.setValue("");
-        this.cases.set([]);
-        if (clientId)
-          this.casesApi
-            .list({ clientId, page: 1, pageSize: 100 })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ next: (response) => this.cases.set(response.items) });
+        this.loadCases(clientId);
       });
-    if (this.form.controls.clientId.value)
-      this.loadCases(this.form.controls.clientId.value);
+  }
+
+  suggest(): void {
+    const value = this.form.getRawValue();
+    if (!value.clientId || !value.userInstruction.trim()) return;
+    this.suggesting.set(true);
+    this.api
+      .entryProposal({
+        clientId: value.clientId,
+        caseId: value.caseId || undefined,
+        candidateKey: this.candidate?.candidateKey,
+        userInstruction: value.userInstruction,
+        currentDraft: {
+          kind: value.kind,
+          workDate: value.workDate,
+          durationMinutes: value.durationMinutes ?? undefined,
+          description: value.description,
+          clientDescription: value.clientDescription,
+          disposition: value.disposition,
+          amount: value.amount?.toString(),
+          currency: value.currency,
+        },
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (proposal) => {
+          this.proposal.set(proposal);
+          this.suggesting.set(false);
+        },
+        error: () => {
+          this.error.set("finance.proposalUnavailable");
+          this.suggesting.set(false);
+        },
+      });
+  }
+
+  applySuggestion(): void {
+    const suggested = this.proposal()?.suggested;
+    if (!suggested) return;
+    this.form.patchValue({
+      kind: suggested.kind ?? this.form.controls.kind.value,
+      workDate: suggested.workDate ?? this.form.controls.workDate.value,
+      description:
+        suggested.internalDescription ?? this.form.controls.description.value,
+      clientDescription:
+        suggested.clientDescription ??
+        this.form.controls.clientDescription.value,
+      durationMinutes: suggested.actualDurationMinutes,
+      amount: suggested.amount === null ? null : Number(suggested.amount),
+      disposition:
+        suggested.disposition ?? this.form.controls.disposition.value,
+    });
   }
 
   submit(): void {
-    this.error.set("");
-    const value = this.form.getRawValue();
-    const amount = value.amount.trim();
-    const valid =
-      this.form.valid &&
-      (value.kind !== "TIME" || (value.durationMinutes ?? 0) > 0) &&
-      (value.disposition !== "BILLABLE"
-        ? amount === "0" && !!value.noChargeReason.trim()
-        : /^\d+(\.\d{1,2})?$/.test(amount) && Number(amount) > 0);
-    if (!valid) {
+    if (this.form.invalid) {
       this.form.markAllAsTouched();
-      this.error.set(this.localization.translate("finance.validationError"));
       return;
     }
+    const value = this.form.getRawValue();
     this.saving.set(true);
     this.api
       .createEntry({
-        ...value,
-        amount,
+        kind: value.kind,
+        workDate: value.workDate,
+        clientId: value.clientId,
         caseId: value.caseId || undefined,
+        description: value.description,
         clientDescription: value.clientDescription || value.description,
-        durationMinutes: value.durationMinutes || undefined,
-        sourceType: this.candidate?.sourceType,
-        sourceId: this.candidate?.sourceId,
+        durationMinutes: value.durationMinutes ?? undefined,
+        amount: value.amount?.toString() ?? "0",
+        currency: value.currency,
+        disposition: value.disposition,
+        noChargeReason: value.noChargeReason || undefined,
+        candidateKey: this.candidate?.candidateKey,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (entry) => this.dialogRef.close(entry),
         error: () => {
+          this.error.set("finance.saveError");
           this.saving.set(false);
-          this.error.set(this.localization.translate("finance.saveError"));
         },
       });
   }
 
   private loadCases(clientId: string): void {
+    if (!clientId) {
+      this.cases.set([]);
+      return;
+    }
     this.casesApi
       .list({ clientId, page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: (response) => this.cases.set(response.items) });
   }
-  private localDate(value?: string): string {
-    if (!value) return new Date().toLocaleDateString("en-CA");
-    return value.slice(0, 10);
+
+  private today(): string {
+    return new Date().toISOString().slice(0, 10);
   }
 }

@@ -13,10 +13,12 @@ import {
   BillingEntrySummary,
   BillingStatement,
   ClientSummary,
+  StatementProposalResponse,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
   HlmTable,
   HlmTableContainer,
@@ -44,6 +46,7 @@ type StatementFilter = "ALL" | "DRAFT" | "SENT";
     HlmInput,
     HlmSpinner,
     HlmTable,
+    HlmTextarea,
     HlmTableContainer,
     HlmTBody,
     HlmTd,
@@ -71,6 +74,7 @@ export class FinanceClientStatementComponent {
   readonly message = signal("");
   readonly selected = signal(new Set<string>());
   readonly detail = signal<BillingStatement | null>(null);
+  readonly statementProposal = signal<StatementProposalResponse | null>(null);
   private entryRequest = 0;
   private draftIdempotencyKey: string | null = null;
   readonly form = new FormGroup({
@@ -90,6 +94,7 @@ export class FinanceClientStatementComponent {
       nonNullable: true,
       validators: Validators.required,
     }),
+    userInstruction: new FormControl("", { nonNullable: true }),
   });
   readonly invoiceForm = new FormGroup({
     invoiceNumber: new FormControl("", { nonNullable: true }),
@@ -147,6 +152,28 @@ export class FinanceClientStatementComponent {
       .subscribe((currency) =>
         this.loadEligibleEntries(this.form.controls.clientId.value, currency),
       );
+  }
+
+  suggestStatement(): void {
+    const value = this.form.getRawValue();
+    if (!value.clientId || !value.userInstruction.trim()) {
+      this.message.set("finance.proposalInstructionRequired");
+      return;
+    }
+    this.api
+      .statementProposal({
+        clientId: value.clientId,
+        periodStart: value.periodStart,
+        periodEnd: value.periodEnd,
+        currency: value.currency,
+        eligibleEntryIds: [...this.selected()],
+        userInstruction: value.userInstruction,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (proposal) => this.statementProposal.set(proposal),
+        error: () => this.message.set("finance.proposalUnavailable"),
+      });
   }
 
   load(): void {

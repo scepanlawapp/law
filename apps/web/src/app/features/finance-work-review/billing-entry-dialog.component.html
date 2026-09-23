@@ -20,6 +20,48 @@
         }
       </div>
     }
+    <label class="block space-y-1">
+      <span>{{ "finance.proposalInstruction" | translate }}</span>
+      <textarea
+        hlmTextarea
+        rows="3"
+        formControlName="userInstruction"
+        placeholder="{{ 'finance.proposalInstructionPlaceholder' | translate }}"
+      ></textarea>
+    </label>
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="suggesting()"
+        (click)="suggest()"
+      >
+        @if (suggesting()) {
+          <hlm-spinner />
+        }
+        {{ "finance.suggestDetails" | translate }}
+      </button>
+      @if (proposal()) {
+        <button hlmBtn type="button" (click)="applySuggestion()">
+          {{ "finance.applySuggestion" | translate }}
+        </button>
+      }
+    </div>
+    @if (proposal(); as result) {
+      <div class="space-y-2 rounded-lg border border-border bg-muted p-3">
+        <p class="font-semibold">{{ "finance.proposalReview" | translate }}</p>
+        @for (question of result.questions; track question) {
+          <p>{{ question }}</p>
+        }
+        @for (warning of result.warnings; track warning) {
+          <p>{{ warning }}</p>
+        }
+        @if (result.suggested.amount === null) {
+          <p>{{ "finance.proposalAmountMissing" | translate }}</p>
+        }
+      </div>
+    }
     <div class="grid gap-4 md:grid-cols-2">
       <label class="space-y-1">
         <span>{{ "finance.workType" | translate }}</span>

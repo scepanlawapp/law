@@ -117,6 +117,12 @@ export class CreateBillingEntryDto {
   amount!: number;
 
   @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  expenseCostAmount?: number;
+
+  @IsOptional()
   @IsString()
   currency?: string;
 
@@ -163,6 +169,12 @@ export class UpdateBillingEntryDto {
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0)
   amount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  expenseCostAmount?: number;
 
   @IsOptional()
   @IsString()

@@ -928,6 +928,7 @@ export interface BillingEntrySummary {
   clientDescription: string;
   durationMinutes: number | null;
   amount: string;
+  expenseCostAmount: string | null;
   currency: string;
   sourceType: string | null;
   sourceId: string | null;
@@ -996,6 +997,109 @@ export interface BillingProposal {
   warnings: string[];
   proposalRevision: number;
 }
+
+export type PriceEvidence = {
+  priceSourceId: string;
+  priceSourceVersionId: string;
+  passageId: string;
+  exactExcerpt: string;
+  title: string;
+  effectiveDate?: string;
+  applicabilityNote?: string;
+  calculation?: string;
+};
+
+export type EntryProposalRequest = {
+  clientId: string;
+  caseId?: string;
+  candidateKey?: string;
+  userInstruction: string;
+  currentDraft?: {
+    kind?: "TIME" | "FIXED_FEE" | "EXPENSE";
+    workDate?: string;
+    durationMinutes?: number;
+    description?: string;
+    clientDescription?: string;
+    disposition?: "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL";
+    expenseCostAmount?: string;
+    amount?: string;
+    currency?: string;
+  };
+  proposalId?: string;
+  revisionInstruction?: string;
+};
+
+export type EntryProposalResponse = {
+  proposalId: string;
+  revision: number;
+  inputFingerprint: string;
+  suggested: {
+    kind: "TIME" | "FIXED_FEE" | "EXPENSE" | null;
+    workDate: string | null;
+    serviceTitle: string | null;
+    internalDescription: string | null;
+    clientDescription: string | null;
+    actualDurationMinutes: number | null;
+    quantity: string | null;
+    expenseCostAmount: string | null;
+    disposition: "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL" | null;
+    amount: string | null;
+    currency: string | null;
+  };
+  amountBasis: "USER_STATED" | "PRICE_SOURCE" | "EXISTING_DRAFT" | "NONE";
+  priceEvidence: PriceEvidence[];
+  fieldEvidence: Array<{
+    field: string;
+    source: "USER_TEXT" | "SOURCE_RECORD" | "PRICE_PASSAGE" | "CURRENT_DRAFT";
+    reference: string;
+  }>;
+  needsReview: string[];
+  questions: string[];
+  warnings: string[];
+  confidence: number;
+};
+
+export type StatementProposalRequest = {
+  clientId: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  caseIds?: string[];
+  eligibleEntryIds?: string[];
+  draftStatementId?: string;
+  userInstruction: string;
+  currentLines?: Array<{
+    entryId: string;
+    description: string;
+    amount: string;
+  }>;
+  proposalId?: string;
+  revisionInstruction?: string;
+};
+
+export type StatementProposalResponse = {
+  proposalId: string;
+  revision: number;
+  inputFingerprint: string;
+  clientId: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  decisions: Array<{
+    entryId: string;
+    action: "INCLUDE" | "EXCLUDE" | "NEEDS_REVIEW";
+    reason: string;
+    clientDescription: string | null;
+    existingEntryAmount: string;
+    proposedChargeAmount: string | null;
+    amountBasis: "EXISTING_ENTRY" | "PRICE_SOURCE" | "USER_STATED" | "NONE";
+    adjustmentReason: string | null;
+    priceEvidence: PriceEvidence[];
+  }>;
+  missingWorkReminders: Array<{ candidateKey: string; reason: string }>;
+  questions: string[];
+  warnings: string[];
+};
 
 export interface FinanceProposalService {
   propose(input: {

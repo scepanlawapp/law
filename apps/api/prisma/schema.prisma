@@ -860,6 +860,7 @@ model BillingEntry {
   quantity              Decimal?                  @db.Decimal(18, 4)
   unit                  String?
   amount                Decimal                   @db.Decimal(18, 2)
+  expenseCostAmount     Decimal?                  @db.Decimal(18, 2)
   currency              String                    @default("RSD")
   noChargeReason        String?
   priceSourceVersionId  String?

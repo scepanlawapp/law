@@ -62,11 +62,15 @@ import {
   BillingSuggestionReview,
   BillingStatement,
   ClientAccount,
+  EntryProposalRequest,
+  EntryProposalResponse,
   ExternalPaymentRecord,
   FinanceOverview,
   PriceSourceSummary,
   PriceSourceVersion,
   PriceSourceScope,
+  StatementProposalRequest,
+  StatementProposalResponse,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -1714,6 +1718,26 @@ export class FinancialsApiClient {
       {
         withCredentials: true,
       },
+    );
+  }
+
+  statementProposal(
+    request: StatementProposalRequest,
+  ): Observable<StatementProposalResponse> {
+    return this.http.post<StatementProposalResponse>(
+      this.endpoint("/financials/ai/statement-proposals"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  entryProposal(
+    request: EntryProposalRequest,
+  ): Observable<EntryProposalResponse> {
+    return this.http.post<EntryProposalResponse>(
+      this.endpoint("/financials/ai/entry-proposals"),
+      request,
+      { withCredentials: true },
     );
   }
 

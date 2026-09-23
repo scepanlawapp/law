@@ -266,6 +266,52 @@
         <input hlmInput type="date" formControlName="periodEnd" />
       </label>
     </form>
+    <label class="block space-y-1">
+      <span>{{ "finance.proposalInstruction" | translate }}</span>
+      <textarea
+        hlmTextarea
+        rows="3"
+        formControlName="userInstruction"
+        [formGroup]="form"
+        placeholder="{{ 'finance.proposalInstructionPlaceholder' | translate }}"
+      ></textarea>
+    </label>
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [disabled]="!form.controls.clientId.value"
+      (click)="suggestStatement()"
+    >
+      {{ "finance.suggestStatement" | translate }}
+    </button>
+    @if (statementProposal(); as proposal) {
+      <div class="space-y-3 rounded-lg border border-border bg-muted p-4">
+        <h3 class="font-semibold">
+          {{ "finance.proposalReview" | translate }}
+        </h3>
+        @for (decision of proposal.decisions; track decision.entryId) {
+          <div class="border-b border-border py-2">
+            <strong>{{ decision.action }}</strong>
+            · {{ decision.reason }}
+            <br />
+            <span>
+              {{ decision.clientDescription ?? "—" }} ·
+              {{ decision.existingEntryAmount }} {{ proposal.currency }}
+            </span>
+          </div>
+        }
+        @for (question of proposal.questions; track question) {
+          <p>{{ question }}</p>
+        }
+        @for (
+          reminder of proposal.missingWorkReminders;
+          track reminder.candidateKey
+        ) {
+          <p>{{ reminder.reason }}</p>
+        }
+      </div>
+    }
     @if (form.controls.clientId.value) {
       <div class="space-y-3">
         <h3 class="font-semibold">
