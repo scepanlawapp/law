@@ -247,27 +247,9 @@ export class DashboardStore {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ cases, clients, users }) => {
-          const clientNameById = new Map(
-            clients.map((client) => [client.id, client.displayName]),
-          );
-          const userNameById = new Map(
-            users.map((member) => [
-              member.userId,
-              [member.user.firstName, member.user.lastName]
-                .filter(Boolean)
-                .join(" ") || member.user.email,
-            ]),
-          );
-          this.casesPreview.set(
-            cases.items.map((item) =>
-              caseSummaryToPreviewRow(
-                item,
-                clientNameById.get(item.clientId) ?? item.clientId,
-                userNameById.get(item.responsibleUserId) ??
-                  item.responsibleUserId,
-              ),
-            ),
-          );
+          void clients;
+          void users;
+          this.casesPreview.set(cases.items.map(caseSummaryToPreviewRow));
           this.casesLoading.set(false);
         },
         error: () => {

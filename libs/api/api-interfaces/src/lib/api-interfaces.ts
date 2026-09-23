@@ -521,6 +521,28 @@ export type NoteType =
   | "MEETING_SUMMARY"
   | "CASE_UPDATE";
 
+export interface UserReference {
+  id: string;
+  displayName: string;
+  email: string | null;
+}
+
+export interface ClientReference {
+  id: string;
+  clientNumber: string;
+  type: ClientType;
+  displayName: string;
+  status: ClientStatus;
+}
+
+export interface CaseReference {
+  id: string;
+  caseNumber: string;
+  name: string;
+  status: CaseStatus;
+  priority: CasePriority;
+}
+
 export interface EventSummary {
   id: string;
   type: EventType;
@@ -535,10 +557,10 @@ export interface EventSummary {
   meetingUrl: string | null;
   courtName: string | null;
   courtroom: string | null;
-  organizerUserId: string;
-  caseId: string | null;
-  clientIds: string[];
-  assigneeUserIds: string[];
+  organizerUser: UserReference;
+  case: CaseReference | null;
+  clients: ClientReference[];
+  assigneeUsers: UserReference[];
   createdAt: string;
   updatedAt: string;
 }
@@ -555,14 +577,14 @@ export interface TaskSummary {
   description: string | null;
   status: TaskStatus;
   priority: CasePriority;
-  assigneeUserId: string;
+  assigneeUser: UserReference;
   dueDate: string | null;
   dueAt: string | null;
-  caseId: string | null;
-  clientId: string | null;
+  case: CaseReference | null;
+  client: ClientReference | null;
   deadlineId: string | null;
   completedAt: string | null;
-  completedByUserId: string | null;
+  completedByUser: UserReference | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -577,12 +599,12 @@ export interface DeadlineSummary {
   timeZone: string | null;
   status: DeadlineStatus;
   overdue: boolean;
-  responsibleUserId: string;
-  caseId: string | null;
-  clientId: string | null;
+  responsibleUser: UserReference;
+  case: CaseReference | null;
+  client: ClientReference | null;
   sourceDescription: string | null;
   satisfiedAt: string | null;
-  satisfiedByUserId: string | null;
+  satisfiedByUser: UserReference | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -592,10 +614,10 @@ export interface NoteSummary {
   type: NoteType;
   body: string;
   occurredAt: string;
-  caseId: string | null;
-  clientId: string | null;
+  case: CaseReference | null;
+  client: ClientReference | null;
   eventId: string | null;
-  createdByUserId: string;
+  createdByUser: UserReference;
   createdAt: string;
   updatedAt: string;
 }
@@ -622,10 +644,10 @@ export interface CalendarItem {
   endsAt: string | null;
   date: string | null;
   timeZone: string | null;
-  caseId: string | null;
-  clientId: string | null;
-  responsibleUserId: string | null;
-  assigneeUserIds: string[];
+  case: CaseReference | null;
+  client: ClientReference | null;
+  responsibleUser: UserReference | null;
+  assigneeUsers: UserReference[];
 }
 export interface CalendarResponse {
   items: CalendarItem[];
@@ -646,7 +668,7 @@ export interface ClientSummary {
   status: ClientStatus;
   email: string | null;
   phone: string | null;
-  responsibleUserId: string | null;
+  responsibleUser: UserReference | null;
   activeCaseCount: number;
   createdAt: string;
   updatedAt: string;
@@ -672,11 +694,11 @@ export type ClientListResponse = PaginatedResponse<ClientSummary>;
 export interface CaseSummary {
   id: string;
   caseNumber: string;
-  clientId: string;
+  client: ClientReference;
   name: string;
   status: CaseStatus;
   priority: CasePriority;
-  responsibleUserId: string;
+  responsibleUser: UserReference;
   openedDate: string | null;
   closedDate: string | null;
   createdAt: string;
@@ -742,8 +764,8 @@ export interface DocumentSummary {
   category: string | null;
   archived: boolean;
   archivedAt: string | null;
-  caseIds: string[];
-  clientIds: string[];
+  cases: CaseReference[];
+  clients: ClientReference[];
   currentVersion: DocumentVersionSummary | null;
   createdByUserId: string;
   updatedByUserId: string;

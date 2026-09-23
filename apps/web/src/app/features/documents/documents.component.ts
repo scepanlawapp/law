@@ -230,7 +230,7 @@ export class DocumentsComponent {
   }
 
   isNeedsLinking(document: DocumentSummary): boolean {
-    return !document.caseIds.length && !document.clientIds.length;
+    return !document.cases.length && !document.clients.length;
   }
 
   isAddedThisMonth(document: DocumentSummary): boolean {
@@ -329,11 +329,14 @@ export class DocumentsComponent {
   }
 
   getLinkedCaseName(document: DocumentSummary): string {
-    return document.caseIds.length ? document.caseIds[0] : "";
+    const linkedCase = document.cases[0];
+    return linkedCase
+      ? `${linkedCase.caseNumber} ${linkedCase.name}`.trim()
+      : "";
   }
 
   getLinkedClientName(document: DocumentSummary): string {
-    return document.clientIds.length ? document.clientIds[0] : "";
+    return document.clients[0]?.displayName ?? "";
   }
 
   openDocumentDetail(document: DocumentSummary): void {
@@ -372,8 +375,8 @@ export class DocumentsComponent {
     this.detailForm.setValue({
       title: detail.title,
       category: detail.category ?? "",
-      caseIds: detail.caseIds,
-      clientIds: detail.clientIds,
+      caseIds: detail.cases.map((item) => item.id),
+      clientIds: detail.clients.map((item) => item.id),
     });
   }
 

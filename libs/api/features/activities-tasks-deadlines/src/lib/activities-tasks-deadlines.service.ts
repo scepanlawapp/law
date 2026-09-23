@@ -8,11 +8,14 @@ import {
   ActivityLogSummary,
   CalendarItem,
   CalendarResponse,
+  CaseReference,
+  ClientReference,
   DeadlineDetail,
   EventDetail,
   NoteDetail,
   PaginatedResponse,
   TaskDetail,
+  UserReference,
 } from "@law/api-interfaces";
 import {
   PlatformPrismaService,
@@ -166,15 +169,111 @@ export class ActivitiesTasksDeadlinesService {
     });
   }
 
+  private eventInclude() {
+    return {
+      case: true,
+      clients: { include: { client: true } },
+      assignees: { include: { user: true } },
+      attendees: true,
+      organizer: true,
+    } as const;
+  }
+
+  private taskInclude() {
+    return {
+      assignee: true,
+      case: true,
+      client: true,
+      completedBy: true,
+    } as const;
+  }
+
+  private deadlineInclude() {
+    return {
+      responsibleUser: true,
+      case: true,
+      client: true,
+      satisfiedBy: true,
+    } as const;
+  }
+
+  private noteInclude() {
+    return {
+      case: true,
+      client: true,
+      createdBy: true,
+    } as const;
+  }
+
+  private userReference(user: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  }): UserReference {
+    return {
+      id: user.id,
+      displayName:
+        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
+        user.email,
+      email: user.email,
+    };
+  }
+
+  private caseReference(row: {
+    id: string;
+    caseNumber: string;
+    name: string;
+    status: CaseReference["status"];
+    priority: CaseReference["priority"];
+  }): CaseReference {
+    return {
+      id: row.id,
+      caseNumber: row.caseNumber,
+      name: row.name,
+      status: row.status,
+      priority: row.priority,
+    };
+  }
+
+  private clientReference(row: {
+    id: string;
+    clientNumber: string;
+    type: ClientReference["type"];
+    displayName: string;
+    status: ClientReference["status"];
+  }): ClientReference {
+    return {
+      id: row.id,
+      clientNumber: row.clientNumber,
+      type: row.type,
+      displayName: row.displayName,
+      status: row.status,
+    };
+  }
+
   private event(item: any): EventDetail {
     return {
-      ...item,
+      id: item.id,
+      type: item.type,
+      title: item.title,
+      description: item.description,
       startsAt: item.startsAt.toISOString(),
       endsAt: item.endsAt.toISOString(),
+      timeZone: item.timeZone,
+      isAllDay: item.isAllDay,
+      status: item.status,
+      location: item.location,
+      meetingUrl: item.meetingUrl,
+      courtName: item.courtName,
+      courtroom: item.courtroom,
+      organizerUser: this.userReference(item.organizer),
+      case: item.case ? this.caseReference(item.case) : null,
+      clients: item.clients?.map((x: any) => this.clientReference(x.client)) ?? [],
+      assigneeUsers:
+        item.assignees?.map((x: any) => this.userReference(x.user)) ?? [],
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
-      clientIds: item.clients?.map((x: any) => x.clientId) ?? [],
-      assigneeUserIds: item.assignees?.map((x: any) => x.userId) ?? [],
       attendees:
         item.attendees?.map((x: any) => ({
           id: x.id,
@@ -187,10 +286,21 @@ export class ActivitiesTasksDeadlinesService {
 
   private task(item: any): TaskDetail {
     return {
-      ...item,
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      status: item.status,
+      priority: item.priority,
+      assigneeUser: this.userReference(item.assignee),
       dueDate: item.dueDate ? item.dueDate.toISOString().slice(0, 10) : null,
       dueAt: item.dueAt?.toISOString() ?? null,
+      case: item.case ? this.caseReference(item.case) : null,
+      client: item.client ? this.clientReference(item.client) : null,
+      deadlineId: item.deadlineId,
       completedAt: item.completedAt?.toISOString() ?? null,
+      completedByUser: item.completedBy
+        ? this.userReference(item.completedBy)
+        : null,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     };
@@ -199,10 +309,22 @@ export class ActivitiesTasksDeadlinesService {
   private deadline(item: any): DeadlineDetail {
     const target = item.dueAt ?? item.dueDate;
     return {
-      ...item,
+      id: item.id,
+      title: item.title,
+      description: item.description,
+      type: item.type,
       dueDate: item.dueDate ? item.dueDate.toISOString().slice(0, 10) : null,
       dueAt: item.dueAt?.toISOString() ?? null,
+      timeZone: item.timeZone,
+      status: item.status,
       satisfiedAt: item.satisfiedAt?.toISOString() ?? null,
+      responsibleUser: this.userReference(item.responsibleUser),
+      case: item.case ? this.caseReference(item.case) : null,
+      client: item.client ? this.clientReference(item.client) : null,
+      sourceDescription: item.sourceDescription,
+      satisfiedByUser: item.satisfiedBy
+        ? this.userReference(item.satisfiedBy)
+        : null,
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
       overdue:
@@ -212,8 +334,14 @@ export class ActivitiesTasksDeadlinesService {
 
   private note(item: any): NoteDetail {
     return {
-      ...item,
+      id: item.id,
+      type: item.type,
+      body: item.body,
       occurredAt: item.occurredAt.toISOString(),
+      case: item.case ? this.caseReference(item.case) : null,
+      client: item.client ? this.clientReference(item.client) : null,
+      eventId: item.eventId,
+      createdByUser: this.userReference(item.createdBy),
       createdAt: item.createdAt.toISOString(),
       updatedAt: item.updatedAt.toISOString(),
     };
@@ -262,7 +390,7 @@ export class ActivitiesTasksDeadlinesService {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         orderBy: { startsAt: "asc" },
-        include: { clients: true, assignees: true, attendees: true },
+        include: this.eventInclude(),
       }),
     ]);
     return {
@@ -283,7 +411,7 @@ export class ActivitiesTasksDeadlinesService {
   async getEvent(id: string): Promise<EventDetail> {
     const item = await this.db.event.findFirst({
       where: { id, workspaceId: this.context.workspaceId },
-      include: { clients: true, assignees: true, attendees: true },
+      include: this.eventInclude(),
     });
     if (!item) throw new NotFoundException("Event not found");
     return this.event(item);
@@ -336,7 +464,7 @@ export class ActivitiesTasksDeadlinesService {
             })),
           },
         },
-        include: { clients: true, assignees: true, attendees: true },
+        include: this.eventInclude(),
       });
       await this.log(tx, {
         action: "EVENT_CREATED",
@@ -400,7 +528,7 @@ export class ActivitiesTasksDeadlinesService {
             })),
           },
         },
-        include: { clients: true, assignees: true, attendees: true },
+        include: this.eventInclude(),
       });
       await this.log(tx, {
         action: "EVENT_UPDATED",
@@ -485,6 +613,7 @@ export class ActivitiesTasksDeadlinesService {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         orderBy: [{ dueDate: "asc" }, { dueAt: "asc" }],
+        include: this.taskInclude(),
       }),
     ]);
     return {
@@ -504,6 +633,7 @@ export class ActivitiesTasksDeadlinesService {
   async getTask(id: string): Promise<TaskDetail> {
     const item = await this.db.task.findFirst({
       where: { id, workspaceId: this.context.workspaceId },
+      include: this.taskInclude(),
     });
     if (!item) throw new NotFoundException("Task not found");
     return this.task(item);
@@ -534,6 +664,7 @@ export class ActivitiesTasksDeadlinesService {
           deadlineId: input.deadlineId,
           createdByUserId: this.context.userId,
         },
+        include: this.taskInclude(),
       });
       await this.log(tx, {
         action: "TASK_CREATED",
@@ -575,6 +706,7 @@ export class ActivitiesTasksDeadlinesService {
           clientId: input.clientId,
           deadlineId: input.deadlineId,
         },
+        include: this.taskInclude(),
       });
       await this.log(tx, {
         action: "TASK_UPDATED",
@@ -614,7 +746,7 @@ export class ActivitiesTasksDeadlinesService {
       });
       return updated;
     });
-    return this.task(item);
+    return this.getTask(item.id);
   }
 
   async listDeadlines(
@@ -659,6 +791,7 @@ export class ActivitiesTasksDeadlinesService {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         orderBy: [{ dueDate: "asc" }, { dueAt: "asc" }],
+        include: this.deadlineInclude(),
       }),
     ]);
     return {
@@ -678,6 +811,7 @@ export class ActivitiesTasksDeadlinesService {
   async getDeadline(id: string): Promise<DeadlineDetail> {
     const item = await this.db.deadline.findFirst({
       where: { id, workspaceId: this.context.workspaceId },
+      include: this.deadlineInclude(),
     });
     if (!item) throw new NotFoundException("Deadline not found");
     return this.deadline(item);
@@ -707,6 +841,7 @@ export class ActivitiesTasksDeadlinesService {
           sourceDescription: input.sourceDescription?.trim(),
           createdByUserId: this.context.userId,
         },
+        include: this.deadlineInclude(),
       });
       await this.log(tx, {
         action: "DEADLINE_CREATED",
@@ -750,6 +885,7 @@ export class ActivitiesTasksDeadlinesService {
           clientId: input.clientId,
           sourceDescription: input.sourceDescription?.trim(),
         },
+        include: this.deadlineInclude(),
       });
       await this.log(tx, {
         action: "DEADLINE_UPDATED",
@@ -789,7 +925,7 @@ export class ActivitiesTasksDeadlinesService {
       });
       return updated;
     });
-    return this.deadline(item);
+    return this.getDeadline(item.id);
   }
 
   async listNotes(
@@ -810,6 +946,7 @@ export class ActivitiesTasksDeadlinesService {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         orderBy: { occurredAt: "desc" },
+        include: this.noteInclude(),
       }),
     ]);
     return {
@@ -829,6 +966,7 @@ export class ActivitiesTasksDeadlinesService {
   async getNote(id: string): Promise<NoteDetail> {
     const item = await this.db.note.findFirst({
       where: { id, workspaceId: this.context.workspaceId },
+      include: this.noteInclude(),
     });
     if (!item) throw new NotFoundException("Note not found");
     return this.note(item);
@@ -851,6 +989,7 @@ export class ActivitiesTasksDeadlinesService {
           eventId: input.eventId,
           createdByUserId: this.context.userId,
         },
+        include: this.noteInclude(),
       });
       await this.log(tx, {
         action: "NOTE_CREATED",
@@ -885,6 +1024,7 @@ export class ActivitiesTasksDeadlinesService {
           clientId: input.clientId,
           eventId: input.eventId,
         },
+        include: this.noteInclude(),
       });
       await this.log(tx, {
         action: "NOTE_UPDATED",
@@ -942,7 +1082,7 @@ export class ActivitiesTasksDeadlinesService {
               }),
               ...(eventStatuses && { status: { in: eventStatuses } }),
             },
-            include: { clients: true, assignees: true },
+            include: this.eventInclude(),
             take: take + 1,
             orderBy: [{ startsAt: "asc" }, { id: "asc" }],
           }),
@@ -963,6 +1103,7 @@ export class ActivitiesTasksDeadlinesService {
               ...(userIds.length && { assigneeUserId: { in: userIds } }),
               ...(taskStatuses && { status: { in: taskStatuses } }),
             },
+            include: this.taskInclude(),
             take: take + 1,
             orderBy: [{ dueAt: "asc" }, { id: "asc" }],
           }),
@@ -983,6 +1124,7 @@ export class ActivitiesTasksDeadlinesService {
               ...(userIds.length && { responsibleUserId: { in: userIds } }),
               ...(deadlineStatuses && { status: { in: deadlineStatuses } }),
             },
+            include: this.deadlineInclude(),
             take: take + 1,
             orderBy: [{ dueAt: "asc" }, { id: "asc" }],
           }),
@@ -998,10 +1140,12 @@ export class ActivitiesTasksDeadlinesService {
         endsAt: x.endsAt.toISOString(),
         date: null,
         timeZone: x.timeZone,
-        caseId: x.caseId,
-        clientId: x.clients[0]?.clientId ?? null,
-        responsibleUserId: x.organizerUserId,
-        assigneeUserIds: x.assignees.map((a) => a.userId),
+        case: x.case ? this.caseReference(x.case) : null,
+        client: x.clients[0]?.client
+          ? this.clientReference(x.clients[0].client)
+          : null,
+        responsibleUser: this.userReference(x.organizer),
+        assigneeUsers: x.assignees.map((a) => this.userReference(a.user)),
       })),
       ...tasks.map((x) => ({
         calendarId: `TASK:${x.id}`,
@@ -1013,10 +1157,10 @@ export class ActivitiesTasksDeadlinesService {
         endsAt: null,
         date: x.dueDate?.toISOString().slice(0, 10) ?? null,
         timeZone: null,
-        caseId: x.caseId,
-        clientId: x.clientId,
-        responsibleUserId: x.assigneeUserId,
-        assigneeUserIds: [x.assigneeUserId],
+        case: x.case ? this.caseReference(x.case) : null,
+        client: x.client ? this.clientReference(x.client) : null,
+        responsibleUser: this.userReference(x.assignee),
+        assigneeUsers: [this.userReference(x.assignee)],
       })),
       ...deadlines.map((x) => ({
         calendarId: `DEADLINE:${x.id}`,
@@ -1028,10 +1172,10 @@ export class ActivitiesTasksDeadlinesService {
         endsAt: null,
         date: x.dueDate?.toISOString().slice(0, 10) ?? null,
         timeZone: x.timeZone,
-        caseId: x.caseId,
-        clientId: x.clientId,
-        responsibleUserId: x.responsibleUserId,
-        assigneeUserIds: [x.responsibleUserId],
+        case: x.case ? this.caseReference(x.case) : null,
+        client: x.client ? this.clientReference(x.client) : null,
+        responsibleUser: this.userReference(x.responsibleUser),
+        assigneeUsers: [this.userReference(x.responsibleUser)],
       })),
     ].sort(
       (a, b) =>

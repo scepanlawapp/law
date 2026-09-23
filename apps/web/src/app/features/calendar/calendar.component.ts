@@ -328,7 +328,7 @@ export class CalendarComponent {
     const query = this.search.value.trim().toLocaleLowerCase();
     return this.items().filter((item) => {
       if (this.source() && item.sourceType !== this.source()) return false;
-      if (this.lawyerId() && item.responsibleUserId !== this.lawyerId()) {
+      if (this.lawyerId() && item.responsibleUser?.id !== this.lawyerId()) {
         return false;
       }
       if (

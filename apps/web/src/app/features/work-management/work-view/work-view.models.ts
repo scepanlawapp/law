@@ -57,9 +57,9 @@ export function taskToWorkItem(task: TaskDetail): WorkItem {
     presentationStatus: taskPresentationStatus(task.status),
     dueDate: task.dueDate,
     dueAt: task.dueAt,
-    ownerUserIds: [task.assigneeUserId],
-    caseId: task.caseId,
-    clientId: task.clientId,
+    ownerUserIds: [task.assigneeUser.id],
+    caseId: task.case?.id ?? null,
+    clientId: task.client?.id ?? null,
     overdue: isTaskOverdue(task),
     raw: task,
   };
@@ -74,9 +74,9 @@ export function deadlineToWorkItem(deadline: DeadlineDetail): WorkItem {
     presentationStatus: deadlinePresentationStatus(deadline.status),
     dueDate: deadline.dueDate,
     dueAt: deadline.dueAt,
-    ownerUserIds: [deadline.responsibleUserId],
-    caseId: deadline.caseId,
-    clientId: deadline.clientId,
+    ownerUserIds: [deadline.responsibleUser.id],
+    caseId: deadline.case?.id ?? null,
+    clientId: deadline.client?.id ?? null,
     overdue: deadline.overdue,
     raw: deadline,
   };
@@ -94,11 +94,11 @@ export function eventToWorkItem(event: EventDetail): WorkItem {
     presentationStatus: eventPresentationStatus(event.status),
     dueDate: null,
     dueAt: event.startsAt,
-    ownerUserIds: event.assigneeUserIds.length
-      ? event.assigneeUserIds
-      : [event.organizerUserId],
-    caseId: event.caseId,
-    clientId: null,
+    ownerUserIds: event.assigneeUsers.length
+      ? event.assigneeUsers.map((user) => user.id)
+      : [event.organizerUser.id],
+    caseId: event.case?.id ?? null,
+    clientId: event.clients[0]?.id ?? null,
     overdue,
     raw: event,
   };

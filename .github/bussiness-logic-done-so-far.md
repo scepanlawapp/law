@@ -1,6 +1,6 @@
 # Business Logic Done So Far
 
-**Checked:** 2026-09-21
+**Checked:** 2026-09-23
 **Scope:** `apps/api`, `apps/web`, shared API contracts and API clients.
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
@@ -11,6 +11,7 @@ This document describes behavior that is currently implemented in code and wired
 - Prisma is used for persistence through the shared platform database service.
 - Workspace-aware endpoints use authentication, CSRF/origin protection, and workspace membership checks. Domain services validate that referenced cases, clients, client contacts, deadlines, and active workspace users belong to the current workspace.
 - API responses use shared contracts from `libs/api/api-interfaces` and paginated response metadata where list endpoints support pagination.
+- User-facing API responses expose depth-1 display references for related clients, cases, and users where the web UI shows those relationships. Request payloads, filters, route params, and internal identifiers still use IDs.
 - Domain mutations create activity-log entries for the activities/tasks/deadlines workflow and for document create/update/version/archive/restore, preserving the acting user and workspace context.
 
 ## Legal knowledge retrieval
@@ -61,6 +62,7 @@ The cases backend and frontend implement the main case lifecycle:
 - Case activities: list, create, and update.
 - Case responsibilities: list, add, update, end, and set a primary responsible user.
 - Case/client relationship validation is enforced in the backend.
+- Case list/detail responses include shallow client and responsible-user display objects, so the frontend shows names instead of relation IDs while edit/create payloads remain ID-based.
 - The frontend includes case list, case creation/edit form, case detail, lifecycle controls, activities, responsibilities, confirmation dialogs, and save/error feedback.
 
 ## Workspace documents (backend)
@@ -71,6 +73,7 @@ Authenticated document APIs are implemented. The Angular documents library (list
 - Paginated list (`archived` defaults to active-only; `true`/`false`/`all`), detail, metadata/link patch (arrays replace when present), version upload/list, current and historical download, archive, and restore.
 - Bytes live under `FILE_STORAGE_ROOT` with generated keys. Metadata and the recorded storage connection stay in PostgreSQL. Chat uploads are not moved.
 - Linked cases and clients must belong to the workspace (400 when unavailable). Archive hides from the default list; authorized detail and download still work.
+- Document list/detail responses include shallow linked case and client display objects for each document link.
 - There is no virus-scanning claim, no cloud adapter, and no permanent delete in this slice.
 
 ## Workspace documents (upload modal)
@@ -116,6 +119,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Notes can be associated with cases, clients, or events.
 - Calendar aggregation returns events, tasks, and deadlines for a date range with filters for user (single or multiple), client, case, source type (single or multiple), status (single or multiple), a flag to include tasks/deadlines with no due date, cursor, and limit.
 - Calendar items include the full assignee list for events (not just the organizer), so multi-assignee events can be attributed correctly.
+- Event, task, deadline, note, and calendar responses include shallow case/client/user display objects where those relationships are shown in the frontend.
 - Activity-log listing is available with case and client filters.
 - Free-text search and multi-value person/status filters were previously accepted by these endpoints but silently ignored; they are now actually applied server-side.
 

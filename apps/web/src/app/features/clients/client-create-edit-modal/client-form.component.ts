@@ -223,7 +223,7 @@ export class ClientFormComponent {
         .subscribe({
           next: ({ client, addresses, documents, contacts }) => {
             this.form.patchValue({
-              responsibleUserId: client.responsibleUserId ?? "",
+              responsibleUserId: client.responsibleUser?.id ?? "",
               tagIds: client.tags.map((tag) => tag.id),
             });
             this.form.patchValue(client);

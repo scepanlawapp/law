@@ -282,14 +282,17 @@
                     </span>
                   </td>
                   <td hlmTd>
-                    @if (document.caseIds.length || document.clientIds.length) {
+                    @if (document.cases.length || document.clients.length) {
                       <div class="space-y-1">
-                        @if (document.caseIds.length) {
-                          <p class="font-medium">{{ document.caseIds[0] }}</p>
+                        @if (document.cases.length) {
+                          <p class="font-medium">
+                            {{ document.cases[0].caseNumber }} —
+                            {{ document.cases[0].name }}
+                          </p>
                         }
-                        @if (document.clientIds.length) {
+                        @if (document.clients.length) {
                           <p class="text-xs text-muted-foreground">
-                            {{ document.clientIds[0] }}
+                            {{ document.clients[0].displayName }}
                           </p>
                         }
                       </div>
@@ -387,23 +390,24 @@
                 }
               </p>
               <div class="mt-4 space-y-2 text-sm">
-                @if (document.caseIds.length) {
+                @if (document.cases.length) {
                   <p>
                     <span class="text-muted-foreground">
                       {{ "documents.linkedCase" | translate }}:
                     </span>
-                    {{ document.caseIds[0] }}
+                    {{ document.cases[0].caseNumber }} —
+                    {{ document.cases[0].name }}
                   </p>
                 }
-                @if (document.clientIds.length) {
+                @if (document.clients.length) {
                   <p>
                     <span class="text-muted-foreground">
                       {{ "documents.linkedClient" | translate }}:
                     </span>
-                    {{ document.clientIds[0] }}
+                    {{ document.clients[0].displayName }}
                   </p>
                 }
-                @if (!document.caseIds.length && !document.clientIds.length) {
+                @if (!document.cases.length && !document.clients.length) {
                   <p
                     class="inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-300"
                   >
@@ -634,8 +638,8 @@
                     </dt>
                     <dd>
                       {{
-                        document.caseIds.length
-                          ? document.caseIds[0]
+                        document.cases.length
+                          ? document.cases[0].caseNumber + " — " + document.cases[0].name
                           : ("documents.needsLinking" | translate)
                       }}
                     </dd>
@@ -646,8 +650,8 @@
                     </dt>
                     <dd>
                       {{
-                        document.clientIds.length
-                          ? document.clientIds[0]
+                        document.clients.length
+                          ? document.clients[0].displayName
                           : ("documents.needsLinking" | translate)
                       }}
                     </dd>

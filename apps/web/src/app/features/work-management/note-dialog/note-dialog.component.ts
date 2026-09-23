@@ -90,9 +90,9 @@ export class NoteDialogComponent {
       type: value.type,
       body: value.body,
       occurredAt: new Date(value.occurredAt).toISOString(),
-      caseId: this.context.caseId ?? this.context.note?.caseId ?? undefined,
+      caseId: this.context.caseId ?? this.context.note?.case?.id ?? undefined,
       clientId:
-        this.context.clientId ?? this.context.note?.clientId ?? undefined,
+        this.context.clientId ?? this.context.note?.client?.id ?? undefined,
       eventId: this.context.eventId ?? this.context.note?.eventId ?? undefined,
     };
     this.saving.set(true);

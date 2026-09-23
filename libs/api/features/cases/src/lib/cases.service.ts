@@ -15,6 +15,8 @@ import {
   CaseListResponse,
   CaseNumberFormat,
   CaseSummary,
+  ClientReference,
+  UserReference,
 } from "@law/api-interfaces";
 import {
   CaseActivityDto,
@@ -26,6 +28,14 @@ import {
   UpdateCaseDto,
   UpdateCaseResponsibilityDto,
 } from "./cases.dto";
+
+type CaseClientRow = {
+  id: string;
+  clientNumber: string;
+  type: ClientReference["type"];
+  displayName: string;
+  status: ClientReference["status"];
+};
 
 @Injectable()
 export class CasesService {
@@ -189,15 +199,68 @@ export class CasesService {
     return { caseNumber: await this.nextNumber(format) };
   }
 
-  private summary(item: Case): CaseSummary {
+  private clientReference(client: CaseClientRow): ClientReference {
+    return {
+      id: client.id,
+      clientNumber: client.clientNumber,
+      type: client.type,
+      displayName: client.displayName,
+      status: client.status,
+    };
+  }
+
+  private userDisplayName(user: {
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  }): string {
+    return (
+      [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email
+    );
+  }
+
+  private fallbackUserReference(userId: string): UserReference {
+    return { id: userId, displayName: userId, email: null };
+  }
+
+  private async userReferenceMap(
+    userIds: readonly (string | null | undefined)[],
+  ): Promise<Map<string, UserReference>> {
+    const ids = [...new Set(userIds.filter((id): id is string => !!id))];
+    if (!ids.length) return new Map();
+    const users = await this.db.user.findMany({
+      where: {
+        id: { in: ids },
+        memberships: { some: { workspaceId: this.context.workspaceId } },
+      },
+      select: { id: true, firstName: true, lastName: true, email: true },
+    });
+    return new Map(
+      users.map((user) => [
+        user.id,
+        {
+          id: user.id,
+          displayName: this.userDisplayName(user),
+          email: user.email,
+        },
+      ]),
+    );
+  }
+
+  private summary(
+    item: Case & { client: CaseClientRow },
+    users: Map<string, UserReference>,
+  ): CaseSummary {
     return {
       id: item.id,
       caseNumber: item.caseNumber,
-      clientId: item.clientId,
+      client: this.clientReference(item.client),
       name: item.name,
       status: item.status,
       priority: item.priority,
-      responsibleUserId: item.responsibleUserId,
+      responsibleUser:
+        users.get(item.responsibleUserId) ??
+        this.fallbackUserReference(item.responsibleUserId),
       openedDate: item.openedDate?.toISOString() ?? null,
       closedDate: item.closedDate?.toISOString() ?? null,
       createdAt: item.createdAt.toISOString(),
@@ -247,10 +310,14 @@ export class CasesService {
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
         orderBy: sort.map(({ field, direction }) => ({ [field]: direction })),
+        include: { client: true },
       }),
     ]);
+    const users = await this.userReferenceMap(
+      items.map((item) => item.responsibleUserId),
+    );
     return {
-      items: items.map((item) => this.summary(item)),
+      items: items.map((item) => this.summary(item, users)),
       meta: paginationMeta(query.page, query.pageSize, totalItems, sort),
     };
   }
@@ -258,11 +325,12 @@ export class CasesService {
   async get(caseId: string): Promise<CaseDetail> {
     const item = await this.db.case.findFirst({
       where: { id: caseId, workspaceId: this.context.workspaceId },
-      include: { tags: { include: { tag: true } } },
+      include: { client: true, tags: { include: { tag: true } } },
     });
     if (!item) throw new NotFoundException("Case not found");
+    const users = await this.userReferenceMap([item.responsibleUserId]);
     return {
-      ...this.summary(item),
+      ...this.summary(item, users),
       description: item.description,
       caseTypeId: item.caseTypeId,
       practiceAreaId: item.practiceAreaId,

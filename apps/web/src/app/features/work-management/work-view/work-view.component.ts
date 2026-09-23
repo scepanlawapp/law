@@ -93,11 +93,11 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     description: task.description ?? undefined,
     status,
     priority: task.priority,
-    assigneeUserId: task.assigneeUserId,
+    assigneeUserId: task.assigneeUser.id,
     dueDate: task.dueDate ?? undefined,
     dueAt: task.dueAt ?? undefined,
-    caseId: task.caseId ?? undefined,
-    clientId: task.clientId ?? undefined,
+    caseId: task.case?.id ?? undefined,
+    clientId: task.client?.id ?? undefined,
     deadlineId: task.deadlineId ?? undefined,
   };
 }
@@ -418,8 +418,8 @@ export class WorkViewComponent {
   openTask(task?: TaskDetail): void {
     const context: TaskDialogContext = {
       task,
-      caseId: task?.caseId ?? this.effectiveCaseId(),
-      clientId: task?.clientId ?? undefined,
+      caseId: task?.case?.id ?? this.effectiveCaseId(),
+      clientId: task?.client?.id ?? undefined,
     };
     this.editPanel.set({ component: TaskDialogComponent, context });
   }

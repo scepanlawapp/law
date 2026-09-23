@@ -509,20 +509,20 @@
                 }}
               </dd>
             </div>
-            @if (item.caseId) {
+            @if (item.case) {
               <div>
                 <dt class="text-muted-foreground">
                   {{ "calendar.case" | translate }}
                 </dt>
-                <dd>{{ item.caseId }}</dd>
+                <dd>{{ item.case.caseNumber }} — {{ item.case.name }}</dd>
               </div>
             }
-            @if (item.clientId) {
+            @if (item.client) {
               <div>
                 <dt class="text-muted-foreground">
                   {{ "calendar.client" | translate }}
                 </dt>
-                <dd>{{ item.clientId }}</dd>
+                <dd>{{ item.client.displayName }}</dd>
               </div>
             }
           </dl>

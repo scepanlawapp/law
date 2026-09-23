@@ -5,6 +5,8 @@ import {
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
+  CaseReference,
+  ClientReference,
   DocumentDetail,
   DocumentListResponse,
   DocumentVersionListResponse,
@@ -412,8 +414,8 @@ export class DocumentsService {
 
   private detailInclude() {
     return {
-      cases: true,
-      clients: true,
+      cases: { include: { case: true } },
+      clients: { include: { client: true } },
       versions: { include: { storedFile: true } },
       currentVersion: { include: { storedFile: true } },
     } as const;
@@ -519,8 +521,8 @@ export class DocumentsService {
     updatedByUserId: string;
     createdAt: Date;
     updatedAt: Date;
-    cases: { caseId: string }[];
-    clients: { clientId: string }[];
+    cases: { case: CaseReference }[];
+    clients: { client: ClientReference }[];
     currentVersion: VersionRow | null;
   }): DocumentDetail {
     return {
@@ -529,8 +531,8 @@ export class DocumentsService {
       category: row.category,
       archived: !!row.archivedAt,
       archivedAt: row.archivedAt?.toISOString() ?? null,
-      caseIds: row.cases.map((item) => item.caseId),
-      clientIds: row.clients.map((item) => item.clientId),
+      cases: row.cases.map((item) => this.caseReference(item.case)),
+      clients: row.clients.map((item) => this.clientReference(item.client)),
       currentVersion: row.currentVersion
         ? this.toVersion(row.currentVersion)
         : null,
@@ -538,6 +540,26 @@ export class DocumentsService {
       updatedByUserId: row.updatedByUserId,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  private caseReference(row: CaseReference): CaseReference {
+    return {
+      id: row.id,
+      caseNumber: row.caseNumber,
+      name: row.name,
+      status: row.status,
+      priority: row.priority,
+    };
+  }
+
+  private clientReference(row: ClientReference): ClientReference {
+    return {
+      id: row.id,
+      clientNumber: row.clientNumber,
+      type: row.type,
+      displayName: row.displayName,
+      status: row.status,
     };
   }
 
