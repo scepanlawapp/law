@@ -1,16 +1,753 @@
-<div class="space-y-6">
-  <h1>{{ "nav.documents" | translate }}</h1>
-  <hlm-empty>
-    <hlm-empty-header>
-      <h2 hlmEmptyTitle>{{ "documents.emptyTitle" | translate }}</h2>
-      <p hlmEmptyDescription>
-        {{ "documents.emptyDescription" | translate }}
-      </p>
-    </hlm-empty-header>
-    <hlm-empty-content>
+<div class="flex h-full min-h-0 min-w-0 gap-4 overflow-hidden">
+  <div
+    class="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
+  >
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-semibold tracking-tight">
+          {{ "nav.documents" | translate }}
+        </h1>
+        <p class="mt-1 text-sm text-muted-foreground">
+          {{ "documents.pageSubtitle" | translate }}
+        </p>
+      </div>
       <button hlmBtn type="button" (click)="openUpload()">
+        <ng-icon name="lucideUpload" aria-hidden="true" />
         {{ "documents.upload.action" | translate }}
       </button>
-    </hlm-empty-content>
-  </hlm-empty>
+    </div>
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+          {{ "documents.stats.active" | translate }}
+        </p>
+        <p class="mt-2 text-2xl font-semibold">{{ stats().active }}</p>
+      </div>
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+          {{ "documents.stats.addedThisMonth" | translate }}
+        </p>
+        <p class="mt-2 text-2xl font-semibold">{{ stats().addedThisMonth }}</p>
+      </div>
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+          {{ "documents.stats.needsLinking" | translate }}
+        </p>
+        <p class="mt-2 text-2xl font-semibold">{{ stats().needsLinking }}</p>
+      </div>
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+          {{ "documents.stats.archived" | translate }}
+        </p>
+        <p class="mt-2 text-2xl font-semibold">{{ stats().archived }}</p>
+      </div>
+    </div>
+
+    <section class="rounded-xl border border-border bg-card p-4 shadow-sm">
+      <div class="flex flex-col gap-4">
+        <div
+          class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
+        >
+          <div class="relative max-w-xl flex-1">
+            <ng-icon
+              class="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground"
+              name="lucideSearch"
+              aria-hidden="true"
+            />
+            <input
+              hlmInput
+              type="search"
+              [formControl]="searchControl"
+              class="pl-10"
+              [placeholder]="'documents.searchPlaceholder' | translate"
+              [attr.aria-label]="'documents.searchPlaceholder' | translate"
+            />
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [class.bg-muted]="viewMode() === 'list'"
+              (click)="setViewMode('list')"
+            >
+              <ng-icon name="lucideList" aria-hidden="true" />
+              {{ "documents.view.list" | translate }}
+            </button>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [class.bg-muted]="viewMode() === 'grid'"
+              (click)="setViewMode('grid')"
+            >
+              <ng-icon name="lucideGrid2x2" aria-hidden="true" />
+              {{ "documents.view.grid" | translate }}
+            </button>
+          </div>
+        </div>
+
+        <div class="flex flex-col gap-3 md:flex-row md:flex-wrap">
+          <div class="min-w-[180px] flex-1">
+            <label class="mb-1 block text-sm font-medium">
+              {{ "documents.filters.case" | translate }}
+            </label>
+            <hlm-select
+              [formControl]="selectedCaseId"
+              [itemToString]="caseItemToString"
+            >
+              <hlm-select-trigger>
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  <hlm-select-item value="">
+                    {{ "documents.filters.allCases" | translate }}
+                  </hlm-select-item>
+                  @for (option of caseOptions(); track option.id) {
+                    <hlm-select-item [value]="option.id">
+                      {{ option.label }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+
+          <div class="min-w-[180px] flex-1">
+            <label class="mb-1 block text-sm font-medium">
+              {{ "documents.filters.client" | translate }}
+            </label>
+            <hlm-select
+              [formControl]="selectedClientId"
+              [itemToString]="clientItemToString"
+            >
+              <hlm-select-trigger>
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  <hlm-select-item value="">
+                    {{ "documents.filters.allClients" | translate }}
+                  </hlm-select-item>
+                  @for (option of clientOptions(); track option.id) {
+                    <hlm-select-item [value]="option.id">
+                      {{ option.label }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+
+          <div class="min-w-[180px] flex-1">
+            <label class="mb-1 block text-sm font-medium">
+              {{ "documents.filters.category" | translate }}
+            </label>
+            <hlm-select
+              [formControl]="selectedCategory"
+              [itemToString]="categoryItemToString"
+            >
+              <hlm-select-trigger>
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (option of categoryOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ option.label | translate }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          @for (tab of tabOptions; track tab.value) {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              size="sm"
+              [class.bg-muted]="selectedTab() === tab.value"
+              (click)="selectTab(tab.value)"
+            >
+              {{ tab.label | translate }}
+            </button>
+          }
+        </div>
+      </div>
+
+      @if (loading() && !loaded()) {
+        <div class="flex items-center gap-2 py-8" role="status">
+          <hlm-spinner aria-label="{{ 'documents.loading' | translate }}" />
+          <span>{{ "documents.loading" | translate }}</span>
+        </div>
+      } @else if (error()) {
+        <div class="space-y-3 py-8" role="alert">
+          <p>{{ "documents.loadError" | translate }}</p>
+          <button hlmBtn type="button" variant="outline" (click)="load()">
+            {{ "documents.retry" | translate }}
+          </button>
+        </div>
+      } @else if (documents().length === 0) {
+        <hlm-empty>
+          <hlm-empty-header>
+            <h2 hlmEmptyTitle>
+              {{ "documents.emptyFilteredTitle" | translate }}
+            </h2>
+            <p hlmEmptyDescription>
+              {{ "documents.emptyFilteredDescription" | translate }}
+            </p>
+          </hlm-empty-header>
+          <hlm-empty-content>
+            @if (
+              searchControl.value ||
+              selectedCaseId.value ||
+              selectedClientId.value ||
+              selectedCategory.value
+            ) {
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                (click)="clearFilters()"
+              >
+                {{ "documents.clearFilters" | translate }}
+              </button>
+            } @else {
+              <button hlmBtn type="button" (click)="openUpload()">
+                {{ "documents.upload.action" | translate }}
+              </button>
+            }
+          </hlm-empty-content>
+        </hlm-empty>
+      } @else if (viewMode() === "list") {
+        <div
+          hlmTableContainer
+          class="mt-4 overflow-x-auto"
+          [attr.aria-busy]="loading()"
+        >
+          <table hlmTable class="w-full min-w-[760px]">
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "documents.columns.document" | translate }}</th>
+                <th hlmTh>{{ "documents.columns.category" | translate }}</th>
+                <th hlmTh>{{ "documents.columns.linkedTo" | translate }}</th>
+                <th hlmTh>{{ "documents.columns.version" | translate }}</th>
+                <th hlmTh>{{ "documents.columns.updated" | translate }}</th>
+                <th hlmTh class="text-right">
+                  {{ "documents.columns.actions" | translate }}
+                </th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (document of documents(); track document.id) {
+                <tr hlmTr class="align-top">
+                  <td hlmTd>
+                    <button
+                      type="button"
+                      class="flex items-start gap-3 text-left"
+                      (click)="openDocumentDetail(document)"
+                    >
+                      <span
+                        class="mt-1 inline-flex size-8 items-center justify-center rounded-md bg-muted text-muted-foreground"
+                      >
+                        <ng-icon name="lucideFileText" aria-hidden="true" />
+                      </span>
+                      <span>
+                        <span class="block font-medium">
+                          {{ documentTitle(document) }}
+                        </span>
+                        <span class="block text-xs text-muted-foreground">
+                          {{
+                            document.currentVersion?.originalFilename ||
+                              document.title
+                          }}
+                          @if (fileSize(document)) {
+                            <span>· {{ fileSize(document) }}</span>
+                          }
+                        </span>
+                      </span>
+                    </button>
+                  </td>
+                  <td hlmTd>
+                    <span
+                      class="inline-flex rounded-full border border-border bg-muted px-2 py-1 text-xs"
+                    >
+                      {{ categoryLabel(document.category) }}
+                    </span>
+                  </td>
+                  <td hlmTd>
+                    @if (document.caseIds.length || document.clientIds.length) {
+                      <div class="space-y-1">
+                        @if (document.caseIds.length) {
+                          <p class="font-medium">{{ document.caseIds[0] }}</p>
+                        }
+                        @if (document.clientIds.length) {
+                          <p class="text-xs text-muted-foreground">
+                            {{ document.clientIds[0] }}
+                          </p>
+                        }
+                      </div>
+                    } @else {
+                      <span
+                        class="inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-300"
+                      >
+                        {{ "documents.needsLinking" | translate }}
+                      </span>
+                    }
+                  </td>
+                  <td hlmTd>
+                    {{
+                      document.currentVersion?.versionNumber
+                        ? "v" + document.currentVersion.versionNumber
+                        : "—"
+                    }}
+                  </td>
+                  <td hlmTd>{{ lastUpdatedInfo(document) }}</td>
+                  <td hlmTd class="text-right">
+                    <div class="flex justify-end gap-2">
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        (click)="openDocumentDetail(document)"
+                      >
+                        {{ "documents.actions.openDetails" | translate }}
+                      </button>
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        (click)="downloadDocument(document)"
+                      >
+                        {{ "documents.actions.download" | translate }}
+                      </button>
+                      @if (document.archived) {
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          (click)="restoreDocument(document)"
+                        >
+                          {{ "documents.actions.restore" | translate }}
+                        </button>
+                      } @else {
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          (click)="archiveDocument(document)"
+                        >
+                          {{ "documents.actions.archive" | translate }}
+                        </button>
+                      }
+                    </div>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <div class="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          @for (document of documents(); track document.id) {
+            <button
+              type="button"
+              class="rounded-xl border border-border bg-background p-4 text-left shadow-sm transition hover:border-primary/50"
+              (click)="openDocumentDetail(document)"
+            >
+              <div class="mb-3 flex items-center justify-between gap-2">
+                <span
+                  class="inline-flex size-9 items-center justify-center rounded-md bg-muted text-muted-foreground"
+                >
+                  <ng-icon name="lucideFileText" aria-hidden="true" />
+                </span>
+                <span
+                  class="inline-flex rounded-full border border-border bg-muted px-2 py-1 text-[10px] uppercase tracking-wide"
+                >
+                  {{ categoryLabel(document.category) }}
+                </span>
+              </div>
+              <p class="font-medium">{{ documentTitle(document) }}</p>
+              <p class="mt-1 text-xs text-muted-foreground">
+                {{
+                  document.currentVersion?.originalFilename || document.title
+                }}
+                @if (fileSize(document)) {
+                  <span>· {{ fileSize(document) }}</span>
+                }
+              </p>
+              <div class="mt-4 space-y-2 text-sm">
+                @if (document.caseIds.length) {
+                  <p>
+                    <span class="text-muted-foreground">
+                      {{ "documents.linkedCase" | translate }}:
+                    </span>
+                    {{ document.caseIds[0] }}
+                  </p>
+                }
+                @if (document.clientIds.length) {
+                  <p>
+                    <span class="text-muted-foreground">
+                      {{ "documents.linkedClient" | translate }}:
+                    </span>
+                    {{ document.clientIds[0] }}
+                  </p>
+                }
+                @if (!document.caseIds.length && !document.clientIds.length) {
+                  <p
+                    class="inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-300"
+                  >
+                    {{ "documents.needsLinking" | translate }}
+                  </p>
+                }
+              </div>
+              <p class="mt-4 text-xs text-muted-foreground">
+                {{ lastUpdatedInfo(document) }}
+              </p>
+            </button>
+          }
+        </div>
+      }
+
+      @if (documents().length) {
+        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
+          <p class="text-sm text-muted-foreground">
+            {{
+              "documents.pageInfo"
+                | translate: { page: page(), total: pageCount() }
+            }}
+          </p>
+          <div class="flex gap-2">
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="changePage(page() - 1)"
+              [disabled]="page() === 1 || loading()"
+            >
+              {{ "documents.previous" | translate }}
+            </button>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="changePage(page() + 1)"
+              [disabled]="page() >= pageCount() || loading()"
+            >
+              {{ "documents.next" | translate }}
+            </button>
+          </div>
+        </div>
+      }
+    </section>
+  </div>
+
+  @if (detailOpen()) {
+    <aside
+      class="flex h-full w-[26rem] min-w-[22rem] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+    >
+      @if (detailLoading()) {
+        <div class="flex items-center gap-2 p-6">
+          <hlm-spinner aria-label="{{ 'documents.loading' | translate }}" />
+          <span>{{ "documents.loading" | translate }}</span>
+        </div>
+      } @else if (detailDocument(); as document) {
+        <div class="flex h-full min-h-0 flex-col overflow-hidden">
+          <div
+            class="flex items-start justify-between gap-3 border-b border-border p-6"
+          >
+            <div>
+              <h2 class="text-xl font-semibold">
+                {{ documentTitle(document) }}
+              </h2>
+              <p class="mt-1 text-sm text-muted-foreground">
+                {{
+                  document.currentVersion?.originalFilename || document.title
+                }}
+              </p>
+            </div>
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              size="icon"
+              (click)="closeDetail()"
+              [attr.aria-label]="'common.close' | translate"
+            >
+              <ng-icon name="lucideX" aria-hidden="true" />
+            </button>
+          </div>
+
+          <div class="flex flex-wrap gap-2 p-6 pb-0">
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="downloadDocument(document)"
+            >
+              <ng-icon name="lucideArrowDownToLine" aria-hidden="true" />
+              {{ "documents.actions.download" | translate }}
+            </button>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="openVersionUpload(document)"
+            >
+              <ng-icon name="lucideUpload" aria-hidden="true" />
+              {{ "documents.actions.uploadVersion" | translate }}
+            </button>
+          </div>
+
+          <div class="flex-1 space-y-6 overflow-y-auto p-6">
+            <section class="space-y-4">
+              <div class="flex items-center justify-between gap-3">
+                <h3
+                  class="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
+                >
+                  {{ "documents.details" | translate }}
+                </h3>
+                @if (!detailEditing()) {
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    (click)="detailEditing.set(true)"
+                  >
+                    {{ "documents.actions.editDetails" | translate }}
+                  </button>
+                }
+              </div>
+
+              @if (detailEditing()) {
+                <form [formGroup]="detailForm" class="space-y-4">
+                  <div>
+                    <label class="mb-1 block text-sm font-medium">
+                      {{ "documents.form.title" | translate }}
+                    </label>
+                    <input hlmInput formControlName="title" />
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-sm font-medium">
+                      {{ "documents.form.category" | translate }}
+                    </label>
+                    <hlm-select
+                      formControlName="category"
+                      [itemToString]="categoryItemToString"
+                    >
+                      <hlm-select-trigger>
+                        <hlm-select-value />
+                      </hlm-select-trigger>
+                      <hlm-select-content *hlmSelectPortal>
+                        <hlm-select-group>
+                          @for (option of categoryOptions; track option.value) {
+                            <hlm-select-item [value]="option.value">
+                              {{ option.label | translate }}
+                            </hlm-select-item>
+                          }
+                        </hlm-select-group>
+                      </hlm-select-content>
+                    </hlm-select>
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-sm font-medium">
+                      {{ "documents.form.case" | translate }}
+                    </label>
+                    <hlm-select
+                      formControlName="caseIds"
+                      [itemToString]="caseItemToString"
+                      multiple
+                    >
+                      <hlm-select-trigger>
+                        <hlm-select-value />
+                      </hlm-select-trigger>
+                      <hlm-select-content *hlmSelectPortal>
+                        <hlm-select-group>
+                          @for (option of caseOptions(); track option.id) {
+                            <hlm-select-item [value]="option.id">
+                              {{ option.label }}
+                            </hlm-select-item>
+                          }
+                        </hlm-select-group>
+                      </hlm-select-content>
+                    </hlm-select>
+                  </div>
+                  <div>
+                    <label class="mb-1 block text-sm font-medium">
+                      {{ "documents.form.client" | translate }}
+                    </label>
+                    <hlm-select
+                      formControlName="clientIds"
+                      [itemToString]="clientItemToString"
+                      multiple
+                    >
+                      <hlm-select-trigger>
+                        <hlm-select-value />
+                      </hlm-select-trigger>
+                      <hlm-select-content *hlmSelectPortal>
+                        <hlm-select-group>
+                          @for (option of clientOptions(); track option.id) {
+                            <hlm-select-item [value]="option.id">
+                              {{ option.label }}
+                            </hlm-select-item>
+                          }
+                        </hlm-select-group>
+                      </hlm-select-content>
+                    </hlm-select>
+                  </div>
+                  <div class="flex justify-end gap-2">
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="outline"
+                      (click)="detailEditing.set(false)"
+                    >
+                      {{ "common.cancel" | translate }}
+                    </button>
+                    <button hlmBtn type="button" (click)="saveDetail()">
+                      {{ "common.save" | translate }}
+                    </button>
+                  </div>
+                </form>
+              } @else {
+                <dl class="space-y-3 text-sm">
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-muted-foreground">
+                      {{ "documents.meta.category" | translate }}
+                    </dt>
+                    <dd>{{ categoryLabel(document.category) }}</dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-muted-foreground">
+                      {{ "documents.meta.case" | translate }}
+                    </dt>
+                    <dd>
+                      {{
+                        document.caseIds.length
+                          ? document.caseIds[0]
+                          : ("documents.needsLinking" | translate)
+                      }}
+                    </dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-muted-foreground">
+                      {{ "documents.meta.client" | translate }}
+                    </dt>
+                    <dd>
+                      {{
+                        document.clientIds.length
+                          ? document.clientIds[0]
+                          : ("documents.needsLinking" | translate)
+                      }}
+                    </dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-muted-foreground">
+                      {{ "documents.meta.version" | translate }}
+                    </dt>
+                    <dd>
+                      {{
+                        document.currentVersion
+                          ? "v" + document.currentVersion.versionNumber
+                          : "—"
+                      }}
+                    </dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-muted-foreground">
+                      {{ "documents.meta.originalFilename" | translate }}
+                    </dt>
+                    <dd>
+                      {{
+                        document.currentVersion?.originalFilename ||
+                          document.title
+                      }}
+                    </dd>
+                  </div>
+                  <div class="flex justify-between gap-3">
+                    <dt class="text-muted-foreground">
+                      {{ "documents.meta.updated" | translate }}
+                    </dt>
+                    <dd>{{ formatDate(document.updatedAt) }}</dd>
+                  </div>
+                </dl>
+              }
+            </section>
+
+            <section class="space-y-3">
+              <h3
+                class="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                {{ "documents.versionHistory" | translate }}
+              </h3>
+              @if (detailVersions().length) {
+                <ul class="space-y-3">
+                  @for (version of detailVersions(); track version.id) {
+                    <li class="rounded-lg border border-border p-3">
+                      <div class="flex items-center justify-between gap-2">
+                        <strong>v{{ version.versionNumber }}</strong>
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          (click)="downloadVersion(document, version)"
+                        >
+                          {{ "documents.actions.download" | translate }}
+                        </button>
+                      </div>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {{ version.originalFilename }}
+                      </p>
+                      <p class="mt-2 text-xs text-muted-foreground">
+                        {{ formatDate(version.createdAt) }}
+                      </p>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="text-sm text-muted-foreground">
+                  {{ "documents.noVersions" | translate }}
+                </p>
+              }
+            </section>
+
+            <div class="border-t border-border pt-4">
+              @if (document.archived) {
+                <button
+                  hlmBtn
+                  type="button"
+                  class="w-full"
+                  (click)="restoreDocument(document)"
+                >
+                  {{ "documents.actions.restore" | translate }}
+                </button>
+              } @else {
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  class="w-full"
+                  (click)="archiveDocument(document)"
+                >
+                  {{ "documents.actions.archive" | translate }}
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    </aside>
+  }
 </div>
