@@ -751,3 +751,38 @@ select optgroup {
     display: inline-block;
   }
 }
+
+@layer components {
+  /* 1. Base Draggable Element & Hover State */
+  .cdk-drag {
+    cursor: grab !important;
+    touch-action: none;
+  }
+
+  /* 2. Fix active dragging state by assigning it directly to the root body container */
+  .cdk-drop-list-dragging,
+  .cdk-drop-list-dragging * {
+    cursor: grabbing !important;
+  }
+
+  /* 3. Force the floating cloned preview to register the cursor state */
+  .cdk-drag-preview {
+    cursor: grabbing !important;
+    pointer-events: none; /* Prevents the preview block from overriding the underlying cursor engine */
+  }
+
+  /* 4. Smooth transitions when items move out of the way */
+  .cdk-drop-list-dragging .cdk-drag {
+    transition: transform 250ms cubic-bezier(0, 0, 0.2, 1);
+  }
+
+  /* 5. Smooth return transition when dropped */
+  .cdk-drag-animating {
+    transition: transform 300ms cubic-bezier(0, 0, 0.2, 1);
+  }
+
+  /* 6. Optional: Base Placeholder slot opacity */
+  .cdk-drag-placeholder {
+    opacity: 0.4;
+  }
+}

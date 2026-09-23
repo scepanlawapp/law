@@ -14,7 +14,7 @@
  *
  * CDK adds this only to lists that can receive the current item.
  */
-.work-board-column.cdk-drop-list-receiving {
+.cdk-drop-list-receiving {
   border-style: dotted;
   border-color: color-mix(in oklab, var(--primary) 40%, transparent);
 
@@ -24,7 +24,7 @@
 /*
  * Cursor/card is currently over this destination.
  */
-.work-board-column.work-board-column-hover {
+.cdk-drop-list-dragging {
   border-style: dashed;
   border-color: color-mix(in oklab, var(--primary) 70%, transparent);
 
