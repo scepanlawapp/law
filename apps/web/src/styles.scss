@@ -785,4 +785,61 @@ select optgroup {
   .cdk-drag-placeholder {
     opacity: 0.4;
   }
+
+  /*
+ * Valid destination.
+ *
+ * CDK adds this only to lists that can receive the current item.
+ */
+  .cdk-drop-list-receiving {
+    border-style: dotted !important;
+    border-color: color-mix(
+      in oklab,
+      var(--primary) 40%,
+      transparent
+    ) !important;
+
+    background-color: color-mix(
+      in oklab,
+      var(--primary) 12%,
+      transparent
+    ) !important;
+  }
+
+  /*
+ * Cursor/card is currently over this destination.
+ */
+  .cdk-drop-list-dragging {
+    border-style: dashed !important;
+    border-color: color-mix(
+      in oklab,
+      var(--primary) 70%,
+      transparent
+    ) !important;
+
+    background-color: color-mix(
+      in oklab,
+      var(--primary) 22%,
+      transparent
+    ) !important;
+  }
+
+  .cdk-drag-placeholder {
+    opacity: 0.25 !important;
+  }
+
+  /*
+ * Card being dragged.
+ */
+  .cdk-drag-preview {
+    border-radius: 0.5rem !important;
+    box-shadow: 0 12px 24px rgb(0 0 0 / 0.16) !important;
+  }
+
+  /*
+ * Smooth movement of surrounding cards.
+ */
+  .cdk-drag-animating {
+    transition: transform 180ms cubic-bezier(0, 0, 0.2, 1) !important;
+  }
 }
