@@ -41,7 +41,16 @@
                   </hlm-select-label>
                   @for (option of themeOptions; track option.value) {
                     <hlm-select-item [value]="option.value">
-                      {{ themeItemToString(option.value) }}
+                      <span class="flex items-center gap-2">
+                        <span
+                          class="size-4.5 border border-border"
+                          [style.backgroundColor]="
+                            themeSwatchColor(option.value)
+                          "
+                          aria-hidden="true"
+                        ></span>
+                        {{ themeItemToString(option.value) }}
+                      </span>
                     </hlm-select-item>
                   }
                 </hlm-select-group>
@@ -82,13 +91,18 @@
           class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
         >
           @for (color of accentOptions; track color.name) {
-            <hlm-radio
+            <label
               class="border-border hover:bg-muted/50 data-[checked=true]:border-primary data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground flex min-h-16 w-full cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-left"
-              [value]="color.name"
-              [inputId]="'accent-' + color.name"
-              [aria-label]="'settings.accent.' + color.name | translate"
+              [for]="'accent-' + color.name"
             >
-              <hlm-radio-indicator indicator />
+              <hlm-radio
+                class="flex-1"
+                [value]="color.name"
+                [inputId]="'accent-' + color.name"
+                [aria-label]="'settings.accent.' + color.name | translate"
+              >
+                <hlm-radio-indicator indicator />
+              </hlm-radio>
               <span
                 class="border-border mt-0.5 size-6 shrink-0 rounded-full border"
                 [style.backgroundColor]="color.value"
@@ -97,7 +111,7 @@
               <span class="min-w-0 flex-1 text-sm leading-5 text-pretty">
                 {{ "settings.accent." + color.name | translate }}
               </span>
-            </hlm-radio>
+            </label>
           }
         </hlm-radio-group>
       </fieldset>
@@ -112,13 +126,18 @@
             class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5"
           >
             @for (finish of finishOptions; track finish) {
-              <hlm-radio
+              <label
                 class="border-border hover:bg-muted/50 data-[checked=true]:border-primary data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground flex min-h-16 w-full cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-left"
-                [value]="finish"
-                [inputId]="'finish-' + finish"
-                [aria-label]="'settings.finish.' + finish | translate"
+                [for]="'finish-' + finish"
               >
-                <hlm-radio-indicator indicator />
+                <hlm-radio
+                  class="flex-1"
+                  [value]="finish"
+                  [inputId]="'finish-' + finish"
+                  [aria-label]="'settings.finish.' + finish | translate"
+                >
+                  <hlm-radio-indicator indicator />
+                </hlm-radio>
                 <span
                   class="finish-swatch border-border mt-0.5 size-6 shrink-0 rounded-full border"
                   [attr.data-finish]="finish.toLowerCase()"
@@ -128,7 +147,7 @@
                 <span class="min-w-0 flex-1 text-sm leading-5 text-pretty">
                   {{ "settings.finish." + finish | translate }}
                 </span>
-              </hlm-radio>
+              </label>
             }
           </hlm-radio-group>
         </fieldset>

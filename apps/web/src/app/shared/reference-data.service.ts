@@ -12,8 +12,15 @@ export interface ReferenceItem {
 export class ReferenceDataService {
   private readonly api = inject(ReferencesApiClient);
 
+  readonly tags = signal<ReferenceItem[]>([]);
   readonly caseTypes = signal<ReferenceItem[]>([]);
   readonly practiceAreas = signal<ReferenceItem[]>([]);
+
+  loadTags(): void {
+    this.api.tags().subscribe({
+      next: (items) => this.tags.set(items.filter((item) => item.isActive)),
+    });
+  }
 
   loadCaseTypes(): void {
     this.api.caseTypes().subscribe({
@@ -27,6 +34,14 @@ export class ReferenceDataService {
       next: (items) =>
         this.practiceAreas.set(items.filter((item) => item.isActive)),
     });
+  }
+
+  createTag(name: string): Observable<ReferenceItem> {
+    return this.api.createTag({ name }).pipe(
+      tap((item) => {
+        if (item.isActive) this.tags.update((items) => [...items, item]);
+      }),
+    );
   }
 
   createCaseType(name: string): Observable<ReferenceItem> {

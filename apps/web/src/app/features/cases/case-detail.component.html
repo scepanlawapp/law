@@ -1,207 +1,1182 @@
 @if (loading()) {
-  <hlm-spinner aria-label="{{ 'cases.loading' | translate }}" />
+  <div class="flex items-center gap-2 py-10" role="status">
+    <hlm-spinner aria-label="{{ 'cases.loading' | translate }}" />
+    <span>{{ "cases.loading" | translate }}</span>
+  </div>
 } @else if (item(); as caseItem) {
-  <h1>{{ caseItem.name }}</h1>
-  <p>{{ caseItem.caseNumber }} {{ caseItem.status }}</p>
-  <p>
-    <a hlmBtn [routerLink]="['/cases', caseItem.id, 'edit']">
-      {{ "cases.edit" | translate }}
-    </a>
-    <a hlmBtn [routerLink]="['/clients', caseItem.clientId]">
-      {{ "cases.client" | translate }}
-    </a>
-    @if (caseItem.status === "DRAFT") {
-      <button hlmBtn type="button" (click)="lifecycle('activate')">
-        {{ "cases.activate" | translate }}
-      </button>
-    }
-    @if (caseItem.status === "ACTIVE") {
-      <button hlmBtn type="button" (click)="lifecycle('putOnHold')">
-        {{ "cases.hold" | translate }}
-      </button>
-      <button hlmBtn type="button" (click)="showCloseForm.set(true)">
-        {{ "cases.close" | translate }}
-      </button>
-    }
-    @if (caseItem.status === "ON_HOLD") {
-      <button hlmBtn type="button" (click)="lifecycle('resume')">
-        {{ "cases.resume" | translate }}
-      </button>
-      <button hlmBtn type="button" (click)="showCloseForm.set(true)">
-        {{ "cases.close" | translate }}
-      </button>
-    }
-    @if (caseItem.status === "CLOSED") {
-      <button hlmBtn type="button" (click)="lifecycle('reopen')">
-        {{ "cases.reopen" | translate }}
-      </button>
-      <button hlmBtn type="button" (click)="archive()">
-        {{ "cases.archive" | translate }}
-      </button>
-    }
-  </p>
-  @if (showCloseForm()) {
-    <form [formGroup]="closeForm" (ngSubmit)="close()">
-      <div hlmField>
-        <label hlmFieldLabel for="closedDate">
-          {{ "cases.closedDate" | translate }}
-        </label>
-        <input
-          hlmInput
-          id="closedDate"
-          type="date"
-          formControlName="closedDate"
-          required
-        />
-      </div>
-      <div hlmField>
-        <label hlmFieldLabel for="closingNote">
-          {{ "cases.closingNote" | translate }}
-        </label>
-        <textarea
-          hlmTextarea
-          id="closingNote"
-          formControlName="closingNote"
-        ></textarea>
-      </div>
-      <button hlmBtn type="submit">{{ "cases.close" | translate }}</button>
-      <button hlmBtn type="button" (click)="showCloseForm.set(false)">
-        {{ "cases.cancel" | translate }}
-      </button>
-    </form>
-  }
-  <div hlmTabs tab="overview">
-    <div hlmTabsList>
-      <button hlmTabsTrigger="overview">
-        {{ "cases.overview" | translate }}
-      </button>
-      <button hlmTabsTrigger="activities" (click)="load('activities')">
-        {{ "cases.activities" | translate }}
-      </button>
-      <button
-        hlmTabsTrigger="responsibilities"
-        (click)="load('responsibilities')"
-      >
-        {{ "cases.responsibilities" | translate }}
-      </button>
-      <button hlmTabsTrigger="work">
-        {{ "cases.work" | translate }}
-      </button>
-      <button hlmTabsTrigger="documents">
-        {{ "cases.documents" | translate }}
-      </button>
-    </div>
-    <section hlmTabsContent="overview">
-      @if (assistantLinks(); as links) {
-        <h3>{{ "cases.assistantSessions" | translate }}</h3>
-        @for (session of links.sessions; track session.id) {
-          <p>
-            <a [routerLink]="['/assistant']" [queryParams]="{ caseId: id }">
-              {{ session.title || ("assistant.newChat" | translate) }}
+  <div class="space-y-6 text-sm">
+    <nav aria-label="{{ 'cases.breadcrumb' | translate }}">
+      <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
+        <li>
+          <a class="underline-offset-4 hover:underline" routerLink="/cases">
+            {{ "cases.title" | translate }}
+          </a>
+        </li>
+        <li aria-hidden="true">/</li>
+        <li class="text-foreground" aria-current="page">
+          {{ caseItem.caseNumber }}
+        </li>
+      </ol>
+    </nav>
+
+    <header
+      class="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div class="min-w-0 space-y-2">
+          <h1 class="break-words text-2xl font-semibold tracking-tight">
+            {{ caseItem.name }}
+          </h1>
+          <div class="flex flex-wrap items-center gap-2 text-muted-foreground">
+            <span>{{ caseItem.caseNumber }}</span>
+            <span aria-hidden="true">·</span>
+            <a
+              class="underline-offset-4 hover:underline"
+              [routerLink]="['/clients', caseItem.clientId]"
+            >
+              {{ "cases.client" | translate }}
             </a>
-          </p>
-        }
-        <h3>{{ "cases.assistantDrafts" | translate }}</h3>
-        @for (draft of links.drafts; track draft.id) {
-          <p>{{ draft.approvalStatus }}</p>
-        }
-      }
-      <p>{{ caseItem.description }}</p>
-      <p>{{ caseItem.priority }}</p>
-      <p>{{ caseItem.openedDate }}</p>
-      <p>{{ caseItem.closingNote }}</p>
-    </section>
-    <section hlmTabsContent="activities">
-      <form [formGroup]="activityForm" (ngSubmit)="addActivity()">
-        <hlm-select
-          formControlName="type"
-          [itemToString]="activityTypeItemToString"
-        >
-          <hlm-select-trigger class="w-full">
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
-            <hlm-select-group>
-              @for (type of activityTypeOptions; track type) {
-                <hlm-select-item [value]="type">{{ type }}</hlm-select-item>
-              }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
-        <input hlmInput formControlName="title" required />
-        <input hlmInput type="date" formControlName="activityDate" required />
-        <textarea hlmTextarea formControlName="description"></textarea>
-        <button hlmBtn type="submit">
-          {{ "cases.addActivity" | translate }}
-        </button>
-      </form>
-      @for (activity of activities(); track activity.id) {
-        <p>
-          {{ activity.activityDate }} {{ activity.type }} {{ activity.title }}
-          {{ activity.description }} {{ activity.source }}
-        </p>
-      }
-    </section>
-    <section hlmTabsContent="responsibilities">
-      <form [formGroup]="responsibilityForm" (ngSubmit)="addResponsibility()">
-        <hlm-select formControlName="userId" [itemToString]="userItemToString">
-          <hlm-select-trigger class="w-full">
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
-            <hlm-select-group>
-              @for (entry of users() | keyvalue; track entry.key) {
-                <hlm-select-item [value]="entry.key">
-                  {{ entry.value }}
-                </hlm-select-item>
-              }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
-        <input hlmInput type="date" formControlName="startedAt" />
-        <label>
-          <input type="checkbox" formControlName="isPrimary" />
-          {{ "cases.primary" | translate }}
-        </label>
-        <button hlmBtn type="submit">
-          {{ "cases.addResponsibility" | translate }}
-        </button>
-      </form>
-      @for (responsibility of responsibilities(); track responsibility.id) {
-        <p>
-          {{ users().get(responsibility.userId) }}
-          {{ responsibility.startedAt }}
-          @if (responsibility.isPrimary) {
-            {{ "cases.primary" | translate }}
+            <span aria-hidden="true">·</span>
+            <span>{{ formatDate(caseItem.openedDate) }}</span>
+          </div>
+        </div>
+
+        <div class="flex flex-wrap items-center gap-2">
+          <a
+            hlmBtn
+            variant="outline"
+            type="button"
+            [routerLink]="['/cases', caseItem.id, 'edit']"
+          >
+            {{ "cases.edit" | translate }}
+          </a>
+          <a
+            hlmBtn
+            variant="outline"
+            type="button"
+            [routerLink]="['/clients', caseItem.clientId]"
+          >
+            {{ "cases.client" | translate }}
+          </a>
+          @if (caseItem.status === "DRAFT") {
+            <button hlmBtn type="button" (click)="lifecycle('activate')">
+              {{ "cases.activate" | translate }}
+            </button>
           }
-          @if (!responsibility.endedAt && !responsibility.isPrimary) {
+          @if (caseItem.status === "ACTIVE") {
             <button
               hlmBtn
               type="button"
-              (click)="setPrimary(responsibility.id)"
+              variant="outline"
+              (click)="lifecycle('putOnHold')"
             >
-              {{ "cases.setPrimary" | translate }}
+              {{ "cases.hold" | translate }}
             </button>
-            <button hlmBtn type="button" (click)="end(responsibility.id)">
-              {{ "cases.end" | translate }}
+            <button hlmBtn type="button" (click)="showCloseForm.set(true)">
+              {{ "cases.close" | translate }}
             </button>
           }
+          @if (caseItem.status === "ON_HOLD") {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="lifecycle('resume')"
+            >
+              {{ "cases.resume" | translate }}
+            </button>
+            <button hlmBtn type="button" (click)="showCloseForm.set(true)">
+              {{ "cases.close" | translate }}
+            </button>
+          }
+          @if (caseItem.status === "CLOSED") {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="lifecycle('reopen')"
+            >
+              {{ "cases.reopen" | translate }}
+            </button>
+            <button hlmBtn type="button" (click)="archive()">
+              {{ "cases.archive" | translate }}
+            </button>
+          }
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-2">
+        <span
+          class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium uppercase tracking-wide text-foreground"
+        >
+          {{ "cases.status." + caseItem.status | translate }}
+        </span>
+        <span
+          class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium uppercase tracking-wide text-foreground"
+        >
+          {{ "cases.priority." + caseItem.priority | translate }}
+        </span>
+      </div>
+    </header>
+
+    @if (showCloseForm()) {
+      <section class="rounded-xl border border-border bg-card p-5 shadow-sm">
+        <div class="mb-4">
+          <h2 class="text-lg font-semibold">{{ "cases.close" | translate }}</h2>
+        </div>
+        <form [formGroup]="closeForm" (ngSubmit)="close()" class="space-y-4">
+          <div hlmField>
+            <label hlmFieldLabel for="closedDate">
+              {{ "cases.closedDate" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="closedDate"
+              type="date"
+              formControlName="closedDate"
+              required
+            />
+            @if (
+              closeForm.controls.closedDate.touched &&
+              closeForm.controls.closedDate.hasError("required")
+            ) {
+              <p class="mt-1 text-xs text-destructive">
+                {{ "validation.required" | translate }}
+              </p>
+            }
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="closingNote">
+              {{ "cases.closingNote" | translate }}
+            </label>
+            <textarea
+              hlmTextarea
+              id="closingNote"
+              formControlName="closingNote"
+              rows="4"
+            ></textarea>
+            @if (
+              closeForm.controls.closingNote.touched &&
+              closeForm.controls.closingNote.hasError("maxlength")
+            ) {
+              <p class="mt-1 text-xs text-destructive">
+                {{ "validation.maxLength" | translate: { max: 10000 } }}
+              </p>
+            }
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <button hlmBtn type="submit">
+              {{ "cases.close" | translate }}
+            </button>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="showCloseForm.set(false)"
+            >
+              {{ "cases.cancel" | translate }}
+            </button>
+          </div>
+        </form>
+      </section>
+    }
+
+    <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+          {{ "cases.detail.openWork" | translate }}
         </p>
-      }
-    </section>
-    <section hlmTabsContent="work">
-      <law-work-view [mode]="'case'" [fixedCaseId]="id" />
-    </section>
-    <section hlmTabsContent="documents" class="space-y-3 pt-6">
-      <h2 class="text-xl font-semibold">
-        {{ "cases.documents" | translate }}
-      </h2>
-      <p class="text-muted-foreground">
-        {{ "common.notAvailableYet" | translate }}
-      </p>
-      <button hlmBtn type="button" (click)="openDocumentsUpload()">
-        {{ "documents.upload.action" | translate }}
-      </button>
-    </section>
+        <p class="mt-2 text-2xl font-semibold">—</p>
+        <p class="mt-1 text-xs text-muted-foreground">
+          {{ "common.notAvailableYet" | translate }}
+        </p>
+        <!-- TODO(case-work-summary): Expose task/deadline/event summary from WorkView or add a case work-summary endpoint. -->
+      </div>
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+          {{ "cases.activities" | translate }}
+        </p>
+        <p class="mt-2 text-2xl font-semibold">{{ activities().length }}</p>
+      </div>
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+          {{ "cases.responsibilities" | translate }}
+        </p>
+        <p class="mt-2 text-2xl font-semibold">
+          {{ activeResponsibilities().length }}
+        </p>
+      </div>
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+          {{ "cases.documents" | translate }}
+        </p>
+        <p class="mt-2 text-2xl font-semibold">{{ documents().length }}</p>
+        <!-- TODO(case-document-count): Replace placeholder document count with real count when document summary data is exposed. -->
+      </div>
+      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
+        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+          {{ "cases.detail.nextDeadline" | translate }}
+        </p>
+        <p class="mt-2 text-lg font-semibold">—</p>
+        <p class="mt-1 text-xs text-muted-foreground">
+          {{ "common.notAvailableYet" | translate }}
+        </p>
+      </div>
+    </div>
+
+    <div hlmTabs [tab]="selectedTab()" (tabActivated)="selectTab($event)">
+      <div hlmTabsList>
+        <button hlmTabsTrigger="overview">
+          {{ "cases.detail.overview" | translate }}
+        </button>
+        <button hlmTabsTrigger="activities">
+          {{ "cases.activities" | translate }}
+        </button>
+        <button hlmTabsTrigger="work">{{ "cases.work" | translate }}</button>
+        <button hlmTabsTrigger="documents">
+          {{ "cases.documents" | translate }}
+        </button>
+        <button hlmTabsTrigger="notes">
+          {{ "cases.detail.notes" | translate }}
+        </button>
+        <button hlmTabsTrigger="assistant">
+          {{ "cases.detail.assistant" | translate }}
+        </button>
+        <button hlmTabsTrigger="responsibilities">
+          {{ "cases.responsibilities" | translate }}
+        </button>
+      </div>
+
+      <section hlmTabsContent="overview" class="pt-6">
+        <div class="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
+          <div class="space-y-6">
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">
+                  {{ "cases.detail.caseSummary" | translate }}
+                </h2>
+              </div>
+              <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
+                <div>
+                  <dt class="font-medium">{{ "cases.number" | translate }}</dt>
+                  <dd class="text-muted-foreground">
+                    {{ displayValue(caseItem.caseNumber) }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="font-medium">{{ "cases.type" | translate }}</dt>
+                  <dd class="text-muted-foreground">{{ caseTypeLabel() }}</dd>
+                </div>
+                <div>
+                  <dt class="font-medium">{{ "cases.area" | translate }}</dt>
+                  <dd class="text-muted-foreground">
+                    {{ practiceAreaLabel() }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="font-medium">{{ "cases.opened" | translate }}</dt>
+                  <dd class="text-muted-foreground">
+                    {{ formatDate(caseItem.openedDate) }}
+                  </dd>
+                </div>
+                @if (caseItem.closedDate) {
+                  <div>
+                    <dt class="font-medium">
+                      {{ "cases.status.CLOSED" | translate }}
+                    </dt>
+                    <dd class="text-muted-foreground">
+                      {{ formatDate(caseItem.closedDate) }}
+                    </dd>
+                  </div>
+                }
+                @if (caseItem.externalReference) {
+                  <div>
+                    <dt class="font-medium">
+                      {{ "cases.reference" | translate }}
+                    </dt>
+                    <dd class="text-muted-foreground">
+                      {{ displayValue(caseItem.externalReference) }}
+                    </dd>
+                  </div>
+                }
+                @if (caseItem.confidentialityLevel) {
+                  <div>
+                    <dt class="font-medium">
+                      {{ "cases.confidentiality" | translate }}
+                    </dt>
+                    <dd class="text-muted-foreground">
+                      {{ displayValue(caseItem.confidentialityLevel) }}
+                    </dd>
+                  </div>
+                }
+                @if (caseItem.description) {
+                  <div class="sm:col-span-2">
+                    <dt class="font-medium">
+                      {{ "cases.description" | translate }}
+                    </dt>
+                    <dd class="mt-1 whitespace-pre-line text-muted-foreground">
+                      {{ caseItem.description }}
+                    </dd>
+                  </div>
+                }
+              </dl>
+            </section>
+
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">
+                  {{ "cases.detail.workAttention" | translate }}
+                </h2>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  (click)="selectedTab.set('work')"
+                >
+                  {{ "cases.detail.openWork" | translate }}
+                </button>
+              </div>
+              <p class="text-muted-foreground">
+                {{ "cases.detail.workManagedInWorkSection" | translate }}
+              </p>
+            </section>
+
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">
+                  {{ "cases.detail.recentDocuments" | translate }}
+                </h2>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  (click)="selectedTab.set('documents')"
+                >
+                  {{ "cases.documents" | translate }}
+                </button>
+              </div>
+              @if (documentsLoading()) {
+                <div class="flex items-center gap-2 py-2">
+                  <hlm-spinner
+                    aria-label="{{ 'cases.documents' | translate }}"
+                  />
+                  <span>{{ "cases.loading" | translate }}</span>
+                </div>
+              } @else if (documents().length) {
+                <ul class="space-y-3">
+                  @for (document of recentDocuments(); track document.id) {
+                    <li
+                      class="flex items-center justify-between gap-3 rounded-md border border-border p-3"
+                    >
+                      <div>
+                        <p class="font-medium">{{ document.title }}</p>
+                        <p class="text-xs text-muted-foreground">
+                          {{
+                            document.category ||
+                              ("common.notProvided" | translate)
+                          }}
+                        </p>
+                      </div>
+                      <span class="text-xs text-muted-foreground">
+                        {{ formatDate(document.createdAt) }}
+                      </span>
+                    </li>
+                  }
+                </ul>
+              } @else {
+                <p class="text-muted-foreground">
+                  {{ "cases.detail.noDocuments" | translate }}
+                </p>
+              }
+            </section>
+
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">
+                  {{ "cases.detail.recentActivity" | translate }}
+                </h2>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  (click)="selectedTab.set('activities')"
+                >
+                  {{ "cases.detail.viewAll" | translate }}
+                </button>
+              </div>
+              @if (activitiesLoading()) {
+                <div class="flex items-center gap-2 py-2">
+                  <hlm-spinner
+                    aria-label="{{ 'cases.activities' | translate }}"
+                  />
+                  <span>{{ "cases.loading" | translate }}</span>
+                </div>
+              } @else if (recentActivities().length) {
+                <ol class="space-y-4">
+                  @for (activity of recentActivities(); track activity.id) {
+                    <li
+                      class="relative pl-4 before:absolute before:left-0 before:top-1 before:h-2 before:w-2 before:rounded-full before:bg-primary"
+                    >
+                      <div
+                        class="flex flex-wrap items-center justify-between gap-2"
+                      >
+                        <p class="font-medium">{{ activity.title }}</p>
+                        <span class="text-xs text-muted-foreground">
+                          {{ activityTypeLabel(activity.type) }}
+                        </span>
+                      </div>
+                      <p class="mt-1 text-xs text-muted-foreground">
+                        {{ formatDateTime(activity.activityDate) }}
+                      </p>
+                      @if (activity.description) {
+                        <p class="mt-2 text-muted-foreground">
+                          {{ activity.description }}
+                        </p>
+                      }
+                    </li>
+                  }
+                </ol>
+              } @else {
+                <p class="text-muted-foreground">
+                  {{ "cases.detail.noActivities" | translate }}
+                </p>
+              }
+            </section>
+          </div>
+
+          <aside class="space-y-6">
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <h2 class="mb-4 text-lg font-semibold">
+                {{ "cases.detail.peopleParties" | translate }}
+              </h2>
+              <dl class="space-y-4">
+                <div>
+                  <dt class="font-medium">{{ "cases.client" | translate }}</dt>
+                  <dd class="text-muted-foreground">
+                    <a
+                      class="underline-offset-4 hover:underline"
+                      [routerLink]="['/clients', caseItem.clientId]"
+                    >
+                      {{
+                        caseItem.clientId || ("common.notProvided" | translate)
+                      }}
+                    </a>
+                  </dd>
+                  <!-- TODO(case-client-label): Include/resolve the client's display name in CaseDetail. -->
+                </div>
+                <div>
+                  <dt class="font-medium">
+                    {{ "cases.responsible" | translate }}
+                  </dt>
+                  <dd class="text-muted-foreground">
+                    {{ userName(caseItem.responsibleUserId) }}
+                  </dd>
+                </div>
+                <div>
+                  <dt class="font-medium">
+                    {{ "cases.opposingParty" | translate }}
+                  </dt>
+                  <dd class="text-muted-foreground">
+                    {{ displayValue(caseItem.opposingPartyName) }}
+                  </dd>
+                </div>
+                @if (caseItem.opposingPartyAddress) {
+                  <div>
+                    <dt class="font-medium">
+                      {{ "cases.opposingPartyAddress" | translate }}
+                    </dt>
+                    <dd class="whitespace-pre-line text-muted-foreground">
+                      {{ caseItem.opposingPartyAddress }}
+                    </dd>
+                  </div>
+                }
+              </dl>
+            </section>
+
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <h2 class="mb-4 text-lg font-semibold">
+                {{ "cases.detail.caseMetadata" | translate }}
+              </h2>
+              <dl class="space-y-3">
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="font-medium">{{ "cases.status" | translate }}</dt>
+                  <dd>
+                    <span
+                      class="rounded-full border px-2 py-1 text-xs font-medium {{
+                        statusBadgeClass(caseItem.status)
+                      }}"
+                    >
+                      {{ "cases.status." + caseItem.status | translate }}
+                    </span>
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="font-medium">
+                    {{ "cases.priority" | translate }}
+                  </dt>
+                  <dd>
+                    <span
+                      class="rounded-full border px-2 py-1 text-xs font-medium {{
+                        priorityBadgeClass(caseItem.priority)
+                      }}"
+                    >
+                      {{ "cases.priority." + caseItem.priority | translate }}
+                    </span>
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="font-medium">{{ "cases.opened" | translate }}</dt>
+                  <dd class="text-muted-foreground">
+                    {{ formatDate(caseItem.openedDate) }}
+                  </dd>
+                </div>
+                @if (caseItem.closedDate) {
+                  <div class="flex items-center justify-between gap-3">
+                    <dt class="font-medium">
+                      {{ "cases.status.CLOSED" | translate }}
+                    </dt>
+                    <dd class="text-muted-foreground">
+                      {{ formatDate(caseItem.closedDate) }}
+                    </dd>
+                  </div>
+                }
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="font-medium">
+                    {{ "cases.createdAt" | translate }}
+                  </dt>
+                  <dd class="text-muted-foreground">
+                    {{ formatDateTime(caseItem.createdAt) }}
+                  </dd>
+                </div>
+                <div class="flex items-center justify-between gap-3">
+                  <dt class="font-medium">
+                    {{ "cases.updatedAt" | translate }}
+                  </dt>
+                  <dd class="text-muted-foreground">
+                    {{ formatDateTime(caseItem.updatedAt) }}
+                  </dd>
+                </div>
+              </dl>
+            </section>
+
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <h2 class="mb-4 text-lg font-semibold">
+                {{ "cases.detail.tags" | translate }}
+              </h2>
+              @if (caseItem.tags.length) {
+                <div class="flex flex-wrap gap-2">
+                  @for (tag of caseItem.tags; track tag.id) {
+                    <span
+                      class="rounded-full border border-border bg-muted px-2 py-1 text-xs"
+                    >
+                      {{ tagName(tag.id) }}
+                    </span>
+                  }
+                </div>
+              } @else {
+                <p class="text-muted-foreground">
+                  {{ "cases.detail.noTags" | translate }}
+                </p>
+              }
+            </section>
+
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <div class="mb-4 flex items-center justify-between gap-3">
+                <h2 class="text-lg font-semibold">
+                  {{ "cases.detail.assistant" | translate }}
+                </h2>
+                <a
+                  hlmBtn
+                  variant="outline"
+                  type="button"
+                  [routerLink]="['/assistant']"
+                  [queryParams]="{ caseId: id }"
+                >
+                  {{ "cases.detail.startAssistant" | translate }}
+                </a>
+              </div>
+              @if (assistantLoading()) {
+                <div class="flex items-center gap-2">
+                  <hlm-spinner
+                    aria-label="{{ 'cases.detail.assistant' | translate }}"
+                  />
+                  <span>{{ "cases.loading" | translate }}</span>
+                </div>
+              } @else if (assistantLinks(); as links) {
+                <div class="space-y-4">
+                  <div>
+                    <p class="mb-2 font-medium">
+                      {{ "cases.assistantSessions" | translate }}
+                    </p>
+                    @if (links.sessions.length) {
+                      <ul class="space-y-2">
+                        @for (session of links.sessions; track session.id) {
+                          <li>
+                            <a
+                              class="underline-offset-4 hover:underline"
+                              [routerLink]="['/assistant']"
+                              [queryParams]="{ caseId: id }"
+                            >
+                              {{
+                                session.title ||
+                                  ("assistant.newChat" | translate)
+                              }}
+                            </a>
+                          </li>
+                        }
+                      </ul>
+                    } @else {
+                      <p class="text-muted-foreground">
+                        {{ "cases.detail.noAssistantSessions" | translate }}
+                      </p>
+                    }
+                  </div>
+                  <div>
+                    <p class="mb-2 font-medium">
+                      {{ "cases.assistantDrafts" | translate }}
+                    </p>
+                    @if (links.drafts.length) {
+                      <ul class="space-y-2">
+                        @for (draft of links.drafts; track draft.id) {
+                          <li
+                            class="rounded-md border border-border bg-muted p-2"
+                          >
+                            <p class="font-medium">{{ draft.id }}</p>
+                            <p class="text-xs text-muted-foreground">
+                              {{ draft.approvalStatus }}
+                            </p>
+                          </li>
+                        }
+                      </ul>
+                    } @else {
+                      <p class="text-muted-foreground">
+                        {{ "cases.detail.noAssistantDrafts" | translate }}
+                      </p>
+                    }
+                  </div>
+                </div>
+              } @else {
+                <p class="text-muted-foreground">
+                  {{ "cases.detail.noAssistantSessions" | translate }}
+                </p>
+              }
+            </section>
+
+            <section
+              class="rounded-xl border border-border bg-card p-5 shadow-sm"
+            >
+              <h2 class="mb-4 text-lg font-semibold">
+                {{ "cases.detail.aiBrief" | translate }}
+              </h2>
+              <p class="text-muted-foreground">
+                {{ "cases.detail.aiBriefUnavailable" | translate }}
+              </p>
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                class="mt-3"
+                disabled
+              >
+                {{ "cases.detail.generateBrief" | translate }}
+              </button>
+              <!-- TODO(ai-brief): Connect real AI brief result/generation API. -->
+            </section>
+          </aside>
+        </div>
+      </section>
+
+      <section hlmTabsContent="activities" class="pt-6">
+        <div class="space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold">
+              {{ "cases.activities" | translate }}
+            </h2>
+            <button hlmBtn type="button" (click)="showActivityForm.set(true)">
+              {{ "cases.detail.addActivity" | translate }}
+            </button>
+          </div>
+          @if (showActivityForm()) {
+            <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+              <form
+                [formGroup]="activityForm"
+                (ngSubmit)="addActivity()"
+                class="space-y-4"
+              >
+                <div class="grid gap-4 md:grid-cols-2">
+                  <div hlmField>
+                    <label hlmFieldLabel for="activityType">
+                      {{ "cases.activity.type" | translate }}
+                    </label>
+                    <select
+                      hlmInput
+                      id="activityType"
+                      formControlName="type"
+                      class="w-full"
+                    >
+                      @for (type of activityTypeOptions; track type) {
+                        <option [value]="type">
+                          {{ activityTypeLabel(type) }}
+                        </option>
+                      }
+                    </select>
+                  </div>
+                  <div hlmField>
+                    <label hlmFieldLabel for="activityDate">
+                      {{ "cases.activity.date" | translate }}
+                    </label>
+                    <input
+                      hlmInput
+                      id="activityDate"
+                      type="date"
+                      formControlName="activityDate"
+                      required
+                    />
+                  </div>
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel for="activityTitle">
+                    {{ "cases.activity.title" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    id="activityTitle"
+                    formControlName="title"
+                    required
+                  />
+                  @if (
+                    activityForm.controls.title.touched &&
+                    activityForm.controls.title.hasError("required")
+                  ) {
+                    <p class="mt-1 text-xs text-destructive">
+                      {{ "validation.required" | translate }}
+                    </p>
+                  }
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel for="activityDescription">
+                    {{ "cases.activity.description" | translate }}
+                  </label>
+                  <textarea
+                    hlmTextarea
+                    id="activityDescription"
+                    formControlName="description"
+                    rows="4"
+                  ></textarea>
+                </div>
+                <div class="flex flex-wrap gap-2">
+                  <button hlmBtn type="submit">
+                    {{ "cases.addActivity" | translate }}
+                  </button>
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="outline"
+                    (click)="showActivityForm.set(false)"
+                  >
+                    {{ "cases.cancel" | translate }}
+                  </button>
+                </div>
+              </form>
+            </div>
+          }
+
+          @if (activitiesLoading()) {
+            <div class="flex items-center gap-2 py-4">
+              <hlm-spinner aria-label="{{ 'cases.activities' | translate }}" />
+              <span>{{ "cases.loading" | translate }}</span>
+            </div>
+          } @else if (activities().length) {
+            <ol class="space-y-4">
+              @for (activity of activities(); track activity.id) {
+                <li
+                  class="rounded-xl border border-border bg-card p-4 shadow-sm"
+                >
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-2"
+                  >
+                    <div>
+                      <p class="font-medium">{{ activity.title }}</p>
+                      <p class="text-xs text-muted-foreground">
+                        {{ activityTypeLabel(activity.type) }}
+                      </p>
+                    </div>
+                    <span class="text-xs text-muted-foreground">
+                      {{ formatDateTime(activity.activityDate) }}
+                    </span>
+                  </div>
+                  @if (activity.description) {
+                    <p class="mt-3 whitespace-pre-line text-muted-foreground">
+                      {{ activity.description }}
+                    </p>
+                  }
+                  <p class="mt-3 text-xs text-muted-foreground">
+                    {{ activity.source }}
+                  </p>
+                </li>
+              }
+            </ol>
+          } @else {
+            <div
+              class="rounded-xl border border-dashed border-border bg-card p-6 text-center text-muted-foreground"
+            >
+              {{ "cases.detail.noActivities" | translate }}
+            </div>
+          }
+        </div>
+      </section>
+
+      <section hlmTabsContent="work" class="pt-6">
+        <law-work-view [mode]="'case'" [fixedCaseId]="id" />
+      </section>
+
+      <section hlmTabsContent="documents" class="pt-6">
+        <div class="space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold">
+              {{ "cases.documents" | translate }}
+            </h2>
+            <button hlmBtn type="button" (click)="openDocumentsUpload()">
+              {{ "documents.upload.action" | translate }}
+            </button>
+          </div>
+          @if (documentsLoading()) {
+            <div class="flex items-center gap-2 py-4">
+              <hlm-spinner aria-label="{{ 'cases.documents' | translate }}" />
+              <span>{{ "cases.loading" | translate }}</span>
+            </div>
+          } @else if (documents().length) {
+            <div
+              class="overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+            >
+              <table
+                class="min-w-full divide-y divide-border text-left text-sm"
+              >
+                <thead class="bg-muted/60 text-muted-foreground">
+                  <tr>
+                    <th class="px-4 py-3 font-medium">
+                      {{ "documents.title" | translate }}
+                    </th>
+                    <th class="px-4 py-3 font-medium">
+                      {{ "documents.category" | translate }}
+                    </th>
+                    <th class="px-4 py-3 font-medium">
+                      {{ "documents.createdAt" | translate }}
+                    </th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-border">
+                  @for (document of documents(); track document.id) {
+                    <tr>
+                      <td class="px-4 py-3 font-medium">
+                        {{ document.title }}
+                      </td>
+                      <td class="px-4 py-3 text-muted-foreground">
+                        {{
+                          document.category ||
+                            ("common.notProvided" | translate)
+                        }}
+                      </td>
+                      <td class="px-4 py-3 text-muted-foreground">
+                        {{ formatDateTime(document.createdAt) }}
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          } @else {
+            <div
+              class="rounded-xl border border-dashed border-border bg-card p-6 text-center text-muted-foreground"
+            >
+              {{ "cases.detail.noDocuments" | translate }}
+            </div>
+          }
+        </div>
+        <!-- TODO(case-documents): Load case documents from a real case-scoped documents API. Upload already works through DocumentUploadDialogService. -->
+      </section>
+
+      <section hlmTabsContent="notes" class="pt-6">
+        <div class="space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold">
+              {{ "cases.detail.notes" | translate }}
+            </h2>
+            <button
+              hlmBtn
+              type="button"
+              (click)="
+                showActivityForm.set(true);
+                activityForm.controls.type.setValue('NOTE')
+              "
+            >
+              {{ "cases.detail.addNote" | translate }}
+            </button>
+          </div>
+          @if (noteActivities().length) {
+            <ol class="space-y-4">
+              @for (activity of noteActivities(); track activity.id) {
+                <li
+                  class="rounded-xl border border-border bg-card p-4 shadow-sm"
+                >
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="font-medium">{{ activity.title }}</p>
+                    <span class="text-xs text-muted-foreground">
+                      {{ formatDateTime(activity.activityDate) }}
+                    </span>
+                  </div>
+                  @if (activity.description) {
+                    <p class="mt-3 whitespace-pre-line text-muted-foreground">
+                      {{ activity.description }}
+                    </p>
+                  }
+                </li>
+              }
+            </ol>
+          } @else {
+            <div
+              class="rounded-xl border border-dashed border-border bg-card p-6 text-center text-muted-foreground"
+            >
+              {{ "cases.detail.noNotes" | translate }}
+            </div>
+          }
+        </div>
+        <!-- TODO(case-notes): Move to a dedicated notes API only if notes become a separate domain entity beyond activities. -->
+      </section>
+
+      <section hlmTabsContent="assistant" class="pt-6">
+        <div class="space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold">
+              {{ "cases.detail.assistant" | translate }}
+            </h2>
+            <a
+              hlmBtn
+              type="button"
+              [routerLink]="['/assistant']"
+              [queryParams]="{ caseId: id }"
+            >
+              {{ "cases.detail.startAssistant" | translate }}
+            </a>
+          </div>
+          @if (assistantLoading()) {
+            <div class="flex items-center gap-2 py-4">
+              <hlm-spinner
+                aria-label="{{ 'cases.detail.assistant' | translate }}"
+              />
+              <span>{{ "cases.loading" | translate }}</span>
+            </div>
+          } @else if (assistantLinks(); as links) {
+            <div class="space-y-6">
+              <div
+                class="rounded-xl border border-border bg-card p-5 shadow-sm"
+              >
+                <h3 class="mb-3 font-medium">
+                  {{ "cases.assistantSessions" | translate }}
+                </h3>
+                @if (links.sessions.length) {
+                  <ul class="space-y-2">
+                    @for (session of links.sessions; track session.id) {
+                      <li>
+                        <a
+                          class="underline-offset-4 hover:underline"
+                          [routerLink]="['/assistant']"
+                          [queryParams]="{ caseId: id }"
+                        >
+                          {{
+                            session.title || ("assistant.newChat" | translate)
+                          }}
+                        </a>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="text-muted-foreground">
+                    {{ "cases.detail.noAssistantSessions" | translate }}
+                  </p>
+                }
+              </div>
+              <div
+                class="rounded-xl border border-border bg-card p-5 shadow-sm"
+              >
+                <h3 class="mb-3 font-medium">
+                  {{ "cases.assistantDrafts" | translate }}
+                </h3>
+                @if (links.drafts.length) {
+                  <ul class="space-y-2">
+                    @for (draft of links.drafts; track draft.id) {
+                      <li class="rounded-md border border-border bg-muted p-3">
+                        <p class="font-medium">{{ draft.id }}</p>
+                        <p class="text-xs text-muted-foreground">
+                          {{ draft.approvalStatus }}
+                        </p>
+                      </li>
+                    }
+                  </ul>
+                } @else {
+                  <p class="text-muted-foreground">
+                    {{ "cases.detail.noAssistantDrafts" | translate }}
+                  </p>
+                }
+              </div>
+            </div>
+          } @else {
+            <div
+              class="rounded-xl border border-dashed border-border bg-card p-6 text-center text-muted-foreground"
+            >
+              {{ "cases.detail.noAssistantSessions" | translate }}
+            </div>
+          }
+        </div>
+      </section>
+
+      <section hlmTabsContent="responsibilities" class="pt-6">
+        <div class="space-y-6">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <h2 class="text-lg font-semibold">
+              {{ "cases.responsibilities" | translate }}
+            </h2>
+            <button hlmBtn type="button" (click)="showActivityForm.set(false)">
+              {{ "cases.detail.addResponsibility" | translate }}
+            </button>
+          </div>
+          <div class="rounded-xl border border-border bg-card p-5 shadow-sm">
+            <form
+              [formGroup]="responsibilityForm"
+              (ngSubmit)="addResponsibility()"
+              class="space-y-4"
+            >
+              <div class="grid gap-4 md:grid-cols-2">
+                <div hlmField>
+                  <label hlmFieldLabel for="responsibilityUser">
+                    {{ "cases.responsible" | translate }}
+                  </label>
+                  <select
+                    hlmInput
+                    id="responsibilityUser"
+                    formControlName="userId"
+                    class="w-full"
+                  >
+                    <option value="">
+                      {{ "cases.responsible" | translate }}
+                    </option>
+                    @for (entry of users() | keyvalue; track entry.key) {
+                      <option [value]="entry.key">{{ entry.value }}</option>
+                    }
+                  </select>
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel for="responsibilityStartedAt">
+                    {{ "cases.detail.startedAt" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    id="responsibilityStartedAt"
+                    type="date"
+                    formControlName="startedAt"
+                  />
+                </div>
+              </div>
+              <label class="flex items-center gap-2">
+                <input type="checkbox" formControlName="isPrimary" />
+                <span>{{ "cases.primary" | translate }}</span>
+              </label>
+              <button hlmBtn type="submit">
+                {{ "cases.addResponsibility" | translate }}
+              </button>
+            </form>
+          </div>
+
+          @if (responsibilitiesLoading()) {
+            <div class="flex items-center gap-2 py-4">
+              <hlm-spinner
+                aria-label="{{ 'cases.responsibilities' | translate }}"
+              />
+              <span>{{ "cases.loading" | translate }}</span>
+            </div>
+          } @else if (responsibilities().length) {
+            <div class="space-y-4">
+              @for (
+                responsibility of responsibilities();
+                track responsibility.id
+              ) {
+                <div
+                  class="rounded-xl border border-border bg-card p-4 shadow-sm"
+                >
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <div>
+                      <p class="font-medium">
+                        {{ userName(responsibility.userId) }}
+                      </p>
+                      <p class="text-xs text-muted-foreground">
+                        {{ formatDate(responsibility.startedAt) }}
+                      </p>
+                    </div>
+                    <div class="flex flex-wrap items-center gap-2">
+                      @if (responsibility.isPrimary) {
+                        <span
+                          class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium"
+                        >
+                          {{ "cases.primary" | translate }}
+                        </span>
+                      }
+                      @if (
+                        !responsibility.endedAt && !responsibility.isPrimary
+                      ) {
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="outline"
+                          (click)="setPrimary(responsibility.id)"
+                        >
+                          {{ "cases.setPrimary" | translate }}
+                        </button>
+                        <button
+                          hlmBtn
+                          type="button"
+                          (click)="end(responsibility.id)"
+                        >
+                          {{ "cases.end" | translate }}
+                        </button>
+                      }
+                    </div>
+                  </div>
+                  @if (responsibility.endedAt) {
+                    <p class="mt-2 text-xs text-muted-foreground">
+                      {{ "cases.detail.endedAt" | translate }}:
+                      {{ formatDate(responsibility.endedAt) }}
+                    </p>
+                  }
+                </div>
+              }
+            </div>
+          } @else {
+            <div
+              class="rounded-xl border border-dashed border-border bg-card p-6 text-center text-muted-foreground"
+            >
+              {{ "cases.detail.noResponsibilities" | translate }}
+            </div>
+          }
+        </div>
+      </section>
+    </div>
   </div>
 }

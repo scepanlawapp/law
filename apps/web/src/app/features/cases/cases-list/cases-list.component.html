@@ -6,14 +6,14 @@
     </div>
   }
 
-  <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-    <div class="space-y-2">
+  <div class="flex flex-wrap items-center gap-4">
+    <div class="flex w-56 max-w-full flex-col gap-1">
       <label class="text-sm font-medium" for="case-search">
         {{ "cases.search" | translate }}
       </label>
       <input hlmInput id="case-search" [formControl]="search" />
     </div>
-    <div class="space-y-2">
+    <div class="flex w-56 max-w-full flex-col gap-1">
       <label class="text-sm font-medium" for="case-status-filter">
         {{ "cases.status" | translate }}
       </label>
@@ -32,7 +32,7 @@
         </hlm-select-content>
       </hlm-select>
     </div>
-    <div class="space-y-2">
+    <div class="flex w-56 max-w-full flex-col gap-1">
       <label class="text-sm font-medium" for="case-responsible-filter">
         {{ "cases.responsible" | translate }}
       </label>
@@ -57,7 +57,7 @@
         </hlm-select-content>
       </hlm-select>
     </div>
-    <div class="space-y-2">
+    <div class="flex w-56 max-w-full flex-col gap-1">
       <label class="text-sm font-medium" for="case-sort">
         {{ "cases.sort" | translate }}
       </label>
