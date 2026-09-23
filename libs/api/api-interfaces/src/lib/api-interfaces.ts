@@ -816,6 +816,8 @@ export interface FinanceOverview {
   readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
   reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
   sentStatementCount: number;
+  sentTotalsByCurrency?: Array<{ currency: string; amount: string }>;
+  externallyUnpaidByCurrency?: Array<{ currency: string; amount: string }>;
 }
 
 export interface BillingSuggestionReview {
@@ -894,11 +896,19 @@ export interface BillingStatement {
   client: FinancialClientReference;
   lines: BillingStatementLineSummary[];
   payments: ExternalPaymentRecord[];
+  total: string;
+  paid: string;
+  outstanding: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
 }
 
 export interface ClientAccount {
   entries: BillingEntrySummary[];
   statements: BillingStatement[];
+  readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
+  reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
+  sentByCurrency: Array<{ currency: string; amount: string }>;
+  externallyUnpaidByCurrency: Array<{ currency: string; amount: string }>;
 }
 
 export type FinancialClientReference = ClientReference;

@@ -1709,9 +1709,12 @@ export class FinancialsApiClient {
   }
 
   overview(): Observable<FinanceOverview> {
-    return this.http.get<FinanceOverview>(this.endpoint("/financials/overview"), {
-      withCredentials: true,
-    });
+    return this.http.get<FinanceOverview>(
+      this.endpoint("/financials/overview"),
+      {
+        withCredentials: true,
+      },
+    );
   }
 
   candidates(
@@ -1739,6 +1742,19 @@ export class FinancialsApiClient {
         `/financials/candidates/${encodeURIComponent(candidateKey)}/reopen`,
       ),
       {},
+      { withCredentials: true },
+    );
+  }
+
+  recordCandidate(
+    candidateKey: string,
+    billingEntryId: string,
+  ): Observable<BillingSuggestionReview> {
+    return this.http.post<BillingSuggestionReview>(
+      this.endpoint(
+        `/financials/candidates/${encodeURIComponent(candidateKey)}/record`,
+      ),
+      { billingEntryId },
       { withCredentials: true },
     );
   }
@@ -1784,12 +1800,16 @@ export class FinancialsApiClient {
     rawText: string;
     clientId?: string;
     caseId?: string;
+    sourceUrl?: string;
+    effectiveFrom?: string;
+    effectiveTo?: string;
+    publishedAt?: string;
   }): Observable<PriceSourceVersion & { priceSource: PriceSourceSummary }> {
-    return this.http.post<PriceSourceVersion & { priceSource: PriceSourceSummary }>(
-      this.endpoint("/financials/price-sources"),
-      body,
-      { withCredentials: true },
-    );
+    return this.http.post<
+      PriceSourceVersion & { priceSource: PriceSourceSummary }
+    >(this.endpoint("/financials/price-sources"), body, {
+      withCredentials: true,
+    });
   }
 
   appendPriceSourceVersion(
@@ -1803,10 +1823,20 @@ export class FinancialsApiClient {
     );
   }
 
+  priceSourceVersions(sourceId: string): Observable<PriceSourceVersion[]> {
+    return this.http.get<PriceSourceVersion[]>(
+      this.endpoint(`/financials/price-sources/${sourceId}/versions`),
+      { withCredentials: true },
+    );
+  }
+
   statements(): Observable<BillingStatement[]> {
-    return this.http.get<BillingStatement[]>(this.endpoint("/financials/statements"), {
-      withCredentials: true,
-    });
+    return this.http.get<BillingStatement[]>(
+      this.endpoint("/financials/statements"),
+      {
+        withCredentials: true,
+      },
+    );
   }
 
   createStatement(body: {

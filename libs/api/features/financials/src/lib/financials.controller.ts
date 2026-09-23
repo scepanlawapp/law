@@ -51,6 +51,14 @@ export class FinancialsController {
     return this.financials.reviewCandidate(candidateKey, "PENDING");
   }
 
+  @Post("candidates/:candidateKey/record")
+  recordCandidate(
+    @Param("candidateKey") candidateKey: string,
+    @Body("billingEntryId") billingEntryId: string,
+  ) {
+    return this.financials.recordCandidate(candidateKey, billingEntryId);
+  }
+
   @Get("entries")
   entries(@Query() query: BillingEntryListQueryDto) {
     return this.financials.listEntries(query);
@@ -95,6 +103,11 @@ export class FinancialsController {
     @Param("versionId") versionId: string,
   ) {
     return this.financials.priceSourceVersion(id, versionId);
+  }
+
+  @Get("price-sources/:id/versions")
+  priceSourceVersions(@Param("id") id: string) {
+    return this.financials.listPriceSourceVersions(id);
   }
 
   @Get("statements")

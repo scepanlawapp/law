@@ -171,6 +171,36 @@ export class FinancialsService {
     performedBy: true,
   } as const;
 
+  private statementResponse(statement: any) {
+    const total = statement.lines.reduce(
+      (sum: Prisma.Decimal, line: { amount: Prisma.Decimal }) =>
+        sum.plus(line.amount),
+      new Prisma.Decimal(0),
+    );
+    const paid = statement.payments
+      .filter((payment: { reversedAt: Date | null }) => !payment.reversedAt)
+      .reduce(
+        (sum: Prisma.Decimal, payment: { amount: Prisma.Decimal }) =>
+          sum.plus(payment.amount),
+        new Prisma.Decimal(0),
+      );
+    const outstanding = Prisma.Decimal.max(
+      new Prisma.Decimal(0),
+      total.minus(paid),
+    );
+    return {
+      ...statement,
+      total: total.toFixed(2),
+      paid: paid.toFixed(2),
+      outstanding: outstanding.toFixed(2),
+      paymentStatus: paid.isZero()
+        ? "UNPAID"
+        : paid.gte(total)
+          ? "PAID"
+          : "PARTIAL",
+    };
+  }
+
   async listEntries(
     query: BillingEntryListQueryDto,
   ): Promise<PaginatedResponse<BillingEntrySummary>> {
@@ -539,6 +569,39 @@ export class FinancialsService {
     });
   }
 
+  async recordCandidate(candidateKey: string, billingEntryId: string) {
+    this.assertFinanceUser();
+    const entry = await this.db.billingEntry.findFirst({
+      where: { id: billingEntryId, workspaceId: this.workspaceId },
+    });
+    if (!entry) throw new NotFoundException("Billing entry not found");
+    const source = candidateKey.split(":");
+    return this.db.billingSuggestionReview.upsert({
+      where: {
+        workspaceId_candidateKey: {
+          workspaceId: this.workspaceId,
+          candidateKey,
+        },
+      },
+      create: {
+        workspaceId: this.workspaceId,
+        candidateKey,
+        sourceType: source[0],
+        sourceId: source[1],
+        resolution: "RECORDED",
+        reviewedByUserId: this.context.userId,
+        reviewedAt: new Date(),
+        billingEntryId,
+      },
+      update: {
+        resolution: "RECORDED",
+        reviewedByUserId: this.context.userId,
+        reviewedAt: new Date(),
+        billingEntryId,
+      },
+    });
+  }
+
   async listPriceSources() {
     this.assertManager();
     return this.db.priceSource.findMany({
@@ -638,13 +701,26 @@ export class FinancialsService {
     return version;
   }
 
+  async listPriceSourceVersions(sourceId: string) {
+    this.assertManager();
+    const source = await this.db.priceSource.findFirst({
+      where: { id: sourceId, workspaceId: this.workspaceId },
+    });
+    if (!source) throw new NotFoundException("Price source not found");
+    return this.db.priceSourceVersion.findMany({
+      where: { workspaceId: this.workspaceId, priceSourceId: sourceId },
+      orderBy: { version: "desc" },
+    });
+  }
+
   async listStatements() {
     this.assertManager();
-    return this.db.billingStatement.findMany({
+    const statements = await this.db.billingStatement.findMany({
       where: { workspaceId: this.workspaceId },
       include: { client: true, lines: true, payments: true },
       orderBy: { createdAt: "desc" },
     });
+    return statements.map((statement) => this.statementResponse(statement));
   }
 
   private async nextStatementNumber(
@@ -758,7 +834,7 @@ export class FinancialsService {
             result: { statementId: statement.id },
           },
         });
-      return statement;
+      return this.statementResponse(statement);
     });
   }
 
@@ -769,7 +845,7 @@ export class FinancialsService {
       include: { client: true, lines: true, payments: true },
     });
     if (!statement) throw new NotFoundException("Statement not found");
-    return statement;
+    return this.statementResponse(statement);
   }
 
   async updateStatement(id: string, input: UpdateStatementDto) {
@@ -886,7 +962,7 @@ export class FinancialsService {
             result: { statementId: sent.id },
           },
         });
-      return sent;
+      return this.statementResponse(sent);
     });
   }
 
@@ -915,14 +991,18 @@ export class FinancialsService {
             updatedByUserId: this.context.userId,
           },
         });
-      return result;
+      const full = await tx.billingStatement.findUniqueOrThrow({
+        where: { id },
+        include: { client: true, lines: true, payments: true },
+      });
+      return this.statementResponse(full);
     });
   }
 
   async linkExternalInvoice(id: string, input: ExternalInvoiceDto) {
     this.assertManager();
     await this.getStatement(id);
-    return this.db.billingStatement.update({
+    const updated = await this.db.billingStatement.update({
       where: { id },
       data: {
         externalInvoiceNumber: input.invoiceNumber,
@@ -932,7 +1012,9 @@ export class FinancialsService {
         externalReference: input.reference,
         updatedByUserId: this.context.userId,
       },
+      include: { client: true, lines: true, payments: true },
     });
+    return this.statementResponse(updated);
   }
 
   async addPayment(id: string, input: CreatePaymentDto) {
@@ -959,12 +1041,15 @@ export class FinancialsService {
       throw new ConflictException("Payment currency mismatch");
     const paid = statement.payments
       .filter((payment) => !payment.reversedAt)
-      .reduce((sum, payment) => sum + Number(payment.amount), 0);
+      .reduce(
+        (sum, payment) => sum.plus(payment.amount),
+        new Prisma.Decimal(0),
+      );
     const total = statement.lines.reduce(
-      (sum, line) => sum + Number(line.amount),
-      0,
+      (sum, line) => sum.plus(line.amount),
+      new Prisma.Decimal(0),
     );
-    if (paid + input.amount > total)
+    if (paid.plus(new Prisma.Decimal(input.amount)).gt(total))
       throw new ConflictException("Payment would exceed statement total");
     return this.db.$transaction(async (tx) => {
       const payment = await tx.externalPaymentRecord.create({
@@ -1013,14 +1098,38 @@ export class FinancialsService {
         },
         _sum: { amount: true },
       }),
-      this.db.billingStatement.aggregate({
+      this.db.billingStatement.findMany({
         where: {
           workspaceId: this.workspaceId,
           status: BillingStatementStatus.SENT,
         },
-        _count: { id: true },
+        include: { lines: true, payments: true },
       }),
     ]);
+    const sentTotals = new Map<string, Prisma.Decimal>();
+    const externallyUnpaid = new Map<string, Prisma.Decimal>();
+    for (const statement of sent) {
+      const summary = this.statementResponse(statement);
+      const total = new Prisma.Decimal(summary.total);
+      sentTotals.set(
+        statement.currency,
+        (sentTotals.get(statement.currency) ?? new Prisma.Decimal(0)).plus(
+          total,
+        ),
+      );
+      if (statement.externalInvoiceNumber)
+        externallyUnpaid.set(
+          statement.currency,
+          (
+            externallyUnpaid.get(statement.currency) ?? new Prisma.Decimal(0)
+          ).plus(new Prisma.Decimal(summary.outstanding)),
+        );
+    }
+    const grouped = (values: Map<string, Prisma.Decimal>) =>
+      [...values].map(([currency, amount]) => ({
+        currency,
+        amount: amount.toFixed(2),
+      }));
     return {
       unresolvedCandidateCount: pending,
       readyUnbilledByCurrency: [
@@ -1029,7 +1138,9 @@ export class FinancialsService {
       reservedDraftByCurrency: [
         { currency: "RSD", amount: (reserved._sum.amount ?? 0).toString() },
       ],
-      sentStatementCount: sent._count.id,
+      sentStatementCount: sent.length,
+      sentTotalsByCurrency: grouped(sentTotals),
+      externallyUnpaidByCurrency: grouped(externallyUnpaid),
     };
   }
 
@@ -1050,9 +1161,57 @@ export class FinancialsService {
         take: 50,
       }),
     ]);
+    const ready = new Map<string, Prisma.Decimal>();
+    const reserved = new Map<string, Prisma.Decimal>();
+    for (const entry of entries) {
+      if (entry.disposition !== BillingDisposition.BILLABLE) continue;
+      const target =
+        entry.lifecycle === BillingEntryLifecycle.READY
+          ? ready
+          : entry.lifecycle === BillingEntryLifecycle.RESERVED
+            ? reserved
+            : null;
+      if (target)
+        target.set(
+          entry.currency,
+          (target.get(entry.currency) ?? new Prisma.Decimal(0)).plus(
+            entry.amount,
+          ),
+        );
+    }
+    const sent = new Map<string, Prisma.Decimal>();
+    const unpaid = new Map<string, Prisma.Decimal>();
+    const summaries = statements.map((statement) =>
+      this.statementResponse(statement),
+    );
+    for (const statement of summaries) {
+      if (statement.status !== BillingStatementStatus.SENT) continue;
+      sent.set(
+        statement.currency,
+        (sent.get(statement.currency) ?? new Prisma.Decimal(0)).plus(
+          new Prisma.Decimal(statement.total),
+        ),
+      );
+      if (statement.externalInvoiceNumber)
+        unpaid.set(
+          statement.currency,
+          (unpaid.get(statement.currency) ?? new Prisma.Decimal(0)).plus(
+            new Prisma.Decimal(statement.outstanding),
+          ),
+        );
+    }
+    const grouped = (values: Map<string, Prisma.Decimal>) =>
+      [...values].map(([currency, amount]) => ({
+        currency,
+        amount: amount.toFixed(2),
+      }));
     return {
       entries: entries.map((entry) => this.entrySummary(entry)),
-      statements,
+      statements: summaries,
+      readyUnbilledByCurrency: grouped(ready),
+      reservedDraftByCurrency: grouped(reserved),
+      sentByCurrency: grouped(sent),
+      externallyUnpaidByCurrency: grouped(unpaid),
     };
   }
 }
