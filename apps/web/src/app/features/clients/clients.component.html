@@ -90,7 +90,10 @@
               </td>
               <td hlmTd>{{ "clients.type." + client.type | translate }}</td>
               <td hlmTd>
-                {{ client.responsibleUser?.displayName || ("common.notProvided" | translate) }}
+                {{
+                  client.responsibleUser?.displayName ||
+                    ("common.notProvided" | translate)
+                }}
               </td>
               <td hlmTd>{{ client.email }}</td>
               <td hlmTd>{{ client.phone }}</td>
