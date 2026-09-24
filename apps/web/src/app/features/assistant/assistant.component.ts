@@ -19,6 +19,7 @@ import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideArrowUp,
   lucideBot,
+  lucideBriefcase,
   lucideCheckCircle2,
   lucideChevronDown,
   lucideChevronUp,
@@ -150,6 +151,7 @@ interface SessionGroup {
     provideIcons({
       lucideArrowUp,
       lucideBot,
+      lucideBriefcase,
       lucideCheckCircle2,
       lucideChevronDown,
       lucideChevronUp,
@@ -265,9 +267,21 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly draftText = signal("");
   protected readonly draftScript = signal<DocumentScript>("latin");
   protected readonly draftReviewNote = signal("");
-  protected readonly draftReviewExpanded = signal(false);
+  protected readonly rightRailExpanded = signal(false);
+  protected readonly railTab = signal<"draft" | "matter">("draft");
   protected readonly conversationSheetOpen = signal(false);
+  protected readonly matterAvailable = computed(() =>
+    Boolean(
+      this.latestBriefId() &&
+        this.workspaceId() &&
+        this.selectedSession(),
+    ),
+  );
+  protected readonly rightRailVisible = computed(() =>
+    Boolean(this.draft() || this.matterAvailable()),
+  );
   private loadedDraftId: string | null = null;
+  private loadedBriefId: string | null = null;
 
   constructor() {
     effect(() => {
@@ -333,7 +347,17 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   protected openDraftReview(): void {
-    if (this.draft()) this.draftReviewExpanded.set(true);
+    if (this.draft()) {
+      this.rightRailExpanded.set(true);
+      this.railTab.set("draft");
+    }
+  }
+
+  protected openMatterLink(): void {
+    if (this.matterAvailable()) {
+      this.rightRailExpanded.set(true);
+      this.railTab.set("matter");
+    }
   }
 
   protected toggleActivity(correlationId: string): void {
@@ -480,6 +504,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
 
+    const sessionChanged = this.selectedSessionId() !== sessionId;
+    if (sessionChanged) this.rightRailExpanded.set(false);
     this.selectedSessionId.set(sessionId);
     this.conversationSheetOpen.set(false);
     this.error.set("");
@@ -493,9 +519,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
           this.scheduleMessagesScroll();
-          const latestDraft = detail.drafts[detail.drafts.length - 1] ?? null;
-          this.applyDraft(latestDraft);
-          this.latestBriefId.set(this.briefIdFromDetail(detail));
+          this.applySessionDetail(detail, sessionChanged);
         },
         error: () => this.error.set("Unable to load this conversation."),
       });
@@ -512,15 +536,58 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   private applyDraft(draft: DraftResultResponse | null): void {
-    if (draft && draft.id !== this.loadedDraftId) {
-      this.draftReviewExpanded.set(true);
+    const id = draft?.id ?? null;
+    if (id && id !== this.loadedDraftId) {
+      this.rightRailExpanded.set(true);
+      this.railTab.set("draft");
     }
-    if (!draft) this.draftReviewExpanded.set(false);
-    this.loadedDraftId = draft?.id ?? null;
+    if (!id && !this.latestBriefId()) this.rightRailExpanded.set(false);
+    this.loadedDraftId = id;
     this.draft.set(draft);
     this.draftText.set(draft?.finalDocumentText ?? draft?.documentText ?? "");
     this.draftScript.set("latin");
     this.draftReviewNote.set("");
+  }
+
+  /**
+   * Applies the authoritative session content after select/resync. With
+   * `forceOpen` (a real session switch) the rail opens for whatever exists;
+   * otherwise only genuinely new brief/draft ids expand it so an SSE resync
+   * never overrides the user's collapse choice.
+   */
+  private applySessionDetail(
+    detail: ChatSessionDetail,
+    forceOpen: boolean,
+  ): void {
+    const latestDraft = detail.drafts[detail.drafts.length - 1] ?? null;
+    const draftId = latestDraft?.id ?? null;
+    const briefId = this.briefIdFromDetail(detail);
+    const draftChanged = draftId !== null && draftId !== this.loadedDraftId;
+    const briefChanged = briefId !== null && briefId !== this.loadedBriefId;
+
+    this.latestBriefId.set(briefId);
+    this.loadedBriefId = briefId;
+    this.loadedDraftId = draftId;
+    this.draft.set(latestDraft);
+    this.draftText.set(
+      latestDraft?.finalDocumentText ?? latestDraft?.documentText ?? "",
+    );
+    this.draftScript.set("latin");
+    this.draftReviewNote.set("");
+
+    if (forceOpen) {
+      if (latestDraft) this.railTab.set("draft");
+      else if (briefId) this.railTab.set("matter");
+      this.rightRailExpanded.set(Boolean(latestDraft || briefId));
+      return;
+    }
+    if (briefChanged) {
+      this.rightRailExpanded.set(true);
+      this.railTab.set("matter");
+    } else if (draftChanged) {
+      this.rightRailExpanded.set(true);
+      this.railTab.set("draft");
+    }
   }
 
   protected onDraftScriptChange(script: DocumentScript): void {
@@ -744,7 +811,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
                 this.messages.set([]);
                 this.draft.set(null);
                 this.loadedDraftId = null;
-                this.draftReviewExpanded.set(false);
+                this.loadedBriefId = null;
+                this.latestBriefId.set(null);
+                this.rightRailExpanded.set(false);
+                this.railTab.set("draft");
                 this.workflowState.set({});
                 this.source?.close();
                 this.source = null;
@@ -1035,8 +1105,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           if (this.selectedSessionId() !== sessionId) return;
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
-          this.applyDraft(detail.drafts[detail.drafts.length - 1] ?? null);
-          this.latestBriefId.set(this.briefIdFromDetail(detail));
+          this.applySessionDetail(detail, false);
           this.scheduleMessagesScroll();
         },
         error: () => undefined,
@@ -1070,7 +1139,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       event.job.status === "COMPLETED" &&
       event.job.briefResultId
     ) {
-      this.latestBriefId.set(event.job.briefResultId);
+      const briefId = event.job.briefResultId;
+      this.latestBriefId.set(briefId);
+      if (briefId !== this.loadedBriefId) {
+        this.loadedBriefId = briefId;
+        this.rightRailExpanded.set(true);
+        this.railTab.set("matter");
+      }
     }
     if (event.type === "session.title.updated") {
       this.upsertSessionTitle(event.sessionId, event.title ?? null);

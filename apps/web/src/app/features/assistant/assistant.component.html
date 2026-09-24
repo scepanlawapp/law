@@ -164,26 +164,36 @@
         </strong>
       </div>
 
-      @if (draft()) {
+      @if (draft() || matterAvailable()) {
         <button
           hlmBtn
           variant="outline"
           type="button"
           class="draft-mobile-toggle"
-          [attr.aria-expanded]="draftReviewExpanded()"
-          aria-controls="draft-review-content"
-          (click)="draftReviewExpanded.set(!draftReviewExpanded())"
+          [attr.aria-expanded]="rightRailExpanded()"
+          aria-controls="assistant-rail"
+          (click)="rightRailExpanded.set(!rightRailExpanded())"
         >
-          <ng-icon name="lucideFileText" aria-hidden="true" />
-          {{ "assistant.draftReview" | translate }}
+          <ng-icon
+            [name]="
+              railTab() === 'matter' ? 'lucideBriefcase' : 'lucideFileText'
+            "
+            aria-hidden="true"
+          />
+          {{
+            (railTab() === "matter"
+              ? "assistant.rail.matterTab"
+              : "assistant.draftReview"
+            ) | translate
+          }}
         </button>
       }
     </header>
 
     <div
       class="assistant-workspace"
-      [class.has-draft]="draft()"
-      [class.review-expanded]="draftReviewExpanded()"
+      [class.has-draft]="draft() || matterAvailable()"
+      [class.review-expanded]="rightRailExpanded()"
     >
       <section
         class="chat-panel"
@@ -353,17 +363,6 @@
                 <h2>{{ "assistant.emptyTitle" | translate }}</h2>
                 <p>{{ "assistant.description" | translate }}</p>
               </div>
-            }
-            @if (latestBriefId(); as briefId) {
-              @if (workspaceId(); as workspace) {
-                <app-assistant-matter-link
-                  class="matter-link"
-                  [workspaceId]="workspace"
-                  [session]="selectedSession()"
-                  [briefId]="briefId"
-                  (linked)="onSessionLinked($event)"
-                />
-              }
             }
             <ng-template #workflowActivityTemplate let-activity>
               <section
@@ -570,25 +569,83 @@
         </footer>
       </section>
 
-      @if (draft(); as draftItem) {
-        <law-draft-review-panel
-          class="review-pane"
-          [class.is-expanded]="draftReviewExpanded()"
-          [draft]="draftItem"
-          [text]="draftText()"
-          [script]="draftScript()"
-          [note]="draftReviewNote()"
-          [expanded]="draftReviewExpanded()"
-          (expandedChange)="draftReviewExpanded.set($event)"
-          (textChange)="draftText.set($event)"
-          (noteChange)="draftReviewNote.set($event)"
-          (scriptChange)="onDraftScriptChange($event)"
-          (exportDocx)="exportDraftDocx()"
-          (save)="updateDraft()"
-          (approve)="approveDraft()"
-          (requestChanges)="requestChangesDraft()"
-          (reject)="rejectDraft()"
-        />
+      @if (rightRailVisible()) {
+        <section
+          id="assistant-rail"
+          class="review-pane assistant-rail"
+          [class.is-expanded]="rightRailExpanded()"
+        >
+          @if (rightRailExpanded() && draft() && matterAvailable()) {
+            <div
+              class="assistant-rail-tabs"
+              role="tablist"
+              [attr.aria-label]="'assistant.rail.tabsLabel' | translate"
+            >
+              <button
+                type="button"
+                role="tab"
+                [class.selected]="railTab() === 'draft'"
+                [attr.aria-selected]="railTab() === 'draft'"
+                (click)="railTab.set('draft')"
+              >
+                {{ "assistant.rail.draftTab" | translate }}
+              </button>
+              <button
+                type="button"
+                role="tab"
+                [class.selected]="railTab() === 'matter'"
+                [attr.aria-selected]="railTab() === 'matter'"
+                (click)="railTab.set('matter')"
+              >
+                {{ "assistant.rail.matterTab" | translate }}
+              </button>
+            </div>
+          }
+
+          @if (draft(); as draftItem) {
+            <div
+              class="assistant-rail-pane"
+              [class.is-active]="railTab() === 'draft' || !matterAvailable()"
+            >
+              <law-draft-review-panel
+                [draft]="draftItem"
+                [text]="draftText()"
+                [script]="draftScript()"
+                [note]="draftReviewNote()"
+                [expanded]="rightRailExpanded()"
+                (expandedChange)="rightRailExpanded.set($event)"
+                (textChange)="draftText.set($event)"
+                (noteChange)="draftReviewNote.set($event)"
+                (scriptChange)="onDraftScriptChange($event)"
+                (exportDocx)="exportDraftDocx()"
+                (save)="updateDraft()"
+                (approve)="approveDraft()"
+                (requestChanges)="requestChangesDraft()"
+                (reject)="rejectDraft()"
+              />
+            </div>
+          }
+
+          @if (workspaceId(); as workspace) {
+            @if (selectedSession(); as session) {
+              @if (latestBriefId(); as briefId) {
+                <div
+                  class="assistant-rail-pane"
+                  [class.is-active]="railTab() === 'matter' || !draft()"
+                >
+                  <app-assistant-matter-link
+                    [workspaceId]="workspace"
+                    [session]="session"
+                    [briefId]="briefId"
+                    [expanded]="rightRailExpanded()"
+                    (expandedChange)="rightRailExpanded.set($event)"
+                    (linked)="onSessionLinked($event)"
+                  />
+                </div>
+              }
+            }
+          }
+        </section>
       }
     </div>
   </section>

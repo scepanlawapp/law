@@ -10,6 +10,12 @@ import {
 } from "@angular/core";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { RouterLink } from "@angular/router";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideBriefcase,
+  lucideChevronLeft,
+  lucideChevronRight,
+} from "@ng-icons/lucide";
 import {
   BriefApplyPreview,
   BriefTaskPreview,
@@ -19,6 +25,7 @@ import { ChatApiClient, CasesApiClient } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
@@ -28,169 +35,22 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    NgIcon,
     HlmButton,
     HlmInput,
     HlmSpinner,
+    HlmTooltipImports,
     TranslatePipe,
   ],
-  template: `
-    <section
-      class="border-border bg-card text-card-foreground rounded-lg border p-4 text-sm"
-    >
-      <div class="mb-3 flex items-center justify-between gap-3">
-        <h2 class="text-base font-medium">
-          {{ "assistant.matter.linkTitle" | translate }}
-        </h2>
-        @if (loading()) {
-          <hlm-spinner />
-        }
-      </div>
-      @if (session()?.case) {
-        <p>{{ session()!.case!.caseNumber }} — {{ session()!.case!.name }}</p>
-        <a
-          class="text-primary underline"
-          [routerLink]="['/cases', session()!.case!.id]"
-        >
-          {{ "assistant.matter.openCase" | translate }}
-        </a>
-      } @else {
-        <label class="mb-2 block" for="matter-case-search">
-          {{ "assistant.matter.searchCase" | translate }}
-        </label>
-        <input
-          hlmInput
-          id="matter-case-search"
-          [value]="search()"
-          (input)="onSearch($event)"
-        />
-        <ul class="mt-2 space-y-1">
-          @for (item of caseOptions(); track item.id) {
-            <li>
-              <button
-                hlmBtn
-                variant="outline"
-                type="button"
-                (click)="chooseCase(item.id)"
-              >
-                {{ item.caseNumber }} — {{ item.name }}
-              </button>
-            </li>
-          }
-        </ul>
-      }
-
-      @if (preview(); as card) {
-        <form
-          class="mt-4 space-y-3"
-          [formGroup]="form"
-          (ngSubmit)="confirmCase()"
-        >
-          <h3 class="font-medium">
-            {{ "assistant.matter.confirmCase" | translate }}
-          </h3>
-          @if (card.alreadyApplied && card.appliedCaseId) {
-            <a
-              class="text-primary underline"
-              [routerLink]="['/cases', card.appliedCaseId]"
-            >
-              {{ "assistant.matter.alreadyFiled" | translate }}
-            </a>
-          } @else {
-            <p>{{ card.plaintiffName }}</p>
-            @for (match of card.clientMatches; track match.id) {
-              <label class="flex gap-2">
-                <input
-                  type="radio"
-                  name="client-mode"
-                  [checked]="selectedClientId() === match.id"
-                  (change)="selectExisting(match.id)"
-                />
-                {{ match.displayName }} ({{ match.clientNumber }})
-              </label>
-            }
-            <label class="flex gap-2">
-              <input
-                type="radio"
-                name="client-mode"
-                [checked]="createClient()"
-                (change)="selectCreate()"
-              />
-              {{ "assistant.matter.createClient" | translate }}
-            </label>
-            @if (createClient()) {
-              <input
-                hlmInput
-                formControlName="firstName"
-                [placeholder]="'assistant.matter.firstName' | translate"
-              />
-              <input
-                hlmInput
-                formControlName="lastName"
-                [placeholder]="'assistant.matter.lastName' | translate"
-              />
-              @if (card.nameNeedsSplit) {
-                <p>{{ "assistant.matter.nameNeedsSplit" | translate }}</p>
-              }
-            }
-            <p>
-              {{ "assistant.matter.opposing" | translate }}:
-              {{ card.defendantName }}
-            </p>
-            <input hlmInput formControlName="caseNumber" />
-            <input hlmInput formControlName="name" />
-            <textarea
-              class="border-input bg-background w-full rounded-md border p-2"
-              formControlName="description"
-            ></textarea>
-            @if (card.missingFields.length) {
-              <p>
-                {{ "assistant.missingFields" | translate }}:
-                {{ card.missingFields.join(", ") }}
-              </p>
-            }
-            <button hlmBtn type="submit" [disabled]="saving()">
-              {{ "assistant.matter.confirmCase" | translate }}
-            </button>
-          }
-        </form>
-      }
-
-      @if (taskPreview(); as tasks) {
-        <form class="mt-4 space-y-2" (ngSubmit)="confirmTasks()">
-          <h3 class="font-medium">
-            {{ "assistant.matter.confirmTasks" | translate }}
-          </h3>
-          @for (task of tasks.proposals; track task.key) {
-            <label class="flex gap-2">
-              <input
-                type="checkbox"
-                [checked]="selectedTaskKeys().has(task.key)"
-                [disabled]="task.alreadyApplied"
-                (change)="toggleTask(task.key)"
-              />
-              <span>{{ task.title }}</span>
-            </label>
-          }
-          <button
-            hlmBtn
-            type="submit"
-            [disabled]="saving() || !selectedTaskKeys().size"
-          >
-            {{ "assistant.matter.confirmTasks" | translate }}
-          </button>
-          <a
-            class="text-primary ml-3 underline"
-            [routerLink]="['/cases', tasks.caseId]"
-          >
-            {{ "assistant.matter.openWork" | translate }}
-          </a>
-        </form>
-      }
-      @if (error()) {
-        <p class="text-destructive mt-2">{{ error() }}</p>
-      }
-    </section>
-  `,
+  templateUrl: "./matter-link.component.html",
+  styleUrl: "./matter-link.component.scss",
+  providers: [
+    provideIcons({
+      lucideBriefcase,
+      lucideChevronLeft,
+      lucideChevronRight,
+    }),
+  ],
 })
 export class AssistantMatterLinkComponent {
   private readonly chat = inject(ChatApiClient);
@@ -199,7 +59,9 @@ export class AssistantMatterLinkComponent {
   readonly workspaceId = input.required<string>();
   readonly session = input<ChatSessionSummary | null>(null);
   readonly briefId = input<string | null>(null);
+  readonly expanded = input(true);
   readonly linked = output<ChatSessionSummary>();
+  readonly expandedChange = output<boolean>();
 
   readonly loading = signal(false);
   readonly saving = signal(false);

@@ -2,8 +2,12 @@ import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { ActivatedRoute, Router, convertToParamMap } from "@angular/router";
 import { NEVER, of } from "rxjs";
-import { ChatApiClient } from "@law/api-clients";
-import { ChatMessageResponse, DraftResultResponse } from "@law/api-interfaces";
+import { ChatApiClient, CasesApiClient } from "@law/api-clients";
+import {
+  BriefApplyPreview,
+  ChatMessageResponse,
+  DraftResultResponse,
+} from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
@@ -28,6 +32,27 @@ const createDraft = (id: string): DraftResultResponse => ({
   createdAt: "2026-09-15T12:00:00.000Z",
 });
 
+const createBriefPreview = (briefId = "brief-1"): BriefApplyPreview => ({
+  briefId,
+  alreadyApplied: false,
+  appliedCaseId: null,
+  plaintiffName: "Petar Petrović",
+  plaintiffAddress: null,
+  nameNeedsSplit: true,
+  suggestedFirstName: "Petar",
+  suggestedLastName: "Petrović",
+  clientMatches: [],
+  defendantName: "ACME doo",
+  defendantAddress: null,
+  suggestedCaseName: "Petar Petrović vs. ACME",
+  suggestedDescription: "Opis",
+  suggestedCaseNumber: "P-1/2026",
+  responsibleUserId: "user-1",
+  missingFields: [],
+  warnings: [],
+  confidence: null,
+});
+
 describe("AssistantComponent review state", () => {
   const session = {
     id: "session-1",
@@ -46,6 +71,12 @@ describe("AssistantComponent review state", () => {
     retryJob: jest.fn(),
     workspaceEventsUrl: jest.fn(() => "http://localhost/api/chat/events"),
     updateMessageFeedback: jest.fn(),
+    previewBrief: jest.fn(() => NEVER),
+    linkSessionCase: jest.fn(() => NEVER),
+    applyBrief: jest.fn(() => NEVER),
+    previewBriefTasks: jest.fn(() => NEVER),
+    applyBriefTasks: jest.fn(() => NEVER),
+    downloadUrl: jest.fn(() => "http://localhost/api/chat/attachments"),
   };
   const toast = {
     error: jest.fn(),
@@ -70,6 +101,10 @@ describe("AssistantComponent review state", () => {
           },
         },
         { provide: ChatApiClient, useValue: chat },
+        {
+          provide: CasesApiClient,
+          useValue: { list: jest.fn(() => NEVER) },
+        },
         {
           provide: SpeechRecognitionService,
           useValue: {
@@ -108,15 +143,15 @@ describe("AssistantComponent review state", () => {
 
     chat.listDrafts.mockReturnValue(of([firstDraft]));
     component["loadDrafts"]("workspace-1", "session-1");
-    expect(component["draftReviewExpanded"]()).toBe(true);
+    expect(component["rightRailExpanded"]()).toBe(true);
 
-    component["draftReviewExpanded"].set(false);
+    component["rightRailExpanded"].set(false);
     component["loadDrafts"]("workspace-1", "session-1");
-    expect(component["draftReviewExpanded"]()).toBe(false);
+    expect(component["rightRailExpanded"]()).toBe(false);
 
     chat.listDrafts.mockReturnValue(of([createDraft("draft-2")]));
     component["loadDrafts"]("workspace-1", "session-1");
-    expect(component["draftReviewExpanded"]()).toBe(true);
+    expect(component["rightRailExpanded"]()).toBe(true);
   });
 
   it("clears review state when a conversation has no draft", () => {
@@ -129,7 +164,7 @@ describe("AssistantComponent review state", () => {
     component["loadDrafts"]("workspace-1", "session-2");
 
     expect(component["draft"]()).toBeNull();
-    expect(component["draftReviewExpanded"]()).toBe(false);
+    expect(component["rightRailExpanded"]()).toBe(false);
   });
 
   it("closes mobile conversation navigation when selecting a session", () => {
@@ -179,14 +214,14 @@ describe("AssistantComponent review state", () => {
     const fixture = TestBed.createComponent(AssistantComponent);
     const component = fixture.componentInstance;
     component["draft"].set(createDraft("draft-1"));
-    component["draftReviewExpanded"].set(true);
+    component["rightRailExpanded"].set(true);
     fixture.detectChanges();
 
     const toggle = fixture.nativeElement.querySelector(
       ".draft-mobile-toggle",
     ) as HTMLButtonElement;
     expect(toggle.getAttribute("aria-expanded")).toBe("true");
-    expect(toggle.getAttribute("aria-controls")).toBe("draft-review-content");
+    expect(toggle.getAttribute("aria-controls")).toBe("assistant-rail");
   });
 
   it("renders live workflow state without locking the composer", () => {
@@ -270,7 +305,7 @@ describe("AssistantComponent review state", () => {
 
     expect(component["messages"]()[0].content).toBe("Opšti odgovor.");
     expect(component["draft"]()?.id).toBe("draft-live");
-    expect(component["draftReviewExpanded"]()).toBe(true);
+    expect(component["rightRailExpanded"]()).toBe(true);
   });
 
   it("restores authoritative activity and drafts during reconnect", () => {
@@ -389,5 +424,129 @@ describe("AssistantComponent review state", () => {
       ".conversation-item-copy small",
     ) as HTMLElement;
     expect(activity.textContent).toContain("assistant.conversationWorking");
+  });
+
+  it("expands the rail on the matter tab when a brief becomes available", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    component["sessions"].set([session]);
+    component["selectedSessionId"].set(session.id);
+
+    component["handleEvent"]({
+      type: "job.updated",
+      workspaceId: "workspace-1",
+      sessionId: session.id,
+      correlationId: "corr-brief",
+      createdAt: "2026-09-15T12:00:00.000Z",
+      job: {
+        id: "job-brief",
+        workspaceId: "workspace-1",
+        sessionId: session.id,
+        workflowName: "brief-extraction",
+        status: "COMPLETED",
+        briefResultId: "brief-1",
+        correlationId: "corr-brief",
+        progressStage: "EXTRACTING_FACTS",
+        createdAt: "2026-09-15T12:00:00.000Z",
+        updatedAt: "2026-09-15T12:00:01.000Z",
+      },
+    });
+
+    expect(component["latestBriefId"]()).toBe("brief-1");
+    expect(component["rightRailExpanded"]()).toBe(true);
+    expect(component["railTab"]()).toBe("matter");
+  });
+
+  it("renders the matter link in the rail instead of the message stream", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    chat.previewBrief.mockReturnValue(of(createBriefPreview()));
+    component["sessions"].set([session]);
+    component["selectedSessionId"].set(session.id);
+    component["latestBriefId"].set("brief-1");
+    component["rightRailExpanded"].set(true);
+
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const matterPane = fixture.nativeElement.querySelector(
+      ".assistant-rail-pane.is-active app-assistant-matter-link",
+    ) as HTMLElement;
+    expect(matterPane).not.toBeNull();
+    expect(matterPane.textContent).toContain("assistant.matter.confirmCase");
+    expect(
+      fixture.nativeElement.querySelector(
+        ".message-stream app-assistant-matter-link",
+      ),
+    ).toBeNull();
+  });
+
+  it("shows rail tabs and switches panes when both a draft and a brief exist", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    chat.previewBrief.mockReturnValue(of(createBriefPreview()));
+    component["sessions"].set([session]);
+    component["selectedSessionId"].set(session.id);
+    component["draft"].set(createDraft("draft-1"));
+    component["rightRailExpanded"].set(true);
+    component["latestBriefId"].set("brief-1");
+    fixture.detectChanges();
+
+    const tabs = fixture.nativeElement.querySelector(
+      ".assistant-rail-tabs",
+    ) as HTMLElement;
+    expect(tabs).not.toBeNull();
+    expect(tabs.textContent).toContain("assistant.rail.draftTab");
+    expect(tabs.textContent).toContain("assistant.rail.matterTab");
+    expect(
+      fixture.nativeElement.querySelector(
+        ".assistant-rail-pane.is-active law-draft-review-panel",
+      ),
+    ).not.toBeNull();
+
+    const matterTab = Array.from(
+      fixture.nativeElement.querySelectorAll(".assistant-rail-tabs button"),
+    ).find((button) =>
+      (button as HTMLButtonElement).textContent?.includes(
+        "assistant.rail.matterTab",
+      ),
+    ) as HTMLButtonElement;
+    matterTab.click();
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector(
+        ".assistant-rail-pane.is-active app-assistant-matter-link",
+      ),
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(
+        ".assistant-rail-pane.is-active law-draft-review-panel",
+      ),
+    ).toBeNull();
+  });
+
+  it("opens the rail for existing content on select and keeps a user collapse across resync", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    component["sessions"].set([session]);
+    chat.getSession.mockReturnValue(
+      of({
+        ...session,
+        messages: [],
+        jobs: [],
+        drafts: [createDraft("draft-1")],
+        latestBriefId: "brief-1",
+      }),
+    );
+
+    component["selectSession"]("session-1");
+    expect(component["rightRailExpanded"]()).toBe(true);
+
+    component["rightRailExpanded"].set(false);
+    component["resyncSelectedSession"]();
+
+    expect(component["latestBriefId"]()).toBe("brief-1");
+    expect(component["rightRailExpanded"]()).toBe(false);
   });
 });
