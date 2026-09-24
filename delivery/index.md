@@ -23,6 +23,7 @@ Tracks are organized by implementation area and updated as work progresses.
 ## Active Tracks
 
 - [Financials Frontend](./tracks/financials_frontend_20260924/index.md)
+- [Assistant Matter Link Slideout](./tracks/assistant_matter_link_slideout_20260924/index.md)
 - [Financials Backend](./tracks/financials_backend_20260923/index.md)
 - [Work Item Side Panel](./tracks/work_item_side_panel_20260922/index.md)
 - [Project Name Consistency](./tracks/project_name_consistency_20260922/index.md)
