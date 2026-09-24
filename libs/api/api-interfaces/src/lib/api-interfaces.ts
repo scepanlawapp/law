@@ -792,3 +792,320 @@ export interface DocumentUpdateRequest {
   caseIds?: string[];
   clientIds?: string[];
 }
+
+export type BillingEntryKind = "TIME" | "FIXED_FEE" | "EXPENSE";
+export type BillingDisposition =
+  | "BILLABLE"
+  | "INCLUDED"
+  | "NO_CHARGE"
+  | "INTERNAL";
+export type BillingEntryLifecycle =
+  | "DRAFT"
+  | "READY"
+  | "RESERVED"
+  | "STATEMENT_SENT"
+  | "VOIDED";
+export type BillingStatementStatus = "DRAFT" | "SENT" | "VOIDED";
+export type PriceSourceScope =
+  | "CLIENT_AGREEMENT"
+  | "WORKSPACE_PUBLIC_REFERENCE"
+  | "CASE_OVERRIDE";
+
+export interface FinanceOverview {
+  unresolvedCandidateCount: number;
+  readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
+  reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
+  sentStatementCount: number;
+  sentTotalsByCurrency?: Array<{ currency: string; amount: string }>;
+  externallyUnpaidByCurrency?: Array<{ currency: string; amount: string }>;
+}
+
+export interface BillingSuggestionReview {
+  id?: string;
+  workspaceId: string;
+  candidateKey: string;
+  sourceType: string;
+  sourceId: string;
+  resolution: "PENDING" | "RECORDED" | "DISMISSED";
+  reviewedByUserId?: string | null;
+  reviewedAt?: string | null;
+  billingEntryId?: string | null;
+}
+
+export interface PriceSourceVersion {
+  id: string;
+  workspaceId: string;
+  priceSourceId: string;
+  version: number;
+  rawText: string;
+  effectiveFrom: string | null;
+  effectiveTo: string | null;
+  publishedAt: string | null;
+  createdByUserId: string;
+  createdAt: string;
+}
+
+export interface PriceSourceSummary {
+  id: string;
+  workspaceId: string;
+  scope: PriceSourceScope;
+  clientId: string | null;
+  caseId: string | null;
+  title: string;
+  sourceUrl: string | null;
+  documentId: string | null;
+  createdByUserId: string;
+  createdAt: string;
+  updatedAt: string;
+  versions: PriceSourceVersion[];
+}
+
+export interface ExternalPaymentRecord {
+  id: string;
+  workspaceId: string;
+  statementId: string;
+  amount: string;
+  currency: string;
+  paidDate: string;
+  externalReference: string | null;
+  reversedAt: string | null;
+  reversalReason: string | null;
+  recordedByUserId: string;
+  reversedByUserId: string | null;
+  createdAt: string;
+}
+
+export interface BillingStatement {
+  id: string;
+  workspaceId: string;
+  clientId: string;
+  statementNumber: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  status: BillingStatementStatus;
+  sharedAt: string | null;
+  sharedMethod: string | null;
+  externalInvoiceNumber: string | null;
+  externalInvoiceDate: string | null;
+  externalReference: string | null;
+  voidedAt: string | null;
+  voidReason: string | null;
+  createdAt: string;
+  updatedAt: string;
+  client: FinancialClientReference;
+  lines: BillingStatementLineSummary[];
+  payments: ExternalPaymentRecord[];
+  total: string;
+  paid: string;
+  outstanding: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
+}
+
+export interface ClientAccount {
+  entries: BillingEntrySummary[];
+  statements: BillingStatement[];
+  readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
+  reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
+  sentByCurrency: Array<{ currency: string; amount: string }>;
+  externallyUnpaidByCurrency: Array<{ currency: string; amount: string }>;
+}
+
+export type FinancialClientReference = ClientReference;
+
+export type FinancialCaseReference = CaseReference;
+
+export interface BillingEntrySummary {
+  id: string;
+  client: FinancialClientReference;
+  case: FinancialCaseReference | null;
+  performedBy: UserReference;
+  workDate: string;
+  kind: BillingEntryKind;
+  disposition: BillingDisposition;
+  lifecycle: BillingEntryLifecycle;
+  description: string;
+  clientDescription: string;
+  durationMinutes: number | null;
+  amount: string;
+  expenseCostAmount: string | null;
+  currency: string;
+  sourceType: string | null;
+  sourceId: string | null;
+}
+
+export interface BillingSuggestion {
+  candidateKey: string;
+  sourceType: string;
+  sourceId: string;
+  title: string;
+  date: string;
+  client: FinancialClientReference | null;
+  case: FinancialCaseReference | null;
+  proposedPerformer: UserReference | null;
+  resolution: "PENDING" | "RECORDED" | "DISMISSED";
+  reason: string;
+  warnings: string[];
+}
+
+export interface BillingStatementLineSummary {
+  id: string;
+  entryId: string;
+  lineOrder: number;
+  description: string;
+  serviceDate: string;
+  caseReference: string | null;
+  amount: string;
+  currency: string;
+  chargeLabel: BillingDisposition;
+}
+
+export interface BillingStatementSummary {
+  id: string;
+  statementNumber: string;
+  client: FinancialClientReference;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  status: BillingStatementStatus;
+  total: string;
+  paid: string;
+  outstanding: string;
+  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
+  lines: BillingStatementLineSummary[];
+}
+
+export interface BillingProposalLine {
+  entryId: string;
+  proposedDescription: string;
+  proposedAmount: string | null;
+  currency: string;
+  priceSourceVersionId: string | null;
+  excerpt: string | null;
+  calculation: string | null;
+  confidence: number | null;
+  questions: string[];
+}
+
+export interface BillingProposal {
+  clientId: string;
+  periodStart: string;
+  periodEnd: string;
+  selectedEntryIds: string[];
+  excludedEntryIdsAndReasons: Array<{ entryId: string; reason: string }>;
+  lines: BillingProposalLine[];
+  warnings: string[];
+  proposalRevision: number;
+}
+
+export type PriceEvidence = {
+  priceSourceId: string;
+  priceSourceVersionId: string;
+  passageId: string;
+  exactExcerpt: string;
+  title: string;
+  effectiveDate?: string;
+  applicabilityNote?: string;
+  calculation?: string;
+};
+
+export type EntryProposalRequest = {
+  clientId: string;
+  caseId?: string;
+  candidateKey?: string;
+  userInstruction: string;
+  currentDraft?: {
+    kind?: "TIME" | "FIXED_FEE" | "EXPENSE";
+    workDate?: string;
+    durationMinutes?: number;
+    description?: string;
+    clientDescription?: string;
+    disposition?: "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL";
+    expenseCostAmount?: string;
+    amount?: string;
+    currency?: string;
+  };
+  proposalId?: string;
+  revisionInstruction?: string;
+};
+
+export type EntryProposalResponse = {
+  proposalId: string;
+  revision: number;
+  inputFingerprint: string;
+  suggested: {
+    kind: "TIME" | "FIXED_FEE" | "EXPENSE" | null;
+    workDate: string | null;
+    serviceTitle: string | null;
+    internalDescription: string | null;
+    clientDescription: string | null;
+    actualDurationMinutes: number | null;
+    quantity: string | null;
+    expenseCostAmount: string | null;
+    disposition: "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL" | null;
+    amount: string | null;
+    currency: string | null;
+  };
+  amountBasis: "USER_STATED" | "PRICE_SOURCE" | "EXISTING_DRAFT" | "NONE";
+  priceEvidence: PriceEvidence[];
+  fieldEvidence: Array<{
+    field: string;
+    source: "USER_TEXT" | "SOURCE_RECORD" | "PRICE_PASSAGE" | "CURRENT_DRAFT";
+    reference: string;
+  }>;
+  needsReview: string[];
+  questions: string[];
+  warnings: string[];
+  confidence: number;
+};
+
+export type StatementProposalRequest = {
+  clientId: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  caseIds?: string[];
+  eligibleEntryIds?: string[];
+  draftStatementId?: string;
+  userInstruction: string;
+  currentLines?: Array<{
+    entryId: string;
+    description: string;
+    amount: string;
+  }>;
+  proposalId?: string;
+  revisionInstruction?: string;
+};
+
+export type StatementProposalResponse = {
+  proposalId: string;
+  revision: number;
+  inputFingerprint: string;
+  clientId: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  decisions: Array<{
+    entryId: string;
+    action: "INCLUDE" | "EXCLUDE" | "NEEDS_REVIEW";
+    reason: string;
+    clientDescription: string | null;
+    existingEntryAmount: string;
+    proposedChargeAmount: string | null;
+    amountBasis: "EXISTING_ENTRY" | "PRICE_SOURCE" | "USER_STATED" | "NONE";
+    adjustmentReason: string | null;
+    priceEvidence: PriceEvidence[];
+  }>;
+  missingWorkReminders: Array<{ candidateKey: string; reason: string }>;
+  questions: string[];
+  warnings: string[];
+};
+
+export interface FinanceProposalService {
+  propose(input: {
+    request: string;
+    clientId: string;
+    entryIds: string[];
+    priceSourceVersionIds: string[];
+  }): Promise<BillingProposal>;
+}

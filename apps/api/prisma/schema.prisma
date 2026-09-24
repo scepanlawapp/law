@@ -108,6 +108,51 @@ enum DraftApprovalStatus {
   CHANGES_REQUESTED
 }
 
+enum BillingEntryKind {
+  TIME
+  FIXED_FEE
+  EXPENSE
+}
+
+enum BillingDisposition {
+  BILLABLE
+  INCLUDED
+  NO_CHARGE
+  INTERNAL
+}
+
+enum BillingEntryLifecycle {
+  DRAFT
+  READY
+  RESERVED
+  STATEMENT_SENT
+  VOIDED
+}
+
+enum BillingSuggestionResolution {
+  PENDING
+  RECORDED
+  DISMISSED
+}
+
+enum PriceSourceScope {
+  CLIENT_AGREEMENT
+  WORKSPACE_PUBLIC_REFERENCE
+  CASE_OVERRIDE
+}
+
+enum BillingStatementStatus {
+  DRAFT
+  SENT
+  VOIDED
+}
+
+enum FinanceMutationOperation {
+  CREATE_STATEMENT
+  SEND_STATEMENT
+  CREATE_PAYMENT
+}
+
 enum ClientType {
   INDIVIDUAL
   ORGANIZATION
@@ -227,42 +272,54 @@ enum UploadOperationPurpose {
 }
 
 model User {
-  id                   String            @id @default(uuid())
-  email                String            @unique
-  passwordHash         String?
-  firstName            String?
-  lastName             String?
-  username             String?           @unique
-  phone                String?
-  jobTitle             String?
-  gender               UserGender?
-  avatarUrl            String?
-  status               UserStatus        @default(INVITED)
-  passwordChangedAt    DateTime?         @db.Timestamptz(3)
-  createdAt            DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt            DateTime          @updatedAt @db.Timestamptz(3)
-  memberships          WorkspaceMember[]
-  sessions             AuthSession[]
-  tokens               AuthToken[]
-  auditEvents          AuditEvent[]
-  organizedEvents      Event[]           @relation("EventOrganizer")
-  createdEvents        Event[]           @relation("EventCreator")
-  eventAssignees       EventAssignee[]
-  assignedTasks        Task[]            @relation("TaskAssignee")
-  createdTasks         Task[]            @relation("TaskCreator")
-  responsibleDeadlines Deadline[]        @relation("DeadlineResponsible")
-  createdDeadlines     Deadline[]        @relation("DeadlineCreator")
-  completedTasks       Task[]            @relation("TaskCompleter")
-  satisfiedDeadlines   Deadline[]        @relation("DeadlineSatisfier")
-  createdNotes         Note[]            @relation("NoteCreator")
-  activityLogs         ActivityLog[]     @relation("ActivityActor")
-  chatSessions         ChatSession[]     @relation("ChatSessionCreator")
-  createdDocuments     Document[]        @relation("DocumentCreator")
-  updatedDocuments     Document[]        @relation("DocumentUpdater")
-  archivedDocuments    Document[]        @relation("DocumentArchiver")
-  uploadedVersions     DocumentVersion[] @relation("DocumentVersionUploader")
-  uploadOperations     UploadOperation[] @relation("UploadOperationActor")
-  settings             UserSettings?
+  id                       String                    @id @default(uuid())
+  email                    String                    @unique
+  passwordHash             String?
+  firstName                String?
+  lastName                 String?
+  username                 String?                   @unique
+  phone                    String?
+  jobTitle                 String?
+  gender                   UserGender?
+  avatarUrl                String?
+  status                   UserStatus                @default(INVITED)
+  passwordChangedAt        DateTime?                 @db.Timestamptz(3)
+  createdAt                DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                  @updatedAt @db.Timestamptz(3)
+  memberships              WorkspaceMember[]
+  sessions                 AuthSession[]
+  tokens                   AuthToken[]
+  auditEvents              AuditEvent[]
+  organizedEvents          Event[]                   @relation("EventOrganizer")
+  createdEvents            Event[]                   @relation("EventCreator")
+  eventAssignees           EventAssignee[]
+  assignedTasks            Task[]                    @relation("TaskAssignee")
+  createdTasks             Task[]                    @relation("TaskCreator")
+  responsibleDeadlines     Deadline[]                @relation("DeadlineResponsible")
+  createdDeadlines         Deadline[]                @relation("DeadlineCreator")
+  completedTasks           Task[]                    @relation("TaskCompleter")
+  satisfiedDeadlines       Deadline[]                @relation("DeadlineSatisfier")
+  createdNotes             Note[]                    @relation("NoteCreator")
+  activityLogs             ActivityLog[]             @relation("ActivityActor")
+  chatSessions             ChatSession[]             @relation("ChatSessionCreator")
+  createdDocuments         Document[]                @relation("DocumentCreator")
+  updatedDocuments         Document[]                @relation("DocumentUpdater")
+  archivedDocuments        Document[]                @relation("DocumentArchiver")
+  uploadedVersions         DocumentVersion[]         @relation("DocumentVersionUploader")
+  uploadOperations         UploadOperation[]         @relation("UploadOperationActor")
+  settings                 UserSettings?
+  performedBillingEntries  BillingEntry[]            @relation("BillingEntryPerformer")
+  createdBillingEntries    BillingEntry[]            @relation("BillingEntryCreator")
+  updatedBillingEntries    BillingEntry[]            @relation("BillingEntryUpdater")
+  reviewedSuggestions      BillingSuggestionReview[] @relation("BillingSuggestionReviewer")
+  authoredPriceSources     PriceSource[]             @relation("PriceSourceAuthor")
+  authoredPriceVersions    PriceSourceVersion[]      @relation("PriceSourceVersionAuthor")
+  sharedBillingStatements  BillingStatement[]        @relation("BillingStatementSharer")
+  voidedBillingStatements  BillingStatement[]        @relation("BillingStatementVoider")
+  createdBillingStatements BillingStatement[]        @relation("BillingStatementCreator")
+  updatedBillingStatements BillingStatement[]        @relation("BillingStatementUpdater")
+  recordedPayments         ExternalPaymentRecord[]   @relation("PaymentRecorder")
+  reversedPayments         ExternalPaymentRecord[]   @relation("PaymentReverser")
 }
 
 model UserSettings {
@@ -280,10 +337,10 @@ model UserSettings {
 }
 
 model Workspace {
-  id                     String                  @id @default(uuid())
+  id                     String                    @id @default(uuid())
   name                   String
-  createdAt              DateTime                @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
+  createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                  @updatedAt @db.Timestamptz(3)
   memberships            WorkspaceMember[]
   auditEvents            AuditEvent[]
   chatSessions           ChatSession[]
@@ -319,6 +376,13 @@ model Workspace {
   storedFiles            StoredFile[]
   fileLocations          FileLocation[]
   uploadOperations       UploadOperation[]
+  billingEntries         BillingEntry[]
+  suggestionReviews      BillingSuggestionReview[]
+  priceSources           PriceSource[]
+  priceSourceVersions    PriceSourceVersion[]
+  billingStatements      BillingStatement[]
+  paymentRecords         ExternalPaymentRecord[]
+  financeMutations       FinanceMutationRequest[]
 }
 
 model WorkspaceConfig {
@@ -432,6 +496,9 @@ model Client {
   deadlines               Deadline[]
   clientNotes             Note[]
   activityLogs            ActivityLog[]
+  billingEntries          BillingEntry[]
+  priceSources            PriceSource[]
+  billingStatements       BillingStatement[]
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status, displayName])
@@ -557,6 +624,8 @@ model Case {
   chatSessions         ChatSession[]
   draftResults         DraftResult[]
   appliedBriefs        BriefExtractionResult[] @relation("BriefAppliedCase")
+  billingEntries       BillingEntry[]
+  priceSources         PriceSource[]
 
   @@unique([workspaceId, caseNumber])
   @@index([workspaceId, clientId, status, updatedAt])
@@ -772,6 +841,209 @@ model ActivityLog {
   @@index([workspaceId, caseId, occurredAt])
   @@index([workspaceId, clientId, occurredAt])
   @@index([workspaceId, entityType, entityId])
+}
+
+model BillingEntry {
+  id                    String                    @id @default(uuid())
+  workspaceId           String
+  clientId              String
+  caseId                String?
+  performedByUserId     String
+  workDate              DateTime                  @db.Date
+  kind                  BillingEntryKind
+  disposition           BillingDisposition        @default(BILLABLE)
+  lifecycle             BillingEntryLifecycle     @default(DRAFT)
+  description           String                    @db.Text
+  clientDescription     String                    @db.Text
+  durationMinutes       Int?
+  billedDurationMinutes Int?
+  quantity              Decimal?                  @db.Decimal(18, 4)
+  unit                  String?
+  amount                Decimal                   @db.Decimal(18, 2)
+  expenseCostAmount     Decimal?                  @db.Decimal(18, 2)
+  currency              String                    @default("RSD")
+  noChargeReason        String?
+  priceSourceVersionId  String?
+  priceSourceExcerpt    String?                   @db.Text
+  sourceType            String?
+  sourceId              String?
+  createdByUserId       String
+  updatedByUserId       String
+  createdAt             DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                  @updatedAt @db.Timestamptz(3)
+  workspace             Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client                Client                    @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case                  Case?                     @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  performedBy           User                      @relation("BillingEntryPerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
+  createdBy             User                      @relation("BillingEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy             User                      @relation("BillingEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  priceSourceVersion    PriceSourceVersion?       @relation(fields: [priceSourceVersionId], references: [id], onDelete: Restrict)
+  statementLines        BillingStatementLine[]
+  suggestionReviews     BillingSuggestionReview[]
+
+  @@index([workspaceId, clientId, workDate, lifecycle])
+  @@index([workspaceId, caseId, workDate])
+  @@index([workspaceId, performedByUserId, workDate])
+  @@index([workspaceId, disposition, lifecycle])
+  @@index([sourceType, sourceId])
+}
+
+model BillingSuggestionReview {
+  id                  String                      @id @default(uuid())
+  workspaceId         String
+  candidateKey        String
+  sourceType          String
+  sourceId            String
+  proposedPerformerId String?
+  resolution          BillingSuggestionResolution @default(PENDING)
+  reviewedByUserId    String?
+  reviewedAt          DateTime?                   @db.Timestamptz(3)
+  billingEntryId      String?
+  createdAt           DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                    @updatedAt @db.Timestamptz(3)
+  workspace           Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  reviewedBy          User?                       @relation("BillingSuggestionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
+  billingEntry        BillingEntry?               @relation(fields: [billingEntryId], references: [id], onDelete: SetNull)
+
+  @@unique([workspaceId, candidateKey])
+  @@index([workspaceId, resolution, updatedAt])
+  @@index([workspaceId, sourceType, sourceId])
+}
+
+model PriceSource {
+  id              String               @id @default(uuid())
+  workspaceId     String
+  scope           PriceSourceScope
+  clientId        String?
+  caseId          String?
+  title           String
+  sourceUrl       String?
+  documentId      String?
+  createdByUserId String
+  createdAt       DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(3)
+  workspace       Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client          Client?              @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case            Case?                @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  createdBy       User                 @relation("PriceSourceAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  versions        PriceSourceVersion[]
+
+  @@index([workspaceId, scope, clientId, caseId])
+  @@index([workspaceId, updatedAt])
+}
+
+model PriceSourceVersion {
+  id              String         @id @default(uuid())
+  workspaceId     String
+  priceSourceId   String
+  version         Int
+  rawText         String         @db.Text
+  effectiveFrom   DateTime?      @db.Date
+  effectiveTo     DateTime?      @db.Date
+  publishedAt     DateTime?      @db.Date
+  createdByUserId String
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  workspace       Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  priceSource     PriceSource    @relation(fields: [priceSourceId], references: [id], onDelete: Restrict)
+  createdBy       User           @relation("PriceSourceVersionAuthor", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  billingEntries  BillingEntry[]
+
+  @@unique([priceSourceId, version])
+  @@index([workspaceId, priceSourceId, createdAt])
+}
+
+model BillingStatement {
+  id                    String                  @id @default(uuid())
+  workspaceId           String
+  clientId              String
+  statementNumber       String
+  periodStart           DateTime                @db.Date
+  periodEnd             DateTime                @db.Date
+  currency              String
+  status                BillingStatementStatus  @default(DRAFT)
+  sharedAt              DateTime?               @db.Timestamptz(3)
+  sharedMethod          String?
+  externalInvoiceNumber String?
+  externalInvoiceDate   DateTime?               @db.Date
+  externalReference     String?
+  voidedAt              DateTime?               @db.Timestamptz(3)
+  voidReason            String?
+  sharedByUserId        String?
+  voidedByUserId        String?
+  replacementForId      String?
+  createdByUserId       String
+  updatedByUserId       String
+  createdAt             DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                @updatedAt @db.Timestamptz(3)
+  workspace             Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client                Client                  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  sharedBy              User?                   @relation("BillingStatementSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
+  voidedBy              User?                   @relation("BillingStatementVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  createdBy             User                    @relation("BillingStatementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy             User                    @relation("BillingStatementUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  replacementFor        BillingStatement?       @relation("StatementReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
+  replacement           BillingStatement[]      @relation("StatementReplacement")
+  lines                 BillingStatementLine[]
+  payments              ExternalPaymentRecord[]
+
+  @@unique([workspaceId, statementNumber])
+  @@index([workspaceId, clientId, status, periodEnd])
+  @@index([workspaceId, status, periodEnd])
+}
+
+model BillingStatementLine {
+  id              String             @id @default(uuid())
+  statementId     String
+  billingEntryId  String
+  lineOrder       Int
+  description     String             @db.Text
+  serviceDate     DateTime           @db.Date
+  caseReference   String?
+  quantity        Decimal?           @db.Decimal(18, 4)
+  durationMinutes Int?
+  amount          Decimal            @db.Decimal(18, 2)
+  currency        String
+  chargeLabel     BillingDisposition
+  statement       BillingStatement   @relation(fields: [statementId], references: [id], onDelete: Restrict)
+  billingEntry    BillingEntry       @relation(fields: [billingEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([statementId, lineOrder])
+  @@index([billingEntryId])
+}
+
+model ExternalPaymentRecord {
+  id                String           @id @default(uuid())
+  workspaceId       String
+  statementId       String
+  amount            Decimal          @db.Decimal(18, 2)
+  currency          String
+  paidDate          DateTime         @db.Date
+  externalReference String?
+  reversedAt        DateTime?        @db.Timestamptz(3)
+  reversalReason    String?
+  recordedByUserId  String
+  reversedByUserId  String?
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  workspace         Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  statement         BillingStatement @relation(fields: [statementId], references: [id], onDelete: Restrict)
+  recordedBy        User             @relation("PaymentRecorder", fields: [recordedByUserId], references: [id], onDelete: Restrict)
+  reversedBy        User?            @relation("PaymentReverser", fields: [reversedByUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, statementId, paidDate])
+}
+
+model FinanceMutationRequest {
+  id             String                   @id @default(uuid())
+  workspaceId    String
+  operation      FinanceMutationOperation
+  idempotencyKey String
+  resultEntityId String
+  result         Json
+  createdAt      DateTime                 @default(now()) @db.Timestamptz(3)
+  workspace      Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, operation, idempotencyKey])
+  @@index([workspaceId, createdAt])
 }
 
 model CaseResponsibility {

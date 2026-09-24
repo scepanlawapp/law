@@ -1,0 +1,164 @@
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>{{ "finance.recordWorkTitle" | translate }}</h2>
+  <p hlmDialogDescription>
+    {{ "finance.needsAttentionDescription" | translate }}
+  </p>
+</hlm-dialog-header>
+<form
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  class="flex min-h-0 flex-1 flex-col gap-4 text-sm"
+  novalidate
+>
+  <div class="min-h-0 flex-1 overflow-y-auto space-y-4">
+    @if (candidate) {
+      <div class="rounded-lg bg-muted p-3 text-muted-foreground">
+        <strong class="text-foreground">{{ candidate.title }}</strong>
+        <p>{{ candidate.reason }}</p>
+        @for (warning of candidate.warnings; track warning) {
+          <p>{{ warning }}</p>
+        }
+      </div>
+    }
+    <label class="block space-y-1">
+      <span>{{ "finance.proposalInstruction" | translate }}</span>
+      <textarea
+        hlmTextarea
+        rows="3"
+        formControlName="userInstruction"
+        placeholder="{{ 'finance.proposalInstructionPlaceholder' | translate }}"
+      ></textarea>
+    </label>
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        hlmBtn
+        variant="outline"
+        type="button"
+        [disabled]="suggesting()"
+        (click)="suggest()"
+      >
+        @if (suggesting()) {
+          <hlm-spinner />
+        }
+        {{ "finance.suggestDetails" | translate }}
+      </button>
+      @if (proposal()) {
+        <button hlmBtn type="button" (click)="applySuggestion()">
+          {{ "finance.applySuggestion" | translate }}
+        </button>
+      }
+    </div>
+    @if (proposal(); as result) {
+      <div class="space-y-2 rounded-lg border border-border bg-muted p-3">
+        <p class="font-semibold">{{ "finance.proposalReview" | translate }}</p>
+        @for (question of result.questions; track question) {
+          <p>{{ question }}</p>
+        }
+        @for (warning of result.warnings; track warning) {
+          <p>{{ warning }}</p>
+        }
+        @if (result.suggested.amount === null) {
+          <p>{{ "finance.proposalAmountMissing" | translate }}</p>
+        }
+      </div>
+    }
+    <div class="grid gap-4 md:grid-cols-2">
+      <label class="space-y-1">
+        <span>{{ "finance.workType" | translate }}</span>
+        <select hlmInput formControlName="kind">
+          <option value="TIME">{{ "finance.time" | translate }}</option>
+          <option value="FIXED_FEE">
+            {{ "finance.fixedFee" | translate }}
+          </option>
+          <option value="EXPENSE">{{ "finance.expense" | translate }}</option>
+        </select>
+      </label>
+      <label class="space-y-1">
+        <span>{{ "finance.workDate" | translate }}</span>
+        <input hlmInput type="date" formControlName="workDate" />
+      </label>
+      <label class="space-y-1">
+        <span>{{ "finance.client" | translate }}</span>
+        <select hlmInput formControlName="clientId">
+          <option value="">{{ "finance.selectClient" | translate }}</option>
+          @for (client of clients(); track client.id) {
+            <option [value]="client.id">{{ client.displayName }}</option>
+          }
+        </select>
+      </label>
+      <label class="space-y-1">
+        <span>{{ "finance.case" | translate }}</span>
+        <select hlmInput formControlName="caseId">
+          <option value="">{{ "finance.noCase" | translate }}</option>
+          @for (caseItem of cases(); track caseItem.id) {
+            <option [value]="caseItem.id">
+              {{ caseItem.caseNumber }} · {{ caseItem.name }}
+            </option>
+          }
+        </select>
+      </label>
+      <label class="space-y-1 md:col-span-2">
+        <span>{{ "finance.internalDescription" | translate }}</span>
+        <input hlmInput formControlName="description" />
+      </label>
+      <label class="space-y-1 md:col-span-2">
+        <span>{{ "finance.clientDescription" | translate }}</span>
+        <input hlmInput formControlName="clientDescription" />
+      </label>
+      <label class="space-y-1">
+        <span>{{ "finance.duration" | translate }}</span>
+        <input
+          hlmInput
+          type="number"
+          min="1"
+          formControlName="durationMinutes"
+        />
+      </label>
+      <label class="space-y-1">
+        <span>{{ "finance.amount" | translate }}</span>
+        <input hlmInput inputmode="decimal" formControlName="amount" />
+      </label>
+      <label class="space-y-1">
+        <span>{{ "finance.currency" | translate }}</span>
+        <input hlmInput formControlName="currency" />
+      </label>
+      <label class="space-y-1">
+        <span>{{ "finance.disposition" | translate }}</span>
+        <select hlmInput formControlName="disposition">
+          <option value="BILLABLE">{{ "finance.billable" | translate }}</option>
+          <option value="INCLUDED">{{ "finance.included" | translate }}</option>
+          <option value="NO_CHARGE">
+            {{ "finance.noCharge" | translate }}
+          </option>
+          <option value="INTERNAL">{{ "finance.internal" | translate }}</option>
+        </select>
+      </label>
+      <label class="space-y-1 md:col-span-2">
+        <span>{{ "finance.zeroChargeReason" | translate }}</span>
+        <input hlmInput formControlName="noChargeReason" />
+      </label>
+    </div>
+    @if (error()) {
+      <p role="alert" class="rounded-lg border border-destructive p-3">
+        {{ error() }}
+      </p>
+    }
+  </div>
+  <hlm-dialog-footer class="flex justify-end gap-2">
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      [disabled]="saving()"
+      (click)="dialogRef.close()"
+    >
+      {{ "common.cancel" | translate }}
+    </button>
+    <button hlmBtn type="submit" [disabled]="saving()">
+      @if (saving()) {
+        <hlm-spinner />
+      }
+      {{ "finance.saveWork" | translate }}
+    </button>
+  </hlm-dialog-footer>
+</form>
