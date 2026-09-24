@@ -639,7 +639,9 @@
                     <dd>
                       {{
                         document.cases.length
-                          ? document.cases[0].caseNumber + " — " + document.cases[0].name
+                          ? document.cases[0].caseNumber +
+                            " — " +
+                            document.cases[0].name
                           : ("documents.needsLinking" | translate)
                       }}
                     </dd>

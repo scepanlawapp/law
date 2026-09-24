@@ -21,7 +21,11 @@ import { ClientDetailComponent } from "./features/clients/client-detail.componen
 import { CaseFormComponent } from "./features/cases/case-form.component";
 import { CaseDetailComponent } from "./features/cases/case-detail.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
-import { FinanceComponent } from "./features/finance/finance.component";
+import { FinanceOverviewComponent } from "./features/finance-overview/finance-overview.component";
+import { FinanceClientBalancesComponent } from "./features/finance-client-balances/finance-client-balances.component";
+import { FinanceClientStatementComponent } from "./features/finance-client-statement/finance-client-statement.component";
+import { FinancePriceSourcesComponent } from "./features/finance-price-sources/finance-price-sources.component";
+import { FinanceWorkReviewComponent } from "./features/finance-work-review/finance-work-review.component";
 import { ReportsComponent } from "./features/reports/reports.component";
 import { WorkViewComponent } from "./features/work-management/work-view/work-view.component";
 import { TasksDeadlinesRedirectComponent } from "./features/work-management/tasks-deadlines-redirect.component";
@@ -59,7 +63,17 @@ export const appRoutes: Route[] = [
       { path: "documents", component: DocumentsComponent },
       { path: "calendar", component: CalendarComponent },
       { path: "notifications", component: NotificationsComponent },
-      { path: "finance", component: FinanceComponent },
+      {
+        path: "finance",
+        children: [
+          { path: "", pathMatch: "full", redirectTo: "overview" },
+          { path: "overview", component: FinanceOverviewComponent },
+          { path: "client-balances", component: FinanceClientBalancesComponent },
+          { path: "client-statement", component: FinanceClientStatementComponent },
+          { path: "price-sources", component: FinancePriceSourcesComponent },
+          { path: "work-review", component: FinanceWorkReviewComponent },
+        ],
+      },
       { path: "reports", component: ReportsComponent },
       { path: "work/:mode", component: WorkViewComponent },
       {

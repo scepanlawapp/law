@@ -177,6 +177,12 @@
       ],
       "@spartan-ng/helm/progress": [
         "./libs/shared/frontend/ui/progress/src/index.ts"
+      ],
+      "@spartan-ng/helm/sidebar": [
+        "./libs/shared/frontend/ui/sidebar/src/index.ts"
+      ],
+      "@spartan-ng/helm/skeleton": [
+        "./libs/shared/frontend/ui/skeleton/src/index.ts"
       ]
     }
   },

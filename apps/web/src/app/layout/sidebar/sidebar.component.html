@@ -1,145 +1,120 @@
-<aside
-  class="flex h-full flex-col border-r border-sidebar-border bg-sidebar text-sidebar-foreground"
->
-  <header class="flex items-center gap-2 px-4 py-5">
-    <a
-      class="flex items-center gap-2"
-      routerLink="/dashboard"
-      [attr.aria-label]="'brand.legalAi' | translate"
-    >
+<hlm-sidebar collapsible="icon">
+  <hlm-sidebar-header>
+    <div class="flex justify-between items-center">
       <div>
-        <img
-          src="/logo.png"
-          [attr.alt]="'brand.legalAi' | translate"
-          class="w-[100px]"
-        />
+        <a
+          class="flex items-center gap-2 px-2 py-1"
+          routerLink="/dashboard"
+          [attr.aria-label]="'brand.legalAi' | translate"
+        >
+          <img
+            src="/logo.png"
+            [attr.alt]="'brand.legalAi' | translate"
+            class="w-[100px] group-data-[collapsible=icon]:hidden"
+          />
+          <ng-icon
+            name="lucideScale"
+            class="hidden group-data-[collapsible=icon]:block"
+          />
+        </a>
       </div>
-    </a>
-  </header>
-  <nav
-    class="flex flex-col gap-1 px-3"
-    [attr.aria-label]="'nav.mainNavigation' | translate"
-  >
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/dashboard"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideHome" />
-      <span>{{ "nav.dashboard" | translate }}</span>
-    </a>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/assistant"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideBot" aria-hidden="true" />
-      <span>{{ "nav.aiAssistant" | translate }}</span>
-    </a>
-  </nav>
+      <button
+        hlmSidebarTrigger
+        type="button"
+        [srOnlyText]="'nav.toggleSidebar' | translate"
+      ></button>
+    </div>
+  </hlm-sidebar-header>
 
-  <section
-    class="flex flex-col gap-1 px-3"
-    [attr.aria-label]="'nav.workspace' | translate"
-  >
-    <p
-      class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
-    >
-      {{ "nav.workspace" | translate }}
-    </p>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/clients"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideUsers" />
-      <span>{{ "nav.clients" | translate }}</span>
-    </a>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/cases"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideFolder" />
-      <span>{{ "nav.cases" | translate }}</span>
-    </a>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/documents"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideFileText" />
-      <span>{{ "nav.documents" | translate }}</span>
-    </a>
-  </section>
+  <hlm-sidebar-content>
+    <div hlmSidebarGroup>
+      <div hlmSidebarGroupContent>
+        <ul hlmSidebarMenu [attr.aria-label]="'nav.mainNavigation' | translate">
+          @for (item of mainNavigation; track item.route) {
+            <li hlmSidebarMenuItem>
+              <a
+                hlmSidebarMenuButton
+                [routerLink]="item.route"
+                routerLinkActive
+                #mainActive="routerLinkActive"
+                [isActive]="mainActive.isActive"
+                [tooltip]="item.label | translate"
+              >
+                <ng-icon [name]="item.icon" aria-hidden="true" />
+                <span>{{ item.label | translate }}</span>
+              </a>
+            </li>
+          }
+        </ul>
+      </div>
+    </div>
 
-  <section
-    class="flex flex-col gap-1 px-3"
-    [attr.aria-label]="'nav.work' | translate"
-  >
-    <p
-      class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
-    >
-      {{ "nav.work" | translate }}
-    </p>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/work/team"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideSquareCheck" />
-      <span>{{ "nav.teamWork" | translate }}</span>
-    </a>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/work/my"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideUserCheck" />
-      <span>{{ "nav.myWork" | translate }}</span>
-    </a>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/calendar"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideCalendar" />
-      <span>{{ "nav.calendar" | translate }}</span>
-    </a>
-  </section>
+    @for (group of navigationGroups; track group.label) {
+      <div hlmSidebarGroup [attr.aria-label]="group.label | translate">
+        <div hlmSidebarGroupLabel>{{ group.label | translate }}</div>
+        <div hlmSidebarGroupContent>
+          <ul hlmSidebarMenu>
+            @for (item of group.items; track item.route) {
+              <li hlmSidebarMenuItem>
+                @if (item.children; as children) {
+                  <hlm-collapsible>
+                    <button
+                      hlmSidebarMenuButton
+                      hlmCollapsibleTrigger
+                      type="button"
+                      [tooltip]="item.label | translate"
+                    >
+                      <ng-icon [name]="item.icon" aria-hidden="true" />
+                      <span>{{ item.label | translate }}</span>
+                      <ng-icon
+                        name="lucideChevronRight"
+                        aria-hidden="true"
+                        class="ms-auto transition-transform group-data-[state=open]/collapsible:rotate-90"
+                      />
+                    </button>
+                    <div hlmCollapsibleContent>
+                      <ul hlmSidebarMenuSub>
+                        @for (child of children; track child.route) {
+                          <li hlmSidebarMenuSubItem>
+                            <a
+                              hlmSidebarMenuSubButton
+                              [routerLink]="child.route"
+                              routerLinkActive
+                              #financeChildActive="routerLinkActive"
+                              [isActive]="financeChildActive.isActive"
+                            >
+                              <ng-icon [name]="child.icon" aria-hidden="true" />
+                              <span>{{ child.label | translate }}</span>
+                            </a>
+                          </li>
+                        }
+                      </ul>
+                    </div>
+                  </hlm-collapsible>
+                } @else {
+                  <a
+                    hlmSidebarMenuButton
+                    [routerLink]="item.route"
+                    routerLinkActive
+                    #groupActive="routerLinkActive"
+                    [isActive]="groupActive.isActive"
+                    [tooltip]="item.label | translate"
+                  >
+                    <ng-icon [name]="item.icon" aria-hidden="true" />
+                    <span>{{ item.label | translate }}</span>
+                  </a>
+                }
+              </li>
+            }
+          </ul>
+        </div>
+      </div>
+    }
+  </hlm-sidebar-content>
 
-  <section
-    class="flex flex-col gap-1 px-3"
-    [attr.aria-label]="'nav.business' | translate"
-  >
-    <p
-      class="px-3 pt-4 pb-2 text-xs font-semibold tracking-wide text-sidebar-foreground/60 uppercase"
-    >
-      {{ "nav.business" | translate }}
-    </p>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/finance"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideLandmark" />
-      <span>{{ "nav.finance" | translate }}</span>
-    </a>
-    <a
-      class="flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium hover:bg-sidebar-accent"
-      routerLink="/reports"
-      routerLinkActive="premium-primary"
-    >
-      <ng-icon name="lucideChartBar" />
-      <span>{{ "nav.reports" | translate }}</span>
-    </a>
-  </section>
-
-  <footer
-    class="mt-auto flex items-center gap-3 border-t border-sidebar-border bg-sidebar px-4 py-3 text-sidebar-foreground"
-  >
+  <hlm-sidebar-footer>
     @if (session()?.user; as user) {
       <law-user-menu [user]="user" (logoutRequested)="logout()" />
     }
-  </footer>
-</aside>
+  </hlm-sidebar-footer>
+</hlm-sidebar>
