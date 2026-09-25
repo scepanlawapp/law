@@ -1,0 +1,214 @@
+<section
+  class="matter-link-panel"
+  [class.is-collapsed]="!expanded()"
+  aria-labelledby="matter-link-title"
+>
+  <header class="matter-link-header">
+    <div class="matter-link-heading">
+      <span class="matter-link-heading-icon" aria-hidden="true">
+        <ng-icon name="lucideBriefcase" />
+      </span>
+      <div>
+        <strong id="matter-link-title">
+          {{ "assistant.matter.linkTitle" | translate }}
+        </strong>
+        <span
+          class="matter-link-status"
+          [attr.data-status]="session()?.case ? 'linked' : 'pending'"
+        >
+          {{
+            (session()?.case
+              ? "assistant.matter.linked"
+              : "assistant.matter.unlinked"
+            ) | translate
+          }}
+        </span>
+      </div>
+    </div>
+    <button
+      hlmBtn
+      variant="ghost"
+      size="icon"
+      type="button"
+      [hlmTooltip]="
+        (expanded()
+          ? 'assistant.matter.collapse'
+          : 'assistant.matter.expand'
+        ) | translate
+      "
+      [attr.aria-label]="
+        (expanded()
+          ? 'assistant.matter.collapse'
+          : 'assistant.matter.expand'
+        ) | translate
+      "
+      [attr.aria-expanded]="expanded()"
+      aria-controls="matter-link-content"
+      (click)="expandedChange.emit(!expanded())"
+    >
+      <ng-icon
+        [name]="expanded() ? 'lucideChevronRight' : 'lucideChevronLeft'"
+      />
+    </button>
+  </header>
+
+  @if (expanded()) {
+  <div id="matter-link-content" class="matter-link-content">
+    @if (loading()) {
+    <div class="matter-link-loading">
+      <hlm-spinner />
+    </div>
+    }
+
+    @if (session()?.case) {
+    <div class="matter-link-linked">
+      <p>{{ session()!.case!.caseNumber }} — {{ session()!.case!.name }}</p>
+      <a
+        class="matter-link-open"
+        [routerLink]="['/cases', session()!.case!.id]"
+      >
+        {{ "assistant.matter.openCase" | translate }}
+      </a>
+    </div>
+    } @else {
+    <div class="matter-link-search">
+      <label class="matter-link-field" for="matter-case-search">
+        {{ "assistant.matter.searchCase" | translate }}
+      </label>
+      <input
+        hlmInput
+        id="matter-case-search"
+        [value]="search()"
+        (input)="onSearch($event)"
+      />
+      <ul class="matter-link-options">
+        @for (item of caseOptions(); track item.id) {
+        <li>
+          <button
+            hlmBtn
+            variant="outline"
+            type="button"
+            (click)="chooseCase(item.id)"
+          >
+            {{ item.caseNumber }} — {{ item.name }}
+          </button>
+        </li>
+        }
+      </ul>
+    </div>
+    }
+
+    @if (preview(); as card) {
+    <form
+      class="matter-link-section"
+      [formGroup]="form"
+      (ngSubmit)="confirmCase()"
+    >
+      <h3 class="matter-link-section-title">
+        {{ "assistant.matter.confirmCase" | translate }}
+      </h3>
+      @if (card.alreadyApplied && card.appliedCaseId) {
+      <a
+        class="matter-link-open"
+        [routerLink]="['/cases', card.appliedCaseId]"
+      >
+        {{ "assistant.matter.alreadyFiled" | translate }}
+      </a>
+      } @else {
+      <p>{{ card.plaintiffName }}</p>
+      @for (match of card.clientMatches; track match.id) {
+      <label class="flex gap-2">
+        <input
+          type="radio"
+          name="client-mode"
+          [checked]="selectedClientId() === match.id"
+          (change)="selectExisting(match.id)"
+        />
+        {{ match.displayName }} ({{ match.clientNumber }})
+      </label>
+      }
+      <label class="flex gap-2">
+        <input
+          type="radio"
+          name="client-mode"
+          [checked]="createClient()"
+          (change)="selectCreate()"
+        />
+        {{ "assistant.matter.createClient" | translate }}
+      </label>
+      @if (createClient()) {
+      <input
+        hlmInput
+        formControlName="firstName"
+        [placeholder]="'assistant.matter.firstName' | translate"
+      />
+      <input
+        hlmInput
+        formControlName="lastName"
+        [placeholder]="'assistant.matter.lastName' | translate"
+      />
+      @if (card.nameNeedsSplit) {
+      <p>{{ "assistant.matter.nameNeedsSplit" | translate }}</p>
+      }
+      }
+      <p>
+        {{ "assistant.matter.opposing" | translate }}:
+        {{ card.defendantName }}
+      </p>
+      <input hlmInput formControlName="caseNumber" />
+      <input hlmInput formControlName="name" />
+      <textarea
+        class="matter-link-textarea"
+        formControlName="description"
+      ></textarea>
+      @if (card.missingFields.length) {
+      <p>
+        {{ "assistant.missingFields" | translate }}:
+        {{ card.missingFields.join(", ") }}
+      </p>
+      }
+      <button hlmBtn type="submit" [disabled]="saving()">
+        {{ "assistant.matter.confirmCase" | translate }}
+      </button>
+      }
+    </form>
+    }
+
+    @if (taskPreview(); as tasks) {
+    <form
+      class="matter-link-section"
+      (ngSubmit)="confirmTasks()"
+    >
+      <h3 class="matter-link-section-title">
+        {{ "assistant.matter.confirmTasks" | translate }}
+      </h3>
+      @for (task of tasks.proposals; track task.key) {
+      <label class="flex gap-2">
+        <input
+          type="checkbox"
+          [checked]="selectedTaskKeys().has(task.key)"
+          [disabled]="task.alreadyApplied"
+          (change)="toggleTask(task.key)"
+        />
+        <span>{{ task.title }}</span>
+      </label>
+      }
+      <button
+        hlmBtn
+        type="submit"
+        [disabled]="saving() || !selectedTaskKeys().size"
+      >
+        {{ "assistant.matter.confirmTasks" | translate }}
+      </button>
+      <a class="matter-link-open" [routerLink]="['/cases', tasks.caseId]">
+        {{ "assistant.matter.openWork" | translate }}
+      </a>
+    </form>
+    }
+
+    @if (error()) {
+    <p class="matter-link-error">{{ error() }}</p>
+    }
+  </div>
+  }
+</section>

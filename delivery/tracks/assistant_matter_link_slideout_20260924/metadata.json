@@ -1,0 +1,18 @@
+{
+  "track_id": "assistant_matter_link_slideout_20260924",
+  "parent_track_id": "assistant_matter_link_ui_20260921",
+  "type": "feature",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-24T00:00:00Z",
+  "updated_at": "2026-09-24T18:20:00Z",
+  "priority": "high",
+  "keywords": [
+    "assistant",
+    "matter-link",
+    "slideout",
+    "right-rail",
+    "draft-review",
+    "tabs"
+  ]
+}

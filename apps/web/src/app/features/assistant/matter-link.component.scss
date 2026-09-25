@@ -1,0 +1,230 @@
+:host {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+}
+
+.matter-link-panel {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  min-width: 0;
+  height: 100%;
+  overflow: hidden;
+  color: var(--card-foreground);
+  background: var(--card);
+  border-left: 1px solid var(--border);
+}
+
+.matter-link-header,
+.matter-link-heading,
+.matter-link-heading > div,
+.matter-link-open {
+  display: flex;
+  align-items: center;
+}
+
+.matter-link-header {
+  justify-content: space-between;
+  gap: 0.75rem;
+  min-height: 4.5rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.matter-link-heading {
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.matter-link-heading-icon {
+  display: grid;
+  flex: 0 0 auto;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: var(--primary);
+  background: var(--accent);
+  border-radius: 0.375rem;
+}
+
+.matter-link-heading > div {
+  min-width: 0;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.matter-link-heading strong {
+  overflow: hidden;
+  font-size: 0.9375rem;
+  line-height: 1.25rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matter-link-status {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 0.125rem 0.5rem;
+  overflow: hidden;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  line-height: 1.125rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.matter-link-status[data-status="linked"] {
+  color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, var(--card));
+}
+
+.matter-link-content {
+  min-height: 0;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.matter-link-loading {
+  display: flex;
+  justify-content: center;
+  padding: 0.5rem 0 1rem;
+}
+
+.matter-link-linked {
+  display: grid;
+  gap: 0.375rem;
+  padding: 0.75rem;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+}
+
+.matter-link-linked p {
+  margin: 0;
+  font-size: 0.8125rem;
+  line-height: 1.4;
+}
+
+.matter-link-open {
+  gap: 0.25rem;
+  color: var(--primary);
+  font-size: 0.8125rem;
+  text-decoration: underline;
+  text-underline-offset: 0.125rem;
+}
+
+.matter-link-field {
+  display: block;
+  margin: 0 0 0.375rem;
+  color: var(--foreground);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.matter-link-options {
+  display: grid;
+  gap: 0.375rem;
+  margin: 0.625rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.matter-link-section {
+  display: grid;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.matter-link-section-title {
+  margin: 0;
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.matter-link-textarea {
+  width: 100%;
+  min-height: 6rem;
+  padding: 0.5rem;
+  resize: vertical;
+  background: var(--background);
+  border: 1px solid var(--input);
+  border-radius: 0.375rem;
+}
+
+.matter-link-error {
+  margin-top: 0.75rem;
+  color: var(--destructive);
+  font-size: 0.8125rem;
+}
+
+.matter-link-panel.is-collapsed {
+  grid-template-rows: 1fr;
+}
+
+.is-collapsed .matter-link-header {
+  height: 100%;
+  min-height: 0;
+  padding: 0.75rem 0.5rem;
+  flex-direction: column;
+  justify-content: flex-start;
+  border-bottom: 0;
+}
+
+.is-collapsed .matter-link-heading {
+  flex-direction: column;
+}
+
+.is-collapsed .matter-link-heading > div {
+  align-items: center;
+}
+
+.is-collapsed .matter-link-heading strong,
+.is-collapsed .matter-link-status {
+  writing-mode: vertical-rl;
+}
+
+.is-collapsed .matter-link-status {
+  max-height: 11rem;
+  padding: 0.5rem 0.125rem;
+}
+
+@media (max-width: 48rem) {
+  .matter-link-panel,
+  .matter-link-panel.is-collapsed {
+    border-left: 0;
+  }
+
+  .is-collapsed .matter-link-header,
+  .is-collapsed .matter-link-heading,
+  .is-collapsed .matter-link-heading > div {
+    flex-direction: row;
+  }
+
+  .is-collapsed .matter-link-header {
+    height: auto;
+    min-height: 3.5rem;
+    padding: 0.625rem 0.75rem;
+    justify-content: space-between;
+    border-top: 1px solid var(--border);
+  }
+
+  .is-collapsed .matter-link-heading strong,
+  .is-collapsed .matter-link-status {
+    writing-mode: horizontal-tb;
+  }
+
+  .is-collapsed .matter-link-status {
+    max-height: none;
+    padding: 0.125rem 0.5rem;
+  }
+
+  .matter-link-content {
+    padding-right: 0.75rem;
+    padding-left: 0.75rem;
+  }
+}
