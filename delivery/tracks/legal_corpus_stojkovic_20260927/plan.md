@@ -6,7 +6,7 @@
 - [x] Update the knowledge README and business-logic record.
 - [x] Verify: `nx test knowledge` passes; `legal:ingest -- --all --dry-run` parses all 33 entries (about 9,550 chunks, ZOO largest at 2,264).
 - [x] Run real ingestion (`npm run legal:ingest -- --all`): 32 new laws INDEXED, Zakon o radu SKIPPED; database holds 33 indexed sources and 9,294 chunks; a second run SKIPPED all 33.
-- [ ] Manual check: assistant cites the new laws (e.g. a trademark or company-law question).
+- [x] Manual check (2026-09-27): the assistant answered the Serbian test questions with citations from the new laws.
 
 ## Status convention
 
