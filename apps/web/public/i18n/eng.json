@@ -683,8 +683,6 @@
   "assistant.workflow.toolActive.list_conversation_drafts": "Checking drafts…",
   "assistant.workflow.agent.brief-extraction": "Brief extraction agent",
   "assistant.workflow.agent.drafting": "Drafting agent",
-  "assistant.workflow.agent.evaluation": "Evaluation agent",
-  "assistant.workflow.agent.review": "Review agent",
   "assistant.workflow.completed": "Request completed",
   "assistant.workflow.answerReady": "Answer completed",
   "assistant.workflow.draftReady": "Draft prepared",

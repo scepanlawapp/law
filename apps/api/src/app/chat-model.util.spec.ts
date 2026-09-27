@@ -1,4 +1,4 @@
-import { FakeChatModelProvider, OpenRouterChatModelProvider } from "@law/llm";
+import { FakeChatModelProvider } from "@law/llm";
 import { MastraChatModelProvider } from "@law/mastra";
 import { ChatRuntimeConfig, resolveChatModelProvider } from "@law/chat";
 
@@ -12,28 +12,18 @@ function config(overrides: Partial<ChatRuntimeConfig>): ChatRuntimeConfig {
 describe("resolveChatModelProvider", () => {
   it("prefers an injected provider", () => {
     const injected = new FakeChatModelProvider({});
-    expect(
-      resolveChatModelProvider(config({ llmBackend: "mastra" }), injected),
-    ).toBe(injected);
+    expect(resolveChatModelProvider(config({}), injected)).toBe(injected);
   });
 
-  it("uses the legacy OpenRouter client by default", () => {
-    expect(
-      resolveChatModelProvider(config({ llmBackend: "legacy" })),
-    ).toBeInstanceOf(OpenRouterChatModelProvider);
+  it("uses the Mastra model layer", () => {
+    expect(resolveChatModelProvider(config({}))).toBeInstanceOf(
+      MastraChatModelProvider,
+    );
   });
 
-  it("uses the Mastra model layer when LLM_BACKEND=mastra", () => {
-    expect(
-      resolveChatModelProvider(config({ llmBackend: "mastra" })),
-    ).toBeInstanceOf(MastraChatModelProvider);
-  });
-
-  it("requires an OpenRouter API key for either backend", () => {
+  it("requires an OpenRouter API key", () => {
     expect(() =>
-      resolveChatModelProvider(
-        config({ llmBackend: "mastra", openRouterApiKey: "" }),
-      ),
+      resolveChatModelProvider(config({ openRouterApiKey: "" })),
     ).toThrow("OPENROUTER_API_KEY");
   });
 });

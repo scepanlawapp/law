@@ -566,11 +566,9 @@ function workflowPrismaMock() {
   };
 }
 
-describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
+describe("WorkflowRunner routing to the agent", () => {
   function mastraConfig(): ChatRuntimeConfig {
-    return Object.assign(new ChatRuntimeConfig(), {
-      assistantEngine: "mastra",
-    });
+    return new ChatRuntimeConfig();
   }
 
   it("gives Portir the conversation and routes a legal question to agent-turn", async () => {
@@ -597,11 +595,9 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
     const runner = new WorkflowRunner(
       prisma as never,
       new ChatEventBus(),
-      { save: jest.fn(), read: jest.fn() } as never,
       mastraConfig(),
       provider,
       { enqueue },
-      undefined,
       contextBuilder as never,
       { run: jest.fn() } as never,
     );
@@ -651,7 +647,6 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
     const runner = new WorkflowRunner(
       prisma as never,
       new ChatEventBus(),
-      { save: jest.fn(), read: jest.fn() } as never,
       mastraConfig(),
       new RecordingProvider({
         decision: "LEGAL",
@@ -660,7 +655,6 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
         language: "sr",
       }),
       { enqueue },
-      undefined,
       contextBuilderMock() as never,
       { run: jest.fn() } as never,
     );
@@ -699,11 +693,9 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
     const runner = new WorkflowRunner(
       prisma as never,
       new ChatEventBus(),
-      { save: jest.fn(), read: jest.fn() } as never,
       mastraConfig(),
       undefined,
       { enqueue: jest.fn() },
-      undefined,
       contextBuilderMock() as never,
       agentTurn as never,
     );
@@ -721,46 +713,5 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
       startedAt: expect.any(Date),
       finishedAt: expect.any(Date),
     });
-  });
-
-  it("keeps legacy answering when the engine is legacy", async () => {
-    const prisma = workflowPrismaMock();
-    prisma.jobs.set("job-triage", {
-      id: "job-triage",
-      workspaceId: "workspace-1",
-      sessionId: "session-1",
-      workflowName: "triage",
-      status: "QUEUED",
-      correlationId: "corr-1",
-      createdAt: now,
-      updatedAt: now,
-      input: { actorId: "user-1", content: "Pitanje", attachments: [] },
-    });
-    const contextBuilder = contextBuilderMock();
-    const enqueue = jest.fn().mockResolvedValue(undefined);
-    const runner = new WorkflowRunner(
-      prisma as never,
-      new ChatEventBus(),
-      { save: jest.fn(), read: jest.fn() } as never,
-      new ChatRuntimeConfig(),
-      new RecordingProvider({
-        decision: "LEGAL",
-        reason: "Pitanje",
-        intent: "ANSWER",
-      }),
-      { enqueue },
-      undefined,
-      contextBuilder as never,
-      { run: jest.fn() } as never,
-    );
-
-    await runner.run("triage", { ...payload, jobId: "job-triage" });
-
-    expect(contextBuilder.triageHistory).not.toHaveBeenCalled();
-    expect(enqueue).toHaveBeenCalledWith(
-      "answering",
-      expect.any(String),
-      expect.any(Object),
-    );
   });
 });

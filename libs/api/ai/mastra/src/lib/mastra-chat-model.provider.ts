@@ -12,9 +12,9 @@ type ConversationMessage =
   | { role: "assistant"; content: string };
 
 /**
- * Transitional adapter: runs the existing `ChatModelProvider` callers
- * (triage, brief extraction, drafting, answering, titles) on Mastra's model
- * layer without changing their prompts or schemas.
+ * `ChatModelProvider` on Mastra's model layer, for the structured calls made
+ * outside the agent loop: Portir triage, titles, the drafting workflows'
+ * steps, and conversation summaries.
  */
 export class MastraChatModelProvider implements ChatModelProvider {
   private readonly agent: Agent;

@@ -41,8 +41,8 @@ Each phase below 0 gets its own child track and branch (`parent_track_id: "assis
 - [ ] Optionally add long-term user preferences (working memory). Deferred: this needs a product and privacy decision, plus a UI for viewing and deleting stored preferences.
 
 ## Phase 7 — Cleanup
-- [ ] Remove the legacy `WorkflowRunner` paths, the triage router role, the OpenRouter fetch adapter and the unused stubs.
-- [ ] Update `.github/bussiness-logic-done-so-far.md`, the "Chat jobs" section of AGENTS.md, and `AI_ARCHITECTURE.md`.
+- [x] Remove the legacy `WorkflowRunner` paths, the triage router role, the OpenRouter fetch adapter and the unused stubs.
+- [x] Update `.github/bussiness-logic-done-so-far.md`, the "Chat jobs" section of AGENTS.md, and `AI_ARCHITECTURE.md`.
 
 ## Verification (phase 0)
 - The track files exist, `metadata.json` parses as JSON, and `delivery/index.md` links to `index.md`.

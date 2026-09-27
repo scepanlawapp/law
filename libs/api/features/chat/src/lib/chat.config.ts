@@ -1,10 +1,5 @@
 import { Injectable } from "@nestjs/common";
 
-/** `legacy`: hand-rolled OpenRouter client; `mastra`: Mastra model layer (same prompts/schemas). */
-export type LlmBackend = "legacy" | "mastra";
-/** `legacy`: answering workflow; `mastra`: multi-turn legalAssistant agent (`agent-turn` job). */
-export type AssistantEngine = "legacy" | "mastra";
-
 export const CHAT_ALLOWED_MIME_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -24,10 +19,6 @@ export class ChatRuntimeConfig {
     process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
   readonly openRouterModel =
     process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini";
-  readonly llmBackend: LlmBackend =
-    process.env.LLM_BACKEND === "mastra" ? "mastra" : "legacy";
-  readonly assistantEngine: AssistantEngine =
-    process.env.ASSISTANT_ENGINE === "mastra" ? "mastra" : "legacy";
   /** Model for the legalAssistant agent; defaults to OPENROUTER_MODEL. */
   readonly assistantModel =
     process.env.ASSISTANT_MODEL?.trim() || this.openRouterModel;

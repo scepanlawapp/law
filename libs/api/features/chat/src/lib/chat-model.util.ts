@@ -1,9 +1,12 @@
 import { BadRequestException } from "@nestjs/common";
-import { ChatModelProvider, OpenRouterChatModelProvider } from "@law/llm";
+import { ChatModelProvider } from "@law/llm";
 import { MastraChatModelProvider, openRouterModel } from "@law/mastra";
 import { ChatRuntimeConfig } from "./chat.config";
 
-/** Shared by ChatService (title generation) and WorkflowProcessor (triage/brief/drafting). */
+/**
+ * Structured/streamed model calls outside the agent (Portir triage, titles,
+ * drafting workflows, conversation summaries) run on Mastra's model layer.
+ */
 export function resolveChatModelProvider(
   config: ChatRuntimeConfig,
   injected?: ChatModelProvider,
@@ -11,15 +14,14 @@ export function resolveChatModelProvider(
   if (injected) return injected;
   if (!config.openRouterApiKey) {
     throw new BadRequestException(
-      "OPENROUTER_API_KEY is not configured for Portir",
+      "OPENROUTER_API_KEY is not configured for the assistant",
     );
   }
-  const options = {
-    apiKey: config.openRouterApiKey,
-    baseUrl: config.openRouterBaseUrl,
-    model: config.openRouterModel,
-  };
-  return config.llmBackend === "mastra"
-    ? new MastraChatModelProvider(openRouterModel(options))
-    : new OpenRouterChatModelProvider(options);
+  return new MastraChatModelProvider(
+    openRouterModel({
+      apiKey: config.openRouterApiKey,
+      baseUrl: config.openRouterBaseUrl,
+      model: config.openRouterModel,
+    }),
+  );
 }

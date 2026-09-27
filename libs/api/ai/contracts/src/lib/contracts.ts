@@ -4,9 +4,7 @@ export type WorkflowName =
   | "agent-turn"
   | "agent-resume"
   | "brief-extraction"
-  | "drafting"
-  | "evaluation"
-  | "review";
+  | "drafting";
 
 export type WorkflowStatus = "queued" | "running" | "completed" | "failed";
 

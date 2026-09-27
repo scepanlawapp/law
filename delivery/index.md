@@ -29,6 +29,7 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Mastra Drafting Workflow](./tracks/mastra_drafting_workflow_20260927/index.md)
 - [Mastra Confirmations](./tracks/mastra_confirmations_20260927/index.md)
 - [Mastra Conversation Summary](./tracks/mastra_conversation_summary_20260927/index.md)
+- [Mastra Legacy Cleanup](./tracks/mastra_legacy_cleanup_20260927/index.md)
 - [Financials Frontend](./tracks/financials_frontend_20260924/index.md)
 - [Assistant Matter Link Slideout](./tracks/assistant_matter_link_slideout_20260924/index.md)
 - [Financials Backend](./tracks/financials_backend_20260923/index.md)

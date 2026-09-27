@@ -132,9 +132,10 @@ export function assistantReplyFor(decision: TriageDecisionResult): string {
 
 export interface PortirGraphResult {
   decision: TriageDecisionResult;
+  /** Reply shown when the request is not accepted. */
   assistantContent: string;
-  queueBriefExtraction: boolean;
-  queueAnswer: boolean;
+  /** Legal requests go to the assistant agent; the intent is only a hint. */
+  accepted: boolean;
 }
 
 export async function runPortirGraph(
@@ -145,8 +146,6 @@ export async function runPortirGraph(
   return {
     decision,
     assistantContent: assistantReplyFor(decision),
-    queueBriefExtraction:
-      decision.decision === "LEGAL" && decision.intent === "DRAFT",
-    queueAnswer: decision.decision === "LEGAL" && decision.intent === "ANSWER",
+    accepted: decision.decision === "LEGAL",
   };
 }

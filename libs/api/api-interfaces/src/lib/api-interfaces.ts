@@ -146,9 +146,7 @@ export type ChatWorkflowName =
   | "agent-turn"
   | "agent-resume"
   | "brief-extraction"
-  | "drafting"
-  | "evaluation"
-  | "review";
+  | "drafting";
 export type WorkflowJobStatus =
   | "QUEUED"
   | "RUNNING"

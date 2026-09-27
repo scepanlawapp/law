@@ -17,7 +17,7 @@ Treat [.github/bussiness-logic-done-so-far.md](.github/bussiness-logic-done-so-f
 - **API:** NestJS, Prisma, PostgreSQL (`law_platform`, local image `pgvector/pgvector:pg17`)
 - **Jobs:** Redis + BullMQ queue `workflow` (processors run inside the API process)
 - **Shared contracts:** `@law/api-interfaces`
-- **LLM (current):** OpenRouter via `ChatModelProvider`. Ollama and n8n remain adapter stubs. Legal-source embeddings use PostgreSQL `pgvector` through the `@law/knowledge` boundary.
+- **LLM (current):** OpenRouter via the Mastra model layer (`@law/mastra`; `ChatModelProvider` for structured calls). Legal-source embeddings use PostgreSQL `pgvector` through the `@law/knowledge` boundary.
 
 ## Layout
 
@@ -52,8 +52,7 @@ Spartan Helm / Brain
 - **Single database, one workspace.** One Prisma schema ([apps/api/prisma/schema.prisma](apps/api/prisma/schema.prisma)), one DB. Workspace id is [HARDCODED_WORKSPACE_ID](libs/api/core/src/lib/workspace.constants.ts). Do not revive per-tenant databases, `TenantContext`, `/workspaces`, or `X-Workspace-Id`. Still filter every business query by `workspaceId` and keep `WorkspaceAccessGuard`.
 - **Shared types.** FE/BE contracts go in [libs/api/api-interfaces/src/lib/api-interfaces.ts](libs/api/api-interfaces/src/lib/api-interfaces.ts) (split into domain files and re-export if the barrel grows). UI-only and Nest-only types stay local.
 - **Script.** Canonical stored and prompted text is Serbian Latin (`@law/transliteration`). Cyrillic only on read/export (`script=cyrillic`, DOCX).
-- **Chat jobs.** `triage` → (`answering` | `brief-extraction` → `drafting`) run on BullMQ. With `ASSISTANT_ENGINE=mastra`, every legal request becomes an `agent-turn` (the Mastra `legalAssistant`, `@law/mastra`). Drafting then runs through its tools, which still create `brief-extraction`/`drafting` job rows. Record changes are only proposed (`PendingAction`). Approval executes them and enqueues `agent-resume`. `npm run services:up` (Redis) must be running before `api:serve`.
-- **LLM stubs.** `evaluation` and `review` return placeholder strings. Do not treat them as implemented.
+- **Chat jobs.** BullMQ runs `triage` (Portir guardrail) → one `agent-turn` per legal request (the Mastra `legalAssistant`, `@law/mastra`). Drafting runs through its tools, which create `brief-extraction`/`drafting` job rows; review-panel revisions and retries run those jobs through the same Mastra workflows. Record changes are only proposed (`PendingAction`). Approval executes them and enqueues `agent-resume`. `npm run services:up` (Redis) must be running before `api:serve`.
 - **Uploads.** Max 5 files per message. Disk: `tmp/chat-uploads/{workspaceId}/{sessionId}/{attachmentId}`.
 - **Auth.** HttpOnly cookie `law_session`. Workspace endpoints: `CsrfOriginGuard` + `AuthGuard` + `WorkspaceAccessGuard`.
 
