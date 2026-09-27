@@ -1,0 +1,11 @@
+{
+  "track_id": "legal_corpus_snapshot_20260927",
+  "parent_track_id": "legal_knowledge_pgvector_20260919",
+  "type": "chore",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-27T00:00:00Z",
+  "updated_at": "2026-09-27T00:00:00Z",
+  "keywords": ["legal-knowledge", "snapshot", "export", "import", "embeddings", "pgvector"],
+  "priority": "medium"
+}
