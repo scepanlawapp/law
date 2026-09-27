@@ -1,0 +1,20 @@
+{
+  "track_id": "assistant_mastra_migration_20260927",
+  "parent_track_id": null,
+  "type": "epic",
+  "status": "in_progress",
+  "prd_reference": null,
+  "created_at": "2026-09-27T00:00:00Z",
+  "updated_at": "2026-09-27T00:00:00Z",
+  "keywords": [
+    "mastra",
+    "agent",
+    "assistant",
+    "tools",
+    "workflows",
+    "multi-turn",
+    "human-in-the-loop",
+    "llm"
+  ],
+  "priority": "high"
+}
