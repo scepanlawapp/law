@@ -22,3 +22,19 @@ calling the embedding provider. Batch runs are sequential with a short pause
 between fetches, report each failure without stopping, and exit non-zero if any
 source failed. Unchanged sources are skipped by content hash; `--force`
 re-indexes.
+
+## Corpus snapshot (skip re-embedding)
+
+Share an already-embedded public corpus instead of re-running ingestion:
+
+```bash
+npm run legal:export                    # -> tmp/legal-corpus/legal-corpus-<date>.ndjson.gz
+npm run legal:import -- <snapshot.ndjson.gz>
+```
+
+The snapshot holds public sources, their `INDEXED` versions and chunks with
+embeddings (about 47 MB for the core corpus). Import checks the embedding model,
+dimensions and latest applied migration, then merges like ingestion: versions
+already present (same slug and content hash) are skipped, and nothing is
+deleted. The file contains Paragraf text, so share it privately and never
+commit it. Ingestion remains the source of truth.
