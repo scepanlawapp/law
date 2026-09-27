@@ -647,6 +647,7 @@
   "assistant.workflow.stage.SAVING_FOR_REVIEW": "Čuvanje za pregled",
   "assistant.workflow.agent.triage": "Portir",
   "assistant.workflow.agent.answering": "Agent za pravne odgovore",
+  "assistant.workflow.agent.agent-turn": "Pravni asistent (agent)",
   "assistant.workflow.agent.brief-extraction": "Agent za izdvajanje činjenica",
   "assistant.workflow.agent.drafting": "Agent za izradu nacrta",
   "assistant.workflow.agent.evaluation": "Agent za procenu",

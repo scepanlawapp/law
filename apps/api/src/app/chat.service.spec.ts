@@ -1801,7 +1801,7 @@ describe("ChatService", () => {
     };
     prisma.workflowJob.findFirst
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ input: sourceInput });
+      .mockResolvedValueOnce({ workflowName: "answering", input: sourceInput });
     const enqueue = jest.fn().mockResolvedValue(undefined);
     const service = new ChatService(
       prisma as never,
@@ -1824,6 +1824,54 @@ describe("ChatService", () => {
     });
     expect(enqueue).toHaveBeenCalledWith(
       "answering",
+      expect.any(String),
+      expect.objectContaining({ correlationId: "corr-answer" }),
+    );
+  });
+
+  it("regenerates an agent-turn answer with the same workflow", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      id: "message-answer",
+      sessionId: session.id,
+      role: "ASSISTANT",
+      status: "COMPLETED",
+      correlationId: "corr-answer",
+      metadata: { outcome: "ANSWER" },
+    });
+    const sourceInput = {
+      messageId: "message-user",
+      userText: "Pravno pitanje",
+      attachments: [],
+      language: "sr",
+    };
+    prisma.workflowJob.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        workflowName: "agent-turn",
+        input: sourceInput,
+      });
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+      { enqueue },
+    );
+
+    await expect(
+      service.regenerateAnswer(session.workspaceId, "message-answer"),
+    ).resolves.toMatchObject({ workflowName: "agent-turn" });
+    expect(prisma.workflowJob.findFirst).toHaveBeenNthCalledWith(1, {
+      where: expect.objectContaining({
+        workflowName: { in: ["answering", "agent-turn"] },
+      }),
+    });
+    expect(enqueue).toHaveBeenCalledWith(
+      "agent-turn",
       expect.any(String),
       expect.objectContaining({ correlationId: "corr-answer" }),
     );

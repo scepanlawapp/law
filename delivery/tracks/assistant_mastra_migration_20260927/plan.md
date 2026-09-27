@@ -14,12 +14,12 @@ Each phase below 0 gets its own child track and branch (`parent_track_id: "assis
 - [x] Add the Nx lib `libs/api/ai/mastra` (`@law/mastra`): Mastra factory, `PostgresStore` in the `mastra` schema, model config as data. Tracing is deferred to phase 3 (it needs `@mastra/observability`).
 - [x] Add `MastraChatModelProvider`, which implements `ChatModelProvider`. Put it behind a flag so the legacy pipeline runs on Mastra models with no behavior change.
 
-## Phase 2 — First vertical slice
-- [ ] Add a `ContextBuilder` in `libs/api/features/chat`: recent `ChatMessage` history, the linked case block, and the workspace state.
-- [ ] Add a `legalAssistant` agent with the read-only tools `search_legal_sources` and `get_case`. The tools read workspace and user from `requestContext`.
-- [ ] Add the Portir guardrail before the agent.
-- [ ] Add an `AgentTurnRunner` (BullMQ `agent-turn`) that streams to the existing SSE, persists the answer and its citations, and batches delta writes.
-- [ ] Add the `ASSISTANT_ENGINE=legacy|mastra` flag in `ChatRuntimeConfig`.
+## Phase 2 — First vertical slice ([mastra_assistant_slice_20260927](../mastra_assistant_slice_20260927/index.md))
+- [x] Add a `ContextBuilder` in `libs/api/features/chat`: recent `ChatMessage` history and the linked case block. The workspace-state block (drafts) moves to phase 4.
+- [x] Add a `legalAssistant` agent with the read-only tools `search_legal_sources` and `get_case`. The tools read workspace and user from `requestContext`.
+- [x] Add the Portir guardrail before the agent.
+- [x] Add an `AgentTurnRunner` (BullMQ `agent-turn`) that streams to the existing SSE, persists the answer and its citations, and batches delta writes.
+- [x] Add the `ASSISTANT_ENGINE=legacy|mastra` flag in `ChatRuntimeConfig`.
 
 ## Phase 3 — Run telemetry
 - [ ] Wire `@mastra/observability` tracing into `createLawMastra`.

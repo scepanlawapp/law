@@ -648,6 +648,7 @@
   "assistant.workflow.stage.SAVING_FOR_REVIEW": "Saving for review",
   "assistant.workflow.agent.triage": "Portir",
   "assistant.workflow.agent.answering": "Legal answer agent",
+  "assistant.workflow.agent.agent-turn": "Legal assistant agent",
   "assistant.workflow.agent.brief-extraction": "Brief extraction agent",
   "assistant.workflow.agent.drafting": "Drafting agent",
   "assistant.workflow.agent.evaluation": "Evaluation agent",

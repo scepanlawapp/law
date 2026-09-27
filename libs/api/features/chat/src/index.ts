@@ -10,3 +10,6 @@ export * from "./lib/chat.storage";
 export * from "./lib/workflow-queue.types";
 export * from "./lib/workflow.runner";
 export * from "./lib/workflow.processor";
+export * from "./lib/agent-turn.runner";
+export * from "./lib/assistant-context.builder";
+export * from "./lib/assistant-tools.adapter";

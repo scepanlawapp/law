@@ -6,9 +6,12 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
+    "@law/legal-grounding": "0.0.1",
     "@law/llm": "0.0.1",
+    "@law/transliteration": "0.0.1",
     "@mastra/core": "^1.71.0",
     "@mastra/pg": "^1.27.1",
-    "tslib": "^2.3.0"
+    "tslib": "^2.3.0",
+    "zod": "^3.24.2"
   }
 }

@@ -28,6 +28,8 @@ import {
   type GroundingCitation,
   type GroundingSearchHit,
 } from "@law/legal-grounding";
+import { AgentTurnInput, AgentTurnRunner } from "./agent-turn.runner";
+import { AssistantContextBuilder } from "./assistant-context.builder";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
@@ -101,7 +103,20 @@ export class WorkflowRunner {
     private readonly workflowQueue: WorkflowQueuePort,
     @Optional()
     private readonly legalKnowledge?: LegalKnowledgeService,
+    @Optional()
+    private readonly contextBuilder?: AssistantContextBuilder,
+    @Optional()
+    private readonly agentTurn?: AgentTurnRunner,
   ) {}
+
+  /** ASSISTANT_ENGINE=mastra and the agent runner is wired (not in the inline test queue). */
+  private get agentEngineEnabled(): boolean {
+    return (
+      this.config.assistantEngine === "mastra" &&
+      !!this.agentTurn &&
+      !!this.contextBuilder
+    );
+  }
 
   private get db(): PlatformPrismaService {
     return this.prisma;
@@ -154,6 +169,8 @@ export class WorkflowRunner {
         return this.runBriefExtraction(record as WorkflowJobRecord, payload);
       case "drafting":
         return this.runDrafting(record as WorkflowJobRecord, payload);
+      case "agent-turn":
+        return this.runAgentTurn(record as WorkflowJobRecord, payload);
       default:
         throw new Error(`Unsupported workflow: ${name}`);
     }
@@ -180,9 +197,18 @@ export class WorkflowRunner {
     let result: Awaited<ReturnType<typeof runPortirGraph>>;
     try {
       const provider = resolveChatModelProvider(this.config, this.provider);
+      // The agent engine is multi-turn, so the guardrail must see earlier turns
+      // to accept follow-ups; the legacy engine keeps single-message triage.
+      const history = this.agentEngineEnabled
+        ? await this.contextBuilder!.triageHistory(
+            payload.sessionId,
+            payload.messageId,
+          )
+        : undefined;
       result = await runPortirGraph(provider, {
         userText: input.content,
         attachments: input.attachments,
+        history,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Portir failed";
@@ -250,16 +276,20 @@ export class WorkflowRunner {
     }
 
     let answerJobId: string | undefined;
+    const answerWorkflow: WorkflowName = this.agentEngineEnabled
+      ? "agent-turn"
+      : "answering";
     if (result.queueAnswer) {
       const created = await this.db.workflowJob.create({
         data: {
           workspaceId: payload.workspaceId,
           sessionId: payload.sessionId,
-          workflowName: "answering",
+          workflowName: answerWorkflow,
           status: "QUEUED",
           correlationId: payload.correlationId,
           input: JSON.parse(
             JSON.stringify({
+              messageId: payload.messageId,
               userText: input.content,
               attachments: input.attachments,
               language: result.decision.language,
@@ -294,7 +324,7 @@ export class WorkflowRunner {
       });
     }
     if (answerJobId) {
-      await this.workflowQueue.enqueue("answering", answerJobId, {
+      await this.workflowQueue.enqueue(answerWorkflow, answerJobId, {
         workspaceId: payload.workspaceId,
         sessionId: payload.sessionId,
         jobId: answerJobId,
@@ -436,6 +466,20 @@ export class WorkflowRunner {
             : "Asistent nije uspeo da završi odgovor.",
       });
     }
+  }
+
+  private async runAgentTurn(
+    record: WorkflowJobRecord,
+    payload: WorkflowJobPayload,
+  ): Promise<void> {
+    if (!this.agentTurn) {
+      await this.markFailed(record.id, payload, "AGENT_TURN_UNAVAILABLE");
+      return;
+    }
+    await this.agentTurn.run(record.input as AgentTurnInput | null, payload, {
+      transition: (status, output, errorCode) =>
+        this.transitionJob(record, payload, status, output, errorCode ?? null),
+    });
   }
 
   private answerSystemPrompt(
@@ -952,6 +996,7 @@ export class WorkflowRunner {
       case "triage":
         return "UNDERSTANDING_REQUEST";
       case "answering":
+      case "agent-turn":
         return "PREPARING_ANSWER";
       case "brief-extraction":
         return (record.input as BriefExtractionInput | null)?.attachments.length

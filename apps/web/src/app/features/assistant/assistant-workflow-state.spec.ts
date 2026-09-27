@@ -23,7 +23,9 @@ const job = (
   status,
   correlationId,
   progressStage:
-    workflowName === "answering" ? "PREPARING_ANSWER" : "UNDERSTANDING_REQUEST",
+    workflowName === "answering" || workflowName === "agent-turn"
+      ? "PREPARING_ANSWER"
+      : "UNDERSTANDING_REQUEST",
   errorCode: null,
   createdAt: "2026-09-15T11:59:00.000Z",
   updatedAt,
@@ -59,6 +61,31 @@ describe("assistant workflow state", () => {
         correlationId: "corr-2",
         status: "completed",
         kind: "answer",
+      }),
+    ]);
+  });
+
+  it("treats a Mastra agent turn as an answer", () => {
+    const state = buildWorkflowActivityState(
+      detail([
+        job("job-1", "corr-1", "COMPLETED"),
+        job(
+          "job-2",
+          "corr-1",
+          "RUNNING",
+          "agent-turn",
+          "2026-09-15T12:01:00.000Z",
+        ),
+      ]),
+    );
+
+    expect(selectWorkflowActivities(state)).toEqual([
+      expect.objectContaining({
+        correlationId: "corr-1",
+        status: "active",
+        kind: "answer",
+        stage: "PREPARING_ANSWER",
+        agentKey: "assistant.workflow.agent.agent-turn",
       }),
     ]);
   });

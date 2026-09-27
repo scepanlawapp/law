@@ -1,7 +1,10 @@
 import { FakeChatModelProvider } from "@law/llm";
 import {
   assistantReplyFor,
+  buildTriageMessages,
   buildTriageUserPrompt,
+  PORTIR_FOLLOW_UP_RULE,
+  PORTIR_SYSTEM_PROMPT,
   classifyTriage,
   triageDecisionSchema,
 } from "./triage";
@@ -72,5 +75,43 @@ describe("triage", () => {
     expect(prompt).toContain("ugovor.pdf");
     expect(prompt).toContain("application/pdf");
     expect(prompt).not.toContain("%PDF");
+  });
+
+  describe("conversation history", () => {
+    it("keeps the original prompt when there is no history", () => {
+      const [system, user] = buildTriageMessages({ userText: "Tužba" });
+
+      expect(system.content).toBe(PORTIR_SYSTEM_PROMPT);
+      expect(user.content).not.toContain("Previous conversation");
+    });
+
+    it("adds the follow-up rule and earlier turns when history is present", () => {
+      const [system, user] = buildTriageMessages({
+        userText: "A kraće?",
+        history: [
+          { role: "user", content: "Koji je rok zastarelosti potraživanja?" },
+          { role: "assistant", content: "Opšti rok je deset godina." },
+        ],
+      });
+
+      expect(system.content).toContain(PORTIR_FOLLOW_UP_RULE);
+      expect(user.content).toContain(
+        "User: Koji je rok zastarelosti potraživanja?",
+      );
+      expect(user.content).toContain("Assistant: Opšti rok je deset godina.");
+      expect(user.content.indexOf("Previous conversation")).toBeLessThan(
+        user.content.indexOf("User message:\nA kraće?"),
+      );
+    });
+
+    it("clips long history entries", () => {
+      const prompt = buildTriageUserPrompt({
+        userText: "Dalje?",
+        history: [{ role: "assistant", content: "a".repeat(2000) }],
+      });
+
+      expect(prompt).toContain(`${"a".repeat(600)}…`);
+      expect(prompt).not.toContain("a".repeat(601));
+    });
   });
 });

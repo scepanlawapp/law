@@ -44,6 +44,9 @@ import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
 
 export { CHAT_MODEL_PROVIDER };
 
+/** Workflows that stream an `outcome: "ANSWER"` message and can be regenerated. */
+const ANSWER_WORKFLOWS: WorkflowName[] = ["answering", "agent-turn"];
+
 export interface UploadedChatFile {
   originalname: string;
   mimetype: string;
@@ -956,7 +959,7 @@ export class ChatService {
       where: {
         sessionId: message.sessionId,
         correlationId: message.correlationId,
-        workflowName: "answering",
+        workflowName: { in: ANSWER_WORKFLOWS },
         status: { in: ["QUEUED", "RUNNING"] },
       },
     });
@@ -967,7 +970,7 @@ export class ChatService {
       where: {
         sessionId: message.sessionId,
         correlationId: message.correlationId,
-        workflowName: "answering",
+        workflowName: { in: ANSWER_WORKFLOWS },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -978,7 +981,7 @@ export class ChatService {
       data: {
         workspaceId,
         sessionId: message.sessionId,
-        workflowName: "answering",
+        workflowName: sourceJob.workflowName,
         status: "QUEUED",
         correlationId: message.correlationId,
         input: sourceJob.input,
@@ -993,12 +996,16 @@ export class ChatService {
       createdAt: mapped.createdAt,
       job: mapped,
     });
-    await this.workflowQueue.enqueue("answering", regeneration.id, {
-      workspaceId,
-      sessionId: message.sessionId,
-      jobId: regeneration.id,
-      correlationId: message.correlationId,
-    });
+    await this.workflowQueue.enqueue(
+      sourceJob.workflowName as WorkflowName,
+      regeneration.id,
+      {
+        workspaceId,
+        sessionId: message.sessionId,
+        jobId: regeneration.id,
+        correlationId: message.correlationId,
+      },
+    );
     return mapped;
   }
 

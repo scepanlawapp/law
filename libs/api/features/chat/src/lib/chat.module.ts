@@ -7,6 +7,9 @@ import { LegalKnowledgeModule } from "@law/legal-knowledge";
 import { CasesModule } from "@law/cases";
 import { ClientsModule } from "@law/clients";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
+import { AgentTurnRunner } from "./agent-turn.runner";
+import { AssistantContextBuilder } from "./assistant-context.builder";
+import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatController } from "./chat.controller";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
@@ -55,6 +58,9 @@ import {
     ChatRuntimeConfig,
     WorkflowRunner,
     WorkflowProcessor,
+    AssistantContextBuilder,
+    AssistantToolsAdapter,
+    AgentTurnRunner,
     { provide: WORKFLOW_QUEUE_PORT, useClass: WorkflowQueueService },
   ],
   exports: [ChatService],

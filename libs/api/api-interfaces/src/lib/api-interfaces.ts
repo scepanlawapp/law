@@ -143,6 +143,7 @@ export type AssistantLanguage = "sr" | "en";
 export type ChatWorkflowName =
   | "triage"
   | "answering"
+  | "agent-turn"
   | "brief-extraction"
   | "drafting"
   | "evaluation"

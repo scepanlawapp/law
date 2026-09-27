@@ -186,7 +186,7 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
       : "completed";
   const kind: WorkflowActivityKind = activity.hasDraft || jobs.some((job) => job.workflowName === "drafting")
     ? "draft"
-    : jobs.some((job) => job.workflowName === "answering")
+    : jobs.some((job) => isAnswerWorkflow(job.workflowName))
       ? "answer"
       : "other";
   const stage = latestJob?.progressStage ?? fallbackStage(latestJob);
@@ -228,9 +228,14 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
   };
 }
 
+function isAnswerWorkflow(name: WorkflowJobResponse["workflowName"]): boolean {
+  return name === "answering" || name === "agent-turn";
+}
+
 function fallbackStage(job?: WorkflowJobResponse): WorkflowProgressStage {
   switch (job?.workflowName) {
     case "answering":
+    case "agent-turn":
       return "PREPARING_ANSWER";
     case "brief-extraction":
       return "EXTRACTING_FACTS";

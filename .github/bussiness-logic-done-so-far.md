@@ -185,6 +185,12 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - Confirmed creates write activity-log rows with `metadata.source = "AI_ASSISTED"`. The approving user is the actor.
 - Linked sessions and drafts appear on the case overview. Opening the assistant with `?caseId=` preselects that case and does not send a message.
 - LLM calls (triage, answering, brief extraction, drafting, titles) go to OpenRouter through the `ChatModelProvider` interface. `LLM_BACKEND=legacy` (the default) uses the built-in OpenRouter client, and `LLM_BACKEND=mastra` runs the same prompts and schemas on the Mastra model layer (`@law/mastra`). This is the first step of the Mastra migration; see `AI_ARCHITECTURE.md`.
+- With `ASSISTANT_ENGINE=mastra` (default `legacy`), legal questions go to a multi-turn `legalAssistant` agent (`agent-turn` job) instead of the single-message `answering` workflow:
+  - Portir triage sees the recent conversation, so follow-ups are accepted.
+  - The agent receives the session's recent messages (in Latin script, within a budget) and the linked case.
+  - It can call two read-only tools: `search_legal_sources`, the pgvector legal knowledge base with `[n]` citations stored like legacy answers, and `get_case`, which returns the linked case or a search by number or name.
+  - Answers stream over the same SSE events and support feedback and regenerate.
+  - Draft requests still use brief extraction → drafting.
 
 ## References and user settings
 

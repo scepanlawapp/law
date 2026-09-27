@@ -201,6 +201,8 @@ Audited on 2026-09-27 (delivery track `assistant_mastra_migration_20260927`).
 - `LLM_BACKEND=mastra` runs the existing pipeline on Mastra models with the same prompts and schemas. The default is still `legacy`.
 - Jest needs the root `jest.esm-interop.cjs` helper to load Mastra. See the findings in that track's `plan.md`.
 
+**Phase 2 is done** (`mastra_assistant_slice_20260927`). With `ASSISTANT_ENGINE=mastra`, triage sees the recent conversation and routes ANSWER to an `agent-turn` job. There, `AssistantContextBuilder` → `legalAssistant` (tools `search_legal_sources`, `get_case`, typed `RequestContext`, per-turn `CitationRegistry`) → streamed `message.delta` → persisted answer with citations. Gap 1 (no multi-turn context) is closed for answers. Drafting still uses the legacy chain.
+
 ### LLM access
 - `@law/llm` (`libs/api/ai/llm`): our own `ChatModelProvider` interface.
   - `completeStructured(schema, messages)`: OpenRouter `/chat/completions` with
