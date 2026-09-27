@@ -4,7 +4,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Roadmap
 
-- [AI Legal Workflow Optimization Roadmap](./roadmap.md) — analysis and 90-day phases; each phase maps to the tracks below.
+- [Law Office Modernization Roadmap (epic)](./tracks/modernization_roadmap_20260927/index.md) — current roadmap (2026-09-27): office profile, phases, and success metrics.
+- [AI Legal Workflow Optimization Roadmap](./roadmap.md) — historical (2026-09-09); superseded by the modernization epic.
 
 ## Completed
 
@@ -25,6 +26,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Law Office Modernization Roadmap (epic)](./tracks/modernization_roadmap_20260927/index.md)
 - [Assistant Mastra Migration (epic)](./tracks/assistant_mastra_migration_20260927/index.md)
 - [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)
 - [Mastra Assistant Slice](./tracks/mastra_assistant_slice_20260927/index.md)
