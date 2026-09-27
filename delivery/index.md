@@ -22,6 +22,13 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Assistant Mastra Migration (epic)](./tracks/assistant_mastra_migration_20260927/index.md)
+- [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)
+- [Mastra Assistant Slice](./tracks/mastra_assistant_slice_20260927/index.md)
+- [Mastra Run Telemetry](./tracks/mastra_run_telemetry_20260927/index.md)
+- [Mastra Drafting Workflow](./tracks/mastra_drafting_workflow_20260927/index.md)
+- [Mastra Confirmations](./tracks/mastra_confirmations_20260927/index.md)
+- [Mastra Conversation Summary](./tracks/mastra_conversation_summary_20260927/index.md)
 - [Financials Frontend](./tracks/financials_frontend_20260924/index.md)
 - [Assistant Matter Link Slideout](./tracks/assistant_matter_link_slideout_20260924/index.md)
 - [Financials Backend](./tracks/financials_backend_20260923/index.md)

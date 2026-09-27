@@ -184,6 +184,27 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - After brief extraction, the Case-work pane opens in the right rail (shared with the Draft review panel via a compact Draft / Case-work tab switcher shown only when both exist), without narrowing the chat column. A fresh brief auto-expands the rail on the Case-work tab and a fresh draft opens the Draft tab; refresh/SSE updates never re-expand a rail the user collapsed, switching sessions collapses it, and deleting the active session resets the brief/rail state. Nothing remains in the message stream. The lawyer confirms a client and case separately from tasks. Plaintiff becomes the client (existing match or a new individual). Defendant is stored as opposing-party text on the case. Confirmed missing fields and evidence become tasks with no due date.
 - Confirmed creates write activity-log rows with `metadata.source = "AI_ASSISTED"`. The approving user is the actor.
 - Linked sessions and drafts appear on the case overview. Opening the assistant with `?caseId=` preselects that case and does not send a message.
+- LLM calls (triage, answering, brief extraction, drafting, titles) go to OpenRouter through the `ChatModelProvider` interface. `LLM_BACKEND=legacy` (the default) uses the built-in OpenRouter client, and `LLM_BACKEND=mastra` runs the same prompts and schemas on the Mastra model layer (`@law/mastra`). This is the first step of the Mastra migration; see `AI_ARCHITECTURE.md`.
+- With `ASSISTANT_ENGINE=mastra` (default `legacy`), legal questions go to a multi-turn `legalAssistant` agent (`agent-turn` job) instead of the single-message `answering` workflow:
+  - Portir triage sees the recent conversation, so follow-ups are accepted.
+  - The agent receives the session's recent messages (in Latin script, within a budget) and the linked case.
+  - It can call two read-only tools: `search_legal_sources`, the pgvector legal knowledge base with `[n]` citations stored like legacy answers, and `get_case`, which returns the linked case or a search by number or name.
+  - Answers stream over the same SSE events and support feedback and regenerate.
+  - Drafting requests also go to the agent. Its `draft_lawsuit` tool runs the Mastra `lawsuit-drafting` workflow:
+    - It builds the brief from the conversation's client messages and the session's attachments, reusing extracted text.
+    - It then grounds and drafts the lawsuit.
+    - Results are saved through the usual `brief-extraction` and `drafting` jobs, so the Case-work and Draft review panels work as before.
+  - `revise_draft` creates a new draft version from a chat instruction (for example "skrati obrazloženje"). `get_draft` and `list_conversation_drafts` read the conversation's drafts, which the agent also sees in its context.
+  - A turn that produced a draft is marked `DRAFT_READY`. Every draft still needs lawyer approval in the review panel. In the legacy engine, drafting is unchanged.
+  - The agent can propose record changes: `link_case`, `create_deadline` (on the linked or named case, with the case's responsible lawyer), and `create_tasks_from_brief` (the brief must be applied to a case).
+    - A proposal only stores a `PendingAction` and shows a confirmation card (Odobri / Odbij) under the message. The run waits in `WAITING_CONFIRMATION`.
+    - Approval (`POST /chat/pending-actions/:id/approve`) executes the change through the existing services, with the approving user as the actor and an `AI_ASSISTED` activity log.
+    - Decline (`…/decline`) writes nothing.
+    - Proposals expire after 24 h, and double approvals execute once.
+    - After the last decision, an `agent-resume` job lets the agent confirm the outcome.
+  - Long conversations keep a rolling summary (`ChatSession.summary`). Once unsummarized turns exceed 80% of the history window (`ASSISTANT_HISTORY_MAX_MESSAGES`), or of its character budget, the oldest turns are folded into the summary after the turn completes. The agent sees the summary plus the recent turns verbatim.
+  - Each agent tool call is stored (`AgentToolCall`: input, truncated output, status, duration) and streamed as `tool.started` / `tool.finished`. The assistant activity card lists tool steps (for example "Pretraga propisa „…“ · Rezultata: 4") live and after a reload, and while a tool runs its title reads "Pretražujem propise…".
+- Workflow jobs record `startedAt` and `finishedAt`. `agent-turn` jobs also record the model and input/output tokens. `MASTRA_TRACING=true` (off by default) additionally exports Mastra traces to the separate `mastra` Postgres schema.
 
 ## References and user settings
 

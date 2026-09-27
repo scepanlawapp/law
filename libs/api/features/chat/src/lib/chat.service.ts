@@ -37,12 +37,26 @@ import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
-import { toDraft, toJob, toMessage, toSessionSummary } from "./chat.mappers";
+import {
+  toDraft,
+  toJob,
+  toMessage,
+  toPendingAction,
+  toSessionSummary,
+  toToolCall,
+} from "./chat.mappers";
 import { MatterLinkService } from "./matter-link.service";
 import { createInlineWorkflowQueue } from "./workflow.runner";
 import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
 
 export { CHAT_MODEL_PROVIDER };
+
+/** Workflows that stream an `outcome: "ANSWER"` message and can be regenerated. */
+const ANSWER_WORKFLOWS: WorkflowName[] = [
+  "answering",
+  "agent-turn",
+  "agent-resume",
+];
 
 export interface UploadedChatFile {
   originalname: string;
@@ -271,35 +285,49 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionDetail> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const [messages, jobs, drafts, latestBrief] = await Promise.all([
-      this.db.chatMessage.findMany({
-        where: { sessionId },
-        include: { attachments: true },
-        orderBy: { createdAt: "asc" },
-      }),
-      this.db.workflowJob.findMany({
-        where: { sessionId },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      }),
-      this.db.draftResult.findMany({
-        where: { sessionId },
-        include: {
-          briefResult: { select: { missingFields: true } },
-          citations: true,
-        },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      }),
-      this.db.briefExtractionResult.findFirst({
-        where: { sessionId, workspaceId },
-        orderBy: { createdAt: "desc" },
-        select: { id: true },
-      }),
-    ]);
+    const [messages, jobs, drafts, latestBrief, toolCalls, pendingActions] =
+      await Promise.all([
+        this.db.chatMessage.findMany({
+          where: { sessionId },
+          include: { attachments: true },
+          orderBy: { createdAt: "asc" },
+        }),
+        this.db.workflowJob.findMany({
+          where: { sessionId },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
+        this.db.draftResult.findMany({
+          where: { sessionId },
+          include: {
+            briefResult: { select: { missingFields: true } },
+            citations: true,
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
+        this.db.briefExtractionResult.findFirst({
+          where: { sessionId, workspaceId },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        }),
+        this.db.agentToolCall.findMany({
+          where: { sessionId, workspaceId },
+          include: { job: { select: { correlationId: true } } },
+          orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+        }),
+        this.db.pendingAction.findMany({
+          where: { sessionId, workspaceId },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
+      ]);
     return {
       ...toSessionSummary(session),
       messages: messages.map((message) => toMessage(message)),
       jobs: jobs.map((job) => toJob(job)),
       drafts: drafts.map((draft) => toDraft(draft)),
+      pendingActions: pendingActions.map((action) => toPendingAction(action)),
+      toolCalls: toolCalls.map((call) =>
+        toToolCall(call, call.job.correlationId),
+      ),
       latestBriefId: latestBrief?.id ?? null,
     };
   }
@@ -952,11 +980,20 @@ export class ChatService {
         "Only completed streamed answers can be regenerated",
       );
     }
+    if (
+      Array.isArray(metadata?.["pendingActionIds"]) &&
+      (metadata["pendingActionIds"] as unknown[]).length
+    ) {
+      // Regenerating would propose the same record changes again.
+      throw new BadRequestException(
+        "Answers that proposed actions cannot be regenerated",
+      );
+    }
     const activeJob = await this.db.workflowJob.findFirst({
       where: {
         sessionId: message.sessionId,
         correlationId: message.correlationId,
-        workflowName: "answering",
+        workflowName: { in: ANSWER_WORKFLOWS },
         status: { in: ["QUEUED", "RUNNING"] },
       },
     });
@@ -967,7 +1004,7 @@ export class ChatService {
       where: {
         sessionId: message.sessionId,
         correlationId: message.correlationId,
-        workflowName: "answering",
+        workflowName: { in: ANSWER_WORKFLOWS },
       },
       orderBy: { createdAt: "desc" },
     });
@@ -978,7 +1015,7 @@ export class ChatService {
       data: {
         workspaceId,
         sessionId: message.sessionId,
-        workflowName: "answering",
+        workflowName: sourceJob.workflowName,
         status: "QUEUED",
         correlationId: message.correlationId,
         input: sourceJob.input,
@@ -993,12 +1030,16 @@ export class ChatService {
       createdAt: mapped.createdAt,
       job: mapped,
     });
-    await this.workflowQueue.enqueue("answering", regeneration.id, {
-      workspaceId,
-      sessionId: message.sessionId,
-      jobId: regeneration.id,
-      correlationId: message.correlationId,
-    });
+    await this.workflowQueue.enqueue(
+      sourceJob.workflowName as WorkflowName,
+      regeneration.id,
+      {
+        workspaceId,
+        sessionId: message.sessionId,
+        jobId: regeneration.id,
+        correlationId: message.correlationId,
+      },
+    );
     return mapped;
   }
 

@@ -23,7 +23,11 @@ const job = (
   status,
   correlationId,
   progressStage:
-    workflowName === "answering" ? "PREPARING_ANSWER" : "UNDERSTANDING_REQUEST",
+    workflowName === "answering" ||
+    workflowName === "agent-turn" ||
+    workflowName === "agent-resume"
+      ? "PREPARING_ANSWER"
+      : "UNDERSTANDING_REQUEST",
   errorCode: null,
   createdAt: "2026-09-15T11:59:00.000Z",
   updatedAt,
@@ -61,6 +65,177 @@ describe("assistant workflow state", () => {
         kind: "answer",
       }),
     ]);
+  });
+
+  it("treats a Mastra agent turn as an answer", () => {
+    const state = buildWorkflowActivityState(
+      detail([
+        job("job-1", "corr-1", "COMPLETED"),
+        job(
+          "job-2",
+          "corr-1",
+          "RUNNING",
+          "agent-turn",
+          "2026-09-15T12:01:00.000Z",
+        ),
+      ]),
+    );
+
+    expect(selectWorkflowActivities(state)).toEqual([
+      expect.objectContaining({
+        correlationId: "corr-1",
+        status: "active",
+        kind: "answer",
+        stage: "PREPARING_ANSWER",
+        agentKey: "assistant.workflow.agent.agent-turn",
+      }),
+    ]);
+  });
+
+  it("shows agent tool calls as steps and the running tool as the title", () => {
+    const turn = job(
+      "job-2",
+      "corr-1",
+      "RUNNING",
+      "agent-turn",
+      "2026-09-15T12:01:00.000Z",
+    );
+    const toolCall = {
+      id: "tool-1",
+      jobId: "job-2",
+      correlationId: "corr-1",
+      toolName: "search_legal_sources",
+      status: "RUNNING" as const,
+      label: "Zakon o radu godišnji odmor",
+      resultCount: null,
+      durationMs: null,
+      startedAt: "2026-09-15T12:01:01.000Z",
+      finishedAt: null,
+    };
+    let state = buildWorkflowActivityState(
+      detail([job("job-1", "corr-1", "COMPLETED"), turn]),
+    );
+    state = reduceWorkflowActivityEvent(state, {
+      type: "tool.started",
+      sessionId: "session-1",
+      correlationId: "corr-1",
+      createdAt: toolCall.startedAt,
+      toolCall,
+    });
+
+    expect(selectWorkflowActivities(state)[0]).toMatchObject({
+      titleKey: "assistant.workflow.toolActive.search_legal_sources",
+    });
+
+    const finished = {
+      ...toolCall,
+      status: "COMPLETED" as const,
+      resultCount: 3,
+      durationMs: 420,
+      finishedAt: "2026-09-15T12:01:02.000Z",
+    };
+    state = reduceWorkflowActivityEvent(state, {
+      type: "tool.finished",
+      sessionId: "session-1",
+      correlationId: "corr-1",
+      createdAt: finished.finishedAt,
+      toolCall: finished,
+    });
+    // A late duplicate "started" must not reopen the finished call.
+    state = reduceWorkflowActivityEvent(state, {
+      type: "tool.started",
+      sessionId: "session-1",
+      correlationId: "corr-1",
+      createdAt: toolCall.startedAt,
+      toolCall,
+    });
+
+    const [activity] = selectWorkflowActivities(state);
+    expect(activity.titleKey).toBe("assistant.workflow.stage.PREPARING_ANSWER");
+    expect(activity.steps).toEqual([
+      expect.objectContaining({ id: "job-1", kind: "job" }),
+      expect.objectContaining({ id: "job-2", kind: "job" }),
+      {
+        id: "tool-1",
+        kind: "tool",
+        titleKey: "assistant.workflow.tool.search_legal_sources",
+        agentKey: null,
+        status: "COMPLETED",
+        detail: "Zakon o radu godišnji odmor",
+        resultCount: 3,
+      },
+    ]);
+  });
+
+  it("restores tool steps from the session detail after a reload", () => {
+    const state = buildWorkflowActivityState({
+      ...detail([job("job-2", "corr-1", "COMPLETED", "agent-turn")]),
+      toolCalls: [
+        {
+          id: "tool-1",
+          jobId: "job-2",
+          correlationId: "corr-1",
+          toolName: "get_case",
+          status: "COMPLETED",
+          label: null,
+          resultCount: 1,
+          durationMs: 30,
+          startedAt: "2026-09-15T11:59:30.000Z",
+          finishedAt: "2026-09-15T11:59:31.000Z",
+        },
+      ],
+    });
+
+    expect(
+      selectWorkflowActivities(state)[0].steps.map((step) => step.kind),
+    ).toEqual(["job", "tool"]);
+  });
+
+  it("shows a run waiting for confirmation, then the resumed answer", () => {
+    const waiting = buildWorkflowActivityState(
+      detail([
+        job("job-1", "corr-1", "COMPLETED"),
+        job(
+          "job-2",
+          "corr-1",
+          "WAITING_CONFIRMATION",
+          "agent-turn",
+          "2026-09-15T12:01:00.000Z",
+        ),
+      ]),
+    );
+
+    expect(selectWorkflowActivities(waiting)[0]).toMatchObject({
+      status: "waiting",
+      kind: "answer",
+      titleKey: "assistant.workflow.waitingConfirmation",
+      retryJobId: null,
+    });
+
+    const resumed = buildWorkflowActivityState(
+      detail([
+        job("job-1", "corr-1", "COMPLETED"),
+        job(
+          "job-2",
+          "corr-1",
+          "COMPLETED",
+          "agent-turn",
+          "2026-09-15T12:02:00.000Z",
+        ),
+        job(
+          "job-3",
+          "corr-1",
+          "RUNNING",
+          "agent-resume",
+          "2026-09-15T12:03:00.000Z",
+        ),
+      ]),
+    );
+    expect(selectWorkflowActivities(resumed)[0]).toMatchObject({
+      status: "active",
+      stage: "PREPARING_ANSWER",
+      agentKey: "assistant.workflow.agent.agent-resume",
+    });
   });
 
   it("rejects an older job update", () => {

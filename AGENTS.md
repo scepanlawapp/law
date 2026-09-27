@@ -52,7 +52,7 @@ Spartan Helm / Brain
 - **Single database, one workspace.** One Prisma schema ([apps/api/prisma/schema.prisma](apps/api/prisma/schema.prisma)), one DB. Workspace id is [HARDCODED_WORKSPACE_ID](libs/api/core/src/lib/workspace.constants.ts). Do not revive per-tenant databases, `TenantContext`, `/workspaces`, or `X-Workspace-Id`. Still filter every business query by `workspaceId` and keep `WorkspaceAccessGuard`.
 - **Shared types.** FE/BE contracts go in [libs/api/api-interfaces/src/lib/api-interfaces.ts](libs/api/api-interfaces/src/lib/api-interfaces.ts) (split into domain files and re-export if the barrel grows). UI-only and Nest-only types stay local.
 - **Script.** Canonical stored and prompted text is Serbian Latin (`@law/transliteration`). Cyrillic only on read/export (`script=cyrillic`, DOCX).
-- **Chat jobs.** `triage` → (`answering` | `brief-extraction` → `drafting`) run on BullMQ. `npm run services:up` (Redis) must be running before `api:serve`.
+- **Chat jobs.** `triage` → (`answering` | `brief-extraction` → `drafting`) run on BullMQ. With `ASSISTANT_ENGINE=mastra`, every legal request becomes an `agent-turn` (the Mastra `legalAssistant`, `@law/mastra`). Drafting then runs through its tools, which still create `brief-extraction`/`drafting` job rows. Record changes are only proposed (`PendingAction`). Approval executes them and enqueues `agent-resume`. `npm run services:up` (Redis) must be running before `api:serve`.
 - **LLM stubs.** `evaluation` and `review` return placeholder strings. Do not treat them as implemented.
 - **Uploads.** Max 5 files per message. Disk: `tmp/chat-uploads/{workspaceId}/{sessionId}/{attachmentId}`.
 - **Auth.** HttpOnly cookie `law_session`. Workspace endpoints: `CsrfOriginGuard` + `AuthGuard` + `WorkspaceAccessGuard`.
@@ -129,6 +129,7 @@ Browser runtime settings: [apps/web/public/config.json](apps/web/public/config.j
 
 - Chat service tests run from `apps/api` (`apps/api/src/app/chat.service.spec.ts`). `libs/api/features/chat` has no `project.json`.
 - pdf-parse under Jest may need `NODE_OPTIONS=--experimental-vm-modules`. Real OCR tests are opt-in: `RUN_OCR_INTEGRATION=1`.
+- Jest projects that load `@law/mastra` must use `mastraTransformIgnorePatterns` + `esmJsTransform` from [jest.esm-interop.cjs](jest.esm-interop.cjs). Do **not** use `--experimental-vm-modules` for them.
 - [delivery/roadmap.md](delivery/roadmap.md) and older exploration notes are historical. If they mention multi-tenant DBs, fire-and-forget workflows, or cream/custom CSS, ignore them.
 - [.github/project-architecture.md](.github/project-architecture.md) describes an aspirational multi-tenant split; the live model is the single-database collapse in [delivery/tracks/single_database_collapse_20260917](delivery/tracks/single_database_collapse_20260917).
 

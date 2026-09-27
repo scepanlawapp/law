@@ -1,0 +1,18 @@
+{
+  "track_id": "mastra_conversation_summary_20260927",
+  "parent_track_id": "assistant_mastra_migration_20260927",
+  "type": "feature",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-27T00:00:00Z",
+  "updated_at": "2026-09-27T23:00:00Z",
+  "keywords": [
+    "mastra",
+    "summary",
+    "context",
+    "long-conversation",
+    "memory",
+    "assistant"
+  ],
+  "priority": "medium"
+}

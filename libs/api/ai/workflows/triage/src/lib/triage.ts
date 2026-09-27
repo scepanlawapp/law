@@ -1,5 +1,5 @@
 import { z } from "zod";
-import type { ChatModelProvider } from "@law/llm";
+import type { ChatModelMessage, ChatModelProvider } from "@law/llm";
 
 export const triageDecisionSchema = z.object({
   decision: z.enum(["LEGAL", "NON_LEGAL", "UNCLEAR"]),
@@ -16,9 +16,18 @@ export interface AttachmentSummary {
   sizeBytes: number;
 }
 
+export interface TriageHistoryMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 export interface TriageInput {
   userText: string;
   attachments?: AttachmentSummary[];
+  /** Recent conversation before `userText`, oldest first. */
+  history?: TriageHistoryMessage[];
+  /** The assistant can also act on the office's matters (agent engine). */
+  practiceActions?: boolean;
 }
 
 export const PORTIR_SYSTEM_PROMPT = [
@@ -34,6 +43,49 @@ export const PORTIR_SYSTEM_PROMPT = [
   'Reply with JSON only: {"decision":"LEGAL|NON_LEGAL|UNCLEAR","reason":"short explanation","intent":"ANSWER|DRAFT","language":"sr|en"}.',
 ].join(" ");
 
+export const PORTIR_FOLLOW_UP_RULE = [
+  "The previous conversation is included for context.",
+  "If the new message continues an earlier legal conversation (a follow-up, clarification, or request to rephrase, shorten, or expand an earlier answer), classify it as LEGAL even when it is short or does not repeat legal terms.",
+  "Detect the language from the new message only.",
+].join(" ");
+
+export const PORTIR_PRACTICE_RULE = [
+  "The assistant can also help manage the office's matters.",
+  "Requests to look up a case, link the conversation to a case, set or record a deadline (rok), schedule work, or create tasks for a matter are LEGAL with intent ANSWER, even without legal terms.",
+].join(" ");
+
+const HISTORY_ENTRY_MAX_CHARS = 600;
+
+export function buildTriageMessages(input: TriageInput): ChatModelMessage[] {
+  const hasHistory = (input.history?.length ?? 0) > 0;
+  return [
+    {
+      role: "system",
+      content: [
+        PORTIR_SYSTEM_PROMPT,
+        hasHistory ? PORTIR_FOLLOW_UP_RULE : null,
+        input.practiceActions ? PORTIR_PRACTICE_RULE : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
+    },
+    { role: "user", content: buildTriageUserPrompt(input) },
+  ];
+}
+
+function historyBlock(history: readonly TriageHistoryMessage[]): string {
+  return history
+    .map((message) => {
+      const text = message.content.trim().replace(/\s+/g, " ");
+      const clipped =
+        text.length > HISTORY_ENTRY_MAX_CHARS
+          ? `${text.slice(0, HISTORY_ENTRY_MAX_CHARS)}…`
+          : text;
+      return `${message.role === "user" ? "User" : "Assistant"}: ${clipped}`;
+    })
+    .join("\n");
+}
+
 export function buildTriageUserPrompt(input: TriageInput): string {
   const attachments = input.attachments ?? [];
   const attachmentLines =
@@ -46,7 +98,10 @@ export function buildTriageUserPrompt(input: TriageInput): string {
           )
           .join("\n");
 
-  return `User message:\n${input.userText.trim() || "(empty)"}\n\nAttachments:\n${attachmentLines}`;
+  const current = `User message:\n${input.userText.trim() || "(empty)"}\n\nAttachments:\n${attachmentLines}`;
+  return input.history?.length
+    ? `Previous conversation (oldest first):\n${historyBlock(input.history)}\n\n${current}`
+    : current;
 }
 
 export async function classifyTriage(
@@ -55,10 +110,7 @@ export async function classifyTriage(
 ): Promise<TriageDecisionResult> {
   return provider.completeStructured({
     schema: triageDecisionSchema as z.ZodType<TriageDecisionResult>,
-    messages: [
-      { role: "system", content: PORTIR_SYSTEM_PROMPT },
-      { role: "user", content: buildTriageUserPrompt(input) },
-    ],
+    messages: buildTriageMessages(input),
   });
 }
 

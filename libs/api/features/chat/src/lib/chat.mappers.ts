@@ -1,4 +1,6 @@
 import {
+  AgentToolCallSummary,
+  PendingActionSummary,
   ChatAttachmentSummary,
   ChatMessageResponse,
   ChatSessionSummary,
@@ -7,6 +9,7 @@ import {
   WorkflowProgressStage,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
+import { describeToolCall, toolResultCount } from "@law/mastra";
 
 /**
  * Pure mapping helpers shared by `ChatService` (HTTP-facing) and
@@ -102,6 +105,7 @@ export function toMessage(message: {
     feedback: feedbackFromMetadata(message.metadata),
     outcome: outcomeFromMetadata(message.metadata),
     citations: citationsFromMetadata(message.metadata),
+    pendingActionIds: pendingActionIdsFromMetadata(message.metadata),
     createdAt: message.createdAt.toISOString(),
     attachments: message.attachments.map((attachment) =>
       toAttachment(attachment),
@@ -137,6 +141,16 @@ function feedbackFromMetadata(
   return feedback === "POSITIVE" || feedback === "NEGATIVE" ? feedback : null;
 }
 
+function pendingActionIdsFromMetadata(metadata: unknown): string[] | undefined {
+  if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) {
+    return undefined;
+  }
+  const ids = (metadata as Record<string, unknown>)["pendingActionIds"];
+  return Array.isArray(ids) && ids.every((id) => typeof id === "string")
+    ? (ids as string[])
+    : undefined;
+}
+
 function citationsFromMetadata(
   metadata: unknown,
 ): LegalCitationResponse[] | undefined {
@@ -154,10 +168,15 @@ export function toJob(job: {
   workspaceId: string;
   sessionId: string;
   workflowName: string;
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: WorkflowJobResponse["status"];
   correlationId: string;
   output?: unknown;
   errorCode?: string | null;
+  model?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): WorkflowJobResponse {
@@ -171,8 +190,44 @@ export function toJob(job: {
     progressStage: progressStageFromOutput(job.output),
     briefResultId: briefResultIdFromOutput(job.output),
     errorCode: job.errorCode ?? null,
+    model: job.model ?? null,
+    inputTokens: job.inputTokens ?? null,
+    outputTokens: job.outputTokens ?? null,
+    startedAt: job.startedAt?.toISOString() ?? null,
+    finishedAt: job.finishedAt?.toISOString() ?? null,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
+  };
+}
+
+export function toToolCall(
+  call: {
+    id: string;
+    jobId: string;
+    toolName: string;
+    status: "RUNNING" | "COMPLETED" | "FAILED";
+    input?: unknown;
+    output?: unknown;
+    durationMs?: number | null;
+    startedAt: Date;
+    finishedAt?: Date | null;
+  },
+  correlationId: string,
+): AgentToolCallSummary {
+  return {
+    id: call.id,
+    jobId: call.jobId,
+    correlationId,
+    toolName: call.toolName,
+    status: call.status,
+    label: describeToolCall(call.toolName, call.input),
+    resultCount:
+      call.status === "COMPLETED"
+        ? toolResultCount(call.toolName, call.output)
+        : null,
+    durationMs: call.durationMs ?? null,
+    startedAt: call.startedAt.toISOString(),
+    finishedAt: call.finishedAt?.toISOString() ?? null,
   };
 }
 
@@ -278,5 +333,42 @@ export function toDraft(draft: {
     errorCode: draft.errorCode,
     createdAt: draft.createdAt.toISOString(),
     updatedAt: draft.updatedAt?.toISOString(),
+  };
+}
+
+export function toPendingAction(action: {
+  id: string;
+  jobId: string;
+  correlationId: string;
+  actionType: string;
+  summary: string;
+  details: string[];
+  status: PendingActionSummary["status"];
+  result?: unknown;
+  errorMessage?: string | null;
+  expiresAt: Date;
+  decidedAt?: Date | null;
+  createdAt: Date;
+}): PendingActionSummary {
+  const result =
+    action.result &&
+    typeof action.result === "object" &&
+    !Array.isArray(action.result)
+      ? (action.result as Record<string, unknown>)
+      : null;
+  return {
+    id: action.id,
+    jobId: action.jobId,
+    correlationId: action.correlationId,
+    actionType: action.actionType as PendingActionSummary["actionType"],
+    summary: action.summary,
+    details: action.details,
+    status: action.status,
+    resultMessage:
+      typeof result?.["message"] === "string" ? result["message"] : null,
+    errorMessage: action.errorMessage ?? null,
+    expiresAt: action.expiresAt.toISOString(),
+    decidedAt: action.decidedAt?.toISOString() ?? null,
+    createdAt: action.createdAt.toISOString(),
   };
 }

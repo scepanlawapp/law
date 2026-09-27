@@ -1,0 +1,19 @@
+{
+  "name": "mastra",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/mastra/src",
+  "projectType": "library",
+  "tags": ["scope:ai", "type:ai"],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/libs/api/ai/mastra",
+        "main": "libs/api/ai/mastra/src/index.ts",
+        "tsConfig": "libs/api/ai/mastra/tsconfig.lib.json",
+        "assets": ["libs/api/ai/mastra/*.md"]
+      }
+    }
+  }
+}

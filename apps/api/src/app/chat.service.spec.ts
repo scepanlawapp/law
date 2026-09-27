@@ -152,6 +152,12 @@ function prismaMock() {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    agentToolCall: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
+    pendingAction: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     auditEvent: {
       create: jest.fn(),
     },
@@ -1481,6 +1487,20 @@ describe("ChatService", () => {
       },
     ]);
     prisma.draftResult.findMany.mockResolvedValue([]);
+    prisma.agentToolCall.findMany.mockResolvedValue([
+      {
+        id: "tool-1",
+        jobId: "job-2",
+        toolName: "search_legal_sources",
+        status: "COMPLETED",
+        input: { query: "Zakon o radu otkaz" },
+        output: { count: 3, sources: "…" },
+        durationMs: 420,
+        startedAt: now,
+        finishedAt: now,
+        job: { correlationId: "corr-2" },
+      },
+    ]);
     const service = new ChatService(
       prisma as never,
       new ChatEventBus(),
@@ -1502,7 +1522,24 @@ describe("ChatService", () => {
         },
       ],
       drafts: [],
+      toolCalls: [
+        {
+          id: "tool-1",
+          jobId: "job-2",
+          correlationId: "corr-2",
+          toolName: "search_legal_sources",
+          status: "COMPLETED",
+          label: "Zakon o radu otkaz",
+          resultCount: 3,
+          durationMs: 420,
+        },
+      ],
     });
+    expect(prisma.agentToolCall.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { sessionId: session.id, workspaceId: session.workspaceId },
+      }),
+    );
   });
 
   it("deleteSession soft-deletes the session and emits session.deleted", async () => {
@@ -1801,7 +1838,7 @@ describe("ChatService", () => {
     };
     prisma.workflowJob.findFirst
       .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce({ input: sourceInput });
+      .mockResolvedValueOnce({ workflowName: "answering", input: sourceInput });
     const enqueue = jest.fn().mockResolvedValue(undefined);
     const service = new ChatService(
       prisma as never,
@@ -1827,6 +1864,80 @@ describe("ChatService", () => {
       expect.any(String),
       expect.objectContaining({ correlationId: "corr-answer" }),
     );
+  });
+
+  it("regenerates an agent-turn answer with the same workflow", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      id: "message-answer",
+      sessionId: session.id,
+      role: "ASSISTANT",
+      status: "COMPLETED",
+      correlationId: "corr-answer",
+      metadata: { outcome: "ANSWER" },
+    });
+    const sourceInput = {
+      messageId: "message-user",
+      userText: "Pravno pitanje",
+      attachments: [],
+      language: "sr",
+    };
+    prisma.workflowJob.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({
+        workflowName: "agent-turn",
+        input: sourceInput,
+      });
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+      { enqueue },
+    );
+
+    await expect(
+      service.regenerateAnswer(session.workspaceId, "message-answer"),
+    ).resolves.toMatchObject({ workflowName: "agent-turn" });
+    expect(prisma.workflowJob.findFirst).toHaveBeenNthCalledWith(1, {
+      where: expect.objectContaining({
+        workflowName: { in: ["answering", "agent-turn", "agent-resume"] },
+      }),
+    });
+    expect(enqueue).toHaveBeenCalledWith(
+      "agent-turn",
+      expect.any(String),
+      expect.objectContaining({ correlationId: "corr-answer" }),
+    );
+  });
+
+  it("refuses to regenerate an answer that proposed actions", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatMessage.findUnique.mockResolvedValue({
+      id: "message-answer",
+      sessionId: session.id,
+      role: "ASSISTANT",
+      status: "COMPLETED",
+      correlationId: "corr-answer",
+      metadata: { outcome: "ANSWER", pendingActionIds: ["action-1"] },
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+      { enqueue: jest.fn() },
+    );
+
+    await expect(
+      service.regenerateAnswer(session.workspaceId, "message-answer"),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.workflowJob.create).not.toHaveBeenCalled();
   });
 
   it("rejects regeneration for a non-answer assistant message", async () => {

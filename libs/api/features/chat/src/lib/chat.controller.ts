@@ -30,6 +30,7 @@ import {
   ChatSessionSummary,
   ChatStreamEvent,
   DraftResultResponse,
+  PendingActionSummary,
   WorkspaceRole,
 } from "@law/api-interfaces";
 import {
@@ -44,7 +45,9 @@ import {
   UpdateChatSessionDto,
   UpdateDraftDto,
   UpdateMessageFeedbackDto,
+  PendingActionDecisionDto,
 } from "./chat.dto";
+import { AssistantActionsService } from "./assistant-actions.service";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
 interface WorkspaceRequest extends AuthenticatedRequest {
@@ -55,7 +58,10 @@ interface WorkspaceRequest extends AuthenticatedRequest {
 @UseGuards(CsrfOriginGuard, AuthGuard, WorkspaceAccessGuard)
 @WorkspaceAccess()
 export class ChatController {
-  constructor(private readonly chat: ChatService) {}
+  constructor(
+    private readonly chat: ChatService,
+    private readonly actions: AssistantActionsService,
+  ) {}
 
   @Get("sessions")
   listSessions(
@@ -275,6 +281,34 @@ export class ChatController {
       messageId,
       body.feedback ?? null,
     );
+  }
+
+  @Post("pending-actions/:actionId/approve")
+  approvePendingAction(
+    @Req() request: WorkspaceRequest,
+    @Param("actionId") actionId: string,
+  ): Promise<PendingActionSummary> {
+    return this.actions.decide({
+      workspaceId: request.workspace!.workspaceId,
+      userId: request.auth!.user.id,
+      actionId,
+      decision: "APPROVE",
+    });
+  }
+
+  @Post("pending-actions/:actionId/decline")
+  declinePendingAction(
+    @Req() request: WorkspaceRequest,
+    @Param("actionId") actionId: string,
+    @Body() body: PendingActionDecisionDto,
+  ): Promise<PendingActionSummary> {
+    return this.actions.decide({
+      workspaceId: request.workspace!.workspaceId,
+      userId: request.auth!.user.id,
+      actionId,
+      decision: "DECLINE",
+      reason: body.reason,
+    });
   }
 
   @Post("messages/:messageId/regenerate")

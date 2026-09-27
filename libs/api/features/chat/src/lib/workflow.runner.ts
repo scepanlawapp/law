@@ -28,6 +28,12 @@ import {
   type GroundingCitation,
   type GroundingSearchHit,
 } from "@law/legal-grounding";
+import {
+  AgentTurnInput,
+  AgentTurnRunner,
+  WorkflowJobTelemetry,
+} from "./agent-turn.runner";
+import { AssistantContextBuilder } from "./assistant-context.builder";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
@@ -45,7 +51,7 @@ interface WorkflowJobRecord {
   workspaceId: string;
   sessionId: string;
   workflowName: string;
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: WorkflowJobStatus;
   correlationId: string;
   input: unknown;
   createdAt: Date;
@@ -101,7 +107,20 @@ export class WorkflowRunner {
     private readonly workflowQueue: WorkflowQueuePort,
     @Optional()
     private readonly legalKnowledge?: LegalKnowledgeService,
+    @Optional()
+    private readonly contextBuilder?: AssistantContextBuilder,
+    @Optional()
+    private readonly agentTurn?: AgentTurnRunner,
   ) {}
+
+  /** ASSISTANT_ENGINE=mastra and the agent runner is wired (not in the inline test queue). */
+  private get agentEngineEnabled(): boolean {
+    return (
+      this.config.assistantEngine === "mastra" &&
+      !!this.agentTurn &&
+      !!this.contextBuilder
+    );
+  }
 
   private get db(): PlatformPrismaService {
     return this.prisma;
@@ -139,11 +158,21 @@ export class WorkflowRunner {
       );
       return;
     }
-    if (record.status === "COMPLETED") return;
+    if (
+      record.status === "COMPLETED" ||
+      record.status === "WAITING_CONFIRMATION"
+    ) {
+      return;
+    }
 
-    await this.transitionJob(record, payload, "RUNNING", {
-      progressStage: this.initialStage(name, record),
-    });
+    await this.transitionJob(
+      record,
+      payload,
+      "RUNNING",
+      { progressStage: this.initialStage(name, record) },
+      null,
+      { startedAt: new Date(), finishedAt: null },
+    );
 
     switch (name) {
       case "triage":
@@ -154,6 +183,9 @@ export class WorkflowRunner {
         return this.runBriefExtraction(record as WorkflowJobRecord, payload);
       case "drafting":
         return this.runDrafting(record as WorkflowJobRecord, payload);
+      case "agent-turn":
+      case "agent-resume":
+        return this.runAgentTurn(record as WorkflowJobRecord, payload);
       default:
         throw new Error(`Unsupported workflow: ${name}`);
     }
@@ -180,9 +212,19 @@ export class WorkflowRunner {
     let result: Awaited<ReturnType<typeof runPortirGraph>>;
     try {
       const provider = resolveChatModelProvider(this.config, this.provider);
+      // The agent engine is multi-turn, so the guardrail must see earlier turns
+      // to accept follow-ups; the legacy engine keeps single-message triage.
+      const history = this.agentEngineEnabled
+        ? await this.contextBuilder!.triageHistory(
+            payload.sessionId,
+            payload.messageId,
+          )
+        : undefined;
       result = await runPortirGraph(provider, {
         userText: input.content,
         attachments: input.attachments,
+        history,
+        practiceActions: this.agentEngineEnabled,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Portir failed";
@@ -218,8 +260,15 @@ export class WorkflowRunner {
       });
     }
 
+    // The agent engine handles drafting through its tools, so every legal
+    // request (ANSWER or DRAFT) becomes one agent turn.
+    const queueBriefExtraction =
+      result.queueBriefExtraction && !this.agentEngineEnabled;
+    const queueAnswer =
+      result.queueAnswer ||
+      (this.agentEngineEnabled && result.queueBriefExtraction);
     let nextJobId: string | undefined;
-    if (result.queueBriefExtraction) {
+    if (queueBriefExtraction) {
       const created = await this.db.workflowJob.create({
         data: {
           workspaceId: payload.workspaceId,
@@ -250,19 +299,24 @@ export class WorkflowRunner {
     }
 
     let answerJobId: string | undefined;
-    if (result.queueAnswer) {
+    const answerWorkflow: WorkflowName = this.agentEngineEnabled
+      ? "agent-turn"
+      : "answering";
+    if (queueAnswer) {
       const created = await this.db.workflowJob.create({
         data: {
           workspaceId: payload.workspaceId,
           sessionId: payload.sessionId,
-          workflowName: "answering",
+          workflowName: answerWorkflow,
           status: "QUEUED",
           correlationId: payload.correlationId,
           input: JSON.parse(
             JSON.stringify({
+              messageId: payload.messageId,
               userText: input.content,
               attachments: input.attachments,
               language: result.decision.language,
+              intent: result.decision.intent,
             }),
           ),
         },
@@ -294,7 +348,7 @@ export class WorkflowRunner {
       });
     }
     if (answerJobId) {
-      await this.workflowQueue.enqueue("answering", answerJobId, {
+      await this.workflowQueue.enqueue(answerWorkflow, answerJobId, {
         workspaceId: payload.workspaceId,
         sessionId: payload.sessionId,
         jobId: answerJobId,
@@ -436,6 +490,27 @@ export class WorkflowRunner {
             : "Asistent nije uspeo da završi odgovor.",
       });
     }
+  }
+
+  private async runAgentTurn(
+    record: WorkflowJobRecord,
+    payload: WorkflowJobPayload,
+  ): Promise<void> {
+    if (!this.agentTurn) {
+      await this.markFailed(record.id, payload, "AGENT_TURN_UNAVAILABLE");
+      return;
+    }
+    await this.agentTurn.run(record.input as AgentTurnInput | null, payload, {
+      transition: (status, output, errorCode, telemetry) =>
+        this.transitionJob(
+          record,
+          payload,
+          status,
+          output,
+          errorCode ?? null,
+          telemetry,
+        ),
+    });
   }
 
   private answerSystemPrompt(
@@ -952,6 +1027,8 @@ export class WorkflowRunner {
       case "triage":
         return "UNDERSTANDING_REQUEST";
       case "answering":
+      case "agent-turn":
+      case "agent-resume":
         return "PREPARING_ANSWER";
       case "brief-extraction":
         return (record.input as BriefExtractionInput | null)?.attachments.length
@@ -970,13 +1047,17 @@ export class WorkflowRunner {
     status: WorkflowJobStatus,
     output?: Record<string, unknown>,
     errorCode: string | null = null,
+    telemetry: WorkflowJobTelemetry = {},
   ): Promise<WorkflowJobRecord> {
+    const terminal = status === "COMPLETED" || status === "FAILED";
     const job = await this.db.workflowJob.update({
       where: { id: record.id },
       data: {
         status,
         errorCode,
         ...(output ? { output: JSON.parse(JSON.stringify(output)) } : {}),
+        ...(terminal ? { finishedAt: new Date() } : {}),
+        ...telemetry,
       },
     });
     this.emit({

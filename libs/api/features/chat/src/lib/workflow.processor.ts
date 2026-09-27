@@ -57,7 +57,11 @@ export class WorkflowProcessor extends WorkerHost {
     try {
       const record = await this.prisma.workflowJob.update({
         where: { id: job.data.jobId },
-        data: { status: "FAILED", errorCode: "WORKFLOW_RETRIES_EXHAUSTED" },
+        data: {
+          status: "FAILED",
+          errorCode: "WORKFLOW_RETRIES_EXHAUSTED",
+          finishedAt: new Date(),
+        },
       });
       this.events.emit({
         type: "job.updated",

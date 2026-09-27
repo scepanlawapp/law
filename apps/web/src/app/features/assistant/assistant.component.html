@@ -266,6 +266,14 @@
                       }
                     </ul>
                   }
+                  @for (action of pendingActionsFor(message); track action.id) {
+                    <law-pending-action-card
+                      [action]="action"
+                      [busy]="decidingActionId() === action.id"
+                      (approve)="decidePendingAction(action, 'approve')"
+                      (decline)="decidePendingAction(action, 'decline')"
+                    />
+                  }
                   <time>{{ message.createdAt | date: "HH:mm" }}</time>
                   @if (
                     message.role === "ASSISTANT" &&
@@ -375,9 +383,11 @@
                     [name]="
                       activity.status === 'active'
                         ? 'lucideLoaderCircle'
-                        : activity.status === 'failed'
-                          ? 'lucideCircleAlert'
-                          : 'lucideCheckCircle2'
+                        : activity.status === 'waiting'
+                          ? 'lucideShieldQuestion'
+                          : activity.status === 'failed'
+                            ? 'lucideCircleAlert'
+                            : 'lucideCheckCircle2'
                     "
                   />
                 </span>
@@ -454,7 +464,21 @@
                         />
                         <span>
                           <strong>{{ step.titleKey | translate }}</strong>
-                          <small>{{ step.agentKey | translate }}</small>
+                          @if (step.kind === "tool") {
+                            @if (step.detail) {
+                              <small>„{{ step.detail }}“</small>
+                            }
+                            @if (step.resultCount !== null) {
+                              <small>
+                                {{
+                                  "assistant.workflow.toolResults"
+                                    | translate: { count: step.resultCount }
+                                }}
+                              </small>
+                            }
+                          } @else if (step.agentKey) {
+                            <small>{{ step.agentKey | translate }}</small>
+                          }
                         </span>
                       </li>
                     }

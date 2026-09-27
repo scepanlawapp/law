@@ -1,5 +1,10 @@
 import { Injectable } from "@nestjs/common";
 
+/** `legacy`: hand-rolled OpenRouter client; `mastra`: Mastra model layer (same prompts/schemas). */
+export type LlmBackend = "legacy" | "mastra";
+/** `legacy`: answering workflow; `mastra`: multi-turn legalAssistant agent (`agent-turn` job). */
+export type AssistantEngine = "legacy" | "mastra";
+
 export const CHAT_ALLOWED_MIME_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -19,6 +24,30 @@ export class ChatRuntimeConfig {
     process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
   readonly openRouterModel =
     process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini";
+  readonly llmBackend: LlmBackend =
+    process.env.LLM_BACKEND === "mastra" ? "mastra" : "legacy";
+  readonly assistantEngine: AssistantEngine =
+    process.env.ASSISTANT_ENGINE === "mastra" ? "mastra" : "legacy";
+  /** Model for the legalAssistant agent; defaults to OPENROUTER_MODEL. */
+  readonly assistantModel =
+    process.env.ASSISTANT_MODEL?.trim() || this.openRouterModel;
+  /** Opt-in Mastra tracing into the `mastra` Postgres schema. */
+  readonly mastraTracing = process.env.MASTRA_TRACING === "true";
+  readonly databaseUrl = process.env.DATABASE_URL ?? "";
+  readonly assistantHistoryMaxMessages = Number(
+    process.env.ASSISTANT_HISTORY_MAX_MESSAGES ?? 20,
+  );
+  readonly assistantHistoryMaxChars = Number(
+    process.env.ASSISTANT_HISTORY_MAX_CHARS ?? 24_000,
+  );
+  /** Summarize once unsummarized messages exceed 80% of the history window. */
+  get assistantSummaryTriggerMessages(): number {
+    return Math.max(2, Math.floor(this.assistantHistoryMaxMessages * 0.8));
+  }
+  /** Messages kept verbatim after summarizing (40% of the window). */
+  get assistantSummaryKeepRecent(): number {
+    return Math.max(1, Math.floor(this.assistantHistoryMaxMessages * 0.4));
+  }
   readonly uploadDir = process.env.CHAT_UPLOAD_DIR ?? "./tmp/chat-uploads";
   readonly uploadMaxBytes = Number(process.env.UPLOAD_MAX_BYTES ?? 25_000_000);
   readonly maxFilesPerMessage = Number(
