@@ -49,6 +49,27 @@ describe("tool call summary", () => {
     expect(toolResultCount("get_client", { found: "one", client: {} })).toBe(1);
   });
 
+  it("labels and counts document tools", () => {
+    expect(describeToolCall("search_documents", { query: "zakup" })).toBe(
+      "zakup",
+    );
+    expect(describeToolCall("read_document", { ref: "doc:1" })).toBeNull();
+    expect(
+      toolResultCount("list_documents", {
+        status: "OK",
+        items: [{}, {}],
+        truncated: false,
+      }),
+    ).toBe(2);
+    expect(toolResultCount("read_document", { status: "NO_TEXT" })).toBe(0);
+    expect(
+      toolResultCount("search_documents", {
+        status: "OK",
+        matches: [{ count: 2 }, { count: 3 }],
+      }),
+    ).toBe(5);
+  });
+
   it("clips long labels", () => {
     const label = describeToolCall("search_legal_sources", {
       query: "a".repeat(300),

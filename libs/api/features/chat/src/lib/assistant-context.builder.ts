@@ -150,7 +150,10 @@ export function toHistoryMessage(row: {
     (attachment) => attachment.originalName,
   );
   if (attachmentNames.length) {
-    text = [text, `[Prilozi: ${attachmentNames.join(", ")}]`]
+    text = [
+      text,
+      `[Prilozi: ${attachmentNames.join(", ")} — tekst: search_documents / read_document]`,
+    ]
       .filter(Boolean)
       .join("\n");
   }

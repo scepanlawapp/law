@@ -46,6 +46,7 @@ import {
   toToolCall,
 } from "./chat.mappers";
 import { MatterLinkService } from "./matter-link.service";
+import { ChatDocumentPromotionService } from "./chat-document-promotion.service";
 import { createInlineWorkflowQueue } from "./workflow.runner";
 import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
 
@@ -84,6 +85,9 @@ export class ChatService {
     @Optional()
     @Inject(MatterLinkService)
     private readonly matterLink?: MatterLinkService,
+    @Optional()
+    @Inject(ChatDocumentPromotionService)
+    private readonly promotion?: ChatDocumentPromotionService,
   ) {
     this.workflowQueue =
       workflowQueue ??
@@ -473,6 +477,9 @@ export class ChatService {
       where: { id: session.id },
       data: { updatedAt: new Date() },
     });
+    if (session.caseId && savedAttachments.length) {
+      await this.promotion?.promoteSession(params.workspaceId, session.id);
+    }
 
     const mappedUserMessage = toMessage({
       ...userMessage,

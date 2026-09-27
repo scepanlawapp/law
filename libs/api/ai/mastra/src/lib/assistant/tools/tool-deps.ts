@@ -186,6 +186,67 @@ export type DraftReadResult =
     }
   | { status: "NOT_FOUND"; message: string };
 
+/** A readable document: a case document or a chat attachment not yet filed on a case. */
+export interface AssistantDocumentEntry {
+  /** Pass back to read_document / search_documents. */
+  ref: string;
+  title: string;
+  fileName: string;
+  /** CASE: filed on the conversation's case; CHAT: attached in this conversation. */
+  origin: "CASE" | "CHAT";
+  /** PENDING: text not extracted yet (read_document extracts it). */
+  textStatus: "READY" | "PENDING" | "FAILED" | "UNSUPPORTED";
+  /** YYYY-MM-DD */
+  addedAt: string;
+}
+
+export type AssistantDocumentList =
+  | {
+      status: "OK";
+      /** Case number of the conversation's case, or null when not linked. */
+      case: string | null;
+      items: AssistantDocumentEntry[];
+      truncated: boolean;
+    }
+  | { status: "UNAVAILABLE"; message: string };
+
+export type AssistantDocumentRead =
+  | {
+      status: "OK";
+      ref: string;
+      title: string;
+      /** Character offset of `text` within the document. */
+      offset: number;
+      /** Pass as `offset` to continue; null at the end of the document. */
+      nextOffset: number | null;
+      totalChars: number;
+      text: string;
+    }
+  | {
+      status: "NOT_FOUND" | "NO_TEXT" | "UNAVAILABLE";
+      message: string;
+    };
+
+export interface AssistantDocumentMatch {
+  ref: string;
+  title: string;
+  /** Total occurrences; `hits` is capped. */
+  count: number;
+  hits: Array<{ offset: number; snippet: string }>;
+}
+
+export type AssistantDocumentSearch =
+  | {
+      status: "OK";
+      query: string;
+      /** Documents whose text was searched. */
+      searched: number;
+      /** Titles of documents without readable text. */
+      unreadable: string[];
+      matches: AssistantDocumentMatch[];
+    }
+  | { status: "NOT_FOUND" | "UNAVAILABLE"; message: string };
+
 export const ASSISTANT_DEADLINE_TYPES = [
   "COURT",
   "STATUTORY",
@@ -262,6 +323,16 @@ export interface LegalAssistantToolDeps {
     scope: AssistantTurnScope,
     args: ActivityQuery,
   ): Promise<AssistantListResult<AssistantActivityEntry>>;
+  /** Chat attachments and the linked case's documents (read-only). */
+  listDocuments(scope: AssistantTurnScope): Promise<AssistantDocumentList>;
+  readDocument(
+    scope: AssistantTurnScope,
+    args: { ref: string; offset?: number },
+  ): Promise<AssistantDocumentRead>;
+  searchDocuments(
+    scope: AssistantTurnScope,
+    args: { query: string; ref?: string },
+  ): Promise<AssistantDocumentSearch>;
   /** Drafts a lawsuit from the conversation (reversible: needs lawyer approval). */
   draftLawsuit(
     scope: AssistantTurnScope,

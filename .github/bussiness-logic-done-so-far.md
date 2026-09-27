@@ -75,6 +75,7 @@ Authenticated document APIs are implemented. The Angular documents library (list
 - Linked cases and clients must belong to the workspace (400 when unavailable). Archive hides from the default list; authorized detail and download still work.
 - Document list/detail responses include shallow linked case and client display objects for each document link.
 - There is no virus-scanning claim, no cloud adapter, and no permanent delete in this slice.
+- Each document version can carry extracted Serbian Latin text (`extractionStatus`, `extractedText`, `sourceScript`). The assistant fills it lazily; it is not exposed in the document API.
 
 ## Workspace documents (upload modal)
 
@@ -184,6 +185,7 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - After brief extraction, the Case-work pane opens in the right rail (shared with the Draft review panel via a compact Draft / Case-work tab switcher shown only when both exist), without narrowing the chat column. A fresh brief auto-expands the rail on the Case-work tab and a fresh draft opens the Draft tab; refresh/SSE updates never re-expand a rail the user collapsed, switching sessions collapses it, and deleting the active session resets the brief/rail state. Nothing remains in the message stream. The lawyer confirms a client and case separately from tasks. Plaintiff becomes the client (existing match or a new individual). Defendant is stored as opposing-party text on the case. Confirmed missing fields and evidence become tasks with no due date.
 - Confirmed creates write activity-log rows with `metadata.source = "AI_ASSISTED"`. The approving user is the actor.
 - Linked sessions and drafts appear on the case overview. Opening the assistant with `?caseId=` preselects that case and does not send a message.
+- When a session is linked to a case (brief apply, manual link, or an approved `link_case` proposal), and when files are uploaded to a session that is already linked, each chat attachment is filed as a workspace document on that case and its client (`ChatAttachment.documentId`, idempotency key `chat-attachment:<id>`). Text already extracted in chat is copied to the document version. The `DOCUMENT_CREATED` activity row has `metadata.source = "CHAT_ATTACHMENT"`. Filing is best effort: a failure (for example a file type the document store rejects) never blocks the link and is retried on the next link or upload.
 - All LLM calls go to OpenRouter through the Mastra model layer (`@law/mastra`); there is one assistant engine and no engine flags.
 - Every message first passes Portir triage, which sees the recent conversation. Non-legal and unclear requests get a short reply and no further work. Every legal request becomes one `agent-turn` job run by the multi-turn `legalAssistant` agent:
   - The agent receives the session's recent messages (in Latin script, within a budget) and the linked case.
@@ -194,6 +196,11 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
     - `list_work_items` lists tasks, deadlines, and events by case, client, or person, by state (open/done/all), by due-date range, or overdue only. With no filter it uses the linked case, or else the current user.
     - `get_agenda` returns the merged calendar for up to 31 days.
     - `list_activity` merges notes, logged calls/meetings/emails, and task/deadline/event changes for a case or client, newest first.
+  - Read-only document tools cover the conversation's attachments that are not filed yet and the non-archived documents of the conversation's case, including documents uploaded through the upload modal:
+    - `list_documents` returns refs, titles, file names, and text status.
+    - `read_document` returns the text in windows of 12,000 characters with `nextOffset`.
+    - `search_documents` finds a word or phrase in the text, ignoring case, script, diacritics, and line breaks. It returns up to 10 snippets per document with offsets and names the documents that have no readable text.
+    - Text is extracted lazily on the first read and stored on `DocumentVersion` (or on the chat attachment). The prompt tells the agent to search or read before saying it cannot access a document. There are no embeddings over office documents.
   - "Me" is the conversation's owner, who is named in the agent prompt. A colleague can be named instead; matching is diacritic-insensitive and tolerates Serbian case endings. An ambiguous or unknown person, case, or client returns candidates or a message instead of a guess. Lists are capped and report truncation; note text is clipped to 500 characters.
   - Answers stream over the same SSE events and support feedback and regenerate.
   - Drafting requests also go to the agent. Its `draft_lawsuit` tool runs the Mastra `lawsuit-drafting` workflow:

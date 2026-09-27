@@ -12,6 +12,9 @@ import type {
   AssistantCaseLookup,
   AssistantClientFacts,
   AssistantClientLookup,
+  AssistantDocumentList,
+  AssistantDocumentRead,
+  AssistantDocumentSearch,
   AssistantListResult,
   AssistantTurnScope,
   AssistantWorkItem,
@@ -22,6 +25,7 @@ import type {
   WorkItemQuery,
 } from "@law/mastra";
 import { AssistantActionsService } from "./assistant-actions.service";
+import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import {
   AssistantOfficeReadsService,
@@ -32,6 +36,10 @@ const CASE_CANDIDATE_LIMIT = 5;
 const DRAFTING_UNAVAILABLE = {
   status: "FAILED" as const,
   message: "Izrada nacrta trenutno nije dostupna.",
+};
+const DOCUMENTS_UNAVAILABLE = {
+  status: "UNAVAILABLE" as const,
+  message: "Dokumenti trenutno nisu dostupni.",
 };
 const OFFICE_UNAVAILABLE = {
   status: "UNAVAILABLE" as const,
@@ -51,7 +59,32 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     @Optional() private readonly drafting?: AssistantDraftingService,
     @Optional() private readonly actions?: AssistantActionsService,
     @Optional() private readonly office?: AssistantOfficeReadsService,
+    @Optional() private readonly documents?: AssistantDocumentReadsService,
   ) {}
+
+  listDocuments(scope: AssistantTurnScope): Promise<AssistantDocumentList> {
+    return this.documents
+      ? this.documents.listDocuments(scope)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
+
+  readDocument(
+    scope: AssistantTurnScope,
+    args: { ref: string; offset?: number },
+  ): Promise<AssistantDocumentRead> {
+    return this.documents
+      ? this.documents.readDocument(scope, args)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
+
+  searchDocuments(
+    scope: AssistantTurnScope,
+    args: { query: string; ref?: string },
+  ): Promise<AssistantDocumentSearch> {
+    return this.documents
+      ? this.documents.searchDocuments(scope, args)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
 
   searchCases(
     scope: AssistantTurnScope,

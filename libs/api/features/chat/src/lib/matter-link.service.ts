@@ -3,6 +3,7 @@ import {
   ConflictException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
@@ -20,6 +21,7 @@ import { PlatformPrismaService } from "@law/core";
 import { ActivitiesTasksDeadlinesService } from "@law/activities-tasks-deadlines";
 import { CasesService } from "@law/cases";
 import { ClientsService } from "@law/clients";
+import { ChatDocumentPromotionService } from "./chat-document-promotion.service";
 import { toSessionSummary } from "./chat.mappers";
 
 const AI_SOURCE = { source: "AI_ASSISTED" } as const;
@@ -31,6 +33,7 @@ export class MatterLinkService {
     private readonly cases: CasesService,
     private readonly clients: ClientsService,
     private readonly work: ActivitiesTasksDeadlinesService,
+    @Optional() private readonly promotion?: ChatDocumentPromotionService,
   ) {}
 
   private get db(): PlatformPrismaService {
@@ -139,6 +142,9 @@ export class MatterLinkService {
       }
       return next;
     });
+    if (input.caseId) {
+      await this.promotion?.promoteSession(input.workspaceId, session.id);
+    }
     return {
       ...toSessionSummary(updated),
       caseId: updated.caseId,
@@ -395,6 +401,7 @@ export class MatterLinkService {
         },
       }),
     ]);
+    await this.promotion?.promoteSession(input.workspaceId, input.sessionId);
     return {
       briefId: briefRow.id,
       caseId: createdCase.id,
