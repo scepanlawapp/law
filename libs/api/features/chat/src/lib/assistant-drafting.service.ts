@@ -887,5 +887,8 @@ function scopeFromJob(
     correlationId: job.correlationId,
     messageId: input.messageId ?? "",
     language: input.language === "en" ? "en" : "sr",
+    // Queued drafting jobs never call the office tools.
+    userId: null,
+    userDisplayName: null,
   };
 }

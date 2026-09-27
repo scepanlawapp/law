@@ -25,6 +25,30 @@ describe("tool call summary", () => {
     );
   });
 
+  it("labels office read tools", () => {
+    expect(
+      describeToolCall("search_cases", { query: "Razvod", responsible: "me" }),
+    ).toBe("Razvod · me");
+    expect(describeToolCall("get_client", { reference: "Alfa" })).toBe("Alfa");
+    expect(
+      describeToolCall("get_agenda", {
+        from: "2026-09-28",
+        to: "2026-10-04",
+        person: "me",
+      }),
+    ).toBe("2026-09-28 – 2026-10-04");
+    expect(
+      describeToolCall("list_work_items", { kind: "all", state: "open" }),
+    ).toBeNull();
+    expect(
+      toolResultCount("list_work_items", { status: "OK", total: 7, items: [] }),
+    ).toBe(7);
+    expect(
+      toolResultCount("get_agenda", { status: "AMBIGUOUS", message: "x" }),
+    ).toBe(0);
+    expect(toolResultCount("get_client", { found: "one", client: {} })).toBe(1);
+  });
+
   it("clips long labels", () => {
     const label = describeToolCall("search_legal_sources", {
       query: "a".repeat(300),

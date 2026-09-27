@@ -6,6 +6,12 @@
 export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   search_legal_sources: "none",
   get_case: "none",
+  search_cases: "none",
+  search_clients: "none",
+  get_client: "none",
+  list_work_items: "none",
+  get_agenda: "none",
+  list_activity: "none",
   get_draft: "none",
   list_conversation_drafts: "none",
   draft_lawsuit: "reversible",

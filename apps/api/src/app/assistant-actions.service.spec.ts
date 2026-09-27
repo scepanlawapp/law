@@ -14,6 +14,8 @@ const scope: AssistantTurnScope = {
   correlationId: "corr-1",
   messageId: "message-1",
   language: "sr",
+  userId: null,
+  userDisplayName: null,
 };
 
 const matter = {

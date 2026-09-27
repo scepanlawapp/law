@@ -187,7 +187,14 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - All LLM calls go to OpenRouter through the Mastra model layer (`@law/mastra`); there is one assistant engine and no engine flags.
 - Every message first passes Portir triage, which sees the recent conversation. Non-legal and unclear requests get a short reply and no further work. Every legal request becomes one `agent-turn` job run by the multi-turn `legalAssistant` agent:
   - The agent receives the session's recent messages (in Latin script, within a budget) and the linked case.
-  - It can call two read-only tools: `search_legal_sources`, the pgvector legal knowledge base with `[n]` citations stored on the answer, and `get_case`, which returns the linked case or a search by number or name.
+  - It can call two read-only tools: `search_legal_sources`, the pgvector legal knowledge base with `[n]` citations stored on the answer, and `get_case`, which returns the linked case or a search by number or name. For a single case it also returns the current responsible lawyers and the number of open tasks and deadlines.
+  - Read-only office tools answer everyday practice questions from the existing services, scoped to the workspace:
+    - `search_cases` and `search_clients` return filtered lists.
+    - `get_client` returns one client with contacts and open cases. It never returns JMBG, ID documents, or addresses.
+    - `list_work_items` lists tasks, deadlines, and events by case, client, or person, by state (open/done/all), by due-date range, or overdue only. With no filter it uses the linked case, or else the current user.
+    - `get_agenda` returns the merged calendar for up to 31 days.
+    - `list_activity` merges notes, logged calls/meetings/emails, and task/deadline/event changes for a case or client, newest first.
+  - "Me" is the conversation's owner, who is named in the agent prompt. A colleague can be named instead; matching is diacritic-insensitive and tolerates Serbian case endings. An ambiguous or unknown person, case, or client returns candidates or a message instead of a guess. Lists are capped and report truncation; note text is clipped to 500 characters.
   - Answers stream over the same SSE events and support feedback and regenerate.
   - Drafting requests also go to the agent. Its `draft_lawsuit` tool runs the Mastra `lawsuit-drafting` workflow:
     - It builds the brief from the conversation's client messages and the session's attachments, reusing extracted text.
