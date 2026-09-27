@@ -1,5 +1,7 @@
 # AI Legal Workflow Optimization Roadmap
 
+> **Historical.** This roadmap has been superseded by the [Law Office Modernization Roadmap](./tracks/modernization_roadmap_20260927/index.md) (2026-09-27).
+
 Date: 2026-09-09. Scope: the `law` monorepo (NestJS API, Angular web, Prisma/PostgreSQL, Tesseract OCR, OpenRouter LLM). Every finding below was verified against the code, not the README.
 
 ## 1. Current State Analysis
