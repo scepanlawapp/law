@@ -89,6 +89,8 @@ import {
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
+const STICK_TO_BOTTOM_THRESHOLD_PX = 80;
+const CITATION_FLASH_CLASS = "citation-item--flash";
 const ALLOWED_FILE_MIME_TYPES = [
   "application/pdf",
   "application/vnd.ms-excel",
@@ -151,6 +153,8 @@ interface SessionGroup {
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Delegated: citation links are rendered through sanitized [innerHTML] and are natively focusable.
+  host: { "(click)": "onMarkdownClick($event)" },
   providers: [
     provideIcons({
       lucideArrowUp,
@@ -529,7 +533,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
           this.pendingActions.set(indexPendingActions(detail.pendingActions));
-          this.scheduleMessagesScroll();
+          this.scheduleMessagesScroll(true);
           this.applySessionDetail(detail, sessionChanged);
         },
         error: () => this.error.set("Unable to load this conversation."),
@@ -983,6 +987,47 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     return message.citations?.map((citation) => citation.marker) ?? [];
   }
 
+  /** Unique per message, so marker 1 in one reply never resolves to another reply's source. */
+  protected citationAnchorPrefix(message: ChatMessageResponse): string {
+    return `message-${message.id}-citation`;
+  }
+
+  /**
+   * Citation markers live in sanitized `[innerHTML]`, where a plain `#id` link would resolve
+   * against `<base href="/">` and leave the assistant route. Scroll the chat panel instead.
+   */
+  protected onMarkdownClick(event: MouseEvent): void {
+    const link = (event.target as Element | null)?.closest<HTMLAnchorElement>(
+      ".assistant-markdown a.citation-marker-link",
+    );
+    if (!link) return;
+    event.preventDefault();
+
+    const targetId = link.getAttribute("href")?.slice(1);
+    const container = this.messagesContainer?.nativeElement;
+    if (!targetId || !container) return;
+    const target = document.getElementById(targetId);
+    if (!target || !container.contains(target)) return;
+
+    const reduceMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    target.scrollIntoView({
+      block: "center",
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+    target.focus({ preventScroll: true });
+    target.classList.remove(CITATION_FLASH_CLASS);
+    // Restart the highlight animation when the same marker is clicked again.
+    void target.offsetWidth;
+    target.classList.add(CITATION_FLASH_CLASS);
+    target.addEventListener(
+      "animationend",
+      () => target.classList.remove(CITATION_FLASH_CLASS),
+      { once: true },
+    );
+  }
+
   protected send(): void {
     const workspaceId = this.workspaceId();
     if (!workspaceId || !this.canSend()) return;
@@ -1025,7 +1070,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
-          this.upsertMessage(response.userMessage);
+          this.upsertMessage(response.userMessage, true);
           this.composerForm.reset();
           this.speechRecognition.reset();
           this.resetTextarea();
@@ -1156,7 +1201,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.workflowState.set(buildWorkflowActivityState(detail));
           this.pendingActions.set(indexPendingActions(detail.pendingActions));
           this.applySessionDetail(detail, false);
-          this.scheduleMessagesScroll();
+          this.scheduleMessagesScroll(true);
         },
         error: () => undefined,
       });
@@ -1232,13 +1277,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     );
   }
 
-  private upsertMessage(message: ChatMessageResponse): void {
+  private upsertMessage(message: ChatMessageResponse, force = false): void {
     this.messages.update((items) => {
       const index = items.findIndex((item) => item.id === message.id);
       if (index === -1) return [...items, message];
       return items.map((item) => (item.id === message.id ? message : item));
     });
-    this.scheduleMessagesScroll();
+    this.scheduleMessagesScroll(force);
   }
 
   private appendMessageDelta(messageId: string, delta: string): void {
@@ -1265,7 +1310,17 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     );
   }
 
-  private scheduleMessagesScroll(): void {
+  /**
+   * Pins the transcript to the bottom. Unless forced, it only does so when the reader was already
+   * near the bottom, so streamed updates do not pull them away from a source they jumped to.
+   */
+  private scheduleMessagesScroll(force = false): void {
+    const current = this.messagesContainer?.nativeElement;
+    const nearBottom =
+      !current ||
+      current.scrollHeight - current.scrollTop - current.clientHeight <=
+        STICK_TO_BOTTOM_THRESHOLD_PX;
+    if (!force && !nearBottom) return;
     requestAnimationFrame(() => {
       const messagesContainer = this.messagesContainer?.nativeElement;
       if (!messagesContainer) return;

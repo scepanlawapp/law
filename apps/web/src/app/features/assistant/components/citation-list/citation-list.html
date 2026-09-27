@@ -1,7 +1,7 @@
 @if (citations().length) {
 <ul class="citation-list">
   @for (citation of citations(); track citation.marker) {
-  <li class="citation-item" [id]="anchorId(citation.marker)">
+  <li class="citation-item" [id]="anchorId(citation.marker)" tabindex="-1">
     <span class="citation-marker">{{ citation.marker }}</span>
     <div class="citation-body">
       <div class="citation-heading">
