@@ -7,12 +7,15 @@ import { LegalKnowledgeModule } from "@law/legal-knowledge";
 import { CasesModule } from "@law/cases";
 import { ClientsModule } from "@law/clients";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
+import { WorkspaceDocumentsModule } from "@law/workspace-documents";
 import { AgentTurnRunner } from "./agent-turn.runner";
 import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { ConversationSummaryService } from "./conversation-summary.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import { AssistantOfficeReadsService } from "./assistant-office-reads.service";
+import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
+import { ChatDocumentPromotionService } from "./chat-document-promotion.service";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatController } from "./chat.controller";
 import { ChatRuntimeConfig } from "./chat.config";
@@ -35,6 +38,7 @@ import {
     CasesModule,
     ClientsModule,
     ActivitiesTasksDeadlinesModule,
+    WorkspaceDocumentsModule,
     MulterModule.register({ storage: memoryStorage() }),
     BullModule.forRootAsync({
       useFactory: () => {
@@ -67,6 +71,8 @@ import {
     AssistantDraftingService,
     AssistantActionsService,
     AssistantOfficeReadsService,
+    AssistantDocumentReadsService,
+    ChatDocumentPromotionService,
     ConversationSummaryService,
     AgentTurnRunner,
     { provide: WORKFLOW_QUEUE_PORT, useClass: WorkflowQueueService },

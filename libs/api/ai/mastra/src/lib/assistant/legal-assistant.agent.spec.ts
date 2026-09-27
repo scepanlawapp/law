@@ -16,6 +16,9 @@ import { createGetAgendaTool } from "./tools/get-agenda.tool";
 import { createGetCaseTool } from "./tools/get-case.tool";
 import { createGetClientTool } from "./tools/get-client.tool";
 import { createListActivityTool } from "./tools/list-activity.tool";
+import { createListDocumentsTool } from "./tools/list-documents.tool";
+import { createReadDocumentTool } from "./tools/read-document.tool";
+import { createSearchDocumentsTool } from "./tools/search-documents.tool";
 import { createListWorkItemsTool } from "./tools/list-work-items.tool";
 import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
@@ -92,6 +95,20 @@ function deps(
     listWorkItems: jest.fn().mockResolvedValue(emptyList),
     getAgenda: jest.fn().mockResolvedValue(emptyList),
     listActivity: jest.fn().mockResolvedValue(emptyList),
+    listDocuments: jest
+      .fn()
+      .mockResolvedValue({
+        status: "OK",
+        case: null,
+        items: [],
+        truncated: false,
+      }),
+    readDocument: jest
+      .fn()
+      .mockResolvedValue({ status: "NOT_FOUND", message: "none" }),
+    searchDocuments: jest
+      .fn()
+      .mockResolvedValue({ status: "NOT_FOUND", message: "none" }),
     proposeAction: jest.fn().mockResolvedValue({
       status: "CONFIRMATION_REQUIRED",
       pendingActionId: "action-1",
@@ -386,6 +403,43 @@ describe("assistant tools", () => {
     expect(work.safeParse({ kind: "invoice" }).success).toBe(false);
     expect(activity.parse({})).toEqual({ includeNotes: true, limit: 10 });
     expect(activity.safeParse({ limit: 100 }).success).toBe(false);
+  });
+
+  it("document tools pass the turn scope and arguments", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+
+    await createListDocumentsTool(toolDeps).execute?.({}, context);
+    await createReadDocumentTool(toolDeps).execute?.(
+      { ref: "doc:1", offset: 12000 },
+      context,
+    );
+    await createSearchDocumentsTool(toolDeps).execute?.(
+      { query: "zakupnina" },
+      context,
+    );
+
+    expect(toolDeps.listDocuments).toHaveBeenCalledWith(turn);
+    expect(toolDeps.readDocument).toHaveBeenCalledWith(turn, {
+      ref: "doc:1",
+      offset: 12000,
+    });
+    expect(toolDeps.searchDocuments).toHaveBeenCalledWith(turn, {
+      query: "zakupnina",
+      ref: undefined,
+    });
+  });
+
+  it("document tools validate their inputs", () => {
+    const read = createReadDocumentTool(deps())
+      .inputSchema as unknown as ZodTypeAny;
+    const search = createSearchDocumentsTool(deps())
+      .inputSchema as unknown as ZodTypeAny;
+
+    expect(read.safeParse({ ref: "doc:1", offset: -1 }).success).toBe(false);
+    expect(read.safeParse({}).success).toBe(false);
+    expect(search.safeParse({ query: "a" }).success).toBe(false);
+    expect(search.parse({ query: " ugovor " })).toEqual({ query: "ugovor" });
   });
 
   it("get_case passes the workspace and linked case from the request context", async () => {

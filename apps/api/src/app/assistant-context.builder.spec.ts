@@ -63,7 +63,11 @@ describe("AssistantContextBuilder", () => {
     expect(context.messages).toEqual([
       { role: "user", content: "Koliki je rok zastarelosti?" },
       { role: "assistant", content: "Opšti rok je deset godina [1]." },
-      { role: "user", content: "[Prilozi: ugovor.pdf]" },
+      {
+        role: "user",
+        content:
+          "[Prilozi: ugovor.pdf — tekst: search_documents / read_document]",
+      },
       { role: "user", content: "A za zaradu?" },
     ]);
     expect(context.sessionCaseId).toBe("case-1");

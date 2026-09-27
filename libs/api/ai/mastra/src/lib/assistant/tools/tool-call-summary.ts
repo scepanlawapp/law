@@ -5,11 +5,14 @@ import { GET_CASE_TOOL_ID } from "./get-case.tool";
 import { GET_CLIENT_TOOL_ID } from "./get-client.tool";
 import { LINK_CASE_TOOL_ID } from "./link-case.tool";
 import { LIST_ACTIVITY_TOOL_ID } from "./list-activity.tool";
+import { LIST_DOCUMENTS_TOOL_ID } from "./list-documents.tool";
 import { LIST_DRAFTS_TOOL_ID } from "./list-drafts.tool";
 import { LIST_WORK_ITEMS_TOOL_ID } from "./list-work-items.tool";
+import { READ_DOCUMENT_TOOL_ID } from "./read-document.tool";
 import { REVISE_DRAFT_TOOL_ID } from "./revise-draft.tool";
 import { SEARCH_CASES_TOOL_ID } from "./search-cases.tool";
 import { SEARCH_CLIENTS_TOOL_ID } from "./search-clients.tool";
+import { SEARCH_DOCUMENTS_TOOL_ID } from "./search-documents.tool";
 import { SEARCH_LEGAL_SOURCES_TOOL_ID } from "./search-legal-sources.tool";
 
 const LABEL_MAX_CHARS = 120;
@@ -61,6 +64,8 @@ export function describeToolCall(
       );
     case LIST_ACTIVITY_TOOL_ID:
       return joined(args?.["case"], args?.["client"]);
+    case SEARCH_DOCUMENTS_TOOL_ID:
+      return clip(args?.["query"]);
     case DRAFT_LAWSUIT_TOOL_ID:
       return clip(args?.["note"]);
     case REVISE_DRAFT_TOOL_ID:
@@ -97,6 +102,20 @@ export function toolResultCount(
             : null;
     case LIST_DRAFTS_TOOL_ID:
       return Array.isArray(result["drafts"]) ? result["drafts"].length : null;
+    case LIST_DOCUMENTS_TOOL_ID:
+      return result["status"] === "OK" && Array.isArray(result["items"])
+        ? result["items"].length
+        : 0;
+    case READ_DOCUMENT_TOOL_ID:
+      return result["status"] === "OK" ? 1 : 0;
+    case SEARCH_DOCUMENTS_TOOL_ID:
+      return result["status"] === "OK" && Array.isArray(result["matches"])
+        ? result["matches"].reduce(
+            (sum: number, match: unknown) =>
+              sum + Number(record(match)?.["count"] ?? 0),
+            0,
+          )
+        : 0;
     case SEARCH_CASES_TOOL_ID:
     case SEARCH_CLIENTS_TOOL_ID:
     case LIST_WORK_ITEMS_TOOL_ID:

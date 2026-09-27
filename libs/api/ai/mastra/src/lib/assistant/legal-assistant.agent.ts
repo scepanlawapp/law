@@ -11,11 +11,14 @@ import { createGetClientTool } from "./tools/get-client.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
 import { createListActivityTool } from "./tools/list-activity.tool";
+import { createListDocumentsTool } from "./tools/list-documents.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
 import { createListWorkItemsTool } from "./tools/list-work-items.tool";
+import { createReadDocumentTool } from "./tools/read-document.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
 import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
+import { createSearchDocumentsTool } from "./tools/search-documents.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
 
@@ -54,6 +57,9 @@ export function createLegalAssistantAgent(options: {
       list_work_items: createListWorkItemsTool(options.deps),
       get_agenda: createGetAgendaTool(options.deps),
       list_activity: createListActivityTool(options.deps),
+      list_documents: createListDocumentsTool(options.deps),
+      read_document: createReadDocumentTool(options.deps),
+      search_documents: createSearchDocumentsTool(options.deps),
       draft_lawsuit: createDraftLawsuitTool(options.deps),
       revise_draft: createReviseDraftTool(options.deps),
       get_draft: createGetDraftTool(options.deps),
