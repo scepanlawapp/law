@@ -77,8 +77,18 @@ enum ChatAttachmentSourceScript {
 enum WorkflowJobStatus {
   QUEUED
   RUNNING
+  WAITING_CONFIRMATION
   COMPLETED
   FAILED
+}
+
+enum PendingActionStatus {
+  PENDING
+  EXECUTING
+  APPROVED
+  DECLINED
+  FAILED
+  EXPIRED
 }
 
 enum AgentToolCallStatus {
@@ -353,6 +363,7 @@ model Workspace {
   chatAttachments        ChatAttachment[]
   workflowJobs           WorkflowJob[]
   agentToolCalls         AgentToolCall[]
+  pendingActions         PendingAction[]
   briefExtractionResults BriefExtractionResult[]
   draftResults           DraftResult[]
   config                 WorkspaceConfig?
@@ -1232,6 +1243,7 @@ model ChatSession {
   attachments            ChatAttachment[]
   workflowJobs           WorkflowJob[]
   agentToolCalls         AgentToolCall[]
+  pendingActions         PendingAction[]
   briefExtractionResults BriefExtractionResult[]
   draftResults           DraftResult[]
 
@@ -1304,6 +1316,7 @@ model WorkflowJob {
   briefExtractionResult BriefExtractionResult?
   draftResult           DraftResult?
   toolCalls             AgentToolCall[]
+  pendingActions        PendingAction[]
 
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])
@@ -1332,6 +1345,35 @@ model AgentToolCall {
   @@unique([jobId, toolCallId])
   @@index([sessionId, startedAt])
   @@index([workspaceId, toolName, startedAt])
+}
+
+// A record change proposed by the assistant agent; executed only after a user approves it.
+model PendingAction {
+  id              String              @id @default(uuid())
+  workspaceId     String
+  sessionId       String
+  jobId           String
+  correlationId   String
+  actionType      String
+  payload         Json
+  summary         String
+  details         String[]            @default([])
+  status          PendingActionStatus @default(PENDING)
+  idempotencyKey  String              @unique
+  result          Json?
+  errorMessage    String?
+  expiresAt       DateTime            @db.Timestamptz(3)
+  decidedByUserId String?
+  decidedAt       DateTime?           @db.Timestamptz(3)
+  declineReason   String?
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
+  workspace       Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session         ChatSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  job             WorkflowJob         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, createdAt])
+  @@index([jobId, status])
 }
 
 model BriefExtractionResult {

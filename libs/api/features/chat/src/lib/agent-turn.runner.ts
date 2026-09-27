@@ -32,7 +32,8 @@ import { AssistantContextBuilder } from "./assistant-context.builder";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
-import { toMessage, toToolCall } from "./chat.mappers";
+import { belgradeToday } from "./assistant-actions.service";
+import { toMessage, toPendingAction, toToolCall } from "./chat.mappers";
 import type { WorkflowJobPayload } from "./workflow-queue.types";
 
 /** Test seam: overrides the agent's model (e.g. a scripted mock). */
@@ -45,6 +46,8 @@ export interface AgentTurnInput {
   language: "sr" | "en";
   /** Portir's intent; drafting requests also go to the agent. */
   intent?: "ANSWER" | "DRAFT";
+  /** `agent-resume`: pending actions whose decisions the agent reports. */
+  resumeActionIds?: string[];
 }
 
 /** Run telemetry columns on WorkflowJob. */
@@ -127,13 +130,26 @@ export class AgentTurnRunner implements OnModuleDestroy {
     let usage: TokenUsage = {};
     let toolCalls: ToolCallRecorder | undefined;
     let draftId: string | null = null;
+    let proposalId: string | null = null;
+    const pendingActionIds: string[] = [];
     const model = this.config.assistantModel;
     try {
+      const resuming = !!input.resumeActionIds?.length;
       const context = await this.contextBuilder.build({
         workspaceId: payload.workspaceId,
         sessionId: payload.sessionId,
-        messageId: input.messageId,
+        // A resume continues after the proposal message, so read up to now.
+        messageId: resuming ? undefined : input.messageId,
       });
+      if (resuming) {
+        context.messages.push({
+          role: "user",
+          content: await this.decisionNote(
+            payload.workspaceId,
+            input.resumeActionIds ?? [],
+          ),
+        });
+      }
       const citations = new CitationRegistry();
       toolCalls = new ToolCallRecorder(this.prisma, payload, (toolCall, type) =>
         this.emit(payload, {
@@ -158,6 +174,7 @@ export class AgentTurnRunner implements OnModuleDestroy {
             messageId: input.messageId,
             language: input.language,
           },
+          today: belgradeToday(),
           citations,
         }),
         maxSteps: LEGAL_ASSISTANT_MAX_STEPS,
@@ -195,6 +212,8 @@ export class AgentTurnRunner implements OnModuleDestroy {
               error: chunk.payload.isError ? chunk.payload.result : undefined,
             });
             draftId = readyDraftId(chunk.payload.result) ?? draftId;
+            proposalId = proposedActionId(chunk.payload.result);
+            if (proposalId) pendingActionIds.push(proposalId);
             break;
           case "tool-error":
             await toolCalls.finish(chunk.payload.toolCallId, {
@@ -222,6 +241,7 @@ export class AgentTurnRunner implements OnModuleDestroy {
             ...(draftId
               ? { outcome: "DRAFT_READY", draftId }
               : { outcome: "ANSWER" }),
+            ...(pendingActionIds.length ? { pendingActionIds } : {}),
             ...(used.length
               ? {
                   citations: used.map((citation) => ({
@@ -243,9 +263,14 @@ export class AgentTurnRunner implements OnModuleDestroy {
         createdAt: mapped.createdAt,
         message: mapped,
       });
+      // Proposals keep the run open until every one is decided.
       await job.transition(
-        "COMPLETED",
-        { progressStage: "PREPARING_ANSWER", messageId: assistant.id },
+        pendingActionIds.length ? "WAITING_CONFIRMATION" : "COMPLETED",
+        {
+          progressStage: "PREPARING_ANSWER",
+          messageId: assistant.id,
+          ...(pendingActionIds.length ? { pendingActionIds } : {}),
+        },
         null,
         { model, ...usage },
       );
@@ -275,6 +300,38 @@ export class AgentTurnRunner implements OnModuleDestroy {
             : "Asistent nije uspeo da završi odgovor.",
       });
     }
+  }
+
+  /** The user's decisions, as the synthetic last turn of an `agent-resume`. */
+  private async decisionNote(
+    workspaceId: string,
+    actionIds: string[],
+  ): Promise<string> {
+    const actions = await this.prisma.pendingAction.findMany({
+      where: { id: { in: actionIds }, workspaceId },
+      orderBy: { createdAt: "asc" },
+    });
+    const lines = actions.map((action) => {
+      const summary = toPendingAction(action);
+      switch (summary.status) {
+        case "APPROVED":
+          return `Odobreno i izvršeno: ${summary.summary}. ${summary.resultMessage ?? ""}`.trim();
+        case "DECLINED":
+          return `Odbijeno: ${summary.summary}.${
+            action.declineReason ? ` Razlog: ${action.declineReason}` : ""
+          }`;
+        case "FAILED":
+          return `Odobreno, ali neuspešno: ${summary.summary}. Greška: ${summary.errorMessage ?? "nepoznata"}`;
+        case "EXPIRED":
+          return `Isteklo bez odluke: ${summary.summary}.`;
+        default:
+          return `Još nije odlučeno: ${summary.summary}.`;
+      }
+    });
+    return [
+      "[Potvrda] Odluke korisnika o predloženim radnjama:",
+      ...lines,
+    ].join("\n");
   }
 
   private resolveAgent(): Agent {
@@ -444,5 +501,15 @@ function readyDraftId(result: unknown): string | null {
   const value = result as { status?: unknown; draftId?: unknown };
   return value.status === "DRAFT_READY" && typeof value.draftId === "string"
     ? value.draftId
+    : null;
+}
+
+/** Pending action id from a CONFIRMATION_REQUIRED tool result. */
+function proposedActionId(result: unknown): string | null {
+  if (!result || typeof result !== "object") return null;
+  const value = result as { status?: unknown; pendingActionId?: unknown };
+  return value.status === "CONFIRMATION_REQUIRED" &&
+    typeof value.pendingActionId === "string"
+    ? value.pendingActionId
     : null;
 }

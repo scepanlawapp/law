@@ -23,7 +23,9 @@ const job = (
   status,
   correlationId,
   progressStage:
-    workflowName === "answering" || workflowName === "agent-turn"
+    workflowName === "answering" ||
+    workflowName === "agent-turn" ||
+    workflowName === "agent-resume"
       ? "PREPARING_ANSWER"
       : "UNDERSTANDING_REQUEST",
   errorCode: null,
@@ -187,6 +189,53 @@ describe("assistant workflow state", () => {
     expect(
       selectWorkflowActivities(state)[0].steps.map((step) => step.kind),
     ).toEqual(["job", "tool"]);
+  });
+
+  it("shows a run waiting for confirmation, then the resumed answer", () => {
+    const waiting = buildWorkflowActivityState(
+      detail([
+        job("job-1", "corr-1", "COMPLETED"),
+        job(
+          "job-2",
+          "corr-1",
+          "WAITING_CONFIRMATION",
+          "agent-turn",
+          "2026-09-15T12:01:00.000Z",
+        ),
+      ]),
+    );
+
+    expect(selectWorkflowActivities(waiting)[0]).toMatchObject({
+      status: "waiting",
+      kind: "answer",
+      titleKey: "assistant.workflow.waitingConfirmation",
+      retryJobId: null,
+    });
+
+    const resumed = buildWorkflowActivityState(
+      detail([
+        job("job-1", "corr-1", "COMPLETED"),
+        job(
+          "job-2",
+          "corr-1",
+          "COMPLETED",
+          "agent-turn",
+          "2026-09-15T12:02:00.000Z",
+        ),
+        job(
+          "job-3",
+          "corr-1",
+          "RUNNING",
+          "agent-resume",
+          "2026-09-15T12:03:00.000Z",
+        ),
+      ]),
+    );
+    expect(selectWorkflowActivities(resumed)[0]).toMatchObject({
+      status: "active",
+      stage: "PREPARING_ANSWER",
+      agentKey: "assistant.workflow.agent.agent-resume",
+    });
   });
 
   it("rejects an older job update", () => {

@@ -4,6 +4,7 @@ import {
   buildTriageMessages,
   buildTriageUserPrompt,
   PORTIR_FOLLOW_UP_RULE,
+  PORTIR_PRACTICE_RULE,
   PORTIR_SYSTEM_PROMPT,
   classifyTriage,
   triageDecisionSchema,
@@ -102,6 +103,19 @@ describe("triage", () => {
       expect(user.content.indexOf("Previous conversation")).toBeLessThan(
         user.content.indexOf("User message:\nA kraće?"),
       );
+    });
+
+    it("accepts practice-management requests only when the agent can act", () => {
+      const [legacy] = buildTriageMessages({
+        userText: "Postavi rok za 15. oktobar.",
+      });
+      const [agent] = buildTriageMessages({
+        userText: "Postavi rok za 15. oktobar.",
+        practiceActions: true,
+      });
+
+      expect(legacy.content).not.toContain(PORTIR_PRACTICE_RULE);
+      expect(agent.content).toContain(PORTIR_PRACTICE_RULE);
     });
 
     it("clips long history entries", () => {

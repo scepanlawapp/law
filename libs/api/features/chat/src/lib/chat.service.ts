@@ -41,6 +41,7 @@ import {
   toDraft,
   toJob,
   toMessage,
+  toPendingAction,
   toSessionSummary,
   toToolCall,
 } from "./chat.mappers";
@@ -51,7 +52,11 @@ import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
 export { CHAT_MODEL_PROVIDER };
 
 /** Workflows that stream an `outcome: "ANSWER"` message and can be regenerated. */
-const ANSWER_WORKFLOWS: WorkflowName[] = ["answering", "agent-turn"];
+const ANSWER_WORKFLOWS: WorkflowName[] = [
+  "answering",
+  "agent-turn",
+  "agent-resume",
+];
 
 export interface UploadedChatFile {
   originalname: string;
@@ -280,40 +285,46 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionDetail> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const [messages, jobs, drafts, latestBrief, toolCalls] = await Promise.all([
-      this.db.chatMessage.findMany({
-        where: { sessionId },
-        include: { attachments: true },
-        orderBy: { createdAt: "asc" },
-      }),
-      this.db.workflowJob.findMany({
-        where: { sessionId },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      }),
-      this.db.draftResult.findMany({
-        where: { sessionId },
-        include: {
-          briefResult: { select: { missingFields: true } },
-          citations: true,
-        },
-        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-      }),
-      this.db.briefExtractionResult.findFirst({
-        where: { sessionId, workspaceId },
-        orderBy: { createdAt: "desc" },
-        select: { id: true },
-      }),
-      this.db.agentToolCall.findMany({
-        where: { sessionId, workspaceId },
-        include: { job: { select: { correlationId: true } } },
-        orderBy: [{ startedAt: "asc" }, { id: "asc" }],
-      }),
-    ]);
+    const [messages, jobs, drafts, latestBrief, toolCalls, pendingActions] =
+      await Promise.all([
+        this.db.chatMessage.findMany({
+          where: { sessionId },
+          include: { attachments: true },
+          orderBy: { createdAt: "asc" },
+        }),
+        this.db.workflowJob.findMany({
+          where: { sessionId },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
+        this.db.draftResult.findMany({
+          where: { sessionId },
+          include: {
+            briefResult: { select: { missingFields: true } },
+            citations: true,
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
+        this.db.briefExtractionResult.findFirst({
+          where: { sessionId, workspaceId },
+          orderBy: { createdAt: "desc" },
+          select: { id: true },
+        }),
+        this.db.agentToolCall.findMany({
+          where: { sessionId, workspaceId },
+          include: { job: { select: { correlationId: true } } },
+          orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+        }),
+        this.db.pendingAction.findMany({
+          where: { sessionId, workspaceId },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        }),
+      ]);
     return {
       ...toSessionSummary(session),
       messages: messages.map((message) => toMessage(message)),
       jobs: jobs.map((job) => toJob(job)),
       drafts: drafts.map((draft) => toDraft(draft)),
+      pendingActions: pendingActions.map((action) => toPendingAction(action)),
       toolCalls: toolCalls.map((call) =>
         toToolCall(call, call.job.correlationId),
       ),
@@ -967,6 +978,15 @@ export class ChatService {
     ) {
       throw new BadRequestException(
         "Only completed streamed answers can be regenerated",
+      );
+    }
+    if (
+      Array.isArray(metadata?.["pendingActionIds"]) &&
+      (metadata["pendingActionIds"] as unknown[]).length
+    ) {
+      // Regenerating would propose the same record changes again.
+      throw new BadRequestException(
+        "Answers that proposed actions cannot be regenerated",
       );
     }
     const activeJob = await this.db.workflowJob.findFirst({

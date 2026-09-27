@@ -7,7 +7,11 @@ import { CitationRegistry } from "./citation-registry";
 import { createLegalAssistantAgent } from "./legal-assistant.agent";
 import { createLegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
+import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
+import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDraftLawsuitTool } from "./tools/draft-lawsuit.tool";
+import { createLinkCaseTool } from "./tools/link-case.tool";
+import { ASSISTANT_TOOL_SIDE_EFFECTS } from "./tools/side-effects";
 import { createGetCaseTool } from "./tools/get-case.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
@@ -67,6 +71,12 @@ function deps(
     reviseDraft: jest.fn(),
     getDraft: jest.fn(),
     listDrafts: jest.fn().mockResolvedValue({ drafts: [] }),
+    proposeAction: jest.fn().mockResolvedValue({
+      status: "CONFIRMATION_REQUIRED",
+      pendingActionId: "action-1",
+      summary: "Novi rok",
+      details: [],
+    }),
     ...overrides,
   };
 }
@@ -90,6 +100,7 @@ function requestContext(overrides: { citations?: CitationRegistry } = {}) {
       "Nacrti u ovom razgovoru:\n- draft-1 v1 (READY_FOR_SIGNOFF)",
     intent: "ANSWER",
     turn,
+    today: "2026-09-27",
     citations: overrides.citations ?? new CitationRegistry(),
   });
 }
@@ -141,6 +152,9 @@ describe("buildLegalAssistantInstructions", () => {
     expect(text).toContain("drafting request");
     expect(text).toContain("- draft-1 v1");
     expect(text).toContain("Refer to drafts by version");
+    expect(
+      buildLegalAssistantInstructions({ language: "sr", today: "2026-09-27" }),
+    ).toContain("Today is 2026-09-27");
   });
 });
 
@@ -206,6 +220,58 @@ describe("assistant tools", () => {
       draftId: undefined,
     });
     expect(toolDeps.listDrafts).toHaveBeenCalledWith(turn);
+  });
+
+  it("record-changing tools only propose actions with the turn scope", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+
+    await createLinkCaseTool(toolDeps).execute?.(
+      { caseReference: "2026-21" },
+      context,
+    );
+    await createCreateDeadlineTool(toolDeps).execute?.(
+      {
+        title: "Odgovor na tužbu",
+        dueDate: "2026-10-15",
+        deadlineType: "COURT",
+      },
+      context,
+    );
+    await createCreateTasksFromBriefTool(toolDeps).execute?.({}, context);
+
+    expect(toolDeps.proposeAction).toHaveBeenNthCalledWith(1, turn, {
+      type: "link_case",
+      caseReference: "2026-21",
+    });
+    expect(toolDeps.proposeAction).toHaveBeenNthCalledWith(2, turn, {
+      type: "create_deadline",
+      title: "Odgovor na tužbu",
+      dueDate: "2026-10-15",
+      deadlineType: "COURT",
+    });
+    expect(toolDeps.proposeAction).toHaveBeenNthCalledWith(3, turn, {
+      type: "create_tasks_from_brief",
+      briefId: undefined,
+    });
+  });
+
+  it("declares a side-effect level for every agent tool", async () => {
+    const agent = createLegalAssistantAgent({
+      model: createScriptedModel([{ text: "ok" }]).model as never,
+      deps: deps(),
+    });
+    const tools = await agent.listTools();
+
+    expect(Object.keys(tools).sort()).toEqual(
+      Object.keys(ASSISTANT_TOOL_SIDE_EFFECTS).sort(),
+    );
+    expect(
+      Object.entries(ASSISTANT_TOOL_SIDE_EFFECTS)
+        .filter(([, level]) => level === "confirm")
+        .map(([name]) => name)
+        .sort(),
+    ).toEqual(["create_deadline", "create_tasks_from_brief", "link_case"]);
   });
 
   it("get_case passes the workspace and linked case from the request context", async () => {

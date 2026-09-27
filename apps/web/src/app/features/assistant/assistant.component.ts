@@ -35,6 +35,7 @@ import {
   lucidePlus,
   lucideRefreshCw,
   lucideSearch,
+  lucideShieldQuestion,
   lucideSparkles,
   lucideThumbsDown,
   lucideThumbsUp,
@@ -61,6 +62,7 @@ import {
   ChatSessionDetail,
   ChatSessionSummary,
   ChatStreamEvent,
+  PendingActionSummary,
   DocumentScript,
   DraftResultResponse,
   WorkflowJobResponse,
@@ -71,6 +73,7 @@ import { BottomReachedDirective } from "../../core/directives/bottom-reached.dir
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
 import { CitationListComponent } from "./components/citation-list/citation-list";
+import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
@@ -142,6 +145,7 @@ interface SessionGroup {
     AssistantMatterLinkComponent,
     DraftReviewPanelComponent,
     CitationListComponent,
+    PendingActionCardComponent,
     HlmSpinner,
   ],
   templateUrl: "./assistant.component.html",
@@ -167,6 +171,7 @@ interface SessionGroup {
       lucidePlus,
       lucideRefreshCw,
       lucideSearch,
+      lucideShieldQuestion,
       lucideSparkles,
       lucideThumbsDown,
       lucideThumbsUp,
@@ -254,6 +259,11 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly resyncing = signal(false);
   protected readonly feedbackMessageId = signal<string | null>(null);
   protected readonly regeneratingMessageId = signal<string | null>(null);
+  /** Assistant proposals of the open session, by id. */
+  protected readonly pendingActions = signal<
+    Readonly<Record<string, PendingActionSummary>>
+  >({});
+  protected readonly decidingActionId = signal<string | null>(null);
   private readonly clock = signal(Date.now());
   protected readonly expandedActivities = signal<ReadonlySet<string>>(
     new Set(),
@@ -518,6 +528,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           if (this.selectedSessionId() !== sessionId) return;
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
+          this.pendingActions.set(indexPendingActions(detail.pendingActions));
           this.scheduleMessagesScroll();
           this.applySessionDetail(detail, sessionChanged);
         },
@@ -745,6 +756,44 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       () =>
         this.toast.error(this.localization.translate("assistant.copyError")),
     );
+  }
+
+  protected pendingActionsFor(
+    message: ChatMessageResponse,
+  ): PendingActionSummary[] {
+    const actions = this.pendingActions();
+    return (message.pendingActionIds ?? [])
+      .map((id) => actions[id])
+      .filter((action): action is PendingActionSummary => !!action);
+  }
+
+  protected decidePendingAction(
+    action: PendingActionSummary,
+    decision: "approve" | "decline",
+  ): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId || this.decidingActionId()) return;
+    this.decidingActionId.set(action.id);
+    const request =
+      decision === "approve"
+        ? this.chat.approvePendingAction(workspaceId, action.id)
+        : this.chat.declinePendingAction(workspaceId, action.id);
+    request
+      .pipe(
+        finalize(() => this.decidingActionId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (updated) => this.upsertPendingAction(updated),
+        error: () =>
+          this.toast.error(
+            this.localization.translate("assistant.pendingAction.error"),
+          ),
+      });
+  }
+
+  private upsertPendingAction(action: PendingActionSummary): void {
+    this.pendingActions.update((actions) => ({ ...actions, [action.id]: action }));
   }
 
   protected regenerateAnswer(message: ChatMessageResponse): void {
@@ -1105,6 +1154,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           if (this.selectedSessionId() !== sessionId) return;
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
+          this.pendingActions.set(indexPendingActions(detail.pendingActions));
           this.applySessionDetail(detail, false);
           this.scheduleMessagesScroll();
         },
@@ -1116,6 +1166,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.workflowState.update((state) =>
       reduceWorkflowActivityEvent(state, event),
     );
+    if (
+      (event.type === "confirmation.required" ||
+        event.type === "confirmation.updated") &&
+      event.pendingAction
+    ) {
+      this.upsertPendingAction(event.pendingAction);
+    }
     if (
       (event.type === "message.created" ||
         event.type === "message.started" ||
@@ -1279,4 +1336,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     );
     return extension ? FILE_EXTENSION_MIME_TYPES[extension] : "";
   }
+}
+
+function indexPendingActions(
+  actions: readonly PendingActionSummary[] | undefined,
+): Record<string, PendingActionSummary> {
+  return Object.fromEntries((actions ?? []).map((action) => [action.id, action]));
 }

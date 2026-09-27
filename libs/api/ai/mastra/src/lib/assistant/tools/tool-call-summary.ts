@@ -1,5 +1,7 @@
+import { CREATE_DEADLINE_TOOL_ID } from "./create-deadline.tool";
 import { DRAFT_LAWSUIT_TOOL_ID } from "./draft-lawsuit.tool";
 import { GET_CASE_TOOL_ID } from "./get-case.tool";
+import { LINK_CASE_TOOL_ID } from "./link-case.tool";
 import { LIST_DRAFTS_TOOL_ID } from "./list-drafts.tool";
 import { REVISE_DRAFT_TOOL_ID } from "./revise-draft.tool";
 import { SEARCH_LEGAL_SOURCES_TOOL_ID } from "./search-legal-sources.tool";
@@ -35,6 +37,12 @@ export function describeToolCall(
       return clip(args?.["note"]);
     case REVISE_DRAFT_TOOL_ID:
       return clip(args?.["instruction"]);
+    case LINK_CASE_TOOL_ID:
+      return clip(args?.["caseReference"]);
+    case CREATE_DEADLINE_TOOL_ID:
+      return clip(
+        [args?.["title"], args?.["dueDate"]].filter(Boolean).join(" · "),
+      );
     default:
       return null;
   }

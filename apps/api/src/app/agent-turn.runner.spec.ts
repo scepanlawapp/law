@@ -48,6 +48,7 @@ function prismaMock() {
         Promise.resolve({ ...pending, ...data }),
       ),
     },
+    pendingAction: { findMany: jest.fn().mockResolvedValue([]) },
     agentToolCall: {
       create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
         const row = {
@@ -373,6 +374,115 @@ describe("AgentTurnRunner", () => {
     ).toMatchObject({ toolName: "draft_lawsuit", status: "COMPLETED" });
   });
 
+  it("leaves the run waiting for confirmation when the agent proposed an action", async () => {
+    const actions = {
+      propose: jest.fn().mockResolvedValue({
+        status: "CONFIRMATION_REQUIRED",
+        pendingActionId: "action-1",
+        summary: "Novi rok: Odgovor na tužbu — 15.10.2026.",
+        details: [],
+      }),
+    };
+    const prisma = prismaMock();
+    const events = new ChatEventBus();
+    const { model, prompts } = createScriptedModel([
+      {
+        toolCalls: [
+          {
+            toolName: "create_deadline",
+            input: { title: "Odgovor na tužbu", dueDate: "2026-10-15" },
+          },
+        ],
+      },
+      { text: "Predložio sam rok; potvrdite ga u kartici ispod." },
+    ]);
+    const runner = new AgentTurnRunner(
+      prisma as never,
+      events,
+      Object.assign(new ChatRuntimeConfig(), { assistantModel: "test-model" }),
+      contextBuilderMock() as never,
+      new AssistantToolsAdapter(
+        legalKnowledgeMock() as never,
+        undefined,
+        undefined,
+        actions as never,
+      ),
+      model as never,
+    );
+    const job = { transition: jest.fn().mockResolvedValue(undefined) };
+
+    await runner.run(turnInput, payload, job);
+
+    expect(actions.propose).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: "job-turn", messageId: "message-user" }),
+      expect.objectContaining({
+        type: "create_deadline",
+        dueDate: "2026-10-15",
+      }),
+    );
+    expect(JSON.stringify(prompts[0])).toMatch(/Today is \d{4}-\d{2}-\d{2}/);
+    expect(job.transition).toHaveBeenCalledWith(
+      "WAITING_CONFIRMATION",
+      expect.objectContaining({ pendingActionIds: ["action-1"] }),
+      null,
+      expect.anything(),
+    );
+    expect(prisma.chatMessage.update).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          metadata: { outcome: "ANSWER", pendingActionIds: ["action-1"] },
+        }),
+      }),
+    );
+  });
+
+  it("resumes with the user's decisions as the latest turn", async () => {
+    const { prisma, contextBuilder, prompts, runner, job } = setup([
+      { text: "Rok je upisan." },
+    ]);
+    prisma.pendingAction.findMany.mockResolvedValue([
+      {
+        id: "action-1",
+        jobId: "job-turn",
+        correlationId: "corr-1",
+        actionType: "create_deadline",
+        summary: "Novi rok: Odgovor na tužbu — 15.10.2026.",
+        details: [],
+        status: "APPROVED",
+        result: { message: "Rok „Odgovor na tužbu“ je kreiran za 15.10.2026." },
+        errorMessage: null,
+        declineReason: null,
+        expiresAt: now,
+        decidedAt: now,
+        createdAt: now,
+      },
+    ]);
+
+    await runner.run(
+      { ...turnInput, resumeActionIds: ["action-1"] },
+      { ...payload, jobId: "job-resume" },
+      job,
+    );
+
+    expect(contextBuilder.build).toHaveBeenCalledWith(
+      expect.objectContaining({ messageId: undefined }),
+    );
+    expect(prisma.pendingAction.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: { in: ["action-1"] }, workspaceId: "workspace-1" },
+      }),
+    );
+    const prompt = JSON.stringify(prompts[0]);
+    expect(prompt).toContain("[Potvrda]");
+    expect(prompt).toContain("Odobreno i izvršeno: Novi rok: Odgovor na tužbu");
+    expect(job.transition).toHaveBeenCalledWith(
+      "COMPLETED",
+      expect.anything(),
+      null,
+      expect.anything(),
+    );
+  });
+
   it("fails fast without input", async () => {
     const { prisma, runner, job } = setup([{ text: "x" }]);
 
@@ -490,6 +600,9 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
     );
     expect(provider.requests[0].messages[1].content).toContain(
       "Assistant: Najmanje 20 radnih dana.",
+    );
+    expect(provider.requests[0].messages[0].content).toContain(
+      "manage the office's matters",
     );
     expect(prisma.workflowJob.create).toHaveBeenCalledWith({
       data: expect.objectContaining({

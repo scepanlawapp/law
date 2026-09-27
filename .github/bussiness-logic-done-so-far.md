@@ -196,6 +196,12 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
     - Results are saved through the usual `brief-extraction` and `drafting` jobs, so the Case-work and Draft review panels work as before.
   - `revise_draft` creates a new draft version from a chat instruction (for example "skrati obrazloženje"). `get_draft` and `list_conversation_drafts` read the conversation's drafts, which the agent also sees in its context.
   - A turn that produced a draft is marked `DRAFT_READY`. Every draft still needs lawyer approval in the review panel. In the legacy engine, drafting is unchanged.
+  - The agent can propose record changes: `link_case`, `create_deadline` (on the linked or named case, with the case's responsible lawyer), and `create_tasks_from_brief` (the brief must be applied to a case).
+    - A proposal only stores a `PendingAction` and shows a confirmation card (Odobri / Odbij) under the message. The run waits in `WAITING_CONFIRMATION`.
+    - Approval (`POST /chat/pending-actions/:id/approve`) executes the change through the existing services, with the approving user as the actor and an `AI_ASSISTED` activity log.
+    - Decline (`…/decline`) writes nothing.
+    - Proposals expire after 24 h, and double approvals execute once.
+    - After the last decision, an `agent-resume` job lets the agent confirm the outcome.
   - Each agent tool call is stored (`AgentToolCall`: input, truncated output, status, duration) and streamed as `tool.started` / `tool.finished`. The assistant activity card lists tool steps (for example "Pretraga propisa „…“ · Rezultata: 4") live and after a reload, and while a tool runs its title reads "Pretražujem propise…".
 - Workflow jobs record `startedAt` and `finishedAt`. `agent-turn` jobs also record the model and input/output tokens. `MASTRA_TRACING=true` (off by default) additionally exports Mastra traces to the separate `mastra` Postgres schema.
 

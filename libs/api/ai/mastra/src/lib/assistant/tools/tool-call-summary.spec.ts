@@ -14,6 +14,15 @@ describe("tool call summary", () => {
       describeToolCall("revise_draft", { instruction: "Skrati uvod." }),
     ).toBe("Skrati uvod.");
     expect(describeToolCall("draft_lawsuit", {})).toBeNull();
+    expect(
+      describeToolCall("create_deadline", {
+        title: "Odgovor",
+        dueDate: "2026-10-15",
+      }),
+    ).toBe("Odgovor · 2026-10-15");
+    expect(describeToolCall("link_case", { caseReference: "2026-21" })).toBe(
+      "2026-21",
+    );
   });
 
   it("clips long labels", () => {

@@ -148,3 +148,10 @@ export class UpdateMessageFeedbackDto {
   @IsIn(["POSITIVE", "NEGATIVE"])
   feedback!: ChatMessageFeedback | null;
 }
+
+export class PendingActionDecisionDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  reason?: string;
+}

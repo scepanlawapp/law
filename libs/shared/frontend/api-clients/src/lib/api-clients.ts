@@ -40,6 +40,7 @@ import {
   PasswordResetRequest,
   UserSettingsResponse,
   UserSettingsUpdateRequest,
+  PendingActionSummary,
   WorkflowJobResponse,
   CalendarResponse,
   EventDetail,
@@ -523,6 +524,29 @@ export class ChatApiClient {
     return this.http.patch<ChatMessageResponse>(
       this.endpoint(`/chat/messages/${messageId}/feedback`),
       { feedback },
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  approvePendingAction(
+    workspaceId: string,
+    actionId: string,
+  ): Observable<PendingActionSummary> {
+    return this.http.post<PendingActionSummary>(
+      this.endpoint(`/chat/pending-actions/${actionId}/approve`),
+      {},
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
+  declinePendingAction(
+    workspaceId: string,
+    actionId: string,
+    reason?: string,
+  ): Observable<PendingActionSummary> {
+    return this.http.post<PendingActionSummary>(
+      this.endpoint(`/chat/pending-actions/${actionId}/decline`),
+      reason ? { reason } : {},
       this.workspaceOptions(workspaceId),
     );
   }

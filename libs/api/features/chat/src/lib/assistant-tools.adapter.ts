@@ -5,6 +5,8 @@ import { WorkspaceContextService } from "@law/core";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
 import type { GroundingSearchHit } from "@law/legal-grounding";
 import type {
+  ActionProposalResult,
+  AssistantActionRequest,
   AssistantCaseFacts,
   AssistantCaseLookup,
   AssistantTurnScope,
@@ -13,6 +15,7 @@ import type {
   DraftToolResult,
   LegalAssistantToolDeps,
 } from "@law/mastra";
+import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 
 const CASE_CANDIDATE_LIMIT = 5;
@@ -32,7 +35,20 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     @Optional() private readonly legalKnowledge?: LegalKnowledgeService,
     @Optional() private readonly cases?: CasesService,
     @Optional() private readonly drafting?: AssistantDraftingService,
+    @Optional() private readonly actions?: AssistantActionsService,
   ) {}
+
+  proposeAction(
+    scope: AssistantTurnScope,
+    request: AssistantActionRequest,
+  ): Promise<ActionProposalResult> {
+    return this.actions
+      ? this.actions.propose(scope, request)
+      : Promise.resolve({
+          status: "INVALID",
+          message: "Predlaganje izmena trenutno nije dostupno.",
+        });
+  }
 
   draftLawsuit(
     scope: AssistantTurnScope,

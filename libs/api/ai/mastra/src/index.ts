@@ -15,3 +15,7 @@ export * from "./lib/assistant/tools/get-draft.tool";
 export * from "./lib/assistant/tools/list-drafts.tool";
 export * from "./lib/testing/scripted-model";
 export * from "./lib/drafting/drafting.workflows";
+export * from "./lib/assistant/tools/side-effects";
+export * from "./lib/assistant/tools/link-case.tool";
+export * from "./lib/assistant/tools/create-deadline.tool";
+export * from "./lib/assistant/tools/create-tasks-from-brief.tool";

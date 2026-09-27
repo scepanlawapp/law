@@ -7,7 +7,11 @@ import {
   WorkflowProgressStage,
 } from "@law/api-interfaces";
 
-export type WorkflowActivityStatus = "active" | "completed" | "failed";
+export type WorkflowActivityStatus =
+  | "active"
+  | "waiting"
+  | "completed"
+  | "failed";
 export type WorkflowActivityKind = "answer" | "draft" | "other";
 
 export interface WorkflowActivity {
@@ -219,11 +223,14 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
     right.updatedAt.localeCompare(left.updatedAt),
   )[0];
   const failed = !activeJobs.length && jobs.some((job) => job.status === "FAILED");
+  const waiting = jobs.some((job) => job.status === "WAITING_CONFIRMATION");
   const status: WorkflowActivityStatus = activeJobs.length
     ? "active"
-    : failed || activity.messageStatus === "FAILED"
-      ? "failed"
-      : "completed";
+    : waiting
+      ? "waiting"
+      : failed || activity.messageStatus === "FAILED"
+        ? "failed"
+        : "completed";
   const kind: WorkflowActivityKind = activity.hasDraft || jobs.some((job) => job.workflowName === "drafting")
     ? "draft"
     : jobs.some((job) => isAnswerWorkflow(job.workflowName))
@@ -246,7 +253,9 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
     stage,
     titleKey: runningTool
       ? `assistant.workflow.toolActive.${runningTool.toolName}`
-      : status === "active"
+      : status === "waiting"
+        ? "assistant.workflow.waitingConfirmation"
+        : status === "active"
         ? `assistant.workflow.stage.${stage}`
         : status === "failed"
           ? "assistant.workflow.failed"
@@ -296,13 +305,16 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
 }
 
 function isAnswerWorkflow(name: WorkflowJobResponse["workflowName"]): boolean {
-  return name === "answering" || name === "agent-turn";
+  return (
+    name === "answering" || name === "agent-turn" || name === "agent-resume"
+  );
 }
 
 function fallbackStage(job?: WorkflowJobResponse): WorkflowProgressStage {
   switch (job?.workflowName) {
     case "answering":
     case "agent-turn":
+    case "agent-resume":
       return "PREPARING_ANSWER";
     case "brief-extraction":
       return "EXTRACTING_FACTS";

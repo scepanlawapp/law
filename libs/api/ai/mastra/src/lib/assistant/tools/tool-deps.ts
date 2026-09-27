@@ -70,6 +70,37 @@ export type DraftReadResult =
     }
   | { status: "NOT_FOUND"; message: string };
 
+export const ASSISTANT_DEADLINE_TYPES = [
+  "COURT",
+  "STATUTORY",
+  "CONTRACTUAL",
+  "INTERNAL",
+  "OTHER",
+] as const;
+
+/** Record changes the agent may only propose (AI_ARCHITECTURE.md §5). */
+export type AssistantActionRequest =
+  | { type: "link_case"; caseReference: string }
+  | {
+      type: "create_deadline";
+      title: string;
+      /** YYYY-MM-DD */
+      dueDate: string;
+      deadlineType?: (typeof ASSISTANT_DEADLINE_TYPES)[number];
+      description?: string;
+      caseReference?: string;
+    }
+  | { type: "create_tasks_from_brief"; briefId?: string };
+
+export type ActionProposalResult =
+  | {
+      status: "CONFIRMATION_REQUIRED";
+      pendingActionId: string;
+      summary: string;
+      details: string[];
+    }
+  | { status: "INVALID"; message: string };
+
 /**
  * Business operations the assistant tools call. Implemented by the Nest chat
  * feature on top of existing services; this library never imports Nest.
@@ -100,4 +131,9 @@ export interface LegalAssistantToolDeps {
     args: { draftId?: string },
   ): Promise<DraftReadResult>;
   listDrafts(scope: AssistantTurnScope): Promise<{ drafts: DraftListItem[] }>;
+  /** Validates and stores a proposal; nothing changes until a user approves it. */
+  proposeAction(
+    scope: AssistantTurnScope,
+    request: AssistantActionRequest,
+  ): Promise<ActionProposalResult>;
 }

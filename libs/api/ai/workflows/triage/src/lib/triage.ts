@@ -26,6 +26,8 @@ export interface TriageInput {
   attachments?: AttachmentSummary[];
   /** Recent conversation before `userText`, oldest first. */
   history?: TriageHistoryMessage[];
+  /** The assistant can also act on the office's matters (agent engine). */
+  practiceActions?: boolean;
 }
 
 export const PORTIR_SYSTEM_PROMPT = [
@@ -47,6 +49,11 @@ export const PORTIR_FOLLOW_UP_RULE = [
   "Detect the language from the new message only.",
 ].join(" ");
 
+export const PORTIR_PRACTICE_RULE = [
+  "The assistant can also help manage the office's matters.",
+  "Requests to look up a case, link the conversation to a case, set or record a deadline (rok), schedule work, or create tasks for a matter are LEGAL with intent ANSWER, even without legal terms.",
+].join(" ");
+
 const HISTORY_ENTRY_MAX_CHARS = 600;
 
 export function buildTriageMessages(input: TriageInput): ChatModelMessage[] {
@@ -54,9 +61,13 @@ export function buildTriageMessages(input: TriageInput): ChatModelMessage[] {
   return [
     {
       role: "system",
-      content: hasHistory
-        ? `${PORTIR_SYSTEM_PROMPT} ${PORTIR_FOLLOW_UP_RULE}`
-        : PORTIR_SYSTEM_PROMPT,
+      content: [
+        PORTIR_SYSTEM_PROMPT,
+        hasHistory ? PORTIR_FOLLOW_UP_RULE : null,
+        input.practiceActions ? PORTIR_PRACTICE_RULE : null,
+      ]
+        .filter(Boolean)
+        .join(" "),
     },
     { role: "user", content: buildTriageUserPrompt(input) },
   ];

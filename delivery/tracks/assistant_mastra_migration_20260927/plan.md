@@ -31,10 +31,10 @@ Each phase below 0 gets its own child track and branch (`parent_track_id: "assis
 - [x] Add the tools `draft_lawsuit`, `revise_draft`, `get_draft` and `list_conversation_drafts`.
 - [x] Add the drafts in the conversation to the workspace-state context. The draft approval gate is unchanged.
 
-## Phase 5 — Confirmations
-- [ ] Add the `PendingAction` table, the `WAITING_CONFIRMATION` status and idempotency keys.
-- [ ] Add the `requireApproval` tools `link_case`, `create_tasks_from_brief` and `create_deadline`. They call the existing services and write activity-log rows.
-- [ ] Add the approve/decline endpoints, the `confirmation.required` event and card in the chat UI, and `agent-resume` jobs.
+## Phase 5 — Confirmations ([mastra_confirmations_20260927](../mastra_confirmations_20260927/index.md))
+- [x] Add the `PendingAction` table, the `WAITING_CONFIRMATION` status and idempotency keys.
+- [x] Add the `requireApproval` tools `link_case`, `create_tasks_from_brief` and `create_deadline`. They call the existing services and write activity-log rows.
+- [x] Add the approve/decline endpoints, the `confirmation.required` event and card in the chat UI, and `agent-resume` jobs.
 
 ## Phase 6 — Summarization and memory
 - [ ] Add `ChatSession.summary` with rolling summaries of older turns.

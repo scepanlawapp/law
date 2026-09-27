@@ -51,7 +51,7 @@ interface WorkflowJobRecord {
   workspaceId: string;
   sessionId: string;
   workflowName: string;
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: WorkflowJobStatus;
   correlationId: string;
   input: unknown;
   createdAt: Date;
@@ -158,7 +158,12 @@ export class WorkflowRunner {
       );
       return;
     }
-    if (record.status === "COMPLETED") return;
+    if (
+      record.status === "COMPLETED" ||
+      record.status === "WAITING_CONFIRMATION"
+    ) {
+      return;
+    }
 
     await this.transitionJob(
       record,
@@ -179,6 +184,7 @@ export class WorkflowRunner {
       case "drafting":
         return this.runDrafting(record as WorkflowJobRecord, payload);
       case "agent-turn":
+      case "agent-resume":
         return this.runAgentTurn(record as WorkflowJobRecord, payload);
       default:
         throw new Error(`Unsupported workflow: ${name}`);
@@ -218,6 +224,7 @@ export class WorkflowRunner {
         userText: input.content,
         attachments: input.attachments,
         history,
+        practiceActions: this.agentEngineEnabled,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Portir failed";
@@ -1021,6 +1028,7 @@ export class WorkflowRunner {
         return "UNDERSTANDING_REQUEST";
       case "answering":
       case "agent-turn":
+      case "agent-resume":
         return "PREPARING_ANSWER";
       case "brief-extraction":
         return (record.input as BriefExtractionInput | null)?.attachments.length

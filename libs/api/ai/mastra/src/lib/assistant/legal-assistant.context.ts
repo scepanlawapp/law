@@ -13,6 +13,8 @@ export interface LegalAssistantRequestValues {
   /** Portir's intent for the latest message. */
   intent: "ANSWER" | "DRAFT";
   turn: AssistantTurnScope;
+  /** Today's date (YYYY-MM-DD, Europe/Belgrade) for resolving relative dates. */
+  today: string;
   citations: CitationRegistry;
 }
 
@@ -30,6 +32,7 @@ export function createLegalAssistantRequestContext(
   context.set("workspaceState", values.workspaceState);
   context.set("intent", values.intent);
   context.set("turn", values.turn);
+  context.set("today", values.today);
   context.set("citations", values.citations);
   return context;
 }

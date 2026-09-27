@@ -8,6 +8,7 @@ import { CasesModule } from "@law/cases";
 import { ClientsModule } from "@law/clients";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
 import { AgentTurnRunner } from "./agent-turn.runner";
+import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
@@ -62,6 +63,7 @@ import {
     AssistantContextBuilder,
     AssistantToolsAdapter,
     AssistantDraftingService,
+    AssistantActionsService,
     AgentTurnRunner,
     { provide: WORKFLOW_QUEUE_PORT, useClass: WorkflowQueueService },
   ],

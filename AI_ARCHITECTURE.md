@@ -207,6 +207,12 @@ Audited on 2026-09-27 (delivery track `assistant_mastra_migration_20260927`).
 
 **Phase 4 is done** (`mastra_drafting_workflow_20260927`). Drafting runs as Mastra workflows, `lawsuit-drafting` (extract-brief → ground-and-draft) and `draft-revision`. The agent reaches them through the `draft_lawsuit` and `revise_draft` tools, and reads drafts with `get_draft` and `list_conversation_drafts`. Persistence goes through the legacy job and row contract (`AssistantDraftingService`). The workspace-state block lists the conversation's drafts (§3). In the mastra engine, every legal request is an agent turn. Gap 4 is closed.
 
+**Phase 5 is done** (`mastra_confirmations_20260927`). §5 is implemented with our own `PendingAction` table rather than Mastra `requireApproval`: resuming a suspended Mastra run needs Mastra-stored snapshots, which conflicts with §6, and approvals must run as deterministic service code with the lawyer as actor.
+- `ASSISTANT_TOOL_SIDE_EFFECTS` declares `none`, `reversible` or `confirm` for every tool.
+- The `confirm` tools (`link_case`, `create_deadline`, `create_tasks_from_brief`) only store validated proposals, with idempotency keys and a 24 h expiry.
+- The run waits in `WAITING_CONFIRMATION`. Approve and decline endpoints claim the proposal atomically, execute it, and enqueue `agent-resume`.
+- Events: `confirmation.required` / `confirmation.updated`.
+
 ### LLM access
 - `@law/llm` (`libs/api/ai/llm`): our own `ChatModelProvider` interface.
   - `completeStructured(schema, messages)`: OpenRouter `/chat/completions` with
