@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Legal Corpus for Target Office](./tracks/legal_corpus_stojkovic_20260927/index.md)
 - [Legal Corpus Snapshot](./tracks/legal_corpus_snapshot_20260927/index.md)
 - [Relation Display Objects](./tracks/relation_display_objects_20260923/index.md)
 - [User Profile Gender](./tracks/user_profile_gender_20260922/index.md)
@@ -33,7 +34,6 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Mastra Legacy Cleanup](./tracks/mastra_legacy_cleanup_20260927/index.md)
 - [Assistant Read Tools](./tracks/assistant_read_tools_20260927/index.md)
 - [Assistant Document Access](./tracks/assistant_document_access_20260927/index.md)
-- [Legal Corpus for Target Office](./tracks/legal_corpus_stojkovic_20260927/index.md)
 - [Financials Frontend](./tracks/financials_frontend_20260924/index.md)
 - [Assistant Matter Link Slideout](./tracks/assistant_matter_link_slideout_20260924/index.md)
 - [Financials Backend](./tracks/financials_backend_20260923/index.md)
