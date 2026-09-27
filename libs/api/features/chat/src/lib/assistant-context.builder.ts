@@ -18,6 +18,8 @@ export interface AssistantTurnContext {
   workspaceState: string | null;
   /** Rolling summary of turns before the verbatim history (phase 6). */
   conversationSummary: string | null;
+  /** The conversation's owner: "me" for the assistant's office tools. */
+  currentUser: { id: string; displayName: string } | null;
 }
 
 const MESSAGE_MAX_CHARS = 8_000;
@@ -43,7 +45,13 @@ export class AssistantContextBuilder {
   }): Promise<AssistantTurnContext> {
     const session = await this.prisma.chatSession.findFirst({
       where: { id: input.sessionId, workspaceId: input.workspaceId },
-      select: { summary: true, summaryThroughAt: true },
+      select: {
+        summary: true,
+        summaryThroughAt: true,
+        createdBy: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
+      },
     });
     const [messages, sessionCaseId, caseContext, workspaceState] =
       await Promise.all([
@@ -65,6 +73,16 @@ export class AssistantContextBuilder {
       workspaceState,
       conversationSummary: session?.summary?.trim()
         ? toLatin(session.summary)
+        : null,
+      currentUser: session?.createdBy
+        ? {
+            id: session.createdBy.id,
+            displayName: toLatin(
+              [session.createdBy.firstName, session.createdBy.lastName]
+                .filter(Boolean)
+                .join(" ") || session.createdBy.email,
+            ),
+          }
         : null,
     };
   }

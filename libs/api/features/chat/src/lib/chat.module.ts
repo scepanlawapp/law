@@ -12,6 +12,7 @@ import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { ConversationSummaryService } from "./conversation-summary.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
+import { AssistantOfficeReadsService } from "./assistant-office-reads.service";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatController } from "./chat.controller";
 import { ChatRuntimeConfig } from "./chat.config";
@@ -65,6 +66,7 @@ import {
     AssistantToolsAdapter,
     AssistantDraftingService,
     AssistantActionsService,
+    AssistantOfficeReadsService,
     ConversationSummaryService,
     AgentTurnRunner,
     { provide: WORKFLOW_QUEUE_PORT, useClass: WorkflowQueueService },

@@ -5,11 +5,17 @@ import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDraftLawsuitTool } from "./tools/draft-lawsuit.tool";
+import { createGetAgendaTool } from "./tools/get-agenda.tool";
 import { createGetCaseTool } from "./tools/get-case.tool";
+import { createGetClientTool } from "./tools/get-client.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
+import { createListActivityTool } from "./tools/list-activity.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
+import { createListWorkItemsTool } from "./tools/list-work-items.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
+import { createSearchCasesTool } from "./tools/search-cases.tool";
+import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
 
@@ -33,6 +39,7 @@ export function createLegalAssistantAgent(options: {
         caseContext: context.get("caseContext"),
         workspaceState: context.get("workspaceState"),
         conversationSummary: context.get("conversationSummary"),
+        currentUser: context.get("turn")?.userDisplayName ?? null,
         intent: context.get("intent"),
         today: context.get("today"),
       });
@@ -41,6 +48,12 @@ export function createLegalAssistantAgent(options: {
     tools: {
       search_legal_sources: createSearchLegalSourcesTool(options.deps),
       get_case: createGetCaseTool(options.deps),
+      search_cases: createSearchCasesTool(options.deps),
+      search_clients: createSearchClientsTool(options.deps),
+      get_client: createGetClientTool(options.deps),
+      list_work_items: createListWorkItemsTool(options.deps),
+      get_agenda: createGetAgendaTool(options.deps),
+      list_activity: createListActivityTool(options.deps),
       draft_lawsuit: createDraftLawsuitTool(options.deps),
       revise_draft: createReviseDraftTool(options.deps),
       get_draft: createGetDraftTool(options.deps),

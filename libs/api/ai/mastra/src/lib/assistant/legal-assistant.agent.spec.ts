@@ -12,12 +12,19 @@ import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.
 import { createDraftLawsuitTool } from "./tools/draft-lawsuit.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
 import { ASSISTANT_TOOL_SIDE_EFFECTS } from "./tools/side-effects";
+import { createGetAgendaTool } from "./tools/get-agenda.tool";
 import { createGetCaseTool } from "./tools/get-case.tool";
+import { createGetClientTool } from "./tools/get-client.tool";
+import { createListActivityTool } from "./tools/list-activity.tool";
+import { createListWorkItemsTool } from "./tools/list-work-items.tool";
+import { createSearchCasesTool } from "./tools/search-cases.tool";
+import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
+import type { ZodTypeAny } from "zod";
 
 function hit(
   id: string,
@@ -52,6 +59,14 @@ function citation(chunkId: string, marker: number): GroundingCitation {
   };
 }
 
+const emptyList = {
+  status: "OK" as const,
+  filters: {},
+  items: [],
+  total: 0,
+  truncated: false,
+};
+
 function deps(
   overrides: Partial<LegalAssistantToolDeps> = {},
 ): LegalAssistantToolDeps {
@@ -71,6 +86,12 @@ function deps(
     reviseDraft: jest.fn(),
     getDraft: jest.fn(),
     listDrafts: jest.fn().mockResolvedValue({ drafts: [] }),
+    searchCases: jest.fn().mockResolvedValue(emptyList),
+    searchClients: jest.fn().mockResolvedValue(emptyList),
+    getClient: jest.fn().mockResolvedValue({ found: "none", message: "none" }),
+    listWorkItems: jest.fn().mockResolvedValue(emptyList),
+    getAgenda: jest.fn().mockResolvedValue(emptyList),
+    listActivity: jest.fn().mockResolvedValue(emptyList),
     proposeAction: jest.fn().mockResolvedValue({
       status: "CONFIRMATION_REQUIRED",
       pendingActionId: "action-1",
@@ -88,6 +109,8 @@ const turn = {
   correlationId: "corr-1",
   messageId: "message-1",
   language: "sr" as const,
+  userId: "user-1",
+  userDisplayName: "Ana Anić",
 };
 
 function requestContext(overrides: { citations?: CitationRegistry } = {}) {
@@ -156,6 +179,18 @@ describe("buildLegalAssistantInstructions", () => {
     expect(
       buildLegalAssistantInstructions({ language: "sr", today: "2026-09-27" }),
     ).toContain("Today is 2026-09-27");
+  });
+
+  it("names the current user", () => {
+    expect(
+      buildLegalAssistantInstructions({
+        language: "sr",
+        currentUser: "Ana Anić",
+      }),
+    ).toContain("The current user is Ana Anić");
+    expect(buildLegalAssistantInstructions({ language: "sr" })).not.toContain(
+      "The current user",
+    );
   });
 });
 
@@ -273,6 +308,84 @@ describe("assistant tools", () => {
         .map(([name]) => name)
         .sort(),
     ).toEqual(["create_deadline", "create_tasks_from_brief", "link_case"]);
+  });
+
+  it("office read tools pass the turn scope, arguments, and linked case", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+
+    await createSearchCasesTool(toolDeps).execute?.(
+      { query: "Razvod", status: "ACTIVE", responsible: "me" },
+      context,
+    );
+    await createSearchClientsTool(toolDeps).execute?.(
+      { query: "Petrović" },
+      context,
+    );
+    await createGetClientTool(toolDeps).execute?.(
+      { reference: "Alfa" },
+      context,
+    );
+    await createListWorkItemsTool(toolDeps).execute?.(
+      { kind: "deadline", state: "open", person: "me" },
+      context,
+    );
+    await createGetAgendaTool(toolDeps).execute?.(
+      { from: "2026-09-28", to: "2026-10-04", person: "Marko" },
+      context,
+    );
+    await createListActivityTool(toolDeps).execute?.(
+      { includeNotes: true, limit: 5 },
+      context,
+    );
+
+    expect(toolDeps.searchCases).toHaveBeenCalledWith(turn, {
+      query: "Razvod",
+      status: "ACTIVE",
+      responsible: "me",
+    });
+    expect(toolDeps.searchClients).toHaveBeenCalledWith(turn, {
+      query: "Petrović",
+    });
+    expect(toolDeps.getClient).toHaveBeenCalledWith(turn, {
+      reference: "Alfa",
+    });
+    expect(toolDeps.listWorkItems).toHaveBeenCalledWith(turn, {
+      kind: "deadline",
+      state: "open",
+      person: "me",
+      linkedCaseId: "case-1",
+    });
+    expect(toolDeps.getAgenda).toHaveBeenCalledWith(turn, {
+      from: "2026-09-28",
+      to: "2026-10-04",
+      person: "Marko",
+    });
+    expect(toolDeps.listActivity).toHaveBeenCalledWith(turn, {
+      includeNotes: true,
+      limit: 5,
+      linkedCaseId: "case-1",
+    });
+  });
+
+  it("office read tools validate their inputs", () => {
+    const agenda = createGetAgendaTool(deps())
+      .inputSchema as unknown as ZodTypeAny;
+    const work = createListWorkItemsTool(deps())
+      .inputSchema as unknown as ZodTypeAny;
+    const activity = createListActivityTool(deps())
+      .inputSchema as unknown as ZodTypeAny;
+
+    expect(
+      agenda.safeParse({ from: "28.09.2026", to: "2026-10-04" }).success,
+    ).toBe(false);
+    expect(
+      agenda.parse({ from: "2026-09-28", to: "2026-10-04" }),
+    ).toMatchObject({ person: "me" });
+    expect(work.parse({})).toEqual({ kind: "all", state: "open" });
+    expect(work.safeParse({ kind: "invoice" }).success).toBe(false);
+    expect(activity.parse({})).toEqual({ includeNotes: true, limit: 10 });
+    expect(activity.safeParse({ limit: 100 }).success).toBe(false);
   });
 
   it("get_case passes the workspace and linked case from the request context", async () => {

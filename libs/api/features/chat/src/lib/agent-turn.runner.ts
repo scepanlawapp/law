@@ -176,6 +176,8 @@ export class AgentTurnRunner implements OnModuleDestroy {
             correlationId: payload.correlationId,
             messageId: input.messageId,
             language: input.language,
+            userId: context.currentUser?.id ?? null,
+            userDisplayName: context.currentUser?.displayName ?? null,
           },
           today: belgradeToday(),
           citations,

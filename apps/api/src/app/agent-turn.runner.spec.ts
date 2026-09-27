@@ -122,6 +122,7 @@ function setup(
   steps: ScriptedModelStep[],
   drafting?: Record<string, jest.Mock>,
   summaries?: { refresh: jest.Mock },
+  office?: Record<string, jest.Mock>,
 ) {
   const prisma = prismaMock();
   const events = new ChatEventBus();
@@ -139,6 +140,8 @@ function setup(
       legalKnowledge as never,
       undefined,
       drafting as never,
+      undefined,
+      office as never,
     ),
     model as never,
     summaries as never,
@@ -156,6 +159,51 @@ function setup(
 }
 
 describe("AgentTurnRunner", () => {
+  it("runs office tools for the conversation's owner and names them in the prompt", async () => {
+    const office = {
+      listWorkItems: jest.fn().mockResolvedValue({
+        status: "OK",
+        filters: { osoba: "Ana Anić" },
+        items: [],
+        total: 0,
+        truncated: false,
+      }),
+    };
+    const { contextBuilder, prompts, runner, job } = setup(
+      [
+        {
+          toolCalls: [
+            { toolName: "list_work_items", input: { kind: "deadline" } },
+          ],
+        },
+        { text: "Nemate otvorenih rokova." },
+      ],
+      undefined,
+      undefined,
+      office,
+    );
+    contextBuilder.build.mockResolvedValueOnce({
+      messages: [{ role: "user", content: "Koje rokove imam?" }],
+      sessionCaseId: null,
+      caseContext: null,
+      currentUser: { id: "user-1", displayName: "Ana Anić" },
+    });
+
+    await runner.run(turnInput, payload, job);
+
+    expect(office.listWorkItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: "workspace-1",
+        userId: "user-1",
+        userDisplayName: "Ana Anić",
+      }),
+      { kind: "deadline", state: "open", linkedCaseId: null },
+    );
+    expect(JSON.stringify(prompts[0])).toContain(
+      "The current user is Ana Anić",
+    );
+  });
+
   it("answers with conversation context, searches sources, and persists used citations", async () => {
     const {
       prisma,
@@ -373,6 +421,8 @@ describe("AgentTurnRunner", () => {
         correlationId: "corr-1",
         messageId: "message-user",
         language: "sr",
+        userId: null,
+        userDisplayName: null,
       },
       { note: undefined },
     );
