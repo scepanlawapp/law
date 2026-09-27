@@ -14,4 +14,4 @@
 
 - The office reads live in `AssistantOfficeReadsService` (chat feature). `AssistantToolsAdapter` delegates to it and returns `UNAVAILABLE` when it is missing.
 - The sender comes from `ChatSession.createdByUserId` through `AssistantContextBuilder.currentUser`. Queued drafting jobs carry `userId: null`.
-- Live end-to-end check against a running app with an LLM key: not run yet.
+- Live end-to-end check against the running app with an LLM key: done by the user on 2026-09-27 (deadlines this week, colleague agenda, client search, open work on the linked case, case activity); all fine.
