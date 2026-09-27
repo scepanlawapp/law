@@ -83,14 +83,18 @@ export async function retrieveGroundingCitations(
     }));
 }
 
+/** "Član N" for article numbers; tariff items are stored with their own label. */
+export function formatProvisionLabel(articleNumber: string | null): string {
+  if (!articleNumber) return "Opšta odredba";
+  return /^[0-9]/.test(articleNumber) ? `Član ${articleNumber}` : articleNumber;
+}
+
 export function formatGroundingContextBlock(
   citations: readonly GroundingCitation[],
 ): string {
   if (!citations.length) return "";
   const lines = citations.map((citation) => {
-    const articleLabel = citation.articleNumber
-      ? `Član ${citation.articleNumber}`
-      : "Opšta odredba";
+    const articleLabel = formatProvisionLabel(citation.articleNumber);
     return `[${citation.marker}] ${articleLabel} (${citation.sourceTitle}) — "${citation.snippet}"`;
   });
   return [

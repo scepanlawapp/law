@@ -30,7 +30,8 @@ function paragraf(
 }
 
 /**
- * Core public Serbian laws for the target office's practice areas.
+ * Core public Serbian laws (and the Advokatska tarifa) for the target
+ * office's practice areas.
  * Slugs are stable source identities; changing one re-ingests the law as a
  * new source.
  */
@@ -57,6 +58,11 @@ export const PARAGRAF_CORE_SOURCES: readonly LegalSourceManifestEntry[] = [
     "general",
   ),
   paragraf("zakon-o-advokaturi", "zakon_o_advokaturi.html", "general"),
+  paragraf(
+    "advokatska-tarifa",
+    "tarifa_o_nagradama_i_naknadama_troskova_za_rad_advokata.html",
+    "general",
+  ),
   paragraf(
     "zakon-o-opstem-upravnom-postupku",
     "zakon-o-opstem-upravnom-postupku.html",

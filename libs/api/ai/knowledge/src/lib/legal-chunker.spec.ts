@@ -52,6 +52,28 @@ describe("chunkLegalText", () => {
     expect(chunks.map((chunk) => chunk.text).join("\n")).toContain("b");
   });
 
+  it("labels tariff items instead of attributing them to the last article", () => {
+    const chunks = chunkLegalText(
+      [
+        "Član 17",
+        "Ova tarifa stupa na snagu osmog dana.",
+        "TARIFA",
+        "Тарифни број 1.",
+        "Za usmeni savet advokatu pripada 1.500 poena.",
+        "Tarifni broj 2.",
+        "Za pismeni savet advokatu pripada 3.000 poena.",
+      ].join("\n"),
+      metadata,
+    );
+
+    expect(chunks.map((chunk) => chunk.articleNumber)).toEqual([
+      "17",
+      "Tarifni broj 1",
+      "Tarifni broj 2",
+    ]);
+    expect(chunks[1]?.text).toContain("usmeni savet");
+  });
+
   it("returns no chunks for empty input", () => {
     expect(chunkLegalText("\n  ", metadata)).toEqual([]);
   });

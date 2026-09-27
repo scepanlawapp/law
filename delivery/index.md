@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Advokatska tarifa Ingestion](./tracks/advokatska_tarifa_ingest_20260927/index.md)
 - [Legal Corpus for Target Office](./tracks/legal_corpus_stojkovic_20260927/index.md)
 - [Legal Corpus Snapshot](./tracks/legal_corpus_snapshot_20260927/index.md)
 - [Relation Display Objects](./tracks/relation_display_objects_20260923/index.md)
