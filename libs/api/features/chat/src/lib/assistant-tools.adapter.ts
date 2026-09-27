@@ -7,10 +7,19 @@ import type { GroundingSearchHit } from "@law/legal-grounding";
 import type {
   AssistantCaseFacts,
   AssistantCaseLookup,
+  AssistantTurnScope,
+  DraftListItem,
+  DraftReadResult,
+  DraftToolResult,
   LegalAssistantToolDeps,
 } from "@law/mastra";
+import { AssistantDraftingService } from "./assistant-drafting.service";
 
 const CASE_CANDIDATE_LIMIT = 5;
+const DRAFTING_UNAVAILABLE = {
+  status: "FAILED" as const,
+  message: "Izrada nacrta trenutno nije dostupna.",
+};
 
 /**
  * Implements the assistant tools' business operations on top of existing
@@ -22,7 +31,44 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
   constructor(
     @Optional() private readonly legalKnowledge?: LegalKnowledgeService,
     @Optional() private readonly cases?: CasesService,
+    @Optional() private readonly drafting?: AssistantDraftingService,
   ) {}
+
+  draftLawsuit(
+    scope: AssistantTurnScope,
+    args: { note?: string },
+  ): Promise<DraftToolResult> {
+    return this.drafting
+      ? this.drafting.draftLawsuit(scope, args)
+      : Promise.resolve(DRAFTING_UNAVAILABLE);
+  }
+
+  reviseDraft(
+    scope: AssistantTurnScope,
+    args: { instruction: string; draftId?: string },
+  ): Promise<DraftToolResult> {
+    return this.drafting
+      ? this.drafting.reviseDraft(scope, args)
+      : Promise.resolve(DRAFTING_UNAVAILABLE);
+  }
+
+  getDraft(
+    scope: AssistantTurnScope,
+    args: { draftId?: string },
+  ): Promise<DraftReadResult> {
+    return this.drafting
+      ? this.drafting.getDraft(scope, args)
+      : Promise.resolve({
+          status: "NOT_FOUND",
+          message: DRAFTING_UNAVAILABLE.message,
+        });
+  }
+
+  listDrafts(scope: AssistantTurnScope): Promise<{ drafts: DraftListItem[] }> {
+    return this.drafting
+      ? this.drafting.listDrafts(scope)
+      : Promise.resolve({ drafts: [] });
+  }
 
   async searchLegalSources(
     query: string,

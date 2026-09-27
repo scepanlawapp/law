@@ -19,6 +19,7 @@ function row(
 function setup(
   rows: ReturnType<typeof row>[],
   configOverrides: Partial<ChatRuntimeConfig> = {},
+  drafting?: { workspaceState: jest.Mock },
 ) {
   const prisma = {
     chatMessage: {
@@ -38,6 +39,7 @@ function setup(
     prisma as never,
     config,
     matterLink as never,
+    drafting as never,
   );
   return { builder, prisma, matterLink };
 }
@@ -115,6 +117,27 @@ describe("AssistantContextBuilder", () => {
     });
 
     expect(context.messages.map((message) => message.role)).toEqual(["user"]);
+  });
+
+  it("adds the conversation drafts as workspace state", async () => {
+    const drafting = {
+      workspaceState: jest
+        .fn()
+        .mockResolvedValue("Nacrti u ovom razgovoru:\n- id draft-1, v1"),
+    };
+    const { builder } = setup([row("USER", "Skrati nacrt.", 1)], {}, drafting);
+
+    const context = await builder.build({
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+      messageId: "message-1",
+    });
+
+    expect(drafting.workspaceState).toHaveBeenCalledWith(
+      "workspace-1",
+      "session-1",
+    );
+    expect(context.workspaceState).toContain("id draft-1, v1");
   });
 
   it("gives triage the earlier turns without the current message", async () => {

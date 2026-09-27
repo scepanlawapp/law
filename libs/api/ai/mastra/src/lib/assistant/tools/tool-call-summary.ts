@@ -1,4 +1,7 @@
+import { DRAFT_LAWSUIT_TOOL_ID } from "./draft-lawsuit.tool";
 import { GET_CASE_TOOL_ID } from "./get-case.tool";
+import { LIST_DRAFTS_TOOL_ID } from "./list-drafts.tool";
+import { REVISE_DRAFT_TOOL_ID } from "./revise-draft.tool";
 import { SEARCH_LEGAL_SOURCES_TOOL_ID } from "./search-legal-sources.tool";
 
 const LABEL_MAX_CHARS = 120;
@@ -28,6 +31,10 @@ export function describeToolCall(
       return clip(args?.["query"]);
     case GET_CASE_TOOL_ID:
       return clip(args?.["reference"]);
+    case DRAFT_LAWSUIT_TOOL_ID:
+      return clip(args?.["note"]);
+    case REVISE_DRAFT_TOOL_ID:
+      return clip(args?.["instruction"]);
     default:
       return null;
   }
@@ -51,6 +58,8 @@ export function toolResultCount(
           : result["found"] === "none"
             ? 0
             : null;
+    case LIST_DRAFTS_TOOL_ID:
+      return Array.isArray(result["drafts"]) ? result["drafts"].length : null;
     default:
       return null;
   }

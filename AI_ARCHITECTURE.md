@@ -203,7 +203,9 @@ Audited on 2026-09-27 (delivery track `assistant_mastra_migration_20260927`).
 
 **Phase 2 is done** (`mastra_assistant_slice_20260927`). With `ASSISTANT_ENGINE=mastra`, triage sees the recent conversation and routes ANSWER to an `agent-turn` job. There, `AssistantContextBuilder` → `legalAssistant` (tools `search_legal_sources`, `get_case`, typed `RequestContext`, per-turn `CitationRegistry`) → streamed `message.delta` → persisted answer with citations. Gap 1 (no multi-turn context) is closed for answers. Drafting still uses the legacy chain.
 
-**Phase 3 is done** (`mastra_run_telemetry_20260927`). `WorkflowJob` records `model`, `inputTokens`, `outputTokens`, `startedAt` and `finishedAt`. The new `AgentToolCall` table and the `tool.started` / `tool.finished` events cover gap 5 for the agent path, and the chat UI shows tool steps. Opt-in `MASTRA_TRACING` exports spans to the `mastra` schema; Mastra's own message and thread tables stay unused.
+**Phase 3 is done** (`mastra_run_telemetry_20260927`). `WorkflowJob` records `model`, `inputTokens`, `outputTokens`, `startedAt` and `finishedAt`. The new `AgentToolCall` table and the `tool.started` / `tool.finished` events cover gap 5 for the agent path, and the chat UI shows tool steps. Opt-in `MASTRA_TRACING` exports spans to the `mastra` schema; Mastra's own message and thread tables stay unused. The spans contain prompts and answers.
+
+**Phase 4 is done** (`mastra_drafting_workflow_20260927`). Drafting runs as Mastra workflows, `lawsuit-drafting` (extract-brief → ground-and-draft) and `draft-revision`. The agent reaches them through the `draft_lawsuit` and `revise_draft` tools, and reads drafts with `get_draft` and `list_conversation_drafts`. Persistence goes through the legacy job and row contract (`AssistantDraftingService`). The workspace-state block lists the conversation's drafts (§3). In the mastra engine, every legal request is an agent turn. Gap 4 is closed.
 
 ### LLM access
 - `@law/llm` (`libs/api/ai/llm`): our own `ChatModelProvider` interface.

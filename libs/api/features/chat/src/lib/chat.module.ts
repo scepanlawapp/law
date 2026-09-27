@@ -9,6 +9,7 @@ import { ClientsModule } from "@law/clients";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
 import { AgentTurnRunner } from "./agent-turn.runner";
 import { AssistantContextBuilder } from "./assistant-context.builder";
+import { AssistantDraftingService } from "./assistant-drafting.service";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatController } from "./chat.controller";
 import { ChatRuntimeConfig } from "./chat.config";
@@ -60,6 +61,7 @@ import {
     WorkflowProcessor,
     AssistantContextBuilder,
     AssistantToolsAdapter,
+    AssistantDraftingService,
     AgentTurnRunner,
     { provide: WORKFLOW_QUEUE_PORT, useClass: WorkflowQueueService },
   ],

@@ -19,6 +19,57 @@ export type AssistantCaseLookup =
   | { found: "one"; case: AssistantCaseFacts }
   | { found: "many"; candidates: AssistantCaseFacts[] };
 
+/** Identifies the agent turn a tool runs in (from the RequestContext). */
+export interface AssistantTurnScope {
+  workspaceId: string;
+  sessionId: string;
+  /** The `agent-turn` WorkflowJob. */
+  jobId: string;
+  correlationId: string;
+  /** The user message that triggered the turn. */
+  messageId: string;
+  language: "sr" | "en";
+}
+
+export type DraftToolResult =
+  | {
+      status: "DRAFT_READY";
+      draftId: string;
+      version: number;
+      approvalStatus: string;
+      missingFields: string[];
+      warnings: string[];
+      citationCount: number;
+      excerpt: string;
+    }
+  | { status: "UNSUPPORTED"; jobType: string | null; message: string }
+  | { status: "NO_CONTEXT" | "NOT_FOUND" | "FAILED"; message: string };
+
+export interface DraftListItem {
+  draftId: string;
+  version: number;
+  approvalStatus: string;
+  createdAt: string;
+  title: string;
+}
+
+export type DraftReadResult =
+  | {
+      status: "FOUND";
+      draftId: string;
+      version: number;
+      approvalStatus: string;
+      warnings: string[];
+      citations: Array<{
+        marker: number;
+        articleNumber: string | null;
+        sourceTitle: string;
+      }>;
+      text: string;
+      truncated: boolean;
+    }
+  | { status: "NOT_FOUND"; message: string };
+
 /**
  * Business operations the assistant tools call. Implemented by the Nest chat
  * feature on top of existing services; this library never imports Nest.
@@ -34,4 +85,19 @@ export interface LegalAssistantToolDeps {
     sessionCaseId: string | null;
     reference?: string;
   }): Promise<AssistantCaseLookup>;
+  /** Drafts a lawsuit from the conversation (reversible: needs lawyer approval). */
+  draftLawsuit(
+    scope: AssistantTurnScope,
+    args: { note?: string },
+  ): Promise<DraftToolResult>;
+  /** Creates a new version of a conversation draft (reversible). */
+  reviseDraft(
+    scope: AssistantTurnScope,
+    args: { instruction: string; draftId?: string },
+  ): Promise<DraftToolResult>;
+  getDraft(
+    scope: AssistantTurnScope,
+    args: { draftId?: string },
+  ): Promise<DraftReadResult>;
+  listDrafts(scope: AssistantTurnScope): Promise<{ drafts: DraftListItem[] }>;
 }

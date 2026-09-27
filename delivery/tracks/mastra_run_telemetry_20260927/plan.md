@@ -24,6 +24,7 @@
   - With `@mastra/observability`, Mastra initializes storage eagerly when the instance is created, so tracing is opt-in (`MASTRA_TRACING=true`).
   - Unit tests inject Mastra's `InMemoryStore` through a `storage` seam in `createLawMastra`.
   - When the DB is unreachable, Mastra only logs warnings and never fails the request.
+  - Traced spans contain prompts and answers, including client data. A phase-4 check found no API key in them. `.env.example` documents this.
   - The first traced run creates 43 `mastra_*` tables in the `mastra` schema, none in `public`. `mastra_messages` and `mastra_threads` stay empty, which confirms the state-ownership decision (no duplicate message storage).
 - **Web target.** The web build target lacks `Array.prototype.at`, so index access is used instead.
 

@@ -43,6 +43,8 @@ export interface AgentTurnInput {
   userText: string;
   attachments: ChatAttachmentSummary[];
   language: "sr" | "en";
+  /** Portir's intent; drafting requests also go to the agent. */
+  intent?: "ANSWER" | "DRAFT";
 }
 
 /** Run telemetry columns on WorkflowJob. */
@@ -124,6 +126,7 @@ export class AgentTurnRunner implements OnModuleDestroy {
     let content = "";
     let usage: TokenUsage = {};
     let toolCalls: ToolCallRecorder | undefined;
+    let draftId: string | null = null;
     const model = this.config.assistantModel;
     try {
       const context = await this.contextBuilder.build({
@@ -145,6 +148,16 @@ export class AgentTurnRunner implements OnModuleDestroy {
           sessionCaseId: context.sessionCaseId,
           language: input.language,
           caseContext: context.caseContext,
+          workspaceState: context.workspaceState,
+          intent: input.intent ?? "ANSWER",
+          turn: {
+            workspaceId: payload.workspaceId,
+            sessionId: payload.sessionId,
+            jobId: payload.jobId,
+            correlationId: payload.correlationId,
+            messageId: input.messageId,
+            language: input.language,
+          },
           citations,
         }),
         maxSteps: LEGAL_ASSISTANT_MAX_STEPS,
@@ -181,6 +194,7 @@ export class AgentTurnRunner implements OnModuleDestroy {
               output: chunk.payload.result,
               error: chunk.payload.isError ? chunk.payload.result : undefined,
             });
+            draftId = readyDraftId(chunk.payload.result) ?? draftId;
             break;
           case "tool-error":
             await toolCalls.finish(chunk.payload.toolCallId, {
@@ -203,7 +217,11 @@ export class AgentTurnRunner implements OnModuleDestroy {
           content,
           status: "COMPLETED",
           metadata: {
-            outcome: "ANSWER",
+            // A turn that produced a draft points the UI at it; it is not
+            // regenerable (that would create another draft).
+            ...(draftId
+              ? { outcome: "DRAFT_READY", draftId }
+              : { outcome: "ANSWER" }),
             ...(used.length
               ? {
                   citations: used.map((citation) => ({
@@ -418,4 +436,13 @@ function stripMastraMetadata(args: unknown): unknown {
     unknown
   >;
   return rest;
+}
+
+/** Draft id from a successful draft_lawsuit / revise_draft tool result. */
+function readyDraftId(result: unknown): string | null {
+  if (!result || typeof result !== "object") return null;
+  const value = result as { status?: unknown; draftId?: unknown };
+  return value.status === "DRAFT_READY" && typeof value.draftId === "string"
+    ? value.draftId
+    : null;
 }

@@ -1,6 +1,7 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Optional } from "@nestjs/common";
 import { PlatformPrismaService } from "@law/core";
 import { toLatin } from "@law/transliteration";
+import { AssistantDraftingService } from "./assistant-drafting.service";
 import { ChatRuntimeConfig } from "./chat.config";
 import { MatterLinkService } from "./matter-link.service";
 
@@ -13,6 +14,8 @@ export interface AssistantTurnContext {
   messages: AssistantHistoryMessage[];
   sessionCaseId: string | null;
   caseContext: string | null;
+  /** Drafts of this conversation for the agent (AI_ARCHITECTURE.md §3). */
+  workspaceState: string | null;
 }
 
 const MESSAGE_MAX_CHARS = 8_000;
@@ -28,6 +31,7 @@ export class AssistantContextBuilder {
     private readonly prisma: PlatformPrismaService,
     private readonly config: ChatRuntimeConfig,
     private readonly matterLink: MatterLinkService,
+    @Optional() private readonly drafting?: AssistantDraftingService,
   ) {}
 
   async build(input: {
@@ -35,15 +39,19 @@ export class AssistantContextBuilder {
     sessionId: string;
     messageId?: string;
   }): Promise<AssistantTurnContext> {
-    const [messages, sessionCaseId, caseContext] = await Promise.all([
-      this.conversation(input.sessionId, input.messageId),
-      this.matterLink.sessionCaseId(input.workspaceId, input.sessionId),
-      this.matterLink.caseContextBlock(input.workspaceId, input.sessionId),
-    ]);
+    const [messages, sessionCaseId, caseContext, workspaceState] =
+      await Promise.all([
+        this.conversation(input.sessionId, input.messageId),
+        this.matterLink.sessionCaseId(input.workspaceId, input.sessionId),
+        this.matterLink.caseContextBlock(input.workspaceId, input.sessionId),
+        this.drafting?.workspaceState(input.workspaceId, input.sessionId) ??
+          null,
+      ]);
     return {
       messages,
       sessionCaseId,
       caseContext: caseContext ? toLatin(caseContext) : null,
+      workspaceState,
     };
   }
 

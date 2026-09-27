@@ -117,7 +117,10 @@ function legalKnowledgeMock() {
   };
 }
 
-function setup(steps: ScriptedModelStep[]) {
+function setup(
+  steps: ScriptedModelStep[],
+  drafting?: Record<string, jest.Mock>,
+) {
   const prisma = prismaMock();
   const events = new ChatEventBus();
   const emitted: ChatStreamEvent[] = [];
@@ -130,7 +133,11 @@ function setup(steps: ScriptedModelStep[]) {
     events,
     Object.assign(new ChatRuntimeConfig(), { assistantModel: "test-model" }),
     contextBuilder as never,
-    new AssistantToolsAdapter(legalKnowledge as never),
+    new AssistantToolsAdapter(
+      legalKnowledge as never,
+      undefined,
+      drafting as never,
+    ),
     model as never,
   );
   const job = { transition: jest.fn().mockResolvedValue(undefined) };
@@ -320,6 +327,52 @@ describe("AgentTurnRunner", () => {
     expect(emitted.at(-1)).toMatchObject({ type: "error" });
   });
 
+  it("marks a drafting turn DRAFT_READY with the draft id and passes the turn scope", async () => {
+    const drafting = {
+      draftLawsuit: jest.fn().mockResolvedValue({
+        status: "DRAFT_READY",
+        draftId: "draft-9",
+        version: 1,
+        approvalStatus: "READY_FOR_SIGNOFF",
+        missingFields: ["defendant.address"],
+        warnings: [],
+        citationCount: 2,
+        excerpt: "TUŽBA",
+      }),
+    };
+    const { prisma, emitted, runner, job } = setup(
+      [
+        { toolCalls: [{ toolName: "draft_lawsuit", input: {} }] },
+        { text: "Nacrt je spreman za pregled. Nedostaje adresa tuženog." },
+      ],
+      drafting,
+    );
+
+    await runner.run({ ...turnInput, intent: "DRAFT" }, payload, job);
+
+    expect(drafting.draftLawsuit).toHaveBeenCalledWith(
+      {
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+        jobId: "job-turn",
+        correlationId: "corr-1",
+        messageId: "message-user",
+        language: "sr",
+      },
+      { note: undefined },
+    );
+    expect(prisma.chatMessage.update).toHaveBeenLastCalledWith({
+      where: { id: "message-answer" },
+      data: expect.objectContaining({
+        status: "COMPLETED",
+        metadata: { outcome: "DRAFT_READY", draftId: "draft-9" },
+      }),
+    });
+    expect(
+      emitted.find((event) => event.type === "tool.finished")?.toolCall,
+    ).toMatchObject({ toolName: "draft_lawsuit", status: "COMPLETED" });
+  });
+
   it("fails fast without input", async () => {
     const { prisma, runner, job } = setup([{ text: "x" }]);
 
@@ -452,6 +505,48 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
       expect.any(String),
       expect.objectContaining({ correlationId: "corr-1" }),
     );
+  });
+
+  it("sends drafting requests to the agent instead of the brief-extraction chain", async () => {
+    const prisma = workflowPrismaMock();
+    prisma.jobs.set("job-triage", {
+      id: "job-triage",
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+      workflowName: "triage",
+      status: "QUEUED",
+      correlationId: "corr-1",
+      createdAt: now,
+      updatedAt: now,
+      input: { actorId: "user-1", content: "Pripremi tužbu.", attachments: [] },
+    });
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+    const runner = new WorkflowRunner(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      mastraConfig(),
+      new RecordingProvider({
+        decision: "LEGAL",
+        reason: "Lawsuit request",
+        intent: "DRAFT",
+        language: "sr",
+      }),
+      { enqueue },
+      undefined,
+      contextBuilderMock() as never,
+      { run: jest.fn() } as never,
+    );
+
+    await runner.run("triage", { ...payload, jobId: "job-triage" });
+
+    expect(enqueue.mock.calls.map(([name]) => name)).toEqual(["agent-turn"]);
+    expect(prisma.workflowJob.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workflowName: "agent-turn",
+        input: expect.objectContaining({ intent: "DRAFT" }),
+      }),
+    });
   });
 
   it("delegates agent-turn jobs and records their status through WorkflowRunner", async () => {

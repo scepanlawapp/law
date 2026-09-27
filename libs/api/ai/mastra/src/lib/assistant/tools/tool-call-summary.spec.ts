@@ -10,6 +10,10 @@ describe("tool call summary", () => {
     );
     expect(describeToolCall("get_case", {})).toBeNull();
     expect(describeToolCall("unknown_tool", { query: "x" })).toBeNull();
+    expect(
+      describeToolCall("revise_draft", { instruction: "Skrati uvod." }),
+    ).toBe("Skrati uvod.");
+    expect(describeToolCall("draft_lawsuit", {})).toBeNull();
   });
 
   it("clips long labels", () => {
@@ -32,5 +36,11 @@ describe("tool call summary", () => {
       0,
     );
     expect(toolResultCount("search_legal_sources", null)).toBeNull();
+    expect(
+      toolResultCount("list_conversation_drafts", { drafts: [{}, {}] }),
+    ).toBe(2);
+    expect(
+      toolResultCount("draft_lawsuit", { status: "DRAFT_READY" }),
+    ).toBeNull();
   });
 });

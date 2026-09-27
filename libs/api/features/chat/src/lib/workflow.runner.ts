@@ -253,8 +253,15 @@ export class WorkflowRunner {
       });
     }
 
+    // The agent engine handles drafting through its tools, so every legal
+    // request (ANSWER or DRAFT) becomes one agent turn.
+    const queueBriefExtraction =
+      result.queueBriefExtraction && !this.agentEngineEnabled;
+    const queueAnswer =
+      result.queueAnswer ||
+      (this.agentEngineEnabled && result.queueBriefExtraction);
     let nextJobId: string | undefined;
-    if (result.queueBriefExtraction) {
+    if (queueBriefExtraction) {
       const created = await this.db.workflowJob.create({
         data: {
           workspaceId: payload.workspaceId,
@@ -288,7 +295,7 @@ export class WorkflowRunner {
     const answerWorkflow: WorkflowName = this.agentEngineEnabled
       ? "agent-turn"
       : "answering";
-    if (result.queueAnswer) {
+    if (queueAnswer) {
       const created = await this.db.workflowJob.create({
         data: {
           workspaceId: payload.workspaceId,
@@ -302,6 +309,7 @@ export class WorkflowRunner {
               userText: input.content,
               attachments: input.attachments,
               language: result.decision.language,
+              intent: result.decision.intent,
             }),
           ),
         },
