@@ -1,4 +1,5 @@
 import {
+  AgentToolCallSummary,
   ChatAttachmentSummary,
   ChatMessageResponse,
   ChatSessionSummary,
@@ -7,6 +8,7 @@ import {
   WorkflowProgressStage,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
+import { describeToolCall, toolResultCount } from "@law/mastra";
 
 /**
  * Pure mapping helpers shared by `ChatService` (HTTP-facing) and
@@ -158,6 +160,11 @@ export function toJob(job: {
   correlationId: string;
   output?: unknown;
   errorCode?: string | null;
+  model?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }): WorkflowJobResponse {
@@ -171,8 +178,44 @@ export function toJob(job: {
     progressStage: progressStageFromOutput(job.output),
     briefResultId: briefResultIdFromOutput(job.output),
     errorCode: job.errorCode ?? null,
+    model: job.model ?? null,
+    inputTokens: job.inputTokens ?? null,
+    outputTokens: job.outputTokens ?? null,
+    startedAt: job.startedAt?.toISOString() ?? null,
+    finishedAt: job.finishedAt?.toISOString() ?? null,
     createdAt: job.createdAt.toISOString(),
     updatedAt: job.updatedAt.toISOString(),
+  };
+}
+
+export function toToolCall(
+  call: {
+    id: string;
+    jobId: string;
+    toolName: string;
+    status: "RUNNING" | "COMPLETED" | "FAILED";
+    input?: unknown;
+    output?: unknown;
+    durationMs?: number | null;
+    startedAt: Date;
+    finishedAt?: Date | null;
+  },
+  correlationId: string,
+): AgentToolCallSummary {
+  return {
+    id: call.id,
+    jobId: call.jobId,
+    correlationId,
+    toolName: call.toolName,
+    status: call.status,
+    label: describeToolCall(call.toolName, call.input),
+    resultCount:
+      call.status === "COMPLETED"
+        ? toolResultCount(call.toolName, call.output)
+        : null,
+    durationMs: call.durationMs ?? null,
+    startedAt: call.startedAt.toISOString(),
+    finishedAt: call.finishedAt?.toISOString() ?? null,
   };
 }
 

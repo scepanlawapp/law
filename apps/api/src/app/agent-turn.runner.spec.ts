@@ -39,11 +39,40 @@ function prismaMock() {
     metadata: { outcome: "ANSWER" },
     createdAt: now,
   };
+  const toolCalls = new Map<string, Record<string, unknown>>();
   return {
+    toolCalls,
     chatMessage: {
       create: jest.fn().mockResolvedValue(pending),
       update: jest.fn(({ data }: { data: Record<string, unknown> }) =>
         Promise.resolve({ ...pending, ...data }),
+      ),
+    },
+    agentToolCall: {
+      create: jest.fn(({ data }: { data: Record<string, unknown> }) => {
+        const row = {
+          id: `tool-row-${toolCalls.size + 1}`,
+          startedAt: new Date(Date.now() - 5),
+          finishedAt: null,
+          durationMs: null,
+          output: null,
+          ...data,
+        };
+        toolCalls.set(row.id, row);
+        return Promise.resolve(row);
+      }),
+      update: jest.fn(
+        ({
+          where,
+          data,
+        }: {
+          where: { id: string };
+          data: Record<string, unknown>;
+        }) => {
+          const row = { ...toolCalls.get(where.id), ...data };
+          toolCalls.set(where.id, row);
+          return Promise.resolve(row);
+        },
       ),
     },
   };
@@ -99,7 +128,7 @@ function setup(steps: ScriptedModelStep[]) {
   const runner = new AgentTurnRunner(
     prisma as never,
     events,
-    new ChatRuntimeConfig(),
+    Object.assign(new ChatRuntimeConfig(), { assistantModel: "test-model" }),
     contextBuilder as never,
     new AssistantToolsAdapter(legalKnowledge as never),
     model as never,
@@ -186,6 +215,71 @@ describe("AgentTurnRunner", () => {
         progressStage: "PREPARING_ANSWER",
         messageId: "message-answer",
       }),
+      null,
+      // Two scripted model steps × (10 in, 5 out).
+      { model: "test-model", inputTokens: 20, outputTokens: 10 },
+    );
+
+    const [toolRow] = [...prisma.toolCalls.values()];
+    expect(toolRow).toMatchObject({
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+      jobId: "job-turn",
+      toolName: "search_legal_sources",
+      input: { query: "Zakon o radu godišnji odmor" },
+      status: "COMPLETED",
+      output: expect.objectContaining({ count: 1 }),
+      durationMs: expect.any(Number),
+      finishedAt: expect.any(Date),
+    });
+    const toolEvents = emitted.filter((event) =>
+      event.type.startsWith("tool."),
+    );
+    expect(toolEvents.map((event) => event.type)).toEqual([
+      "tool.started",
+      "tool.finished",
+    ]);
+    expect(toolEvents[1].toolCall).toMatchObject({
+      jobId: "job-turn",
+      correlationId: "corr-1",
+      toolName: "search_legal_sources",
+      status: "COMPLETED",
+      label: "Zakon o radu godišnji odmor",
+      resultCount: 1,
+    });
+    expect(
+      emitted.findIndex((event) => event.type === "tool.finished"),
+    ).toBeLessThan(
+      emitted.findIndex((event) => event.type === "message.delta"),
+    );
+  });
+
+  it("records a failing tool call without failing the turn", async () => {
+    const { prisma, emitted, legalKnowledge, runner, job } = setup([
+      {
+        toolCalls: [
+          { toolName: "search_legal_sources", input: { query: "odmor" } },
+        ],
+      },
+      { text: "Baza trenutno nije dostupna, odgovor je opšti." },
+    ]);
+    legalKnowledge.search.mockRejectedValue(new Error("pgvector down"));
+
+    await runner.run(turnInput, payload, job);
+
+    const [toolRow] = [...prisma.toolCalls.values()];
+    expect(toolRow).toMatchObject({
+      status: "FAILED",
+      errorMessage: expect.stringContaining("pgvector down"),
+    });
+    expect(
+      emitted.find((event) => event.type === "tool.finished")?.toolCall,
+    ).toMatchObject({ status: "FAILED", resultCount: null });
+    expect(job.transition).toHaveBeenCalledWith(
+      "COMPLETED",
+      expect.anything(),
+      null,
+      expect.anything(),
     );
   });
 
@@ -221,6 +315,7 @@ describe("AgentTurnRunner", () => {
       "FAILED",
       expect.objectContaining({ messageId: "message-answer" }),
       "AGENT_TURN_FAILED",
+      expect.objectContaining({ model: "test-model" }),
     );
     expect(emitted.at(-1)).toMatchObject({ type: "error" });
   });
@@ -401,6 +496,8 @@ describe("WorkflowRunner with ASSISTANT_ENGINE=mastra", () => {
     expect(prisma.jobs.get("job-turn")).toMatchObject({
       status: "COMPLETED",
       output: { progressStage: "PREPARING_ANSWER" },
+      startedAt: expect.any(Date),
+      finishedAt: expect.any(Date),
     });
   });
 

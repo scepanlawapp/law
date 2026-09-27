@@ -66,7 +66,11 @@ function mastraTransformIgnorePatterns(extraPackages = []) {
     // which Jest only supports under --experimental-vm-modules; babel turns
     // them into `require()` of the (also transformed) ESM dependencies.
     "@mastra/core",
-    ...esmOnlyDependencies(["@mastra/core", "@mastra/pg"]),
+    ...esmOnlyDependencies([
+      "@mastra/core",
+      "@mastra/pg",
+      "@mastra/observability",
+    ]),
   ];
   return [`/node_modules/(?!(${packages.map(escape).join("|")})/)`];
 }

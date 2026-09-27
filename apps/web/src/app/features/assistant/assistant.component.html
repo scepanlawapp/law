@@ -454,7 +454,21 @@
                         />
                         <span>
                           <strong>{{ step.titleKey | translate }}</strong>
-                          <small>{{ step.agentKey | translate }}</small>
+                          @if (step.kind === "tool") {
+                            @if (step.detail) {
+                              <small>„{{ step.detail }}“</small>
+                            }
+                            @if (step.resultCount !== null) {
+                              <small>
+                                {{
+                                  "assistant.workflow.toolResults"
+                                    | translate: { count: step.resultCount }
+                                }}
+                              </small>
+                            }
+                          } @else if (step.agentKey) {
+                            <small>{{ step.agentKey | translate }}</small>
+                          }
                         </span>
                       </li>
                     }

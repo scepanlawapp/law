@@ -1,4 +1,5 @@
 import {
+  AgentToolCallSummary,
   ChatMessageStatus,
   ChatSessionDetail,
   ChatStreamEvent,
@@ -12,6 +13,7 @@ export type WorkflowActivityKind = "answer" | "draft" | "other";
 export interface WorkflowActivity {
   correlationId: string;
   jobsById: Readonly<Record<string, WorkflowJobResponse>>;
+  toolCallsById: Readonly<Record<string, AgentToolCallSummary>>;
   messageStatus: ChatMessageStatus | null;
   hasDraft: boolean;
   startedAt: string;
@@ -36,16 +38,24 @@ export interface WorkflowActivityViewModel {
 
 export interface WorkflowActivityStep {
   id: string;
+  kind: "job" | "tool";
   titleKey: string;
-  agentKey: string;
+  /** Agent label key for job steps; null for tool steps. */
+  agentKey: string | null;
   status: WorkflowJobResponse["status"];
+  /** Tool steps: the tool's main argument (e.g. the search query). */
+  detail: string | null;
+  resultCount: number | null;
 }
 
 export function buildWorkflowActivityState(
-  detail: Pick<ChatSessionDetail, "jobs" | "messages" | "drafts">,
+  detail: Pick<ChatSessionDetail, "jobs" | "messages" | "drafts" | "toolCalls">,
 ): WorkflowActivityState {
   let state: WorkflowActivityState = {};
   for (const job of detail.jobs) state = mergeJob(state, job);
+  for (const toolCall of detail.toolCalls ?? []) {
+    state = mergeToolCall(state, toolCall);
+  }
   for (const message of detail.messages) {
     if (!message.correlationId) continue;
     state = mergeMessageStatus(
@@ -76,6 +86,12 @@ export function reduceWorkflowActivityEvent(
 
   if ((event.type === "job.queued" || event.type === "job.updated") && event.job) {
     return mergeJob(state, event.job);
+  }
+  if (
+    (event.type === "tool.started" || event.type === "tool.finished") &&
+    event.toolCall
+  ) {
+    return mergeToolCall(state, event.toolCall);
   }
   if (event.type === "draft.updated") {
     return markDraft(state, correlationId, event.createdAt);
@@ -117,6 +133,29 @@ function mergeJob(
       jobsById: { ...activity.jobsById, [job.id]: job },
       updatedAt:
         activity.updatedAt > job.updatedAt ? activity.updatedAt : job.updatedAt,
+    },
+  };
+}
+
+function mergeToolCall(
+  state: WorkflowActivityState,
+  toolCall: AgentToolCallSummary,
+): WorkflowActivityState {
+  const current = state[toolCall.correlationId];
+  const previous = current?.toolCallsById[toolCall.id];
+  // A late "started" event must not reopen a finished call.
+  if (previous && previous.status !== "RUNNING" && toolCall.status === "RUNNING") {
+    return state;
+  }
+  const activity =
+    current ?? createActivity(toolCall.correlationId, toolCall.startedAt);
+  const updatedAt = toolCall.finishedAt ?? toolCall.startedAt;
+  return {
+    ...state,
+    [toolCall.correlationId]: {
+      ...activity,
+      toolCallsById: { ...activity.toolCallsById, [toolCall.id]: toolCall },
+      updatedAt: activity.updatedAt > updatedAt ? activity.updatedAt : updatedAt,
     },
   };
 }
@@ -163,6 +202,7 @@ function createActivity(
   return {
     correlationId,
     jobsById: {},
+    toolCallsById: {},
     messageStatus: null,
     hasDraft: false,
     startedAt: createdAt,
@@ -190,14 +230,23 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
       ? "answer"
       : "other";
   const stage = latestJob?.progressStage ?? fallbackStage(latestJob);
+  const toolCalls = Object.values(activity.toolCallsById).sort((left, right) =>
+    left.startedAt.localeCompare(right.startedAt),
+  );
+  const runningTools =
+    status === "active"
+      ? toolCalls.filter((toolCall) => toolCall.status === "RUNNING")
+      : [];
+  const runningTool = runningTools[runningTools.length - 1];
 
   return {
     correlationId: activity.correlationId,
     status,
     kind,
     stage,
-    titleKey:
-      status === "active"
+    titleKey: runningTool
+      ? `assistant.workflow.toolActive.${runningTool.toolName}`
+      : status === "active"
         ? `assistant.workflow.stage.${stage}`
         : status === "failed"
           ? "assistant.workflow.failed"
@@ -219,12 +268,30 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
         : null,
     steps: [...jobs]
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
-      .map((job) => ({
-        id: job.id,
-        titleKey: `assistant.workflow.stage.${job.progressStage ?? fallbackStage(job)}`,
-        agentKey: `assistant.workflow.agent.${job.workflowName}`,
-        status: job.status,
-      })),
+      .flatMap((job): WorkflowActivityStep[] => [
+        {
+          id: job.id,
+          kind: "job",
+          titleKey: `assistant.workflow.stage.${job.progressStage ?? fallbackStage(job)}`,
+          agentKey: `assistant.workflow.agent.${job.workflowName}`,
+          status: job.status,
+          detail: null,
+          resultCount: null,
+        },
+        ...toolCalls
+          .filter((toolCall) => toolCall.jobId === job.id)
+          .map(
+            (toolCall): WorkflowActivityStep => ({
+              id: toolCall.id,
+              kind: "tool",
+              titleKey: `assistant.workflow.tool.${toolCall.toolName}`,
+              agentKey: null,
+              status: toolCall.status,
+              detail: toolCall.label,
+              resultCount: toolCall.resultCount,
+            }),
+          ),
+      ]),
   };
 }
 

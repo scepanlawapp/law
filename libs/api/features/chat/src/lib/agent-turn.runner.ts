@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   Logger,
+  OnModuleDestroy,
   Optional,
 } from "@nestjs/common";
 import type {
@@ -11,12 +12,14 @@ import type {
   WorkflowJobStatus,
 } from "@law/api-interfaces";
 import { PlatformPrismaService } from "@law/core";
+import { Prisma } from "@prisma/client";
 import {
   extractUsedMarkerNumbers,
   filterUsedCitations,
 } from "@law/legal-grounding";
 import {
   CitationRegistry,
+  createLawMastra,
   createLegalAssistantAgent,
   createLegalAssistantRequestContext,
   LEGAL_ASSISTANT_MAX_STEPS,
@@ -24,11 +27,12 @@ import {
 } from "@law/mastra";
 import type { Agent } from "@mastra/core/agent";
 import type { MastraModelConfig } from "@mastra/core/llm";
+import type { Mastra } from "@mastra/core/mastra";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
-import { toMessage } from "./chat.mappers";
+import { toMessage, toToolCall } from "./chat.mappers";
 import type { WorkflowJobPayload } from "./workflow-queue.types";
 
 /** Test seam: overrides the agent's model (e.g. a scripted mock). */
@@ -41,25 +45,43 @@ export interface AgentTurnInput {
   language: "sr" | "en";
 }
 
+/** Run telemetry columns on WorkflowJob. */
+export interface WorkflowJobTelemetry {
+  model?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  startedAt?: Date | null;
+  finishedAt?: Date | null;
+}
+
 /** Job status updates stay with WorkflowRunner, which owns WorkflowJob rows. */
 export interface AgentTurnJobPort {
   transition(
     status: WorkflowJobStatus,
     output?: Record<string, unknown>,
     errorCode?: string | null,
+    telemetry?: WorkflowJobTelemetry,
   ): Promise<unknown>;
 }
 
 const PERSIST_INTERVAL_MS = 500;
+/** Tool inputs/outputs are stored for audit; very large results are truncated. */
+const TOOL_PAYLOAD_MAX_CHARS = 8_000;
+
+interface TokenUsage {
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+}
 
 /**
  * Chat orchestrator for one `agent-turn` job: context builder → legalAssistant
  * agent → streamed deltas → persisted answer with citations.
  */
 @Injectable()
-export class AgentTurnRunner {
+export class AgentTurnRunner implements OnModuleDestroy {
   private readonly logger = new Logger(AgentTurnRunner.name);
   private agent?: Agent;
+  private mastra?: Mastra;
 
   constructor(
     private readonly prisma: PlatformPrismaService,
@@ -100,6 +122,9 @@ export class AgentTurnRunner {
     });
 
     let content = "";
+    let usage: TokenUsage = {};
+    let toolCalls: ToolCallRecorder | undefined;
+    const model = this.config.assistantModel;
     try {
       const context = await this.contextBuilder.build({
         workspaceId: payload.workspaceId,
@@ -107,6 +132,13 @@ export class AgentTurnRunner {
         messageId: input.messageId,
       });
       const citations = new CitationRegistry();
+      toolCalls = new ToolCallRecorder(this.prisma, payload, (toolCall, type) =>
+        this.emit(payload, {
+          type,
+          createdAt: new Date().toISOString(),
+          toolCall,
+        }),
+      );
       const stream = await this.resolveAgent().stream(context.messages, {
         requestContext: createLegalAssistantRequestContext({
           workspaceId: payload.workspaceId,
@@ -120,23 +152,44 @@ export class AgentTurnRunner {
       });
 
       let persistedAt = Date.now();
-      for await (const delta of stream.textStream) {
-        if (!delta) continue;
-        content += delta;
-        this.emit(payload, {
-          type: "message.delta",
-          createdAt: new Date().toISOString(),
-          messageId: assistant.id,
-          delta,
-        });
-        if (Date.now() - persistedAt >= PERSIST_INTERVAL_MS) {
-          persistedAt = Date.now();
-          await this.prisma.chatMessage.update({
-            where: { id: assistant.id },
-            data: { content },
-          });
+      for await (const chunk of stream.fullStream) {
+        switch (chunk.type) {
+          case "text-delta": {
+            const delta = chunk.payload.text;
+            if (!delta) break;
+            content += delta;
+            this.emit(payload, {
+              type: "message.delta",
+              createdAt: new Date().toISOString(),
+              messageId: assistant.id,
+              delta,
+            });
+            if (Date.now() - persistedAt >= PERSIST_INTERVAL_MS) {
+              persistedAt = Date.now();
+              await this.prisma.chatMessage.update({
+                where: { id: assistant.id },
+                data: { content },
+              });
+            }
+            break;
+          }
+          case "tool-call":
+            await toolCalls.start(chunk.payload);
+            break;
+          case "tool-result":
+            await toolCalls.finish(chunk.payload.toolCallId, {
+              output: chunk.payload.result,
+              error: chunk.payload.isError ? chunk.payload.result : undefined,
+            });
+            break;
+          case "tool-error":
+            await toolCalls.finish(chunk.payload.toolCallId, {
+              error: chunk.payload.error,
+            });
+            break;
         }
       }
+      usage = await readUsage(stream.totalUsage);
       if (stream.error) throw stream.error;
       if (!content.trim()) throw new Error("Agent returned an empty answer");
 
@@ -172,17 +225,19 @@ export class AgentTurnRunner {
         createdAt: mapped.createdAt,
         message: mapped,
       });
-      await job.transition("COMPLETED", {
-        progressStage: "PREPARING_ANSWER",
-        messageId: assistant.id,
-        model: this.config.assistantModel,
-      });
+      await job.transition(
+        "COMPLETED",
+        { progressStage: "PREPARING_ANSWER", messageId: assistant.id },
+        null,
+        { model, ...usage },
+      );
     } catch (error) {
       this.logger.error(
         `Agent turn failed for job ${payload.jobId} (session ${payload.sessionId}): ${
           error instanceof Error ? error.message : error
         }`,
       );
+      await toolCalls?.failUnfinished(error);
       await this.prisma.chatMessage.update({
         where: { id: assistant.id },
         data: { content, status: "FAILED" },
@@ -191,6 +246,7 @@ export class AgentTurnRunner {
         "FAILED",
         { progressStage: "PREPARING_ANSWER", messageId: assistant.id },
         "AGENT_TURN_FAILED",
+        { model, ...usage },
       );
       this.emit(payload, {
         type: "error",
@@ -218,8 +274,24 @@ export class AgentTurnRunner {
         model: this.config.assistantModel,
       });
     }
-    this.agent = createLegalAssistantAgent({ model, deps: this.tools });
+    const agent = createLegalAssistantAgent({ model, deps: this.tools });
+    if (this.config.mastraTracing && this.config.databaseUrl) {
+      // Registering the agent on a Mastra instance with observability traces
+      // its runs, tool calls, and model calls into the `mastra` schema.
+      this.mastra = createLawMastra({
+        connectionString: this.config.databaseUrl,
+        tracing: true,
+        agents: { legalAssistant: agent },
+      });
+      this.agent = this.mastra.getAgent("legalAssistant");
+    } else {
+      this.agent = agent;
+    }
     return this.agent;
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.mastra?.shutdown();
   }
 
   private emit(
@@ -233,4 +305,117 @@ export class AgentTurnRunner {
       correlationId: payload.correlationId,
     } as ChatStreamEvent);
   }
+}
+
+async function readUsage(
+  usage: PromiseLike<{ inputTokens?: number; outputTokens?: number }>,
+): Promise<TokenUsage> {
+  try {
+    const value = await usage;
+    return {
+      inputTokens: value?.inputTokens ?? null,
+      outputTokens: value?.outputTokens ?? null,
+    };
+  } catch {
+    return {};
+  }
+}
+
+function toStoredJson(value: unknown): Prisma.InputJsonValue | undefined {
+  if (value === undefined) return undefined;
+  const json = JSON.stringify(value) ?? "null";
+  return json.length > TOOL_PAYLOAD_MAX_CHARS
+    ? { truncated: true, preview: json.slice(0, TOOL_PAYLOAD_MAX_CHARS) }
+    : (JSON.parse(json) as Prisma.InputJsonValue);
+}
+
+function errorMessage(error: unknown): string {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "string"
+        ? error
+        : JSON.stringify(error);
+  return (message ?? "Tool failed").slice(0, 500);
+}
+
+/** Persists one AgentToolCall row per tool call and emits tool events. */
+class ToolCallRecorder {
+  private readonly open = new Map<
+    string,
+    { id: string; toolName: string; input: unknown; startedAt: Date }
+  >();
+
+  constructor(
+    private readonly prisma: PlatformPrismaService,
+    private readonly payload: WorkflowJobPayload,
+    private readonly notify: (
+      toolCall: ReturnType<typeof toToolCall>,
+      type: "tool.started" | "tool.finished",
+    ) => void,
+  ) {}
+
+  async start(call: {
+    toolCallId: string;
+    toolName: string;
+    args?: unknown;
+  }): Promise<void> {
+    if (this.open.has(call.toolCallId)) return;
+    const input = stripMastraMetadata(call.args);
+    const row = await this.prisma.agentToolCall.create({
+      data: {
+        workspaceId: this.payload.workspaceId,
+        sessionId: this.payload.sessionId,
+        jobId: this.payload.jobId,
+        toolCallId: call.toolCallId,
+        toolName: call.toolName,
+        input: toStoredJson(input),
+        status: "RUNNING",
+      },
+    });
+    this.open.set(call.toolCallId, {
+      id: row.id,
+      toolName: call.toolName,
+      input,
+      startedAt: row.startedAt,
+    });
+    this.notify(toToolCall(row, this.payload.correlationId), "tool.started");
+  }
+
+  async finish(
+    toolCallId: string,
+    result: { output?: unknown; error?: unknown },
+  ): Promise<void> {
+    const open = this.open.get(toolCallId);
+    if (!open) return;
+    this.open.delete(toolCallId);
+    const finishedAt = new Date();
+    const failed = result.error !== undefined;
+    const row = await this.prisma.agentToolCall.update({
+      where: { id: open.id },
+      data: {
+        status: failed ? "FAILED" : "COMPLETED",
+        output: toStoredJson(failed ? undefined : result.output),
+        errorMessage: failed ? errorMessage(result.error) : null,
+        durationMs: finishedAt.getTime() - open.startedAt.getTime(),
+        finishedAt,
+      },
+    });
+    this.notify(toToolCall(row, this.payload.correlationId), "tool.finished");
+  }
+
+  async failUnfinished(error: unknown): Promise<void> {
+    for (const toolCallId of [...this.open.keys()]) {
+      await this.finish(toolCallId, { error }).catch(() => undefined);
+    }
+  }
+}
+
+function stripMastraMetadata(args: unknown): unknown {
+  if (!args || typeof args !== "object" || Array.isArray(args)) return args;
+  const { __mastraMetadata: _ignored, ...rest } = args as Record<
+    string,
+    unknown
+  >;
+  return rest;
 }

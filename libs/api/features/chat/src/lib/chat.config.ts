@@ -31,6 +31,9 @@ export class ChatRuntimeConfig {
   /** Model for the legalAssistant agent; defaults to OPENROUTER_MODEL. */
   readonly assistantModel =
     process.env.ASSISTANT_MODEL?.trim() || this.openRouterModel;
+  /** Opt-in Mastra tracing into the `mastra` Postgres schema. */
+  readonly mastraTracing = process.env.MASTRA_TRACING === "true";
+  readonly databaseUrl = process.env.DATABASE_URL ?? "";
   readonly assistantHistoryMaxMessages = Number(
     process.env.ASSISTANT_HISTORY_MAX_MESSAGES ?? 20,
   );

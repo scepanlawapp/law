@@ -191,6 +191,8 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
   - It can call two read-only tools: `search_legal_sources`, the pgvector legal knowledge base with `[n]` citations stored like legacy answers, and `get_case`, which returns the linked case or a search by number or name.
   - Answers stream over the same SSE events and support feedback and regenerate.
   - Draft requests still use brief extraction → drafting.
+  - Each agent tool call is stored (`AgentToolCall`: input, truncated output, status, duration) and streamed as `tool.started` / `tool.finished`. The assistant activity card lists tool steps (for example "Pretraga propisa „…“ · Rezultata: 4") live and after a reload, and while a tool runs its title reads "Pretražujem propise…".
+- Workflow jobs record `startedAt` and `finishedAt`. `agent-turn` jobs also record the model and input/output tokens. `MASTRA_TRACING=true` (off by default) additionally exports Mastra traces to the separate `mastra` Postgres schema.
 
 ## References and user settings
 

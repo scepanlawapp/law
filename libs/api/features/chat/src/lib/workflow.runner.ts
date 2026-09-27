@@ -28,7 +28,11 @@ import {
   type GroundingCitation,
   type GroundingSearchHit,
 } from "@law/legal-grounding";
-import { AgentTurnInput, AgentTurnRunner } from "./agent-turn.runner";
+import {
+  AgentTurnInput,
+  AgentTurnRunner,
+  WorkflowJobTelemetry,
+} from "./agent-turn.runner";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { ChatRuntimeConfig } from "./chat.config";
@@ -156,9 +160,14 @@ export class WorkflowRunner {
     }
     if (record.status === "COMPLETED") return;
 
-    await this.transitionJob(record, payload, "RUNNING", {
-      progressStage: this.initialStage(name, record),
-    });
+    await this.transitionJob(
+      record,
+      payload,
+      "RUNNING",
+      { progressStage: this.initialStage(name, record) },
+      null,
+      { startedAt: new Date(), finishedAt: null },
+    );
 
     switch (name) {
       case "triage":
@@ -477,8 +486,15 @@ export class WorkflowRunner {
       return;
     }
     await this.agentTurn.run(record.input as AgentTurnInput | null, payload, {
-      transition: (status, output, errorCode) =>
-        this.transitionJob(record, payload, status, output, errorCode ?? null),
+      transition: (status, output, errorCode, telemetry) =>
+        this.transitionJob(
+          record,
+          payload,
+          status,
+          output,
+          errorCode ?? null,
+          telemetry,
+        ),
     });
   }
 
@@ -1015,13 +1031,17 @@ export class WorkflowRunner {
     status: WorkflowJobStatus,
     output?: Record<string, unknown>,
     errorCode: string | null = null,
+    telemetry: WorkflowJobTelemetry = {},
   ): Promise<WorkflowJobRecord> {
+    const terminal = status === "COMPLETED" || status === "FAILED";
     const job = await this.db.workflowJob.update({
       where: { id: record.id },
       data: {
         status,
         errorCode,
         ...(output ? { output: JSON.parse(JSON.stringify(output)) } : {}),
+        ...(terminal ? { finishedAt: new Date() } : {}),
+        ...telemetry,
       },
     });
     this.emit({

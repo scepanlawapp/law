@@ -81,6 +81,12 @@ enum WorkflowJobStatus {
   FAILED
 }
 
+enum AgentToolCallStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
 enum ThemePreference {
   MIDNIGHT
   DEEP_NAVY
@@ -346,6 +352,7 @@ model Workspace {
   chatSessions           ChatSession[]
   chatAttachments        ChatAttachment[]
   workflowJobs           WorkflowJob[]
+  agentToolCalls         AgentToolCall[]
   briefExtractionResults BriefExtractionResult[]
   draftResults           DraftResult[]
   config                 WorkspaceConfig?
@@ -1224,6 +1231,7 @@ model ChatSession {
   messages               ChatMessage[]
   attachments            ChatAttachment[]
   workflowJobs           WorkflowJob[]
+  agentToolCalls         AgentToolCall[]
   briefExtractionResults BriefExtractionResult[]
   draftResults           DraftResult[]
 
@@ -1284,16 +1292,46 @@ model WorkflowJob {
   input                 Json?
   output                Json?
   errorCode             String?
+  model                 String?
+  inputTokens           Int?
+  outputTokens          Int?
+  startedAt             DateTime?              @db.Timestamptz(3)
+  finishedAt            DateTime?              @db.Timestamptz(3)
   createdAt             DateTime               @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
   workspace             Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   session               ChatSession            @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   briefExtractionResult BriefExtractionResult?
   draftResult           DraftResult?
+  toolCalls             AgentToolCall[]
 
   @@index([workspaceId, createdAt])
   @@index([sessionId, createdAt])
   @@index([correlationId])
+}
+
+// One row per assistant-agent tool call within an `agent-turn` run.
+model AgentToolCall {
+  id           String              @id @default(uuid())
+  workspaceId  String
+  sessionId    String
+  jobId        String
+  toolCallId   String
+  toolName     String
+  input        Json?
+  output       Json?
+  status       AgentToolCallStatus @default(RUNNING)
+  errorMessage String?
+  durationMs   Int?
+  startedAt    DateTime            @default(now()) @db.Timestamptz(3)
+  finishedAt   DateTime?           @db.Timestamptz(3)
+  workspace    Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session      ChatSession         @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  job          WorkflowJob         @relation(fields: [jobId], references: [id], onDelete: Cascade)
+
+  @@unique([jobId, toolCallId])
+  @@index([sessionId, startedAt])
+  @@index([workspaceId, toolName, startedAt])
 }
 
 model BriefExtractionResult {

@@ -186,6 +186,8 @@ export type ChatEventType =
   | "job.queued"
   | "job.updated"
   | "draft.updated"
+  | "tool.started"
+  | "tool.finished"
   | "session.title.updated"
   | "session.deleted"
   | "error";
@@ -280,6 +282,8 @@ export interface ChatSessionDetail extends ChatSessionSummary {
   messages: ChatMessageResponse[];
   jobs: WorkflowJobResponse[];
   drafts: DraftResultResponse[];
+  /** Assistant-agent tool calls of this session, oldest first. */
+  toolCalls?: AgentToolCallSummary[];
   latestBriefId: string | null;
 }
 
@@ -312,8 +316,32 @@ export interface WorkflowJobResponse {
   progressStage?: WorkflowProgressStage | null;
   briefResultId?: string | null;
   errorCode?: string | null;
+  /** Run telemetry (recorded for `agent-turn` runs; timings for all runs). */
+  model?: string | null;
+  inputTokens?: number | null;
+  outputTokens?: number | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
   createdAt: string;
   updatedAt: string;
+}
+
+export type AgentToolCallStatus = "RUNNING" | "COMPLETED" | "FAILED";
+
+/** One assistant-agent tool call, as shown in the chat activity. */
+export interface AgentToolCallSummary {
+  id: string;
+  jobId: string;
+  correlationId: string;
+  toolName: string;
+  status: AgentToolCallStatus;
+  /** Short human-readable argument, e.g. the search query. */
+  label: string | null;
+  /** Number of results the tool returned, when meaningful. */
+  resultCount: number | null;
+  durationMs: number | null;
+  startedAt: string;
+  finishedAt: string | null;
 }
 
 export interface ChatStreamEvent {
@@ -328,6 +356,7 @@ export interface ChatStreamEvent {
   attachment?: ChatAttachmentSummary;
   job?: WorkflowJobResponse;
   draft?: DraftResultResponse;
+  toolCall?: AgentToolCallSummary;
   decision?: TriageDecision;
   reason?: string;
   title?: string | null;

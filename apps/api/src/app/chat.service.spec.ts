@@ -152,6 +152,9 @@ function prismaMock() {
       findUnique: jest.fn(),
       update: jest.fn(),
     },
+    agentToolCall: {
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     auditEvent: {
       create: jest.fn(),
     },
@@ -1481,6 +1484,20 @@ describe("ChatService", () => {
       },
     ]);
     prisma.draftResult.findMany.mockResolvedValue([]);
+    prisma.agentToolCall.findMany.mockResolvedValue([
+      {
+        id: "tool-1",
+        jobId: "job-2",
+        toolName: "search_legal_sources",
+        status: "COMPLETED",
+        input: { query: "Zakon o radu otkaz" },
+        output: { count: 3, sources: "…" },
+        durationMs: 420,
+        startedAt: now,
+        finishedAt: now,
+        job: { correlationId: "corr-2" },
+      },
+    ]);
     const service = new ChatService(
       prisma as never,
       new ChatEventBus(),
@@ -1502,7 +1519,24 @@ describe("ChatService", () => {
         },
       ],
       drafts: [],
+      toolCalls: [
+        {
+          id: "tool-1",
+          jobId: "job-2",
+          correlationId: "corr-2",
+          toolName: "search_legal_sources",
+          status: "COMPLETED",
+          label: "Zakon o radu otkaz",
+          resultCount: 3,
+          durationMs: 420,
+        },
+      ],
     });
+    expect(prisma.agentToolCall.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { sessionId: session.id, workspaceId: session.workspaceId },
+      }),
+    );
   });
 
   it("deleteSession soft-deletes the session and emits session.deleted", async () => {

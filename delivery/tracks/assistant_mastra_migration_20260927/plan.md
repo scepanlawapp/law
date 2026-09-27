@@ -21,10 +21,10 @@ Each phase below 0 gets its own child track and branch (`parent_track_id: "assis
 - [x] Add an `AgentTurnRunner` (BullMQ `agent-turn`) that streams to the existing SSE, persists the answer and its citations, and batches delta writes.
 - [x] Add the `ASSISTANT_ENGINE=legacy|mastra` flag in `ChatRuntimeConfig`.
 
-## Phase 3 — Run telemetry
-- [ ] Wire `@mastra/observability` tracing into `createLawMastra`.
-- [ ] Add to `WorkflowJob`: `model`, `inputTokens`, `outputTokens`, `startedAt`, `finishedAt`. Add the `AgentToolCall` table and a migration, and update the seed.
-- [ ] Add the `tool.started`, `tool.finished` and `run.status` events to `ChatEventType`, and show tool activity in the chat UI.
+## Phase 3 — Run telemetry ([mastra_run_telemetry_20260927](../mastra_run_telemetry_20260927/index.md))
+- [x] Wire `@mastra/observability` tracing into `createLawMastra`, opt-in via `MASTRA_TRACING`.
+- [x] Add to `WorkflowJob`: `model`, `inputTokens`, `outputTokens`, `startedAt`, `finishedAt`. Add the `AgentToolCall` table and a migration, and update the seed.
+- [x] Add the `tool.started` and `tool.finished` events to `ChatEventType` (`run.status` maps to the existing `job.updated`), and show tool activity in the chat UI.
 
 ## Phase 4 — Drafting workflow
 - [ ] Build `lawsuitDraftingWorkflow` (extract attachments → brief → grounding → draft → persist), reusing the existing prompts, schemas and grounding helpers.

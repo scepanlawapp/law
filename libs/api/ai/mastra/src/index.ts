@@ -8,4 +8,5 @@ export * from "./lib/assistant/legal-assistant.prompt";
 export * from "./lib/assistant/tools/tool-deps";
 export * from "./lib/assistant/tools/get-case.tool";
 export * from "./lib/assistant/tools/search-legal-sources.tool";
+export * from "./lib/assistant/tools/tool-call-summary";
 export * from "./lib/testing/scripted-model";

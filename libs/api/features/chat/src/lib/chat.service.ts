@@ -37,7 +37,13 @@ import { ChatEventBus } from "./chat.events";
 import { ChatStorageService } from "./chat.storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
-import { toDraft, toJob, toMessage, toSessionSummary } from "./chat.mappers";
+import {
+  toDraft,
+  toJob,
+  toMessage,
+  toSessionSummary,
+  toToolCall,
+} from "./chat.mappers";
 import { MatterLinkService } from "./matter-link.service";
 import { createInlineWorkflowQueue } from "./workflow.runner";
 import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
@@ -274,7 +280,7 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionDetail> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const [messages, jobs, drafts, latestBrief] = await Promise.all([
+    const [messages, jobs, drafts, latestBrief, toolCalls] = await Promise.all([
       this.db.chatMessage.findMany({
         where: { sessionId },
         include: { attachments: true },
@@ -297,12 +303,20 @@ export class ChatService {
         orderBy: { createdAt: "desc" },
         select: { id: true },
       }),
+      this.db.agentToolCall.findMany({
+        where: { sessionId, workspaceId },
+        include: { job: { select: { correlationId: true } } },
+        orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+      }),
     ]);
     return {
       ...toSessionSummary(session),
       messages: messages.map((message) => toMessage(message)),
       jobs: jobs.map((job) => toJob(job)),
       drafts: drafts.map((draft) => toDraft(draft)),
+      toolCalls: toolCalls.map((call) =>
+        toToolCall(call, call.job.correlationId),
+      ),
       latestBriefId: latestBrief?.id ?? null,
     };
   }
