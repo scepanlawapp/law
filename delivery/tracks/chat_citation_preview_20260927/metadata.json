@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-09-27T00:00:00Z",
+  "keywords": ["assistant", "citations", "preview", "hover", "overlay"],
+  "parent_track_id": "chat_citation_scroll_20260927",
+  "priority": "medium",
+  "status": "completed",
+  "track_id": "chat_citation_preview_20260927",
+  "type": "feature",
+  "updated_at": "2026-09-27T00:00:00Z"
+}

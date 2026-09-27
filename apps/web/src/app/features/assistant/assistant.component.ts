@@ -65,6 +65,7 @@ import {
   PendingActionSummary,
   DocumentScript,
   DraftResultResponse,
+  LegalCitationResponse,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
@@ -73,6 +74,7 @@ import { BottomReachedDirective } from "../../core/directives/bottom-reached.dir
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
 import { CitationListComponent } from "./components/citation-list/citation-list";
+import { CitationPreviewController } from "./components/citation-preview/citation-preview.controller";
 import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
@@ -90,6 +92,15 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
 const STICK_TO_BOTTOM_THRESHOLD_PX = 80;
+const CITATION_LINK_SELECTOR = ".assistant-markdown a.citation-marker-link";
+
+function citationLinkFrom(
+  target: EventTarget | null,
+): HTMLAnchorElement | null {
+  return target instanceof Element
+    ? target.closest<HTMLAnchorElement>(CITATION_LINK_SELECTOR)
+    : null;
+}
 const CITATION_FLASH_CLASS = "citation-item--flash";
 const ALLOWED_FILE_MIME_TYPES = [
   "application/pdf",
@@ -154,8 +165,16 @@ interface SessionGroup {
   styleUrl: "./assistant.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,
   // Delegated: citation links are rendered through sanitized [innerHTML] and are natively focusable.
-  host: { "(click)": "onMarkdownClick($event)" },
+  host: {
+    "(click)": "onMarkdownClick($event)",
+    "(mouseover)": "onCitationPointerOver($event)",
+    "(mouseout)": "onCitationPointerOut($event)",
+    "(focusin)": "onCitationPointerOver($event)",
+    "(focusout)": "onCitationPointerOut($event)",
+    "(keydown.escape)": "citationPreview.hide()",
+  },
   providers: [
+    CitationPreviewController,
     provideIcons({
       lucideArrowUp,
       lucideBot,
@@ -194,6 +213,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
+  protected readonly citationPreview = inject(CitationPreviewController);
   private source: EventSource | null = null;
   private sessionRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private elapsedTimer: ReturnType<typeof setInterval> | null = null;
@@ -517,6 +537,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected selectSession(sessionId: string): void {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
+    this.citationPreview.hide();
 
     const sessionChanged = this.selectedSessionId() !== sessionId;
     if (sessionChanged) this.rightRailExpanded.set(false);
@@ -987,6 +1008,33 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     return message.citations?.map((citation) => citation.marker) ?? [];
   }
 
+  protected onCitationPointerOver(event: Event): void {
+    const link = citationLinkFrom(event.target);
+    if (!link) return;
+    const citation = this.citationForAnchor(link.getAttribute("href"));
+    if (citation) this.citationPreview.open(link, citation);
+  }
+
+  protected onCitationPointerOut(event: MouseEvent | FocusEvent): void {
+    const link = citationLinkFrom(event.target);
+    if (!link || link.contains(event.relatedTarget as Node | null)) return;
+    this.citationPreview.scheduleHide();
+  }
+
+  private citationForAnchor(
+    href: string | null,
+  ): LegalCitationResponse | undefined {
+    const targetId = href?.slice(1);
+    if (!targetId) return undefined;
+    for (const message of this.messages()) {
+      const prefix = `${this.citationAnchorPrefix(message)}-`;
+      if (!targetId.startsWith(prefix)) continue;
+      const marker = Number(targetId.slice(prefix.length));
+      return message.citations?.find((citation) => citation.marker === marker);
+    }
+    return undefined;
+  }
+
   /** Unique per message, so marker 1 in one reply never resolves to another reply's source. */
   protected citationAnchorPrefix(message: ChatMessageResponse): string {
     return `message-${message.id}-citation`;
@@ -997,11 +1045,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
    * against `<base href="/">` and leave the assistant route. Scroll the chat panel instead.
    */
   protected onMarkdownClick(event: MouseEvent): void {
-    const link = (event.target as Element | null)?.closest<HTMLAnchorElement>(
-      ".assistant-markdown a.citation-marker-link",
-    );
+    const link = citationLinkFrom(event.target);
     if (!link) return;
     event.preventDefault();
+    this.citationPreview.hide();
 
     const targetId = link.getAttribute("href")?.slice(1);
     const container = this.messagesContainer?.nativeElement;

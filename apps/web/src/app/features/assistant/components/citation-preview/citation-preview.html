@@ -1,0 +1,30 @@
+@let source = citation();
+<div class="citation-preview" role="tooltip" [id]="previewId()">
+  <div class="citation-preview-heading">
+    <span class="citation-preview-marker">{{ source.marker }}</span>
+    <strong>
+      @if (!source.articleNumber) { {{ "assistant.sourceGeneralProvision" |
+      translate }} } @else if (isArticleNumber(source.articleNumber)) { {{
+      "assistant.sourceArticle" | translate: { number: source.articleNumber } }}
+      } @else { {{ source.articleNumber }} }
+    </strong>
+  </div>
+  <p class="citation-preview-title">{{ source.sourceTitle }}</p>
+  <p class="citation-preview-snippet">{{ source.snippet }}</p>
+  <div class="citation-preview-footer">
+    <span class="citation-preview-match">
+      <ng-icon name="lucideScale" aria-hidden="true" />
+      {{ "assistant.sourceMatch" | translate: { percent:
+      matchPercent(source.score) } }}
+    </span>
+    <a
+      [href]="source.sourceUrl"
+      target="_blank"
+      rel="noreferrer noopener"
+      class="citation-preview-link"
+    >
+      <ng-icon name="lucideExternalLink" aria-hidden="true" />
+      {{ "assistant.openSource" | translate }}
+    </a>
+  </div>
+</div>
