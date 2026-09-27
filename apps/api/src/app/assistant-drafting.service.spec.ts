@@ -68,6 +68,14 @@ function prismaMock() {
     briefs,
     attachmentUpdates,
     chatMessage: {
+      create: jest.fn(({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({
+          id: "message-announce",
+          triageDecision: null,
+          createdAt: at(20),
+          ...data,
+        }),
+      ),
       findFirst: jest.fn().mockResolvedValue({ createdAt: at(5) }),
       findMany: jest.fn().mockResolvedValue([
         {
@@ -86,6 +94,7 @@ function prismaMock() {
       ]),
     },
     chatAttachment: {
+      findMany: jest.fn().mockResolvedValue([]),
       update: jest.fn(({ data }: { data: Record<string, unknown> }) => {
         attachmentUpdates.push(data);
         return Promise.resolve(data);
@@ -444,5 +453,129 @@ describe("AssistantDraftingService revisions and reads", () => {
       text: draftOutput.documentText,
       truncated: false,
     });
+  });
+});
+
+describe("AssistantDraftingService queued jobs", () => {
+  function queuedJob(
+    id: string,
+    workflowName: string,
+    input: Record<string, unknown>,
+  ) {
+    return {
+      id,
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+      workflowName,
+      status: "RUNNING",
+      correlationId: "corr-review",
+      input,
+      output: null,
+      errorCode: null,
+      createdAt: t0,
+      updatedAt: t0,
+    };
+  }
+
+  it("runs a review-panel revision job into a new version and announces it", async () => {
+    const { service, prisma, emitted, completeStructured } = setup([
+      lawsuitBrief,
+      draftOutput,
+      { ...draftOutput, documentText: "TUŽBA (dopunjena)", usedCitations: [] },
+    ]);
+    await service.draftLawsuit(scope, {});
+    const job = queuedJob("job-review", "drafting", {
+      briefResultId: "brief-1",
+      previousDraftId: "draft-1",
+      reviewerNote: "Додај трошкове поступка.",
+      language: "sr",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await expect(service.runDraftingJob(job as never)).resolves.toMatchObject({
+      status: "DRAFT_READY",
+      draftId: "draft-2",
+      version: 2,
+    });
+
+    expect(prisma.drafts.get("draft-2")).toMatchObject({
+      jobId: "job-review",
+      previousDraftId: "draft-1",
+      documentText: "TUŽBA (dopunjena)",
+    });
+    expect(prisma.jobs.get("job-review")).toMatchObject({
+      status: "COMPLETED",
+    });
+    const prompt = completeStructured.mock.calls[2][0].messages[1].content;
+    expect(prompt).toContain("Dodaj troškove postupka.");
+    expect(prompt).toContain("TUŽBA\n\nTužilac Petar Petrović");
+    expect(prisma.chatMessage.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        role: "ASSISTANT",
+        content: "Nacrt je spreman za pregled.",
+        correlationId: "corr-review",
+        metadata: { outcome: "DRAFT_READY", draftId: "draft-2" },
+      }),
+    });
+    expect(emitted.map((event) => event.type)).toContain("message.created");
+  });
+
+  it("fails a drafting job whose brief no longer exists", async () => {
+    const { service, prisma, completeStructured } = setup([]);
+    const job = queuedJob("job-orphan", "drafting", {
+      briefResultId: "brief-missing",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await expect(service.runDraftingJob(job as never)).resolves.toMatchObject({
+      status: "NOT_FOUND",
+    });
+    expect(prisma.jobs.get("job-orphan")).toMatchObject({
+      status: "FAILED",
+      errorCode: "DRAFTING_BRIEF_MISSING",
+    });
+    expect(completeStructured).not.toHaveBeenCalled();
+    expect(prisma.chatMessage.create).not.toHaveBeenCalled();
+  });
+
+  it("retries a brief-extraction job from its persisted input", async () => {
+    const { service, prisma, completeStructured } = setup([
+      lawsuitBrief,
+      draftOutput,
+    ]);
+    prisma.chatAttachment.findMany.mockResolvedValue([
+      attachment("ugovor", {
+        extractionStatus: "COMPLETED",
+        extractedText: "Ugovor o radu, zarada 50.000 RSD.",
+      }),
+    ]);
+    const job = queuedJob("job-brief", "brief-extraction", {
+      messageId: "message-2",
+      userText: "Тужба против послодавца.",
+      attachments: [{ id: "ugovor" }],
+      language: "sr",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await expect(service.runBriefJob(job as never)).resolves.toMatchObject({
+      status: "DRAFT_READY",
+      draftId: "draft-1",
+    });
+
+    expect(prisma.chatAttachment.findMany).toHaveBeenCalledWith({
+      where: {
+        id: { in: ["ugovor"] },
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+      },
+    });
+    const prompt = completeStructured.mock.calls[0][0].messages[1].content;
+    expect(prompt).toContain("Tužba protiv poslodavca.");
+    expect(prompt).toContain("Ugovor o radu, zarada 50.000 RSD.");
+    expect(prisma.jobs.get("job-brief")).toMatchObject({
+      status: "COMPLETED",
+      output: expect.objectContaining({ briefResultId: "brief-1" }),
+    });
+    expect(prisma.briefs.get("brief-1")).toMatchObject({ jobId: "job-brief" });
   });
 });

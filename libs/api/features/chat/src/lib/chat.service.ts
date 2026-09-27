@@ -87,7 +87,7 @@ export class ChatService {
   ) {
     this.workflowQueue =
       workflowQueue ??
-      createInlineWorkflowQueue(prisma, events, storage, config, provider);
+      createInlineWorkflowQueue(prisma, events, config, provider);
   }
 
   private get db(): PlatformPrismaService {

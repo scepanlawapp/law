@@ -682,8 +682,6 @@
   "assistant.workflow.toolActive.list_conversation_drafts": "Proveravam nacrte…",
   "assistant.workflow.agent.brief-extraction": "Agent za izdvajanje činjenica",
   "assistant.workflow.agent.drafting": "Agent za izradu nacrta",
-  "assistant.workflow.agent.evaluation": "Agent za procenu",
-  "assistant.workflow.agent.review": "Agent za pregled",
   "assistant.workflow.completed": "Zahtev je obrađen",
   "assistant.workflow.answerReady": "Odgovor je završen",
   "assistant.workflow.draftReady": "Nacrt je pripremljen",

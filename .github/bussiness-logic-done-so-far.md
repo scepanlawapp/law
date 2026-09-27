@@ -184,18 +184,18 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - After brief extraction, the Case-work pane opens in the right rail (shared with the Draft review panel via a compact Draft / Case-work tab switcher shown only when both exist), without narrowing the chat column. A fresh brief auto-expands the rail on the Case-work tab and a fresh draft opens the Draft tab; refresh/SSE updates never re-expand a rail the user collapsed, switching sessions collapses it, and deleting the active session resets the brief/rail state. Nothing remains in the message stream. The lawyer confirms a client and case separately from tasks. Plaintiff becomes the client (existing match or a new individual). Defendant is stored as opposing-party text on the case. Confirmed missing fields and evidence become tasks with no due date.
 - Confirmed creates write activity-log rows with `metadata.source = "AI_ASSISTED"`. The approving user is the actor.
 - Linked sessions and drafts appear on the case overview. Opening the assistant with `?caseId=` preselects that case and does not send a message.
-- LLM calls (triage, answering, brief extraction, drafting, titles) go to OpenRouter through the `ChatModelProvider` interface. `LLM_BACKEND=legacy` (the default) uses the built-in OpenRouter client, and `LLM_BACKEND=mastra` runs the same prompts and schemas on the Mastra model layer (`@law/mastra`). This is the first step of the Mastra migration; see `AI_ARCHITECTURE.md`.
-- With `ASSISTANT_ENGINE=mastra` (default `legacy`), legal questions go to a multi-turn `legalAssistant` agent (`agent-turn` job) instead of the single-message `answering` workflow:
-  - Portir triage sees the recent conversation, so follow-ups are accepted.
+- All LLM calls go to OpenRouter through the Mastra model layer (`@law/mastra`); there is one assistant engine and no engine flags.
+- Every message first passes Portir triage, which sees the recent conversation. Non-legal and unclear requests get a short reply and no further work. Every legal request becomes one `agent-turn` job run by the multi-turn `legalAssistant` agent:
   - The agent receives the session's recent messages (in Latin script, within a budget) and the linked case.
-  - It can call two read-only tools: `search_legal_sources`, the pgvector legal knowledge base with `[n]` citations stored like legacy answers, and `get_case`, which returns the linked case or a search by number or name.
+  - It can call two read-only tools: `search_legal_sources`, the pgvector legal knowledge base with `[n]` citations stored on the answer, and `get_case`, which returns the linked case or a search by number or name.
   - Answers stream over the same SSE events and support feedback and regenerate.
   - Drafting requests also go to the agent. Its `draft_lawsuit` tool runs the Mastra `lawsuit-drafting` workflow:
     - It builds the brief from the conversation's client messages and the session's attachments, reusing extracted text.
     - It then grounds and drafts the lawsuit.
     - Results are saved through the usual `brief-extraction` and `drafting` jobs, so the Case-work and Draft review panels work as before.
   - `revise_draft` creates a new draft version from a chat instruction (for example "skrati obrazloženje"). `get_draft` and `list_conversation_drafts` read the conversation's drafts, which the agent also sees in its context.
-  - A turn that produced a draft is marked `DRAFT_READY`. Every draft still needs lawyer approval in the review panel. In the legacy engine, drafting is unchanged.
+  - A turn that produced a draft is marked `DRAFT_READY`. Every draft still needs lawyer approval in the review panel.
+  - "Request changes" in the draft review panel queues a `drafting` job that the same Mastra `draft-revision` workflow runs; the new version is announced with "Nacrt je spreman za pregled." Retrying a failed `brief-extraction` or `drafting` job reruns it from its stored input. Older queued `answering` jobs run as agent turns.
   - The agent can propose record changes: `link_case`, `create_deadline` (on the linked or named case, with the case's responsible lawyer), and `create_tasks_from_brief` (the brief must be applied to a case).
     - A proposal only stores a `PendingAction` and shows a confirmation card (Odobri / Odbij) under the message. The run waits in `WAITING_CONFIRMATION`.
     - Approval (`POST /chat/pending-actions/:id/approve`) executes the change through the existing services, with the approving user as the actor and an `AI_ASSISTED` activity log.

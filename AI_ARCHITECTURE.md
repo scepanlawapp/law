@@ -215,6 +215,8 @@ Audited on 2026-09-27 (delivery track `assistant_mastra_migration_20260927`).
 
 **Phase 6 is done** (`mastra_conversation_summary_20260927`). The Context Builder sends a rolling summary of older turns (`ChatSession.summary` / `summaryThroughAt`, updated best-effort after each turn with an optimistic cursor) plus the turns after the cursor verbatim (§3). Long-term user memory is deferred pending a product and privacy decision.
 
+**Phase 7 is done** (`mastra_legacy_cleanup_20260927`). The Mastra agent is the only engine. `WorkflowRunner` is a thin dispatcher: Portir is a guardrail only (`accepted` or a short reply), and every legal request is one `agent-turn`. Queued `brief-extraction`/`drafting` jobs (review-panel "request changes", retries) run through the Mastra workflows in `AssistantDraftingService`. `LLM_BACKEND`, `ASSISTANT_ENGINE`, the hand-written OpenRouter client (`OpenRouterChatModelProvider`) and the `@law/evaluation`, `@law/review`, `@law/ollama` and `@law/n8n` stubs are removed. The "Current state" audit below describes the pre-migration system and is kept for history.
+
 ### LLM access
 - `@law/llm` (`libs/api/ai/llm`): our own `ChatModelProvider` interface.
   - `completeStructured(schema, messages)`: OpenRouter `/chat/completions` with

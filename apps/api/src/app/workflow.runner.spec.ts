@@ -12,6 +12,7 @@ const now = new Date("2026-09-10T12:00:00.000Z");
 function prismaMock() {
   const workflowJobs = new Map<string, Record<string, unknown>>();
   return {
+    workflowJobs,
     workflowJob: {
       findUnique: jest.fn(({ where }: { where: { id: string } }) =>
         Promise.resolve(workflowJobs.get(where.id) ?? null),
@@ -46,18 +47,20 @@ function prismaMock() {
         return Promise.resolve(record);
       }),
       seed(id: string, record: Record<string, unknown>) {
-        workflowJobs.set(id, { id, createdAt: now, updatedAt: now, ...record });
+        workflowJobs.set(id, {
+          id,
+          workspaceId: "workspace-1",
+          sessionId: "session-1",
+          createdAt: now,
+          updatedAt: now,
+          ...record,
+        });
       },
     },
-    chatSession: { findFirst: jest.fn().mockResolvedValue(null) },
-    case: { findFirst: jest.fn().mockResolvedValue(null) },
-    chatMessage: { create: jest.fn(), update: jest.fn() },
-    chatAttachment: { findMany: jest.fn().mockResolvedValue([]) },
-    briefExtractionResult: {
+    chatMessage: {
       create: jest.fn(),
-      findUnique: jest.fn(),
+      findFirst: jest.fn().mockResolvedValue({ id: "message-user" }),
     },
-    draftResult: { create: jest.fn() },
   };
 }
 
@@ -67,169 +70,137 @@ function payload(jobId: string): WorkflowJobPayload {
     sessionId: "session-1",
     jobId,
     correlationId: "corr-1",
+    messageId: "message-user",
   };
 }
 
+function runner(
+  prisma: ReturnType<typeof prismaMock>,
+  provider: FakeChatModelProvider,
+  options: {
+    events?: ChatEventBus;
+    enqueue?: jest.Mock;
+    agentTurn?: { run: jest.Mock };
+    drafting?: { runBriefJob: jest.Mock; runDraftingJob: jest.Mock };
+  } = {},
+) {
+  return new WorkflowRunner(
+    prisma as never,
+    options.events ?? new ChatEventBus(),
+    new ChatRuntimeConfig(),
+    provider,
+    { enqueue: options.enqueue ?? jest.fn() },
+    undefined,
+    options.agentTurn as never,
+    options.drafting as never,
+  );
+}
+
+const nonLegalReply = {
+  id: "message-1",
+  sessionId: "session-1",
+  role: "ASSISTANT",
+  content: "rejected",
+  status: "COMPLETED",
+  triageDecision: null,
+  correlationId: "corr-1",
+  metadata: {},
+  createdAt: now,
+};
+
 describe("WorkflowRunner", () => {
-  it("streams and persists a correlated legal answer", async () => {
-    const prisma = prismaMock();
-    prisma.workflowJob.seed("job-answer", {
-      workspaceId: "workspace-1",
-      sessionId: "session-1",
-      status: "QUEUED",
-      workflowName: "answering",
-      correlationId: "corr-1",
-      input: {
-        userText: "Koji je opšti rok zastarelosti?",
-        attachments: [],
-        language: "sr",
-      },
-    });
-    const pendingMessage = {
-      id: "message-answer",
-      sessionId: "session-1",
-      role: "ASSISTANT",
-      content: "",
-      status: "PENDING",
-      triageDecision: null,
-      correlationId: "corr-1",
-      metadata: { outcome: "ANSWER" },
-      createdAt: now,
-    };
-    prisma.chatMessage.create.mockResolvedValue(pendingMessage);
-    prisma.chatMessage.update.mockImplementation(
-      ({ data }: { data: Record<string, unknown> }) =>
-        Promise.resolve({ ...pendingMessage, ...data }),
-    );
-    const events = new ChatEventBus();
-    const emitted: ChatStreamEvent[] = [];
-    events.stream("session-1").subscribe((event) => emitted.push(event));
-    const runner = new WorkflowRunner(
-      prisma as never,
-      events,
-      { save: jest.fn(), read: jest.fn() } as never,
-      new ChatRuntimeConfig(),
-      new FakeChatModelProvider({ stream: ["Opšti ", "odgovor."] }),
-      { enqueue: jest.fn() },
-    );
-
-    await runner.run("answering", payload("job-answer"));
-
-    expect(prisma.chatMessage.update).toHaveBeenLastCalledWith({
-      where: { id: "message-answer" },
-      data: {
-        content: "Opšti odgovor.",
-        status: "COMPLETED",
-        metadata: { outcome: "ANSWER" },
-      },
-    });
-    expect(
-      emitted
-        .filter((event) => event.type === "message.delta")
-        .map((event) => event.delta),
-    ).toEqual(["Opšti ", "odgovor."]);
-    expect(emitted).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          type: "message.started",
-          correlationId: "corr-1",
-        }),
-        expect.objectContaining({
-          type: "message.updated",
-          message: expect.objectContaining({
-            content: "Opšti odgovor.",
-            status: "COMPLETED",
-          }),
-        }),
-        expect.objectContaining({
-          type: "job.updated",
-          job: expect.objectContaining({
-            status: "COMPLETED",
-            progressStage: "PREPARING_ANSWER",
-          }),
-        }),
-      ]),
-    );
-  });
-
-  it("emits persisted running and completed snapshots with progress stages", async () => {
+  it("answers non-legal requests itself and emits running/completed snapshots", async () => {
     const prisma = prismaMock();
     prisma.workflowJob.seed("job-1", {
-      workspaceId: "workspace-1",
-      sessionId: "session-1",
       status: "QUEUED",
       workflowName: "triage",
       correlationId: "corr-1",
-      input: { actorId: "user-1", content: "Tužba", attachments: [] },
+      input: { actorId: "user-1", content: "Vreme?", attachments: [] },
     });
-    prisma.chatMessage.create.mockResolvedValue({
-      id: "message-1",
-      sessionId: "session-1",
-      role: "ASSISTANT",
-      content: "accepted",
-      status: "COMPLETED",
-      triageDecision: "NON_LEGAL",
-      correlationId: "corr-1",
-      metadata: {},
-      createdAt: now,
-    });
+    prisma.chatMessage.create.mockResolvedValue(nonLegalReply);
     const events = new ChatEventBus();
     const emitted: ChatStreamEvent[] = [];
     events.stream("session-1").subscribe((event) => emitted.push(event));
-    const runner = new WorkflowRunner(
-      prisma as never,
-      events,
-      { save: jest.fn(), read: jest.fn() } as never,
-      new ChatRuntimeConfig(),
+    const enqueue = jest.fn();
+
+    await runner(
+      prisma,
       new FakeChatModelProvider({ decision: "NON_LEGAL", reason: "not legal" }),
-      { enqueue: jest.fn() },
-    );
+      { events, enqueue },
+    ).run("triage", payload("job-1"));
 
-    await runner.run("triage", payload("job-1"));
-
-    const jobEvents = emitted.filter((event) => event.type === "job.updated");
-    expect(jobEvents).toEqual([
-      expect.objectContaining({
-        workspaceId: "workspace-1",
-        correlationId: "corr-1",
-        job: expect.objectContaining({
-          status: "RUNNING",
-          progressStage: "UNDERSTANDING_REQUEST",
-        }),
-      }),
-      expect.objectContaining({
-        job: expect.objectContaining({
-          status: "COMPLETED",
-          progressStage: "UNDERSTANDING_REQUEST",
-        }),
-      }),
+    expect(prisma.chatMessage.create).toHaveBeenCalledTimes(1);
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(
+      emitted
+        .filter((event) => event.type === "job.updated")
+        .map((event) => [event.job?.status, event.job?.progressStage]),
+    ).toEqual([
+      ["RUNNING", "UNDERSTANDING_REQUEST"],
+      ["COMPLETED", "UNDERSTANDING_REQUEST"],
     ]);
   });
 
-  it("skips already-completed jobs (idempotent retry/replay)", async () => {
+  it("queues exactly one agent turn for any legal request", async () => {
+    const prisma = prismaMock();
+    prisma.workflowJob.seed("job-1", {
+      status: "QUEUED",
+      workflowName: "triage",
+      correlationId: "corr-1",
+      input: { actorId: "user-1", content: "Pripremi tužbu.", attachments: [] },
+    });
+    const enqueue = jest.fn().mockResolvedValue(undefined);
+
+    await runner(
+      prisma,
+      new FakeChatModelProvider({
+        decision: "LEGAL",
+        reason: "Lawsuit",
+        intent: "DRAFT",
+        language: "sr",
+      }),
+      { enqueue },
+    ).run("triage", payload("job-1"));
+
+    expect(enqueue.mock.calls.map(([name]) => name)).toEqual(["agent-turn"]);
+    expect(prisma.workflowJob.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        workflowName: "agent-turn",
+        input: expect.objectContaining({
+          messageId: "message-user",
+          intent: "DRAFT",
+          language: "sr",
+        }),
+      }),
+    });
+  });
+
+  it("skips completed and waiting jobs (idempotent retry/replay)", async () => {
     const prisma = prismaMock();
     prisma.workflowJob.seed("job-1", {
       status: "COMPLETED",
       workflowName: "triage",
-      correlationId: "corr-1",
     });
+    prisma.workflowJob.seed("job-2", {
+      status: "WAITING_CONFIRMATION",
+      workflowName: "agent-turn",
+    });
+    const agentTurn = { run: jest.fn() };
     const enqueue = jest.fn();
-    const runner = new WorkflowRunner(
-      prisma as never,
-      new ChatEventBus(),
-      { save: jest.fn(), read: jest.fn() } as never,
-      new ChatRuntimeConfig(),
-      new FakeChatModelProvider({}),
-      { enqueue },
-    );
+    const workflowRunner = runner(prisma, new FakeChatModelProvider({}), {
+      enqueue,
+      agentTurn,
+    });
 
-    await runner.run("triage", payload("job-1"));
+    await workflowRunner.run("triage", payload("job-1"));
+    await workflowRunner.run("agent-turn", payload("job-2"));
 
     expect(prisma.workflowJob.update).not.toHaveBeenCalled();
     expect(enqueue).not.toHaveBeenCalled();
+    expect(agentTurn.run).not.toHaveBeenCalled();
   });
 
-  it("marks triage terminally FAILED (not rethrown) when the LLM call fails validation", async () => {
+  it("marks triage terminally FAILED (not rethrown) when the model output is invalid", async () => {
     const prisma = prismaMock();
     prisma.workflowJob.seed("job-1", {
       status: "QUEUED",
@@ -240,28 +211,17 @@ describe("WorkflowRunner", () => {
     const events = new ChatEventBus();
     const emitted: string[] = [];
     events.stream("session-1").subscribe((event) => emitted.push(event.type));
-    const runner = new WorkflowRunner(
-      prisma as never,
-      events,
-      { save: jest.fn(), read: jest.fn() } as never,
-      new ChatRuntimeConfig(),
-      new FakeChatModelProvider({ notADecision: true }),
-      { enqueue: jest.fn() },
-    );
 
     await expect(
-      runner.run("triage", payload("job-1")),
+      runner(prisma, new FakeChatModelProvider({ notADecision: true }), {
+        events,
+      }).run("triage", payload("job-1")),
     ).resolves.toBeUndefined();
 
-    expect(prisma.workflowJob.update).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { id: "job-1" },
-        data: expect.objectContaining({
-          status: "FAILED",
-          errorCode: "TRIAGE_FAILED",
-        }),
-      }),
-    );
+    expect(prisma.workflowJobs.get("job-1")).toMatchObject({
+      status: "FAILED",
+      errorCode: "TRIAGE_FAILED",
+    });
     expect(emitted).toContain("error");
   });
 
@@ -274,71 +234,127 @@ describe("WorkflowRunner", () => {
       input: { actorId: "user-1", content: "Tužba", attachments: [] },
     });
     prisma.chatMessage.create.mockRejectedValue(new Error("db unavailable"));
-    const runner = new WorkflowRunner(
-      prisma as never,
-      new ChatEventBus(),
-      { save: jest.fn(), read: jest.fn() } as never,
-      new ChatRuntimeConfig(),
-      new FakeChatModelProvider({ decision: "NON_LEGAL", reason: "not legal" }),
-      { enqueue: jest.fn() },
+
+    await expect(
+      runner(
+        prisma,
+        new FakeChatModelProvider({
+          decision: "NON_LEGAL",
+          reason: "not legal",
+        }),
+      ).run("triage", payload("job-1")),
+    ).rejects.toThrow("db unavailable");
+  });
+
+  it("runs a historical answering job as an agent turn for its correlated user message", async () => {
+    const prisma = prismaMock();
+    prisma.workflowJob.seed("job-old", {
+      status: "QUEUED",
+      workflowName: "answering",
+      correlationId: "corr-1",
+      input: { userText: "Rok zastarelosti?", attachments: [], language: "sr" },
+    });
+    const agentTurn = {
+      run: jest.fn(async (_input, _payload, job) => {
+        await job.transition("COMPLETED", {
+          progressStage: "PREPARING_ANSWER",
+        });
+      }),
+    };
+
+    await runner(prisma, new FakeChatModelProvider({}), { agentTurn }).run(
+      "answering",
+      payload("job-old"),
     );
 
-    await expect(runner.run("triage", payload("job-1"))).rejects.toThrow(
-      "db unavailable",
+    expect(prisma.chatMessage.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          sessionId: "session-1",
+          correlationId: "corr-1",
+          role: "USER",
+        },
+      }),
+    );
+    expect(agentTurn.run).toHaveBeenCalledWith(
+      {
+        messageId: "message-user",
+        userText: "Rok zastarelosti?",
+        attachments: [],
+        language: "sr",
+        intent: "ANSWER",
+      },
+      payload("job-old"),
+      expect.any(Object),
+    );
+    expect(prisma.workflowJobs.get("job-old")).toMatchObject({
+      status: "COMPLETED",
+    });
+  });
+
+  it("delegates queued brief-extraction and drafting jobs to the Mastra drafting service", async () => {
+    const prisma = prismaMock();
+    prisma.workflowJob.seed("job-brief", {
+      status: "FAILED",
+      workflowName: "brief-extraction",
+      correlationId: "corr-1",
+      input: { messageId: "message-user", userText: "Tužba", attachments: [] },
+    });
+    prisma.workflowJob.seed("job-draft", {
+      status: "QUEUED",
+      workflowName: "drafting",
+      correlationId: "corr-1",
+      input: {
+        briefResultId: "brief-1",
+        previousDraftId: "draft-1",
+        reviewerNote: "Skrati.",
+      },
+    });
+    const drafting = {
+      runBriefJob: jest.fn().mockResolvedValue({ status: "DRAFT_READY" }),
+      runDraftingJob: jest.fn().mockResolvedValue({ status: "DRAFT_READY" }),
+    };
+    const workflowRunner = runner(prisma, new FakeChatModelProvider({}), {
+      drafting,
+    });
+
+    await workflowRunner.run("brief-extraction", payload("job-brief"));
+    await workflowRunner.run("drafting", payload("job-draft"));
+
+    expect(drafting.runBriefJob).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "job-brief", status: "RUNNING" }),
+    );
+    expect(drafting.runDraftingJob).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "job-draft", status: "RUNNING" }),
     );
   });
 
-  it("chains brief-extraction -> drafting via the injected queue for a lawsuit brief", async () => {
+  it("fails agent and drafting jobs clearly when their services are not wired", async () => {
     const prisma = prismaMock();
-    prisma.workflowJob.seed("job-2", {
+    prisma.workflowJob.seed("job-turn", {
       status: "QUEUED",
-      workflowName: "brief-extraction",
+      workflowName: "agent-turn",
       correlationId: "corr-1",
-      input: {
-        actorId: "user-1",
-        messageId: "msg-1",
-        userText: "Tužba za naknadu štete",
-        attachments: [],
-      },
+      input: { messageId: "message-user" },
     });
-    const fakeBrief = {
-      jobType: "lawsuit",
-      plaintiff: { name: "Petar", address: null },
-      defendant: { name: "Marko", address: null },
-      competentCourt: null,
-      claimValue: null,
-      legalBasis: [],
-      factualDescription: null,
-      evidence: [],
-      reliefSought: null,
-      missingFields: [],
-      confidence: 0.9,
-      warnings: [],
-    };
-    prisma.briefExtractionResult.create.mockResolvedValue({
-      id: "brief-result-1",
+    prisma.workflowJob.seed("job-draft", {
+      status: "QUEUED",
+      workflowName: "drafting",
+      correlationId: "corr-1",
+      input: { briefResultId: "brief-1" },
     });
-    const enqueue = jest.fn().mockResolvedValue(undefined);
-    const runner = new WorkflowRunner(
-      prisma as never,
-      new ChatEventBus(),
-      { save: jest.fn(), read: jest.fn() } as never,
-      new ChatRuntimeConfig(),
-      new FakeChatModelProvider(fakeBrief),
-      { enqueue },
-    );
+    const workflowRunner = runner(prisma, new FakeChatModelProvider({}));
 
-    await runner.run("brief-extraction", payload("job-2"));
+    await workflowRunner.run("agent-turn", payload("job-turn"));
+    await workflowRunner.run("drafting", payload("job-draft"));
 
-    expect(enqueue).toHaveBeenCalledWith(
-      "drafting",
-      expect.any(String),
-      expect.objectContaining({
-        workspaceId: "workspace-1",
-        sessionId: "session-1",
-        correlationId: "corr-1",
-        messageId: "msg-1",
-      }),
-    );
+    expect(prisma.workflowJobs.get("job-turn")).toMatchObject({
+      status: "FAILED",
+      errorCode: "AGENT_TURN_UNAVAILABLE",
+    });
+    expect(prisma.workflowJobs.get("job-draft")).toMatchObject({
+      status: "FAILED",
+      errorCode: "DRAFTING_UNAVAILABLE",
+    });
   });
 });

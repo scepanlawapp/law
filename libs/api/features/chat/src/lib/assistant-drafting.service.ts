@@ -23,7 +23,7 @@ import { toLatin } from "@law/transliteration";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { resolveChatModelProvider } from "./chat-model.util";
-import { toDraft, toJob } from "./chat.mappers";
+import { toDraft, toJob, toMessage } from "./chat.mappers";
 import { ChatStorageService } from "./chat.storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { MatterLinkService } from "./matter-link.service";
@@ -90,7 +90,44 @@ export class AssistantDraftingService {
       },
       attachments.length ? "READING_ATTACHMENTS" : "EXTRACTING_FACTS",
     );
+    return this.runLawsuitDraft(scope, briefJob, userText, attachments);
+  }
 
+  /**
+   * Runs a queued `brief-extraction` job (retry of a failed one, or a legacy
+   * job still in the queue) through the Mastra lawsuit-drafting workflow.
+   */
+  async runBriefJob(job: JobRecord): Promise<DraftToolResult> {
+    const input = (job.input ?? {}) as {
+      messageId?: string | null;
+      userText?: string;
+      attachments?: Array<{ id: string }>;
+      language?: "sr" | "en";
+    };
+    const scope = scopeFromJob(job, input);
+    const attachmentIds = (input.attachments ?? []).map((item) => item.id);
+    const attachments = attachmentIds.length
+      ? await this.prisma.chatAttachment.findMany({
+          where: {
+            id: { in: attachmentIds },
+            workspaceId: job.workspaceId,
+            sessionId: job.sessionId,
+          },
+        })
+      : [];
+    const userText =
+      input.userText && input.userText !== "(attachment)"
+        ? toLatin(input.userText)
+        : "";
+    return this.runLawsuitDraft(scope, job, userText, attachments);
+  }
+
+  private async runLawsuitDraft(
+    scope: AssistantTurnScope,
+    briefJob: JobRecord,
+    userText: string,
+    attachments: AttachmentRow[],
+  ): Promise<DraftToolResult> {
     const documents = await this.readDocuments(scope, attachments);
     const hasContext =
       userText.trim().length > 0 ||
@@ -126,7 +163,7 @@ export class AssistantDraftingService {
             jobId: briefJob.id,
             workspaceId: scope.workspaceId,
             sessionId: scope.sessionId,
-            messageId: scope.messageId,
+            messageId: scope.messageId || null,
             brief: JSON.parse(JSON.stringify(brief)),
             confidence: brief.confidence,
             missingFields: brief.missingFields,
@@ -230,6 +267,70 @@ export class AssistantDraftingService {
       },
       "PREPARING_DRAFT",
     );
+    return this.produceDraft(scope, job, briefRow, previous, instruction);
+  }
+
+  /**
+   * Runs a queued `drafting` job: "request changes" from the draft review
+   * panel, or a retry. Announces the result like the legacy drafting job.
+   */
+  async runDraftingJob(job: JobRecord): Promise<DraftToolResult> {
+    const input = (job.input ?? {}) as {
+      briefResultId?: string;
+      messageId?: string | null;
+      previousDraftId?: string | null;
+      reviewerNote?: string | null;
+      language?: "sr" | "en";
+    };
+    const scope = scopeFromJob(job, input);
+    const briefRow = input.briefResultId
+      ? await this.prisma.briefExtractionResult.findFirst({
+          where: { id: input.briefResultId, workspaceId: job.workspaceId },
+        })
+      : null;
+    if (!briefRow) {
+      await this.transition(
+        scope,
+        job,
+        "FAILED",
+        { progressStage: "PREPARING_DRAFT" },
+        "DRAFTING_BRIEF_MISSING",
+      );
+      return { status: "NOT_FOUND", message: "Izvučene činjenice ne postoje." };
+    }
+    const previous = input.previousDraftId
+      ? await this.prisma.draftResult.findFirst({
+          where: { id: input.previousDraftId, workspaceId: job.workspaceId },
+        })
+      : null;
+    const note = input.reviewerNote?.trim()
+      ? toLatin(input.reviewerNote)
+      : null;
+    const result = await this.produceDraft(
+      scope,
+      job,
+      briefRow,
+      previous,
+      note,
+    );
+    if (result.status === "DRAFT_READY") {
+      await this.announceDraft(scope, result.draftId);
+    }
+    return result;
+  }
+
+  /** Grounds and drafts on an existing `drafting` job, optionally revising. */
+  private async produceDraft(
+    scope: AssistantTurnScope,
+    job: JobRecord,
+    briefRow: { id: string; brief: unknown },
+    previous: {
+      id: string;
+      documentText: string;
+      finalDocumentText: string | null;
+    } | null,
+    note: string | null,
+  ): Promise<DraftToolResult> {
     const { draftRevision } = createDraftingWorkflows({
       provider: resolveChatModelProvider(this.config, this.provider),
       search: (query, limit) => this.search(scope.workspaceId, query, limit),
@@ -239,22 +340,50 @@ export class AssistantDraftingService {
         brief: briefRow.brief as BriefResult,
         caseContext: await this.caseContext(scope),
         budget: this.budget(),
-        feedback: {
-          previousDraft: previous.finalDocumentText ?? previous.documentText,
-          reviewerNote: instruction,
-        },
+        feedback:
+          previous || note
+            ? {
+                previousDraft: previous
+                  ? (previous.finalDocumentText ?? previous.documentText)
+                  : undefined,
+                reviewerNote: note ?? undefined,
+              }
+            : null,
       });
       return await this.saveDraft(
         scope,
         job,
         briefRow.id,
         outcome,
-        previous.id,
+        previous?.id ?? null,
       );
     } catch (error) {
       await this.failJobs(scope, error, [{ job, code: "DRAFTING_LLM_FAILED" }]);
-      return { status: "FAILED", message: "Izmena nacrta nije uspela." };
+      return { status: "FAILED", message: "Izrada nacrta nije uspela." };
     }
+  }
+
+  /** Assistant message for queued drafting jobs (no agent turn to summarize). */
+  private async announceDraft(scope: AssistantTurnScope, draftId: string) {
+    const message = await this.prisma.chatMessage.create({
+      data: {
+        sessionId: scope.sessionId,
+        role: "ASSISTANT",
+        content:
+          scope.language === "en"
+            ? "The draft is ready for review."
+            : "Nacrt je spreman za pregled.",
+        status: "COMPLETED",
+        correlationId: scope.correlationId,
+        metadata: { outcome: "DRAFT_READY", draftId },
+      },
+    });
+    const mapped = toMessage({ ...message, attachments: [] });
+    this.emit(scope, {
+      type: "message.created",
+      createdAt: mapped.createdAt,
+      message: mapped,
+    });
   }
 
   async getDraft(
@@ -524,7 +653,7 @@ export class AssistantDraftingService {
         workspaceId: scope.workspaceId,
         sessionId: scope.sessionId,
         caseId: sessionCaseId,
-        messageId: scope.messageId,
+        messageId: scope.messageId || null,
         briefResultId,
         documentText: draft.documentText,
         warnings: draft.warnings,
@@ -739,4 +868,24 @@ function chainLength(
     current = previous;
   }
   return version;
+}
+
+/** Turn scope for a queued job; `messageId` may be empty for old rows. */
+function scopeFromJob(
+  job: {
+    id: string;
+    workspaceId: string;
+    sessionId: string;
+    correlationId: string;
+  },
+  input: { messageId?: string | null; language?: "sr" | "en" },
+): AssistantTurnScope {
+  return {
+    workspaceId: job.workspaceId,
+    sessionId: job.sessionId,
+    jobId: job.id,
+    correlationId: job.correlationId,
+    messageId: input.messageId ?? "",
+    language: input.language === "en" ? "en" : "sr",
+  };
 }

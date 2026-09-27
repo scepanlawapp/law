@@ -10,53 +10,27 @@ import { Prisma } from "@prisma/client";
 import { WorkflowName } from "@law/contracts";
 import { ChatModelProvider } from "@law/llm";
 import { runPortirGraph } from "@law/triage";
-import { extractAttachmentText } from "@law/extraction";
-import {
-  BriefDocumentInput,
-  BriefResult,
-  buildBriefUserPrompt,
-  runBriefExtractionLlm,
-} from "@law/brief-extraction";
-import { buildDraftingUserPrompt, runDraftingLlm } from "@law/drafting";
-import { LegalKnowledgeService } from "@law/legal-knowledge";
-import {
-  buildDraftGroundingQueries,
-  extractUsedMarkerNumbers,
-  filterUsedCitations,
-  formatGroundingContextBlock,
-  retrieveGroundingCitations,
-  type GroundingCitation,
-  type GroundingSearchHit,
-} from "@law/legal-grounding";
 import {
   AgentTurnInput,
   AgentTurnRunner,
   WorkflowJobTelemetry,
 } from "./agent-turn.runner";
 import { AssistantContextBuilder } from "./assistant-context.builder";
+import { AssistantDraftingService } from "./assistant-drafting.service";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
-import { ChatStorageService } from "./chat.storage";
 import { resolveChatModelProvider } from "./chat-model.util";
-import { toDraft, toJob, toMessage } from "./chat.mappers";
+import { toJob, toMessage } from "./chat.mappers";
 import {
   WORKFLOW_QUEUE_PORT,
   WorkflowJobPayload,
   WorkflowQueuePort,
 } from "./workflow-queue.types";
 
-interface WorkflowJobRecord {
-  id: string;
-  workspaceId: string;
-  sessionId: string;
-  workflowName: string;
-  status: WorkflowJobStatus;
-  correlationId: string;
-  input: unknown;
-  createdAt: Date;
-  updatedAt: Date;
-}
+type JobRow = NonNullable<
+  Awaited<ReturnType<PlatformPrismaService["workflowJob"]["findUnique"]>>
+>;
 
 interface TriageInput {
   actorId: string;
@@ -64,32 +38,20 @@ interface TriageInput {
   attachments: ChatAttachmentSummary[];
 }
 
-interface BriefExtractionInput {
-  actorId: string;
-  messageId: string;
-  userText: string;
-  attachments: ChatAttachmentSummary[];
-  language?: "sr" | "en";
-}
-
-interface DraftingInput {
-  briefResultId: string;
+/** Input of `answering` jobs created before the agent became the only engine. */
+interface LegacyAnsweringInput {
   messageId?: string;
-  previousDraftId?: string;
-  reviewerNote?: string;
-  language?: "sr" | "en";
-}
-
-interface AnsweringInput {
   userText: string;
   attachments: ChatAttachmentSummary[];
   language: "sr" | "en";
 }
 
 /**
- * Holds the actual workflow logic (triage -> brief-extraction -> drafting).
- * Invoked either by the BullMQ `WorkflowProcessor` or, when no real queue is
- * wired (e.g. unit tests), by an in-process `InlineWorkflowQueue`.
+ * Dispatches BullMQ `workflow` jobs. Portir triage is the guardrail; every
+ * legal request becomes a Mastra `agent-turn`. Queued `brief-extraction` /
+ * `drafting` jobs (retries, draft-review revisions) run through the Mastra
+ * drafting workflows. Invoked by `WorkflowProcessor` or, without Redis, by
+ * the in-process `createInlineWorkflowQueue`.
  */
 @Injectable()
 export class WorkflowRunner {
@@ -98,7 +60,6 @@ export class WorkflowRunner {
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly events: ChatEventBus,
-    private readonly storage: ChatStorageService,
     private readonly config: ChatRuntimeConfig,
     @Optional()
     @Inject(CHAT_MODEL_PROVIDER)
@@ -106,46 +67,15 @@ export class WorkflowRunner {
     @Inject(WORKFLOW_QUEUE_PORT)
     private readonly workflowQueue: WorkflowQueuePort,
     @Optional()
-    private readonly legalKnowledge?: LegalKnowledgeService,
-    @Optional()
     private readonly contextBuilder?: AssistantContextBuilder,
     @Optional()
     private readonly agentTurn?: AgentTurnRunner,
+    @Optional()
+    private readonly drafting?: AssistantDraftingService,
   ) {}
-
-  /** ASSISTANT_ENGINE=mastra and the agent runner is wired (not in the inline test queue). */
-  private get agentEngineEnabled(): boolean {
-    return (
-      this.config.assistantEngine === "mastra" &&
-      !!this.agentTurn &&
-      !!this.contextBuilder
-    );
-  }
 
   private get db(): PlatformPrismaService {
     return this.prisma;
-  }
-
-  private async retrieveGrounding(
-    workspaceId: string,
-    queries: readonly string[],
-  ): Promise<GroundingCitation[]> {
-    if (!this.legalKnowledge || !queries.length) return [];
-    const search = (
-      query: string,
-      limit: number,
-    ): Promise<GroundingSearchHit[]> =>
-      this.legalKnowledge!.search(query, limit, workspaceId);
-    try {
-      return await retrieveGroundingCitations(search, queries);
-    } catch (error) {
-      this.logger.warn(
-        `Legal-knowledge grounding retrieval failed, continuing ungrounded: ${
-          error instanceof Error ? error.message : error
-        }`,
-      );
-      return [];
-    }
   }
 
   async run(name: WorkflowName, payload: WorkflowJobPayload): Promise<void> {
@@ -165,7 +95,7 @@ export class WorkflowRunner {
       return;
     }
 
-    await this.transitionJob(
+    const running = await this.transitionJob(
       record,
       payload,
       "RUNNING",
@@ -176,26 +106,35 @@ export class WorkflowRunner {
 
     switch (name) {
       case "triage":
-        return this.runTriage(record as WorkflowJobRecord, payload);
-      case "answering":
-        return this.runAnswering(record as WorkflowJobRecord, payload);
-      case "brief-extraction":
-        return this.runBriefExtraction(record as WorkflowJobRecord, payload);
-      case "drafting":
-        return this.runDrafting(record as WorkflowJobRecord, payload);
+        return this.runTriage(running, payload);
       case "agent-turn":
       case "agent-resume":
-        return this.runAgentTurn(record as WorkflowJobRecord, payload);
+        return this.runAgentTurn(
+          running,
+          payload,
+          running.input as unknown as AgentTurnInput | null,
+        );
+      case "answering":
+        return this.runAgentTurn(
+          running,
+          payload,
+          await this.fromLegacyAnswering(running),
+        );
+      case "brief-extraction":
+        return this.runDraftingJob(running, payload, "brief");
+      case "drafting":
+        return this.runDraftingJob(running, payload, "draft");
       default:
         throw new Error(`Unsupported workflow: ${name}`);
     }
   }
 
+  /** Portir guardrail: refuse non-legal requests, send legal ones to the agent. */
   private async runTriage(
-    record: WorkflowJobRecord,
+    record: JobRow,
     payload: WorkflowJobPayload,
   ): Promise<void> {
-    const input = record.input as TriageInput | null;
+    const input = record.input as unknown as TriageInput | null;
     if (!input) {
       await this.markFailed(record.id, payload, "TRIAGE_INPUT_MISSING");
       return;
@@ -212,19 +151,17 @@ export class WorkflowRunner {
     let result: Awaited<ReturnType<typeof runPortirGraph>>;
     try {
       const provider = resolveChatModelProvider(this.config, this.provider);
-      // The agent engine is multi-turn, so the guardrail must see earlier turns
-      // to accept follow-ups; the legacy engine keeps single-message triage.
-      const history = this.agentEngineEnabled
-        ? await this.contextBuilder!.triageHistory(
-            payload.sessionId,
-            payload.messageId,
-          )
-        : undefined;
+      // The agent is multi-turn, so the guardrail sees earlier turns to accept
+      // follow-ups, and accepts practice-management requests the agent can act on.
+      const history = await this.contextBuilder?.triageHistory(
+        payload.sessionId,
+        payload.messageId,
+      );
       result = await runPortirGraph(provider, {
         userText: input.content,
         attachments: input.attachments,
         history,
-        practiceActions: this.agentEngineEnabled,
+        practiceActions: true,
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : "Portir failed";
@@ -253,254 +190,67 @@ export class WorkflowRunner {
       reason: result.decision.reason,
     });
 
-    if (result.decision.decision !== "LEGAL") {
+    const triageOutput = {
+      progressStage: "UNDERSTANDING_REQUEST",
+      decision: result.decision.decision,
+      reason: result.decision.reason,
+    };
+    if (!result.accepted) {
       await this.createAssistantOutcome(payload, result.assistantContent, {
         reason: result.decision.reason,
         triageDecision: result.decision.decision,
       });
-    }
-
-    // The agent engine handles drafting through its tools, so every legal
-    // request (ANSWER or DRAFT) becomes one agent turn.
-    const queueBriefExtraction =
-      result.queueBriefExtraction && !this.agentEngineEnabled;
-    const queueAnswer =
-      result.queueAnswer ||
-      (this.agentEngineEnabled && result.queueBriefExtraction);
-    let nextJobId: string | undefined;
-    if (queueBriefExtraction) {
-      const created = await this.db.workflowJob.create({
-        data: {
-          workspaceId: payload.workspaceId,
-          sessionId: payload.sessionId,
-          workflowName: "brief-extraction",
-          status: "QUEUED",
-          correlationId: payload.correlationId,
-          input: JSON.parse(
-            JSON.stringify({
-              actorId: input.actorId,
-              messageId: payload.messageId,
-              userText: input.content,
-              attachments: input.attachments,
-              language: result.decision.language,
-            }),
-          ),
-        },
-      });
-      this.emit({
-        type: "job.queued",
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        correlationId: payload.correlationId,
-        createdAt: created.createdAt.toISOString(),
-        job: toJob(created),
-      });
-      nextJobId = created.id;
-    }
-
-    let answerJobId: string | undefined;
-    const answerWorkflow: WorkflowName = this.agentEngineEnabled
-      ? "agent-turn"
-      : "answering";
-    if (queueAnswer) {
-      const created = await this.db.workflowJob.create({
-        data: {
-          workspaceId: payload.workspaceId,
-          sessionId: payload.sessionId,
-          workflowName: answerWorkflow,
-          status: "QUEUED",
-          correlationId: payload.correlationId,
-          input: JSON.parse(
-            JSON.stringify({
-              messageId: payload.messageId,
-              userText: input.content,
-              attachments: input.attachments,
-              language: result.decision.language,
-              intent: result.decision.intent,
-            }),
-          ),
-        },
-      });
-      this.emit({
-        type: "job.queued",
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        correlationId: payload.correlationId,
-        createdAt: created.createdAt.toISOString(),
-        job: toJob(created),
-      });
-      answerJobId = created.id;
-    }
-
-    await this.transitionJob(record, payload, "COMPLETED", {
-      progressStage: "UNDERSTANDING_REQUEST",
-      decision: result.decision.decision,
-      reason: result.decision.reason,
-    });
-
-    if (nextJobId) {
-      await this.workflowQueue.enqueue("brief-extraction", nextJobId, {
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        jobId: nextJobId,
-        correlationId: payload.correlationId,
-        messageId: payload.messageId,
-      });
-    }
-    if (answerJobId) {
-      await this.workflowQueue.enqueue(answerWorkflow, answerJobId, {
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        jobId: answerJobId,
-        correlationId: payload.correlationId,
-        messageId: payload.messageId,
-      });
-    }
-  }
-
-  private async runAnswering(
-    record: WorkflowJobRecord,
-    payload: WorkflowJobPayload,
-  ): Promise<void> {
-    const input = record.input as AnsweringInput | null;
-    if (!input) {
-      await this.markFailed(record.id, payload, "ANSWER_INPUT_MISSING");
+      await this.transitionJob(record, payload, "COMPLETED", triageOutput);
       return;
     }
 
-    const assistant = await this.db.chatMessage.create({
+    const turnInput: AgentTurnInput = {
+      messageId: payload.messageId ?? "",
+      userText: input.content,
+      attachments: input.attachments,
+      language: result.decision.language,
+      intent: result.decision.intent,
+    };
+    const turn = await this.db.workflowJob.create({
       data: {
+        workspaceId: payload.workspaceId,
         sessionId: payload.sessionId,
-        role: "ASSISTANT",
-        content: "",
-        status: "PENDING",
+        workflowName: "agent-turn",
+        status: "QUEUED",
         correlationId: payload.correlationId,
-        metadata: { outcome: "ANSWER" },
+        input: JSON.parse(JSON.stringify(turnInput)),
       },
     });
-    const pendingMessage = toMessage({ ...assistant, attachments: [] });
     this.emit({
-      type: "message.started",
+      type: "job.queued",
       workspaceId: payload.workspaceId,
       sessionId: payload.sessionId,
       correlationId: payload.correlationId,
-      createdAt: pendingMessage.createdAt,
-      message: pendingMessage,
+      createdAt: turn.createdAt.toISOString(),
+      job: toJob(turn),
     });
 
-    let content = "";
-    const groundingCitations = await this.retrieveGrounding(
-      payload.workspaceId,
-      [input.userText],
-    );
-    const groundingBlock = formatGroundingContextBlock(groundingCitations);
-    try {
-      const provider = resolveChatModelProvider(this.config, this.provider);
-      for await (const delta of provider.streamText({
-        messages: [
-          {
-            role: "system",
-            content: this.answerSystemPrompt(input.language, groundingBlock),
-          },
-          {
-            role: "user",
-            content: await this.withCaseContext(
-              payload.workspaceId,
-              payload.sessionId,
-              input.userText,
-            ),
-          },
-        ],
-      })) {
-        content += delta;
-        await this.db.chatMessage.update({
-          where: { id: assistant.id },
-          data: { content },
-        });
-        this.emit({
-          type: "message.delta",
-          workspaceId: payload.workspaceId,
-          sessionId: payload.sessionId,
-          correlationId: payload.correlationId,
-          createdAt: new Date().toISOString(),
-          messageId: assistant.id,
-          delta,
-        });
-      }
-      const usedCitations = filterUsedCitations(
-        groundingCitations,
-        extractUsedMarkerNumbers(content),
-      );
-      const completed = await this.db.chatMessage.update({
-        where: { id: assistant.id },
-        data: {
-          content,
-          status: "COMPLETED",
-          metadata: {
-            outcome: "ANSWER",
-            ...(usedCitations.length
-              ? {
-                  citations: usedCitations.map((citation) => ({
-                    marker: citation.marker,
-                    articleNumber: citation.articleNumber,
-                    sourceTitle: citation.sourceTitle,
-                    sourceUrl: citation.sourceUrl,
-                    snippet: citation.snippet,
-                    score: citation.score,
-                  })),
-                }
-              : {}),
-          },
-        },
-      });
-      const mapped = toMessage({ ...completed, attachments: [] });
-      this.emit({
-        type: "message.updated",
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        correlationId: payload.correlationId,
-        createdAt: mapped.createdAt,
-        message: mapped,
-      });
-      await this.transitionJob(record, payload, "COMPLETED", {
-        progressStage: "PREPARING_ANSWER",
-        messageId: assistant.id,
-      });
-    } catch (error) {
-      await this.db.chatMessage.update({
-        where: { id: assistant.id },
-        data: { content, status: "FAILED" },
-      });
-      await this.transitionJob(
-        record,
-        payload,
-        "FAILED",
-        { progressStage: "PREPARING_ANSWER", messageId: assistant.id },
-        "ANSWERING_FAILED",
-      );
-      this.emit({
-        type: "error",
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        correlationId: payload.correlationId,
-        createdAt: new Date().toISOString(),
-        error:
-          input.language === "en"
-            ? "The assistant could not complete the answer."
-            : "Asistent nije uspeo da završi odgovor.",
-      });
-    }
+    await this.transitionJob(record, payload, "COMPLETED", triageOutput);
+
+    await this.workflowQueue.enqueue("agent-turn", turn.id, {
+      workspaceId: payload.workspaceId,
+      sessionId: payload.sessionId,
+      jobId: turn.id,
+      correlationId: payload.correlationId,
+      messageId: payload.messageId,
+    });
   }
 
   private async runAgentTurn(
-    record: WorkflowJobRecord,
+    record: JobRow,
     payload: WorkflowJobPayload,
+    input: AgentTurnInput | null,
   ): Promise<void> {
     if (!this.agentTurn) {
       await this.markFailed(record.id, payload, "AGENT_TURN_UNAVAILABLE");
       return;
     }
-    await this.agentTurn.run(record.input as AgentTurnInput | null, payload, {
+    await this.agentTurn.run(input, payload, {
       transition: (status, output, errorCode, telemetry) =>
         this.transitionJob(
           record,
@@ -513,350 +263,52 @@ export class WorkflowRunner {
     });
   }
 
-  private answerSystemPrompt(
-    language: "sr" | "en",
-    groundingBlock?: string,
-  ): string {
-    const responseLanguage = language === "en" ? "English" : "Serbian";
-    const base = [
-      "You are a legal assistant supporting a Serbian law office.",
-      `Reply in ${responseLanguage}.`,
-      "Provide general, unverified guidance and clearly recommend checking authoritative sources or a lawyer when precision matters.",
-      "Do not invent article numbers, citations, case references, or source links.",
-      "Use concise Markdown when it improves readability.",
-    ];
-    if (groundingBlock) {
-      base.push(
-        "If a list of 'Dostupni izvori' (available sources) is provided below, cite them inline using their bracketed number (e.g. [1]) only when they directly support a statement; never cite a number outside that list.",
-        groundingBlock,
-      );
-    }
-    return base.join(" ");
-  }
-
-  private async runBriefExtraction(
-    record: WorkflowJobRecord,
-    payload: WorkflowJobPayload,
-  ): Promise<void> {
-    const input = record.input as BriefExtractionInput | null;
-    if (!input) {
-      await this.markFailed(record.id, payload, "BRIEF_INPUT_MISSING");
-      return;
-    }
-
-    if (input.attachments.length) {
-      await this.transitionJob(record, payload, "RUNNING", {
-        progressStage: "READING_ATTACHMENTS",
-      });
-    }
-
-    const attachmentIds = input.attachments.map((attachment) => attachment.id);
-    const attachments = attachmentIds.length
-      ? await this.db.chatAttachment.findMany({
-          where: { id: { in: attachmentIds } },
-        })
-      : [];
-
-    const extractedAttachments = [];
-    const briefDocuments: BriefDocumentInput[] = [];
-    for (const attachment of attachments) {
-      const summary = input.attachments.find(
-        (item) => item.id === attachment.id,
-      );
-      const result = await this.extractAttachment(attachment, payload, summary);
-      extractedAttachments.push({
-        attachmentId: attachment.id,
-        originalName: attachment.originalName,
-        mimeType: attachment.mimeType,
-        status: result.status,
-        text: this.truncateForJobOutput(result.text),
-      });
-      briefDocuments.push({
-        id: attachment.id,
-        name: attachment.originalName,
-        mimeType: attachment.mimeType,
-        status: result.status,
-        text: result.text,
-      });
-    }
-
-    const hasUserText =
-      input.userText.trim().length > 0 && input.userText !== "(attachment)";
-    const hasContext =
-      hasUserText ||
-      briefDocuments.some((doc) => doc.status === "COMPLETED" && !!doc.text);
-
-    await this.transitionJob(record, payload, "RUNNING", {
-      progressStage: "EXTRACTING_FACTS",
-    });
-
-    let output: Record<string, unknown> = {
-      userText: input.userText,
-      attachments: extractedAttachments,
-    };
-    let errorCode: string | null = null;
-    let draftingTrigger: { briefResultId: string } | null = null;
-
-    if (!hasContext) {
-      output = { ...output, brief: null, briefOutcome: "empty" };
-    } else {
-      try {
-        const provider = resolveChatModelProvider(this.config, this.provider);
-        const { prompt, promptChars, truncated } = buildBriefUserPrompt(
-          { userText: input.userText, documents: briefDocuments },
-          {
-            perDocMaxChars: this.config.briefPerDocMaxChars,
-            totalMaxChars: this.config.briefTotalMaxChars,
+  /**
+   * Historical `answering` jobs (retry, regenerate, or still queued at
+   * deploy) run as an agent turn; their triggering user message is the one
+   * that shares the correlation id.
+   */
+  private async fromLegacyAnswering(
+    record: JobRow,
+  ): Promise<AgentTurnInput | null> {
+    const input = record.input as unknown as LegacyAnsweringInput | null;
+    if (!input) return null;
+    const trigger = input.messageId
+      ? { id: input.messageId }
+      : await this.db.chatMessage.findFirst({
+          where: {
+            sessionId: record.sessionId,
+            correlationId: record.correlationId,
+            role: "USER",
           },
-        );
-        const brief = await runBriefExtractionLlm(provider, prompt);
-
-        const briefResult = await this.db.briefExtractionResult.create({
-          data: {
-            jobId: record.id,
-            workspaceId: payload.workspaceId,
-            sessionId: payload.sessionId,
-            messageId: input.messageId,
-            brief: JSON.parse(JSON.stringify(brief)),
-            confidence: brief.confidence,
-            missingFields: brief.missingFields,
-            promptChars,
-            truncated,
-            model: this.config.openRouterModel,
-          },
+          orderBy: { createdAt: "asc" },
+          select: { id: true },
         });
-
-        output = { ...output, brief, briefResultId: briefResult.id };
-        if (brief.jobType === "lawsuit") {
-          draftingTrigger = { briefResultId: briefResult.id };
-        }
-      } catch (error) {
-        const message =
-          error instanceof Error ? error.message : "Brief LLM failed";
-        this.logger.error(
-          `Brief LLM failed for job ${record.id} (session ${payload.sessionId}): ${message}`,
-        );
-        output = { ...output, briefError: message };
-        errorCode = "BRIEF_LLM_FAILED";
-      }
-    }
-
-    const job = await this.transitionJob(
-      record,
-      payload,
-      errorCode ? "FAILED" : "COMPLETED",
-      {
-        ...output,
-        progressStage: "EXTRACTING_FACTS",
-      },
-      errorCode,
-    );
-
-    if (draftingTrigger) {
-      const draftJob = await this.db.workflowJob.create({
-        data: {
-          workspaceId: payload.workspaceId,
-          sessionId: payload.sessionId,
-          workflowName: "drafting",
-          status: "QUEUED",
-          correlationId: job.correlationId,
-          input: JSON.parse(
-            JSON.stringify({
-              briefResultId: draftingTrigger.briefResultId,
-              messageId: input.messageId,
-              language: input.language,
-            }),
-          ),
-        },
-      });
-      this.emit({
-        type: "job.queued",
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        correlationId: job.correlationId,
-        createdAt: draftJob.createdAt.toISOString(),
-        job: toJob(draftJob),
-      });
-
-      await this.workflowQueue.enqueue("drafting", draftJob.id, {
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        jobId: draftJob.id,
-        correlationId: job.correlationId,
-        messageId: input.messageId,
-      });
-    } else if (!errorCode) {
-      const content = !hasContext
-        ? input.language === "en"
-          ? "I could not read enough information to prepare a draft. Please add a description of the matter or attach a readable document."
-          : "Nema dovoljno čitljivih podataka za pripremu nacrta. Opišite predmet ili priložite čitljiv dokument."
-        : input.language === "en"
-          ? "The request was analyzed, but automatic drafting currently supports lawsuit drafts only. Please clarify whether you need a lawsuit draft or continue with a legal question."
-          : "Zahtev je analiziran, ali automatska izrada trenutno podržava samo nacrte tužbi. Navedite da li želite nacrt tužbe ili nastavite pravnim pitanjem.";
-      await this.createAssistantOutcome(payload, content, {
-        outcome: hasContext ? "DRAFT_UNSUPPORTED" : "CONTEXT_REQUIRED",
-      });
-    }
+    if (!trigger) return null;
+    return {
+      messageId: trigger.id,
+      userText: input.userText,
+      attachments: input.attachments ?? [],
+      language: input.language === "en" ? "en" : "sr",
+      intent: "ANSWER",
+    };
   }
 
-  private async runDrafting(
-    record: WorkflowJobRecord,
+  /** Queued brief/draft jobs run on the Mastra drafting workflows. */
+  private async runDraftingJob(
+    record: JobRow,
     payload: WorkflowJobPayload,
+    kind: "brief" | "draft",
   ): Promise<void> {
-    const input = record.input as DraftingInput | null;
-    if (!input) {
-      await this.markFailed(record.id, payload, "DRAFTING_INPUT_MISSING");
+    if (!this.drafting) {
+      await this.markFailed(record.id, payload, "DRAFTING_UNAVAILABLE");
       return;
     }
-
-    const briefResult = await this.db.briefExtractionResult.findUnique({
-      where: { id: input.briefResultId },
-    });
-    if (!briefResult) {
-      await this.markFailed(record.id, payload, "DRAFTING_BRIEF_MISSING");
-      return;
+    if (kind === "brief") {
+      await this.drafting.runBriefJob(record);
+    } else {
+      await this.drafting.runDraftingJob(record);
     }
-    const brief = briefResult.brief as BriefResult;
-
-    let output: Record<string, unknown> = {};
-    let errorCode: string | null = null;
-
-    try {
-      const provider = resolveChatModelProvider(this.config, this.provider);
-      const groundingCitations = await this.retrieveGrounding(
-        payload.workspaceId,
-        buildDraftGroundingQueries(brief),
-      );
-      const groundingBlock = formatGroundingContextBlock(groundingCitations);
-      const caseContext = await this.caseContextBlock(
-        payload.workspaceId,
-        payload.sessionId,
-      );
-      const { prompt, promptChars, truncated } = buildDraftingUserPrompt(
-        brief,
-        this.config.draftingPromptMaxChars,
-        input.previousDraftId || input.reviewerNote
-          ? {
-              previousDraft: input.previousDraftId
-                ? ((
-                    await this.db.draftResult.findUnique({
-                      where: { id: input.previousDraftId },
-                    })
-                  )?.finalDocumentText ?? undefined)
-                : undefined,
-              reviewerNote: input.reviewerNote,
-            }
-          : undefined,
-        [groundingBlock, caseContext].filter(Boolean).join("\n\n"),
-      );
-      const draft = await runDraftingLlm(provider, prompt);
-      const usedCitations = filterUsedCitations(
-        groundingCitations,
-        draft.usedCitations,
-      );
-
-      await this.transitionJob(record, payload, "RUNNING", {
-        progressStage: "SAVING_FOR_REVIEW",
-      });
-      const sessionCase = await this.db.chatSession.findFirst({
-        where: { id: payload.sessionId, workspaceId: payload.workspaceId },
-        select: { caseId: true },
-      });
-      const persistedDraft = await this.db.draftResult.create({
-        data: {
-          jobId: record.id,
-          workspaceId: payload.workspaceId,
-          sessionId: payload.sessionId,
-          caseId: sessionCase?.caseId ?? null,
-          messageId: input.messageId ?? null,
-          briefResultId: input.briefResultId,
-          documentText: draft.documentText,
-          warnings: draft.warnings,
-          promptChars,
-          truncated,
-          model: this.config.openRouterModel,
-          previousDraftId: input.previousDraftId ?? null,
-          citations: usedCitations.length
-            ? {
-                create: usedCitations.map((citation) => ({
-                  marker: citation.marker,
-                  chunkId: citation.chunkId,
-                  articleNumber: citation.articleNumber,
-                  sourceTitle: citation.sourceTitle,
-                  sourceUrl: citation.sourceUrl,
-                  snippet: citation.snippet,
-                  score: citation.score,
-                })),
-              }
-            : undefined,
-        },
-        include: { citations: true },
-      });
-      const mappedDraft = toDraft(persistedDraft);
-      this.emit({
-        type: "draft.updated",
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        correlationId: payload.correlationId,
-        createdAt: mappedDraft.updatedAt ?? mappedDraft.createdAt,
-        draft: mappedDraft,
-      });
-
-      const assistant = await this.db.chatMessage.create({
-        data: {
-          sessionId: payload.sessionId,
-          role: "ASSISTANT",
-          content:
-            input.language === "en"
-              ? "The draft is ready for review."
-              : "Nacrt je spreman za pregled.",
-          status: "COMPLETED",
-          correlationId: payload.correlationId,
-          metadata: {
-            outcome: "DRAFT_READY",
-            draftId: mappedDraft.id,
-          },
-        },
-      });
-      const mappedMessage = toMessage({ ...assistant, attachments: [] });
-      this.emit({
-        type: "message.created",
-        workspaceId: payload.workspaceId,
-        sessionId: payload.sessionId,
-        correlationId: payload.correlationId,
-        createdAt: mappedMessage.createdAt,
-        message: mappedMessage,
-      });
-
-      output = {
-        progressStage: "SAVING_FOR_REVIEW",
-        draft: {
-          id: mappedDraft.id,
-          documentTextLength: draft.documentText.length,
-          warnings: draft.warnings,
-        },
-      };
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Drafting LLM failed";
-      this.logger.error(
-        `Drafting LLM failed for job ${record.id} (session ${payload.sessionId}): ${message}`,
-      );
-      output = { draftError: message };
-      errorCode = "DRAFTING_LLM_FAILED";
-    }
-
-    await this.transitionJob(
-      record,
-      payload,
-      errorCode ? "FAILED" : "COMPLETED",
-      {
-        ...output,
-        progressStage:
-          errorCode === null ? "SAVING_FOR_REVIEW" : "PREPARING_DRAFT",
-      },
-      errorCode,
-    );
   }
 
   private async createAssistantOutcome(
@@ -885,128 +337,6 @@ export class WorkflowRunner {
     });
   }
 
-  private async extractAttachment(
-    attachment: {
-      id: string;
-      workspaceId: string;
-      sessionId: string;
-      storedName: string;
-      mimeType: string;
-    },
-    payload: WorkflowJobPayload,
-    summary?: ChatAttachmentSummary,
-  ): Promise<{
-    status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
-    text?: string;
-  }> {
-    await this.db.chatAttachment.update({
-      where: { id: attachment.id },
-      data: { extractionStatus: "RUNNING" },
-    });
-    this.emitAttachmentStatus(payload, summary, "RUNNING");
-    try {
-      const buffer = await this.storage.read({
-        workspaceId: attachment.workspaceId,
-        sessionId: attachment.sessionId,
-        storedName: attachment.storedName,
-      });
-      const result = await extractAttachmentText({
-        mimeType: attachment.mimeType,
-        buffer,
-      });
-      await this.db.chatAttachment.update({
-        where: { id: attachment.id },
-        data: {
-          extractionStatus: result.status,
-          extractedText: result.text ?? null,
-          sourceScript: result.sourceScript ?? null,
-          extractionError: result.error ?? null,
-          extractedAt: new Date(),
-        },
-      });
-      this.emitAttachmentStatus(
-        payload,
-        summary,
-        result.status,
-        result.sourceScript ?? null,
-      );
-      return result;
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Extraction failed";
-      await this.db.chatAttachment.update({
-        where: { id: attachment.id },
-        data: {
-          extractionStatus: "FAILED",
-          extractionError: message,
-          extractedAt: new Date(),
-        },
-      });
-      this.emitAttachmentStatus(payload, summary, "FAILED");
-      return { status: "FAILED", text: undefined };
-    }
-  }
-
-  private emitAttachmentStatus(
-    payload: WorkflowJobPayload,
-    attachment: ChatAttachmentSummary | undefined,
-    extractionStatus: ChatAttachmentSummary["extractionStatus"],
-    sourceScript: ChatAttachmentSummary["sourceScript"] = null,
-  ): void {
-    if (!attachment) return;
-    this.emit({
-      type: "attachment.updated",
-      workspaceId: payload.workspaceId,
-      sessionId: payload.sessionId,
-      correlationId: payload.correlationId,
-      createdAt: new Date().toISOString(),
-      attachment: { ...attachment, extractionStatus, sourceScript },
-    });
-  }
-
-  private async withCaseContext(
-    workspaceId: string,
-    sessionId: string,
-    userText: string,
-  ): Promise<string> {
-    const block = await this.caseContextBlock(workspaceId, sessionId);
-    return block ? `${block}\n\n${userText}` : userText;
-  }
-
-  private async caseContextBlock(
-    workspaceId: string,
-    sessionId: string,
-  ): Promise<string | null> {
-    const session = await this.db.chatSession.findFirst({
-      where: { id: sessionId, workspaceId, caseId: { not: null } },
-      select: { caseId: true },
-    });
-    if (!session?.caseId) return null;
-    const item = await this.db.case.findFirst({
-      where: { id: session.caseId, workspaceId },
-      include: { client: { select: { displayName: true } } },
-    });
-    if (!item) return null;
-    return [
-      "Povezani predmet (kontekst, ne menjati zapise):",
-      `Broj: ${item.caseNumber}`,
-      `Naziv: ${item.name}`,
-      `Klijent: ${item.client.displayName}`,
-      item.opposingPartyName
-        ? `Protivna strana: ${item.opposingPartyName}`
-        : null,
-      item.description?.trim() ? `Opis: ${item.description.trim()}` : null,
-    ]
-      .filter((line): line is string => Boolean(line))
-      .join("\n");
-  }
-
-  private truncateForJobOutput(text: string | undefined): string | undefined {
-    if (!text) return text;
-    const max = this.config.extractionTextMaxChars;
-    return text.length > max ? `${text.slice(0, max)}…` : text;
-  }
-
   private async markFailed(
     jobId: string,
     payload: WorkflowJobPayload,
@@ -1021,7 +351,7 @@ export class WorkflowRunner {
 
   private initialStage(
     name: WorkflowName,
-    record: WorkflowJobRecord,
+    record: JobRow,
   ): WorkflowProgressStage {
     switch (name) {
       case "triage":
@@ -1031,7 +361,8 @@ export class WorkflowRunner {
       case "agent-resume":
         return "PREPARING_ANSWER";
       case "brief-extraction":
-        return (record.input as BriefExtractionInput | null)?.attachments.length
+        return (record.input as { attachments?: unknown[] } | null)?.attachments
+          ?.length
           ? "READING_ATTACHMENTS"
           : "EXTRACTING_FACTS";
       case "drafting":
@@ -1042,13 +373,13 @@ export class WorkflowRunner {
   }
 
   private async transitionJob(
-    record: WorkflowJobRecord,
+    record: JobRow,
     payload: WorkflowJobPayload,
     status: WorkflowJobStatus,
     output?: Record<string, unknown>,
     errorCode: string | null = null,
     telemetry: WorkflowJobTelemetry = {},
-  ): Promise<WorkflowJobRecord> {
+  ): Promise<JobRow> {
     const terminal = status === "COMPLETED" || status === "FAILED";
     const job = await this.db.workflowJob.update({
       where: { id: record.id },
@@ -1068,7 +399,7 @@ export class WorkflowRunner {
       createdAt: job.updatedAt.toISOString(),
       job: toJob(job),
     });
-    return job as WorkflowJobRecord;
+    return job;
   }
 
   private emit(event: ChatStreamEvent): void {
@@ -1079,15 +410,14 @@ export class WorkflowRunner {
 /**
  * No-Redis fallback used when `ChatService` is constructed without a real
  * `WorkflowQueuePort` (e.g. plain `new ChatService(...)` in unit tests): runs
- * the workflow synchronously in-process instead of going through BullMQ.
+ * triage synchronously in-process. Without the agent runner, accepted
+ * requests end as `AGENT_TURN_UNAVAILABLE`.
  */
 export function createInlineWorkflowQueue(
   prisma: PlatformPrismaService,
   events: ChatEventBus,
-  storage: ChatStorageService,
   config: ChatRuntimeConfig,
   provider: ChatModelProvider | undefined,
-  legalKnowledge?: LegalKnowledgeService,
 ): WorkflowQueuePort {
   const holder: { runner?: WorkflowRunner } = {};
   const queue: WorkflowQueuePort = {
@@ -1098,14 +428,6 @@ export function createInlineWorkflowQueue(
       return holder.runner.run(name, payload);
     },
   };
-  holder.runner = new WorkflowRunner(
-    prisma,
-    events,
-    storage,
-    config,
-    provider,
-    queue,
-    legalKnowledge,
-  );
+  holder.runner = new WorkflowRunner(prisma, events, config, provider, queue);
   return queue;
 }

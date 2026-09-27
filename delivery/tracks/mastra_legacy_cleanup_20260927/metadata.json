@@ -1,0 +1,18 @@
+{
+  "track_id": "mastra_legacy_cleanup_20260927",
+  "parent_track_id": "assistant_mastra_migration_20260927",
+  "type": "chore",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-27T00:00:00Z",
+  "updated_at": "2026-09-27T00:00:00Z",
+  "keywords": [
+    "mastra",
+    "cleanup",
+    "legacy",
+    "workflow-runner",
+    "openrouter",
+    "stubs"
+  ],
+  "priority": "medium"
+}

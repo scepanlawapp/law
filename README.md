@@ -46,8 +46,7 @@ apps/web                 Angular intake/client application
 libs/api/api-interfaces  API DTO boundary
 libs/api/core            Backend infrastructure boundary
 libs/api/ai/contracts    Typed workflow requests, results, and authorization context
-libs/api/ai/n8n          Server-side n8n integration boundary
-libs/api/ai/ollama       Local model adapter boundary
+libs/api/ai/mastra       Mastra agent, tools, workflows (assistant engine)
 libs/api/ai/knowledge    Legal-source chunking and embedding boundary
 libs/api/ai/workflows    One Nx library per AI workflow
 libs/shared               Shared frontend and TypeScript libraries
@@ -57,7 +56,7 @@ infra/n8n                 Versioned workflow exports and conventions
 
 ## Add an AI workflow
 
-Generate a library under `libs/api/ai/workflows/<name>`, add its workflow name and typed contracts in `libs/api/ai/contracts`, then add the n8n export under `infra/n8n/workflows`. Keep authorization in the API boundary and re-check access before any data enters model context.
+Add assistant capabilities as Mastra tools or workflows in `libs/api/ai/mastra` (see `AI_ARCHITECTURE.md`), with prompts and schemas in a `libs/api/ai/workflows/<name>` library when they are reusable. Keep authorization in the API boundary and re-check access before any data enters model context.
 
 ## Verify
 
