@@ -1232,6 +1232,12 @@ model ChatSession {
   createdByUserId        String
   caseId                 String?
   title                  String?
+  /// Rolling summary of turns older than the agent's verbatim history window.
+  summary                String?                 @db.Text
+  /// createdAt of the last message folded into `summary`.
+  summaryThroughAt       DateTime?               @db.Timestamptz(3)
+  summaryUpdatedAt       DateTime?               @db.Timestamptz(3)
+  summaryModel           String?
   status                 ChatSessionStatus       @default(ACTIVE)
   isDeleted              Boolean                 @default(false)
   createdAt              DateTime                @default(now()) @db.Timestamptz(3)

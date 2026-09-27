@@ -98,6 +98,7 @@ function requestContext(overrides: { citations?: CitationRegistry } = {}) {
     caseContext: "Povezani predmet: P-1/2026",
     workspaceState:
       "Nacrti u ovom razgovoru:\n- draft-1 v1 (READY_FOR_SIGNOFF)",
+    conversationSummary: "- Tužilac: Petar Petrović, Beograd",
     intent: "ANSWER",
     turn,
     today: "2026-09-27",
@@ -352,6 +353,8 @@ describe("legal assistant agent", () => {
     expect(registry.all()).toHaveLength(1);
     expect(textOf(prompts[0])).toContain("Najmanje 20 radnih dana.");
     expect(textOf(prompts[0])).toContain("Povezani predmet: P-1/2026");
+    expect(textOf(prompts[0])).toContain("Sažetak ranijeg dela razgovora");
+    expect(textOf(prompts[0])).toContain("- Tužilac: Petar Petrović, Beograd");
     expect(textOf(prompts[1])).toContain("[1] Član 76 (Zakon o radu)");
   });
 });

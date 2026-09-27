@@ -31,6 +31,7 @@ import type { Mastra } from "@mastra/core/mastra";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatRuntimeConfig } from "./chat.config";
+import { ConversationSummaryService } from "./conversation-summary.service";
 import { ChatEventBus } from "./chat.events";
 import { belgradeToday } from "./assistant-actions.service";
 import { toMessage, toPendingAction, toToolCall } from "./chat.mappers";
@@ -97,6 +98,7 @@ export class AgentTurnRunner implements OnModuleDestroy {
     @Optional()
     @Inject(ASSISTANT_AGENT_MODEL)
     private readonly modelOverride?: MastraModelConfig,
+    @Optional() private readonly summaries?: ConversationSummaryService,
   ) {}
 
   async run(
@@ -165,6 +167,7 @@ export class AgentTurnRunner implements OnModuleDestroy {
           language: input.language,
           caseContext: context.caseContext,
           workspaceState: context.workspaceState,
+          conversationSummary: context.conversationSummary,
           intent: input.intent ?? "ANSWER",
           turn: {
             workspaceId: payload.workspaceId,
@@ -274,6 +277,9 @@ export class AgentTurnRunner implements OnModuleDestroy {
         null,
         { model, ...usage },
       );
+      // After the answer is saved: fold turns that left the window into the
+      // rolling summary. Best-effort; never fails the turn.
+      await this.summaries?.refresh(payload.workspaceId, payload.sessionId);
     } catch (error) {
       this.logger.error(
         `Agent turn failed for job ${payload.jobId} (session ${payload.sessionId}): ${

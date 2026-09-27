@@ -213,6 +213,8 @@ Audited on 2026-09-27 (delivery track `assistant_mastra_migration_20260927`).
 - The run waits in `WAITING_CONFIRMATION`. Approve and decline endpoints claim the proposal atomically, execute it, and enqueue `agent-resume`.
 - Events: `confirmation.required` / `confirmation.updated`.
 
+**Phase 6 is done** (`mastra_conversation_summary_20260927`). The Context Builder sends a rolling summary of older turns (`ChatSession.summary` / `summaryThroughAt`, updated best-effort after each turn with an optimistic cursor) plus the turns after the cursor verbatim (§3). Long-term user memory is deferred pending a product and privacy decision.
+
 ### LLM access
 - `@law/llm` (`libs/api/ai/llm`): our own `ChatModelProvider` interface.
   - `completeStructured(schema, messages)`: OpenRouter `/chat/completions` with

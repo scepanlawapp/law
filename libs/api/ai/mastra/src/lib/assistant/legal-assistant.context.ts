@@ -10,6 +10,8 @@ export interface LegalAssistantRequestValues {
   caseContext: string | null;
   /** Drafts of this conversation, rendered by the context builder. */
   workspaceState: string | null;
+  /** Rolling summary of turns older than the verbatim history. */
+  conversationSummary: string | null;
   /** Portir's intent for the latest message. */
   intent: "ANSWER" | "DRAFT";
   turn: AssistantTurnScope;
@@ -30,6 +32,7 @@ export function createLegalAssistantRequestContext(
   context.set("language", values.language);
   context.set("caseContext", values.caseContext);
   context.set("workspaceState", values.workspaceState);
+  context.set("conversationSummary", values.conversationSummary);
   context.set("intent", values.intent);
   context.set("turn", values.turn);
   context.set("today", values.today);

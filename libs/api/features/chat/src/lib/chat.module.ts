@@ -10,6 +10,7 @@ import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines"
 import { AgentTurnRunner } from "./agent-turn.runner";
 import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantContextBuilder } from "./assistant-context.builder";
+import { ConversationSummaryService } from "./conversation-summary.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import { AssistantToolsAdapter } from "./assistant-tools.adapter";
 import { ChatController } from "./chat.controller";
@@ -64,6 +65,7 @@ import {
     AssistantToolsAdapter,
     AssistantDraftingService,
     AssistantActionsService,
+    ConversationSummaryService,
     AgentTurnRunner,
     { provide: WORKFLOW_QUEUE_PORT, useClass: WorkflowQueueService },
   ],

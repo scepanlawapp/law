@@ -40,6 +40,14 @@ export class ChatRuntimeConfig {
   readonly assistantHistoryMaxChars = Number(
     process.env.ASSISTANT_HISTORY_MAX_CHARS ?? 24_000,
   );
+  /** Summarize once unsummarized messages exceed 80% of the history window. */
+  get assistantSummaryTriggerMessages(): number {
+    return Math.max(2, Math.floor(this.assistantHistoryMaxMessages * 0.8));
+  }
+  /** Messages kept verbatim after summarizing (40% of the window). */
+  get assistantSummaryKeepRecent(): number {
+    return Math.max(1, Math.floor(this.assistantHistoryMaxMessages * 0.4));
+  }
   readonly uploadDir = process.env.CHAT_UPLOAD_DIR ?? "./tmp/chat-uploads";
   readonly uploadMaxBytes = Number(process.env.UPLOAD_MAX_BYTES ?? 25_000_000);
   readonly maxFilesPerMessage = Number(

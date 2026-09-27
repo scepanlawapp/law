@@ -121,6 +121,7 @@ function legalKnowledgeMock() {
 function setup(
   steps: ScriptedModelStep[],
   drafting?: Record<string, jest.Mock>,
+  summaries?: { refresh: jest.Mock },
 ) {
   const prisma = prismaMock();
   const events = new ChatEventBus();
@@ -140,6 +141,7 @@ function setup(
       drafting as never,
     ),
     model as never,
+    summaries as never,
   );
   const job = { transition: jest.fn().mockResolvedValue(undefined) };
   return {
@@ -289,6 +291,18 @@ describe("AgentTurnRunner", () => {
       null,
       expect.anything(),
     );
+  });
+
+  it("refreshes the conversation summary after a completed turn only", async () => {
+    const summaries = { refresh: jest.fn().mockResolvedValue(true) };
+    const done = setup([{ text: "Odgovor." }], undefined, summaries);
+    await done.runner.run(turnInput, payload, done.job);
+    expect(summaries.refresh).toHaveBeenCalledWith("workspace-1", "session-1");
+
+    const failedSummaries = { refresh: jest.fn() };
+    const failed = setup([{ text: "" }], undefined, failedSummaries);
+    await failed.runner.run(turnInput, payload, failed.job);
+    expect(failedSummaries.refresh).not.toHaveBeenCalled();
   });
 
   it("does not store citations the answer never used", async () => {

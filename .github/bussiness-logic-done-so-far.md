@@ -202,6 +202,7 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
     - Decline (`…/decline`) writes nothing.
     - Proposals expire after 24 h, and double approvals execute once.
     - After the last decision, an `agent-resume` job lets the agent confirm the outcome.
+  - Long conversations keep a rolling summary (`ChatSession.summary`). Once unsummarized turns exceed 80% of the history window (`ASSISTANT_HISTORY_MAX_MESSAGES`), or of its character budget, the oldest turns are folded into the summary after the turn completes. The agent sees the summary plus the recent turns verbatim.
   - Each agent tool call is stored (`AgentToolCall`: input, truncated output, status, duration) and streamed as `tool.started` / `tool.finished`. The assistant activity card lists tool steps (for example "Pretraga propisa „…“ · Rezultata: 4") live and after a reload, and while a tool runs its title reads "Pretražujem propise…".
 - Workflow jobs record `startedAt` and `finishedAt`. `agent-turn` jobs also record the model and input/output tokens. `MASTRA_TRACING=true` (off by default) additionally exports Mastra traces to the separate `mastra` Postgres schema.
 

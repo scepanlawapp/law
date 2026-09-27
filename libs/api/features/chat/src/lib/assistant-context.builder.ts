@@ -16,6 +16,8 @@ export interface AssistantTurnContext {
   caseContext: string | null;
   /** Drafts of this conversation for the agent (AI_ARCHITECTURE.md §3). */
   workspaceState: string | null;
+  /** Rolling summary of turns before the verbatim history (phase 6). */
+  conversationSummary: string | null;
 }
 
 const MESSAGE_MAX_CHARS = 8_000;
@@ -39,9 +41,18 @@ export class AssistantContextBuilder {
     sessionId: string;
     messageId?: string;
   }): Promise<AssistantTurnContext> {
+    const session = await this.prisma.chatSession.findFirst({
+      where: { id: input.sessionId, workspaceId: input.workspaceId },
+      select: { summary: true, summaryThroughAt: true },
+    });
     const [messages, sessionCaseId, caseContext, workspaceState] =
       await Promise.all([
-        this.conversation(input.sessionId, input.messageId),
+        // Summarized turns are represented by the summary, not repeated.
+        this.conversation(
+          input.sessionId,
+          input.messageId,
+          session?.summaryThroughAt ?? undefined,
+        ),
         this.matterLink.sessionCaseId(input.workspaceId, input.sessionId),
         this.matterLink.caseContextBlock(input.workspaceId, input.sessionId),
         this.drafting?.workspaceState(input.workspaceId, input.sessionId) ??
@@ -52,6 +63,9 @@ export class AssistantContextBuilder {
       sessionCaseId,
       caseContext: caseContext ? toLatin(caseContext) : null,
       workspaceState,
+      conversationSummary: session?.summary?.trim()
+        ? toLatin(session.summary)
+        : null,
     };
   }
 
@@ -67,6 +81,7 @@ export class AssistantContextBuilder {
   private async conversation(
     sessionId: string,
     messageId?: string,
+    afterAt?: Date,
   ): Promise<AssistantHistoryMessage[]> {
     const trigger = messageId
       ? await this.prisma.chatMessage.findFirst({
@@ -79,7 +94,14 @@ export class AssistantContextBuilder {
         sessionId,
         status: "COMPLETED",
         role: { in: ["USER", "ASSISTANT"] },
-        ...(trigger ? { createdAt: { lte: trigger.createdAt } } : {}),
+        ...(trigger || afterAt
+          ? {
+              createdAt: {
+                ...(trigger ? { lte: trigger.createdAt } : {}),
+                ...(afterAt ? { gt: afterAt } : {}),
+              },
+            }
+          : {}),
       },
       include: { attachments: { select: { originalName: true } } },
       orderBy: { createdAt: "desc" },
@@ -94,7 +116,7 @@ export class AssistantContextBuilder {
   }
 }
 
-function toHistoryMessage(row: {
+export function toHistoryMessage(row: {
   role: string;
   content: string;
   attachments?: Array<{ originalName: string }>;

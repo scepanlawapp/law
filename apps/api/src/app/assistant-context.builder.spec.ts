@@ -22,6 +22,7 @@ function setup(
   drafting?: { workspaceState: jest.Mock },
 ) {
   const prisma = {
+    chatSession: { findFirst: jest.fn().mockResolvedValue(null) },
     chatMessage: {
       findFirst: jest.fn().mockResolvedValue({ createdAt: trigger }),
       // Prisma returns newest first (orderBy desc).
@@ -138,6 +139,31 @@ describe("AssistantContextBuilder", () => {
       "session-1",
     );
     expect(context.workspaceState).toContain("id draft-1, v1");
+  });
+
+  it("reads only turns after the summary cursor and passes the summary", async () => {
+    const cursor = new Date("2026-09-27T10:02:00.000Z");
+    const { builder, prisma } = setup([row("USER", "A kraće?", 5)]);
+    prisma.chatSession.findFirst.mockResolvedValue({
+      summary: "- Тужилац: Петар Петровић",
+      summaryThroughAt: cursor,
+    });
+
+    const context = await builder.build({
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+      messageId: "message-5",
+    });
+
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          createdAt: { lte: trigger, gt: cursor },
+        }),
+      }),
+    );
+    expect(context.conversationSummary).toBe("- Tužilac: Petar Petrović");
+    expect(context.messages).toEqual([{ role: "user", content: "A kraće?" }]);
   });
 
   it("gives triage the earlier turns without the current message", async () => {

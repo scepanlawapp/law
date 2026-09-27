@@ -32,6 +32,7 @@ export function createLegalAssistantAgent(options: {
         language: context.get("language") ?? "sr",
         caseContext: context.get("caseContext"),
         workspaceState: context.get("workspaceState"),
+        conversationSummary: context.get("conversationSummary"),
         intent: context.get("intent"),
         today: context.get("today"),
       });

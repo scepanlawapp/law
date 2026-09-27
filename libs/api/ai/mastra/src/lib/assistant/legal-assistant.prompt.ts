@@ -10,6 +10,8 @@ export interface LegalAssistantInstructionsInput {
   intent?: "ANSWER" | "DRAFT";
   /** YYYY-MM-DD */
   today?: string;
+  /** Rolling summary of older turns, already in Latin script. */
+  conversationSummary?: string | null;
 }
 
 export function buildLegalAssistantInstructions(
@@ -44,6 +46,13 @@ export function buildLegalAssistantInstructions(
   if (input.intent === "DRAFT") {
     lines.push(
       "Portir classified the latest message as a drafting request (new document or change to a draft).",
+    );
+  }
+  if (input.conversationSummary?.trim()) {
+    lines.push(
+      "",
+      "Sažetak ranijeg dela razgovora (te poruke više nisu u istoriji; koristi ga kao činjenice iz razgovora):",
+      input.conversationSummary.trim(),
     );
   }
   if (input.caseContext?.trim()) {

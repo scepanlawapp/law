@@ -36,9 +36,9 @@ Each phase below 0 gets its own child track and branch (`parent_track_id: "assis
 - [x] Add the `requireApproval` tools `link_case`, `create_tasks_from_brief` and `create_deadline`. They call the existing services and write activity-log rows.
 - [x] Add the approve/decline endpoints, the `confirmation.required` event and card in the chat UI, and `agent-resume` jobs.
 
-## Phase 6 — Summarization and memory
-- [ ] Add `ChatSession.summary` with rolling summaries of older turns.
-- [ ] Optionally add long-term user preferences (working memory).
+## Phase 6 — Summarization and memory ([mastra_conversation_summary_20260927](../mastra_conversation_summary_20260927/index.md))
+- [x] Add `ChatSession.summary` with rolling summaries of older turns.
+- [ ] Optionally add long-term user preferences (working memory). Deferred: this needs a product and privacy decision, plus a UI for viewing and deleting stored preferences.
 
 ## Phase 7 — Cleanup
 - [ ] Remove the legacy `WorkflowRunner` paths, the triage router role, the OpenRouter fetch adapter and the unused stubs.
