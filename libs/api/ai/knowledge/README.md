@@ -7,7 +7,12 @@ Provider-independent legal-source contracts and Serbian legal text chunking for 
 `PARAGRAF_CORE_SOURCES` (`src/lib/legal-source-manifest.ts`) lists the core
 public laws (`slug`, `url`, practice `area`) for the target office: procedure,
 contracts, company, competition, IP, media, data protection, human rights, real
-estate, agriculture, family, arbitration, and labor.
+estate, agriculture, family, arbitration, and labor. It also includes the
+Advokatska tarifa (`advokatska-tarifa`, `general` area).
+
+The chunker splits on `Član N` and on `Tarifni broj N` lines. Tariff items are
+stored with `articleNumber = "Tarifni broj N"` so they are not cited as the last
+preceding article; citation labels print `Član N` only for numeric values.
 
 ```bash
 npm run legal:ingest -- --dry-run                 # Zakon o radu only (default)

@@ -2,6 +2,7 @@ import {
   extractUsedMarkerNumbers,
   filterUsedCitations,
   formatGroundingContextBlock,
+  formatProvisionLabel,
   retrieveGroundingCitations,
   type GroundingSearchHit,
 } from "./grounding";
@@ -117,6 +118,15 @@ describe("formatGroundingContextBlock", () => {
 
     expect(block).toContain("[1] Član 76 (Zakon o radu)");
     expect(block).toContain("Zaposleni ima pravo na godišnji odmor.");
+  });
+});
+
+describe("formatProvisionLabel", () => {
+  it("prefixes article numbers and keeps tariff item labels", () => {
+    expect(formatProvisionLabel("76")).toBe("Član 76");
+    expect(formatProvisionLabel("12a")).toBe("Član 12a");
+    expect(formatProvisionLabel("Tarifni broj 5")).toBe("Tarifni broj 5");
+    expect(formatProvisionLabel(null)).toBe("Opšta odredba");
   });
 });
 

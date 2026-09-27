@@ -22,6 +22,11 @@ export class CitationListComponent {
     return `${this.idPrefix()}-${marker}`;
   }
 
+  /** Tariff items are stored with their own label ("Tarifni broj 5"), not an article number. */
+  protected isArticleNumber(articleNumber: string): boolean {
+    return /^[0-9]/.test(articleNumber);
+  }
+
   protected matchPercent(score: number): number {
     return Math.round(Math.max(0, Math.min(1, score)) * 100);
   }

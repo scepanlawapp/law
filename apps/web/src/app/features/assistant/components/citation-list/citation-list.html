@@ -6,9 +6,10 @@
     <div class="citation-body">
       <div class="citation-heading">
         <strong>
-          {{ citation.articleNumber ? ("assistant.sourceArticle" | translate: {
-          number: citation.articleNumber }) :
-          ("assistant.sourceGeneralProvision" | translate) }}
+          @if (!citation.articleNumber) { {{ "assistant.sourceGeneralProvision"
+          | translate }} } @else if (isArticleNumber(citation.articleNumber)) {
+          {{ "assistant.sourceArticle" | translate: { number:
+          citation.articleNumber } }} } @else { {{ citation.articleNumber }} }
         </strong>
         <span class="citation-source-title">{{ citation.sourceTitle }}</span>
       </div>
