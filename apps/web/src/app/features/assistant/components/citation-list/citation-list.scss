@@ -24,6 +24,35 @@
   scroll-margin-top: 1rem;
 }
 
+.citation-item:focus {
+  outline: none;
+}
+
+.citation-item:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+/* Set by the assistant when a marker in the reply jumps to this entry. */
+.citation-item.citation-item--flash {
+  animation: citation-flash 1.6s ease-out;
+}
+
+@keyframes citation-flash {
+  0%,
+  40% {
+    background: var(--accent);
+    border-color: var(--ring);
+    box-shadow: 0 0 0 2px var(--ring);
+  }
+
+  100% {
+    background: var(--muted);
+    border-color: var(--border);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
 .citation-marker {
   display: grid;
   flex: 0 0 auto;

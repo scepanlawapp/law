@@ -308,6 +308,122 @@ describe("AssistantComponent review state", () => {
     expect(component["rightRailExpanded"]()).toBe(true);
   });
 
+  it("jumps from a citation marker to the same message's source without navigating", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    const answer = (id: string): ChatMessageResponse => ({
+      id,
+      sessionId: "session-1",
+      role: "ASSISTANT",
+      content: "Rok je 8 dana [1].",
+      status: "COMPLETED",
+      correlationId: `corr-${id}`,
+      createdAt: "2026-09-15T12:00:00.000Z",
+      attachments: [],
+      citations: [
+        {
+          marker: 1,
+          articleNumber: "76",
+          sourceTitle: "Zakon o obligacionim odnosima",
+          sourceUrl: "https://www.paragraf.rs/propisi/zoo.html",
+          snippet: "Tekst",
+          score: 0.8,
+        },
+      ],
+    });
+    component["sessions"].set([session]);
+    component["selectedSessionId"].set(session.id);
+    component["messages"].set([answer("m1"), answer("m2")]);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const scrolled: string[] = [];
+    host.querySelectorAll<HTMLElement>(".citation-item").forEach((item) => {
+      item.scrollIntoView = jest.fn(() => scrolled.push(item.id));
+    });
+    const links = host.querySelectorAll<HTMLAnchorElement>(
+      "a.citation-marker-link",
+    );
+    expect(links).toHaveLength(2);
+
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    links[1].dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(scrolled).toEqual(["message-m2-citation-1"]);
+    const target = host.querySelector("#message-m2-citation-1");
+    expect(target?.classList.contains("citation-item--flash")).toBe(true);
+    expect(document.activeElement).toBe(target);
+  });
+
+  it("previews the hovered marker's cited text and hides it on leave or Escape", () => {
+    jest.useFakeTimers();
+    try {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      const component = fixture.componentInstance;
+      const answer = (id: string, snippet: string): ChatMessageResponse => ({
+        id,
+        sessionId: "session-1",
+        role: "ASSISTANT",
+        content: "Rok je 8 dana [1].",
+        status: "COMPLETED",
+        correlationId: `corr-${id}`,
+        createdAt: "2026-09-15T12:00:00.000Z",
+        attachments: [],
+        citations: [
+          {
+            marker: 1,
+            articleNumber: "76",
+            sourceTitle: "Zakon o obligacionim odnosima",
+            sourceUrl: "https://www.paragraf.rs/propisi/zoo.html",
+            snippet,
+            score: 0.8,
+          },
+        ],
+      });
+      component["sessions"].set([session]);
+      component["selectedSessionId"].set(session.id);
+      component["messages"].set([
+        answer("m1", "Prvi izvod."),
+        answer("m2", "Drugi izvod."),
+      ]);
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      const link = host.querySelectorAll<HTMLAnchorElement>(
+        "a.citation-marker-link",
+      )[1];
+      const preview = () =>
+        document.querySelector<HTMLElement>(
+          ".cdk-overlay-container [role='tooltip']",
+        );
+
+      link.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      expect(preview()).toBeNull();
+      jest.advanceTimersByTime(300);
+
+      expect(preview()?.textContent).toContain("Drugi izvod.");
+      expect(link.getAttribute("aria-describedby")).toBe(preview()?.id);
+
+      link.dispatchEvent(
+        new MouseEvent("mouseout", { bubbles: true, relatedTarget: host }),
+      );
+      jest.advanceTimersByTime(200);
+      expect(preview()).toBeNull();
+      expect(link.hasAttribute("aria-describedby")).toBe(false);
+
+      link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      jest.advanceTimersByTime(300);
+      expect(preview()).not.toBeNull();
+      link.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+      expect(preview()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("restores authoritative activity and drafts during reconnect", () => {
     const fixture = TestBed.createComponent(AssistantComponent);
     const component = fixture.componentInstance;

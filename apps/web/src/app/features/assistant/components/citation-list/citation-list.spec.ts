@@ -45,4 +45,24 @@ describe("CitationListComponent", () => {
       "assistant.sourceGeneralProvision",
     ]);
   });
+
+  it("gives each entry a focusable anchor under the given prefix", async () => {
+    await TestBed.configureTestingModule({
+      imports: [CitationListComponent],
+      providers: [
+        { provide: LocalizationService, useValue: { translate: String } },
+      ],
+    }).compileComponents();
+
+    const fixture = TestBed.createComponent(CitationListComponent);
+    fixture.componentRef.setInput("citations", [citation(1, "76")]);
+    fixture.componentRef.setInput("idPrefix", "message-m1-citation");
+    fixture.detectChanges();
+
+    const item = (fixture.nativeElement as HTMLElement).querySelector(
+      ".citation-item",
+    ) as HTMLElement;
+    expect(item.id).toBe("message-m1-citation-1");
+    expect(item.getAttribute("tabindex")).toBe("-1");
+  });
 });
