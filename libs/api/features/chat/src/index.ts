@@ -3,6 +3,7 @@ export * from "./lib/chat.controller";
 export * from "./lib/chat.service";
 export * from "./lib/matter-link.service";
 export * from "./lib/chat.config";
+export * from "./lib/chat-model.util";
 export * from "./lib/chat.events";
 export * from "./lib/chat.dto";
 export * from "./lib/chat.storage";

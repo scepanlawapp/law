@@ -193,7 +193,13 @@ Incremental, no big-bang rewrite. Existing features keep working until replaced.
 
 ## Current state
 
-Audited on 2026-09-27 (delivery track `assistant_mastra_migration_20260927`). Mastra is not installed yet.
+Audited on 2026-09-27 (delivery track `assistant_mastra_migration_20260927`).
+
+**Phase 1 is done** (`mastra_foundation_20260927`):
+- `@mastra/core` and `@mastra/pg` are installed.
+- The `@law/mastra` library adds model config, `MastraChatModelProvider` and the `createLawMastra` factory.
+- `LLM_BACKEND=mastra` runs the existing pipeline on Mastra models with the same prompts and schemas. The default is still `legacy`.
+- Jest needs the root `jest.esm-interop.cjs` helper to load Mastra. See the findings in that track's `plan.md`.
 
 ### LLM access
 - `@law/llm` (`libs/api/ai/llm`): our own `ChatModelProvider` interface.

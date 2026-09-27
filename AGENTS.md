@@ -129,6 +129,7 @@ Browser runtime settings: [apps/web/public/config.json](apps/web/public/config.j
 
 - Chat service tests run from `apps/api` (`apps/api/src/app/chat.service.spec.ts`). `libs/api/features/chat` has no `project.json`.
 - pdf-parse under Jest may need `NODE_OPTIONS=--experimental-vm-modules`. Real OCR tests are opt-in: `RUN_OCR_INTEGRATION=1`.
+- Jest projects that load `@law/mastra` must use `mastraTransformIgnorePatterns` + `esmJsTransform` from [jest.esm-interop.cjs](jest.esm-interop.cjs). Do **not** use `--experimental-vm-modules` for them.
 - [delivery/roadmap.md](delivery/roadmap.md) and older exploration notes are historical. If they mention multi-tenant DBs, fire-and-forget workflows, or cream/custom CSS, ignore them.
 - [.github/project-architecture.md](.github/project-architecture.md) describes an aspirational multi-tenant split; the live model is the single-database collapse in [delivery/tracks/single_database_collapse_20260917](delivery/tracks/single_database_collapse_20260917).
 

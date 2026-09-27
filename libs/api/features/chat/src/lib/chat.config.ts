@@ -1,5 +1,8 @@
 import { Injectable } from "@nestjs/common";
 
+/** `legacy`: hand-rolled OpenRouter client; `mastra`: Mastra model layer (same prompts/schemas). */
+export type LlmBackend = "legacy" | "mastra";
+
 export const CHAT_ALLOWED_MIME_TYPES = [
   "application/pdf",
   "image/jpeg",
@@ -19,6 +22,8 @@ export class ChatRuntimeConfig {
     process.env.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1";
   readonly openRouterModel =
     process.env.OPENROUTER_MODEL ?? "openai/gpt-4o-mini";
+  readonly llmBackend: LlmBackend =
+    process.env.LLM_BACKEND === "mastra" ? "mastra" : "legacy";
   readonly uploadDir = process.env.CHAT_UPLOAD_DIR ?? "./tmp/chat-uploads";
   readonly uploadMaxBytes = Number(process.env.UPLOAD_MAX_BYTES ?? 25_000_000);
   readonly maxFilesPerMessage = Number(

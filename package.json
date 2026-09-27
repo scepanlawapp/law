@@ -92,6 +92,8 @@
     "@angular/platform-browser": "~22.1.0",
     "@angular/platform-browser-dynamic": "~22.1.0",
     "@angular/router": "~22.1.0",
+    "@mastra/core": "^1.71.0",
+    "@mastra/pg": "^1.27.1",
     "@nestjs/bullmq": "^12.0.0",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^12.0.0",

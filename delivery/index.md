@@ -23,6 +23,7 @@ Tracks are organized by implementation area and updated as work progresses.
 ## Active Tracks
 
 - [Assistant Mastra Migration (epic)](./tracks/assistant_mastra_migration_20260927/index.md)
+- [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)
 - [Financials Frontend](./tracks/financials_frontend_20260924/index.md)
 - [Assistant Matter Link Slideout](./tracks/assistant_matter_link_slideout_20260924/index.md)
 - [Financials Backend](./tracks/financials_backend_20260923/index.md)

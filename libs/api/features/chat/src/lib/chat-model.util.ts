@@ -1,5 +1,6 @@
 import { BadRequestException } from "@nestjs/common";
 import { ChatModelProvider, OpenRouterChatModelProvider } from "@law/llm";
+import { MastraChatModelProvider, openRouterModel } from "@law/mastra";
 import { ChatRuntimeConfig } from "./chat.config";
 
 /** Shared by ChatService (title generation) and WorkflowProcessor (triage/brief/drafting). */
@@ -13,9 +14,12 @@ export function resolveChatModelProvider(
       "OPENROUTER_API_KEY is not configured for Portir",
     );
   }
-  return new OpenRouterChatModelProvider({
+  const options = {
     apiKey: config.openRouterApiKey,
     baseUrl: config.openRouterBaseUrl,
     model: config.openRouterModel,
-  });
+  };
+  return config.llmBackend === "mastra"
+    ? new MastraChatModelProvider(openRouterModel(options))
+    : new OpenRouterChatModelProvider(options);
 }

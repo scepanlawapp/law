@@ -184,6 +184,7 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
 - After brief extraction, the Case-work pane opens in the right rail (shared with the Draft review panel via a compact Draft / Case-work tab switcher shown only when both exist), without narrowing the chat column. A fresh brief auto-expands the rail on the Case-work tab and a fresh draft opens the Draft tab; refresh/SSE updates never re-expand a rail the user collapsed, switching sessions collapses it, and deleting the active session resets the brief/rail state. Nothing remains in the message stream. The lawyer confirms a client and case separately from tasks. Plaintiff becomes the client (existing match or a new individual). Defendant is stored as opposing-party text on the case. Confirmed missing fields and evidence become tasks with no due date.
 - Confirmed creates write activity-log rows with `metadata.source = "AI_ASSISTED"`. The approving user is the actor.
 - Linked sessions and drafts appear on the case overview. Opening the assistant with `?caseId=` preselects that case and does not send a message.
+- LLM calls (triage, answering, brief extraction, drafting, titles) go to OpenRouter through the `ChatModelProvider` interface. `LLM_BACKEND=legacy` (the default) uses the built-in OpenRouter client, and `LLM_BACKEND=mastra` runs the same prompts and schemas on the Mastra model layer (`@law/mastra`). This is the first step of the Mastra migration; see `AI_ARCHITECTURE.md`.
 
 ## References and user settings
 

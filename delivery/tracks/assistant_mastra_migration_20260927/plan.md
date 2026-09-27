@@ -7,12 +7,12 @@ Each phase below 0 gets its own child track and branch (`parent_track_id: "assis
 - [x] Record the state-ownership decision (§6) and the answers to the open questions (§12) in `AI_ARCHITECTURE.md`. Adapt the folder structure (§9) to the Nx layout.
 - [x] Create this epic track (`index.md`, `spec.md`, `plan.md`, `metadata.json`) and link it from `delivery/index.md`.
 
-## Phase 1 — Foundation spike
-- [ ] Install `@mastra/core` and `@mastra/pg`, checking the current docs and versions first.
-- [ ] Confirm Mastra works under the Nest webpack/CommonJS API build and under ts-jest (ESM interop, `transformIgnorePatterns` or a dynamic `import()`).
-- [ ] Confirm zod compatibility (the repo is on zod 3.25.x).
-- [ ] Add the Nx lib `libs/api/ai/mastra` (`@law/mastra`): Mastra factory, `PostgresStore` in the `mastra` schema, observability/tracing, model config as data.
-- [ ] Add `MastraChatModelProvider`, which implements `ChatModelProvider`. Put it behind a flag so the legacy pipeline runs on Mastra models with no behavior change.
+## Phase 1 — Foundation spike ([mastra_foundation_20260927](../mastra_foundation_20260927/index.md))
+- [x] Install `@mastra/core` and `@mastra/pg`, checking the current docs and versions first.
+- [x] Confirm Mastra works under the Nest webpack/CommonJS API build and under ts-jest (ESM interop, `transformIgnorePatterns` or a dynamic `import()`).
+- [x] Confirm zod compatibility (the repo is on zod 3.25.x).
+- [x] Add the Nx lib `libs/api/ai/mastra` (`@law/mastra`): Mastra factory, `PostgresStore` in the `mastra` schema, model config as data. Tracing is deferred to phase 3 (it needs `@mastra/observability`).
+- [x] Add `MastraChatModelProvider`, which implements `ChatModelProvider`. Put it behind a flag so the legacy pipeline runs on Mastra models with no behavior change.
 
 ## Phase 2 — First vertical slice
 - [ ] Add a `ContextBuilder` in `libs/api/features/chat`: recent `ChatMessage` history, the linked case block, and the workspace state.
@@ -22,6 +22,7 @@ Each phase below 0 gets its own child track and branch (`parent_track_id: "assis
 - [ ] Add the `ASSISTANT_ENGINE=legacy|mastra` flag in `ChatRuntimeConfig`.
 
 ## Phase 3 — Run telemetry
+- [ ] Wire `@mastra/observability` tracing into `createLawMastra`.
 - [ ] Add to `WorkflowJob`: `model`, `inputTokens`, `outputTokens`, `startedAt`, `finishedAt`. Add the `AgentToolCall` table and a migration, and update the seed.
 - [ ] Add the `tool.started`, `tool.finished` and `run.status` events to `ChatEventType`, and show tool activity in the chat UI.
 
