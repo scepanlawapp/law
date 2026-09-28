@@ -59,19 +59,14 @@ import {
   DocumentUpdateRequest,
   DocumentVersionListResponse,
   BillingStatementLineSummary,
+  AssignBillingCandidateClientResponse,
   BillingSuggestion,
   BillingSuggestionReview,
-  BillingStatement,
-  ClientAccount,
-  ExternalPaymentRecord,
-  FinanceOverview,
   PriceSourceSummary,
   PriceSourceVersion,
   PriceSourceScope,
   ReviewBillingSuggestionsRequest,
   RecordBillingStatementLinesRequest,
-  StatementProposalRequest,
-  StatementProposalResponse,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -1736,25 +1731,6 @@ export class FinancialsApiClient {
     return `${config.apiUrl}${config.apiPrefix}${path}`;
   }
 
-  overview(): Observable<FinanceOverview> {
-    return this.http.get<FinanceOverview>(
-      this.endpoint("/financials/overview"),
-      {
-        withCredentials: true,
-      },
-    );
-  }
-
-  statementProposal(
-    request: StatementProposalRequest,
-  ): Observable<StatementProposalResponse> {
-    return this.http.post<StatementProposalResponse>(
-      this.endpoint("/financials/ai/statement-proposals"),
-      request,
-      { withCredentials: true },
-    );
-  }
-
   candidates(
     query: Record<string, string | number | string[] | undefined>,
   ): Observable<PaginatedResponse<BillingSuggestion>> {
@@ -1812,6 +1788,19 @@ export class FinancialsApiClient {
     return this.http.post<BillingStatementLineSummary[]>(
       this.endpoint("/financials/candidates/record"),
       request,
+      { withCredentials: true },
+    );
+  }
+
+  assignCandidateClient(
+    candidateKey: string,
+    clientId: string,
+  ): Observable<AssignBillingCandidateClientResponse> {
+    return this.http.post<AssignBillingCandidateClientResponse>(
+      this.endpoint(
+        `/financials/candidates/${encodeURIComponent(candidateKey)}/client`,
+      ),
+      { clientId },
       { withCredentials: true },
     );
   }
@@ -1896,103 +1885,6 @@ export class FinancialsApiClient {
   priceSourceVersions(sourceId: string): Observable<PriceSourceVersion[]> {
     return this.http.get<PriceSourceVersion[]>(
       this.endpoint(`/financials/price-sources/${sourceId}/versions`),
-      { withCredentials: true },
-    );
-  }
-
-  statements(): Observable<BillingStatement[]> {
-    return this.http.get<BillingStatement[]>(
-      this.endpoint("/financials/statements"),
-      {
-        withCredentials: true,
-      },
-    );
-  }
-
-  createStatement(body: {
-    clientId: string;
-    periodStart: string;
-    periodEnd: string;
-    currency: string;
-    lineIds: string[];
-    idempotencyKey?: string;
-  }): Observable<BillingStatement> {
-    return this.http.post<BillingStatement>(
-      this.endpoint("/financials/statements"),
-      body,
-      { withCredentials: true },
-    );
-  }
-
-  statement(id: string): Observable<BillingStatement> {
-    return this.http.get<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}`),
-      { withCredentials: true },
-    );
-  }
-
-  updateStatement(
-    id: string,
-    body: { lineIds?: string[]; periodStart?: string; periodEnd?: string },
-  ): Observable<BillingStatement> {
-    return this.http.patch<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}`),
-      body,
-      { withCredentials: true },
-    );
-  }
-
-  sendStatement(
-    id: string,
-    sharedMethod?: string,
-    idempotencyKey?: string,
-  ): Observable<BillingStatement> {
-    return this.http.post<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}/send`),
-      { sharedMethod, idempotencyKey },
-      { withCredentials: true },
-    );
-  }
-
-  voidStatement(id: string): Observable<BillingStatement> {
-    return this.http.post<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}/void`),
-      {},
-      { withCredentials: true },
-    );
-  }
-
-  linkExternalInvoice(
-    id: string,
-    body: { invoiceNumber?: string; invoiceDate?: string; reference?: string },
-  ): Observable<BillingStatement> {
-    return this.http.patch<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}/external-invoice`),
-      body,
-      { withCredentials: true },
-    );
-  }
-
-  addPayment(
-    id: string,
-    body: {
-      amount: number;
-      currency: string;
-      paidDate: string;
-      externalReference?: string;
-      idempotencyKey?: string;
-    },
-  ): Observable<ExternalPaymentRecord> {
-    return this.http.post<ExternalPaymentRecord>(
-      this.endpoint(`/financials/statements/${id}/payments`),
-      body,
-      { withCredentials: true },
-    );
-  }
-
-  clientAccount(clientId: string): Observable<ClientAccount> {
-    return this.http.get<ClientAccount>(
-      this.endpoint(`/financials/clients/${clientId}/account`),
       { withCredentials: true },
     );
   }

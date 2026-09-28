@@ -1,0 +1,41 @@
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>{{ "finance.assignClientTitle" | translate }}</h2>
+  <p hlmDialogDescription>
+    {{ "finance.assignClientDescription" | translate }}
+    <strong>{{ context.candidateTitle }}</strong>
+  </p>
+</hlm-dialog-header>
+
+<form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
+  <div hlmField>
+    <label hlmFieldLabel for="candidate-client">
+      {{ "finance.client" | translate }}
+    </label>
+    <hlm-select formControlName="clientId" [itemToString]="clientItemToString">
+      <hlm-select-trigger
+        id="candidate-client"
+        class="w-full min-w-0 max-w-full"
+      >
+        <hlm-select-value />
+      </hlm-select-trigger>
+      <hlm-select-content *hlmSelectPortal>
+        <hlm-select-group>
+          @for (client of context.clients; track client.id) {
+            <hlm-select-item [value]="client.id">
+              {{ client.displayName }}
+            </hlm-select-item>
+          }
+        </hlm-select-group>
+      </hlm-select-content>
+    </hlm-select>
+  </div>
+
+  <hlm-dialog-footer>
+    <button hlmBtn type="button" variant="outline" (click)="dialogRef.close()">
+      {{ "common.cancel" | translate }}
+    </button>
+    <button hlmBtn type="submit" [disabled]="form.invalid">
+      {{ "finance.continueToBilling" | translate }}
+    </button>
+  </hlm-dialog-footer>
+</form>

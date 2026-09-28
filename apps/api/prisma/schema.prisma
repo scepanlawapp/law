@@ -140,6 +140,7 @@ enum BillingSuggestionResolution {
 enum PriceSourceScope {
   CLIENT_AGREEMENT
   WORKSPACE_PUBLIC_REFERENCE
+  COMPANY_CATALOG
   CASE_OVERRIDE
 }
 

@@ -916,16 +916,8 @@ export type BillingStatementStatus = "DRAFT" | "SENT" | "VOIDED";
 export type PriceSourceScope =
   | "CLIENT_AGREEMENT"
   | "WORKSPACE_PUBLIC_REFERENCE"
+  | "COMPANY_CATALOG"
   | "CASE_OVERRIDE";
-
-export interface FinanceOverview {
-  unresolvedCandidateCount: number;
-  readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
-  reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
-  sentStatementCount: number;
-  sentTotalsByCurrency?: Array<{ currency: string; amount: string }>;
-  externallyUnpaidByCurrency?: Array<{ currency: string; amount: string }>;
-}
 
 export interface BillingSuggestionReview {
   id?: string;
@@ -1013,15 +1005,6 @@ export interface BillingStatement {
   paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
 }
 
-export interface ClientAccount {
-  lines: BillingStatementLineSummary[];
-  statements: BillingStatement[];
-  readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
-  reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
-  sentByCurrency: Array<{ currency: string; amount: string }>;
-  externallyUnpaidByCurrency: Array<{ currency: string; amount: string }>;
-}
-
 export type FinancialClientReference = ClientReference;
 
 export type FinancialCaseReference = CaseReference;
@@ -1038,6 +1021,11 @@ export interface BillingSuggestion {
   resolution: "PENDING" | "RECORDED" | "DISMISSED";
   reason: string;
   warnings: string[];
+}
+
+export interface AssignBillingCandidateClientResponse {
+  candidateKey: string;
+  client: FinancialClientReference;
 }
 
 export interface RecordBillingStatementLineItemRequest {

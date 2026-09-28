@@ -19,7 +19,10 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
-type SourceTab = "CLIENT_AGREEMENT" | "WORKSPACE_PUBLIC_REFERENCE";
+type SourceTab =
+  | "CLIENT_AGREEMENT"
+  | "WORKSPACE_PUBLIC_REFERENCE"
+  | "COMPANY_CATALOG";
 
 @Component({
   selector: "law-finance-price-sources",
@@ -51,7 +54,10 @@ export class FinancePriceSourcesComponent {
       nonNullable: true,
       validators: Validators.required,
     }),
-    clientId: new FormControl("", { nonNullable: true }),
+    clientId: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
     rawText: new FormControl("", {
       nonNullable: true,
       validators: Validators.required,
@@ -86,6 +92,12 @@ export class FinancePriceSourcesComponent {
   selectTab(tab: SourceTab): void {
     this.tab.set(tab);
     this.selectedSource.set(null);
+    if (tab === "CLIENT_AGREEMENT") {
+      this.form.controls.clientId.addValidators(Validators.required);
+    } else {
+      this.form.controls.clientId.clearValidators();
+    }
+    this.form.controls.clientId.updateValueAndValidity();
     this.form.reset({ title: "", clientId: "", rawText: "", sourceUrl: "" });
   }
   selectSource(source: PriceSourceSummary): void {
@@ -109,10 +121,7 @@ export class FinancePriceSourcesComponent {
       });
   }
   visibleSources(): PriceSourceSummary[] {
-    const scope: PriceSourceScope =
-      this.tab() === "CLIENT_AGREEMENT"
-        ? "CLIENT_AGREEMENT"
-        : "WORKSPACE_PUBLIC_REFERENCE";
+    const scope: PriceSourceScope = this.tab();
     return this.sources().filter((source) => source.scope === scope);
   }
   clientName(clientId: string | null): string {
@@ -122,6 +131,9 @@ export class FinancePriceSourcesComponent {
     );
   }
   save(): void {
+    if (this.tab() !== "CLIENT_AGREEMENT") {
+      this.form.controls.clientId.setValue("");
+    }
     this.form.markAllAsTouched();
     if (this.form.invalid) {
       this.message.set("finance.validationError");

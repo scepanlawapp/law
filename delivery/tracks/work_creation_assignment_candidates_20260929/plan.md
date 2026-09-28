@@ -7,3 +7,10 @@
 - [x] Add regression coverage for candidate discovery.
 - [x] Update implemented-business-logic documentation.
 - [x] Run targeted tests, lint, and builds.
+- [x] Add candidate client assignment endpoint and regression coverage.
+- [x] Add the client-selection dialog and missing-client candidate states.
+- [x] Make bulk selection skip candidates without clients.
+- [x] Remove overview, client-statement, and client-balance frontend surfaces.
+- [x] Add the company-catalog price-source scope, migration, seed data, and tab.
+- [x] Update implemented-business-logic documentation for the follow-up.
+- [x] Re-run targeted tests, lint, and production builds.

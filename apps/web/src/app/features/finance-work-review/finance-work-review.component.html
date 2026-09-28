@@ -291,7 +291,9 @@
                   class="h-4 w-4 accent-primary"
                   [checked]="allVisibleCandidatesSelected()"
                   [indeterminate]="someVisibleCandidatesSelected()"
-                  [disabled]="bulkReviewPending()"
+                  [disabled]="
+                    bulkReviewPending() || !selectableCandidates().length
+                  "
                   (change)="toggleAllVisibleCandidates()"
                   [attr.aria-label]="
                     'finance.selectAllVisibleCandidates' | translate
@@ -307,17 +309,34 @@
             </tr>
           </thead>
           <tbody hlmTBody>
-            @for (item of candidates(); track item.candidateKey) {
+            @for (
+              item of candidates();
+              track item.candidateKey;
+              let rowIndex = $index
+            ) {
               <tr hlmTr>
                 <td hlmTd>
-                  <input
-                    type="checkbox"
-                    class="h-4 w-4 accent-primary"
-                    [checked]="selectedCandidateKeys().has(item.candidateKey)"
-                    [disabled]="bulkReviewPending()"
-                    (change)="toggleCandidate(item)"
-                    [attr.aria-label]="item.title"
-                  />
+                  <span
+                    [hlmTooltip]="
+                      !item.client
+                        ? ('finance.missingClientSelectionTooltip' | translate)
+                        : ''
+                    "
+                  >
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 accent-primary"
+                      [checked]="selectedCandidateKeys().has(item.candidateKey)"
+                      [disabled]="bulkReviewPending() || !item.client"
+                      (change)="toggleCandidate(item)"
+                      [attr.aria-label]="item.title"
+                      [attr.aria-describedby]="
+                        !item.client
+                          ? 'candidate-missing-client-' + rowIndex
+                          : null
+                      "
+                    />
+                  </span>
                 </td>
                 <td hlmTd>{{ formatDate(item.date) }}</td>
                 <td hlmTd>
@@ -328,12 +347,32 @@
                   </span>
                 </td>
                 <td hlmTd>
-                  {{
-                    item.client?.displayName ??
-                      ("finance.clientUnknown" | translate)
-                  }}
-                  <br />
-                  {{ item.case?.caseNumber ?? ("finance.noCase" | translate) }}
+                  @if (item.client) {
+                    {{ item.client.displayName }}
+                    <br />
+                    {{
+                      item.case?.caseNumber ?? ("finance.noCase" | translate)
+                    }}
+                  } @else {
+                    <div
+                      class="flex max-w-64 items-start gap-2 text-destructive"
+                      [id]="'candidate-missing-client-' + rowIndex"
+                    >
+                      <ng-icon
+                        name="lucideTriangleAlert"
+                        class="mt-0.5 shrink-0"
+                        aria-hidden="true"
+                      />
+                      <span>
+                        <strong class="block">
+                          {{ "finance.clientUnknown" | translate }}
+                        </strong>
+                        <span class="block text-xs">
+                          {{ "finance.missingClientDescription" | translate }}
+                        </span>
+                      </span>
+                    </div>
+                  }
                 </td>
                 <td hlmTd>
                   {{ item.proposedPerformer?.displayName ?? "—" }}
@@ -352,7 +391,10 @@
                         hlmBtn
                         variant="outline"
                         type="button"
-                        [disabled]="selectedCandidateKeys().size > 0"
+                        [disabled]="
+                          selectedCandidateKeys().size > 0 ||
+                          assigningClientKey() === item.candidateKey
+                        "
                         (click)="reopen(item)"
                       >
                         {{ "finance.returnToUnbilled" | translate }}
@@ -360,7 +402,10 @@
                       <button
                         hlmBtn
                         type="button"
-                        [disabled]="selectedCandidateKeys().size > 0"
+                        [disabled]="
+                          selectedCandidateKeys().size > 0 ||
+                          assigningClientKey() === item.candidateKey
+                        "
                         (click)="recordCandidate(item)"
                       >
                         {{ "finance.makeBill" | translate }}
@@ -369,7 +414,10 @@
                       <button
                         hlmBtn
                         type="button"
-                        [disabled]="selectedCandidateKeys().size > 0"
+                        [disabled]="
+                          selectedCandidateKeys().size > 0 ||
+                          assigningClientKey() === item.candidateKey
+                        "
                         (click)="recordCandidate(item)"
                       >
                         {{ "finance.recordWork" | translate }}

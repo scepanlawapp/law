@@ -15,3 +15,15 @@ Work review currently derives candidates from completed events, completed tasks,
 - Return work-review candidates from tasks and events whose `billingStatementLineId` is null.
 - Do not include deadlines, case activities, or client activities as candidates.
 - Keep workspace, role, client, case, source, review-resolution, and pagination behavior intact.
+
+## Follow-up requirements
+
+- Candidates without a client remain visible but cannot be selected in bulk.
+- Explain disabled candidate selection with a tooltip and accessible description.
+- Select-all skips candidates without a client and reflects only selectable rows.
+- Emphasize the missing client in the table with a warning icon and instruction.
+- A row billing action for a candidate without a client first opens a client-selection dialog, persists that client on the source task/event, then continues into the billing-line dialog.
+- Remove the finance overview, client statement, and client balance pages from the frontend, including their routes, navigation, and frontend-only API methods.
+- Keep billing statement backend persistence and endpoints intact because billing lines still reference statement lifecycle data and deletion would require a destructive data migration.
+- Split price sources into three tabs: client agreements, state/public sources, and company catalog.
+- Client agreements must always belong to a client; state/public and company catalog sources are workspace-wide.

@@ -24,6 +24,14 @@
     >
       {{ "finance.publicReferences" | translate }}
     </button>
+    <button
+      hlmBtn
+      type="button"
+      [variant]="tab() === 'COMPANY_CATALOG' ? 'default' : 'outline'"
+      (click)="selectTab('COMPANY_CATALOG')"
+    >
+      {{ "finance.companyCatalog" | translate }}
+    </button>
   </div>
   @if (loading()) {
     <div class="flex items-center gap-2 py-10" role="status">

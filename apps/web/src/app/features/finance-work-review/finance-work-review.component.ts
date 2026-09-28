@@ -8,6 +8,8 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute } from "@angular/router";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideTriangleAlert } from "@ng-icons/lucide";
 import {
   CasesApiClient,
   ClientsApiClient,
@@ -40,10 +42,12 @@ import {
   HlmTHead,
   HlmTr,
 } from "@spartan-ng/helm/table";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { BillingStatementLineDialogService } from "./billing-entry-dialog.service";
+import { CandidateClientDialogService } from "./candidate-client-dialog.service";
 
 type BillingList = "candidates" | "entries" | "dismissed";
 type BillingSourceType =
@@ -76,8 +80,11 @@ type BillingSourceType =
     HlmTh,
     HlmTHead,
     HlmTr,
+    HlmTooltip,
+    NgIcon,
     TranslatePipe,
   ],
+  providers: [provideIcons({ lucideTriangleAlert })],
 })
 export class FinanceWorkReviewComponent {
   private readonly api = inject(FinancialsApiClient);
@@ -85,6 +92,7 @@ export class FinanceWorkReviewComponent {
   private readonly casesApi = inject(CasesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly lineDialog = inject(BillingStatementLineDialogService);
+  private readonly clientDialog = inject(CandidateClientDialogService);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
@@ -106,6 +114,11 @@ export class FinanceWorkReviewComponent {
   readonly selected = signal(new Set<string>());
   readonly selectedCandidateKeys = signal(new Set<string>());
   readonly bulkReviewPending = signal(false);
+  readonly assigningClientKey = signal<string | null>(null);
+
+  readonly selectableCandidates = computed(() =>
+    this.candidates().filter((candidate) => candidate.client !== null),
+  );
 
   readonly selectedCandidates = computed(() =>
     this.candidates().filter((candidate) =>
@@ -114,15 +127,16 @@ export class FinanceWorkReviewComponent {
   );
   readonly allVisibleCandidatesSelected = computed(
     () =>
-      this.candidates().length > 0 &&
-      this.candidates().every((candidate) =>
+      this.selectableCandidates().length > 0 &&
+      this.selectableCandidates().every((candidate) =>
         this.selectedCandidateKeys().has(candidate.candidateKey),
       ),
   );
   readonly someVisibleCandidatesSelected = computed(
     () =>
-      this.selectedCandidateKeys().size > 0 &&
-      !this.allVisibleCandidatesSelected(),
+      this.selectableCandidates().some((candidate) =>
+        this.selectedCandidateKeys().has(candidate.candidateKey),
+      ) && !this.allVisibleCandidatesSelected(),
   );
 
   readonly listOptions: ReadonlyArray<{ value: BillingList; label: string }> = [
@@ -301,6 +315,7 @@ export class FinanceWorkReviewComponent {
   }
 
   toggleCandidate(item: BillingSuggestion): void {
+    if (!item.client) return;
     const selected = new Set(this.selectedCandidateKeys());
     if (selected.has(item.candidateKey)) selected.delete(item.candidateKey);
     else selected.add(item.candidateKey);
@@ -313,7 +328,9 @@ export class FinanceWorkReviewComponent {
       return;
     }
     this.selectedCandidateKeys.set(
-      new Set(this.candidates().map((candidate) => candidate.candidateKey)),
+      new Set(
+        this.selectableCandidates().map((candidate) => candidate.candidateKey),
+      ),
     );
   }
 
@@ -346,7 +363,47 @@ export class FinanceWorkReviewComponent {
   }
 
   recordCandidate(item: BillingSuggestion): void {
+    if (!item.client) {
+      this.selectClientAndRecord(item);
+      return;
+    }
     this.recordCandidates([item]);
+  }
+
+  private selectClientAndRecord(item: BillingSuggestion): void {
+    if (this.assigningClientKey()) return;
+    this.clientDialog
+      .open({ candidateTitle: item.title, clients: this.clients() })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((client) => {
+        if (!client) return;
+        this.assigningClientKey.set(item.candidateKey);
+        this.api
+          .assignCandidateClient(item.candidateKey, client.id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (assignment) => {
+              this.assigningClientKey.set(null);
+              const assigned: BillingSuggestion = {
+                ...item,
+                candidateKey: assignment.candidateKey,
+                client: assignment.client,
+              };
+              this.candidates.update((items) =>
+                items.map((candidate) =>
+                  candidate.candidateKey === item.candidateKey
+                    ? assigned
+                    : candidate,
+                ),
+              );
+              this.recordCandidates([assigned]);
+            },
+            error: () => {
+              this.assigningClientKey.set(null);
+              this.toast.error("finance.assignClientError");
+            },
+          });
+      });
   }
 
   private recordCandidates(items: BillingSuggestion[]): void {
