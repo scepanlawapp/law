@@ -19,6 +19,7 @@ import {
   CreateStatementDto,
   ExternalInvoiceDto,
   AppendPriceSourceVersionDto,
+  ReviewBillingSuggestionsDto,
   SendStatementDto,
   UpdateBillingEntryDto,
   UpdateStatementDto,
@@ -39,6 +40,16 @@ export class FinancialsController {
   @Get("candidates")
   candidates(@Query() query: CandidateQueryDto) {
     return this.financials.listCandidates(query);
+  }
+
+  @Post("candidates/dismiss")
+  dismissMany(@Body() body: ReviewBillingSuggestionsDto) {
+    return this.financials.reviewCandidates(body.candidateKeys, "DISMISSED");
+  }
+
+  @Post("candidates/reopen")
+  reopenMany(@Body() body: ReviewBillingSuggestionsDto) {
+    return this.financials.reviewCandidates(body.candidateKeys, "PENDING");
   }
 
   @Post("candidates/:candidateKey/dismiss")

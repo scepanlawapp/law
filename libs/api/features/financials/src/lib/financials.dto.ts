@@ -1,5 +1,6 @@
 import { Transform, Type } from "class-transformer";
 import {
+  ArrayMinSize,
   ArrayUnique,
   IsArray,
   IsDateString,
@@ -15,12 +16,23 @@ import {
   MinLength,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
+import { ReviewBillingSuggestionsRequest } from "@law/api-interfaces";
 import {
   BillingDisposition,
   BillingEntryKind,
   BillingEntryLifecycle,
   PriceSourceScope,
 } from "@prisma/client";
+
+export class ReviewBillingSuggestionsDto
+  implements ReviewBillingSuggestionsRequest
+{
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayUnique()
+  @IsString({ each: true })
+  candidateKeys!: string[];
+}
 
 const toArray = ({ value }: { value: unknown }): string[] | undefined =>
   value === undefined

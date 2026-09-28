@@ -104,6 +104,26 @@ export class FinanceWorkReviewComponent {
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly selected = signal(new Set<string>());
+  readonly selectedCandidateKeys = signal(new Set<string>());
+  readonly bulkReviewPending = signal(false);
+
+  readonly selectedCandidates = computed(() =>
+    this.candidates().filter((candidate) =>
+      this.selectedCandidateKeys().has(candidate.candidateKey),
+    ),
+  );
+  readonly allVisibleCandidatesSelected = computed(
+    () =>
+      this.candidates().length > 0 &&
+      this.candidates().every((candidate) =>
+        this.selectedCandidateKeys().has(candidate.candidateKey),
+      ),
+  );
+  readonly someVisibleCandidatesSelected = computed(
+    () =>
+      this.selectedCandidateKeys().size > 0 &&
+      !this.allVisibleCandidatesSelected(),
+  );
 
   readonly listOptions: ReadonlyArray<{ value: BillingList; label: string }> = [
     { value: "candidates", label: "finance.billingCandidates" },
@@ -175,6 +195,7 @@ export class FinanceWorkReviewComponent {
         this.list.set(
           params.get("tab") === "entries" ? "entries" : "candidates",
         );
+        this.selectedCandidateKeys.set(new Set());
         this.loadCurrentList();
       });
   }
@@ -185,6 +206,7 @@ export class FinanceWorkReviewComponent {
     if (next === this.list()) return;
     this.list.set(next);
     this.selected.set(new Set());
+    this.selectedCandidateKeys.set(new Set());
     this.loadCurrentList();
   }
 
@@ -278,6 +300,51 @@ export class FinanceWorkReviewComponent {
       });
   }
 
+  toggleCandidate(item: BillingSuggestion): void {
+    const selected = new Set(this.selectedCandidateKeys());
+    if (selected.has(item.candidateKey)) selected.delete(item.candidateKey);
+    else selected.add(item.candidateKey);
+    this.selectedCandidateKeys.set(selected);
+  }
+
+  toggleAllVisibleCandidates(): void {
+    if (this.allVisibleCandidatesSelected()) {
+      this.selectedCandidateKeys.set(new Set());
+      return;
+    }
+    this.selectedCandidateKeys.set(
+      new Set(this.candidates().map((candidate) => candidate.candidateKey)),
+    );
+  }
+
+  reviewSelectedCandidates(): void {
+    const candidateKeys = [...this.selectedCandidateKeys()];
+    if (!candidateKeys.length || this.bulkReviewPending()) return;
+
+    this.bulkReviewPending.set(true);
+    const request =
+      this.list() === "dismissed"
+        ? this.api.reopenCandidates(candidateKeys)
+        : this.api.dismissCandidates(candidateKeys);
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => {
+        this.bulkReviewPending.set(false);
+        this.selectedCandidateKeys.set(new Set());
+        this.loadCandidates();
+      },
+      error: () => {
+        this.bulkReviewPending.set(false);
+        this.toast.error("finance.saveError");
+      },
+    });
+  }
+
+  recordSelectedCandidate(): void {
+    const selected = this.selectedCandidates();
+    if (selected.length !== 1) return;
+    this.recordCandidate(selected[0]);
+  }
+
   recordCandidate(item: BillingSuggestion): void {
     this.entryDialog
       .open({ candidate: item })
@@ -288,7 +355,10 @@ export class FinanceWorkReviewComponent {
           .recordCandidate(item.candidateKey, entry.id)
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
-            next: () => this.loadCandidates(),
+            next: () => {
+              this.selectedCandidateKeys.set(new Set());
+              this.loadCandidates();
+            },
             error: () => this.toast.error("finance.saveError"),
           });
       });
@@ -338,6 +408,7 @@ export class FinanceWorkReviewComponent {
 
   private filtersChanged(): void {
     this.selected.set(new Set());
+    this.selectedCandidateKeys.set(new Set());
     this.loadCurrentList();
   }
 

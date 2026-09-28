@@ -627,30 +627,43 @@ export class FinancialsService {
     candidateKey: string,
     resolution: "DISMISSED" | "PENDING",
   ) {
+    const [review] = await this.reviewCandidates([candidateKey], resolution);
+    return review;
+  }
+
+  async reviewCandidates(
+    candidateKeys: string[],
+    resolution: "DISMISSED" | "PENDING",
+  ) {
     this.assertFinanceUser();
-    const source = candidateKey.split(":");
-    return this.db.billingSuggestionReview.upsert({
-      where: {
-        workspaceId_candidateKey: {
-          workspaceId: this.workspaceId,
-          candidateKey,
-        },
-      },
-      create: {
-        workspaceId: this.workspaceId,
-        candidateKey,
-        sourceType: source[0],
-        sourceId: source[1],
-        resolution,
-        reviewedByUserId: this.context.userId,
-        reviewedAt: new Date(),
-      },
-      update: {
-        resolution,
-        reviewedByUserId: this.context.userId,
-        reviewedAt: new Date(),
-      },
-    });
+    const reviewedAt = new Date();
+    return this.db.$transaction(
+      candidateKeys.map((candidateKey) => {
+        const source = candidateKey.split(":");
+        return this.db.billingSuggestionReview.upsert({
+          where: {
+            workspaceId_candidateKey: {
+              workspaceId: this.workspaceId,
+              candidateKey,
+            },
+          },
+          create: {
+            workspaceId: this.workspaceId,
+            candidateKey,
+            sourceType: source[0],
+            sourceId: source[1],
+            resolution,
+            reviewedByUserId: this.context.userId,
+            reviewedAt,
+          },
+          update: {
+            resolution,
+            reviewedByUserId: this.context.userId,
+            reviewedAt,
+          },
+        });
+      }),
+    );
   }
 
   async recordCandidate(candidateKey: string, billingEntryId: string) {

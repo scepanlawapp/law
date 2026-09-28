@@ -298,4 +298,46 @@ describe("FinancialsService", () => {
       client: { id: clientId },
     });
   });
+
+  it("dismisses multiple billing candidates in one transaction", async () => {
+    const candidateKeys = [
+      `TASK:66666666-6666-4666-a666-666666666666:${userId}`,
+      `EVENT:77777777-7777-4777-a777-777777777777:${userId}`,
+    ];
+    db.billingSuggestionReview.upsert
+      .mockResolvedValueOnce({ candidateKey: candidateKeys[0] })
+      .mockResolvedValueOnce({ candidateKey: candidateKeys[1] });
+
+    const reviews = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () => service.reviewCandidates(candidateKeys, "DISMISSED"),
+    );
+
+    expect(reviews).toEqual([
+      { candidateKey: candidateKeys[0] },
+      { candidateKey: candidateKeys[1] },
+    ]);
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.billingSuggestionReview.upsert).toHaveBeenCalledTimes(2);
+    expect(db.billingSuggestionReview.upsert).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        create: expect.objectContaining({
+          candidateKey: candidateKeys[0],
+          resolution: "DISMISSED",
+          sourceType: "TASK",
+        }),
+      }),
+    );
+    expect(db.billingSuggestionReview.upsert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        create: expect.objectContaining({
+          candidateKey: candidateKeys[1],
+          resolution: "DISMISSED",
+          sourceType: "EVENT",
+        }),
+      }),
+    );
+  });
 });

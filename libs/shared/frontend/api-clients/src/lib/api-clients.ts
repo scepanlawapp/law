@@ -70,6 +70,7 @@ import {
   PriceSourceSummary,
   PriceSourceVersion,
   PriceSourceScope,
+  ReviewBillingSuggestionsRequest,
   StatementProposalRequest,
   StatementProposalResponse,
 } from "@law/api-interfaces";
@@ -1784,12 +1785,34 @@ export class FinancialsApiClient {
     );
   }
 
+  dismissCandidates(
+    candidateKeys: string[],
+  ): Observable<BillingSuggestionReview[]> {
+    const request: ReviewBillingSuggestionsRequest = { candidateKeys };
+    return this.http.post<BillingSuggestionReview[]>(
+      this.endpoint("/financials/candidates/dismiss"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
   reopenCandidate(candidateKey: string): Observable<BillingSuggestionReview> {
     return this.http.post<BillingSuggestionReview>(
       this.endpoint(
         `/financials/candidates/${encodeURIComponent(candidateKey)}/reopen`,
       ),
       {},
+      { withCredentials: true },
+    );
+  }
+
+  reopenCandidates(
+    candidateKeys: string[],
+  ): Observable<BillingSuggestionReview[]> {
+    const request: ReviewBillingSuggestionsRequest = { candidateKeys };
+    return this.http.post<BillingSuggestionReview[]>(
+      this.endpoint("/financials/candidates/reopen"),
+      request,
       { withCredentials: true },
     );
   }

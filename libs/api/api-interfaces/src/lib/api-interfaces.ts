@@ -908,6 +908,10 @@ export interface BillingSuggestionReview {
   billingEntryId?: string | null;
 }
 
+export interface ReviewBillingSuggestionsRequest {
+  candidateKeys: string[];
+}
+
 export interface PriceSourceVersion {
   id: string;
   workspaceId: string;

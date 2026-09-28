@@ -145,6 +145,50 @@
       </div>
     </div>
 
+    @if (list() !== "entries" && selectedCandidateKeys().size) {
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
+      >
+        <div>
+          <p class="font-medium">
+            {{ "finance.selectedCandidates" | translate }}:
+            {{ selectedCandidateKeys().size }}
+          </p>
+          @if (selectedCandidateKeys().size > 1) {
+            <p class="text-xs text-muted-foreground">
+              {{ "finance.multiCandidateBillingPending" | translate }}
+            </p>
+          }
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            hlmBtn
+            variant="outline"
+            type="button"
+            [disabled]="bulkReviewPending()"
+            (click)="reviewSelectedCandidates()"
+          >
+            {{
+              (list() === "dismissed"
+                ? "finance.returnToUnbilled"
+                : "finance.dismiss"
+              ) | translate
+            }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            [disabled]="
+              bulkReviewPending() || selectedCandidateKeys().size !== 1
+            "
+            (click)="recordSelectedCandidate()"
+          >
+            {{ "finance.makeBill" | translate }}
+          </button>
+        </div>
+      </div>
+    }
+
     @if (list() === "entries") {
       <div class="flex flex-wrap items-center justify-between gap-3">
         <h2 class="text-lg font-semibold">
@@ -263,6 +307,19 @@
         <table hlmTable class="w-full min-w-[760px]">
           <thead hlmTHead>
             <tr hlmTr>
+              <th hlmTh class="w-12">
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 accent-primary"
+                  [checked]="allVisibleCandidatesSelected()"
+                  [indeterminate]="someVisibleCandidatesSelected()"
+                  [disabled]="bulkReviewPending()"
+                  (change)="toggleAllVisibleCandidates()"
+                  [attr.aria-label]="
+                    'finance.selectAllVisibleCandidates' | translate
+                  "
+                />
+              </th>
               <th hlmTh>{{ "finance.workDate" | translate }}</th>
               <th hlmTh>{{ "finance.source" | translate }}</th>
               <th hlmTh>{{ "finance.client" | translate }}</th>
@@ -274,6 +331,16 @@
           <tbody hlmTBody>
             @for (item of candidates(); track item.candidateKey) {
               <tr hlmTr>
+                <td hlmTd>
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 accent-primary"
+                    [checked]="selectedCandidateKeys().has(item.candidateKey)"
+                    [disabled]="bulkReviewPending()"
+                    (change)="toggleCandidate(item)"
+                    [attr.aria-label]="item.title"
+                  />
+                </td>
                 <td hlmTd>{{ formatDate(item.date) }}</td>
                 <td hlmTd>
                   <strong>{{ item.title }}</strong>
@@ -307,6 +374,7 @@
                         hlmBtn
                         variant="outline"
                         type="button"
+                        [disabled]="selectedCandidateKeys().size > 0"
                         (click)="reopen(item)"
                       >
                         {{ "finance.returnToUnbilled" | translate }}
@@ -314,6 +382,7 @@
                       <button
                         hlmBtn
                         type="button"
+                        [disabled]="selectedCandidateKeys().size > 0"
                         (click)="recordCandidate(item)"
                       >
                         {{ "finance.makeBill" | translate }}
@@ -322,6 +391,7 @@
                       <button
                         hlmBtn
                         type="button"
+                        [disabled]="selectedCandidateKeys().size > 0"
                         (click)="recordCandidate(item)"
                       >
                         {{ "finance.recordWork" | translate }}
@@ -330,6 +400,7 @@
                         hlmBtn
                         variant="outline"
                         type="button"
+                        [disabled]="selectedCandidateKeys().size > 0"
                         (click)="dismiss(item)"
                       >
                         {{ "finance.dismiss" | translate }}
