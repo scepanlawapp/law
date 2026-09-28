@@ -14,9 +14,14 @@ import {
   IsUUID,
   Min,
   MinLength,
+  ValidateNested,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
-import { ReviewBillingSuggestionsRequest } from "@law/api-interfaces";
+import {
+  RecordBillingCandidateItemRequest,
+  RecordBillingCandidatesRequest,
+  ReviewBillingSuggestionsRequest,
+} from "@law/api-interfaces";
 import {
   BillingDisposition,
   BillingEntryKind,
@@ -32,6 +37,61 @@ export class ReviewBillingSuggestionsDto
   @ArrayUnique()
   @IsString({ each: true })
   candidateKeys!: string[];
+}
+
+export class RecordBillingCandidateItemDto
+  implements RecordBillingCandidateItemRequest
+{
+  @IsString()
+  @MinLength(1)
+  candidateKey!: string;
+
+  @IsEnum(BillingEntryKind)
+  kind!: BillingEntryKind;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  durationMinutes?: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  amount!: number;
+}
+
+export class RecordBillingCandidatesDto
+  implements RecordBillingCandidatesRequest
+{
+  @IsUUID()
+  clientId!: string;
+
+  @IsOptional()
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID("4", { each: true })
+  caseIds?: string[];
+
+  @IsDateString()
+  workStartDate!: string;
+
+  @IsDateString()
+  workEndDate!: string;
+
+  @MinLength(1)
+  @IsString()
+  description!: string;
+
+  @MinLength(1)
+  @IsString()
+  clientDescription!: string;
+
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => RecordBillingCandidateItemDto)
+  items!: RecordBillingCandidateItemDto[];
 }
 
 const toArray = ({ value }: { value: unknown }): string[] | undefined =>

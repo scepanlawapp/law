@@ -71,6 +71,7 @@ import {
   PriceSourceVersion,
   PriceSourceScope,
   ReviewBillingSuggestionsRequest,
+  RecordBillingCandidatesRequest,
   StatementProposalRequest,
   StatementProposalResponse,
 } from "@law/api-interfaces";
@@ -1826,6 +1827,16 @@ export class FinancialsApiClient {
         `/financials/candidates/${encodeURIComponent(candidateKey)}/record`,
       ),
       { billingEntryId },
+      { withCredentials: true },
+    );
+  }
+
+  recordCandidates(
+    request: RecordBillingCandidatesRequest,
+  ): Observable<BillingEntrySummary[]> {
+    return this.http.post<BillingEntrySummary[]>(
+      this.endpoint("/financials/candidates/record"),
+      request,
       { withCredentials: true },
     );
   }

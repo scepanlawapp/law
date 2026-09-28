@@ -1,86 +1,18 @@
 <hlm-dialog-header>
   <h2 hlmDialogTitle>{{ "finance.recordWorkTitle" | translate }}</h2>
   <p hlmDialogDescription>
-    {{ "finance.needsAttentionDescription" | translate }}
+    {{ "finance.billingItemsDescription" | translate }}
   </p>
 </hlm-dialog-header>
+
 <form
   [formGroup]="form"
   (ngSubmit)="submit()"
   class="flex min-h-0 flex-1 flex-col gap-4 text-sm"
   novalidate
 >
-  <div class="min-h-0 flex-1 overflow-y-auto space-y-4">
-    @if (candidate) {
-      <div class="rounded-lg bg-muted p-3 text-muted-foreground">
-        <strong class="text-foreground">{{ candidate.title }}</strong>
-        <p>{{ candidate.reason }}</p>
-        @for (warning of candidate.warnings; track warning) {
-          <p>{{ warning }}</p>
-        }
-      </div>
-    }
-    <label class="block space-y-1">
-      <span>{{ "finance.proposalInstruction" | translate }}</span>
-      <textarea
-        hlmTextarea
-        rows="3"
-        formControlName="userInstruction"
-        placeholder="{{ 'finance.proposalInstructionPlaceholder' | translate }}"
-      ></textarea>
-    </label>
-    <div class="flex flex-wrap items-center gap-2">
-      <button
-        hlmBtn
-        variant="outline"
-        type="button"
-        [disabled]="suggesting()"
-        (click)="suggest()"
-      >
-        @if (suggesting()) {
-          <hlm-spinner />
-        }
-        {{ "finance.suggestDetails" | translate }}
-      </button>
-      @if (proposal()) {
-        <button hlmBtn type="button" (click)="applySuggestion()">
-          {{ "finance.applySuggestion" | translate }}
-        </button>
-      }
-    </div>
-    @if (proposal(); as result) {
-      <div class="space-y-2 rounded-lg border border-border bg-muted p-3">
-        <p class="font-semibold">{{ "finance.proposalReview" | translate }}</p>
-        @for (question of result.questions; track question) {
-          <p>{{ question }}</p>
-        }
-        @for (warning of result.warnings; track warning) {
-          <p>{{ warning }}</p>
-        }
-        @if (result.suggested.amount === null) {
-          <p>{{ "finance.proposalAmountMissing" | translate }}</p>
-        }
-      </div>
-    }
+  <div class="min-h-0 flex-1 space-y-4 overflow-y-auto">
     <div class="grid gap-4 md:grid-cols-2">
-      <label class="space-y-1">
-        <span>{{ "finance.workUnit" | translate }}</span>
-        <select hlmInput formControlName="kind" required>
-          <option value="TIME">{{ "finance.time" | translate }}</option>
-          <option value="FIXED_FEE">
-            {{ "finance.fixedFee" | translate }}
-          </option>
-          <option value="EXPENSE">{{ "finance.expense" | translate }}</option>
-        </select>
-      </label>
-      <label class="space-y-1">
-        <span>{{ "finance.workStartDate" | translate }}</span>
-        <input hlmInput type="date" formControlName="workStartDate" required />
-      </label>
-      <label class="space-y-1">
-        <span>{{ "finance.workEndDate" | translate }}</span>
-        <input hlmInput type="date" formControlName="workEndDate" required />
-      </label>
       <label class="space-y-1">
         <span>{{ "finance.client" | translate }}</span>
         <select hlmInput formControlName="clientId" required>
@@ -90,6 +22,7 @@
           }
         </select>
       </label>
+
       <div class="min-w-0 space-y-1">
         <label for="billing-entry-cases">
           {{ "finance.cases" | translate }}
@@ -128,62 +61,127 @@
           </hlm-combobox-content>
         </div>
       </div>
-      <label class="space-y-1 md:col-span-2">
-        <span>{{ "finance.internalDescription" | translate }}</span>
-        <input hlmInput formControlName="description" required />
-      </label>
-      <label class="space-y-1 md:col-span-2">
-        <span>{{ "finance.clientDescription" | translate }}</span>
-        <input hlmInput formControlName="clientDescription" required />
-      </label>
+
       <label class="space-y-1">
-        <span>{{ "finance.duration" | translate }}</span>
-        <input
-          hlmInput
-          type="number"
-          min="1"
-          [required]="form.controls.kind.value === 'TIME'"
-          formControlName="durationMinutes"
-        />
+        <span>{{ "finance.workStartDate" | translate }}</span>
+        <input hlmInput type="date" formControlName="workStartDate" required />
       </label>
+
       <label class="space-y-1">
-        <span>{{ "finance.amount" | translate }}</span>
-        <input
-          hlmInput
-          type="number"
-          min="0"
-          step="0.01"
-          inputmode="decimal"
-          formControlName="amount"
-          required
-        />
-      </label>
-      <label class="space-y-1">
-        <span>{{ "finance.currency" | translate }}</span>
-        <input hlmInput formControlName="currency" />
-      </label>
-      <label class="space-y-1">
-        <span>{{ "finance.disposition" | translate }}</span>
-        <select hlmInput formControlName="disposition">
-          <option value="BILLABLE">{{ "finance.billable" | translate }}</option>
-          <option value="INCLUDED">{{ "finance.included" | translate }}</option>
-          <option value="NO_CHARGE">
-            {{ "finance.noCharge" | translate }}
-          </option>
-          <option value="INTERNAL">{{ "finance.internal" | translate }}</option>
-        </select>
-      </label>
-      <label class="space-y-1 md:col-span-2">
-        <span>{{ "finance.zeroChargeReason" | translate }}</span>
-        <input hlmInput formControlName="noChargeReason" />
+        <span>{{ "finance.workEndDate" | translate }}</span>
+        <input hlmInput type="date" formControlName="workEndDate" required />
       </label>
     </div>
+
+    <label class="block space-y-1">
+      <span>{{ "finance.clientDescription" | translate }}</span>
+      <textarea
+        hlmTextarea
+        rows="3"
+        formControlName="clientDescription"
+        required
+      ></textarea>
+    </label>
+
+    <label class="block space-y-1">
+      <span>{{ "finance.internalDescription" | translate }}</span>
+      <input hlmInput formControlName="description" required />
+    </label>
+
+    <div class="space-y-2">
+      <h3 class="font-semibold">{{ "finance.billingItems" | translate }}</h3>
+      @if (form.controls.items.length) {
+        <div hlmTableContainer>
+          <table hlmTable class="w-full min-w-[720px]">
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "finance.item" | translate }}</th>
+                <th hlmTh>{{ "finance.workUnit" | translate }}</th>
+                <th hlmTh>{{ "finance.minutes" | translate }}</th>
+                <th hlmTh>{{ "finance.amount" | translate }}</th>
+                <th hlmTh>{{ "finance.actions" | translate }}</th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (
+                item of form.controls.items.controls;
+                track item;
+                let index = $index
+              ) {
+                <tr hlmTr [formGroup]="item">
+                  <td hlmTd class="max-w-64">
+                    <span class="block truncate font-medium">
+                      {{
+                        item.controls.title.value ||
+                          ("finance.manualBillingItem" | translate)
+                      }}
+                    </span>
+                  </td>
+                  <td hlmTd>
+                    <select hlmInput formControlName="kind" required>
+                      <option value="TIME">
+                        {{ "finance.time" | translate }}
+                      </option>
+                      <option value="FIXED_FEE">
+                        {{ "finance.fixedFee" | translate }}
+                      </option>
+                      <option value="EXPENSE">
+                        {{ "finance.expense" | translate }}
+                      </option>
+                    </select>
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      type="number"
+                      min="1"
+                      [required]="item.controls.kind.value === 'TIME'"
+                      formControlName="durationMinutes"
+                      class="min-w-28"
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputmode="decimal"
+                      formControlName="amount"
+                      class="min-w-32"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="outline"
+                      [disabled]="saving()"
+                      (click)="removeItem(index)"
+                    >
+                      {{ "common.remove" | translate }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      } @else {
+        <p class="rounded-lg bg-muted p-3 text-muted-foreground">
+          {{ "finance.noBillingItems" | translate }}
+        </p>
+      }
+    </div>
+
     @if (error()) {
       <p role="alert" class="rounded-lg border border-destructive p-3">
         {{ error() | translate }}
       </p>
     }
   </div>
+
   <hlm-dialog-footer class="flex justify-end gap-2">
     <button
       hlmBtn
@@ -194,7 +192,11 @@
     >
       {{ "common.cancel" | translate }}
     </button>
-    <button hlmBtn type="submit" [disabled]="saving()">
+    <button
+      hlmBtn
+      type="submit"
+      [disabled]="saving() || !form.controls.items.length"
+    >
       @if (saving()) {
         <hlm-spinner />
       }

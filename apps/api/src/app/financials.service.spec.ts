@@ -340,4 +340,59 @@ describe("FinancialsService", () => {
       }),
     );
   });
+
+  it("creates and records one billing entry for every selected candidate", async () => {
+    const items = [
+      {
+        candidateKey: `TASK:66666666-6666-4666-a666-666666666666:${userId}`,
+        kind: "TIME" as const,
+        durationMinutes: 30,
+        amount: 100,
+      },
+      {
+        candidateKey: `EVENT:77777777-7777-4777-a777-777777777777:${userId}`,
+        kind: "FIXED_FEE" as const,
+        amount: 250,
+      },
+    ];
+
+    const entries = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () =>
+        service.recordCandidates({
+          clientId,
+          caseIds: [caseId],
+          workStartDate: "2026-09-23",
+          workEndDate: "2026-09-25",
+          description: "Combined work",
+          clientDescription: "Legal services",
+          items,
+        }),
+    );
+
+    expect(entries).toHaveLength(2);
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.billingEntry.create).toHaveBeenCalledTimes(2);
+    expect(db.billingSuggestionReview.upsert).toHaveBeenCalledTimes(2);
+    expect(db.billingEntry.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        data: expect.objectContaining({
+          kind: "TIME",
+          durationMinutes: 30,
+          sourceType: "TASK",
+          amount: 100,
+        }),
+      }),
+    );
+    expect(db.billingSuggestionReview.upsert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        create: expect.objectContaining({
+          candidateKey: items[1].candidateKey,
+          resolution: "RECORDED",
+        }),
+      }),
+    );
+  });
 });

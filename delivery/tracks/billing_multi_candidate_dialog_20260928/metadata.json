@@ -1,0 +1,9 @@
+{
+  "created_at": "2026-09-28T00:00:00Z",
+  "keywords": ["financials", "billing", "dialog", "multi-select", "batch"],
+  "parent_track_id": "billing_review_bulk_selection_20260928",
+  "status": "completed",
+  "track_id": "billing_multi_candidate_dialog_20260928",
+  "type": "feature",
+  "updated_at": "2026-09-28T20:15:00Z"
+}
