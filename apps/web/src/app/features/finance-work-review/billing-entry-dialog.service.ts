@@ -11,13 +11,13 @@ export class BillingEntryDialogService {
 
   open(
     context: BillingEntryDialogContext = {},
-  ): Observable<BillingEntrySummary | undefined> {
-    return this.dialog.open<BillingEntrySummary, BillingEntryDialogContext>(
+  ): Observable<BillingEntrySummary[] | undefined> {
+    return this.dialog.open<BillingEntrySummary[], BillingEntryDialogContext>(
       BillingEntryDialogComponent,
       {
         context,
         contentClass:
-          "sm:max-w-2xl h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
+          "sm:max-w-4xl h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
       },
     ).closed$;
   }

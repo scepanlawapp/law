@@ -1067,6 +1067,23 @@ export interface BillingSuggestion {
   warnings: string[];
 }
 
+export interface RecordBillingCandidateItemRequest {
+  candidateKey: string;
+  kind: BillingEntryKind;
+  durationMinutes?: number;
+  amount: number;
+}
+
+export interface RecordBillingCandidatesRequest {
+  clientId: string;
+  caseIds?: string[];
+  workStartDate: string;
+  workEndDate: string;
+  description: string;
+  clientDescription: string;
+  items: RecordBillingCandidateItemRequest[];
+}
+
 export interface BillingStatementLineSummary {
   id: string;
   entryId: string;

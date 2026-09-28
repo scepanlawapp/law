@@ -339,28 +339,24 @@ export class FinanceWorkReviewComponent {
     });
   }
 
-  recordSelectedCandidate(): void {
+  recordSelectedCandidates(): void {
     const selected = this.selectedCandidates();
-    if (selected.length !== 1) return;
-    this.recordCandidate(selected[0]);
+    if (!selected.length) return;
+    this.recordCandidates(selected);
   }
 
   recordCandidate(item: BillingSuggestion): void {
+    this.recordCandidates([item]);
+  }
+
+  private recordCandidates(items: BillingSuggestion[]): void {
     this.entryDialog
-      .open({ candidate: item })
+      .open({ candidates: items })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((entry) => {
-        if (!entry) return;
-        this.api
-          .recordCandidate(item.candidateKey, entry.id)
-          .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe({
-            next: () => {
-              this.selectedCandidateKeys.set(new Set());
-              this.loadCandidates();
-            },
-            error: () => this.toast.error("finance.saveError"),
-          });
+      .subscribe((entries) => {
+        if (!entries?.length) return;
+        this.selectedCandidateKeys.set(new Set());
+        this.loadCandidates();
       });
   }
 

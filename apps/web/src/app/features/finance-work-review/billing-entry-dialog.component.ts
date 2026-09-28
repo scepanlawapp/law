@@ -1,6 +1,7 @@
 import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
+  FormArray,
   FormControl,
   FormGroup,
   ReactiveFormsModule,
@@ -17,7 +18,6 @@ import {
   BillingSuggestion,
   CaseSummary,
   ClientSummary,
-  EntryProposalResponse,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -37,13 +37,30 @@ import {
 } from "@spartan-ng/helm/dialog";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import {
+  HlmTable,
+  HlmTableContainer,
+  HlmTBody,
+  HlmTd,
+  HlmTh,
+  HlmTHead,
+  HlmTr,
+} from "@spartan-ng/helm/table";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { map } from "rxjs";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { BillingEntryDialogContext } from "./billing-entry-dialog.models";
-import {
-  billingEntryValidationKey,
-  toDateInputValue,
-} from "./billing-entry-dialog.utils";
+import { toDateInputValue } from "./billing-entry-dialog.utils";
+
+type BillingEntryKind = "TIME" | "FIXED_FEE" | "EXPENSE";
+
+type BillingItemForm = FormGroup<{
+  candidateKey: FormControl<string>;
+  title: FormControl<string>;
+  kind: FormControl<BillingEntryKind>;
+  durationMinutes: FormControl<number | null>;
+  amount: FormControl<number | null>;
+}>;
 
 @Component({
   selector: "law-billing-entry-dialog",
@@ -65,6 +82,13 @@ import {
     HlmDialogTitle,
     HlmInput,
     HlmSpinner,
+    HlmTable,
+    HlmTableContainer,
+    HlmTBody,
+    HlmTd,
+    HlmTh,
+    HlmTHead,
+    HlmTr,
     HlmTextarea,
     TranslatePipe,
   ],
@@ -76,67 +100,58 @@ export class BillingEntryDialogComponent {
   private readonly context =
     injectBrnDialogContext<BillingEntryDialogContext>();
   private readonly destroyRef = inject(DestroyRef);
-  readonly dialogRef = inject(BrnDialogRef<BillingEntrySummary>);
+  readonly dialogRef = inject(BrnDialogRef<BillingEntrySummary[]>);
   readonly clients = signal<ClientSummary[]>([]);
   readonly cases = signal<CaseSummary[]>([]);
-  readonly proposal = signal<EntryProposalResponse | null>(null);
-  readonly suggesting = signal(false);
   readonly saving = signal(false);
   readonly error = signal("");
-  readonly candidate: BillingSuggestion | undefined = this.context.candidate;
+  readonly candidates = this.context.candidates ?? [];
+
+  private readonly candidateClientIds = [
+    ...new Set(
+      this.candidates
+        .map((candidate) => candidate.client?.id)
+        .filter((id): id is string => Boolean(id)),
+    ),
+  ];
+  private readonly initialClientId =
+    this.context.clientId ??
+    (this.candidateClientIds.length === 1 ? this.candidateClientIds[0] : "");
+  private readonly candidateDates = this.candidates
+    .map((candidate) => toDateInputValue(candidate.date))
+    .sort();
+
   readonly form = new FormGroup({
-    kind: new FormControl<"TIME" | "FIXED_FEE" | "EXPENSE">(
-      this.context.kind ?? "FIXED_FEE",
-      { nonNullable: true, validators: Validators.required },
-    ),
-    workStartDate: new FormControl(
-      toDateInputValue(this.context.candidate?.date),
-      {
-        nonNullable: true,
-        validators: Validators.required,
-      },
-    ),
-    workEndDate: new FormControl(
-      toDateInputValue(this.context.candidate?.date),
-      {
-        nonNullable: true,
-        validators: Validators.required,
-      },
-    ),
-    clientId: new FormControl(
-      this.context.clientId ?? this.context.candidate?.client?.id ?? "",
-      {
-        nonNullable: true,
-        validators: Validators.required,
-      },
-    ),
-    caseIds: new FormControl<string[]>(
-      this.context.caseIds ??
-        (this.context.candidate?.case ? [this.context.candidate.case.id] : []),
-      { nonNullable: true },
-    ),
-    description: new FormControl(this.context.candidate?.title ?? "", {
+    clientId: new FormControl(this.initialClientId, {
       nonNullable: true,
       validators: Validators.required,
     }),
+    caseIds: new FormControl<string[]>(
+      this.context.caseIds ?? this.initialCandidateCaseIds(),
+      { nonNullable: true },
+    ),
+    workStartDate: new FormControl(
+      this.candidateDates[0] ?? toDateInputValue(),
+      { nonNullable: true, validators: Validators.required },
+    ),
+    workEndDate: new FormControl(
+      this.candidateDates[this.candidateDates.length - 1] ?? toDateInputValue(),
+      { nonNullable: true, validators: Validators.required },
+    ),
     clientDescription: new FormControl("", {
       nonNullable: true,
       validators: Validators.required,
     }),
-    durationMinutes: new FormControl<number | null>(null),
-    amount: new FormControl<number | null>(null, [
-      Validators.required,
-      Validators.min(0),
-    ]),
-    currency: new FormControl("RSD", {
-      nonNullable: true,
-      validators: Validators.required,
-    }),
-    disposition: new FormControl<
-      "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL"
-    >("BILLABLE", { nonNullable: true }),
-    noChargeReason: new FormControl("", { nonNullable: true }),
-    userInstruction: new FormControl("", { nonNullable: true }),
+    description: new FormControl(
+      this.candidates.map((candidate) => candidate.title).join(" · "),
+      { nonNullable: true, validators: Validators.required },
+    ),
+    items: new FormArray<BillingItemForm>(
+      this.candidates.length
+        ? this.candidates.map((candidate) => this.createItem(candidate))
+        : [this.createItem()],
+      { validators: Validators.minLength(1) },
+    ),
   });
 
   constructor() {
@@ -145,16 +160,12 @@ export class BillingEntryDialogComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: (response) => this.clients.set(response.items) });
     this.loadCases(this.form.controls.clientId.value);
-    this.updateDurationValidators(this.form.controls.kind.value);
     this.form.controls.clientId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((clientId) => {
         this.form.controls.caseIds.setValue([]);
         this.loadCases(clientId);
       });
-    this.form.controls.kind.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((kind) => this.updateDurationValidators(kind));
   }
 
   readonly caseItemToString = (value: string | null | undefined): string => {
@@ -174,113 +185,100 @@ export class BillingEntryDialogComponent {
     this.form.controls.caseIds.markAsDirty();
   }
 
-  suggest(): void {
-    const value = this.form.getRawValue();
-    this.error.set("");
-    if (!value.clientId) {
-      this.form.controls.clientId.markAsTouched();
-      this.error.set("finance.validationError");
-      return;
-    }
-    if (!value.userInstruction.trim()) {
-      this.form.controls.userInstruction.markAsTouched();
-      this.error.set("finance.proposalInstructionRequired");
-      return;
-    }
-    this.suggesting.set(true);
-    this.api
-      .entryProposal({
-        clientId: value.clientId,
-        caseIds: value.caseIds,
-        candidateKey: this.candidate?.candidateKey,
-        userInstruction: value.userInstruction,
-        currentDraft: {
-          kind: value.kind,
-          workStartDate: value.workStartDate,
-          workEndDate: value.workEndDate,
-          durationMinutes: value.durationMinutes ?? undefined,
-          description: value.description,
-          clientDescription: value.clientDescription,
-          disposition: value.disposition,
-          amount: value.amount?.toString(),
-          currency: value.currency,
-        },
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (proposal) => {
-          this.proposal.set(proposal);
-          this.suggesting.set(false);
-        },
-        error: () => {
-          this.error.set("finance.proposalUnavailable");
-          this.suggesting.set(false);
-        },
-      });
-  }
-
-  applySuggestion(): void {
-    const suggested = this.proposal()?.suggested;
-    if (!suggested) return;
-    this.form.patchValue({
-      kind: suggested.kind ?? this.form.controls.kind.value,
-      workStartDate: suggested.workStartDate
-        ? toDateInputValue(suggested.workStartDate)
-        : this.form.controls.workStartDate.value,
-      workEndDate: suggested.workEndDate
-        ? toDateInputValue(suggested.workEndDate)
-        : this.form.controls.workEndDate.value,
-      description:
-        suggested.internalDescription ?? this.form.controls.description.value,
-      clientDescription:
-        suggested.clientDescription ??
-        this.form.controls.clientDescription.value,
-      durationMinutes: suggested.actualDurationMinutes,
-      amount: suggested.amount === null ? null : Number(suggested.amount),
-      disposition:
-        suggested.disposition ?? this.form.controls.disposition.value,
-    });
+  removeItem(index: number): void {
+    this.form.controls.items.removeAt(index);
+    this.form.controls.items.markAsDirty();
   }
 
   submit(): void {
     this.error.set("");
-    if (this.form.invalid) {
+    if (
+      this.form.invalid ||
+      !this.form.controls.items.length ||
+      this.form.controls.workEndDate.value <
+        this.form.controls.workStartDate.value
+    ) {
       this.form.markAllAsTouched();
-      this.error.set("finance.validationError");
+      this.error.set(
+        this.form.controls.workEndDate.value <
+          this.form.controls.workStartDate.value
+          ? "finance.invalidWorkPeriod"
+          : "finance.validationError",
+      );
       return;
     }
+
     const value = this.form.getRawValue();
-    const validationKey = billingEntryValidationKey(value);
-    if (validationKey) {
-      this.form.markAllAsTouched();
-      this.error.set(validationKey);
-      return;
-    }
+    const sharedEntry = {
+      clientId: value.clientId,
+      caseIds: value.caseIds,
+      workStartDate: value.workStartDate,
+      workEndDate: value.workEndDate,
+      description: value.description,
+      clientDescription: value.clientDescription,
+    };
+    const request$ = this.candidates.length
+      ? this.api.recordCandidates({
+          ...sharedEntry,
+          items: value.items.map((item) => ({
+            candidateKey: item.candidateKey,
+            kind: item.kind,
+            durationMinutes: item.durationMinutes ?? undefined,
+            amount: item.amount ?? 0,
+          })),
+        })
+      : this.api
+          .createEntry({
+            ...sharedEntry,
+            kind: value.items[0].kind,
+            durationMinutes: value.items[0].durationMinutes ?? undefined,
+            amount: value.items[0].amount ?? 0,
+          })
+          .pipe(map((entry) => [entry]));
+
     this.saving.set(true);
-    this.api
-      .createEntry({
-        kind: value.kind,
-        workStartDate: value.workStartDate,
-        workEndDate: value.workEndDate,
-        clientId: value.clientId,
-        caseIds: value.caseIds,
-        description: value.description,
-        clientDescription: value.clientDescription,
-        durationMinutes: value.durationMinutes ?? undefined,
-        amount: value.amount ?? 0,
-        currency: value.currency,
-        disposition: value.disposition,
-        noChargeReason: value.noChargeReason || undefined,
-        candidateKey: this.candidate?.candidateKey,
-      })
+    request$.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (entries) => this.dialogRef.close(entries),
+      error: () => {
+        this.error.set("finance.saveError");
+        this.saving.set(false);
+      },
+    });
+  }
+
+  private initialCandidateCaseIds(): string[] {
+    if (!this.initialClientId) return [];
+    return [
+      ...new Set(
+        this.candidates
+          .filter((candidate) => candidate.client?.id === this.initialClientId)
+          .map((candidate) => candidate.case?.id)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+  }
+
+  private createItem(candidate?: BillingSuggestion): BillingItemForm {
+    const item = new FormGroup({
+      candidateKey: new FormControl(candidate?.candidateKey ?? "", {
+        nonNullable: true,
+      }),
+      title: new FormControl(candidate?.title ?? "", { nonNullable: true }),
+      kind: new FormControl<BillingEntryKind>(
+        this.context.kind ?? "FIXED_FEE",
+        { nonNullable: true, validators: Validators.required },
+      ),
+      durationMinutes: new FormControl<number | null>(null),
+      amount: new FormControl<number | null>(null, [
+        Validators.required,
+        Validators.min(0.01),
+      ]),
+    });
+    this.updateDurationValidators(item, item.controls.kind.value);
+    item.controls.kind.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (entry) => this.dialogRef.close(entry),
-        error: () => {
-          this.error.set("finance.saveError");
-          this.saving.set(false);
-        },
-      });
+      .subscribe((kind) => this.updateDurationValidators(item, kind));
+    return item;
   }
 
   private loadCases(clientId: string): void {
@@ -295,9 +293,10 @@ export class BillingEntryDialogComponent {
   }
 
   private updateDurationValidators(
-    kind: "TIME" | "FIXED_FEE" | "EXPENSE",
+    item: BillingItemForm,
+    kind: BillingEntryKind,
   ): void {
-    const control = this.form.controls.durationMinutes;
+    const control = item.controls.durationMinutes;
     control.setValidators(
       kind === "TIME" ? [Validators.required, Validators.min(1)] : [],
     );

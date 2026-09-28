@@ -31,6 +31,7 @@ import {
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
+  RecordBillingCandidatesDto,
   SendStatementDto,
   UpdateBillingEntryDto,
   UpdateStatementDto,
@@ -696,6 +697,110 @@ export class FinancialsService {
         reviewedAt: new Date(),
         billingEntryId,
       },
+    });
+  }
+
+  async recordCandidates(
+    input: RecordBillingCandidatesDto,
+  ): Promise<BillingEntrySummary[]> {
+    this.assertFinanceUser();
+    await this.assertClient(input.clientId);
+    await this.assertCases(input.caseIds, input.clientId);
+    this.assertWorkPeriod(input.workStartDate, input.workEndDate);
+
+    const candidateKeys = input.items.map((item) => item.candidateKey);
+    if (new Set(candidateKeys).size !== candidateKeys.length) {
+      throw new ConflictException("Billing candidates must be unique");
+    }
+
+    const itemSources = input.items.map((item) => {
+      this.validateDuration(item.kind, item.durationMinutes);
+      this.validateDisposition(BillingDisposition.BILLABLE, item.amount);
+      const [sourceType, sourceId, proposedPerformerId] =
+        item.candidateKey.split(":");
+      if (!sourceType || !sourceId) {
+        throw new ConflictException("Invalid billing candidate key");
+      }
+      const performedByUserId = ["EVENT", "TASK", "DEADLINE"].includes(
+        sourceType,
+      )
+        ? proposedPerformerId
+        : this.context.userId;
+      if (!performedByUserId) {
+        throw new ConflictException("Billing candidate has no performer");
+      }
+      if (performedByUserId !== this.context.userId) this.assertManager();
+      return { item, sourceType, sourceId, performedByUserId };
+    });
+
+    await Promise.all(
+      [...new Set(itemSources.map((item) => item.performedByUserId))].map(
+        (performerId) => this.assertPerformer(performerId),
+      ),
+    );
+
+    return this.db.$transaction(async (tx) => {
+      const entries: BillingEntrySummary[] = [];
+      for (const source of itemSources) {
+        const entry = await tx.billingEntry.create({
+          data: {
+            workspaceId: this.workspaceId,
+            clientId: input.clientId,
+            performedByUserId: source.performedByUserId,
+            workStartDate: new Date(input.workStartDate),
+            workEndDate: new Date(input.workEndDate),
+            kind: source.item.kind,
+            disposition: BillingDisposition.BILLABLE,
+            lifecycle: BillingEntryLifecycle.DRAFT,
+            description: input.description,
+            clientDescription: input.clientDescription,
+            durationMinutes: source.item.durationMinutes,
+            amount: source.item.amount,
+            currency: "RSD",
+            sourceType: source.sourceType,
+            sourceId: source.sourceId,
+            createdByUserId: this.context.userId,
+            updatedByUserId: this.context.userId,
+            caseLinks: input.caseIds?.length
+              ? {
+                  create: input.caseIds.map((caseId) => ({
+                    workspaceId: this.workspaceId,
+                    caseId,
+                  })),
+                }
+              : undefined,
+          },
+          include: this.entryInclude,
+        });
+        await tx.billingSuggestionReview.upsert({
+          where: {
+            workspaceId_candidateKey: {
+              workspaceId: this.workspaceId,
+              candidateKey: source.item.candidateKey,
+            },
+          },
+          create: {
+            workspaceId: this.workspaceId,
+            candidateKey: source.item.candidateKey,
+            sourceType: source.sourceType,
+            sourceId: source.sourceId,
+            proposedPerformerId: source.performedByUserId,
+            resolution: "RECORDED",
+            reviewedByUserId: this.context.userId,
+            reviewedAt: new Date(),
+            billingEntryId: entry.id,
+          },
+          update: {
+            proposedPerformerId: source.performedByUserId,
+            resolution: "RECORDED",
+            reviewedByUserId: this.context.userId,
+            reviewedAt: new Date(),
+            billingEntryId: entry.id,
+          },
+        });
+        entries.push(this.entrySummary(entry));
+      }
+      return entries;
     });
   }
 

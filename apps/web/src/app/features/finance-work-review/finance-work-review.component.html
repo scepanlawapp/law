@@ -154,11 +154,6 @@
             {{ "finance.selectedCandidates" | translate }}:
             {{ selectedCandidateKeys().size }}
           </p>
-          @if (selectedCandidateKeys().size > 1) {
-            <p class="text-xs text-muted-foreground">
-              {{ "finance.multiCandidateBillingPending" | translate }}
-            </p>
-          }
         </div>
         <div class="flex flex-wrap gap-2">
           <button
@@ -178,10 +173,8 @@
           <button
             hlmBtn
             type="button"
-            [disabled]="
-              bulkReviewPending() || selectedCandidateKeys().size !== 1
-            "
-            (click)="recordSelectedCandidate()"
+            [disabled]="bulkReviewPending()"
+            (click)="recordSelectedCandidates()"
           >
             {{ "finance.makeBill" | translate }}
           </button>
