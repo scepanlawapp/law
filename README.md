@@ -15,7 +15,7 @@ npm install
 cp .env.example .env
 ```
 
-The browser-safe runtime settings are in `apps/web/public/config.json`. Use `config.local.json` for local browser overrides; do not put credentials in either file.
+The browser-safe runtime settings are in `apps/web/public/config.json`. Use `config.local.json` (gitignored) for local browser overrides: when it exists, it is loaded instead of `config.json`. Do not put credentials in either file.
 
 ## Run
 
