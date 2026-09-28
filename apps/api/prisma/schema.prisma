@@ -395,6 +395,7 @@ model Workspace {
   fileLocations          FileLocation[]
   uploadOperations       UploadOperation[]
   billingEntries         BillingEntry[]
+  billingEntryCases      BillingEntryCase[]
   suggestionReviews      BillingSuggestionReview[]
   priceSources           PriceSource[]
   priceSourceVersions    PriceSourceVersion[]
@@ -642,7 +643,7 @@ model Case {
   chatSessions         ChatSession[]
   draftResults         DraftResult[]
   appliedBriefs        BriefExtractionResult[] @relation("BriefAppliedCase")
-  billingEntries       BillingEntry[]
+  billingEntryCases    BillingEntryCase[]
   priceSources         PriceSource[]
 
   @@unique([workspaceId, caseNumber])
@@ -865,9 +866,9 @@ model BillingEntry {
   id                    String                    @id @default(uuid())
   workspaceId           String
   clientId              String
-  caseId                String?
   performedByUserId     String
-  workDate              DateTime                  @db.Date
+  workStartDate         DateTime                  @db.Date
+  workEndDate           DateTime                  @db.Date
   kind                  BillingEntryKind
   disposition           BillingDisposition        @default(BILLABLE)
   lifecycle             BillingEntryLifecycle     @default(DRAFT)
@@ -891,7 +892,7 @@ model BillingEntry {
   updatedAt             DateTime                  @updatedAt @db.Timestamptz(3)
   workspace             Workspace                 @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   client                Client                    @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  case                  Case?                     @relation(fields: [caseId], references: [id], onDelete: Restrict)
+  caseLinks             BillingEntryCase[]
   performedBy           User                      @relation("BillingEntryPerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
   createdBy             User                      @relation("BillingEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   updatedBy             User                      @relation("BillingEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
@@ -899,11 +900,23 @@ model BillingEntry {
   statementLines        BillingStatementLine[]
   suggestionReviews     BillingSuggestionReview[]
 
-  @@index([workspaceId, clientId, workDate, lifecycle])
-  @@index([workspaceId, caseId, workDate])
-  @@index([workspaceId, performedByUserId, workDate])
+  @@index([workspaceId, clientId, workStartDate, lifecycle])
+  @@index([workspaceId, performedByUserId, workStartDate])
   @@index([workspaceId, disposition, lifecycle])
   @@index([sourceType, sourceId])
+}
+
+model BillingEntryCase {
+  workspaceId    String
+  billingEntryId String
+  caseId         String
+  workspace      Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  billingEntry   BillingEntry @relation(fields: [billingEntryId], references: [id], onDelete: Cascade)
+  case           Case         @relation(fields: [caseId], references: [id], onDelete: Restrict)
+
+  @@id([billingEntryId, caseId])
+  @@index([workspaceId, caseId])
+  @@index([caseId])
 }
 
 model BillingSuggestionReview {
@@ -1016,6 +1029,7 @@ model BillingStatementLine {
   lineOrder       Int
   description     String             @db.Text
   serviceDate     DateTime           @db.Date
+  serviceEndDate  DateTime           @db.Date
   caseReference   String?
   quantity        Decimal?           @db.Decimal(18, 4)
   durationMinutes Int?

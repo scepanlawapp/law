@@ -21,6 +21,15 @@ import {
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
+import {
   HlmDialogDescription,
   HlmDialogFooter,
   HlmDialogHeader,
@@ -31,6 +40,10 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { BillingEntryDialogContext } from "./billing-entry-dialog.models";
+import {
+  billingEntryValidationKey,
+  toDateInputValue,
+} from "./billing-entry-dialog.utils";
 
 @Component({
   selector: "law-billing-entry-dialog",
@@ -39,6 +52,13 @@ import { BillingEntryDialogContext } from "./billing-entry-dialog.models";
   imports: [
     ReactiveFormsModule,
     HlmButton,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
@@ -66,13 +86,23 @@ export class BillingEntryDialogComponent {
   readonly candidate: BillingSuggestion | undefined = this.context.candidate;
   readonly form = new FormGroup({
     kind: new FormControl<"TIME" | "FIXED_FEE" | "EXPENSE">(
-      this.context.kind ?? "TIME",
-      { nonNullable: true },
+      this.context.kind ?? "FIXED_FEE",
+      { nonNullable: true, validators: Validators.required },
     ),
-    workDate: new FormControl(this.context.candidate?.date ?? this.today(), {
-      nonNullable: true,
-      validators: Validators.required,
-    }),
+    workStartDate: new FormControl(
+      toDateInputValue(this.context.candidate?.date),
+      {
+        nonNullable: true,
+        validators: Validators.required,
+      },
+    ),
+    workEndDate: new FormControl(
+      toDateInputValue(this.context.candidate?.date),
+      {
+        nonNullable: true,
+        validators: Validators.required,
+      },
+    ),
     clientId: new FormControl(
       this.context.clientId ?? this.context.candidate?.client?.id ?? "",
       {
@@ -80,19 +110,24 @@ export class BillingEntryDialogComponent {
         validators: Validators.required,
       },
     ),
-    caseId: new FormControl(
-      this.context.caseId ?? this.context.candidate?.case?.id ?? "",
-      {
-        nonNullable: true,
-      },
+    caseIds: new FormControl<string[]>(
+      this.context.caseIds ??
+        (this.context.candidate?.case ? [this.context.candidate.case.id] : []),
+      { nonNullable: true },
     ),
     description: new FormControl(this.context.candidate?.title ?? "", {
       nonNullable: true,
       validators: Validators.required,
     }),
-    clientDescription: new FormControl("", { nonNullable: true }),
+    clientDescription: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
     durationMinutes: new FormControl<number | null>(null),
-    amount: new FormControl<number | null>(null, Validators.min(0)),
+    amount: new FormControl<number | null>(null, [
+      Validators.required,
+      Validators.min(0),
+    ]),
     currency: new FormControl("RSD", {
       nonNullable: true,
       validators: Validators.required,
@@ -110,27 +145,59 @@ export class BillingEntryDialogComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: (response) => this.clients.set(response.items) });
     this.loadCases(this.form.controls.clientId.value);
+    this.updateDurationValidators(this.form.controls.kind.value);
     this.form.controls.clientId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((clientId) => {
-        this.form.controls.caseId.setValue("");
+        this.form.controls.caseIds.setValue([]);
         this.loadCases(clientId);
       });
+    this.form.controls.kind.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((kind) => this.updateDurationValidators(kind));
+  }
+
+  readonly caseItemToString = (value: string | null | undefined): string => {
+    if (!value) return "";
+    const caseItem = this.cases().find((item) => item.id === value);
+    return caseItem ? `${caseItem.caseNumber} — ${caseItem.name}` : value;
+  };
+
+  selectedCasesLabel(): string {
+    return this.form.controls.caseIds.value
+      .map((caseId) => this.caseItemToString(caseId))
+      .join(", ");
+  }
+
+  setCaseIds(caseIds: string[]): void {
+    this.form.controls.caseIds.setValue(caseIds);
+    this.form.controls.caseIds.markAsDirty();
   }
 
   suggest(): void {
     const value = this.form.getRawValue();
-    if (!value.clientId || !value.userInstruction.trim()) return;
+    this.error.set("");
+    if (!value.clientId) {
+      this.form.controls.clientId.markAsTouched();
+      this.error.set("finance.validationError");
+      return;
+    }
+    if (!value.userInstruction.trim()) {
+      this.form.controls.userInstruction.markAsTouched();
+      this.error.set("finance.proposalInstructionRequired");
+      return;
+    }
     this.suggesting.set(true);
     this.api
       .entryProposal({
         clientId: value.clientId,
-        caseId: value.caseId || undefined,
+        caseIds: value.caseIds,
         candidateKey: this.candidate?.candidateKey,
         userInstruction: value.userInstruction,
         currentDraft: {
           kind: value.kind,
-          workDate: value.workDate,
+          workStartDate: value.workStartDate,
+          workEndDate: value.workEndDate,
           durationMinutes: value.durationMinutes ?? undefined,
           description: value.description,
           clientDescription: value.clientDescription,
@@ -157,7 +224,12 @@ export class BillingEntryDialogComponent {
     if (!suggested) return;
     this.form.patchValue({
       kind: suggested.kind ?? this.form.controls.kind.value,
-      workDate: suggested.workDate ?? this.form.controls.workDate.value,
+      workStartDate: suggested.workStartDate
+        ? toDateInputValue(suggested.workStartDate)
+        : this.form.controls.workStartDate.value,
+      workEndDate: suggested.workEndDate
+        ? toDateInputValue(suggested.workEndDate)
+        : this.form.controls.workEndDate.value,
       description:
         suggested.internalDescription ?? this.form.controls.description.value,
       clientDescription:
@@ -171,22 +243,31 @@ export class BillingEntryDialogComponent {
   }
 
   submit(): void {
+    this.error.set("");
     if (this.form.invalid) {
       this.form.markAllAsTouched();
+      this.error.set("finance.validationError");
       return;
     }
     const value = this.form.getRawValue();
+    const validationKey = billingEntryValidationKey(value);
+    if (validationKey) {
+      this.form.markAllAsTouched();
+      this.error.set(validationKey);
+      return;
+    }
     this.saving.set(true);
     this.api
       .createEntry({
         kind: value.kind,
-        workDate: value.workDate,
+        workStartDate: value.workStartDate,
+        workEndDate: value.workEndDate,
         clientId: value.clientId,
-        caseId: value.caseId || undefined,
+        caseIds: value.caseIds,
         description: value.description,
-        clientDescription: value.clientDescription || value.description,
+        clientDescription: value.clientDescription,
         durationMinutes: value.durationMinutes ?? undefined,
-        amount: value.amount?.toString() ?? "0",
+        amount: value.amount ?? 0,
         currency: value.currency,
         disposition: value.disposition,
         noChargeReason: value.noChargeReason || undefined,
@@ -213,7 +294,13 @@ export class BillingEntryDialogComponent {
       .subscribe({ next: (response) => this.cases.set(response.items) });
   }
 
-  private today(): string {
-    return new Date().toISOString().slice(0, 10);
+  private updateDurationValidators(
+    kind: "TIME" | "FIXED_FEE" | "EXPENSE",
+  ): void {
+    const control = this.form.controls.durationMinutes;
+    control.setValidators(
+      kind === "TIME" ? [Validators.required, Validators.min(1)] : [],
+    );
+    control.updateValueAndValidity({ emitEvent: false });
   }
 }

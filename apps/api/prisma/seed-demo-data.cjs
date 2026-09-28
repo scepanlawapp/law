@@ -1,5 +1,6 @@
 // Populates the bootstrap workspace with realistic Serbian demo/test data:
-// extra lawyer/staff logins, clients, cases, events, tasks, deadlines, and notes.
+// extra lawyer/staff logins, clients, cases, events, tasks, deadlines, notes,
+// and a representative multi-case billing entry.
 // Run `npm run db:seed:auth` first, then `npm run db:seed:demo`.
 const { PrismaClient } = require("@prisma/client");
 const { randomBytes, scryptSync } = require("node:crypto");
@@ -1096,6 +1097,42 @@ async function ensureNotes(prisma, workspaceId, actorUserId, cases, clients) {
   return activityLogRows;
 }
 
+async function ensureBillingEntry(prisma, workspaceId, actorUserId, cases) {
+  const primaryCase = cases[0];
+  if (!primaryCase) return;
+  const relatedCases = cases
+    .filter((caseItem) => caseItem.clientId === primaryCase.clientId)
+    .slice(0, 2);
+  const id = "eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee";
+  await prisma.billingEntry.upsert({
+    where: { id },
+    update: {},
+    create: {
+      id,
+      workspaceId,
+      clientId: primaryCase.clientId,
+      performedByUserId: actorUserId,
+      workStartDate: new Date("2026-09-15"),
+      workEndDate: new Date("2026-09-17"),
+      kind: "FIXED_FEE",
+      disposition: "BILLABLE",
+      lifecycle: "READY",
+      description: "Analiza povezanih predmeta i priprema pravnog mišljenja",
+      clientDescription: "Pravno mišljenje za povezane predmete",
+      amount: 45000,
+      currency: "RSD",
+      createdByUserId: actorUserId,
+      updatedByUserId: actorUserId,
+      caseLinks: {
+        create: relatedCases.map((caseItem) => ({
+          workspaceId,
+          caseId: caseItem.id,
+        })),
+      },
+    },
+  });
+}
+
 async function main() {
   const prisma = new PrismaClient();
   try {
@@ -1152,6 +1189,7 @@ async function main() {
       lawyers,
       refData,
     );
+    await ensureBillingEntry(prisma, workspaceId, adminUser.id, cases);
     await ensureClientActivities(prisma, workspaceId, adminUser.id, clients);
 
     const marker = await prisma.activityLog.findFirst({

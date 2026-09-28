@@ -18,3 +18,4 @@
 - Added `BillingEntryDialog` and candidate recording resolution so Review -> Record actual work persists source identity and marks the candidate recorded.
 - Added Decimal-safe statement totals, payment status, overview sent totals, externally verified unpaid totals, client-account aggregates, and complete price-source version history endpoints.
 - Replaced browser confirmations, fixed statement void invocation, made statement/client query parameters reactive, reused logical statement idempotency keys, and switched work-date defaults to local date-only values.
+- Reworked Work review into the Bill/Fakturiši list workflow with candidate, billed-entry, and dismissed-proposal views plus shared server-backed client/case/source filters; removed the inline manual-entry form.

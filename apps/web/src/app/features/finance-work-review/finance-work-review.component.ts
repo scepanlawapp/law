@@ -1,12 +1,13 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import {
+  ChangeDetectionStrategy,
+  Component,
+  DestroyRef,
+  computed,
+  inject,
+  signal,
+} from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute } from "@angular/router";
-import {
-  FormControl,
-  FormGroup,
-  ReactiveFormsModule,
-  Validators,
-} from "@angular/forms";
 import {
   CasesApiClient,
   ClientsApiClient,
@@ -19,7 +20,16 @@ import {
   ClientSummary,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
-import { HlmInput } from "@spartan-ng/helm/input";
+import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
   HlmTable,
@@ -30,21 +40,34 @@ import {
   HlmTHead,
   HlmTr,
 } from "@spartan-ng/helm/table";
-import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
-import { BillingEntryDialogService } from "./billing-entry-dialog.service";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { BillingEntryDialogService } from "./billing-entry-dialog.service";
 
-type ReviewTab = "candidates" | "entries";
+type BillingList = "candidates" | "entries" | "dismissed";
+type BillingSourceType =
+  | "EVENT"
+  | "TASK"
+  | "DEADLINE"
+  | "CASE_ACTIVITY"
+  | "CLIENT_ACTIVITY";
 
 @Component({
   selector: "law-finance-work-review",
   standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./finance-work-review.component.html",
   imports: [
-    ReactiveFormsModule,
     HlmButton,
-    HlmInput,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmSelectImports,
     HlmSpinner,
     HlmTable,
     HlmTableContainer,
@@ -66,91 +89,140 @@ export class FinanceWorkReviewComponent {
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
 
-  readonly tab = signal<ReviewTab>("candidates");
+  readonly list = signal<BillingList>(
+    this.route.snapshot.queryParamMap.get("tab") === "entries"
+      ? "entries"
+      : "candidates",
+  );
   readonly candidates = signal<BillingSuggestion[]>([]);
   readonly entries = signal<BillingEntrySummary[]>([]);
   readonly clients = signal<ClientSummary[]>([]);
   readonly cases = signal<CaseSummary[]>([]);
+  readonly clientIds = signal<string[]>([]);
+  readonly caseIds = signal<string[]>([]);
+  readonly sourceTypes = signal<BillingSourceType[]>([]);
   readonly loading = signal(true);
-  readonly saving = signal(false);
   readonly error = signal(false);
-  readonly entryError = signal(false);
-  readonly message = signal("");
   readonly selected = signal(new Set<string>());
-  readonly clientFilter = new FormControl("", { nonNullable: true });
-  readonly sourceFilter = new FormControl("", { nonNullable: true });
-  readonly entryFilter = new FormControl("", { nonNullable: true });
-  readonly workForm = new FormGroup({
-    kind: new FormControl<"TIME" | "FIXED_FEE" | "EXPENSE">("TIME", {
-      nonNullable: true,
-    }),
-    workDate: new FormControl(this.today(), {
-      nonNullable: true,
-      validators: Validators.required,
-    }),
-    clientId: new FormControl("", {
-      nonNullable: true,
-      validators: Validators.required,
-    }),
-    caseId: new FormControl("", { nonNullable: true }),
-    description: new FormControl("", {
-      nonNullable: true,
-      validators: Validators.required,
-    }),
-    clientDescription: new FormControl("", { nonNullable: true }),
-    durationMinutes: new FormControl<number | null>(null),
-    amount: new FormControl<number | null>(null, Validators.min(0)),
-    currency: new FormControl("RSD", {
-      nonNullable: true,
-      validators: Validators.required,
-    }),
-    disposition: new FormControl<
-      "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL"
-    >("BILLABLE", { nonNullable: true }),
-    noChargeReason: new FormControl("", { nonNullable: true }),
-  });
+  readonly selectedCandidateKeys = signal(new Set<string>());
+  readonly bulkReviewPending = signal(false);
+
+  readonly selectedCandidates = computed(() =>
+    this.candidates().filter((candidate) =>
+      this.selectedCandidateKeys().has(candidate.candidateKey),
+    ),
+  );
+  readonly allVisibleCandidatesSelected = computed(
+    () =>
+      this.candidates().length > 0 &&
+      this.candidates().every((candidate) =>
+        this.selectedCandidateKeys().has(candidate.candidateKey),
+      ),
+  );
+  readonly someVisibleCandidatesSelected = computed(
+    () =>
+      this.selectedCandidateKeys().size > 0 &&
+      !this.allVisibleCandidatesSelected(),
+  );
+
+  readonly listOptions: ReadonlyArray<{ value: BillingList; label: string }> = [
+    { value: "candidates", label: "finance.billingCandidates" },
+    { value: "entries", label: "finance.billedEntries" },
+    { value: "dismissed", label: "finance.dismissedCandidates" },
+  ];
+  readonly sourceOptions: ReadonlyArray<{
+    value: BillingSourceType;
+    label: string;
+  }> = [
+    { value: "EVENT", label: "finance.sourceEvent" },
+    { value: "TASK", label: "finance.sourceTask" },
+    { value: "DEADLINE", label: "finance.sourceDeadline" },
+    { value: "CASE_ACTIVITY", label: "finance.sourceCaseActivity" },
+    { value: "CLIENT_ACTIVITY", label: "finance.sourceClientActivity" },
+  ];
+
+  readonly listItemToString = (
+    value: BillingList | null | undefined,
+  ): string =>
+    value
+      ? this.localization.translate(
+          this.listOptions.find((option) => option.value === value)?.label ??
+            "",
+        )
+      : "";
+  readonly clientItemToString = (value: string | null | undefined): string =>
+    value
+      ? (this.clients().find((client) => client.id === value)?.displayName ??
+        value)
+      : "";
+  readonly caseItemToString = (value: string | null | undefined): string => {
+    if (!value) return "";
+    const caseItem = this.cases().find((item) => item.id === value);
+    return caseItem ? `${caseItem.caseNumber} — ${caseItem.name}` : value;
+  };
+  readonly sourceItemToString = (
+    value: BillingSourceType | null | undefined,
+  ): string =>
+    value
+      ? this.localization.translate(
+          this.sourceOptions.find((option) => option.value === value)?.label ??
+            "",
+        )
+      : "";
+
+  readonly selectedClientsLabel = computed(() =>
+    this.clientIds().map(this.clientItemToString).join(", "),
+  );
+  readonly selectedCasesLabel = computed(() =>
+    this.caseIds().map(this.caseItemToString).join(", "),
+  );
+  readonly selectedSourcesLabel = computed(() =>
+    this.sourceTypes().map(this.sourceItemToString).join(", "),
+  );
 
   constructor() {
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({ next: (response) => this.clients.set(response.items) });
-    this.clientFilter.valueChanges
+    this.casesApi
+      .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.loadCandidates());
-    this.sourceFilter.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.loadCandidates());
-    this.entryFilter.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.loadEntries());
-    this.workForm.controls.clientId.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((clientId) => {
-        this.workForm.controls.caseId.setValue("");
-        this.cases.set([]);
-        if (clientId)
-          this.casesApi
-            .list({ clientId, page: 1, pageSize: 100 })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({ next: (response) => this.cases.set(response.items) });
-      });
+      .subscribe({ next: (response) => this.cases.set(response.items) });
     this.route.queryParamMap
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((params) => {
-        const tab = params.get("tab");
-        if (tab === "entries") this.tab.set("entries");
-        if (this.tab() === "entries") this.loadEntries();
-        else this.loadCandidates();
-        const candidateKey = params.get("candidateKey");
-        if (candidateKey) {
-          const candidate = this.candidates().find(
-            (item) => item.candidateKey === candidateKey,
-          );
-          if (candidate) this.recordCandidate(candidate);
-        }
+        this.list.set(
+          params.get("tab") === "entries" ? "entries" : "candidates",
+        );
+        this.selectedCandidateKeys.set(new Set());
+        this.loadCurrentList();
       });
-    this.loadCandidates();
+  }
+
+  selectList(value: string | null | undefined): void {
+    const next: BillingList =
+      value === "entries" || value === "dismissed" ? value : "candidates";
+    if (next === this.list()) return;
+    this.list.set(next);
+    this.selected.set(new Set());
+    this.selectedCandidateKeys.set(new Set());
+    this.loadCurrentList();
+  }
+
+  setClientIds(value: string[]): void {
+    this.clientIds.set(value);
+    this.filtersChanged();
+  }
+
+  setCaseIds(value: string[]): void {
+    this.caseIds.set(value);
+    this.filtersChanged();
+  }
+
+  setSourceTypes(value: BillingSourceType[]): void {
+    this.sourceTypes.set(value);
+    this.filtersChanged();
   }
 
   loadCandidates(): void {
@@ -160,8 +232,10 @@ export class FinanceWorkReviewComponent {
       .candidates({
         page: 1,
         pageSize: 50,
-        clientId: this.clientFilter.value || undefined,
-        sourceType: this.sourceFilter.value || undefined,
+        clientIds: this.clientIds(),
+        caseIds: this.caseIds(),
+        sourceTypes: this.sourceTypes(),
+        resolution: this.list() === "dismissed" ? "DISMISSED" : "PENDING",
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -184,12 +258,14 @@ export class FinanceWorkReviewComponent {
 
   loadEntries(): void {
     this.loading.set(true);
-    this.entryError.set(false);
+    this.error.set(false);
     this.api
       .entries({
         page: 1,
         pageSize: 50,
-        clientId: this.entryFilter.value || undefined,
+        clientIds: this.clientIds(),
+        caseIds: this.caseIds(),
+        sourceTypes: this.sourceTypes(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -199,16 +275,11 @@ export class FinanceWorkReviewComponent {
         },
         error: () => {
           this.loading.set(false);
-          this.entryError.set(true);
+          this.error.set(true);
         },
       });
   }
 
-  selectTab(tab: ReviewTab): void {
-    this.tab.set(tab);
-    if (tab === "entries") this.loadEntries();
-    else this.loadCandidates();
-  }
   dismiss(item: BillingSuggestion): void {
     this.api
       .dismissCandidate(item.candidateKey)
@@ -218,6 +289,7 @@ export class FinanceWorkReviewComponent {
         error: () => this.toast.error("finance.saveError"),
       });
   }
+
   reopen(item: BillingSuggestion): void {
     this.api
       .reopenCandidate(item.candidateKey)
@@ -226,6 +298,51 @@ export class FinanceWorkReviewComponent {
         next: () => this.loadCandidates(),
         error: () => this.toast.error("finance.saveError"),
       });
+  }
+
+  toggleCandidate(item: BillingSuggestion): void {
+    const selected = new Set(this.selectedCandidateKeys());
+    if (selected.has(item.candidateKey)) selected.delete(item.candidateKey);
+    else selected.add(item.candidateKey);
+    this.selectedCandidateKeys.set(selected);
+  }
+
+  toggleAllVisibleCandidates(): void {
+    if (this.allVisibleCandidatesSelected()) {
+      this.selectedCandidateKeys.set(new Set());
+      return;
+    }
+    this.selectedCandidateKeys.set(
+      new Set(this.candidates().map((candidate) => candidate.candidateKey)),
+    );
+  }
+
+  reviewSelectedCandidates(): void {
+    const candidateKeys = [...this.selectedCandidateKeys()];
+    if (!candidateKeys.length || this.bulkReviewPending()) return;
+
+    this.bulkReviewPending.set(true);
+    const request =
+      this.list() === "dismissed"
+        ? this.api.reopenCandidates(candidateKeys)
+        : this.api.dismissCandidates(candidateKeys);
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => {
+        this.bulkReviewPending.set(false);
+        this.selectedCandidateKeys.set(new Set());
+        this.loadCandidates();
+      },
+      error: () => {
+        this.bulkReviewPending.set(false);
+        this.toast.error("finance.saveError");
+      },
+    });
+  }
+
+  recordSelectedCandidate(): void {
+    const selected = this.selectedCandidates();
+    if (selected.length !== 1) return;
+    this.recordCandidate(selected[0]);
   }
 
   recordCandidate(item: BillingSuggestion): void {
@@ -238,7 +355,10 @@ export class FinanceWorkReviewComponent {
           .recordCandidate(item.candidateKey, entry.id)
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
-            next: () => this.loadCandidates(),
+            next: () => {
+              this.selectedCandidateKeys.set(new Set());
+              this.loadCandidates();
+            },
             error: () => this.toast.error("finance.saveError"),
           });
       });
@@ -254,7 +374,7 @@ export class FinanceWorkReviewComponent {
         entry.client.id
     )
       current.add(entry.id);
-    else this.message.set("finance.selectionOneClient");
+    else this.toast.error("finance.selectionOneClient");
     this.selected.set(current);
   }
 
@@ -268,71 +388,35 @@ export class FinanceWorkReviewComponent {
     );
   }
 
-  saveWork(): void {
-    this.message.set("");
-    this.workForm.markAllAsTouched();
-    const value = this.workForm.getRawValue();
-    const amount = value.amount ?? 0;
-    const valid =
-      this.workForm.valid &&
-      (value.kind !== "TIME" || (value.durationMinutes ?? 0) > 0) &&
-      (value.disposition !== "BILLABLE" || amount > 0) &&
-      (!["INCLUDED", "NO_CHARGE"].includes(value.disposition) ||
-        (amount === 0 && !!value.noChargeReason.trim()));
-    if (!valid) {
-      this.message.set("finance.validationError");
-      return;
-    }
-    this.saving.set(true);
-    this.api
-      .createEntry({
-        ...value,
-        caseId: value.caseId || undefined,
-        clientDescription: value.clientDescription || value.description,
-        durationMinutes: value.durationMinutes || undefined,
-        amount,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.saving.set(false);
-          this.workForm.reset({
-            kind: "TIME",
-            workDate: this.today(),
-            clientId: "",
-            caseId: "",
-            description: "",
-            clientDescription: "",
-            durationMinutes: null,
-            amount: null,
-            currency: "RSD",
-            disposition: "BILLABLE",
-            noChargeReason: "",
-          });
-          this.message.set("finance.saved");
-          if (this.tab() === "entries") this.loadEntries();
-        },
-        error: () => {
-          this.saving.set(false);
-          this.message.set("finance.saveError");
-        },
-      });
-  }
-
   formatCurrency(value: string, currency: string): string {
     return new Intl.NumberFormat(this.locale(), {
       style: "currency",
       currency,
     }).format(Number(value));
   }
+
   formatDate(value: string): string {
     return new Intl.DateTimeFormat(this.locale(), {
       dateStyle: "medium",
     }).format(new Date(value));
   }
-  private today(): string {
-    return new Date().toLocaleDateString("en-CA");
+
+  sourceLabel(value: string | null): string {
+    const option = this.sourceOptions.find((item) => item.value === value);
+    return option ? this.localization.translate(option.label) : (value ?? "—");
   }
+
+  private filtersChanged(): void {
+    this.selected.set(new Set());
+    this.selectedCandidateKeys.set(new Set());
+    this.loadCurrentList();
+  }
+
+  private loadCurrentList(): void {
+    if (this.list() === "entries") this.loadEntries();
+    else this.loadCandidates();
+  }
+
   private locale(): string {
     return this.localization.language() === "SR" ? "sr-Latn-RS" : "en-US";
   }

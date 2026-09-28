@@ -103,22 +103,37 @@
                 <table hlmTable class="w-full min-w-[700px]">
                   <thead hlmTHead>
                     <tr hlmTr>
-                      <th hlmTh>{{ "finance.workDate" | translate }}</th>
+                      <th hlmTh>{{ "finance.workPeriod" | translate }}</th>
                       <th hlmTh>{{ "finance.serviceTitle" | translate }}</th>
-                      <th hlmTh>{{ "finance.case" | translate }}</th>
+                      <th hlmTh>{{ "finance.cases" | translate }}</th>
                       <th hlmTh>{{ "finance.amount" | translate }}</th>
                     </tr>
                   </thead>
                   <tbody hlmTBody>
                     @for (entry of data.entries; track entry.id) {
                       <tr hlmTr>
-                        <td hlmTd>{{ entry.workDate }}</td>
+                        <td hlmTd>
+                          {{ entry.workStartDate }}
+                          @if (entry.workEndDate !== entry.workStartDate) {
+                            — {{ entry.workEndDate }}
+                          }
+                        </td>
                         <td hlmTd>{{ entry.clientDescription }}</td>
                         <td hlmTd>
-                          {{
-                            entry.case?.caseNumber ??
-                              ("finance.noCase" | translate)
-                          }}
+                          @if (entry.cases.length) {
+                            @for (
+                              caseItem of entry.cases;
+                              track caseItem.id;
+                              let last = $last
+                            ) {
+                              {{ caseItem.caseNumber }}
+                              @if (!last) {
+                                ,
+                              }
+                            }
+                          } @else {
+                            {{ "finance.noCase" | translate }}
+                          }
                         </td>
                         <td hlmTd>{{ entry.amount }} {{ entry.currency }}</td>
                       </tr>

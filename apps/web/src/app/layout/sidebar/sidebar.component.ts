@@ -146,6 +146,11 @@ export class SidebarComponent {
           icon: "lucideLandmark",
           children: [
             {
+              route: "/finance/work-review",
+              label: "nav.financeWorkReview",
+              icon: "lucideClipboardCheck",
+            },
+            {
               route: "/finance/overview",
               label: "nav.financeOverview",
               icon: "lucideLayoutDashboard",
@@ -164,11 +169,6 @@ export class SidebarComponent {
               route: "/finance/price-sources",
               label: "nav.financePriceSources",
               icon: "lucideTags",
-            },
-            {
-              route: "/finance/work-review",
-              label: "nav.financeWorkReview",
-              icon: "lucideClipboardCheck",
             },
           ],
         },

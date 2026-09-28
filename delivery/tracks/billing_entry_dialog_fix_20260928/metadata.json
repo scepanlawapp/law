@@ -1,0 +1,9 @@
+{
+  "created_at": "2026-09-28T00:00:00Z",
+  "keywords": ["financials", "billing", "dialog", "translations", "validation"],
+  "parent_track_id": "financial_billing_review_ui_20260928",
+  "status": "completed",
+  "track_id": "billing_entry_dialog_fix_20260928",
+  "type": "fix",
+  "updated_at": "2026-09-28T00:00:00Z"
+}

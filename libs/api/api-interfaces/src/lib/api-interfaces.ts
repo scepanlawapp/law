@@ -946,6 +946,10 @@ export interface BillingSuggestionReview {
   billingEntryId?: string | null;
 }
 
+export interface ReviewBillingSuggestionsRequest {
+  candidateKeys: string[];
+}
+
 export interface PriceSourceVersion {
   id: string;
   workspaceId: string;
@@ -1032,9 +1036,10 @@ export type FinancialCaseReference = CaseReference;
 export interface BillingEntrySummary {
   id: string;
   client: FinancialClientReference;
-  case: FinancialCaseReference | null;
+  cases: FinancialCaseReference[];
   performedBy: UserReference;
-  workDate: string;
+  workStartDate: string;
+  workEndDate: string;
   kind: BillingEntryKind;
   disposition: BillingDisposition;
   lifecycle: BillingEntryLifecycle;
@@ -1068,6 +1073,7 @@ export interface BillingStatementLineSummary {
   lineOrder: number;
   description: string;
   serviceDate: string;
+  serviceEndDate: string;
   caseReference: string | null;
   amount: string;
   currency: string;
@@ -1125,12 +1131,13 @@ export type PriceEvidence = {
 
 export type EntryProposalRequest = {
   clientId: string;
-  caseId?: string;
+  caseIds?: string[];
   candidateKey?: string;
   userInstruction: string;
   currentDraft?: {
     kind?: "TIME" | "FIXED_FEE" | "EXPENSE";
-    workDate?: string;
+    workStartDate?: string;
+    workEndDate?: string;
     durationMinutes?: number;
     description?: string;
     clientDescription?: string;
@@ -1149,7 +1156,8 @@ export type EntryProposalResponse = {
   inputFingerprint: string;
   suggested: {
     kind: "TIME" | "FIXED_FEE" | "EXPENSE" | null;
-    workDate: string | null;
+    workStartDate: string | null;
+    workEndDate: string | null;
     serviceTitle: string | null;
     internalDescription: string | null;
     clientDescription: string | null;

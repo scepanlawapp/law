@@ -27,6 +27,18 @@ function user() {
   };
 }
 
+function caseRecord() {
+  return {
+    id: caseId,
+    workspaceId,
+    clientId,
+    caseNumber: "P-1/2026",
+    name: "Client matter",
+    status: "ACTIVE",
+    priority: "NORMAL",
+  };
+}
+
 describe("FinancialsService", () => {
   const db = {
     client: { findFirst: jest.fn() },
@@ -46,6 +58,11 @@ describe("FinancialsService", () => {
       findMany: jest.fn(),
       upsert: jest.fn(),
     },
+    event: { findMany: jest.fn() },
+    task: { findMany: jest.fn() },
+    deadline: { findMany: jest.fn() },
+    caseActivity: { findMany: jest.fn() },
+    clientActivity: { findMany: jest.fn() },
     $transaction: jest.fn(async (input: unknown) => {
       if (typeof input === "function") return input(db);
       return Promise.all(input as Promise<unknown>[]);
@@ -56,18 +73,27 @@ describe("FinancialsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     db.client.findFirst.mockResolvedValue(client());
-    db.case.findFirst.mockResolvedValue({ id: caseId, workspaceId, clientId });
+    db.case.findFirst.mockResolvedValue(caseRecord());
     db.workspaceMember.findUnique.mockResolvedValue({
       status: "ACTIVE",
       user: user(),
     });
+    db.billingEntry.findMany.mockResolvedValue([]);
+    db.billingEntry.count.mockResolvedValue(0);
+    db.billingSuggestionReview.findMany.mockResolvedValue([]);
+    db.event.findMany.mockResolvedValue([]);
+    db.task.findMany.mockResolvedValue([]);
+    db.deadline.findMany.mockResolvedValue([]);
+    db.caseActivity.findMany.mockResolvedValue([]);
+    db.clientActivity.findMany.mockResolvedValue([]);
     db.billingEntry.create.mockResolvedValue({
       id: "55555555-5555-4555-a555-555555555555",
       client: client(),
-      case: null,
+      caseLinks: [{ case: caseRecord() }],
       performedBy: user(),
-      workDate: new Date("2026-09-23"),
-      kind: "TIME",
+      workStartDate: new Date("2026-09-23"),
+      workEndDate: new Date("2026-09-25"),
+      kind: "FIXED_FEE",
       disposition: "BILLABLE",
       lifecycle: "DRAFT",
       description: "Review",
@@ -102,9 +128,10 @@ describe("FinancialsService", () => {
         () =>
           service.createEntry({
             clientId,
-            caseId,
-            workDate: "2026-09-23",
-            kind: "TIME",
+            caseIds: [caseId],
+            workStartDate: "2026-09-23",
+            workEndDate: "2026-09-25",
+            kind: "FIXED_FEE",
             description: "Review",
             clientDescription: "Legal review",
             amount: 100,
@@ -121,8 +148,9 @@ describe("FinancialsService", () => {
         () =>
           service.createEntry({
             clientId,
-            workDate: "2026-09-23",
-            kind: "TIME",
+            workStartDate: "2026-09-23",
+            workEndDate: "2026-09-23",
+            kind: "FIXED_FEE",
             disposition: "INCLUDED",
             description: "Call",
             clientDescription: "Included call",
@@ -131,5 +159,185 @@ describe("FinancialsService", () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(db.billingEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("applies repeated client, case, and source filters before listing entries", async () => {
+    const otherClientId = "55555555-5555-4555-a555-555555555555";
+
+    await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () =>
+        service.listEntries({
+          page: 1,
+          pageSize: 50,
+          clientIds: [clientId, otherClientId],
+          caseIds: [caseId],
+          sourceTypes: ["EVENT", "TASK"],
+        }),
+    );
+
+    expect(db.billingEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: { in: [clientId, otherClientId] },
+          caseLinks: { some: { caseId: { in: [caseId] } } },
+          sourceType: { in: ["EVENT", "TASK"] },
+        }),
+      }),
+    );
+  });
+
+  it("creates a fixed-fee entry for a period and multiple cases", async () => {
+    const response = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.LAWYER },
+      () =>
+        service.createEntry({
+          clientId,
+          caseIds: [caseId],
+          workStartDate: "2026-09-23",
+          workEndDate: "2026-09-25",
+          kind: "FIXED_FEE",
+          description: "Review",
+          clientDescription: "Legal review",
+          amount: 100,
+        }),
+    );
+
+    expect(db.billingEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          workStartDate: new Date("2026-09-23"),
+          workEndDate: new Date("2026-09-25"),
+          caseLinks: {
+            create: [{ workspaceId, caseId }],
+          },
+        }),
+      }),
+    );
+    expect(response).toMatchObject({
+      workStartDate: "2026-09-23",
+      workEndDate: "2026-09-25",
+      cases: [{ id: caseId }],
+    });
+  });
+
+  it("requires duration only for time-based entries", async () => {
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.LAWYER },
+        () =>
+          service.createEntry({
+            clientId,
+            workStartDate: "2026-09-23",
+            workEndDate: "2026-09-23",
+            kind: "TIME",
+            description: "Review",
+            clientDescription: "Legal review",
+            amount: 100,
+          }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.billingEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a work period whose end precedes its start", async () => {
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.LAWYER },
+        () =>
+          service.createEntry({
+            clientId,
+            workStartDate: "2026-09-25",
+            workEndDate: "2026-09-23",
+            kind: "FIXED_FEE",
+            description: "Review",
+            clientDescription: "Legal review",
+            amount: 100,
+          }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.billingEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("returns only dismissed candidates matching repeated filters", async () => {
+    const completedAt = new Date("2026-09-23T10:00:00.000Z");
+    db.task.findMany.mockResolvedValue([
+      {
+        id: "66666666-6666-4666-a666-666666666666",
+        title: "Prepare submission",
+        completedAt,
+        updatedAt: completedAt,
+        client: client(),
+        case: null,
+        assignee: user(),
+      },
+    ]);
+    db.billingSuggestionReview.findMany.mockResolvedValue([
+      {
+        candidateKey: `TASK:66666666-6666-4666-a666-666666666666:${userId}`,
+        resolution: "DISMISSED",
+      },
+    ]);
+
+    const response = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () =>
+        service.listCandidates({
+          page: 1,
+          pageSize: 50,
+          clientIds: [clientId],
+          sourceTypes: ["TASK"],
+          resolution: "DISMISSED",
+        }),
+    );
+
+    expect(response.items).toHaveLength(1);
+    expect(response.items[0]).toMatchObject({
+      sourceType: "TASK",
+      resolution: "DISMISSED",
+      client: { id: clientId },
+    });
+  });
+
+  it("dismisses multiple billing candidates in one transaction", async () => {
+    const candidateKeys = [
+      `TASK:66666666-6666-4666-a666-666666666666:${userId}`,
+      `EVENT:77777777-7777-4777-a777-777777777777:${userId}`,
+    ];
+    db.billingSuggestionReview.upsert
+      .mockResolvedValueOnce({ candidateKey: candidateKeys[0] })
+      .mockResolvedValueOnce({ candidateKey: candidateKeys[1] });
+
+    const reviews = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () => service.reviewCandidates(candidateKeys, "DISMISSED"),
+    );
+
+    expect(reviews).toEqual([
+      { candidateKey: candidateKeys[0] },
+      { candidateKey: candidateKeys[1] },
+    ]);
+    expect(db.$transaction).toHaveBeenCalledTimes(1);
+    expect(db.billingSuggestionReview.upsert).toHaveBeenCalledTimes(2);
+    expect(db.billingSuggestionReview.upsert).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        create: expect.objectContaining({
+          candidateKey: candidateKeys[0],
+          resolution: "DISMISSED",
+          sourceType: "TASK",
+        }),
+      }),
+    );
+    expect(db.billingSuggestionReview.upsert).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({
+        create: expect.objectContaining({
+          candidateKey: candidateKeys[1],
+          resolution: "DISMISSED",
+          sourceType: "EVENT",
+        }),
+      }),
+    );
   });
 });
