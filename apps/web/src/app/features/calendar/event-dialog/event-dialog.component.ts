@@ -7,8 +7,14 @@ import {
   Validators,
 } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { EventDetail } from "@law/api-interfaces";
-import { EventRequest, EventsApiClient } from "@law/api-clients";
+import { CaseSummary, EventDetail } from "@law/api-interfaces";
+import {
+  CasesApiClient,
+  EventRequest,
+  EventsApiClient,
+  ReferencesApiClient,
+} from "@law/api-clients";
+import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmDialogDescription,
@@ -21,6 +27,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { EventDialogContext } from "./event-dialog.models";
 
@@ -52,14 +59,27 @@ function localDateTime(value: string): string {
 })
 export class EventDialogComponent {
   private readonly api = inject(EventsApiClient);
+  private readonly casesApi = inject(CasesApiClient);
+  private readonly references = inject(ReferencesApiClient);
+  private readonly auth = inject(AuthState);
+  private readonly localization = inject(LocalizationService);
   readonly dialogRef = inject(BrnDialogRef<EventDetail>);
   private readonly context = injectBrnDialogContext<EventDialogContext>();
   private readonly destroyRef = inject(DestroyRef);
   readonly saving = signal(false);
+  readonly users = signal<Array<{ id: string; name: string }>>([]);
+  readonly cases = signal<CaseSummary[]>([]);
   readonly eventId =
     this.context.item?.sourceType === "EVENT"
       ? this.context.item.sourceId
       : undefined;
+  readonly userItemToString = (value: string | null | undefined): string =>
+    this.users().find((user) => user.id === value)?.name ?? "";
+  readonly caseItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("work.noCase");
+    const caseItem = this.cases().find((item) => item.id === value);
+    return caseItem ? `${caseItem.caseNumber} — ${caseItem.name}` : value;
+  };
   readonly form = new FormGroup({
     type: new FormControl<"MEETING" | "HEARING" | "CALL" | "OTHER">("MEETING", {
       nonNullable: true,
@@ -84,6 +104,16 @@ export class EventDialogComponent {
     }),
     location: new FormControl("", { nonNullable: true }),
     meetingUrl: new FormControl("", { nonNullable: true }),
+    responsibleUserId: new FormControl(
+      this.context.item?.assigneeUsers[0]?.id ??
+        this.context.item?.responsibleUser?.id ??
+        this.auth.session()?.user.id ??
+        "",
+      { nonNullable: true, validators: [Validators.required] },
+    ),
+    caseId: new FormControl(this.context.item?.case?.id ?? "", {
+      nonNullable: true,
+    }),
   });
 
   constructor() {
@@ -107,6 +137,25 @@ export class EventDialogComponent {
       .subscribe((startsAt) => {
         this.form.controls.endsAt.setValue(startsAt);
       });
+
+    this.references
+      .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((users) => {
+        this.users.set(
+          users.map((membership) => ({
+            id: membership.userId,
+            name:
+              [membership.user.firstName, membership.user.lastName]
+                .filter(Boolean)
+                .join(" ") || membership.user.email,
+          })),
+        );
+      });
+    this.casesApi
+      .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.cases.set(response.items));
   }
 
   submit(): void {
@@ -115,13 +164,16 @@ export class EventDialogComponent {
       return;
     }
     const value = this.form.getRawValue();
+    const { responsibleUserId, caseId, ...eventValue } = value;
     const request: EventRequest = {
-      ...value,
+      ...eventValue,
       description: value.description || undefined,
       location: value.location || undefined,
       meetingUrl: value.meetingUrl || undefined,
       startsAt: new Date(value.startsAt).toISOString(),
       endsAt: new Date(value.endsAt).toISOString(),
+      caseId: caseId || undefined,
+      assigneeUserIds: [responsibleUserId],
     };
     if (new Date(request.endsAt) <= new Date(request.startsAt)) {
       this.form.controls.endsAt.setErrors({ order: true });

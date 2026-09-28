@@ -32,6 +32,55 @@
   </div>
   <div class="grid gap-4 md:grid-cols-2">
     <div hlmField>
+      <label hlmFieldLabel for="event-responsible">
+        {{ "work.responsible" | translate }}
+      </label>
+      <hlm-select
+        formControlName="responsibleUserId"
+        [itemToString]="userItemToString"
+      >
+        <hlm-select-trigger
+          id="event-responsible"
+          class="w-full min-w-0 max-w-full"
+        >
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (user of users(); track user.id) {
+              <hlm-select-item [value]="user.id">
+                {{ user.name }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="event-case">
+        {{ "calendar.case" | translate }}
+      </label>
+      <hlm-select formControlName="caseId" [itemToString]="caseItemToString">
+        <hlm-select-trigger id="event-case" class="w-full min-w-0 max-w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            <hlm-select-item value="">
+              {{ "work.noCase" | translate }}
+            </hlm-select-item>
+            @for (caseItem of cases(); track caseItem.id) {
+              <hlm-select-item [value]="caseItem.id">
+                {{ caseItem.caseNumber }} — {{ caseItem.name }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+  </div>
+  <div class="grid gap-4 md:grid-cols-2">
+    <div hlmField>
       <label hlmFieldLabel for="event-start">
         {{ "calendar.startsAt" | translate }}
       </label>

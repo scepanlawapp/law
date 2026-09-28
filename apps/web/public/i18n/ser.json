@@ -130,6 +130,7 @@
   "work.type": "Tip",
   "work.responsible": "Odgovorno lice",
   "work.case": "Predmet",
+  "work.noCase": "Bez predmeta",
   "work.client": "Klijent",
   "work.related": "Povezano",
   "work.due": "Rok",
