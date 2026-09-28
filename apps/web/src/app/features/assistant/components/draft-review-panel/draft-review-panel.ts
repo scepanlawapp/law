@@ -102,7 +102,7 @@ export class DraftReviewPanelComponent {
   protected readonly placeholders = computed(() =>
     findPlaceholders(this.textValue()),
   );
-  protected readonly fillValues = signal<Record<string, string>>({});
+  protected readonly fillValues = signal<Record<string, string | undefined>>({});
 
   protected get approved(): boolean {
     return this.draft.approvalStatus === "APPROVED";
