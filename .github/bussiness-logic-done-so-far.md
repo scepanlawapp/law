@@ -64,7 +64,7 @@ The cases backend and frontend implement the main case lifecycle:
 - Case responsibilities: list, add, update, end, and set a primary responsible user.
 - Case/client relationship validation is enforced in the backend.
 - Case list/detail responses include shallow client and responsible-user display objects, so the frontend shows names instead of relation IDs while edit/create payloads remain ID-based.
-- The frontend includes case list, case creation/edit form, case detail, lifecycle controls, activities, responsibilities, confirmation dialogs, and save/error feedback.
+- The frontend includes case list, case creation/edit form, case detail, lifecycle controls, activities, responsibilities, confirmation dialogs, and save/error feedback. The routed create/edit form includes a breadcrumb back to its originating return URL or the Cases list.
 
 ## Workspace documents (backend)
 
@@ -103,6 +103,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - List, create, read, and update tasks.
 - Filtering by status (single or multiple), priority, assignee (single or multiple), case, client, deadline, free-text search (title/description), and a due-date range.
 - Tasks support either a due date or a due timestamp, never both.
+- Newly created tasks default to no due target; a due date or exact due timestamp is only added when the user explicitly selects it. Edit mode preserves the stored due target.
 - Task completion, cancellation, and reopening transitions.
 - Tasks can be associated with cases, clients, and deadlines.
 
@@ -131,11 +132,14 @@ The calendar is the finished frontend surface for the event/calendar portion of 
 
 - Month, week, and agenda views, plus List and Board presentations (see the shared work view below) selectable alongside them without disturbing the grid views' rendering or date math.
 - Date navigation and “today” navigation.
+- Visible-range loading requests events, tasks, and deadlines. In week view, tasks and deadlines are grouped under their due day in the sticky obligations header; a `dueDate` is date-only and a `dueAt` contributes its Belgrade-local completion time.
 - Search and source filtering for events, tasks, and deadlines.
 - Lawyer/user filtering through workspace references.
 - Calendar loading, error, and incomplete-range states.
 - Multi-day event segmentation and overlap layout in the week view.
+- The week view uses non-interactive date headers plus a sticky tasks/deadlines row while the hourly event grid scrolls. Obligation entries are one-line, truncated, red-marked, and selectable; selection opens the existing details popover rather than duplicating it in a tooltip.
 - Event detail popovers/menu actions and event create/edit dialog.
+- Separate Calendar actions create obligations/events or open the reusable deadline dialog with the selected date prefilled; successful deadline creation refreshes the visible range.
 - Event form validation, including end-after-start validation, and API-backed create/update operations.
 - Calendar state is represented with Angular signals and uses the shared API clients.
 

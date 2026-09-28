@@ -33,6 +33,8 @@
   "calendar.title": "Kalendar",
   "calendar.timezone": "Vremenska zona prikaza",
   "calendar.create": "Kreiraj",
+  "calendar.createObligation": "Kreiraj obavezu",
+  "calendar.createDeadline": "Kreiraj rok",
   "calendar.createUnavailable": "Forme za kreiranje još nisu povezane",
   "calendar.createEvent": "Kreiraj događaj",
   "calendar.changeEvent": "Izmeni događaj",

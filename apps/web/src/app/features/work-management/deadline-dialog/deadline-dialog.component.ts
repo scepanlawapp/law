@@ -105,7 +105,9 @@ export class DeadlineDialogComponent {
     ),
     dueDate: new FormControl(
       dateInputValue(this.context.deadline?.dueDate) ||
-        (this.context.deadline ? "" : todayDateInputValue()),
+        (this.context.deadline
+          ? ""
+          : (this.context.dueDate ?? todayDateInputValue())),
       {
         nonNullable: true,
       },
@@ -162,7 +164,8 @@ export class DeadlineDialogComponent {
       timeZone: "Europe/Belgrade",
       responsibleUserId: value.responsibleUserId,
       sourceDescription: value.sourceDescription || undefined,
-      caseId: this.context.caseId ?? this.context.deadline?.case?.id ?? undefined,
+      caseId:
+        this.context.caseId ?? this.context.deadline?.case?.id ?? undefined,
       clientId:
         this.context.clientId ?? this.context.deadline?.client?.id ?? undefined,
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,

@@ -35,6 +35,7 @@ import {
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { EventDialogService } from "./event-dialog/event-dialog.service";
 import { CalendarEventsListComponent } from "./calendar-events-list/calendar-events-list.component";
+import { DeadlineDialogService } from "../work-management/deadline-dialog/deadline-dialog.service";
 
 type CalendarView = "month" | "week" | "list" | "board";
 
@@ -107,6 +108,7 @@ export class CalendarComponent {
   private readonly eventsApi = inject(EventsApiClient);
   private readonly referencesApi = inject(ReferencesApiClient);
   private readonly eventDialog = inject(EventDialogService);
+  private readonly deadlineDialog = inject(DeadlineDialogService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
   private readonly authState = inject(AuthState);
@@ -132,6 +134,7 @@ export class CalendarComponent {
     [
       { value: "", label: "calendar.allSources" },
       { value: "EVENT", label: "calendar.source.event" },
+      { value: "TASK", label: "calendar.source.task" },
       { value: "DEADLINE", label: "calendar.source.deadline" },
     ];
   readonly sourceItemToString = createSelectItemToString(
@@ -171,8 +174,10 @@ export class CalendarComponent {
   readonly weekDays = computed(() => this.buildWeekDays(this.anchor()));
   readonly hours = Array.from({ length: 24 }, (_, hour) => hour);
   readonly hourHeight = CALENDAR_HOUR_HEIGHT;
-  readonly weekHasAllDayItems = computed(() =>
-    this.weekDays().some((day) => this.allDayItemsForDay(day.date).length > 0),
+  readonly weekHasObligationItems = computed(() =>
+    this.weekDays().some(
+      (day) => this.obligationItemsForDay(day.date).length > 0,
+    ),
   );
   readonly weekEventSegments = computed<WeekEventSegment[]>(() => {
     if (this.view() !== "week") return [];
@@ -184,7 +189,9 @@ export class CalendarComponent {
     }
 
     for (const item of this.filteredItems()) {
-      if (!item.startsAt || !item.endsAt) continue;
+      if (item.sourceType !== "EVENT" || !item.startsAt || !item.endsAt) {
+        continue;
+      }
       const start = new Date(item.startsAt);
       const end = new Date(item.endsAt);
       if (
@@ -439,20 +446,23 @@ export class CalendarComponent {
     return this.weekEventSegments().filter((segment) => segment.day === day);
   }
 
-  allDayItemsForDay(day: string): CalendarItem[] {
-    // Only genuine date-only items (contract's `date` field) belong here;
-    // timed EVENT items always carry startsAt/endsAt and render in the timeline.
-    return this.filteredItems().filter((item) => item.date === day);
+  obligationItemsForDay(day: string): CalendarItem[] {
+    return this.filteredItems()
+      .filter(
+        (item) => item.sourceType !== "EVENT" && this.itemDate(item) === day,
+      )
+      .sort((a, b) => this.sortItems(a, b));
   }
 
   eventLabel(item: CalendarItem): string {
-    if (!item.startsAt || !item.endsAt) return item.title;
+    if (!item.startsAt) return item.title;
     const start = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
       timeZone: BELGRADE_TIME_ZONE,
     }).format(new Date(item.startsAt));
+    if (!item.endsAt) return `${start} ${item.title}`;
     const end = new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
@@ -569,6 +579,17 @@ export class CalendarComponent {
       });
   }
 
+  openCreateDeadline(date: string): void {
+    this.deadlineDialog
+      .open({ dueDate: date })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (deadline) => {
+          if (deadline) this.loadRange(false);
+        },
+      });
+  }
+
   openEventMenu(event: MouseEvent, item: CalendarItem): void {
     event.preventDefault();
     event.stopPropagation();
@@ -648,7 +669,8 @@ export class CalendarComponent {
   }
 
   itemDate(item: CalendarItem): string {
-    return item.date ?? item.startsAt?.slice(0, 10) ?? "";
+    if (item.date) return item.date;
+    return item.startsAt ? dateKey(new Date(item.startsAt)) : "";
   }
 
   itemTime(item: CalendarItem): string {
@@ -656,6 +678,8 @@ export class CalendarComponent {
     return new Intl.DateTimeFormat(undefined, {
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
+      timeZone: BELGRADE_TIME_ZONE,
     }).format(new Date(item.startsAt));
   }
 
@@ -706,7 +730,7 @@ export class CalendarComponent {
       from: `${this.visibleFrom()}T00:00:00.000Z`,
       to: `${this.nextDate(this.visibleTo())}T00:00:00.000Z`,
       limit: 100,
-      sourceType: "EVENT",
+      sourceTypes: ["EVENT", "TASK", "DEADLINE"],
       ...(this.lawyerId() && { userId: this.lawyerId() }),
     };
     this.api

@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Case Create Breadcrumb](./tracks/case_create_breadcrumb_20260928/index.md)
+- [Calendar Deadlines Visible](./tracks/calendar_deadlines_visible_20260928/index.md)
 - [Draft Review & Case-Work Missing Fields UX](./tracks/draft_review_missing_fields_ux_20260928/index.md)
 - [Runtime Config Local Override](./tracks/runtime_config_local_20260928/index.md)
 - [Codex Custom Agents](./tracks/codex_custom_agents_20260928/index.md)

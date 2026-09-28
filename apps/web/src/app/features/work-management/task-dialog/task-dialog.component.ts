@@ -32,7 +32,6 @@ import {
   dateTimeInputValue,
   DueTargetMode,
   taskDueMode,
-  todayDateInputValue,
 } from "../work-management-utils";
 import { TaskDialogContext } from "./task-dialog.models";
 
@@ -109,19 +108,12 @@ export class TaskDialogComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
-    dueMode: new FormControl<DueTargetMode>(
-      this.context.task ? taskDueMode(this.context.task) : "DATE",
-      {
-        nonNullable: true,
-      },
-    ),
-    dueDate: new FormControl(
-      dateInputValue(this.context.task?.dueDate) ||
-        (this.context.task ? "" : todayDateInputValue()),
-      {
-        nonNullable: true,
-      },
-    ),
+    dueMode: new FormControl<DueTargetMode>(taskDueMode(this.context.task), {
+      nonNullable: true,
+    }),
+    dueDate: new FormControl(dateInputValue(this.context.task?.dueDate), {
+      nonNullable: true,
+    }),
     dueAt: new FormControl(dateTimeInputValue(this.context.task?.dueAt), {
       nonNullable: true,
     }),
