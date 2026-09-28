@@ -44,7 +44,6 @@ async function main() {
           passwordHash: hashPassword(password),
           status: "ACTIVE",
           passwordChangedAt: new Date(),
-          gender: "MALE",
         },
       });
     } else if (process.env.AUTH_BOOTSTRAP_FORCE_PASSWORD_RESET === "true") {

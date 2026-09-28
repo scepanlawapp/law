@@ -1,0 +1,7 @@
+interface:
+  display_name: "Frontend Developer"
+  short_description: "Route work to the Angular frontend specialist"
+  default_prompt: "Use $frontend-developer for this Angular frontend task."
+
+policy:
+  allow_implicit_invocation: false

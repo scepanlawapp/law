@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "license": "MIT",
   "scripts": {
-    "api:serve": "PORT=3000 npx nx serve api",
+    "api:serve": "PORT=3001 npx nx serve api",
     "web:serve": "PORT=4200 npx nx serve web --port=4200 --proxy-config=apps/web/proxy.conf.json",
     "lint": "npx nx run-many -t lint",
     "test": "npx nx run-many -t test",

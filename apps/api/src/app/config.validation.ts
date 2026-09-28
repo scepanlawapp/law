@@ -30,7 +30,7 @@ export function validateEnvironment(
   ) {
     throw new Error("SMTP_HOST and SMTP_FROM are required in production");
   }
-  const port = Number(environment.PORT ?? 3000);
+  const port = Number(environment.PORT ?? 3001);
   if (!Number.isInteger(port) || port < 1 || port > 65535) {
     throw new Error("PORT must be an integer between 1 and 65535");
   }

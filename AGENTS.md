@@ -30,6 +30,8 @@ libs/api/features/*      Nest domain modules (auth, chat, clients, cases, …)
 libs/api/ai/*            Workflows, extraction, transliteration, LLM adapters
 libs/shared/frontend     api-clients, security, Spartan Helm UI
 delivery/tracks          Conductor specs (index/spec/plan/metadata); verify against code
+.codex/agents            Project-scoped Codex custom-agent definitions
+.agents/skills           Project-scoped Codex skills
 ```
 
 ## Dependency flow
@@ -80,7 +82,7 @@ Every implementation task is conducted by a delivery track. `spec.md` is what/wh
 - `standalone: true`, `inject()`, `signal()` / `computed()`, `effect()` only for side effects.
 - Control flow: `@if`, `@for`, `@switch`, `@defer`. Do not use `*ngIf` / `*ngFor`.
 - Typed reactive forms for legal/data forms. `HlmSpinner` while waiting on HTTP.
-- Spartan/UI (`@spartan-ng/brain` + local Helm). Load [.github/skills/spartan-ui/SKILL.md](.github/skills/spartan-ui/SKILL.md) for UI work. Do not reinvent a primitive that already exists.
+- Spartan/UI (`@spartan-ng/brain` + local Helm). Load [.agents/skills/spartan-ui/SKILL.md](.agents/skills/spartan-ui/SKILL.md) for UI work. Do not reinvent a primitive that already exists.
 - Style with semantic tokens (`bg-background`, `text-foreground`, `bg-primary`, …). No hardcoded colors, no `dark:bg-slate-*` palette classes.
 - Themes (`data-theme`): `midnight`, `deep-navy`, `charcoal`, `dark-teal`, `burgundy`, `ivory`.
 - Accents (`data-accent`): `gold`, `emerald`, `royal-blue`, `copper`, `ice-blue`, `burgundy`, `purple`, `ivory`. Finish is a separate setting.
@@ -111,7 +113,7 @@ npm install
 cp .env.example .env
 npm run services:up      # Compose project `law`: postgres (pgvector) + redis
 npm run db:migrate
-npm run api:serve        # http://localhost:3000/api
+npm run api:serve        # http://localhost:3001/api
 npm run web:serve        # http://localhost:4200
 npm run db:seed:auth
 npm run db:seed:demo
@@ -141,6 +143,7 @@ Browser runtime settings: [apps/web/public/config.json](apps/web/public/config.j
 | Run / layout         | [README.md](README.md)                                                                                 |
 | Schema               | [apps/api/prisma/schema.prisma](apps/api/prisma/schema.prisma)                                         |
 | Shared DTOs          | [libs/api/api-interfaces/src/lib/api-interfaces.ts](libs/api/api-interfaces/src/lib/api-interfaces.ts) |
-| Spartan/UI           | [.github/skills/spartan-ui/SKILL.md](.github/skills/spartan-ui/SKILL.md)                               |
-| Angular custom agent | [.github/agents/frontend-developer.agent.md](.github/agents/frontend-developer.agent.md)               |
+| Spartan/UI           | [.agents/skills/spartan-ui/SKILL.md](.agents/skills/spartan-ui/SKILL.md)                               |
+| Codex custom agents  | [.codex/README.md](.codex/README.md)                                                                   |
+| Angular shared agent | [.github/agents/frontend-developer.agent.md](.github/agents/frontend-developer.agent.md)               |
 | Delivery tracks      | [delivery/index.md](delivery/index.md)                                                                 |

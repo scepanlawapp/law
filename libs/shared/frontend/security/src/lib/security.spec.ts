@@ -108,7 +108,10 @@ describe("AuthState", () => {
       user: { ...session.user, email: "refreshed@example.test" },
     };
     api.refresh = jest.fn().mockReturnValue(of(refreshed));
-    const request = new HttpRequest("GET", "http://localhost:3000/api/workspace");
+    const request = new HttpRequest(
+      "GET",
+      "http://localhost:3001/api/workspace",
+    );
     const next = jest
       .fn()
       .mockReturnValueOnce(
@@ -128,10 +131,16 @@ describe("AuthState", () => {
 
   it("does not refresh an authentication endpoint after a 401", async () => {
     api.refresh = jest.fn();
-    const request = new HttpRequest("POST", "http://localhost:3000/api/auth/login", {});
-    const next = jest.fn().mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 401 })),
+    const request = new HttpRequest(
+      "POST",
+      "http://localhost:3001/api/auth/login",
+      {},
     );
+    const next = jest
+      .fn()
+      .mockReturnValue(
+        throwError(() => new HttpErrorResponse({ status: 401 })),
+      );
 
     await expect(
       TestBed.runInInjectionContext(() =>

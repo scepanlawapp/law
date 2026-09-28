@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Codex Custom Agents](./tracks/codex_custom_agents_20260928/index.md)
 - [Relation Display Objects](./tracks/relation_display_objects_20260923/index.md)
 - [User Profile Gender](./tracks/user_profile_gender_20260922/index.md)
 - [Assistant Matter Link UI](./tracks/assistant_matter_link_ui_20260921/index.md)

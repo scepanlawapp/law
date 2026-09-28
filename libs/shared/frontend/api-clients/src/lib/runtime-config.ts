@@ -4,7 +4,7 @@ export interface RuntimeConfig {
 }
 
 const defaultConfig: RuntimeConfig = {
-  apiUrl: "http://localhost:3000",
+  apiUrl: "http://localhost:3001",
   apiPrefix: "/api",
 };
 
