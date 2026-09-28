@@ -65,6 +65,7 @@ import {
   PendingActionSummary,
   DocumentScript,
   DraftResultResponse,
+  LegalCitationResponse,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
@@ -73,7 +74,15 @@ import { BottomReachedDirective } from "../../core/directives/bottom-reached.dir
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
 import { CitationListComponent } from "./components/citation-list/citation-list";
+import { CitationPreviewController } from "./components/citation-preview/citation-preview.controller";
 import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
+import { StarterPromptsComponent } from "./components/starter-prompts/starter-prompts";
+import {
+  AssistantStarterPrompt,
+  CASE_STARTER_PROMPTS,
+  GENERAL_STARTER_PROMPTS,
+  starterPromptKey,
+} from "./assistant-starter-prompts";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
@@ -89,6 +98,17 @@ import {
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
+const STICK_TO_BOTTOM_THRESHOLD_PX = 80;
+const CITATION_LINK_SELECTOR = ".assistant-markdown a.citation-marker-link";
+
+function citationLinkFrom(
+  target: EventTarget | null,
+): HTMLAnchorElement | null {
+  return target instanceof Element
+    ? target.closest<HTMLAnchorElement>(CITATION_LINK_SELECTOR)
+    : null;
+}
+const CITATION_FLASH_CLASS = "citation-item--flash";
 const ALLOWED_FILE_MIME_TYPES = [
   "application/pdf",
   "application/vnd.ms-excel",
@@ -146,12 +166,23 @@ interface SessionGroup {
     DraftReviewPanelComponent,
     CitationListComponent,
     PendingActionCardComponent,
+    StarterPromptsComponent,
     HlmSpinner,
   ],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
   changeDetection: ChangeDetectionStrategy.OnPush,
+  // Delegated: citation links are rendered through sanitized [innerHTML] and are natively focusable.
+  host: {
+    "(click)": "onMarkdownClick($event)",
+    "(mouseover)": "onCitationPointerOver($event)",
+    "(mouseout)": "onCitationPointerOut($event)",
+    "(focusin)": "onCitationPointerOver($event)",
+    "(focusout)": "onCitationPointerOut($event)",
+    "(keydown.escape)": "citationPreview.hide()",
+  },
   providers: [
+    CitationPreviewController,
     provideIcons({
       lucideArrowUp,
       lucideBot,
@@ -190,6 +221,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
+  protected readonly citationPreview = inject(CitationPreviewController);
   private source: EventSource | null = null;
   private sessionRefreshTimer: ReturnType<typeof setTimeout> | null = null;
   private elapsedTimer: ReturnType<typeof setInterval> | null = null;
@@ -248,6 +280,12 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     () =>
       this.sessions().find((session) => session.id === this.selectedSessionId())
         ?.title ?? null,
+  );
+  /** Case-linked chats get prompts scoped to that case. */
+  protected readonly starterPrompts = computed(() =>
+    this.pendingCaseId() || this.selectedSession()?.caseId
+      ? CASE_STARTER_PROMPTS
+      : GENERAL_STARTER_PROMPTS,
   );
   protected readonly pendingFiles = signal<File[]>([]);
   protected readonly sessionPage = signal(1);
@@ -513,6 +551,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected selectSession(sessionId: string): void {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
+    this.citationPreview.hide();
 
     const sessionChanged = this.selectedSessionId() !== sessionId;
     if (sessionChanged) this.rightRailExpanded.set(false);
@@ -529,7 +568,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
           this.pendingActions.set(indexPendingActions(detail.pendingActions));
-          this.scheduleMessagesScroll();
+          this.scheduleMessagesScroll(true);
           this.applySessionDetail(detail, sessionChanged);
         },
         error: () => this.error.set("Unable to load this conversation."),
@@ -983,6 +1022,92 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     return message.citations?.map((citation) => citation.marker) ?? [];
   }
 
+  protected onCitationPointerOver(event: Event): void {
+    const link = citationLinkFrom(event.target);
+    if (!link) return;
+    const citation = this.citationForAnchor(link.getAttribute("href"));
+    if (citation) this.citationPreview.open(link, citation);
+  }
+
+  protected onCitationPointerOut(event: MouseEvent | FocusEvent): void {
+    const link = citationLinkFrom(event.target);
+    if (!link || link.contains(event.relatedTarget as Node | null)) return;
+    this.citationPreview.scheduleHide();
+  }
+
+  private citationForAnchor(
+    href: string | null,
+  ): LegalCitationResponse | undefined {
+    const targetId = href?.slice(1);
+    if (!targetId) return undefined;
+    for (const message of this.messages()) {
+      const prefix = `${this.citationAnchorPrefix(message)}-`;
+      if (!targetId.startsWith(prefix)) continue;
+      const marker = Number(targetId.slice(prefix.length));
+      return message.citations?.find((citation) => citation.marker === marker);
+    }
+    return undefined;
+  }
+
+  /** Unique per message, so marker 1 in one reply never resolves to another reply's source. */
+  protected citationAnchorPrefix(message: ChatMessageResponse): string {
+    return `message-${message.id}-citation`;
+  }
+
+  /**
+   * Citation markers live in sanitized `[innerHTML]`, where a plain `#id` link would resolve
+   * against `<base href="/">` and leave the assistant route. Scroll the chat panel instead.
+   */
+  protected onMarkdownClick(event: MouseEvent): void {
+    const link = citationLinkFrom(event.target);
+    if (!link) return;
+    event.preventDefault();
+    this.citationPreview.hide();
+
+    const targetId = link.getAttribute("href")?.slice(1);
+    const container = this.messagesContainer?.nativeElement;
+    if (!targetId || !container) return;
+    const target = document.getElementById(targetId);
+    if (!target || !container.contains(target)) return;
+
+    const reduceMotion = window.matchMedia?.(
+      "(prefers-reduced-motion: reduce)",
+    ).matches;
+    target.scrollIntoView({
+      block: "center",
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+    target.focus({ preventScroll: true });
+    target.classList.remove(CITATION_FLASH_CLASS);
+    // Restart the highlight animation when the same marker is clicked again.
+    void target.offsetWidth;
+    target.classList.add(CITATION_FLASH_CLASS);
+    target.addEventListener(
+      "animationend",
+      () => target.classList.remove(CITATION_FLASH_CLASS),
+      { once: true },
+    );
+  }
+
+  protected applyStarterPrompt(prompt: AssistantStarterPrompt): void {
+    if (this.sending()) return;
+    const text = this.localization.translate(
+      starterPromptKey(prompt, "prompt"),
+    );
+    this.composerForm.controls.draft.setValue(text);
+    if (prompt.mode === "send") {
+      this.send();
+      return;
+    }
+    requestAnimationFrame(() => {
+      const textarea = this.draftTextarea?.nativeElement;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(text.length, text.length);
+      this.resizeTextareaElement(textarea);
+    });
+  }
+
   protected send(): void {
     const workspaceId = this.workspaceId();
     if (!workspaceId || !this.canSend()) return;
@@ -1025,7 +1150,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
-          this.upsertMessage(response.userMessage);
+          this.upsertMessage(response.userMessage, true);
           this.composerForm.reset();
           this.speechRecognition.reset();
           this.resetTextarea();
@@ -1156,7 +1281,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.workflowState.set(buildWorkflowActivityState(detail));
           this.pendingActions.set(indexPendingActions(detail.pendingActions));
           this.applySessionDetail(detail, false);
-          this.scheduleMessagesScroll();
+          this.scheduleMessagesScroll(true);
         },
         error: () => undefined,
       });
@@ -1232,13 +1357,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     );
   }
 
-  private upsertMessage(message: ChatMessageResponse): void {
+  private upsertMessage(message: ChatMessageResponse, force = false): void {
     this.messages.update((items) => {
       const index = items.findIndex((item) => item.id === message.id);
       if (index === -1) return [...items, message];
       return items.map((item) => (item.id === message.id ? message : item));
     });
-    this.scheduleMessagesScroll();
+    this.scheduleMessagesScroll(force);
   }
 
   private appendMessageDelta(messageId: string, delta: string): void {
@@ -1265,7 +1390,17 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     );
   }
 
-  private scheduleMessagesScroll(): void {
+  /**
+   * Pins the transcript to the bottom. Unless forced, it only does so when the reader was already
+   * near the bottom, so streamed updates do not pull them away from a source they jumped to.
+   */
+  private scheduleMessagesScroll(force = false): void {
+    const current = this.messagesContainer?.nativeElement;
+    const nearBottom =
+      !current ||
+      current.scrollHeight - current.scrollTop - current.clientHeight <=
+        STICK_TO_BOTTOM_THRESHOLD_PX;
+    if (!force && !nearBottom) return;
     requestAnimationFrame(() => {
       const messagesContainer = this.messagesContainer?.nativeElement;
       if (!messagesContainer) return;

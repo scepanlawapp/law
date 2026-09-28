@@ -12,14 +12,19 @@ const CITATION_MARKER_PATTERN = /\[(\d{1,2})]/g;
 export class AssistantMarkdownPipe implements PipeTransform {
   private readonly sanitizer = inject(DomSanitizer);
 
-  transform(value: string, citationMarkers: readonly number[] = []): string {
+  /** `anchorPrefix` must match the `idPrefix` of the message's citation list. */
+  transform(
+    value: string,
+    citationMarkers: readonly number[] = [],
+    anchorPrefix = "citation",
+  ): string {
     const html = marked.parse(value, {
       async: false,
       breaks: true,
       gfm: true,
     });
     const linked = citationMarkers.length
-      ? linkifyCitationMarkers(html, citationMarkers)
+      ? linkifyCitationMarkers(html, citationMarkers, anchorPrefix)
       : html;
     return this.sanitizer.sanitize(SecurityContext.HTML, linked) ?? "";
   }
@@ -29,12 +34,13 @@ export class AssistantMarkdownPipe implements PipeTransform {
 function linkifyCitationMarkers(
   html: string,
   markers: readonly number[],
+  anchorPrefix: string,
 ): string {
   const markerSet = new Set(markers);
   return html.replace(CITATION_MARKER_PATTERN, (match, digits: string) => {
     const marker = Number(digits);
     if (!markerSet.has(marker)) return match;
-    return `<sup><a href="#message-citation-${marker}" class="citation-marker-link">${marker}</a></sup>`;
+    return `<sup><a href="#${anchorPrefix}-${marker}" class="citation-marker-link">${marker}</a></sup>`;
   });
 }
 

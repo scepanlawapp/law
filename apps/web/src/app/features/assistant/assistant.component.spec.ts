@@ -77,14 +77,21 @@ describe("AssistantComponent review state", () => {
     previewBriefTasks: jest.fn(() => NEVER),
     applyBriefTasks: jest.fn(() => NEVER),
     downloadUrl: jest.fn(() => "http://localhost/api/chat/attachments"),
+    createSession: jest.fn(),
+    sendMessage: jest.fn(),
   };
   const toast = {
     error: jest.fn(),
     success: jest.fn(),
   };
 
+  const routeParams: Record<string, string> = {};
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    for (const key of Object.keys(routeParams)) delete routeParams[key];
+    chat.createSession.mockReturnValue(NEVER);
+    chat.sendMessage.mockReturnValue(NEVER);
     chat.listSessions.mockReturnValue(NEVER);
     chat.getSession.mockReturnValue(NEVER);
     chat.listDrafts.mockReturnValue(of([]));
@@ -128,7 +135,11 @@ describe("AssistantComponent review state", () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: { queryParamMap: convertToParamMap({}) },
+            snapshot: {
+              get queryParamMap() {
+                return convertToParamMap(routeParams);
+              },
+            },
           },
         },
         { provide: Router, useValue: { navigate: jest.fn() } },
@@ -306,6 +317,122 @@ describe("AssistantComponent review state", () => {
     expect(component["messages"]()[0].content).toBe("Opšti odgovor.");
     expect(component["draft"]()?.id).toBe("draft-live");
     expect(component["rightRailExpanded"]()).toBe(true);
+  });
+
+  it("jumps from a citation marker to the same message's source without navigating", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    const answer = (id: string): ChatMessageResponse => ({
+      id,
+      sessionId: "session-1",
+      role: "ASSISTANT",
+      content: "Rok je 8 dana [1].",
+      status: "COMPLETED",
+      correlationId: `corr-${id}`,
+      createdAt: "2026-09-15T12:00:00.000Z",
+      attachments: [],
+      citations: [
+        {
+          marker: 1,
+          articleNumber: "76",
+          sourceTitle: "Zakon o obligacionim odnosima",
+          sourceUrl: "https://www.paragraf.rs/propisi/zoo.html",
+          snippet: "Tekst",
+          score: 0.8,
+        },
+      ],
+    });
+    component["sessions"].set([session]);
+    component["selectedSessionId"].set(session.id);
+    component["messages"].set([answer("m1"), answer("m2")]);
+    fixture.detectChanges();
+
+    const host = fixture.nativeElement as HTMLElement;
+    const scrolled: string[] = [];
+    host.querySelectorAll<HTMLElement>(".citation-item").forEach((item) => {
+      item.scrollIntoView = jest.fn(() => scrolled.push(item.id));
+    });
+    const links = host.querySelectorAll<HTMLAnchorElement>(
+      "a.citation-marker-link",
+    );
+    expect(links).toHaveLength(2);
+
+    const click = new MouseEvent("click", { bubbles: true, cancelable: true });
+    links[1].dispatchEvent(click);
+
+    expect(click.defaultPrevented).toBe(true);
+    expect(scrolled).toEqual(["message-m2-citation-1"]);
+    const target = host.querySelector("#message-m2-citation-1");
+    expect(target?.classList.contains("citation-item--flash")).toBe(true);
+    expect(document.activeElement).toBe(target);
+  });
+
+  it("previews the hovered marker's cited text and hides it on leave or Escape", () => {
+    jest.useFakeTimers();
+    try {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      const component = fixture.componentInstance;
+      const answer = (id: string, snippet: string): ChatMessageResponse => ({
+        id,
+        sessionId: "session-1",
+        role: "ASSISTANT",
+        content: "Rok je 8 dana [1].",
+        status: "COMPLETED",
+        correlationId: `corr-${id}`,
+        createdAt: "2026-09-15T12:00:00.000Z",
+        attachments: [],
+        citations: [
+          {
+            marker: 1,
+            articleNumber: "76",
+            sourceTitle: "Zakon o obligacionim odnosima",
+            sourceUrl: "https://www.paragraf.rs/propisi/zoo.html",
+            snippet,
+            score: 0.8,
+          },
+        ],
+      });
+      component["sessions"].set([session]);
+      component["selectedSessionId"].set(session.id);
+      component["messages"].set([
+        answer("m1", "Prvi izvod."),
+        answer("m2", "Drugi izvod."),
+      ]);
+      fixture.detectChanges();
+
+      const host = fixture.nativeElement as HTMLElement;
+      const link = host.querySelectorAll<HTMLAnchorElement>(
+        "a.citation-marker-link",
+      )[1];
+      const preview = () =>
+        document.querySelector<HTMLElement>(
+          ".cdk-overlay-container [role='tooltip']",
+        );
+
+      link.dispatchEvent(new MouseEvent("mouseover", { bubbles: true }));
+      expect(preview()).toBeNull();
+      jest.advanceTimersByTime(300);
+
+      expect(preview()?.textContent).toContain("Drugi izvod.");
+      expect(link.getAttribute("aria-describedby")).toBe(preview()?.id);
+
+      link.dispatchEvent(
+        new MouseEvent("mouseout", { bubbles: true, relatedTarget: host }),
+      );
+      jest.advanceTimersByTime(200);
+      expect(preview()).toBeNull();
+      expect(link.hasAttribute("aria-describedby")).toBe(false);
+
+      link.dispatchEvent(new FocusEvent("focusin", { bubbles: true }));
+      jest.advanceTimersByTime(300);
+      expect(preview()).not.toBeNull();
+      link.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+      );
+      expect(preview()).toBeNull();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it("restores authoritative activity and drafts during reconnect", () => {
@@ -548,5 +675,63 @@ describe("AssistantComponent review state", () => {
 
     expect(component["latestBriefId"]()).toBe("brief-1");
     expect(component["rightRailExpanded"]()).toBe(false);
+  });
+
+  describe("starter prompts", () => {
+    const starterCards = (fixture: { nativeElement: HTMLElement }) => [
+      ...fixture.nativeElement.querySelectorAll<HTMLButtonElement>(
+        "law-starter-prompts button",
+      ),
+    ];
+
+    it("sends a complete starter question in a new conversation", () => {
+      chat.createSession.mockReturnValue(of(session));
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      const card = starterCards(fixture).find((button) =>
+        button.textContent?.includes("assistant.starter.deadlinesSoon.title"),
+      );
+      card?.click();
+
+      expect(chat.createSession).toHaveBeenCalledWith({
+        workspaceId: "workspace-1",
+        caseId: null,
+      });
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        "workspace-1",
+        "session-1",
+        "assistant.starter.deadlinesSoon.prompt",
+        [],
+      );
+    });
+
+    it("fills the composer for a prompt that needs the user's input", () => {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      const card = starterCards(fixture).find((button) =>
+        button.textContent?.includes("assistant.starter.researchLaw.title"),
+      );
+      card?.click();
+
+      expect(
+        fixture.componentInstance["composerForm"].controls.draft.value,
+      ).toBe("assistant.starter.researchLaw.prompt");
+      expect(chat.createSession).not.toHaveBeenCalled();
+      expect(chat.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("offers case prompts when the chat is opened from a case", () => {
+      routeParams["caseId"] = "case-1";
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      const text = starterCards(fixture)
+        .map((button) => button.textContent)
+        .join(" ");
+      expect(text).toContain("assistant.starter.caseSummary.title");
+      expect(text).not.toContain("assistant.starter.myTasks.title");
+    });
   });
 });

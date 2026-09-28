@@ -139,17 +139,20 @@ describe("MatterLinkService", () => {
     const work = {
       createTask: jest.fn(async () => ({ id: "task-1" })),
     };
+    const promotion = { promoteSession: jest.fn(async () => 1) };
     return {
       logs,
       prisma,
       cases,
       clients,
       work,
+      promotion,
       service: new MatterLinkService(
         prisma as never,
         cases as never,
         clients as never,
         work as never,
+        promotion as never,
       ),
     };
   }
@@ -248,6 +251,56 @@ describe("MatterLinkService", () => {
         },
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("files the chat attachments on the case after linking or applying a brief", async () => {
+    const { service, prisma, promotion } = harness({ sessionCaseId: "case-1" });
+    prisma.chatSession.update.mockResolvedValue({
+      id: "session-1",
+      title: "Chat",
+      status: "ACTIVE",
+      caseId: "case-2",
+      case: null,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+    await service.linkSession({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      caseId: "case-2",
+    });
+    expect(promotion.promoteSession).toHaveBeenCalledWith(
+      workspaceId,
+      "session-1",
+    );
+
+    promotion.promoteSession.mockClear();
+    await service.linkSession({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      caseId: null,
+    });
+    expect(promotion.promoteSession).not.toHaveBeenCalled();
+
+    const fresh = harness();
+    await fresh.service.applyBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+      body: {
+        client: { mode: "existing", clientId: "client-1" },
+        caseNumber: "2026-5",
+        name: "Novi",
+        responsibleUserId: userId,
+      },
+    });
+    expect(fresh.promotion.promoteSession).toHaveBeenCalledWith(
+      workspaceId,
+      "session-1",
+    );
   });
 
   it("stores the defendant as opposing-party text", async () => {

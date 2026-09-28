@@ -3,6 +3,7 @@ import type { LegalChunk, LegalSourceMetadata } from "./embeddings";
 
 const DEFAULT_MAX_CHARS = 3500;
 const ARTICLE_PATTERN = /^\s*Član\s+([0-9]+[a-z]?)\.?\s*$/i;
+const TARIFF_ITEM_PATTERN = /^\s*Tarifni\s+broj\s+([0-9]+[a-z]?)\.?\s*$/i;
 const PARAGRAPH_PATTERN = /^\s*\(([0-9]+)\)\s*/;
 const POINT_PATTERN = /^\s*([0-9]+)\.\s+/;
 
@@ -47,9 +48,16 @@ export function chunkLegalText(
     if (!line) continue;
 
     const articleMatch = line.match(ARTICLE_PATTERN);
-    if (articleMatch) {
+    const tariffItemMatch = articleMatch
+      ? null
+      : line.match(TARIFF_ITEM_PATTERN);
+    if (articleMatch || tariffItemMatch) {
       flush();
-      articleNumber = articleMatch[1];
+      // Tariff items (e.g. Advokatska tarifa) keep their own label so they are
+      // not cited as the last preceding article.
+      articleNumber = articleMatch
+        ? articleMatch[1]
+        : `Tarifni broj ${tariffItemMatch?.[1]}`;
       paragraphNumber = undefined;
       pointNumber = undefined;
       continue;

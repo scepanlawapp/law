@@ -17,6 +17,8 @@
     "db:seed:demo-stojkovic": "node apps/api/prisma/seed-demo-data-stojkovic.cjs",
     "tessdata:download": "bash scripts/download-tessdata.sh",
     "legal:ingest": "tsx --tsconfig tsconfig.base.json scripts/ingest-legal-source.ts",
+    "legal:export": "tsx --tsconfig tsconfig.base.json scripts/export-legal-corpus.ts",
+    "legal:import": "tsx --tsconfig tsconfig.base.json scripts/import-legal-corpus.ts",
     "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma",
     "prisma:generate": "npx prisma generate --schema apps/api/prisma/schema.prisma"
   },

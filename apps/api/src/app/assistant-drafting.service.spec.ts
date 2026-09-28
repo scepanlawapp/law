@@ -17,6 +17,8 @@ const scope: AssistantTurnScope = {
   correlationId: "corr-1",
   messageId: "message-2",
   language: "sr",
+  userId: null,
+  userDisplayName: null,
 };
 
 const lawsuitBrief = {

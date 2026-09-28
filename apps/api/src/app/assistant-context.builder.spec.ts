@@ -63,7 +63,11 @@ describe("AssistantContextBuilder", () => {
     expect(context.messages).toEqual([
       { role: "user", content: "Koliki je rok zastarelosti?" },
       { role: "assistant", content: "Opšti rok je deset godina [1]." },
-      { role: "user", content: "[Prilozi: ugovor.pdf]" },
+      {
+        role: "user",
+        content:
+          "[Prilozi: ugovor.pdf — tekst: search_documents / read_document]",
+      },
       { role: "user", content: "A za zaradu?" },
     ]);
     expect(context.sessionCaseId).toBe("case-1");
@@ -164,6 +168,30 @@ describe("AssistantContextBuilder", () => {
     );
     expect(context.conversationSummary).toBe("- Tužilac: Petar Petrović");
     expect(context.messages).toEqual([{ role: "user", content: "A kraće?" }]);
+  });
+
+  it("names the conversation's owner in Latin script", async () => {
+    const { builder, prisma } = setup([row("USER", "Koje rokove imam?", 1)]);
+    prisma.chatSession.findFirst.mockResolvedValue({
+      summary: null,
+      summaryThroughAt: null,
+      createdBy: {
+        id: "user-1",
+        firstName: "Ана",
+        lastName: "Анић",
+        email: "ana@example.test",
+      },
+    });
+
+    const context = await builder.build({
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+    });
+
+    expect(context.currentUser).toEqual({
+      id: "user-1",
+      displayName: "Ana Anić",
+    });
   });
 
   it("gives triage the earlier turns without the current message", async () => {

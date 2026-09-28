@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-09-28T00:00:00Z",
+  "keywords": ["assistant", "starter-prompts", "empty-state", "triage"],
+  "parent_track_id": "mastra_assistant_slice_20260927",
+  "prd_reference": null,
+  "status": "completed",
+  "track_id": "chat_starter_prompts_20260928",
+  "type": "feature",
+  "updated_at": "2026-09-28T00:00:00Z"
+}

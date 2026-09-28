@@ -223,7 +223,9 @@
                       class="assistant-markdown"
                       [innerHTML]="
                         message.content
-                          | assistantMarkdown: citationMarkers(message)
+                          | assistantMarkdown
+                            : citationMarkers(message)
+                            : citationAnchorPrefix(message)
                       "
                     ></div>
                   }
@@ -235,7 +237,7 @@
                       <h3>{{ "assistant.sources" | translate }}</h3>
                       <law-citation-list
                         [citations]="message.citations"
-                        idPrefix="message-citation"
+                        [idPrefix]="citationAnchorPrefix(message)"
                       />
                     </section>
                   }
@@ -370,6 +372,12 @@
                 </span>
                 <h2>{{ "assistant.emptyTitle" | translate }}</h2>
                 <p>{{ "assistant.description" | translate }}</p>
+                <law-starter-prompts
+                  class="assistant-starter-prompts"
+                  [prompts]="starterPrompts()"
+                  [disabled]="sending()"
+                  (selected)="applyStarterPrompt($event)"
+                />
               </div>
             }
             <ng-template #workflowActivityTemplate let-activity>

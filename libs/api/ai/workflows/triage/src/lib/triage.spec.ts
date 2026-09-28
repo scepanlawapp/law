@@ -118,6 +118,25 @@ describe("triage", () => {
       expect(agent.content).toContain(PORTIR_PRACTICE_RULE);
     });
 
+    it("covers office read queries such as the chat starter prompts", () => {
+      const [agent] = buildTriageMessages({
+        userText: "Koji moji rokovi ističu u naredna 48 sati?",
+        practiceActions: true,
+      });
+
+      for (const term of [
+        "tasks (zadaci)",
+        "deadlines (rokovi)",
+        "hearings (ročišta)",
+        "agenda or schedule",
+        "clients",
+        "recent activity",
+        "'moji zadaci'",
+      ]) {
+        expect(agent.content).toContain(term);
+      }
+    });
+
     it("clips long history entries", () => {
       const prompt = buildTriageUserPrompt({
         userText: "Dalje?",

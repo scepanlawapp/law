@@ -31,6 +31,12 @@ import { sanitizeDownloadFilename } from "./documents.multipart";
 const TITLE_MAX = 320;
 const DOCUMENT_SORT = ["updatedAt", "createdAt", "title"] as const;
 
+export interface DocumentInitialText {
+  status: "COMPLETED" | "UNSUPPORTED";
+  text: string | null;
+  sourceScript: "LATIN" | "CYRILLIC" | "MIXED" | "NONE" | null;
+}
+
 @Injectable()
 export class DocumentsService {
   constructor(
@@ -50,6 +56,10 @@ export class DocumentsService {
     originalFilename: string;
     stream: Readable;
     idempotencyKey: string;
+    /** Text already extracted elsewhere (chat attachments), reused as-is. */
+    initialText?: DocumentInitialText;
+    /** Origin recorded on the DOCUMENT_CREATED activity row. */
+    source?: "CHAT_ATTACHMENT";
   }): Promise<DocumentDetail> {
     let title: string;
     let category: string | null;
@@ -103,6 +113,14 @@ export class DocumentsService {
           storedFileId: ingest.storedFileId,
           originalFilename: input.originalFilename,
           uploadedByUserId: this.context.userId,
+          ...(input.initialText
+            ? {
+                extractionStatus: input.initialText.status,
+                extractedText: input.initialText.text,
+                sourceScript: input.initialText.sourceScript,
+                extractedAt: new Date(),
+              }
+            : {}),
         },
       });
       await tx.document.update({
@@ -115,7 +133,13 @@ export class DocumentsService {
         entityId: document.id,
         caseId: caseIds[0],
         clientId: clientIds[0],
-        metadata: { caseIds, clientIds, category, versionId: version.id },
+        metadata: {
+          caseIds,
+          clientIds,
+          category,
+          versionId: version.id,
+          ...(input.source ? { source: input.source } : {}),
+        },
       });
       return { documentId: document.id, versionId: version.id };
     });

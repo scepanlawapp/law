@@ -3,6 +3,7 @@ import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideExternalLink, lucideScale } from "@ng-icons/lucide";
 import { LegalCitationResponse } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
+import { isArticleNumber, matchPercent } from "./citation-label";
 
 @Component({
   selector: "law-citation-list",
@@ -22,7 +23,6 @@ export class CitationListComponent {
     return `${this.idPrefix()}-${marker}`;
   }
 
-  protected matchPercent(score: number): number {
-    return Math.round(Math.max(0, Math.min(1, score)) * 100);
-  }
+  protected readonly isArticleNumber = isArticleNumber;
+  protected readonly matchPercent = matchPercent;
 }

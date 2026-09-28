@@ -1,32 +1,54 @@
 import { Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { CaseDetail, CaseSummary } from "@law/api-interfaces";
 import { CaseListQueryDto, CasesService } from "@law/cases";
 import { WorkspaceContextService } from "@law/core";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
 import type { GroundingSearchHit } from "@law/legal-grounding";
 import type {
   ActionProposalResult,
+  ActivityQuery,
   AssistantActionRequest,
+  AssistantActivityEntry,
   AssistantCaseFacts,
   AssistantCaseLookup,
+  AssistantClientFacts,
+  AssistantClientLookup,
+  AssistantDocumentList,
+  AssistantDocumentRead,
+  AssistantDocumentSearch,
+  AssistantListResult,
   AssistantTurnScope,
+  AssistantWorkItem,
   DraftListItem,
   DraftReadResult,
   DraftToolResult,
   LegalAssistantToolDeps,
+  WorkItemQuery,
 } from "@law/mastra";
 import { AssistantActionsService } from "./assistant-actions.service";
+import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
+import {
+  AssistantOfficeReadsService,
+  caseFacts,
+} from "./assistant-office-reads.service";
 
 const CASE_CANDIDATE_LIMIT = 5;
 const DRAFTING_UNAVAILABLE = {
   status: "FAILED" as const,
   message: "Izrada nacrta trenutno nije dostupna.",
 };
+const DOCUMENTS_UNAVAILABLE = {
+  status: "UNAVAILABLE" as const,
+  message: "Dokumenti trenutno nisu dostupni.",
+};
+const OFFICE_UNAVAILABLE = {
+  status: "UNAVAILABLE" as const,
+  message: "Podaci kancelarije trenutno nisu dostupni.",
+};
 
 /**
  * Implements the assistant tools' business operations on top of existing
- * services. Read-only. CasesService scopes by the workspace context that
+ * services. CasesService scopes by the workspace context that
  * WorkflowProcessor sets for the job.
  */
 @Injectable()
@@ -36,7 +58,87 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     @Optional() private readonly cases?: CasesService,
     @Optional() private readonly drafting?: AssistantDraftingService,
     @Optional() private readonly actions?: AssistantActionsService,
+    @Optional() private readonly office?: AssistantOfficeReadsService,
+    @Optional() private readonly documents?: AssistantDocumentReadsService,
   ) {}
+
+  listDocuments(scope: AssistantTurnScope): Promise<AssistantDocumentList> {
+    return this.documents
+      ? this.documents.listDocuments(scope)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
+
+  readDocument(
+    scope: AssistantTurnScope,
+    args: { ref: string; offset?: number },
+  ): Promise<AssistantDocumentRead> {
+    return this.documents
+      ? this.documents.readDocument(scope, args)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
+
+  searchDocuments(
+    scope: AssistantTurnScope,
+    args: { query: string; ref?: string },
+  ): Promise<AssistantDocumentSearch> {
+    return this.documents
+      ? this.documents.searchDocuments(scope, args)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
+
+  searchCases(
+    scope: AssistantTurnScope,
+    args: Parameters<AssistantOfficeReadsService["searchCases"]>[1],
+  ): Promise<AssistantListResult<AssistantCaseFacts>> {
+    return this.office
+      ? this.office.searchCases(scope, args)
+      : Promise.resolve(OFFICE_UNAVAILABLE);
+  }
+
+  searchClients(
+    scope: AssistantTurnScope,
+    args: { query?: string; status?: string; responsible?: string },
+  ): Promise<AssistantListResult<AssistantClientFacts>> {
+    return this.office
+      ? this.office.searchClients(scope, args)
+      : Promise.resolve(OFFICE_UNAVAILABLE);
+  }
+
+  getClient(
+    scope: AssistantTurnScope,
+    args: { reference: string },
+  ): Promise<AssistantClientLookup> {
+    return this.office
+      ? this.office.getClient(scope, args)
+      : Promise.resolve({ found: "none", message: OFFICE_UNAVAILABLE.message });
+  }
+
+  listWorkItems(
+    scope: AssistantTurnScope,
+    args: WorkItemQuery,
+  ): Promise<AssistantListResult<AssistantWorkItem>> {
+    return this.office
+      ? this.office.listWorkItems(scope, args)
+      : Promise.resolve(OFFICE_UNAVAILABLE);
+  }
+
+  getAgenda(
+    scope: AssistantTurnScope,
+    args: { from: string; to: string; person?: string },
+  ): Promise<AssistantListResult<AssistantWorkItem>> {
+    return this.office
+      ? this.office.getAgenda(scope, args)
+      : Promise.resolve(OFFICE_UNAVAILABLE);
+  }
+
+  listActivity(
+    scope: AssistantTurnScope,
+    args: ActivityQuery,
+  ): Promise<AssistantListResult<AssistantActivityEntry>> {
+    return this.office
+      ? this.office.listActivity(scope, args)
+      : Promise.resolve(OFFICE_UNAVAILABLE);
+  }
 
   proposeAction(
     scope: AssistantTurnScope,
@@ -116,7 +218,7 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
             "Razgovor nije povezan sa predmetom. Navedite broj ili naziv predmeta.",
         };
       }
-      const linked = await this.getCase(input.sessionCaseId);
+      const linked = await this.getCase(input.workspaceId, input.sessionCaseId);
       return linked
         ? { found: "one", case: linked }
         : { found: "none", message: "Povezani predmet nije pronađen." };
@@ -135,34 +237,26 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
       (item) => item.caseNumber.toLowerCase() === reference.toLowerCase(),
     );
     if (exact || items.length === 1) {
-      const detail = await this.getCase((exact ?? items[0]).id);
+      const detail = await this.getCase(
+        input.workspaceId,
+        (exact ?? items[0]).id,
+      );
       if (detail) return { found: "one", case: detail };
     }
-    return { found: "many", candidates: items.map((item) => toFacts(item)) };
+    return { found: "many", candidates: items.map((item) => caseFacts(item)) };
   }
 
-  private async getCase(caseId: string): Promise<AssistantCaseFacts | null> {
+  private async getCase(
+    workspaceId: string,
+    caseId: string,
+  ): Promise<AssistantCaseFacts | null> {
     try {
-      return toFacts(await this.cases!.get(caseId));
+      const facts = caseFacts(await this.cases!.get(caseId));
+      const extras = await this.office?.caseExtras(workspaceId, caseId);
+      return { ...facts, ...extras };
     } catch (error) {
       if (error instanceof NotFoundException) return null;
       throw error;
     }
   }
-}
-
-function toFacts(item: CaseSummary | CaseDetail): AssistantCaseFacts {
-  const detail = "description" in item ? item : null;
-  return {
-    caseNumber: item.caseNumber,
-    name: item.name,
-    status: item.status,
-    priority: item.priority,
-    client: item.client.displayName,
-    responsible: item.responsibleUser.displayName,
-    opposingParty: detail?.opposingPartyName ?? null,
-    description: detail?.description?.trim() || null,
-    openedDate: item.openedDate,
-    closedDate: item.closedDate,
-  };
 }

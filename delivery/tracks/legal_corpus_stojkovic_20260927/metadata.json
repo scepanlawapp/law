@@ -1,0 +1,11 @@
+{
+  "track_id": "legal_corpus_stojkovic_20260927",
+  "parent_track_id": "legal_knowledge_pgvector_20260919",
+  "type": "feature",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-09-27T00:00:00Z",
+  "updated_at": "2026-09-27T23:00:00Z",
+  "keywords": ["legal-knowledge", "ingestion", "paragraf", "corpus", "serbian-law"],
+  "priority": "medium"
+}
