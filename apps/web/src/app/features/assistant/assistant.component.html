@@ -372,6 +372,12 @@
                 </span>
                 <h2>{{ "assistant.emptyTitle" | translate }}</h2>
                 <p>{{ "assistant.description" | translate }}</p>
+                <law-starter-prompts
+                  class="assistant-starter-prompts"
+                  [prompts]="starterPrompts()"
+                  [disabled]="sending()"
+                  (selected)="applyStarterPrompt($event)"
+                />
               </div>
             }
             <ng-template #workflowActivityTemplate let-activity>

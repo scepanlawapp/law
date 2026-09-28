@@ -77,14 +77,21 @@ describe("AssistantComponent review state", () => {
     previewBriefTasks: jest.fn(() => NEVER),
     applyBriefTasks: jest.fn(() => NEVER),
     downloadUrl: jest.fn(() => "http://localhost/api/chat/attachments"),
+    createSession: jest.fn(),
+    sendMessage: jest.fn(),
   };
   const toast = {
     error: jest.fn(),
     success: jest.fn(),
   };
 
+  const routeParams: Record<string, string> = {};
+
   beforeEach(async () => {
     jest.clearAllMocks();
+    for (const key of Object.keys(routeParams)) delete routeParams[key];
+    chat.createSession.mockReturnValue(NEVER);
+    chat.sendMessage.mockReturnValue(NEVER);
     chat.listSessions.mockReturnValue(NEVER);
     chat.getSession.mockReturnValue(NEVER);
     chat.listDrafts.mockReturnValue(of([]));
@@ -128,7 +135,11 @@ describe("AssistantComponent review state", () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: { queryParamMap: convertToParamMap({}) },
+            snapshot: {
+              get queryParamMap() {
+                return convertToParamMap(routeParams);
+              },
+            },
           },
         },
         { provide: Router, useValue: { navigate: jest.fn() } },
@@ -664,5 +675,63 @@ describe("AssistantComponent review state", () => {
 
     expect(component["latestBriefId"]()).toBe("brief-1");
     expect(component["rightRailExpanded"]()).toBe(false);
+  });
+
+  describe("starter prompts", () => {
+    const starterCards = (fixture: { nativeElement: HTMLElement }) => [
+      ...fixture.nativeElement.querySelectorAll<HTMLButtonElement>(
+        "law-starter-prompts button",
+      ),
+    ];
+
+    it("sends a complete starter question in a new conversation", () => {
+      chat.createSession.mockReturnValue(of(session));
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      const card = starterCards(fixture).find((button) =>
+        button.textContent?.includes("assistant.starter.deadlinesSoon.title"),
+      );
+      card?.click();
+
+      expect(chat.createSession).toHaveBeenCalledWith({
+        workspaceId: "workspace-1",
+        caseId: null,
+      });
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        "workspace-1",
+        "session-1",
+        "assistant.starter.deadlinesSoon.prompt",
+        [],
+      );
+    });
+
+    it("fills the composer for a prompt that needs the user's input", () => {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      const card = starterCards(fixture).find((button) =>
+        button.textContent?.includes("assistant.starter.researchLaw.title"),
+      );
+      card?.click();
+
+      expect(
+        fixture.componentInstance["composerForm"].controls.draft.value,
+      ).toBe("assistant.starter.researchLaw.prompt");
+      expect(chat.createSession).not.toHaveBeenCalled();
+      expect(chat.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("offers case prompts when the chat is opened from a case", () => {
+      routeParams["caseId"] = "case-1";
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      const text = starterCards(fixture)
+        .map((button) => button.textContent)
+        .join(" ");
+      expect(text).toContain("assistant.starter.caseSummary.title");
+      expect(text).not.toContain("assistant.starter.myTasks.title");
+    });
   });
 });

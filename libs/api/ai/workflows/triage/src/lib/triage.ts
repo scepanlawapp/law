@@ -52,6 +52,7 @@ export const PORTIR_FOLLOW_UP_RULE = [
 export const PORTIR_PRACTICE_RULE = [
   "The assistant can also help manage the office's matters.",
   "Requests to look up a case, link the conversation to a case, set or record a deadline (rok), schedule work, or create tasks for a matter are LEGAL with intent ANSWER, even without legal terms.",
+  "Questions about the user's or the office's tasks (zadaci), deadlines (rokovi), events or hearings (ročišta), agenda or schedule, cases (predmeti), clients, documents, or recent activity are also LEGAL with intent ANSWER, even when short, such as 'moji zadaci' or 'rokovi ove nedelje'.",
 ].join(" ");
 
 const HISTORY_ENTRY_MAX_CHARS = 600;
