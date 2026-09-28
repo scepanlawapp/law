@@ -10,7 +10,7 @@ import { ActivatedRoute, RouterLink } from "@angular/router";
 import { switchMap } from "rxjs";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
 import {
-  BillingEntrySummary,
+  BillingStatementLineSummary,
   BillingStatement,
   ClientSummary,
   StatementProposalResponse,
@@ -65,7 +65,7 @@ export class FinanceClientStatementComponent {
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
   readonly statements = signal<BillingStatement[]>([]);
-  readonly entries = signal<BillingEntrySummary[]>([]);
+  readonly entries = signal<BillingStatementLineSummary[]>([]);
   readonly clients = signal<ClientSummary[]>([]);
   readonly filter = signal<StatementFilter>("ALL");
   readonly loading = signal(true);
@@ -166,7 +166,7 @@ export class FinanceClientStatementComponent {
         periodStart: value.periodStart,
         periodEnd: value.periodEnd,
         currency: value.currency,
-        eligibleEntryIds: [...this.selected()],
+        eligibleLineIds: [...this.selected()],
         userInstruction: value.userInstruction,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -202,7 +202,7 @@ export class FinanceClientStatementComponent {
   setFilter(filter: StatementFilter): void {
     this.filter.set(filter);
   }
-  selectEntry(entry: BillingEntrySummary): void {
+  selectEntry(entry: BillingStatementLineSummary): void {
     const next = new Set(this.selected());
     if (next.has(entry.id)) next.delete(entry.id);
     else next.add(entry.id);
@@ -220,7 +220,7 @@ export class FinanceClientStatementComponent {
     this.api
       .createStatement({
         ...value,
-        entryIds: [...this.selected()],
+        lineIds: [...this.selected()],
         idempotencyKey:
           this.draftIdempotencyKey ??
           (this.draftIdempotencyKey = crypto.randomUUID()),
@@ -363,11 +363,11 @@ export class FinanceClientStatementComponent {
     this.entries.set([]);
     if (!clientId) return;
     this.api
-      .entries({
+      .lines({
         page: 1,
         pageSize: 100,
         clientId,
-        lifecycle: "READY",
+        status: "UNBILLED",
         currency,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))

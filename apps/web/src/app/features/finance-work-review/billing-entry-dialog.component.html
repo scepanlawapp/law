@@ -1,7 +1,7 @@
 <hlm-dialog-header>
   <h2 hlmDialogTitle>{{ "finance.recordWorkTitle" | translate }}</h2>
   <p hlmDialogDescription>
-    {{ "finance.billingItemsDescription" | translate }}
+    {{ "finance.billingLinesDescription" | translate }}
   </p>
 </hlm-dialog-header>
 
@@ -12,93 +12,40 @@
   novalidate
 >
   <div class="min-h-0 flex-1 space-y-4 overflow-y-auto">
-    <div class="grid gap-4 md:grid-cols-2">
-      <label class="space-y-1">
-        <span>{{ "finance.client" | translate }}</span>
-        <select hlmInput formControlName="clientId" required>
-          <option value="">{{ "finance.selectClient" | translate }}</option>
-          @for (client of clients(); track client.id) {
-            <option [value]="client.id">{{ client.displayName }}</option>
-          }
-        </select>
+    <div hlmField>
+      <label hlmFieldLabel for="billing-line-client">
+        {{ "finance.client" | translate }}
       </label>
-
-      <div class="min-w-0 space-y-1">
-        <label for="billing-entry-cases">
-          {{ "finance.cases" | translate }}
-        </label>
-        <div
-          hlmComboboxMultiple
-          [value]="form.controls.caseIds.value"
-          (valueChange)="setCaseIds($event ?? [])"
-          [itemToString]="caseItemToString"
-        >
-          <hlm-combobox-trigger
-            buttonId="billing-entry-cases"
-            class="w-full min-w-0 max-w-full"
-          >
-            <span data-slot="combobox-value" class="truncate">
-              @if (selectedCasesLabel(); as label) {
-                {{ label }}
-              } @else {
-                <span class="text-muted-foreground">
-                  {{ "finance.noCases" | translate }}
-                </span>
-              }
-            </span>
-          </hlm-combobox-trigger>
-          <hlm-combobox-content *hlmComboboxPortal width="content">
-            <hlm-combobox-empty>
-              {{ "finance.noFilterOptions" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (caseItem of cases(); track caseItem.id) {
-                <hlm-combobox-item [value]="caseItem.id">
-                  {{ caseItem.caseNumber }} — {{ caseItem.name }}
-                </hlm-combobox-item>
-              }
-            </div>
-          </hlm-combobox-content>
-        </div>
-      </div>
-
-      <label class="space-y-1">
-        <span>{{ "finance.workStartDate" | translate }}</span>
-        <input hlmInput type="date" formControlName="workStartDate" required />
-      </label>
-
-      <label class="space-y-1">
-        <span>{{ "finance.workEndDate" | translate }}</span>
-        <input hlmInput type="date" formControlName="workEndDate" required />
-      </label>
+      <hlm-select
+        formControlName="clientId"
+        [itemToString]="clientItemToString"
+      >
+        <hlm-select-trigger id="billing-line-client" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal width="content">
+          <hlm-select-group>
+            @for (client of clients(); track client.id) {
+              <hlm-select-item [value]="client.id">
+                {{ client.displayName }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
 
-    <label class="block space-y-1">
-      <span>{{ "finance.clientDescription" | translate }}</span>
-      <textarea
-        hlmTextarea
-        rows="3"
-        formControlName="clientDescription"
-        required
-      ></textarea>
-    </label>
-
-    <label class="block space-y-1">
-      <span>{{ "finance.internalDescription" | translate }}</span>
-      <input hlmInput formControlName="description" required />
-    </label>
-
     <div class="space-y-2">
-      <h3 class="font-semibold">{{ "finance.billingItems" | translate }}</h3>
+      <h3 class="font-semibold">{{ "finance.billingLines" | translate }}</h3>
       @if (form.controls.items.length) {
         <div hlmTableContainer>
-          <table hlmTable class="w-full min-w-[720px]">
+          <table hlmTable class="w-full min-w-[760px]">
             <thead hlmTHead>
               <tr hlmTr>
                 <th hlmTh>{{ "finance.item" | translate }}</th>
-                <th hlmTh>{{ "finance.workUnit" | translate }}</th>
-                <th hlmTh>{{ "finance.minutes" | translate }}</th>
+                <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
                 <th hlmTh>{{ "finance.amount" | translate }}</th>
+                <th hlmTh>{{ "finance.currency" | translate }}</th>
                 <th hlmTh>{{ "finance.actions" | translate }}</th>
               </tr>
             </thead>
@@ -109,7 +56,7 @@
                 let index = $index
               ) {
                 <tr hlmTr [formGroup]="item">
-                  <td hlmTd class="max-w-64">
+                  <td hlmTd class="max-w-52">
                     <span class="block truncate font-medium">
                       {{
                         item.controls.title.value ||
@@ -118,26 +65,11 @@
                     </span>
                   </td>
                   <td hlmTd>
-                    <select hlmInput formControlName="kind" required>
-                      <option value="TIME">
-                        {{ "finance.time" | translate }}
-                      </option>
-                      <option value="FIXED_FEE">
-                        {{ "finance.fixedFee" | translate }}
-                      </option>
-                      <option value="EXPENSE">
-                        {{ "finance.expense" | translate }}
-                      </option>
-                    </select>
-                  </td>
-                  <td hlmTd>
                     <input
                       hlmInput
-                      type="number"
-                      min="1"
-                      [required]="item.controls.kind.value === 'TIME'"
-                      formControlName="durationMinutes"
-                      class="min-w-28"
+                      formControlName="description"
+                      class="min-w-72"
+                      required
                     />
                   </td>
                   <td hlmTd>
@@ -149,6 +81,15 @@
                       inputmode="decimal"
                       formControlName="amount"
                       class="min-w-32"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      maxlength="3"
+                      formControlName="currency"
+                      class="min-w-24 uppercase"
                       required
                     />
                   </td>
@@ -167,6 +108,13 @@
               }
             </tbody>
           </table>
+        </div>
+
+        <div class="flex flex-wrap justify-end gap-3 rounded-lg bg-muted p-3">
+          <span class="font-semibold">{{ "finance.total" | translate }}:</span>
+          @for (total of totals(); track total.currency) {
+            <span>{{ total.amount.toFixed(2) }} {{ total.currency }}</span>
+          }
         </div>
       } @else {
         <p class="rounded-lg bg-muted p-3 text-muted-foreground">

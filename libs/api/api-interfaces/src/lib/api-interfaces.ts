@@ -907,18 +907,11 @@ export interface DocumentUpdateRequest {
   clientIds?: string[];
 }
 
-export type BillingEntryKind = "TIME" | "FIXED_FEE" | "EXPENSE";
-export type BillingDisposition =
-  | "BILLABLE"
-  | "INCLUDED"
-  | "NO_CHARGE"
-  | "INTERNAL";
-export type BillingEntryLifecycle =
-  | "DRAFT"
-  | "READY"
+export type BillingStatementLineStatus =
+  | "UNBILLED"
   | "RESERVED"
-  | "STATEMENT_SENT"
-  | "VOIDED";
+  | "BILLED"
+  | "CANCELLED";
 export type BillingStatementStatus = "DRAFT" | "SENT" | "VOIDED";
 export type PriceSourceScope =
   | "CLIENT_AGREEMENT"
@@ -943,7 +936,7 @@ export interface BillingSuggestionReview {
   resolution: "PENDING" | "RECORDED" | "DISMISSED";
   reviewedByUserId?: string | null;
   reviewedAt?: string | null;
-  billingEntryId?: string | null;
+  billingStatementLineId?: string | null;
 }
 
 export interface ReviewBillingSuggestionsRequest {
@@ -1021,7 +1014,7 @@ export interface BillingStatement {
 }
 
 export interface ClientAccount {
-  entries: BillingEntrySummary[];
+  lines: BillingStatementLineSummary[];
   statements: BillingStatement[];
   readyUnbilledByCurrency: Array<{ currency: string; amount: string }>;
   reservedDraftByCurrency: Array<{ currency: string; amount: string }>;
@@ -1032,26 +1025,6 @@ export interface ClientAccount {
 export type FinancialClientReference = ClientReference;
 
 export type FinancialCaseReference = CaseReference;
-
-export interface BillingEntrySummary {
-  id: string;
-  client: FinancialClientReference;
-  cases: FinancialCaseReference[];
-  performedBy: UserReference;
-  workStartDate: string;
-  workEndDate: string;
-  kind: BillingEntryKind;
-  disposition: BillingDisposition;
-  lifecycle: BillingEntryLifecycle;
-  description: string;
-  clientDescription: string;
-  durationMinutes: number | null;
-  amount: string;
-  expenseCostAmount: string | null;
-  currency: string;
-  sourceType: string | null;
-  sourceId: string | null;
-}
 
 export interface BillingSuggestion {
   candidateKey: string;
@@ -1067,34 +1040,35 @@ export interface BillingSuggestion {
   warnings: string[];
 }
 
-export interface RecordBillingCandidateItemRequest {
+export interface RecordBillingStatementLineItemRequest {
   candidateKey: string;
-  kind: BillingEntryKind;
-  durationMinutes?: number;
+  description: string;
   amount: number;
+  currency: string;
 }
 
-export interface RecordBillingCandidatesRequest {
+export interface RecordBillingStatementLinesRequest {
   clientId: string;
-  caseIds?: string[];
-  workStartDate: string;
-  workEndDate: string;
-  description: string;
-  clientDescription: string;
-  items: RecordBillingCandidateItemRequest[];
+  items: RecordBillingStatementLineItemRequest[];
 }
 
 export interface BillingStatementLineSummary {
   id: string;
-  entryId: string;
-  lineOrder: number;
+  statementId: string | null;
+  client: FinancialClientReference;
+  cases: FinancialCaseReference[];
+  performedBy: UserReference;
+  lineOrder: number | null;
   description: string;
   serviceDate: string;
-  serviceEndDate: string;
-  caseReference: string | null;
   amount: string;
   currency: string;
-  chargeLabel: BillingDisposition;
+  status: BillingStatementLineStatus;
+  sourceType: string | null;
+  sourceId: string | null;
+  billedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
 }
 
 export interface BillingStatementSummary {
@@ -1112,29 +1086,6 @@ export interface BillingStatementSummary {
   lines: BillingStatementLineSummary[];
 }
 
-export interface BillingProposalLine {
-  entryId: string;
-  proposedDescription: string;
-  proposedAmount: string | null;
-  currency: string;
-  priceSourceVersionId: string | null;
-  excerpt: string | null;
-  calculation: string | null;
-  confidence: number | null;
-  questions: string[];
-}
-
-export interface BillingProposal {
-  clientId: string;
-  periodStart: string;
-  periodEnd: string;
-  selectedEntryIds: string[];
-  excludedEntryIdsAndReasons: Array<{ entryId: string; reason: string }>;
-  lines: BillingProposalLine[];
-  warnings: string[];
-  proposalRevision: number;
-}
-
 export type PriceEvidence = {
   priceSourceId: string;
   priceSourceVersionId: string;
@@ -1146,69 +1097,17 @@ export type PriceEvidence = {
   calculation?: string;
 };
 
-export type EntryProposalRequest = {
-  clientId: string;
-  caseIds?: string[];
-  candidateKey?: string;
-  userInstruction: string;
-  currentDraft?: {
-    kind?: "TIME" | "FIXED_FEE" | "EXPENSE";
-    workStartDate?: string;
-    workEndDate?: string;
-    durationMinutes?: number;
-    description?: string;
-    clientDescription?: string;
-    disposition?: "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL";
-    expenseCostAmount?: string;
-    amount?: string;
-    currency?: string;
-  };
-  proposalId?: string;
-  revisionInstruction?: string;
-};
-
-export type EntryProposalResponse = {
-  proposalId: string;
-  revision: number;
-  inputFingerprint: string;
-  suggested: {
-    kind: "TIME" | "FIXED_FEE" | "EXPENSE" | null;
-    workStartDate: string | null;
-    workEndDate: string | null;
-    serviceTitle: string | null;
-    internalDescription: string | null;
-    clientDescription: string | null;
-    actualDurationMinutes: number | null;
-    quantity: string | null;
-    expenseCostAmount: string | null;
-    disposition: "BILLABLE" | "INCLUDED" | "NO_CHARGE" | "INTERNAL" | null;
-    amount: string | null;
-    currency: string | null;
-  };
-  amountBasis: "USER_STATED" | "PRICE_SOURCE" | "EXISTING_DRAFT" | "NONE";
-  priceEvidence: PriceEvidence[];
-  fieldEvidence: Array<{
-    field: string;
-    source: "USER_TEXT" | "SOURCE_RECORD" | "PRICE_PASSAGE" | "CURRENT_DRAFT";
-    reference: string;
-  }>;
-  needsReview: string[];
-  questions: string[];
-  warnings: string[];
-  confidence: number;
-};
-
 export type StatementProposalRequest = {
   clientId: string;
   periodStart: string;
   periodEnd: string;
   currency: string;
   caseIds?: string[];
-  eligibleEntryIds?: string[];
+  eligibleLineIds?: string[];
   draftStatementId?: string;
   userInstruction: string;
   currentLines?: Array<{
-    entryId: string;
+    lineId: string;
     description: string;
     amount: string;
   }>;
@@ -1225,13 +1124,13 @@ export type StatementProposalResponse = {
   periodEnd: string;
   currency: string;
   decisions: Array<{
-    entryId: string;
+    lineId: string;
     action: "INCLUDE" | "EXCLUDE" | "NEEDS_REVIEW";
     reason: string;
     clientDescription: string | null;
-    existingEntryAmount: string;
+    existingLineAmount: string;
     proposedChargeAmount: string | null;
-    amountBasis: "EXISTING_ENTRY" | "PRICE_SOURCE" | "USER_STATED" | "NONE";
+    amountBasis: "EXISTING_LINE" | "PRICE_SOURCE" | "USER_STATED" | "NONE";
     adjustmentReason: string | null;
     priceEvidence: PriceEvidence[];
   }>;
@@ -1239,12 +1138,3 @@ export type StatementProposalResponse = {
   questions: string[];
   warnings: string[];
 };
-
-export interface FinanceProposalService {
-  propose(input: {
-    request: string;
-    clientId: string;
-    entryIds: string[];
-    priceSourceVersionIds: string[];
-  }): Promise<BillingProposal>;
-}

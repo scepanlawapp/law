@@ -230,13 +230,12 @@
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh>{{ "finance.select" | translate }}</th>
-              <th hlmTh>{{ "finance.workPeriod" | translate }}</th>
-              <th hlmTh>{{ "finance.serviceTitle" | translate }}</th>
+              <th hlmTh>{{ "finance.serviceDate" | translate }}</th>
+              <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
               <th hlmTh>{{ "finance.client" | translate }}</th>
               <th hlmTh>{{ "finance.performer" | translate }}</th>
-              <th hlmTh>{{ "finance.actualDuration" | translate }}</th>
               <th hlmTh>{{ "finance.amount" | translate }}</th>
-              <th hlmTh>{{ "finance.lifecycle" | translate }}</th>
+              <th hlmTh>{{ "finance.status" | translate }}</th>
             </tr>
           </thead>
           <tbody hlmTBody>
@@ -246,22 +245,13 @@
                   <input
                     type="checkbox"
                     [checked]="selected().has(entry.id)"
-                    [disabled]="
-                      entry.lifecycle === 'STATEMENT_SENT' ||
-                      entry.lifecycle === 'RESERVED' ||
-                      entry.disposition === 'INTERNAL'
-                    "
+                    [disabled]="entry.status !== 'UNBILLED'"
                     (change)="toggleEntry(entry)"
-                    [attr.aria-label]="entry.clientDescription"
+                    [attr.aria-label]="entry.description"
                   />
                 </td>
-                <td hlmTd>
-                  {{ entry.workStartDate }}
-                  @if (entry.workEndDate !== entry.workStartDate) {
-                    — {{ entry.workEndDate }}
-                  }
-                </td>
-                <td hlmTd>{{ entry.clientDescription }}</td>
+                <td hlmTd>{{ entry.serviceDate }}</td>
+                <td hlmTd>{{ entry.description }}</td>
                 <td hlmTd>
                   {{ entry.client.displayName }}
                   <br />
@@ -281,15 +271,10 @@
                   }
                 </td>
                 <td hlmTd>{{ entry.performedBy.displayName }}</td>
-                <td hlmTd>{{ entry.durationMinutes ?? "—" }}</td>
                 <td hlmTd>
                   {{ formatCurrency(entry.amount, entry.currency) }}
-                  <br />
-                  <span class="text-muted-foreground">
-                    {{ entry.disposition }}
-                  </span>
                 </td>
-                <td hlmTd>{{ entry.lifecycle }}</td>
+                <td hlmTd>{{ entry.status }}</td>
               </tr>
             }
           </tbody>

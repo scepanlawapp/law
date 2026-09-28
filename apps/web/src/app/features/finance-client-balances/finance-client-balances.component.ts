@@ -4,7 +4,7 @@ import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
 import {
-  BillingEntrySummary,
+  BillingStatementLineSummary,
   BillingStatement,
   ClientAccount,
   ClientSummary,
@@ -124,11 +124,9 @@ export class FinanceClientBalancesComponent {
         )
       : this.clients();
   }
-  totalEntries(entries: BillingEntrySummary[]): string {
+  totalEntries(entries: BillingStatementLineSummary[]): string {
     return this.money(
-      entries
-        .filter((entry) => entry.disposition === "BILLABLE")
-        .reduce((sum, entry) => sum + Number(entry.amount), 0),
+      entries.reduce((sum, entry) => sum + Number(entry.amount), 0),
       entries[0]?.currency ?? "RSD",
     );
   }

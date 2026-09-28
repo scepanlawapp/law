@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Billing Statement Line Workflow](./tracks/billing_statement_line_workflow_20260928/index.md)
 - [Billing Multi-Candidate Dialog](./tracks/billing_multi_candidate_dialog_20260928/index.md)
 - [Billing Review Bulk Selection](./tracks/billing_review_bulk_selection_20260928/index.md)
 - [Billing Entry Period and Multiple Cases](./tracks/billing_entry_period_multi_case_20260928/index.md)

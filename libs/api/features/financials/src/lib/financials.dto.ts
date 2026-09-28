@@ -6,8 +6,8 @@ import {
   IsDateString,
   IsEnum,
   IsIn,
-  IsInt,
   IsISO8601,
+  Length,
   IsNumber,
   IsOptional,
   IsString,
@@ -18,16 +18,11 @@ import {
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
 import {
-  RecordBillingCandidateItemRequest,
-  RecordBillingCandidatesRequest,
+  RecordBillingStatementLineItemRequest,
+  RecordBillingStatementLinesRequest,
   ReviewBillingSuggestionsRequest,
 } from "@law/api-interfaces";
-import {
-  BillingDisposition,
-  BillingEntryKind,
-  BillingEntryLifecycle,
-  PriceSourceScope,
-} from "@prisma/client";
+import { BillingStatementLineStatus, PriceSourceScope } from "@prisma/client";
 
 export class ReviewBillingSuggestionsDto
   implements ReviewBillingSuggestionsRequest
@@ -39,59 +34,38 @@ export class ReviewBillingSuggestionsDto
   candidateKeys!: string[];
 }
 
-export class RecordBillingCandidateItemDto
-  implements RecordBillingCandidateItemRequest
+export class RecordBillingStatementLineItemDto
+  implements RecordBillingStatementLineItemRequest
 {
   @IsString()
   @MinLength(1)
   candidateKey!: string;
 
-  @IsEnum(BillingEntryKind)
-  kind!: BillingEntryKind;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  durationMinutes?: number;
+  @IsString()
+  @MinLength(1)
+  description!: string;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
   amount!: number;
+
+  @IsString()
+  @Length(3, 3)
+  currency!: string;
 }
 
-export class RecordBillingCandidatesDto
-  implements RecordBillingCandidatesRequest
+export class RecordBillingStatementLinesDto
+  implements RecordBillingStatementLinesRequest
 {
   @IsUUID()
   clientId!: string;
 
-  @IsOptional()
-  @IsArray()
-  @ArrayUnique()
-  @IsUUID("4", { each: true })
-  caseIds?: string[];
-
-  @IsDateString()
-  workStartDate!: string;
-
-  @IsDateString()
-  workEndDate!: string;
-
-  @MinLength(1)
-  @IsString()
-  description!: string;
-
-  @MinLength(1)
-  @IsString()
-  clientDescription!: string;
-
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => RecordBillingCandidateItemDto)
-  items!: RecordBillingCandidateItemDto[];
+  @Type(() => RecordBillingStatementLineItemDto)
+  items!: RecordBillingStatementLineItemDto[];
 }
 
 const toArray = ({ value }: { value: unknown }): string[] | undefined =>
@@ -135,7 +109,7 @@ export class FinancialDateQueryDto extends PaginationQueryDto {
   to?: string;
 }
 
-export class BillingEntryListQueryDto extends FinancialDateQueryDto {
+export class BillingStatementLineListQueryDto extends FinancialDateQueryDto {
   @IsOptional()
   @Transform(toArray)
   @IsArray()
@@ -143,105 +117,38 @@ export class BillingEntryListQueryDto extends FinancialDateQueryDto {
   sourceTypes?: string[];
 
   @IsOptional()
-  @IsEnum(BillingEntryKind)
-  kind?: BillingEntryKind;
-
-  @IsOptional()
-  @IsEnum(BillingDisposition)
-  disposition?: BillingDisposition;
-
-  @IsOptional()
-  @IsEnum(BillingEntryLifecycle)
-  lifecycle?: BillingEntryLifecycle;
+  @IsEnum(BillingStatementLineStatus)
+  status?: BillingStatementLineStatus;
 
   @IsOptional()
   @IsString()
   currency?: string;
 }
 
-export class CreateBillingEntryDto {
+export class CreateBillingStatementLineDto {
   @IsUUID()
   clientId!: string;
-
-  @IsOptional()
-  @IsArray()
-  @ArrayUnique()
-  @IsUUID("4", { each: true })
-  caseIds?: string[];
 
   @IsOptional()
   @IsUUID()
   performedByUserId?: string;
 
-  @IsDateString()
-  workStartDate!: string;
-
-  @IsDateString()
-  workEndDate!: string;
-
-  @IsEnum(BillingEntryKind)
-  kind!: BillingEntryKind;
-
   @IsOptional()
-  @IsEnum(BillingDisposition)
-  disposition?: BillingDisposition;
+  @IsDateString()
+  serviceDate?: string;
 
   @MinLength(1)
   @IsString()
   description!: string;
 
-  @MinLength(1)
-  @IsString()
-  clientDescription!: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  durationMinutes?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  billedDurationMinutes?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 4 })
-  @Min(0)
-  quantity?: number;
-
-  @IsOptional()
-  @IsString()
-  unit?: string;
-
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @Min(0.01)
   amount!: number;
 
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  expenseCostAmount?: number;
-
-  @IsOptional()
   @IsString()
-  currency?: string;
-
-  @IsOptional()
-  @IsString()
-  noChargeReason?: string;
-
-  @IsOptional()
-  @IsUUID()
-  priceSourceVersionId?: string;
-
-  @IsOptional()
-  @IsString()
-  priceSourceExcerpt?: string;
+  @Length(3, 3)
+  currency!: string;
 
   @IsOptional()
   @IsString()
@@ -252,38 +159,27 @@ export class CreateBillingEntryDto {
   sourceId?: string;
 }
 
-export class UpdateBillingEntryDto {
-  @IsOptional()
-  @IsEnum(BillingDisposition)
-  disposition?: BillingDisposition;
-
-  @IsOptional()
-  @IsEnum(BillingEntryLifecycle)
-  lifecycle?: BillingEntryLifecycle;
-
+export class UpdateBillingStatementLineDto {
   @IsOptional()
   @IsString()
   description?: string;
 
   @IsOptional()
-  @IsString()
-  clientDescription?: string;
-
-  @IsOptional()
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
+  @Min(0.01)
   amount?: number;
 
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0)
-  expenseCostAmount?: number;
-
-  @IsOptional()
   @IsString()
-  noChargeReason?: string;
+  @Length(3, 3)
+  currency?: string;
+}
+
+export class CancelBillingStatementLineDto {
+  @IsString()
+  @MinLength(1)
+  reason!: string;
 }
 
 export class CreatePriceSourceDto {
@@ -360,7 +256,7 @@ export class CreateStatementDto {
 
   @IsOptional()
   @IsUUID("4", { each: true })
-  entryIds?: string[];
+  lineIds?: string[];
 
   @IsOptional()
   @IsString()
@@ -378,7 +274,7 @@ export class UpdateStatementDto {
 
   @IsOptional()
   @IsUUID("4", { each: true })
-  entryIds?: string[];
+  lineIds?: string[];
 }
 
 export class SendStatementDto {

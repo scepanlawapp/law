@@ -58,20 +58,18 @@ import {
   DocumentListResponse,
   DocumentUpdateRequest,
   DocumentVersionListResponse,
-  BillingEntrySummary,
+  BillingStatementLineSummary,
   BillingSuggestion,
   BillingSuggestionReview,
   BillingStatement,
   ClientAccount,
-  EntryProposalRequest,
-  EntryProposalResponse,
   ExternalPaymentRecord,
   FinanceOverview,
   PriceSourceSummary,
   PriceSourceVersion,
   PriceSourceScope,
   ReviewBillingSuggestionsRequest,
-  RecordBillingCandidatesRequest,
+  RecordBillingStatementLinesRequest,
   StatementProposalRequest,
   StatementProposalResponse,
 } from "@law/api-interfaces";
@@ -1757,16 +1755,6 @@ export class FinancialsApiClient {
     );
   }
 
-  entryProposal(
-    request: EntryProposalRequest,
-  ): Observable<EntryProposalResponse> {
-    return this.http.post<EntryProposalResponse>(
-      this.endpoint("/financials/ai/entry-proposals"),
-      request,
-      { withCredentials: true },
-    );
-  }
-
   candidates(
     query: Record<string, string | number | string[] | undefined>,
   ): Observable<PaginatedResponse<BillingSuggestion>> {
@@ -1818,53 +1806,53 @@ export class FinancialsApiClient {
     );
   }
 
-  recordCandidate(
-    candidateKey: string,
-    billingEntryId: string,
-  ): Observable<BillingSuggestionReview> {
-    return this.http.post<BillingSuggestionReview>(
-      this.endpoint(
-        `/financials/candidates/${encodeURIComponent(candidateKey)}/record`,
-      ),
-      { billingEntryId },
-      { withCredentials: true },
-    );
-  }
-
-  recordCandidates(
-    request: RecordBillingCandidatesRequest,
-  ): Observable<BillingEntrySummary[]> {
-    return this.http.post<BillingEntrySummary[]>(
+  recordCandidateLines(
+    request: RecordBillingStatementLinesRequest,
+  ): Observable<BillingStatementLineSummary[]> {
+    return this.http.post<BillingStatementLineSummary[]>(
       this.endpoint("/financials/candidates/record"),
       request,
       { withCredentials: true },
     );
   }
 
-  entries(
+  lines(
     query: Record<string, string | number | string[] | undefined>,
-  ): Observable<PaginatedResponse<BillingEntrySummary>> {
-    return this.http.get<PaginatedResponse<BillingEntrySummary>>(
-      this.endpoint("/financials/entries"),
+  ): Observable<PaginatedResponse<BillingStatementLineSummary>> {
+    return this.http.get<PaginatedResponse<BillingStatementLineSummary>>(
+      this.endpoint("/financials/lines"),
       { params: queryParams(query), withCredentials: true },
     );
   }
 
-  createEntry(body: Record<string, unknown>): Observable<BillingEntrySummary> {
-    return this.http.post<BillingEntrySummary>(
-      this.endpoint("/financials/entries"),
+  createLine(
+    body: Record<string, unknown>,
+  ): Observable<BillingStatementLineSummary> {
+    return this.http.post<BillingStatementLineSummary>(
+      this.endpoint("/financials/lines"),
       body,
       { withCredentials: true },
     );
   }
 
-  updateEntry(
+  updateLine(
     id: string,
     body: Record<string, unknown>,
-  ): Observable<BillingEntrySummary> {
-    return this.http.patch<BillingEntrySummary>(
-      this.endpoint(`/financials/entries/${id}`),
+  ): Observable<BillingStatementLineSummary> {
+    return this.http.patch<BillingStatementLineSummary>(
+      this.endpoint(`/financials/lines/${id}`),
       body,
+      { withCredentials: true },
+    );
+  }
+
+  cancelLine(
+    id: string,
+    reason: string,
+  ): Observable<BillingStatementLineSummary> {
+    return this.http.post<BillingStatementLineSummary>(
+      this.endpoint(`/financials/lines/${id}/cancel`),
+      { reason },
       { withCredentials: true },
     );
   }
@@ -1926,7 +1914,7 @@ export class FinancialsApiClient {
     periodStart: string;
     periodEnd: string;
     currency: string;
-    entryIds: string[];
+    lineIds: string[];
     idempotencyKey?: string;
   }): Observable<BillingStatement> {
     return this.http.post<BillingStatement>(
@@ -1945,7 +1933,7 @@ export class FinancialsApiClient {
 
   updateStatement(
     id: string,
-    body: { entryIds?: string[]; periodStart?: string; periodEnd?: string },
+    body: { lineIds?: string[]; periodStart?: string; periodEnd?: string },
   ): Observable<BillingStatement> {
     return this.http.patch<BillingStatement>(
       this.endpoint(`/financials/statements/${id}`),

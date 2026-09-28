@@ -110,15 +110,12 @@
                     </tr>
                   </thead>
                   <tbody hlmTBody>
-                    @for (entry of data.entries; track entry.id) {
+                    @for (entry of data.lines; track entry.id) {
                       <tr hlmTr>
                         <td hlmTd>
-                          {{ entry.workStartDate }}
-                          @if (entry.workEndDate !== entry.workStartDate) {
-                            — {{ entry.workEndDate }}
-                          }
+                          {{ entry.serviceDate }}
                         </td>
-                        <td hlmTd>{{ entry.clientDescription }}</td>
+                        <td hlmTd>{{ entry.description }}</td>
                         <td hlmTd>
                           @if (entry.cases.length) {
                             @for (
