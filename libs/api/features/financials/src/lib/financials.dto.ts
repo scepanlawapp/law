@@ -1,7 +1,9 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
+  IsArray,
   IsDateString,
   IsEnum,
+  IsIn,
   IsInt,
   IsISO8601,
   IsNumber,
@@ -19,14 +21,33 @@ import {
   PriceSourceScope,
 } from "@prisma/client";
 
+const toArray = ({ value }: { value: unknown }): string[] | undefined =>
+  value === undefined
+    ? undefined
+    : Array.isArray(value)
+      ? value
+      : [value as string];
+
 export class FinancialDateQueryDto extends PaginationQueryDto {
   @IsOptional()
   @IsUUID()
   clientId?: string;
 
   @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  clientIds?: string[];
+
+  @IsOptional()
   @IsUUID()
   caseId?: string;
+
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  caseIds?: string[];
 
   @IsOptional()
   @IsUUID()
@@ -42,6 +63,12 @@ export class FinancialDateQueryDto extends PaginationQueryDto {
 }
 
 export class BillingEntryListQueryDto extends FinancialDateQueryDto {
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsString({ each: true })
+  sourceTypes?: string[];
+
   @IsOptional()
   @IsEnum(BillingEntryKind)
   kind?: BillingEntryKind;
@@ -325,6 +352,16 @@ export class CandidateQueryDto extends FinancialDateQueryDto {
   @IsOptional()
   @IsString()
   sourceType?: string;
+
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsString({ each: true })
+  sourceTypes?: string[];
+
+  @IsOptional()
+  @IsIn(["PENDING", "RECORDED", "DISMISSED"])
+  resolution?: "PENDING" | "RECORDED" | "DISMISSED";
 
   @IsOptional()
   @IsString()

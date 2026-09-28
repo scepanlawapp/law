@@ -212,8 +212,19 @@ export class FinancialsService {
       workspaceId: this.workspaceId,
     };
     if (!this.isManager()) where.performedByUserId = this.context.userId;
-    if (query.clientId) where.clientId = query.clientId;
-    if (query.caseId) where.caseId = query.caseId;
+    const clientIds = query.clientIds?.length
+      ? query.clientIds
+      : query.clientId
+        ? [query.clientId]
+        : [];
+    const caseIds = query.caseIds?.length
+      ? query.caseIds
+      : query.caseId
+        ? [query.caseId]
+        : [];
+    if (clientIds.length) where.clientId = { in: clientIds };
+    if (caseIds.length) where.caseId = { in: caseIds };
+    if (query.sourceTypes?.length) where.sourceType = { in: query.sourceTypes };
     if (query.performerId && this.isManager())
       where.performedByUserId = query.performerId;
     if (query.kind) where.kind = query.kind;
@@ -500,17 +511,43 @@ export class FinancialsService {
     const visibleRaw = this.isManager()
       ? raw
       : raw.filter((item) => item.performer?.id === this.context.userId);
+    const clientIds = query.clientIds?.length
+      ? query.clientIds
+      : query.clientId
+        ? [query.clientId]
+        : [];
+    const caseIds = query.caseIds?.length
+      ? query.caseIds
+      : query.caseId
+        ? [query.caseId]
+        : [];
+    const sourceTypes = query.sourceTypes?.length
+      ? query.sourceTypes
+      : query.sourceType
+        ? [query.sourceType]
+        : [];
     const items = visibleRaw
-      .filter((item) =>
-        query.sourceType ? item.sourceType === query.sourceType : true,
+      .filter(
+        (item) =>
+          !clientIds.length ||
+          (item.client ? clientIds.includes(item.client.id) : false),
       )
       .filter(
         (item) =>
-          query.includeResolved === "true" ||
-          !["DISMISSED", "RECORDED"].includes(
-            reviewMap.get(item.candidateKey)?.resolution ?? "PENDING",
-          ),
+          !caseIds.length ||
+          (item.case ? caseIds.includes(item.case.id) : false),
       )
+      .filter(
+        (item) => !sourceTypes.length || sourceTypes.includes(item.sourceType),
+      )
+      .filter((item) => {
+        const resolution =
+          reviewMap.get(item.candidateKey)?.resolution ?? "PENDING";
+        return query.resolution
+          ? resolution === query.resolution
+          : query.includeResolved === "true" ||
+              !["DISMISSED", "RECORDED"].includes(resolution);
+      })
       .map((item) => ({
         ...item,
         resolution: reviewMap.get(item.candidateKey)?.resolution ?? "PENDING",

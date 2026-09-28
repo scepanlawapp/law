@@ -46,6 +46,11 @@ describe("FinancialsService", () => {
       findMany: jest.fn(),
       upsert: jest.fn(),
     },
+    event: { findMany: jest.fn() },
+    task: { findMany: jest.fn() },
+    deadline: { findMany: jest.fn() },
+    caseActivity: { findMany: jest.fn() },
+    clientActivity: { findMany: jest.fn() },
     $transaction: jest.fn(async (input: unknown) => {
       if (typeof input === "function") return input(db);
       return Promise.all(input as Promise<unknown>[]);
@@ -61,6 +66,14 @@ describe("FinancialsService", () => {
       status: "ACTIVE",
       user: user(),
     });
+    db.billingEntry.findMany.mockResolvedValue([]);
+    db.billingEntry.count.mockResolvedValue(0);
+    db.billingSuggestionReview.findMany.mockResolvedValue([]);
+    db.event.findMany.mockResolvedValue([]);
+    db.task.findMany.mockResolvedValue([]);
+    db.deadline.findMany.mockResolvedValue([]);
+    db.caseActivity.findMany.mockResolvedValue([]);
+    db.clientActivity.findMany.mockResolvedValue([]);
     db.billingEntry.create.mockResolvedValue({
       id: "55555555-5555-4555-a555-555555555555",
       client: client(),
@@ -131,5 +144,71 @@ describe("FinancialsService", () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(db.billingEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("applies repeated client, case, and source filters before listing entries", async () => {
+    const otherClientId = "55555555-5555-4555-a555-555555555555";
+
+    await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () =>
+        service.listEntries({
+          page: 1,
+          pageSize: 50,
+          clientIds: [clientId, otherClientId],
+          caseIds: [caseId],
+          sourceTypes: ["EVENT", "TASK"],
+        }),
+    );
+
+    expect(db.billingEntry.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          clientId: { in: [clientId, otherClientId] },
+          caseId: { in: [caseId] },
+          sourceType: { in: ["EVENT", "TASK"] },
+        }),
+      }),
+    );
+  });
+
+  it("returns only dismissed candidates matching repeated filters", async () => {
+    const completedAt = new Date("2026-09-23T10:00:00.000Z");
+    db.task.findMany.mockResolvedValue([
+      {
+        id: "66666666-6666-4666-a666-666666666666",
+        title: "Prepare submission",
+        completedAt,
+        updatedAt: completedAt,
+        client: client(),
+        case: null,
+        assignee: user(),
+      },
+    ]);
+    db.billingSuggestionReview.findMany.mockResolvedValue([
+      {
+        candidateKey: `TASK:66666666-6666-4666-a666-666666666666:${userId}`,
+        resolution: "DISMISSED",
+      },
+    ]);
+
+    const response = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () =>
+        service.listCandidates({
+          page: 1,
+          pageSize: 50,
+          clientIds: [clientId],
+          sourceTypes: ["TASK"],
+          resolution: "DISMISSED",
+        }),
+    );
+
+    expect(response.items).toHaveLength(1);
+    expect(response.items[0]).toMatchObject({
+      sourceType: "TASK",
+      resolution: "DISMISSED",
+      client: { id: clientId },
+    });
   });
 });

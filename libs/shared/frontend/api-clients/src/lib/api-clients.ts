@@ -1766,7 +1766,7 @@ export class FinancialsApiClient {
   }
 
   candidates(
-    query: Record<string, string | number | undefined>,
+    query: Record<string, string | number | string[] | undefined>,
   ): Observable<PaginatedResponse<BillingSuggestion>> {
     return this.http.get<PaginatedResponse<BillingSuggestion>>(
       this.endpoint("/financials/candidates"),
@@ -1808,7 +1808,7 @@ export class FinancialsApiClient {
   }
 
   entries(
-    query: Record<string, string | number | undefined>,
+    query: Record<string, string | number | string[] | undefined>,
   ): Observable<PaginatedResponse<BillingEntrySummary>> {
     return this.http.get<PaginatedResponse<BillingEntrySummary>>(
       this.endpoint("/financials/entries"),
