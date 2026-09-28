@@ -32,6 +32,34 @@
       </div>
       <div class="grid gap-4 md:grid-cols-2">
         <div hlmField>
+          <label hlmFieldLabel for="deadline-case">
+            {{ "work.case" | translate }}
+          </label>
+          <hlm-select
+            formControlName="caseId"
+            [itemToString]="caseItemToString"
+          >
+            <hlm-select-trigger
+              id="deadline-case"
+              class="w-full min-w-0 max-w-full"
+            >
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.noCase" | translate }}
+                </hlm-select-item>
+                @for (caseItem of cases(); track caseItem.id) {
+                  <hlm-select-item [value]="caseItem.id">
+                    {{ caseItem.caseNumber }} — {{ caseItem.name }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div hlmField>
           <label hlmFieldLabel for="deadline-type">
             {{ "work.type" | translate }}
           </label>
@@ -39,7 +67,10 @@
             formControlName="type"
             [itemToString]="deadlineTypeItemToString"
           >
-            <hlm-select-trigger id="deadline-type" class="w-full">
+            <hlm-select-trigger
+              id="deadline-type"
+              class="w-full min-w-0 max-w-full"
+            >
               <hlm-select-value />
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal>
@@ -61,7 +92,10 @@
             formControlName="responsibleUserId"
             [itemToString]="userItemToString"
           >
-            <hlm-select-trigger id="deadline-responsible" class="w-full">
+            <hlm-select-trigger
+              id="deadline-responsible"
+              class="w-full min-w-0 max-w-full"
+            >
               <hlm-select-value />
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal>

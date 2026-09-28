@@ -387,93 +387,60 @@ export class FinancialsService {
     query: CandidateQueryDto,
   ): Promise<PaginatedResponse<BillingSuggestion>> {
     this.assertFinanceUser();
-    const from = query.from
-      ? new Date(query.from)
-      : new Date(Date.now() - 90 * 86400000);
-    const to = query.to ? new Date(query.to) : new Date();
-    const [events, tasks, deadlines, caseActivities, clientActivities] =
-      await Promise.all([
-        this.db.event.findMany({
-          where: {
-            workspaceId: this.workspaceId,
-            status: "COMPLETED",
-            billingStatementLineId: null,
-            startsAt: { gte: from, lte: to },
-          },
-          include: {
-            case: true,
-            clients: { include: { client: true } },
-            organizer: true,
-            assignees: { include: { user: true } },
-          },
-          orderBy: { startsAt: "desc" },
-        }),
-        this.db.task.findMany({
-          where: {
-            workspaceId: this.workspaceId,
-            status: "DONE",
-            billingStatementLineId: null,
-            completedAt: { gte: from, lte: to },
-          },
-          include: {
-            case: { include: { client: true } },
-            client: true,
-            assignee: true,
-          },
-          orderBy: { completedAt: "desc" },
-        }),
-        this.db.deadline.findMany({
-          where: {
-            workspaceId: this.workspaceId,
-            status: "SATISFIED",
-            billingStatementLineId: null,
-            satisfiedAt: { gte: from, lte: to },
-          },
-          include: {
-            case: { include: { client: true } },
-            client: true,
-            responsibleUser: true,
-          },
-          orderBy: { satisfiedAt: "desc" },
-        }),
-        this.db.caseActivity.findMany({
-          where: {
-            workspaceId: this.workspaceId,
-            activityDate: { gte: from, lte: to },
-          },
-          include: { case: { include: { client: true } } },
-          orderBy: { activityDate: "desc" },
-        }),
-        this.db.clientActivity.findMany({
-          where: {
-            workspaceId: this.workspaceId,
-            activityDate: { gte: from, lte: to },
-          },
-          include: { client: true, relatedCase: true },
-          orderBy: { activityDate: "desc" },
-        }),
-      ]);
+    const [events, tasks] = await Promise.all([
+      this.db.event.findMany({
+        where: {
+          workspaceId: this.workspaceId,
+          billingStatementLineId: null,
+        },
+        include: {
+          case: { include: { client: true } },
+          clients: { include: { client: true } },
+          organizer: true,
+          assignees: { include: { user: true } },
+        },
+        orderBy: { startsAt: "desc" },
+      }),
+      this.db.task.findMany({
+        where: {
+          workspaceId: this.workspaceId,
+          billingStatementLineId: null,
+        },
+        include: {
+          case: { include: { client: true } },
+          client: true,
+          assignee: true,
+        },
+        orderBy: { updatedAt: "desc" },
+      }),
+    ]);
     const raw: Array<any> = [];
-    for (const event of events)
+    for (const event of events) {
+      const clients = event.clients.length
+        ? event.clients.map((relation) => relation.client)
+        : event.case?.client
+          ? [event.case.client]
+          : [null];
       for (const performer of event.assignees.length
         ? event.assignees
         : [{ user: event.organizer }])
-        for (const relation of event.clients)
+        for (const client of clients)
           raw.push({
-            candidateKey: `EVENT:${event.id}:${performer.user.id}:${relation.client.id}`,
+            candidateKey: `EVENT:${event.id}:${performer.user.id}:${client?.id ?? "UNASSIGNED"}`,
             sourceType: "EVENT",
             sourceId: event.id,
             title: event.title,
             date: event.startsAt,
-            client: relation.client,
+            client,
             case: event.case,
             performer: performer.user,
-            reason: "Completed event",
+            reason: "Event",
             warnings:
-              event.clients.length > 1
+              clients.length > 1
                 ? ["Event has multiple clients; confirm the billing client."]
                 : [],
           });
+    }
     for (const task of tasks)
       raw.push({
         candidateKey: `TASK:${task.id}:${task.assignee.id}`,
@@ -484,47 +451,8 @@ export class FinancialsService {
         client: task.client ?? task.case?.client,
         case: task.case,
         performer: task.assignee,
-        reason: "Completed task",
+        reason: "Task",
         warnings: [],
-      });
-    for (const deadline of deadlines)
-      raw.push({
-        candidateKey: `DEADLINE:${deadline.id}:${deadline.responsibleUser.id}`,
-        sourceType: "DEADLINE",
-        sourceId: deadline.id,
-        title: deadline.title,
-        date: deadline.satisfiedAt ?? deadline.updatedAt,
-        client: deadline.client ?? deadline.case?.client,
-        case: deadline.case,
-        performer: deadline.responsibleUser,
-        reason: "Satisfied deadline; confirm actual service",
-        warnings: ["A satisfied deadline is not itself billable."],
-      });
-    for (const activity of caseActivities)
-      raw.push({
-        candidateKey: `CASE_ACTIVITY:${activity.id}:${activity.createdByUserId}`,
-        sourceType: "CASE_ACTIVITY",
-        sourceId: activity.id,
-        title: activity.title,
-        date: activity.activityDate,
-        client: activity.case.client,
-        case: activity.case,
-        performer: null,
-        reason: "Recorded case activity",
-        warnings: ["Actual duration and performer are required."],
-      });
-    for (const activity of clientActivities)
-      raw.push({
-        candidateKey: `CLIENT_ACTIVITY:${activity.id}:${activity.createdByUserId}`,
-        sourceType: "CLIENT_ACTIVITY",
-        sourceId: activity.id,
-        title: activity.title,
-        date: activity.activityDate,
-        client: activity.client,
-        case: activity.relatedCase,
-        performer: null,
-        reason: "Recorded client activity",
-        warnings: ["Actual duration and charge decision are required."],
       });
     const reviews = await this.db.billingSuggestionReview.findMany({
       where: {
@@ -705,9 +633,11 @@ export class FinancialsService {
               where: {
                 id: source.sourceId,
                 workspaceId: this.workspaceId,
-                status: "COMPLETED",
                 billingStatementLineId: null,
-                clients: { some: { clientId: input.clientId } },
+                OR: [
+                  { clients: { some: { clientId: input.clientId } } },
+                  { case: { clientId: input.clientId } },
+                ],
               },
             });
             if (!event || source.proposedClientId !== input.clientId)
@@ -723,7 +653,6 @@ export class FinancialsService {
               where: {
                 id: source.sourceId,
                 workspaceId: this.workspaceId,
-                status: "DONE",
                 billingStatementLineId: null,
               },
               include: { case: true },

@@ -96,6 +96,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Event completion and cancellation transitions.
 - Event validation ensures the end time is after the start time.
 - Events can reference cases, clients, workspace assignees, and client contacts as attendees.
+- The event dialog exposes a responsible-user and optional-case selector; new events default responsibility to the signed-in user.
 - Event creation/update trims user-entered text and records activity-log entries.
 
 ### Tasks
@@ -106,6 +107,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Newly created tasks default to no due target; a due date or exact due timestamp is only added when the user explicitly selects it. Edit mode preserves the stored due target.
 - Task completion, cancellation, and reopening transitions.
 - Tasks can be associated with cases, clients, and deadlines.
+- The task dialog exposes a responsible-user and optional-case selector; new tasks default responsibility to the signed-in user.
 
 ### Deadlines
 
@@ -115,6 +117,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Deadline satisfaction, cancellation, and reopening transitions.
 - API responses calculate whether an open deadline is overdue.
 - Deadlines support responsible users, case/client associations, time zones, and source descriptions.
+- The deadline dialog exposes a responsible-user and optional-case selector; new deadlines default responsibility to the signed-in user.
 
 ### Notes and calendar aggregation
 
@@ -248,7 +251,7 @@ documents,
 
 ## Financials backend foundation
 
-- The deterministic Financials backend now has workspace-scoped standalone billing statement lines, live review candidates for completed work clues, append-only free-form price-source versions, draft/sent/void service statements, external invoice references, derived payment tracking, and finance-scoped idempotency records. A line records one client, performer, service date, description, amount, currency, source reference, optional case links, audit fields, and an `UNBILLED`/`RESERVED`/`BILLED`/`CANCELLED` lifecycle with cancellation metadata. Lines exist independently before they are grouped into a statement; `BillingEntry` and `BillingEntryCase` are no longer part of the active model.
+- The deterministic Financials backend now has workspace-scoped standalone billing statement lines, live review candidates for every task and event without a linked billing statement line, append-only free-form price-source versions, draft/sent/void service statements, external invoice references, derived payment tracking, and finance-scoped idempotency records. Deadline and activity records are not candidate sources. A line records one client, performer, service date, description, amount, currency, source reference, optional case links, audit fields, and an `UNBILLED`/`RESERVED`/`BILLED`/`CANCELLED` lifecycle with cancellation metadata. Lines exist independently before they are grouped into a statement; `BillingEntry` and `BillingEntryCase` are no longer part of the active model.
 - Candidate and statement-line lists support multi-value client, case, and source filtering before pagination. Candidate review can explicitly list pending or dismissed proposals. Pending and dismissed candidate pages support visible-page checkbox selection plus transactional array-based dismiss/restore actions; row actions are disabled while a bulk selection is active. One or more selected proposals can be sent to a combined billing dialog, where each retained proposal becomes its own statement line; recording the batch creates all lines, links each review to its resulting line, and writes the direct line pointer on event, task, or deadline sources in one transaction.
 - Finance access is restricted in the service layer: `OWNER`/`ADMIN` manage office-wide financials, `LAWYER` can record and view permitted own work, and ordinary `MEMBER` accounts do not receive unrestricted finance access.
 - The workflow does not issue tax/fiscal invoices, calculate tariffs or tax, process payments, create automatic charges, or call AI. A typed future proposal contract exists without a model/provider implementation.

@@ -7,12 +7,14 @@ import {
   Validators,
 } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { DeadlineDetail, DeadlineType } from "@law/api-interfaces";
+import { CaseSummary, DeadlineDetail, DeadlineType } from "@law/api-interfaces";
 import {
+  CasesApiClient,
   DeadlineRequest,
   ReferencesApiClient,
   WorkManagementApiClient,
 } from "@law/api-clients";
+import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmDialogDescription,
@@ -59,12 +61,15 @@ type DeadlineDueMode = "DATE" | "DATE_TIME";
 })
 export class DeadlineDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
+  private readonly casesApi = inject(CasesApiClient);
   private readonly references = inject(ReferencesApiClient);
+  private readonly auth = inject(AuthState);
   private readonly context = injectBrnDialogContext<DeadlineDialogContext>();
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly dialogRef = inject(BrnDialogRef<DeadlineDetail>);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
+  readonly cases = signal<CaseSummary[]>([]);
   readonly saving = signal(false);
   readonly editing = Boolean(this.context.deadline);
   readonly types: DeadlineType[] = [
@@ -87,6 +92,11 @@ export class DeadlineDialogComponent {
       : "";
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().find((user) => user.id === value)?.name ?? "";
+  readonly caseItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("work.noCase");
+    const caseItem = this.cases().find((item) => item.id === value);
+    return caseItem ? `${caseItem.caseNumber} — ${caseItem.name}` : value;
+  };
   readonly form = new FormGroup({
     title: new FormControl(this.context.deadline?.title ?? "", {
       nonNullable: true,
@@ -116,8 +126,14 @@ export class DeadlineDialogComponent {
       nonNullable: true,
     }),
     responsibleUserId: new FormControl(
-      this.context.deadline?.responsibleUser.id ?? "",
+      this.context.deadline?.responsibleUser.id ??
+        this.auth.session()?.user.id ??
+        "",
       { nonNullable: true, validators: [Validators.required] },
+    ),
+    caseId: new FormControl(
+      this.context.caseId ?? this.context.deadline?.case?.id ?? "",
+      { nonNullable: true },
     ),
     sourceDescription: new FormControl(
       this.context.deadline?.sourceDescription ?? "",
@@ -145,10 +161,11 @@ export class DeadlineDialogComponent {
                 .join(" ") || membership.user.email,
           })),
         );
-        if (!this.form.controls.responsibleUserId.value && this.users()[0]) {
-          this.form.controls.responsibleUserId.setValue(this.users()[0].id);
-        }
       });
+    this.casesApi
+      .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.cases.set(response.items));
   }
 
   submit(): void {
@@ -164,8 +181,7 @@ export class DeadlineDialogComponent {
       timeZone: "Europe/Belgrade",
       responsibleUserId: value.responsibleUserId,
       sourceDescription: value.sourceDescription || undefined,
-      caseId:
-        this.context.caseId ?? this.context.deadline?.case?.id ?? undefined,
+      caseId: value.caseId || undefined,
       clientId:
         this.context.clientId ?? this.context.deadline?.client?.id ?? undefined,
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,

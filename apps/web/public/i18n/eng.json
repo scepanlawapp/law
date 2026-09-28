@@ -131,6 +131,7 @@
   "work.type": "Type",
   "work.responsible": "Responsible",
   "work.case": "Case",
+  "work.noCase": "No case",
   "work.client": "Client",
   "work.related": "Related",
   "work.due": "Due",

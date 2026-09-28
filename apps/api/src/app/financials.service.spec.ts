@@ -196,6 +196,59 @@ describe("FinancialsService", () => {
     expect(db.billingStatementLine.create).not.toHaveBeenCalled();
   });
 
+  it("lists every unbilled task and event and excludes other source types", async () => {
+    db.event.findMany.mockResolvedValue([
+      {
+        id: eventId,
+        title: "Future client meeting",
+        status: "SCHEDULED",
+        startsAt: new Date("2026-10-10T10:00:00.000Z"),
+        billingStatementLineId: null,
+        case: { ...caseRecord(), client: client() },
+        clients: [],
+        organizer: user(),
+        assignees: [],
+      },
+    ]);
+    db.task.findMany.mockResolvedValue([
+      {
+        id: taskId,
+        title: "Draft submission",
+        status: "TODO",
+        completedAt: null,
+        updatedAt: new Date("2026-09-29T10:00:00.000Z"),
+        billingStatementLineId: null,
+        case: { ...caseRecord(), client: client() },
+        client: null,
+        assignee: user(),
+      },
+    ]);
+
+    const result = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () => service.listCandidates({ page: 1, pageSize: 20 } as never),
+    );
+
+    expect(result.items).toEqual([
+      expect.objectContaining({
+        sourceType: "EVENT",
+        client: expect.objectContaining({ id: clientId }),
+      }),
+      expect.objectContaining({ sourceType: "TASK" }),
+    ]);
+    expect(db.event.findMany.mock.calls[0][0].where).toEqual({
+      workspaceId,
+      billingStatementLineId: null,
+    });
+    expect(db.task.findMany.mock.calls[0][0].where).toEqual({
+      workspaceId,
+      billingStatementLineId: null,
+    });
+    expect(db.deadline.findMany).not.toHaveBeenCalled();
+    expect(db.caseActivity.findMany).not.toHaveBeenCalled();
+    expect(db.clientActivity.findMany).not.toHaveBeenCalled();
+  });
+
   it("cancels only an unbilled line and records the reason", async () => {
     db.billingStatementLine.findFirst.mockResolvedValue({
       id: "line-task",
