@@ -46,6 +46,7 @@ function setup(options: { caseLinked?: boolean } = {}) {
           },
         },
       ]),
+      findFirst: jest.fn(async (): Promise<unknown> => null),
     },
     chatAttachment: {
       findMany: jest.fn(async () => [
@@ -189,13 +190,58 @@ describe("AssistantDocumentReadsService", () => {
     });
   });
 
-  it("does not read documents outside the conversation's scope", async () => {
-    const { service, documentText } = setup();
+  it("does not read another workspace's or an archived document", async () => {
+    const { service, prisma, documentText } = setup();
 
     const result = await service.readDocument(scope, { ref: "doc:other" });
 
+    expect(prisma.document.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          id: "other",
+          workspaceId: "workspace-1",
+          archivedAt: null,
+        }),
+      }),
+    );
     expect(result.status).toBe("NOT_FOUND");
     expect(documentText.ensureText).not.toHaveBeenCalled();
+  });
+
+  it("does not look up refs that are not documents", async () => {
+    const { service, prisma } = setup();
+
+    const result = await service.readDocument(scope, { ref: "att:other" });
+
+    expect(result.status).toBe("NOT_FOUND");
+    expect(prisma.document.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("reads and searches a workspace document named by its ref outside the case", async () => {
+    const { service, prisma, documentText } = setup({ caseLinked: false });
+    prisma.document.findFirst.mockResolvedValue({
+      id: "doc-9",
+      title: "Ugovor o zakupu",
+      createdAt: new Date("2026-09-20T10:00:00Z"),
+      currentVersion: {
+        id: "version-9",
+        originalFilename: "zakup.pdf",
+        extractionStatus: "COMPLETED",
+      },
+    });
+
+    const read = await service.readDocument(scope, { ref: "doc:doc-9" });
+    const search = await service.searchDocuments(scope, {
+      query: "zakupnina",
+      ref: "doc:doc-9",
+    });
+
+    expect(documentText.ensureText).toHaveBeenCalledWith(
+      "workspace-1",
+      "version-9",
+    );
+    expect(read).toMatchObject({ status: "OK", ref: "doc:doc-9", text: LEASE });
+    expect(search).toMatchObject({ status: "OK", searched: 1 });
   });
 
   it("finds phrases regardless of case, script, diacritics, and line breaks", async () => {
