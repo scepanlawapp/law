@@ -2,7 +2,11 @@ import { TestBed } from "@angular/core/testing";
 import { RouterTestingModule } from "@angular/router/testing";
 import { NEVER, of } from "rxjs";
 import { ChatApiClient, CasesApiClient } from "@law/api-clients";
-import { BriefApplyPreview, ChatSessionSummary } from "@law/api-interfaces";
+import {
+  BriefApplyPreview,
+  BriefTaskPreview,
+  ChatSessionSummary,
+} from "@law/api-interfaces";
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 
 const session: ChatSessionSummary = {
@@ -151,5 +155,88 @@ describe("AssistantMatterLinkComponent", () => {
       ".matter-link-status",
     ) as HTMLElement;
     expect(status.dataset["status"]).toBe("linked");
+  });
+
+  it("groups task proposals, preselects missing data and sends edited due dates", () => {
+    const tasks: BriefTaskPreview = {
+      briefId: "brief-1",
+      caseId: "case-1",
+      proposals: [
+        {
+          key: "missing:defendantAddress:0",
+          source: "missing",
+          fieldKey: "defendantAddress",
+          title: "Pribaviti adresu tuženog",
+          description: "",
+          assigneeUserId: "user-1",
+          priority: "NORMAL",
+          dueDate: "2026-09-30",
+          selectedByDefault: true,
+          alreadyApplied: false,
+        },
+        {
+          key: "missing:serviceDate:1",
+          source: "missing",
+          fieldKey: "serviceDate",
+          title: "Utvrditi datum dostavljanja osporenog akta",
+          description: "",
+          assigneeUserId: "user-1",
+          priority: "HIGH",
+          dueDate: "2026-09-28",
+          selectedByDefault: true,
+          alreadyApplied: true,
+        },
+        {
+          key: "evidence:0",
+          source: "evidence",
+          title: "Pribaviti dokaz: Ugovor o radu",
+          description: "",
+          assigneeUserId: "user-1",
+          priority: "NORMAL",
+          dueDate: "2026-09-30",
+          selectedByDefault: false,
+          alreadyApplied: false,
+        },
+      ],
+    };
+    chat.previewBrief.mockReturnValue(
+      of({ ...preview, alreadyApplied: true, appliedCaseId: "case-1" }),
+    );
+    chat.previewBriefTasks.mockReturnValue(of(tasks));
+    const fixture = TestBed.createComponent(AssistantMatterLinkComponent);
+    fixture.componentRef.setInput("workspaceId", "workspace-1");
+    fixture.componentRef.setInput("session", session);
+    fixture.componentRef.setInput("briefId", "brief-1");
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    const groups = element.querySelectorAll(".matter-task-group");
+    expect(groups.length).toBe(2);
+    expect(element.querySelectorAll(".matter-task.is-created").length).toBe(1);
+    expect([...fixture.componentInstance.selectedTaskKeys()]).toEqual([
+      "missing:defendantAddress:0",
+    ]);
+
+    const due = element.querySelector(
+      ".matter-task-due",
+    ) as HTMLInputElement;
+    expect(due.value).toBe("2026-09-30");
+    due.value = "2026-10-02";
+    due.dispatchEvent(new Event("change"));
+    fixture.componentInstance.toggleGroup("evidence");
+    fixture.componentInstance.confirmTasks();
+
+    expect(chat.applyBriefTasks).toHaveBeenCalledWith(
+      "workspace-1",
+      "session-1",
+      "brief-1",
+      {
+        tasks: [
+          { key: "missing:defendantAddress:0", dueDate: "2026-10-02" },
+          { key: "evidence:0" },
+        ],
+      },
+    );
   });
 });

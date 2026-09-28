@@ -4,6 +4,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   MaxLength,
   ValidateNested,
 } from "class-validator";
@@ -134,6 +135,10 @@ export class BriefTaskApplyItemDto {
   @IsOptional()
   @IsUUID()
   assigneeUserId?: string;
+
+  @IsOptional()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  dueDate?: string;
 }
 
 export class BriefTaskApplyDto {

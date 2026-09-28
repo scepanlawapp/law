@@ -12,9 +12,9 @@ const fullBrief: BriefResult = {
   claimValue: "150.000 RSD",
   legalBasis: ["ZOO čl. 154"],
   factualDescription: "Tuženi nije isplatio naknadu štete.",
-  evidence: ["ugovor.pdf"],
+  evidence: [{ label: "ugovor.pdf", provided: true }],
   reliefSought: "Isplata naknade štete u iznosu od 150.000 RSD.",
-  missingFields: ["defendant.address"],
+  missingFields: [{ key: "defendantAddress", label: "Adresa tuženog" }],
   confidence: 0.8,
   warnings: [],
 };
@@ -43,7 +43,7 @@ describe("buildDraftingUserPrompt", () => {
 
     expect(result.prompt).toContain("Petar Petrović");
     expect(result.prompt).toContain("Prvi osnovni sud u Beogradu");
-    expect(result.prompt).toContain("defendant.address");
+    expect(result.prompt).toContain("defendantAddress");
     expect(result.truncated).toBe(false);
   });
 

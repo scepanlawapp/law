@@ -22,7 +22,10 @@ const lawsuitBrief = {
   factualDescription: "Poslodavac nije isplatio zaradu za tri meseca.",
   evidence: [],
   reliefSought: "Isplata neisplaćene zarade.",
-  missingFields: ["defendant.address", "competentCourt"],
+  missingFields: [
+    { key: "defendantAddress", label: "Adresa tuženog" },
+    { key: "competentCourt", label: "Nadležni sud" },
+  ],
   confidence: 0.8,
   warnings: [],
 };

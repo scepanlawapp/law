@@ -164,7 +164,7 @@
       @if (card.missingFields.length) {
       <p>
         {{ "assistant.missingFields" | translate }}:
-        {{ card.missingFields.join(", ") }}
+        {{ missingFieldLabels(card.missingFields) }}
       </p>
       }
       <button hlmBtn type="submit" [disabled]="saving()">
@@ -177,29 +177,78 @@
     @if (taskPreview(); as tasks) {
     <form
       class="matter-link-section"
-      (ngSubmit)="confirmTasks()"
+      (submit)="$event.preventDefault(); confirmTasks()"
     >
       <h3 class="matter-link-section-title">
         {{ "assistant.matter.confirmTasks" | translate }}
       </h3>
-      @for (task of tasks.proposals; track task.key) {
-      <label class="flex gap-2">
-        <input
-          type="checkbox"
-          [checked]="selectedTaskKeys().has(task.key)"
-          [disabled]="task.alreadyApplied"
-          (change)="toggleTask(task.key)"
-        />
-        <span>{{ task.title }}</span>
-      </label>
+      @for (group of taskGroups(); track group.source) {
+      <fieldset class="matter-task-group">
+        <legend class="matter-task-group-header">
+          <span>{{ group.titleKey | translate }}</span>
+          <label class="matter-task-select-all">
+            <input
+              type="checkbox"
+              [checked]="groupAllSelected(group.source)"
+              (change)="toggleGroup(group.source)"
+            />
+            {{ "assistant.matter.selectAll" | translate }}
+          </label>
+        </legend>
+        @for (task of group.tasks; track task.key) {
+        @if (task.alreadyApplied) {
+        <div class="matter-task is-created">
+          <ng-icon name="lucideCircleCheck" aria-hidden="true" />
+          <span class="matter-task-title">{{ task.title }}</span>
+          <span class="matter-task-meta">
+            {{ "assistant.matter.taskCreated" | translate }}
+          </span>
+        </div>
+        } @else {
+        <div class="matter-task">
+          <input
+            type="checkbox"
+            [id]="'matter-task-' + task.key"
+            [checked]="selectedTaskKeys().has(task.key)"
+            (change)="toggleTask(task.key)"
+          />
+          <label class="matter-task-title" [for]="'matter-task-' + task.key">
+            {{ task.title }}
+            @if (task.priority === "HIGH" || task.priority === "URGENT") {
+            <span class="matter-task-urgent">
+              {{ "assistant.matter.urgent" | translate }}
+            </span>
+            }
+          </label>
+          <input
+            hlmInput
+            type="date"
+            class="matter-task-due"
+            [attr.aria-label]="'assistant.matter.dueDate' | translate"
+            [value]="dueDateOf(task)"
+            (change)="setDueDate(task.key, $any($event.target).value)"
+          />
+        </div>
+        }
+        }
+      </fieldset>
+      } @empty {
+      <p class="matter-task-empty">
+        {{ "assistant.matter.noTasks" | translate }}
+      </p>
       }
+      @if (tasks.proposals.length) {
       <button
         hlmBtn
         type="submit"
         [disabled]="saving() || !selectedTaskKeys().size"
       >
-        {{ "assistant.matter.confirmTasks" | translate }}
+        {{
+          "assistant.matter.createTasks"
+            | translate: { count: selectedTaskKeys().size }
+        }}
       </button>
+      }
       <a class="matter-link-open" [routerLink]="['/cases', tasks.caseId]">
         {{ "assistant.matter.openWork" | translate }}
       </a>
@@ -207,7 +256,7 @@
     }
 
     @if (error()) {
-    <p class="matter-link-error">{{ error() }}</p>
+    <p class="matter-link-error">{{ error() | translate }}</p>
     }
   </div>
   }

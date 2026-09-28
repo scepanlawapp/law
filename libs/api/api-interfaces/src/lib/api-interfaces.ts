@@ -416,6 +416,38 @@ export interface BriefParty {
   address: string | null;
 }
 
+// Canonical keys for data the brief could not find; "other" carries only a label.
+export const BRIEF_MISSING_FIELD_KEYS = [
+  "plaintiffName",
+  "plaintiffAddress",
+  "plaintiffIdNumber",
+  "defendantName",
+  "defendantAddress",
+  "defendantIdNumber",
+  "competentCourt",
+  "claimValue",
+  "legalBasis",
+  "factualDescription",
+  "reliefSought",
+  "serviceDate",
+  "contractReference",
+  "other",
+] as const;
+
+export type BriefMissingFieldKey = (typeof BRIEF_MISSING_FIELD_KEYS)[number];
+
+export interface BriefMissingField {
+  key: BriefMissingFieldKey;
+  // Short Serbian Latin phrase, e.g. "Adresa tuženog".
+  label: string;
+}
+
+export interface BriefEvidenceItem {
+  label: string;
+  // True when the document is already attached to the conversation.
+  provided: boolean;
+}
+
 export interface BriefResult {
   jobType: BriefJobType | null;
   plaintiff: BriefParty;
@@ -424,9 +456,9 @@ export interface BriefResult {
   claimValue: string | null;
   legalBasis: string[];
   factualDescription: string | null;
-  evidence: string[];
+  evidence: BriefEvidenceItem[];
   reliefSought: string | null;
-  missingFields: string[];
+  missingFields: BriefMissingField[];
   confidence: number;
   warnings: string[];
 }
@@ -439,7 +471,7 @@ export interface BriefExtractionResultResponse {
   messageId: string | null;
   brief: BriefResult;
   confidence: number | null;
-  missingFields: string[];
+  missingFields: BriefMissingField[];
   appliedCaseId?: string | null;
   appliedTaskKeys?: string[];
   promptChars: number;
@@ -471,7 +503,7 @@ export interface BriefApplyPreview {
   suggestedDescription: string;
   suggestedCaseNumber: string;
   responsibleUserId: string;
-  missingFields: string[];
+  missingFields: BriefMissingField[];
   warnings: string[];
   confidence: number | null;
 }
@@ -504,9 +536,14 @@ export interface BriefApplyResponse {
 export interface BriefTaskProposal {
   key: string;
   source: "missing" | "evidence";
+  fieldKey?: BriefMissingFieldKey;
   title: string;
   description: string;
   assigneeUserId: string;
+  priority: CasePriority;
+  // ISO date (YYYY-MM-DD).
+  dueDate: string;
+  selectedByDefault: boolean;
   alreadyApplied: boolean;
 }
 
@@ -520,6 +557,7 @@ export interface BriefTaskApplyItem {
   key: string;
   title?: string;
   assigneeUserId?: string;
+  dueDate?: string;
 }
 
 export interface BriefTaskApplyRequest {
@@ -553,7 +591,7 @@ export interface DraftResultResponse {
   documentText: string;
   finalDocumentText?: string | null;
   warnings: string[];
-  missingFields?: string[];
+  missingFields?: BriefMissingField[];
   citations: LegalCitationResponse[];
   promptChars: number;
   truncated: boolean;

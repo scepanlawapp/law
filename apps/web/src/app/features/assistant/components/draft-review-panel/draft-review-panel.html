@@ -5,8 +5,18 @@
 >
   <header class="draft-review-header">
     <div class="draft-heading">
-      <span class="draft-heading-icon" aria-hidden="true">
-        <ng-icon name="lucideTriangleAlert" />
+      <span
+        class="draft-heading-icon"
+        [class.is-complete]="approved || !placeholders().length"
+        aria-hidden="true"
+      >
+        <ng-icon
+          [name]="
+            approved || !placeholders().length
+              ? 'lucideCircleCheck'
+              : 'lucideTriangleAlert'
+          "
+        />
       </span>
       <div>
         <strong id="draft-review-title">
@@ -44,29 +54,87 @@
   @if (expanded) {
   <div id="draft-review-content" class="draft-review-content">
     <div class="draft-review-meta">
-      @if (draft.warnings.length) {
-      <section class="draft-alert draft-alert-warning">
+      @if (placeholders().length) {
+      <section class="draft-alert draft-alert-warning draft-todo">
         <strong>
           <ng-icon name="lucideTriangleAlert" aria-hidden="true" />
-          {{ "assistant.draftWarnings" | translate }}
+          {{ "assistant.toComplete" | translate }} ({{ placeholders().length }})
         </strong>
-        <ul>
-          @for (warning of draft.warnings; track warning) {
-          <li>{{ warning }}</li>
+        <p class="draft-todo-hint">
+          {{ "assistant.toCompleteHint" | translate }}
+        </p>
+        <ul class="draft-todo-list">
+          @for (item of placeholders(); track item.id) {
+          <li class="draft-todo-item">
+            <div class="draft-todo-label">
+              <span>{{ item.label }}</span>
+              @if (item.occurrences.length > 1) {
+              <span class="draft-todo-count">
+                {{
+                  "assistant.occurrences"
+                    | translate: { count: item.occurrences.length }
+                }}
+              </span>
+              }
+              <button
+                hlmBtn
+                variant="ghost"
+                size="icon"
+                type="button"
+                class="draft-todo-locate"
+                [hlmTooltip]="'assistant.showInText' | translate"
+                [attr.aria-label]="'assistant.showInText' | translate"
+                (click)="showInText(item)"
+              >
+                <ng-icon name="lucideLocateFixed" />
+              </button>
+            </div>
+            <form class="draft-todo-fill" (ngSubmit)="fill(item)">
+              <input
+                hlmInput
+                type="text"
+                class="draft-todo-input"
+                [attr.aria-label]="item.label"
+                [placeholder]="'assistant.fillInPlaceholder' | translate"
+                [value]="fillValues()[item.id] ?? ''"
+                (input)="setFillValue(item.id, $any($event.target).value)"
+              />
+              <button
+                hlmBtn
+                variant="secondary"
+                size="sm"
+                type="submit"
+                [disabled]="!(fillValues()[item.id] ?? '').trim()"
+              >
+                {{ "assistant.fillIn" | translate }}
+              </button>
+            </form>
+          </li>
           }
         </ul>
       </section>
-      } @if (draft.missingFields?.length) {
-      <section class="draft-alert">
-        <strong>{{ "assistant.missingFields" | translate }}</strong>
-        <div class="missing-fields">
-          @for (field of draft.missingFields; track field) {
-          <span>{{ field }}</span>
-          }
-        </div>
-      </section>
+      } @else {
+      <p class="draft-alert draft-alert-success">
+        <ng-icon name="lucideCircleCheck" aria-hidden="true" />
+        {{ "assistant.allFilled" | translate }}
+      </p>
       }
     </div>
+
+    @if (draft.warnings.length) {
+    <law-collapsible-section
+      class="draft-sources"
+      [title]="('assistant.draftNotes' | translate) + ' (' + draft.warnings.length + ')'"
+      [expanded]="notesExpanded()"
+      (expandedChange)="notesExpanded.set($event)"
+    >
+      <ul class="draft-notes">
+        @for (warning of draft.warnings; track warning) {
+        <li>{{ warning }}</li>
+        }
+      </ul>
+    </law-collapsible-section>
+    }
 
     @if (draft.citations.length) {
     <law-collapsible-section
@@ -104,6 +172,7 @@
       {{ "assistant.draftDocument" | translate }}
     </label>
     <textarea
+      #documentTextarea
       hlmTextarea
       id="draft-document-text"
       rows="16"
@@ -152,6 +221,7 @@
         <ng-icon name="lucideRotateCcw" aria-hidden="true" />
         {{ "assistant.requestChanges" | translate }}
       </button>
+      @if (!approved) {
       <button
         hlmBtn
         variant="destructive"
@@ -165,6 +235,7 @@
         <ng-icon name="lucideCheck" aria-hidden="true" />
         {{ "assistant.approveDraft" | translate }}
       </button>
+      }
     </div>
   </footer>
   }

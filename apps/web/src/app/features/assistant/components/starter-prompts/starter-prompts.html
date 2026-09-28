@@ -1,31 +1,55 @@
-<div
-  class="grid w-full grid-cols-1 gap-2 sm:grid-cols-2"
-  role="list"
-  [attr.aria-label]="'assistant.starter.label' | translate"
->
-  @for (prompt of prompts(); track prompt.id) {
-  <button
-    type="button"
-    role="listitem"
-    class="flex items-start gap-3 rounded-lg border border-border bg-card p-3 text-left text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
-    [disabled]="disabled()"
-    [attr.data-mode]="prompt.mode"
-    (click)="selected.emit(prompt)"
+<div class="grid w-full gap-4 text-left">
+  @for (section of sections(); track section.group) {
+  <section
+    class="grid gap-2"
+    [attr.aria-label]="
+      (section.group
+        ? 'assistant.starter.group.' + section.group
+        : 'assistant.starter.label'
+      ) | translate
+    "
   >
-    <span
-      class="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-primary"
-      aria-hidden="true"
-    >
-      <ng-icon [name]="prompt.icon" />
-    </span>
-    <span class="min-w-0 flex-1">
-      <span class="block text-sm font-medium">
-        {{ key(prompt, "title") | translate }}
-      </span>
-      <span class="mt-0.5 line-clamp-2 block text-xs text-muted-foreground">
-        {{ key(prompt, "description") | translate }}
-      </span>
-    </span>
-  </button>
+    @if (section.group) {
+    <h3 class="text-sm font-medium text-muted-foreground">
+      {{ "assistant.starter.group." + section.group | translate }}
+    </h3>
+    }
+    <div class="grid grid-cols-1 gap-2 sm:grid-cols-2" role="list">
+      @for (prompt of section.prompts; track prompt.id) {
+      <button
+        type="button"
+        role="listitem"
+        class="flex items-start gap-3 rounded-lg border border-border bg-card p-3 text-left text-card-foreground transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50"
+        [disabled]="disabled()"
+        [attr.data-mode]="prompt.mode"
+        [attr.data-pick]="prompt.pick ?? null"
+        [attr.aria-haspopup]="prompt.pick ? 'dialog' : null"
+        (click)="selected.emit(prompt)"
+      >
+        <span
+          class="grid size-8 shrink-0 place-items-center rounded-md bg-muted text-primary"
+          aria-hidden="true"
+        >
+          <ng-icon [name]="prompt.icon" />
+        </span>
+        <span class="min-w-0 flex-1">
+          <span class="block text-sm font-medium">
+            {{ key(prompt, "title") | translate }}
+          </span>
+          <span class="mt-0.5 line-clamp-2 block text-sm text-muted-foreground">
+            {{ key(prompt, "description") | translate }}
+          </span>
+        </span>
+        @if (prompt.pick) {
+        <ng-icon
+          name="lucideChevronRight"
+          class="mt-1 shrink-0 text-muted-foreground"
+          aria-hidden="true"
+        />
+        }
+      </button>
+      }
+    </div>
+  </section>
   }
 </div>

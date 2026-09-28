@@ -10,7 +10,7 @@ const baseBrief: BriefResult = {
   legalBasis: ["ZOO čl. 154", "Zakon o radu čl. 76"],
   factualDescription:
     "Poslodavac nije isplatio naknadu za neiskorišćeni odmor.",
-  evidence: ["ugovor.pdf"],
+  evidence: [{ label: "ugovor.pdf", provided: true }],
   reliefSought: "Isplata naknade za neiskorišćeni godišnji odmor.",
   missingFields: [],
   confidence: 0.8,

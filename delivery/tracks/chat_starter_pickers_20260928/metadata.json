@@ -1,0 +1,10 @@
+{
+  "created_at": "2026-09-28T00:00:00Z",
+  "keywords": ["assistant", "starter-prompts", "picker", "documents"],
+  "parent_track_id": "chat_starter_prompts_20260928",
+  "prd_reference": null,
+  "status": "completed",
+  "track_id": "chat_starter_pickers_20260928",
+  "type": "feature",
+  "updated_at": "2026-09-28T00:00:00Z"
+}

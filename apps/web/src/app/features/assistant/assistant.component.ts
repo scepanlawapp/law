@@ -77,6 +77,7 @@ import { CitationListComponent } from "./components/citation-list/citation-list"
 import { CitationPreviewController } from "./components/citation-preview/citation-preview.controller";
 import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
 import { StarterPromptsComponent } from "./components/starter-prompts/starter-prompts";
+import { StarterPickerService } from "./components/starter-picker/starter-picker.service";
 import {
   AssistantStarterPrompt,
   CASE_STARTER_PROMPTS,
@@ -87,6 +88,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { countPlaceholders } from "./draft-placeholders";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { AssistantMarkdownPipe } from "./assistant-markdown.pipe";
 import {
@@ -220,6 +222,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly speechRecognition = inject(SpeechRecognitionService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
+  private readonly starterPicker = inject(StarterPickerService);
   private readonly toast = inject(ToastService);
   protected readonly citationPreview = inject(CitationPreviewController);
   private source: EventSource | null = null;
@@ -662,10 +665,15 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     const activeDraft = this.draft();
     if (!workspaceId || !activeDraft) return;
+    this.confirmUnfilledPlaceholders("assistant.exportAnyway", () =>
+      this.openDraftExport(workspaceId, activeDraft.id),
+    );
+  }
 
+  private openDraftExport(workspaceId: string, draftId: string): void {
     const exportUrl = this.chat.exportUrl(
       workspaceId,
-      activeDraft.id,
+      draftId,
       this.draftScript(),
     );
     window.open(exportUrl, "_blank", "noopener,noreferrer");
@@ -692,13 +700,45 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     const activeDraft = this.draft();
     if (!workspaceId || !activeDraft) return;
+    this.confirmUnfilledPlaceholders("assistant.approveAnyway", () =>
+      this.submitDraftApproval(workspaceId, activeDraft.id),
+    );
+  }
 
+  private submitDraftApproval(workspaceId: string, draftId: string): void {
     this.chat
-      .approveDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .approveDraft(workspaceId, draftId, this.draftReviewNote())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
         error: () => this.error.set("Unable to approve this draft."),
+      });
+  }
+
+  // Asks before approving or exporting a draft that still has placeholders.
+  private confirmUnfilledPlaceholders(
+    confirmKey: string,
+    proceed: () => void,
+  ): void {
+    const count = countPlaceholders(this.draftText());
+    if (!count) {
+      proceed();
+      return;
+    }
+    this.confirmDialog
+      .confirm({
+        title: this.localization.translate("assistant.unfilledConfirmTitle"),
+        message: this.localization.translate(
+          "assistant.unfilledConfirmMessage",
+          { count },
+        ),
+        confirmText: this.localization.translate(confirmKey),
+        cancelText: this.localization.translate("settings.cancel"),
+        variant: "warning",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        if (confirmed) proceed();
       });
   }
 
@@ -1091,9 +1131,36 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   protected applyStarterPrompt(prompt: AssistantStarterPrompt): void {
     if (this.sending()) return;
-    const text = this.localization.translate(
-      starterPromptKey(prompt, "prompt"),
-    );
+    const kind = prompt.pick;
+    if (!kind) {
+      this.runStarterPrompt(prompt, starterPromptKey(prompt, "prompt"));
+      return;
+    }
+    this.starterPicker
+      .open(kind)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (!result || this.sending()) return;
+        if (result === "attach") {
+          this.runStarterPrompt(
+            { ...prompt, mode: "compose" },
+            starterPromptKey(prompt, "attachPrompt"),
+          );
+          return;
+        }
+        this.runStarterPrompt(prompt, starterPromptKey(prompt, "prompt"), {
+          [kind]: result.reference,
+        });
+      });
+  }
+
+  /** Sends a complete starter question, or puts a stem in the composer. */
+  private runStarterPrompt(
+    prompt: AssistantStarterPrompt,
+    key: string,
+    params: Record<string, string> = {},
+  ): void {
+    const text = this.localization.translate(key, params);
     this.composerForm.controls.draft.setValue(text);
     if (prompt.mode === "send") {
       this.send();
@@ -1395,6 +1462,14 @@ export class AssistantComponent implements OnInit, AfterViewInit {
    * near the bottom, so streamed updates do not pull them away from a source they jumped to.
    */
   private scheduleMessagesScroll(force = false): void {
+    // An empty chat shows the starter cards; start them at the top.
+    if (!this.messages().length) {
+      requestAnimationFrame(() => {
+        const messagesContainer = this.messagesContainer?.nativeElement;
+        if (messagesContainer) messagesContainer.scrollTop = 0;
+      });
+      return;
+    }
     const current = this.messagesContainer?.nativeElement;
     const nearBottom =
       !current ||

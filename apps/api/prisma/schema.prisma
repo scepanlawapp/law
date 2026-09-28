@@ -1393,7 +1393,7 @@ model BriefExtractionResult {
   messageId       String?
   brief           Json
   confidence      Float?
-  missingFields   String[]      @default([])
+  missingFields   Json          @default("[]")
   appliedCaseId   String?
   appliedTaskKeys String[]      @default([])
   promptChars     Int
