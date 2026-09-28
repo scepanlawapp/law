@@ -193,7 +193,7 @@
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh>{{ "finance.select" | translate }}</th>
-              <th hlmTh>{{ "finance.workDate" | translate }}</th>
+              <th hlmTh>{{ "finance.workPeriod" | translate }}</th>
               <th hlmTh>{{ "finance.serviceTitle" | translate }}</th>
               <th hlmTh>{{ "finance.client" | translate }}</th>
               <th hlmTh>{{ "finance.performer" | translate }}</th>
@@ -218,12 +218,30 @@
                     [attr.aria-label]="entry.clientDescription"
                   />
                 </td>
-                <td hlmTd>{{ entry.workDate }}</td>
+                <td hlmTd>
+                  {{ entry.workStartDate }}
+                  @if (entry.workEndDate !== entry.workStartDate) {
+                    — {{ entry.workEndDate }}
+                  }
+                </td>
                 <td hlmTd>{{ entry.clientDescription }}</td>
                 <td hlmTd>
                   {{ entry.client.displayName }}
                   <br />
-                  {{ entry.case?.caseNumber ?? ("finance.noCase" | translate) }}
+                  @if (entry.cases.length) {
+                    @for (
+                      caseItem of entry.cases;
+                      track caseItem.id;
+                      let last = $last
+                    ) {
+                      {{ caseItem.caseNumber }}
+                      @if (!last) {
+                        ,
+                      }
+                    }
+                  } @else {
+                    {{ "finance.noCase" | translate }}
+                  }
                 </td>
                 <td hlmTd>{{ entry.performedBy.displayName }}</td>
                 <td hlmTd>{{ entry.durationMinutes ?? "—" }}</td>

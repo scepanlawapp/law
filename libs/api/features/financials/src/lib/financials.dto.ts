@@ -1,5 +1,6 @@
 import { Transform, Type } from "class-transformer";
 import {
+  ArrayUnique,
   IsArray,
   IsDateString,
   IsEnum,
@@ -91,15 +92,20 @@ export class CreateBillingEntryDto {
   clientId!: string;
 
   @IsOptional()
-  @IsUUID()
-  caseId?: string;
+  @IsArray()
+  @ArrayUnique()
+  @IsUUID("4", { each: true })
+  caseIds?: string[];
 
   @IsOptional()
   @IsUUID()
   performedByUserId?: string;
 
   @IsDateString()
-  workDate!: string;
+  workStartDate!: string;
+
+  @IsDateString()
+  workEndDate!: string;
 
   @IsEnum(BillingEntryKind)
   kind!: BillingEntryKind;

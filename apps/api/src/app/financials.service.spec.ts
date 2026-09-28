@@ -27,6 +27,18 @@ function user() {
   };
 }
 
+function caseRecord() {
+  return {
+    id: caseId,
+    workspaceId,
+    clientId,
+    caseNumber: "P-1/2026",
+    name: "Client matter",
+    status: "ACTIVE",
+    priority: "NORMAL",
+  };
+}
+
 describe("FinancialsService", () => {
   const db = {
     client: { findFirst: jest.fn() },
@@ -61,7 +73,7 @@ describe("FinancialsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     db.client.findFirst.mockResolvedValue(client());
-    db.case.findFirst.mockResolvedValue({ id: caseId, workspaceId, clientId });
+    db.case.findFirst.mockResolvedValue(caseRecord());
     db.workspaceMember.findUnique.mockResolvedValue({
       status: "ACTIVE",
       user: user(),
@@ -77,10 +89,11 @@ describe("FinancialsService", () => {
     db.billingEntry.create.mockResolvedValue({
       id: "55555555-5555-4555-a555-555555555555",
       client: client(),
-      case: null,
+      caseLinks: [{ case: caseRecord() }],
       performedBy: user(),
-      workDate: new Date("2026-09-23"),
-      kind: "TIME",
+      workStartDate: new Date("2026-09-23"),
+      workEndDate: new Date("2026-09-25"),
+      kind: "FIXED_FEE",
       disposition: "BILLABLE",
       lifecycle: "DRAFT",
       description: "Review",
@@ -115,9 +128,10 @@ describe("FinancialsService", () => {
         () =>
           service.createEntry({
             clientId,
-            caseId,
-            workDate: "2026-09-23",
-            kind: "TIME",
+            caseIds: [caseId],
+            workStartDate: "2026-09-23",
+            workEndDate: "2026-09-25",
+            kind: "FIXED_FEE",
             description: "Review",
             clientDescription: "Legal review",
             amount: 100,
@@ -134,8 +148,9 @@ describe("FinancialsService", () => {
         () =>
           service.createEntry({
             clientId,
-            workDate: "2026-09-23",
-            kind: "TIME",
+            workStartDate: "2026-09-23",
+            workEndDate: "2026-09-23",
+            kind: "FIXED_FEE",
             disposition: "INCLUDED",
             description: "Call",
             clientDescription: "Included call",
@@ -165,11 +180,83 @@ describe("FinancialsService", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           clientId: { in: [clientId, otherClientId] },
-          caseId: { in: [caseId] },
+          caseLinks: { some: { caseId: { in: [caseId] } } },
           sourceType: { in: ["EVENT", "TASK"] },
         }),
       }),
     );
+  });
+
+  it("creates a fixed-fee entry for a period and multiple cases", async () => {
+    const response = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.LAWYER },
+      () =>
+        service.createEntry({
+          clientId,
+          caseIds: [caseId],
+          workStartDate: "2026-09-23",
+          workEndDate: "2026-09-25",
+          kind: "FIXED_FEE",
+          description: "Review",
+          clientDescription: "Legal review",
+          amount: 100,
+        }),
+    );
+
+    expect(db.billingEntry.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          workStartDate: new Date("2026-09-23"),
+          workEndDate: new Date("2026-09-25"),
+          caseLinks: {
+            create: [{ workspaceId, caseId }],
+          },
+        }),
+      }),
+    );
+    expect(response).toMatchObject({
+      workStartDate: "2026-09-23",
+      workEndDate: "2026-09-25",
+      cases: [{ id: caseId }],
+    });
+  });
+
+  it("requires duration only for time-based entries", async () => {
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.LAWYER },
+        () =>
+          service.createEntry({
+            clientId,
+            workStartDate: "2026-09-23",
+            workEndDate: "2026-09-23",
+            kind: "TIME",
+            description: "Review",
+            clientDescription: "Legal review",
+            amount: 100,
+          }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.billingEntry.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a work period whose end precedes its start", async () => {
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.LAWYER },
+        () =>
+          service.createEntry({
+            clientId,
+            workStartDate: "2026-09-25",
+            workEndDate: "2026-09-23",
+            kind: "FIXED_FEE",
+            description: "Review",
+            clientDescription: "Legal review",
+            amount: 100,
+          }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.billingEntry.create).not.toHaveBeenCalled();
   });
 
   it("returns only dismissed candidates matching repeated filters", async () => {

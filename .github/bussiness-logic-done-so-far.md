@@ -246,11 +246,11 @@ documents,
 
 ## Financials backend foundation
 
-- The deterministic Financials backend now has workspace-scoped billing entries, live review candidates for completed work clues, append-only free-form price-source versions, draft/sent/void service statements, immutable statement lines, external invoice references, derived payment tracking, and finance-scoped idempotency records.
-- Candidate and billing-entry lists support multi-value client, case, and source filtering before pagination. Candidate review can explicitly list pending or dismissed proposals.
+- The deterministic Financials backend now has workspace-scoped billing entries, live review candidates for completed work clues, append-only free-form price-source versions, draft/sent/void service statements, immutable statement lines, external invoice references, derived payment tracking, and finance-scoped idempotency records. Billing entries store a start/end work period and can be linked to multiple cases for the same client.
+- Candidate and billing-entry lists support multi-value client, case, and source filtering before pagination. Billing date filters use period overlap, and candidate review can explicitly list pending or dismissed proposals.
 - Finance access is restricted in the service layer: `OWNER`/`ADMIN` manage office-wide financials, `LAWYER` can record and view permitted own work, and ordinary `MEMBER` accounts do not receive unrestricted finance access.
 - The workflow does not issue tax/fiscal invoices, calculate tariffs or tax, process payments, create automatic charges, or call AI. A typed future proposal contract exists without a model/provider implementation.
-- The Angular Financials UI includes overview, billing review, recorded entries, client statements, client balances, and price-source screens. Its first sidebar action is Bill/Fakturiši; the billing-review page presents candidates, billed entries, and dismissed proposals through one selector with shared client/case/source multiselect filters. Dismissed proposals can be returned to unbilled work or converted through the existing billing-entry workflow.
+- The Angular Financials UI includes overview, billing review, recorded entries, client statements, client balances, and price-source screens. Its first sidebar action is Bill/Fakturiši; the billing-review page presents candidates, billed entries, and dismissed proposals through one selector with shared client/case/source multiselect filters. Dismissed proposals can be returned to unbilled work or converted through the existing billing-entry workflow. The localized billing-entry dialog defaults to fixed fee, captures a work period and multiple cases, requires client/descriptions/amount, conditionally requires duration for time work, and validates disposition-specific amount/reason rules before submission.
 
 ## Partial or not finished yet
 

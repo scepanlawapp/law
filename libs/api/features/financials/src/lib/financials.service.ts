@@ -85,6 +85,28 @@ export class FinancialsService {
     return caseRecord;
   }
 
+  private async assertCases(caseIds: string[] | undefined, clientId: string) {
+    const uniqueCaseIds = [...new Set(caseIds ?? [])];
+    return Promise.all(
+      uniqueCaseIds.map((caseId) => this.assertCase(caseId, clientId)),
+    );
+  }
+
+  private assertWorkPeriod(workStartDate: string, workEndDate: string): void {
+    if (new Date(workEndDate) < new Date(workStartDate)) {
+      throw new ConflictException("Work end date cannot precede start date");
+    }
+  }
+
+  private validateDuration(
+    kind: CreateBillingEntryDto["kind"],
+    durationMinutes?: number,
+  ): void {
+    if (kind === "TIME" && !durationMinutes) {
+      throw new ConflictException("Time entries require a positive duration");
+    }
+  }
+
   private async assertPerformer(userId: string) {
     const member = await this.db.workspaceMember.findUnique({
       where: { userId_workspaceId: { userId, workspaceId: this.workspaceId } },
@@ -149,9 +171,25 @@ export class FinancialsService {
     return {
       id: entry.id,
       client: this.clientReference(entry.client),
-      case: this.caseReference(entry.case),
+      cases: entry.caseLinks
+        .map(
+          (link: {
+            case: {
+              id: string;
+              caseNumber: string;
+              name: string;
+              status: CaseReference["status"];
+              priority: CaseReference["priority"];
+            };
+          }) => this.caseReference(link.case),
+        )
+        .filter(
+          (caseRecord: CaseReference | null): caseRecord is CaseReference =>
+            caseRecord !== null,
+        ),
       performedBy: this.userReference(entry.performedBy),
-      workDate: entry.workDate.toISOString().slice(0, 10),
+      workStartDate: entry.workStartDate.toISOString().slice(0, 10),
+      workEndDate: entry.workEndDate.toISOString().slice(0, 10),
       kind: entry.kind,
       disposition: entry.disposition,
       lifecycle: entry.lifecycle,
@@ -168,7 +206,7 @@ export class FinancialsService {
 
   private entryInclude = {
     client: true,
-    case: true,
+    caseLinks: { include: { case: true } },
     performedBy: true,
   } as const;
 
@@ -223,7 +261,7 @@ export class FinancialsService {
         ? [query.caseId]
         : [];
     if (clientIds.length) where.clientId = { in: clientIds };
-    if (caseIds.length) where.caseId = { in: caseIds };
+    if (caseIds.length) where.caseLinks = { some: { caseId: { in: caseIds } } };
     if (query.sourceTypes?.length) where.sourceType = { in: query.sourceTypes };
     if (query.performerId && this.isManager())
       where.performedByUserId = query.performerId;
@@ -231,16 +269,13 @@ export class FinancialsService {
     if (query.disposition) where.disposition = query.disposition;
     if (query.lifecycle) where.lifecycle = query.lifecycle;
     if (query.currency) where.currency = query.currency;
-    if (query.from || query.to)
-      where.workDate = {
-        ...(query.from ? { gte: new Date(query.from) } : {}),
-        ...(query.to ? { lte: new Date(query.to) } : {}),
-      };
+    if (query.from) where.workEndDate = { gte: new Date(query.from) };
+    if (query.to) where.workStartDate = { lte: new Date(query.to) };
     const [items, totalItems] = await this.db.$transaction([
       this.db.billingEntry.findMany({
         where,
         include: this.entryInclude,
-        orderBy: { workDate: "desc" },
+        orderBy: { workStartDate: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
@@ -249,7 +284,7 @@ export class FinancialsService {
     return {
       items: items.map((item) => this.entrySummary(item)),
       meta: paginationMeta(page, pageSize, totalItems, [
-        { field: "workDate", direction: "desc" },
+        { field: "workStartDate", direction: "desc" },
       ]),
     };
   }
@@ -259,7 +294,9 @@ export class FinancialsService {
   ): Promise<BillingEntrySummary> {
     this.assertFinanceUser();
     await this.assertClient(input.clientId);
-    await this.assertCase(input.caseId, input.clientId);
+    await this.assertCases(input.caseIds, input.clientId);
+    this.assertWorkPeriod(input.workStartDate, input.workEndDate);
+    this.validateDuration(input.kind, input.durationMinutes);
     const performerId = input.performedByUserId ?? this.context.userId;
     if (performerId !== this.context.userId) this.assertManager();
     await this.assertPerformer(performerId);
@@ -272,9 +309,9 @@ export class FinancialsService {
       data: {
         workspaceId: this.workspaceId,
         clientId: input.clientId,
-        caseId: input.caseId,
         performedByUserId: performerId,
-        workDate: new Date(input.workDate),
+        workStartDate: new Date(input.workStartDate),
+        workEndDate: new Date(input.workEndDate),
         kind: input.kind,
         disposition: input.disposition ?? BillingDisposition.BILLABLE,
         lifecycle: BillingEntryLifecycle.DRAFT,
@@ -294,6 +331,14 @@ export class FinancialsService {
         sourceId: input.sourceId,
         createdByUserId: this.context.userId,
         updatedByUserId: this.context.userId,
+        caseLinks: input.caseIds?.length
+          ? {
+              create: input.caseIds.map((caseId) => ({
+                workspaceId: this.workspaceId,
+                caseId,
+              })),
+            }
+          : undefined,
       },
       include: this.entryInclude,
     });
@@ -814,7 +859,7 @@ export class FinancialsService {
           ],
         },
       },
-      include: { case: true },
+      include: { caseLinks: { include: { case: true } } },
     });
     if (entries.length !== (input.entryIds ?? []).length)
       throw new ConflictException(
@@ -837,8 +882,12 @@ export class FinancialsService {
               billingEntryId: entry.id,
               lineOrder: index,
               description: entry.clientDescription,
-              serviceDate: entry.workDate,
-              caseReference: entry.case?.caseNumber,
+              serviceDate: entry.workStartDate,
+              serviceEndDate: entry.workEndDate,
+              caseReference:
+                entry.caseLinks
+                  .map((link) => link.case.caseNumber)
+                  .join(", ") || undefined,
               quantity: entry.quantity,
               durationMinutes:
                 entry.billedDurationMinutes ?? entry.durationMinutes,
@@ -934,7 +983,8 @@ export class FinancialsService {
             billingEntryId: entry.id,
             lineOrder: index,
             description: entry.clientDescription,
-            serviceDate: entry.workDate,
+            serviceDate: entry.workStartDate,
+            serviceEndDate: entry.workEndDate,
             amount: entry.amount,
             currency: entry.currency,
             chargeLabel: entry.disposition,
@@ -1190,7 +1240,7 @@ export class FinancialsService {
       this.db.billingEntry.findMany({
         where: { workspaceId: this.workspaceId, clientId },
         include: this.entryInclude,
-        orderBy: { workDate: "desc" },
+        orderBy: { workStartDate: "desc" },
         take: 50,
       }),
       this.db.billingStatement.findMany({

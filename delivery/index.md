@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Billing Entry Period and Multiple Cases](./tracks/billing_entry_period_multi_case_20260928/index.md)
+- [Billing Entry Dialog Fix](./tracks/billing_entry_dialog_fix_20260928/index.md)
 - [Financial Billing Review UI](./tracks/financial_billing_review_ui_20260928/index.md)
 - [Backend Build Prisma Generation Fix](./tracks/backend_build_fix_20260928/index.md)
 - [Case Create Breadcrumb](./tracks/case_create_breadcrumb_20260928/index.md)

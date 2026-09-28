@@ -335,8 +335,12 @@
                 <strong>{{ entry.clientDescription }}</strong>
                 <br />
                 <span class="text-muted-foreground">
-                  {{ entry.workDate }} · {{ entry.disposition }} ·
-                  {{ entry.amount }} {{ entry.currency }}
+                  {{ entry.workStartDate }}
+                  @if (entry.workEndDate !== entry.workStartDate) {
+                    — {{ entry.workEndDate }}
+                  }
+                  · {{ entry.disposition }} · {{ entry.amount }}
+                  {{ entry.currency }}
                 </span>
               </span>
             </label>
