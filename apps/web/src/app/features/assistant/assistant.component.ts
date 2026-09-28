@@ -1424,6 +1424,14 @@ export class AssistantComponent implements OnInit, AfterViewInit {
    * near the bottom, so streamed updates do not pull them away from a source they jumped to.
    */
   private scheduleMessagesScroll(force = false): void {
+    // An empty chat shows the starter cards; start them at the top.
+    if (!this.messages().length) {
+      requestAnimationFrame(() => {
+        const messagesContainer = this.messagesContainer?.nativeElement;
+        if (messagesContainer) messagesContainer.scrollTop = 0;
+      });
+      return;
+    }
     const current = this.messagesContainer?.nativeElement;
     const nearBottom =
       !current ||

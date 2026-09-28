@@ -684,6 +684,52 @@ describe("AssistantComponent review state", () => {
     expect(component["rightRailExpanded"]()).toBe(false);
   });
 
+  describe("scroll position on select", () => {
+    const userMessage: ChatMessageResponse = {
+      id: "message-user",
+      sessionId: "session-1",
+      role: "USER",
+      content: "Prepare a draft",
+      status: "COMPLETED",
+      correlationId: "corr-1",
+      createdAt: "2026-09-15T11:59:00.000Z",
+      attachments: [],
+    };
+
+    function selectWith(messages: ChatMessageResponse[]) {
+      jest
+        .spyOn(window, "requestAnimationFrame")
+        .mockImplementation((callback) => {
+          callback(0);
+          return 0;
+        });
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+      const container = fixture.nativeElement.querySelector(
+        ".message-scroll",
+      ) as HTMLDivElement;
+      Object.defineProperty(container, "scrollHeight", { value: 1200 });
+      container.scrollTop = 500;
+      fixture.componentInstance["sessions"].set([session]);
+      chat.getSession.mockReturnValue(
+        of({ ...session, messages, jobs: [], drafts: [] }),
+      );
+
+      fixture.componentInstance["selectSession"]("session-1");
+      return container;
+    }
+
+    afterEach(() => jest.restoreAllMocks());
+
+    it("starts an empty chat's starter cards at the top", () => {
+      expect(selectWith([]).scrollTop).toBe(0);
+    });
+
+    it("still opens a conversation at its latest message", () => {
+      expect(selectWith([userMessage]).scrollTop).toBe(1200);
+    });
+  });
+
   describe("starter prompts", () => {
     const starterCards = (fixture: { nativeElement: HTMLElement }) => [
       ...fixture.nativeElement.querySelectorAll<HTMLButtonElement>(
