@@ -7,7 +7,7 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
-import { BillingEntryDialogService } from "../finance-work-review/billing-entry-dialog.service";
+import { BillingStatementLineDialogService } from "../finance-work-review/billing-entry-dialog.service";
 
 @Component({
   selector: "law-finance-overview",
@@ -20,7 +20,7 @@ export class FinanceOverviewComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
-  private readonly entryDialog = inject(BillingEntryDialogService);
+  private readonly lineDialog = inject(BillingStatementLineDialogService);
 
   readonly overview = signal<FinanceOverview | null>(null);
   readonly attention = signal<BillingSuggestion[]>([]);
@@ -103,7 +103,7 @@ export class FinanceOverviewComponent {
   }
 
   addWork(): void {
-    this.entryDialog
+    this.lineDialog
       .open()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => undefined);

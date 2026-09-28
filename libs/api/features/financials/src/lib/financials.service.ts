@@ -5,14 +5,13 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
-  BillingDisposition,
-  BillingEntryLifecycle,
+  BillingStatementLineStatus,
   BillingStatementStatus,
   Prisma,
   PriceSourceScope,
 } from "@prisma/client";
 import {
-  BillingEntrySummary,
+  BillingStatementLineSummary,
   BillingSuggestion,
   CaseReference,
   ClientReference,
@@ -24,16 +23,16 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, paginationMeta } from "@law/core";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import {
   AppendPriceSourceVersionDto,
-  BillingEntryListQueryDto,
+  BillingStatementLineListQueryDto,
   CandidateQueryDto,
-  CreateBillingEntryDto,
+  CreateBillingStatementLineDto,
   CreatePaymentDto,
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
-  RecordBillingCandidatesDto,
+  RecordBillingStatementLinesDto,
   SendStatementDto,
-  UpdateBillingEntryDto,
+  UpdateBillingStatementLineDto,
   UpdateStatementDto,
 } from "./financials.dto";
 
@@ -84,28 +83,6 @@ export class FinancialsService {
     if (caseRecord.clientId !== clientId)
       throw new ConflictException("Case does not belong to client");
     return caseRecord;
-  }
-
-  private async assertCases(caseIds: string[] | undefined, clientId: string) {
-    const uniqueCaseIds = [...new Set(caseIds ?? [])];
-    return Promise.all(
-      uniqueCaseIds.map((caseId) => this.assertCase(caseId, clientId)),
-    );
-  }
-
-  private assertWorkPeriod(workStartDate: string, workEndDate: string): void {
-    if (new Date(workEndDate) < new Date(workStartDate)) {
-      throw new ConflictException("Work end date cannot precede start date");
-    }
-  }
-
-  private validateDuration(
-    kind: CreateBillingEntryDto["kind"],
-    durationMinutes?: number,
-  ): void {
-    if (kind === "TIME" && !durationMinutes) {
-      throw new ConflictException("Time entries require a positive duration");
-    }
   }
 
   private async assertPerformer(userId: string) {
@@ -168,11 +145,12 @@ export class FinancialsService {
     };
   }
 
-  private entrySummary(entry: any): BillingEntrySummary {
+  private lineSummary(line: any): BillingStatementLineSummary {
     return {
-      id: entry.id,
-      client: this.clientReference(entry.client),
-      cases: entry.caseLinks
+      id: line.id,
+      statementId: line.statementId,
+      client: this.clientReference(line.client),
+      cases: line.caseLinks
         .map(
           (link: {
             case: {
@@ -188,27 +166,34 @@ export class FinancialsService {
           (caseRecord: CaseReference | null): caseRecord is CaseReference =>
             caseRecord !== null,
         ),
-      performedBy: this.userReference(entry.performedBy),
-      workStartDate: entry.workStartDate.toISOString().slice(0, 10),
-      workEndDate: entry.workEndDate.toISOString().slice(0, 10),
-      kind: entry.kind,
-      disposition: entry.disposition,
-      lifecycle: entry.lifecycle,
-      description: entry.description,
-      clientDescription: entry.clientDescription,
-      durationMinutes: entry.durationMinutes,
-      amount: entry.amount.toString(),
-      expenseCostAmount: entry.expenseCostAmount?.toString() ?? null,
-      currency: entry.currency,
-      sourceType: entry.sourceType,
-      sourceId: entry.sourceId,
+      performedBy: this.userReference(line.performedBy),
+      lineOrder: line.lineOrder,
+      description: line.description,
+      serviceDate: line.serviceDate.toISOString().slice(0, 10),
+      amount: line.amount.toString(),
+      currency: line.currency,
+      status: line.status,
+      sourceType: line.sourceType,
+      sourceId: line.sourceId,
+      billedAt: line.billedAt?.toISOString() ?? null,
+      cancelledAt: line.cancelledAt?.toISOString() ?? null,
+      cancellationReason: line.cancellationReason,
     };
   }
 
-  private entryInclude = {
+  private lineInclude = {
     client: true,
     caseLinks: { include: { case: true } },
     performedBy: true,
+  } as const;
+
+  private statementInclude = {
+    client: true,
+    lines: {
+      include: this.lineInclude,
+      orderBy: { lineOrder: "asc" as const },
+    },
+    payments: true,
   } as const;
 
   private statementResponse(statement: any) {
@@ -230,6 +215,7 @@ export class FinancialsService {
     );
     return {
       ...statement,
+      lines: statement.lines.map((line: any) => this.lineSummary(line)),
       total: total.toFixed(2),
       paid: paid.toFixed(2),
       outstanding: outstanding.toFixed(2),
@@ -241,13 +227,13 @@ export class FinancialsService {
     };
   }
 
-  async listEntries(
-    query: BillingEntryListQueryDto,
-  ): Promise<PaginatedResponse<BillingEntrySummary>> {
+  async listLines(
+    query: BillingStatementLineListQueryDto,
+  ): Promise<PaginatedResponse<BillingStatementLineSummary>> {
     this.assertFinanceUser();
     const page = query.page ?? DEFAULT_PAGE;
     const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
-    const where: Prisma.BillingEntryWhereInput = {
+    const where: Prisma.BillingStatementLineWhereInput = {
       workspaceId: this.workspaceId,
     };
     if (!this.isManager()) where.performedByUserId = this.context.userId;
@@ -266,143 +252,135 @@ export class FinancialsService {
     if (query.sourceTypes?.length) where.sourceType = { in: query.sourceTypes };
     if (query.performerId && this.isManager())
       where.performedByUserId = query.performerId;
-    if (query.kind) where.kind = query.kind;
-    if (query.disposition) where.disposition = query.disposition;
-    if (query.lifecycle) where.lifecycle = query.lifecycle;
+    if (query.status) where.status = query.status;
     if (query.currency) where.currency = query.currency;
-    if (query.from) where.workEndDate = { gte: new Date(query.from) };
-    if (query.to) where.workStartDate = { lte: new Date(query.to) };
+    if (query.from || query.to)
+      where.serviceDate = {
+        ...(query.from ? { gte: new Date(query.from) } : {}),
+        ...(query.to ? { lte: new Date(query.to) } : {}),
+      };
     const [items, totalItems] = await this.db.$transaction([
-      this.db.billingEntry.findMany({
+      this.db.billingStatementLine.findMany({
         where,
-        include: this.entryInclude,
-        orderBy: { workStartDate: "desc" },
+        include: this.lineInclude,
+        orderBy: { serviceDate: "desc" },
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
-      this.db.billingEntry.count({ where }),
+      this.db.billingStatementLine.count({ where }),
     ]);
     return {
-      items: items.map((item) => this.entrySummary(item)),
+      items: items.map((item) => this.lineSummary(item)),
       meta: paginationMeta(page, pageSize, totalItems, [
-        { field: "workStartDate", direction: "desc" },
+        { field: "serviceDate", direction: "desc" },
       ]),
     };
   }
 
-  async createEntry(
-    input: CreateBillingEntryDto,
-  ): Promise<BillingEntrySummary> {
+  async createLine(
+    input: CreateBillingStatementLineDto,
+  ): Promise<BillingStatementLineSummary> {
     this.assertFinanceUser();
     await this.assertClient(input.clientId);
-    await this.assertCases(input.caseIds, input.clientId);
-    this.assertWorkPeriod(input.workStartDate, input.workEndDate);
-    this.validateDuration(input.kind, input.durationMinutes);
     const performerId = input.performedByUserId ?? this.context.userId;
     if (performerId !== this.context.userId) this.assertManager();
     await this.assertPerformer(performerId);
-    this.validateDisposition(
-      input.disposition ?? BillingDisposition.BILLABLE,
-      input.amount,
-      input.noChargeReason,
-    );
-    const entry = await this.db.billingEntry.create({
+    if (input.amount <= 0)
+      throw new ConflictException("Statement line amount must be positive");
+    const line = await this.db.billingStatementLine.create({
       data: {
         workspaceId: this.workspaceId,
         clientId: input.clientId,
         performedByUserId: performerId,
-        workStartDate: new Date(input.workStartDate),
-        workEndDate: new Date(input.workEndDate),
-        kind: input.kind,
-        disposition: input.disposition ?? BillingDisposition.BILLABLE,
-        lifecycle: BillingEntryLifecycle.DRAFT,
+        serviceDate: input.serviceDate
+          ? new Date(input.serviceDate)
+          : new Date(),
         description: input.description,
-        clientDescription: input.clientDescription,
-        durationMinutes: input.durationMinutes,
-        billedDurationMinutes: input.billedDurationMinutes,
-        quantity: input.quantity,
-        unit: input.unit,
         amount: input.amount,
-        expenseCostAmount: input.expenseCostAmount,
-        currency: input.currency ?? "RSD",
-        noChargeReason: input.noChargeReason,
-        priceSourceVersionId: input.priceSourceVersionId,
-        priceSourceExcerpt: input.priceSourceExcerpt,
+        currency: input.currency.toUpperCase(),
         sourceType: input.sourceType,
         sourceId: input.sourceId,
         createdByUserId: this.context.userId,
         updatedByUserId: this.context.userId,
-        caseLinks: input.caseIds?.length
-          ? {
-              create: input.caseIds.map((caseId) => ({
-                workspaceId: this.workspaceId,
-                caseId,
-              })),
-            }
-          : undefined,
       },
-      include: this.entryInclude,
+      include: this.lineInclude,
     });
-    return this.entrySummary(entry);
+    return this.lineSummary(line);
   }
 
-  async getEntry(id: string): Promise<BillingEntrySummary> {
+  async getLine(id: string): Promise<BillingStatementLineSummary> {
     this.assertFinanceUser();
-    const entry = await this.db.billingEntry.findFirst({
+    const line = await this.db.billingStatementLine.findFirst({
       where: {
         id,
         workspaceId: this.workspaceId,
         ...(this.isManager() ? {} : { performedByUserId: this.context.userId }),
       },
-      include: this.entryInclude,
+      include: this.lineInclude,
     });
-    if (!entry) throw new NotFoundException("Billing entry not found");
-    return this.entrySummary(entry);
+    if (!line) throw new NotFoundException("Billing statement line not found");
+    return this.lineSummary(line);
   }
 
-  async updateEntry(
+  async updateLine(
     id: string,
-    input: UpdateBillingEntryDto,
-  ): Promise<BillingEntrySummary> {
+    input: UpdateBillingStatementLineDto,
+  ): Promise<BillingStatementLineSummary> {
     this.assertFinanceUser();
-    const entry = await this.db.billingEntry.findFirst({
+    const line = await this.db.billingStatementLine.findFirst({
       where: {
         id,
         workspaceId: this.workspaceId,
         ...(this.isManager() ? {} : { performedByUserId: this.context.userId }),
       },
     });
-    if (!entry) throw new NotFoundException("Billing entry not found");
-    if (entry.lifecycle === BillingEntryLifecycle.STATEMENT_SENT)
-      throw new ConflictException("Sent entry is immutable");
-    const disposition = input.disposition ?? entry.disposition;
-    const amount = input.amount ?? Number(entry.amount);
-    this.validateDisposition(
-      disposition,
-      amount,
-      input.noChargeReason ?? entry.noChargeReason ?? undefined,
-    );
-    const updated = await this.db.billingEntry.update({
+    if (!line) throw new NotFoundException("Billing statement line not found");
+    if (
+      line.status === BillingStatementLineStatus.BILLED ||
+      line.status === BillingStatementLineStatus.CANCELLED
+    )
+      throw new ConflictException("Billed or cancelled lines are immutable");
+    if (input.amount !== undefined && input.amount <= 0)
+      throw new ConflictException("Statement line amount must be positive");
+    const updated = await this.db.billingStatementLine.update({
       where: { id },
-      data: { ...input, amount, updatedByUserId: this.context.userId },
-      include: this.entryInclude,
+      data: {
+        ...input,
+        currency: input.currency?.toUpperCase(),
+        updatedByUserId: this.context.userId,
+      },
+      include: this.lineInclude,
     });
-    return this.entrySummary(updated);
+    return this.lineSummary(updated);
   }
 
-  private validateDisposition(
-    disposition: BillingDisposition,
-    amount: number,
-    reason?: string,
-  ) {
-    if (disposition === BillingDisposition.BILLABLE && amount <= 0)
-      throw new ConflictException("Billable entries require a positive amount");
-    if (
-      (disposition === BillingDisposition.INCLUDED ||
-        disposition === BillingDisposition.NO_CHARGE) &&
-      (amount !== 0 || !reason?.trim())
-    )
-      throw new ConflictException("Zero-charge entries require a reason");
+  async cancelLine(
+    id: string,
+    reason: string,
+  ): Promise<BillingStatementLineSummary> {
+    this.assertFinanceUser();
+    const line = await this.db.billingStatementLine.findFirst({
+      where: {
+        id,
+        workspaceId: this.workspaceId,
+        ...(this.isManager() ? {} : { performedByUserId: this.context.userId }),
+      },
+    });
+    if (!line) throw new NotFoundException("Billing statement line not found");
+    if (line.status !== BillingStatementLineStatus.UNBILLED)
+      throw new ConflictException("Only unbilled lines can be cancelled");
+    const cancelled = await this.db.billingStatementLine.update({
+      where: { id },
+      data: {
+        status: BillingStatementLineStatus.CANCELLED,
+        cancelledAt: new Date(),
+        cancellationReason: reason,
+        cancelledByUserId: this.context.userId,
+        updatedByUserId: this.context.userId,
+      },
+      include: this.lineInclude,
+    });
+    return this.lineSummary(cancelled);
   }
 
   async listCandidates(
@@ -419,6 +397,7 @@ export class FinancialsService {
           where: {
             workspaceId: this.workspaceId,
             status: "COMPLETED",
+            billingStatementLineId: null,
             startsAt: { gte: from, lte: to },
           },
           include: {
@@ -433,6 +412,7 @@ export class FinancialsService {
           where: {
             workspaceId: this.workspaceId,
             status: "DONE",
+            billingStatementLineId: null,
             completedAt: { gte: from, lte: to },
           },
           include: {
@@ -446,6 +426,7 @@ export class FinancialsService {
           where: {
             workspaceId: this.workspaceId,
             status: "SATISFIED",
+            billingStatementLineId: null,
             satisfiedAt: { gte: from, lte: to },
           },
           include: {
@@ -667,46 +648,11 @@ export class FinancialsService {
     );
   }
 
-  async recordCandidate(candidateKey: string, billingEntryId: string) {
-    this.assertFinanceUser();
-    const entry = await this.db.billingEntry.findFirst({
-      where: { id: billingEntryId, workspaceId: this.workspaceId },
-    });
-    if (!entry) throw new NotFoundException("Billing entry not found");
-    const source = candidateKey.split(":");
-    return this.db.billingSuggestionReview.upsert({
-      where: {
-        workspaceId_candidateKey: {
-          workspaceId: this.workspaceId,
-          candidateKey,
-        },
-      },
-      create: {
-        workspaceId: this.workspaceId,
-        candidateKey,
-        sourceType: source[0],
-        sourceId: source[1],
-        resolution: "RECORDED",
-        reviewedByUserId: this.context.userId,
-        reviewedAt: new Date(),
-        billingEntryId,
-      },
-      update: {
-        resolution: "RECORDED",
-        reviewedByUserId: this.context.userId,
-        reviewedAt: new Date(),
-        billingEntryId,
-      },
-    });
-  }
-
-  async recordCandidates(
-    input: RecordBillingCandidatesDto,
-  ): Promise<BillingEntrySummary[]> {
+  async recordCandidatesAsLines(
+    input: RecordBillingStatementLinesDto,
+  ): Promise<BillingStatementLineSummary[]> {
     this.assertFinanceUser();
     await this.assertClient(input.clientId);
-    await this.assertCases(input.caseIds, input.clientId);
-    this.assertWorkPeriod(input.workStartDate, input.workEndDate);
 
     const candidateKeys = input.items.map((item) => item.candidateKey);
     if (new Set(candidateKeys).size !== candidateKeys.length) {
@@ -714,23 +660,21 @@ export class FinancialsService {
     }
 
     const itemSources = input.items.map((item) => {
-      this.validateDuration(item.kind, item.durationMinutes);
-      this.validateDisposition(BillingDisposition.BILLABLE, item.amount);
-      const [sourceType, sourceId, proposedPerformerId] =
+      if (item.amount <= 0)
+        throw new ConflictException("Statement line amount must be positive");
+      const [sourceType, sourceId, proposedPerformerId, proposedClientId] =
         item.candidateKey.split(":");
-      if (!sourceType || !sourceId) {
+      if (!sourceType || !sourceId || !proposedPerformerId) {
         throw new ConflictException("Invalid billing candidate key");
       }
-      const performedByUserId = ["EVENT", "TASK", "DEADLINE"].includes(
+      if (proposedPerformerId !== this.context.userId) this.assertManager();
+      return {
+        item,
         sourceType,
-      )
-        ? proposedPerformerId
-        : this.context.userId;
-      if (!performedByUserId) {
-        throw new ConflictException("Billing candidate has no performer");
-      }
-      if (performedByUserId !== this.context.userId) this.assertManager();
-      return { item, sourceType, sourceId, performedByUserId };
+        sourceId,
+        performedByUserId: proposedPerformerId,
+        proposedClientId,
+      };
     });
 
     await Promise.all(
@@ -740,38 +684,156 @@ export class FinancialsService {
     );
 
     return this.db.$transaction(async (tx) => {
-      const entries: BillingEntrySummary[] = [];
+      const lines: BillingStatementLineSummary[] = [];
       for (const source of itemSources) {
-        const entry = await tx.billingEntry.create({
+        const existingReview = await tx.billingSuggestionReview.findUnique({
+          where: {
+            workspaceId_candidateKey: {
+              workspaceId: this.workspaceId,
+              candidateKey: source.item.candidateKey,
+            },
+          },
+        });
+        if (existingReview?.resolution === "RECORDED")
+          throw new ConflictException("Billing candidate is already recorded");
+
+        let serviceDate: Date;
+        let caseId: string | null = null;
+        switch (source.sourceType) {
+          case "EVENT": {
+            const event = await tx.event.findFirst({
+              where: {
+                id: source.sourceId,
+                workspaceId: this.workspaceId,
+                status: "COMPLETED",
+                billingStatementLineId: null,
+                clients: { some: { clientId: input.clientId } },
+              },
+            });
+            if (!event || source.proposedClientId !== input.clientId)
+              throw new ConflictException(
+                "Event is unavailable for the selected client",
+              );
+            serviceDate = event.startsAt;
+            caseId = event.caseId;
+            break;
+          }
+          case "TASK": {
+            const task = await tx.task.findFirst({
+              where: {
+                id: source.sourceId,
+                workspaceId: this.workspaceId,
+                status: "DONE",
+                billingStatementLineId: null,
+              },
+              include: { case: true },
+            });
+            if (
+              !task ||
+              (task.clientId ?? task.case?.clientId) !== input.clientId
+            )
+              throw new ConflictException(
+                "Task is unavailable for the selected client",
+              );
+            serviceDate = task.completedAt ?? task.updatedAt;
+            caseId = task.caseId;
+            break;
+          }
+          case "DEADLINE": {
+            const deadline = await tx.deadline.findFirst({
+              where: {
+                id: source.sourceId,
+                workspaceId: this.workspaceId,
+                status: "SATISFIED",
+                billingStatementLineId: null,
+              },
+              include: { case: true },
+            });
+            if (
+              !deadline ||
+              (deadline.clientId ?? deadline.case?.clientId) !== input.clientId
+            )
+              throw new ConflictException(
+                "Deadline is unavailable for the selected client",
+              );
+            serviceDate = deadline.satisfiedAt ?? deadline.updatedAt;
+            caseId = deadline.caseId;
+            break;
+          }
+          case "CASE_ACTIVITY": {
+            const activity = await tx.caseActivity.findFirst({
+              where: { id: source.sourceId, workspaceId: this.workspaceId },
+              include: { case: true },
+            });
+            if (!activity || activity.case.clientId !== input.clientId)
+              throw new ConflictException(
+                "Case activity is unavailable for the selected client",
+              );
+            serviceDate = activity.activityDate;
+            caseId = activity.caseId;
+            break;
+          }
+          case "CLIENT_ACTIVITY": {
+            const activity = await tx.clientActivity.findFirst({
+              where: {
+                id: source.sourceId,
+                workspaceId: this.workspaceId,
+                clientId: input.clientId,
+              },
+            });
+            if (!activity)
+              throw new ConflictException(
+                "Client activity is unavailable for the selected client",
+              );
+            serviceDate = activity.activityDate;
+            caseId = activity.relatedCaseId;
+            break;
+          }
+          default:
+            throw new ConflictException("Unsupported billing candidate source");
+        }
+
+        const line = await tx.billingStatementLine.create({
           data: {
             workspaceId: this.workspaceId,
             clientId: input.clientId,
             performedByUserId: source.performedByUserId,
-            workStartDate: new Date(input.workStartDate),
-            workEndDate: new Date(input.workEndDate),
-            kind: source.item.kind,
-            disposition: BillingDisposition.BILLABLE,
-            lifecycle: BillingEntryLifecycle.DRAFT,
-            description: input.description,
-            clientDescription: input.clientDescription,
-            durationMinutes: source.item.durationMinutes,
+            serviceDate,
+            description: source.item.description,
             amount: source.item.amount,
-            currency: "RSD",
+            currency: source.item.currency.toUpperCase(),
             sourceType: source.sourceType,
             sourceId: source.sourceId,
             createdByUserId: this.context.userId,
             updatedByUserId: this.context.userId,
-            caseLinks: input.caseIds?.length
+            caseLinks: caseId
               ? {
-                  create: input.caseIds.map((caseId) => ({
+                  create: {
                     workspaceId: this.workspaceId,
                     caseId,
-                  })),
+                  },
                 }
               : undefined,
           },
-          include: this.entryInclude,
+          include: this.lineInclude,
         });
+
+        if (source.sourceType === "EVENT")
+          await tx.event.update({
+            where: { id: source.sourceId },
+            data: { billingStatementLineId: line.id },
+          });
+        if (source.sourceType === "TASK")
+          await tx.task.update({
+            where: { id: source.sourceId },
+            data: { billingStatementLineId: line.id },
+          });
+        if (source.sourceType === "DEADLINE")
+          await tx.deadline.update({
+            where: { id: source.sourceId },
+            data: { billingStatementLineId: line.id },
+          });
+
         await tx.billingSuggestionReview.upsert({
           where: {
             workspaceId_candidateKey: {
@@ -788,19 +850,19 @@ export class FinancialsService {
             resolution: "RECORDED",
             reviewedByUserId: this.context.userId,
             reviewedAt: new Date(),
-            billingEntryId: entry.id,
+            billingStatementLineId: line.id,
           },
           update: {
             proposedPerformerId: source.performedByUserId,
             resolution: "RECORDED",
             reviewedByUserId: this.context.userId,
             reviewedAt: new Date(),
-            billingEntryId: entry.id,
+            billingStatementLineId: line.id,
           },
         });
-        entries.push(this.entrySummary(entry));
+        lines.push(this.lineSummary(line));
       }
-      return entries;
+      return lines;
     });
   }
 
@@ -919,7 +981,7 @@ export class FinancialsService {
     this.assertManager();
     const statements = await this.db.billingStatement.findMany({
       where: { workspaceId: this.workspaceId },
-      include: { client: true, lines: true, payments: true },
+      include: this.statementInclude,
       orderBy: { createdAt: "desc" },
     });
     return statements.map((statement) => this.statementResponse(statement));
@@ -960,28 +1022,18 @@ export class FinancialsService {
       });
       if (existing) return this.getStatement(existing.resultEntityId);
     }
-    const entries = await this.db.billingEntry.findMany({
+    const lines = await this.db.billingStatementLine.findMany({
       where: {
         workspaceId: this.workspaceId,
-        id: { in: input.entryIds ?? [] },
+        id: { in: input.lineIds ?? [] },
         clientId: input.clientId,
         currency: input.currency,
-        lifecycle: {
-          in: [BillingEntryLifecycle.DRAFT, BillingEntryLifecycle.READY],
-        },
-        disposition: {
-          in: [
-            BillingDisposition.BILLABLE,
-            BillingDisposition.INCLUDED,
-            BillingDisposition.NO_CHARGE,
-          ],
-        },
+        status: BillingStatementLineStatus.UNBILLED,
       },
-      include: { caseLinks: { include: { case: true } } },
     });
-    if (entries.length !== (input.entryIds ?? []).length)
+    if (lines.length !== (input.lineIds ?? []).length)
       throw new ConflictException(
-        "Some entries are unavailable or not statement eligible",
+        "Some lines are unavailable or not statement eligible",
       );
     return this.db.$transaction(async (tx) => {
       const number = await this.nextStatementNumber(tx);
@@ -995,41 +1047,19 @@ export class FinancialsService {
           currency: input.currency,
           createdByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
-          lines: {
-            create: entries.map((entry, index) => ({
-              billingEntryId: entry.id,
-              lineOrder: index,
-              description: entry.clientDescription,
-              serviceDate: entry.workStartDate,
-              serviceEndDate: entry.workEndDate,
-              caseReference:
-                entry.caseLinks
-                  .map((link) => link.case.caseNumber)
-                  .join(", ") || undefined,
-              quantity: entry.quantity,
-              durationMinutes:
-                entry.billedDurationMinutes ?? entry.durationMinutes,
-              amount: entry.amount,
-              currency: entry.currency,
-              chargeLabel: entry.disposition,
-            })),
-          },
         },
-        include: { client: true, lines: true, payments: true },
       });
-      if (entries.length)
-        await tx.billingEntry.updateMany({
-          where: {
-            id: { in: entries.map((entry) => entry.id) },
-            lifecycle: {
-              in: [BillingEntryLifecycle.DRAFT, BillingEntryLifecycle.READY],
-            },
-          },
+      for (const [index, line] of lines.entries()) {
+        await tx.billingStatementLine.update({
+          where: { id: line.id },
           data: {
-            lifecycle: BillingEntryLifecycle.RESERVED,
+            statementId: statement.id,
+            lineOrder: index,
+            status: BillingStatementLineStatus.RESERVED,
             updatedByUserId: this.context.userId,
           },
         });
+      }
       if (input.idempotencyKey)
         await tx.financeMutationRequest.create({
           data: {
@@ -1040,7 +1070,11 @@ export class FinancialsService {
             result: { statementId: statement.id },
           },
         });
-      return this.statementResponse(statement);
+      const complete = await tx.billingStatement.findUniqueOrThrow({
+        where: { id: statement.id },
+        include: this.statementInclude,
+      });
+      return this.statementResponse(complete);
     });
   }
 
@@ -1048,7 +1082,7 @@ export class FinancialsService {
     this.assertManager();
     const statement = await this.db.billingStatement.findFirst({
       where: { id, workspaceId: this.workspaceId },
-      include: { client: true, lines: true, payments: true },
+      include: this.statementInclude,
     });
     if (!statement) throw new NotFoundException("Statement not found");
     return this.statementResponse(statement);
@@ -1059,64 +1093,55 @@ export class FinancialsService {
     const statement = await this.getStatement(id);
     if (statement.status !== BillingStatementStatus.DRAFT)
       throw new ConflictException("Only draft statements can be edited");
-    if (input.entryIds) {
+    if (input.lineIds) {
       await this.db.$transaction(async (tx) => {
-        await tx.billingEntry.updateMany({
+        await tx.billingStatementLine.updateMany({
           where: {
             workspaceId: this.workspaceId,
-            lifecycle: BillingEntryLifecycle.RESERVED,
-            statementLines: { some: { statementId: id } },
+            statementId: id,
+            status: BillingStatementLineStatus.RESERVED,
           },
           data: {
-            lifecycle: BillingEntryLifecycle.READY,
+            statementId: null,
+            lineOrder: null,
+            status: BillingStatementLineStatus.UNBILLED,
             updatedByUserId: this.context.userId,
           },
         });
-        await tx.billingStatementLine.deleteMany({
-          where: { statementId: id },
-        });
-        const entries = await tx.billingEntry.findMany({
+        const lines = await tx.billingStatementLine.findMany({
           where: {
             workspaceId: this.workspaceId,
-            id: { in: input.entryIds },
+            id: { in: input.lineIds },
             clientId: statement.clientId,
             currency: statement.currency,
-            lifecycle: {
-              in: [BillingEntryLifecycle.DRAFT, BillingEntryLifecycle.READY],
-            },
-            disposition: {
-              in: [
-                BillingDisposition.BILLABLE,
-                BillingDisposition.INCLUDED,
-                BillingDisposition.NO_CHARGE,
-              ],
-            },
+            status: BillingStatementLineStatus.UNBILLED,
           },
         });
-        if (entries.length !== input.entryIds.length)
-          throw new ConflictException("Some entries are unavailable");
-        await tx.billingStatementLine.createMany({
-          data: entries.map((entry, index) => ({
-            statementId: id,
-            billingEntryId: entry.id,
-            lineOrder: index,
-            description: entry.clientDescription,
-            serviceDate: entry.workStartDate,
-            serviceEndDate: entry.workEndDate,
-            amount: entry.amount,
-            currency: entry.currency,
-            chargeLabel: entry.disposition,
-          })),
-        });
-        await tx.billingEntry.updateMany({
-          where: { id: { in: input.entryIds } },
-          data: {
-            lifecycle: BillingEntryLifecycle.RESERVED,
-            updatedByUserId: this.context.userId,
-          },
-        });
+        if (lines.length !== input.lineIds.length)
+          throw new ConflictException("Some lines are unavailable");
+        for (const [index, line] of lines.entries())
+          await tx.billingStatementLine.update({
+            where: { id: line.id },
+            data: {
+              statementId: id,
+              lineOrder: index,
+              status: BillingStatementLineStatus.RESERVED,
+              updatedByUserId: this.context.userId,
+            },
+          });
       });
     }
+    if (input.periodStart || input.periodEnd)
+      await this.db.billingStatement.update({
+        where: { id },
+        data: {
+          periodStart: input.periodStart
+            ? new Date(input.periodStart)
+            : undefined,
+          periodEnd: input.periodEnd ? new Date(input.periodEnd) : undefined,
+          updatedByUserId: this.context.userId,
+        },
+      });
     return this.getStatement(id);
   }
 
@@ -1147,15 +1172,15 @@ export class FinancialsService {
           sharedByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
         },
-        include: { client: true, lines: true, payments: true },
       });
-      await tx.billingEntry.updateMany({
+      await tx.billingStatementLine.updateMany({
         where: {
           workspaceId: this.workspaceId,
-          statementLines: { some: { statementId: id } },
+          statementId: id,
         },
         data: {
-          lifecycle: BillingEntryLifecycle.STATEMENT_SENT,
+          status: BillingStatementLineStatus.BILLED,
+          billedAt: new Date(),
           updatedByUserId: this.context.userId,
         },
       });
@@ -1169,7 +1194,11 @@ export class FinancialsService {
             result: { statementId: sent.id },
           },
         });
-      return this.statementResponse(sent);
+      const complete = await tx.billingStatement.findUniqueOrThrow({
+        where: { id: sent.id },
+        include: this.statementInclude,
+      });
+      return this.statementResponse(complete);
     });
   }
 
@@ -1178,7 +1207,7 @@ export class FinancialsService {
     const statement = await this.getStatement(id);
     if (statement.status === BillingStatementStatus.VOIDED) return statement;
     return this.db.$transaction(async (tx) => {
-      const result = await tx.billingStatement.update({
+      await tx.billingStatement.update({
         where: { id },
         data: {
           status: BillingStatementStatus.VOIDED,
@@ -1188,19 +1217,22 @@ export class FinancialsService {
         },
       });
       if (statement.status === BillingStatementStatus.DRAFT)
-        await tx.billingEntry.updateMany({
+        await tx.billingStatementLine.updateMany({
           where: {
             workspaceId: this.workspaceId,
-            statementLines: { some: { statementId: id } },
+            statementId: id,
+            status: BillingStatementLineStatus.RESERVED,
           },
           data: {
-            lifecycle: BillingEntryLifecycle.READY,
+            statementId: null,
+            lineOrder: null,
+            status: BillingStatementLineStatus.UNBILLED,
             updatedByUserId: this.context.userId,
           },
         });
       const full = await tx.billingStatement.findUniqueOrThrow({
         where: { id },
-        include: { client: true, lines: true, payments: true },
+        include: this.statementInclude,
       });
       return this.statementResponse(full);
     });
@@ -1219,7 +1251,7 @@ export class FinancialsService {
         externalReference: input.reference,
         updatedByUserId: this.context.userId,
       },
-      include: { client: true, lines: true, payments: true },
+      include: this.statementInclude,
     });
     return this.statementResponse(updated);
   }
@@ -1290,18 +1322,19 @@ export class FinancialsService {
       this.db.billingSuggestionReview.count({
         where: { workspaceId: this.workspaceId, resolution: "PENDING" },
       }),
-      this.db.billingEntry.aggregate({
+      this.db.billingStatementLine.groupBy({
+        by: ["currency"],
         where: {
           workspaceId: this.workspaceId,
-          lifecycle: BillingEntryLifecycle.READY,
-          disposition: BillingDisposition.BILLABLE,
+          status: BillingStatementLineStatus.UNBILLED,
         },
         _sum: { amount: true },
       }),
-      this.db.billingEntry.aggregate({
+      this.db.billingStatementLine.groupBy({
+        by: ["currency"],
         where: {
           workspaceId: this.workspaceId,
-          lifecycle: BillingEntryLifecycle.RESERVED,
+          status: BillingStatementLineStatus.RESERVED,
         },
         _sum: { amount: true },
       }),
@@ -1339,12 +1372,14 @@ export class FinancialsService {
       }));
     return {
       unresolvedCandidateCount: pending,
-      readyUnbilledByCurrency: [
-        { currency: "RSD", amount: (ready._sum.amount ?? 0).toString() },
-      ],
-      reservedDraftByCurrency: [
-        { currency: "RSD", amount: (reserved._sum.amount ?? 0).toString() },
-      ],
+      readyUnbilledByCurrency: ready.map((item) => ({
+        currency: item.currency,
+        amount: (item._sum.amount ?? 0).toString(),
+      })),
+      reservedDraftByCurrency: reserved.map((item) => ({
+        currency: item.currency,
+        amount: (item._sum.amount ?? 0).toString(),
+      })),
       sentStatementCount: sent.length,
       sentTotalsByCurrency: grouped(sentTotals),
       externallyUnpaidByCurrency: grouped(externallyUnpaid),
@@ -1354,35 +1389,34 @@ export class FinancialsService {
   async clientAccount(clientId: string) {
     this.assertManager();
     await this.assertClient(clientId);
-    const [entries, statements] = await Promise.all([
-      this.db.billingEntry.findMany({
+    const [lines, statements] = await Promise.all([
+      this.db.billingStatementLine.findMany({
         where: { workspaceId: this.workspaceId, clientId },
-        include: this.entryInclude,
-        orderBy: { workStartDate: "desc" },
+        include: this.lineInclude,
+        orderBy: { serviceDate: "desc" },
         take: 50,
       }),
       this.db.billingStatement.findMany({
         where: { workspaceId: this.workspaceId, clientId },
-        include: { client: true, lines: true, payments: true },
+        include: this.statementInclude,
         orderBy: { periodEnd: "desc" },
         take: 50,
       }),
     ]);
     const ready = new Map<string, Prisma.Decimal>();
     const reserved = new Map<string, Prisma.Decimal>();
-    for (const entry of entries) {
-      if (entry.disposition !== BillingDisposition.BILLABLE) continue;
+    for (const line of lines) {
       const target =
-        entry.lifecycle === BillingEntryLifecycle.READY
+        line.status === BillingStatementLineStatus.UNBILLED
           ? ready
-          : entry.lifecycle === BillingEntryLifecycle.RESERVED
+          : line.status === BillingStatementLineStatus.RESERVED
             ? reserved
             : null;
       if (target)
         target.set(
-          entry.currency,
-          (target.get(entry.currency) ?? new Prisma.Decimal(0)).plus(
-            entry.amount,
+          line.currency,
+          (target.get(line.currency) ?? new Prisma.Decimal(0)).plus(
+            line.amount,
           ),
         );
     }
@@ -1413,7 +1447,7 @@ export class FinancialsService {
         amount: amount.toFixed(2),
       }));
     return {
-      entries: entries.map((entry) => this.entrySummary(entry)),
+      lines: lines.map((line) => this.lineSummary(line)),
       statements: summaries,
       readyUnbilledByCurrency: grouped(ready),
       reservedDraftByCurrency: grouped(reserved),

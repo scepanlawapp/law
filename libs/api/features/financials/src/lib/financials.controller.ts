@@ -11,18 +11,19 @@ import {
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
-  BillingEntryListQueryDto,
+  BillingStatementLineListQueryDto,
+  CancelBillingStatementLineDto,
   CandidateQueryDto,
-  CreateBillingEntryDto,
+  CreateBillingStatementLineDto,
   CreatePaymentDto,
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
   AppendPriceSourceVersionDto,
-  RecordBillingCandidatesDto,
+  RecordBillingStatementLinesDto,
   ReviewBillingSuggestionsDto,
   SendStatementDto,
-  UpdateBillingEntryDto,
+  UpdateBillingStatementLineDto,
   UpdateStatementDto,
 } from "./financials.dto";
 import { FinancialsService } from "./financials.service";
@@ -54,8 +55,8 @@ export class FinancialsController {
   }
 
   @Post("candidates/record")
-  recordMany(@Body() body: RecordBillingCandidatesDto) {
-    return this.financials.recordCandidates(body);
+  recordMany(@Body() body: RecordBillingStatementLinesDto) {
+    return this.financials.recordCandidatesAsLines(body);
   }
 
   @Post("candidates/:candidateKey/dismiss")
@@ -68,32 +69,35 @@ export class FinancialsController {
     return this.financials.reviewCandidate(candidateKey, "PENDING");
   }
 
-  @Post("candidates/:candidateKey/record")
-  recordCandidate(
-    @Param("candidateKey") candidateKey: string,
-    @Body("billingEntryId") billingEntryId: string,
+  @Get("lines")
+  lines(@Query() query: BillingStatementLineListQueryDto) {
+    return this.financials.listLines(query);
+  }
+
+  @Post("lines")
+  createLine(@Body() body: CreateBillingStatementLineDto) {
+    return this.financials.createLine(body);
+  }
+
+  @Get("lines/:id")
+  line(@Param("id") id: string) {
+    return this.financials.getLine(id);
+  }
+
+  @Patch("lines/:id")
+  updateLine(
+    @Param("id") id: string,
+    @Body() body: UpdateBillingStatementLineDto,
   ) {
-    return this.financials.recordCandidate(candidateKey, billingEntryId);
+    return this.financials.updateLine(id, body);
   }
 
-  @Get("entries")
-  entries(@Query() query: BillingEntryListQueryDto) {
-    return this.financials.listEntries(query);
-  }
-
-  @Post("entries")
-  createEntry(@Body() body: CreateBillingEntryDto) {
-    return this.financials.createEntry(body);
-  }
-
-  @Get("entries/:id")
-  entry(@Param("id") id: string) {
-    return this.financials.getEntry(id);
-  }
-
-  @Patch("entries/:id")
-  updateEntry(@Param("id") id: string, @Body() body: UpdateBillingEntryDto) {
-    return this.financials.updateEntry(id, body);
+  @Post("lines/:id/cancel")
+  cancelLine(
+    @Param("id") id: string,
+    @Body() body: CancelBillingStatementLineDto,
+  ) {
+    return this.financials.cancelLine(id, body.reason);
   }
 
   @Get("price-sources")

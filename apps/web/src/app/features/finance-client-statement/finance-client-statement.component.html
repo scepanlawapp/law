@@ -36,7 +36,7 @@
                 {{ line.description }}
                 <br />
                 <span class="text-muted-foreground">
-                  {{ line.serviceDate }} · {{ line.chargeLabel }}
+                  {{ line.serviceDate }}
                 </span>
               </span>
               <strong>{{ line.amount }} {{ line.currency }}</strong>
@@ -290,14 +290,14 @@
         <h3 class="font-semibold">
           {{ "finance.proposalReview" | translate }}
         </h3>
-        @for (decision of proposal.decisions; track decision.entryId) {
+        @for (decision of proposal.decisions; track decision.lineId) {
           <div class="border-b border-border py-2">
             <strong>{{ decision.action }}</strong>
             · {{ decision.reason }}
             <br />
             <span>
               {{ decision.clientDescription ?? "—" }} ·
-              {{ decision.existingEntryAmount }} {{ proposal.currency }}
+              {{ decision.existingLineAmount }} {{ proposal.currency }}
             </span>
           </div>
         }
@@ -332,14 +332,10 @@
                 (change)="selectEntry(entry)"
               />
               <span class="min-w-0">
-                <strong>{{ entry.clientDescription }}</strong>
+                <strong>{{ entry.description }}</strong>
                 <br />
                 <span class="text-muted-foreground">
-                  {{ entry.workStartDate }}
-                  @if (entry.workEndDate !== entry.workStartDate) {
-                    — {{ entry.workEndDate }}
-                  }
-                  · {{ entry.disposition }} · {{ entry.amount }}
+                  {{ entry.serviceDate }} · {{ entry.amount }}
                   {{ entry.currency }}
                 </span>
               </span>

@@ -14,7 +14,7 @@ import {
   FinancialsApiClient,
 } from "@law/api-clients";
 import {
-  BillingEntrySummary,
+  BillingStatementLineSummary,
   BillingSuggestion,
   CaseSummary,
   ClientSummary,
@@ -43,7 +43,7 @@ import {
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
-import { BillingEntryDialogService } from "./billing-entry-dialog.service";
+import { BillingStatementLineDialogService } from "./billing-entry-dialog.service";
 
 type BillingList = "candidates" | "entries" | "dismissed";
 type BillingSourceType =
@@ -84,7 +84,7 @@ export class FinanceWorkReviewComponent {
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly entryDialog = inject(BillingEntryDialogService);
+  private readonly lineDialog = inject(BillingStatementLineDialogService);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
@@ -95,7 +95,7 @@ export class FinanceWorkReviewComponent {
       : "candidates",
   );
   readonly candidates = signal<BillingSuggestion[]>([]);
-  readonly entries = signal<BillingEntrySummary[]>([]);
+  readonly entries = signal<BillingStatementLineSummary[]>([]);
   readonly clients = signal<ClientSummary[]>([]);
   readonly cases = signal<CaseSummary[]>([]);
   readonly clientIds = signal<string[]>([]);
@@ -260,7 +260,7 @@ export class FinanceWorkReviewComponent {
     this.loading.set(true);
     this.error.set(false);
     this.api
-      .entries({
+      .lines({
         page: 1,
         pageSize: 50,
         clientIds: this.clientIds(),
@@ -350,7 +350,12 @@ export class FinanceWorkReviewComponent {
   }
 
   private recordCandidates(items: BillingSuggestion[]): void {
-    this.entryDialog
+    const clientIds = new Set(items.map((item) => item.client?.id));
+    if (clientIds.size !== 1 || clientIds.has(undefined)) {
+      this.toast.error("finance.selectionOneCandidateClient");
+      return;
+    }
+    this.lineDialog
       .open({ candidates: items })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((entries) => {
@@ -360,7 +365,7 @@ export class FinanceWorkReviewComponent {
       });
   }
 
-  toggleEntry(entry: BillingEntrySummary): void {
+  toggleEntry(entry: BillingStatementLineSummary): void {
     if (!this.isEligible(entry)) return;
     const current = new Set(this.selected());
     if (current.has(entry.id)) current.delete(entry.id);
@@ -374,10 +379,9 @@ export class FinanceWorkReviewComponent {
     this.selected.set(current);
   }
 
-  isEligible(entry: BillingEntrySummary): boolean {
+  isEligible(entry: BillingStatementLineSummary): boolean {
     return (
-      entry.lifecycle === "READY" &&
-      entry.disposition !== "INTERNAL" &&
+      entry.status === "UNBILLED" &&
       (!this.selected().size ||
         this.entries().find((item) => this.selected().has(item.id))
           ?.currency === entry.currency)
