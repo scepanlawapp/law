@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Codex Custom Agents](./tracks/codex_custom_agents_20260928/index.md)
 - [Chat Citation Preview](./tracks/chat_citation_preview_20260927/index.md)
 - [Chat Citation Scroll](./tracks/chat_citation_scroll_20260927/index.md)
 - [Advokatska tarifa Ingestion](./tracks/advokatska_tarifa_ingest_20260927/index.md)

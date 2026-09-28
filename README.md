@@ -30,7 +30,7 @@ npm run legal:ingest -- --dry-run // Fetch and inspect the first legal source
 
 The chat pipeline (triage -> brief-extraction -> drafting) runs as BullMQ jobs on a Redis-backed `workflow` queue, so `services:up` (which starts Redis) must be running before `api:serve`.
 
-The API is available at `http://localhost:3000/api`, with health at `http://localhost:3000/api/health`. The Angular client is available at `http://localhost:4200`.
+The API is available at `http://localhost:3001/api`, with health at `http://localhost:3001/api/health`. The Angular client is available at `http://localhost:4200`.
 
 ## Document file storage
 

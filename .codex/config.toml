@@ -1,0 +1,4 @@
+# Project-scoped Codex settings are loaded only after the repository is trusted.
+[agents]
+enabled = true
+max_concurrent_threads_per_session = 4

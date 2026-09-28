@@ -32,7 +32,7 @@ async function bootstrap(): Promise<void> {
     origin: allowedOrigins,
     credentials: true,
   });
-  const port = config.get<number>("PORT", 3000);
+  const port = config.get<number>("PORT", 3001);
   await app.listen(port);
   Logger.log(
     `Application is running on: http://localhost:${port}/${globalPrefix}`,
