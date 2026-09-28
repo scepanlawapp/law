@@ -69,7 +69,7 @@
               hlmBtn
               type="button"
               variant="outline"
-              [class.bg-muted]="viewMode() === 'list'"
+              [class.bg-muted]="viewMode() === 'grid'"
               (click)="setViewMode('list')"
             >
               <ng-icon name="lucideList" aria-hidden="true" />
@@ -79,7 +79,7 @@
               hlmBtn
               type="button"
               variant="outline"
-              [class.bg-muted]="viewMode() === 'grid'"
+              [class.bg-muted]="viewMode() === 'list'"
               (click)="setViewMode('grid')"
             >
               <ng-icon name="lucideGrid2x2" aria-hidden="true" />

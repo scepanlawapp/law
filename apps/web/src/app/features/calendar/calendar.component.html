@@ -51,7 +51,16 @@
         size="lg"
         (click)="openCreateEvent(selectedDay() ?? today)"
       >
-        {{ "calendar.create" | translate }}
+        {{ "calendar.createObligation" | translate }}
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        size="lg"
+        (click)="openCreateDeadline(selectedDay() ?? today)"
+      >
+        {{ "calendar.createDeadline" | translate }}
       </button>
     </div>
   </header>
@@ -261,40 +270,46 @@
           <div class="calendar-grid-wrapper">
             <div
               class="calendar-week-grid border-l border-t border-border"
-              [attr.data-all-day-empty]="
-                weekHasAllDayItems() ? 'false' : 'true'
+              [attr.data-obligations-empty]="
+                weekHasObligationItems() ? 'false' : 'true'
               "
             >
-              <div class="border-b border-r border-border bg-muted p-2"></div>
-              @for (day of weekDays(); track day.date) {
-                <button
-                  type="button"
-                  class="border-b border-r border-border bg-muted p-2 text-left text-sm"
-                  (click)="selectDay(day.date)"
-                >
-                  {{ day.date }}
-                </button>
-              }
-
               <div
-                class="calendar-all-day-gutter border-b border-r border-border bg-muted"
+                class="calendar-week-header-cell border-b border-r border-border bg-muted p-2"
+                aria-hidden="true"
               ></div>
               @for (day of weekDays(); track day.date) {
                 <div
-                  class="calendar-day-all-day border-b border-r border-border"
+                  class="calendar-week-header-cell border-b border-r border-border bg-muted p-2 text-left text-sm font-medium"
+                >
+                  {{ day.date }}
+                </div>
+              }
+
+              <div
+                class="calendar-obligations-gutter border-b border-r border-border bg-background"
+              ></div>
+              @for (day of weekDays(); track day.date) {
+                <div
+                  class="calendar-day-obligations border-b border-r border-border bg-background"
                 >
                   @for (
-                    item of allDayItemsForDay(day.date);
+                    item of obligationItemsForDay(day.date);
                     track trackItem($index, item)
                   ) {
                     <button
                       type="button"
                       data-calendar-item-trigger
-                      class="calendar-all-day-item"
+                      class="calendar-obligation-item"
                       (click)="selectItem($event, item)"
-                      (contextmenu)="openEventMenu($event, item)"
                     >
-                      {{ item.title }}
+                      <span aria-hidden="true">🔴</span>
+                      <span class="min-w-0 flex-1 truncate">
+                        @if (item.startsAt) {
+                          {{ itemTime(item) }}
+                        }
+                        {{ item.title }}
+                      </span>
                     </button>
                   }
                 </div>

@@ -4,4 +4,5 @@ export interface DeadlineDialogContext {
   deadline?: DeadlineDetail;
   caseId?: string;
   clientId?: string;
+  dueDate?: string;
 }

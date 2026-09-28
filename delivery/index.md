@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Case Create Breadcrumb](./tracks/case_create_breadcrumb_20260928/index.md)
+- [Calendar Deadlines Visible](./tracks/calendar_deadlines_visible_20260928/index.md)
 - [Codex Custom Agents](./tracks/codex_custom_agents_20260928/index.md)
 - [Chat Citation Preview](./tracks/chat_citation_preview_20260927/index.md)
 - [Chat Citation Scroll](./tracks/chat_citation_scroll_20260927/index.md)
