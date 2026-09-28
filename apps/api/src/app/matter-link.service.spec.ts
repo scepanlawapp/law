@@ -338,35 +338,119 @@ describe("MatterLinkService", () => {
     );
   });
 
-  it("skips already applied task keys and does not set a due date", async () => {
-    const { service, work } = harness({
-      appliedCaseId: "case-1",
-      appliedTaskKeys: ["missing:0"],
-    });
-    const result = await service.applyTasks({
-      workspaceId,
-      userId,
-      sessionId: "session-1",
-      briefId: "brief-1",
-      body: {
-        tasks: [
-          { key: "missing:0" },
-          { key: "evidence:0", title: "Pripremi ugovor" },
-        ],
-      },
-    });
-    expect(result.skippedKeys).toEqual(["missing:0"]);
-    expect(result.createdTaskIds).toEqual(["task-1"]);
-    expect(work.createTask).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: "Pripremi ugovor",
-        caseId: "case-1",
-      }),
-    );
-    const payload = JSON.parse(
-      JSON.stringify(work.createTask.mock.calls),
-    ) as Array<Array<{ dueDate?: string; dueAt?: string }>>;
-    expect(payload[0][0].dueDate).toBeUndefined();
-    expect(payload[0][0].dueAt).toBeUndefined();
+  it("skips already applied legacy task keys and dates the created task", async () => {
+    jest.useFakeTimers({ now: new Date("2026-09-25T10:00:00") }); // Friday
+    try {
+      const { service, work } = harness({
+        appliedCaseId: "case-1",
+        appliedTaskKeys: ["missing:0"],
+      });
+      const preview = await service.previewTasks({
+        workspaceId,
+        sessionId: "session-1",
+        briefId: "brief-1",
+      });
+      expect(preview.proposals[0]).toMatchObject({
+        key: "missing:plaintiffIdNumber:0",
+        alreadyApplied: true,
+      });
+      const result = await service.applyTasks({
+        workspaceId,
+        userId,
+        sessionId: "session-1",
+        briefId: "brief-1",
+        body: {
+          tasks: [
+            { key: "missing:plaintiffIdNumber:0" },
+            { key: "evidence:0", title: "Pripremi ugovor" },
+          ],
+        },
+      });
+      expect(result.skippedKeys).toEqual(["missing:plaintiffIdNumber:0"]);
+      expect(result.createdTaskIds).toEqual(["task-1"]);
+      expect(work.createTask).toHaveBeenCalledWith(
+        expect.objectContaining({
+          title: "Pripremi ugovor",
+          caseId: "case-1",
+          dueDate: "2026-09-30",
+          priority: "NORMAL",
+        }),
+      );
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("proposes action-phrased, dated tasks and skips attached evidence", async () => {
+    jest.useFakeTimers({ now: new Date("2026-09-25T10:00:00") }); // Friday
+    try {
+      const { service, prisma, work } = harness({ appliedCaseId: "case-1" });
+      prisma.briefExtractionResult.findFirst.mockResolvedValueOnce({
+        id: "brief-1",
+        sessionId: "session-1",
+        workspaceId,
+        brief: {
+          ...brief,
+          evidence: [
+            { label: "Rešenje o otkazu", provided: true },
+            { label: "Ugovor o radu", provided: false },
+          ],
+          missingFields: [
+            { key: "defendantAddress", label: "Adresa tuženog" },
+            { key: "serviceDate", label: "Datum dostavljanja rešenja" },
+            { key: "other", label: "Razlog otkaza" },
+          ],
+        },
+        appliedCaseId: "case-1",
+        appliedTaskKeys: [],
+      });
+      const preview = await service.previewTasks({
+        workspaceId,
+        sessionId: "session-1",
+        briefId: "brief-1",
+      });
+      expect(
+        preview.proposals.map(({ key, title, priority, dueDate, selectedByDefault }) => ({
+          key,
+          title,
+          priority,
+          dueDate,
+          selectedByDefault,
+        })),
+      ).toEqual([
+        {
+          key: "missing:defendantAddress:0",
+          title: "Pribaviti adresu tuženog",
+          priority: "NORMAL",
+          dueDate: "2026-09-30",
+          selectedByDefault: true,
+        },
+        {
+          key: "missing:serviceDate:1",
+          title: "Utvrditi datum dostavljanja osporenog akta",
+          priority: "HIGH",
+          dueDate: "2026-09-28",
+          selectedByDefault: true,
+        },
+        {
+          key: "missing:other:2",
+          title: "Pribaviti podatak: Razlog otkaza",
+          priority: "NORMAL",
+          dueDate: "2026-09-30",
+          selectedByDefault: true,
+        },
+        {
+          key: "evidence:1",
+          title: "Pribaviti dokaz: Ugovor o radu",
+          priority: "NORMAL",
+          dueDate: "2026-09-30",
+          selectedByDefault: false,
+        },
+      ]);
+      expect(preview.proposals[0].description).not.toContain("brief-1");
+      expect(work.createTask).not.toHaveBeenCalled();
+    } finally {
+      jest.useRealTimers();
+    }
   });
 });

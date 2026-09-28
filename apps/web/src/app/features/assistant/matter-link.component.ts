@@ -15,10 +15,13 @@ import {
   lucideBriefcase,
   lucideChevronLeft,
   lucideChevronRight,
+  lucideCircleCheck,
 } from "@ng-icons/lucide";
 import {
   BriefApplyPreview,
+  BriefMissingField,
   BriefTaskPreview,
+  BriefTaskProposal,
   ChatSessionSummary,
 } from "@law/api-interfaces";
 import { ChatApiClient, CasesApiClient } from "@law/api-clients";
@@ -26,7 +29,11 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { briefFieldLabel } from "./brief-field-label";
+
+type TaskGroupSource = BriefTaskProposal["source"];
 
 @Component({
   selector: "app-assistant-matter-link",
@@ -49,12 +56,14 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
       lucideBriefcase,
       lucideChevronLeft,
       lucideChevronRight,
+      lucideCircleCheck,
     }),
   ],
 })
 export class AssistantMatterLinkComponent {
   private readonly chat = inject(ChatApiClient);
   private readonly cases = inject(CasesApiClient);
+  private readonly localization = inject(LocalizationService);
 
   readonly workspaceId = input.required<string>();
   readonly session = input<ChatSessionSummary | null>(null);
@@ -75,6 +84,20 @@ export class AssistantMatterLinkComponent {
   readonly createClient = signal(false);
   readonly selectedClientId = signal<string | null>(null);
   readonly selectedTaskKeys = signal<ReadonlySet<string>>(new Set());
+  readonly taskDueDates = signal<Readonly<Record<string, string>>>({});
+  readonly taskGroups = computed(() => {
+    const proposals = this.taskPreview()?.proposals ?? [];
+    return (["missing", "evidence"] as const)
+      .map((source) => ({
+        source,
+        titleKey:
+          source === "missing"
+            ? "assistant.matter.missingData"
+            : "assistant.matter.evidenceGroup",
+        tasks: proposals.filter((task) => task.source === source),
+      }))
+      .filter((group) => group.tasks.length);
+  });
   readonly canConfirm = computed(() => !this.saving());
   private loadedKey: string | null = null;
   readonly form = new FormGroup({
@@ -168,6 +191,44 @@ export class AssistantMatterLinkComponent {
     this.selectedClientId.set(null);
   }
 
+  fieldLabel(field: BriefMissingField): string {
+    return briefFieldLabel(field, (key) => this.localization.translate(key));
+  }
+
+  missingFieldLabels(fields: BriefMissingField[]): string {
+    return fields.map((field) => this.fieldLabel(field)).join(", ");
+  }
+
+  dueDateOf(task: BriefTaskProposal): string {
+    return this.taskDueDates()[task.key] ?? task.dueDate;
+  }
+
+  setDueDate(key: string, value: string): void {
+    this.taskDueDates.update((dates) => ({ ...dates, [key]: value }));
+  }
+
+  groupAllSelected(source: TaskGroupSource): boolean {
+    const open = this.openTasks(source);
+    const selected = this.selectedTaskKeys();
+    return open.length > 0 && open.every((task) => selected.has(task.key));
+  }
+
+  toggleGroup(source: TaskGroupSource): void {
+    const selectAll = !this.groupAllSelected(source);
+    const next = new Set(this.selectedTaskKeys());
+    for (const task of this.openTasks(source)) {
+      if (selectAll) next.add(task.key);
+      else next.delete(task.key);
+    }
+    this.selectedTaskKeys.set(next);
+  }
+
+  private openTasks(source: TaskGroupSource): BriefTaskProposal[] {
+    return (this.taskPreview()?.proposals ?? []).filter(
+      (task) => task.source === source && !task.alreadyApplied,
+    );
+  }
+
   toggleTask(key: string): void {
     const next = new Set(this.selectedTaskKeys());
     if (next.has(key)) next.delete(key);
@@ -222,12 +283,14 @@ export class AssistantMatterLinkComponent {
     this.saving.set(true);
     this.chat
       .applyBriefTasks(workspaceId, session.id, briefId, {
-        tasks: [...this.selectedTaskKeys()].map((key) => ({ key })),
+        tasks: [...this.selectedTaskKeys()].map((key) => {
+          const dueDate = this.taskDueDates()[key];
+          return dueDate ? { key, dueDate } : { key };
+        }),
       })
       .subscribe({
         next: () => {
           this.saving.set(false);
-          this.selectedTaskKeys.set(new Set());
           this.loadTasks();
         },
         error: () => {
@@ -243,7 +306,17 @@ export class AssistantMatterLinkComponent {
     const briefId = this.briefId();
     if (!workspaceId || !session || !briefId) return;
     this.chat.previewBriefTasks(workspaceId, session.id, briefId).subscribe({
-      next: (preview) => this.taskPreview.set(preview),
+      next: (preview) => {
+        this.taskPreview.set(preview);
+        this.taskDueDates.set({});
+        this.selectedTaskKeys.set(
+          new Set(
+            preview.proposals
+              .filter((task) => task.selectedByDefault && !task.alreadyApplied)
+              .map((task) => task.key),
+          ),
+        );
+      },
       error: () => this.error.set("assistant.matter.taskError"),
     });
   }

@@ -156,6 +156,98 @@
   border-radius: 0.375rem;
 }
 
+.matter-task-group {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.matter-task-group-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  width: 100%;
+  margin-bottom: 0.25rem;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.matter-task-select-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.matter-task {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem;
+  background: var(--muted);
+  border: 1px solid var(--border);
+  border-radius: 0.375rem;
+  font-size: 0.8125rem;
+}
+
+.matter-task-title {
+  min-width: 0;
+  line-height: 1.3;
+  cursor: pointer;
+}
+
+.matter-task-urgent {
+  display: inline-block;
+  margin-left: 0.375rem;
+  padding: 0 0.375rem;
+  color: var(--destructive);
+  background: color-mix(in srgb, var(--destructive) 12%, var(--card));
+  border-radius: 9999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.matter-task-due {
+  width: 8.5rem;
+  height: 1.875rem;
+  padding: 0 0.375rem;
+  font-size: 0.75rem;
+}
+
+.matter-task.is-created {
+  color: var(--muted-foreground);
+  background: transparent;
+}
+
+.matter-task.is-created ng-icon {
+  color: var(--success);
+}
+
+.matter-task.is-created .matter-task-title {
+  cursor: default;
+}
+
+.matter-task-meta {
+  font-size: 0.75rem;
+}
+
+.matter-task-empty {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.8125rem;
+}
+
 .matter-link-error {
   margin-top: 0.75rem;
   color: var(--destructive);

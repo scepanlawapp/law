@@ -258,7 +258,7 @@ describe("AssistantDraftingService.draftLawsuit", () => {
       status: "DRAFT_READY",
       draftId: "draft-1",
       version: 1,
-      missingFields: ["defendant.address", "competentCourt"],
+      missingFields: ["Adresa tuženog", "Nadležni sud"],
       citationCount: 1,
     });
     // Conversation facts in Latin, attachment reuse, and extraction of the pending one.

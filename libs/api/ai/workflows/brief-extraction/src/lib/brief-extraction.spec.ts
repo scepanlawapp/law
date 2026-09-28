@@ -1,5 +1,6 @@
 import { FakeChatModelProvider } from "@law/llm";
 import { buildBriefUserPrompt } from "./context";
+import { humanize, normalizeEvidence, normalizeMissingFields } from "./normalize";
 import { runBriefExtractionLlm } from "./runner";
 import { briefResultSchema } from "./schema";
 
@@ -11,7 +12,7 @@ const fullBrief = {
   claimValue: "150.000 RSD",
   legalBasis: ["ZOO čl. 154"],
   factualDescription: "Tuženi nije isplatio naknadu štete.",
-  evidence: ["ugovor.pdf"],
+  evidence: [{ label: "ugovor.pdf", provided: true }],
   reliefSought: "Isplata naknade štete u iznosu od 150.000 RSD.",
   missingFields: [],
   confidence: 0.8,
@@ -38,6 +39,65 @@ describe("brief-extraction schema", () => {
     expect(parsed.evidence).toEqual([]);
     expect(parsed.missingFields).toEqual([]);
     expect(parsed.warnings).toEqual([]);
+  });
+});
+
+describe("missing field normalization", () => {
+  it("maps legacy string keys to canonical keys with Serbian labels", () => {
+    expect(
+      normalizeMissingFields([
+        "defendant.address",
+        "competentCourt",
+        "datum_dostavljanja_resenja",
+        "razlog_za_otkaz",
+        "JMBG tužioca",
+        "adresa za dostavljanje",
+      ]),
+    ).toEqual([
+      { key: "defendantAddress", label: "Adresa tuženog" },
+      { key: "competentCourt", label: "Nadležni sud" },
+      { key: "serviceDate", label: "Datum dostavljanja osporenog akta" },
+      { key: "other", label: "Razlog za otkaz" },
+      { key: "plaintiffIdNumber", label: "JMBG / matični broj tužioca" },
+      { key: "other", label: "Adresa za dostavljanje" },
+    ]);
+  });
+
+  it("keeps model labels and turns unknown keys into other", () => {
+    expect(
+      normalizeMissingFields([
+        { key: "claimValue", label: "Vrednost spora" },
+        { key: "workStartDate", label: "Datum zasnivanja radnog odnosa" },
+        { key: "other", label: "" },
+        null,
+      ]),
+    ).toEqual([
+      { key: "claimValue", label: "Vrednost spora" },
+      { key: "other", label: "Datum zasnivanja radnog odnosa" },
+    ]);
+  });
+
+  it("parses legacy string output through the schema", () => {
+    const parsed = briefResultSchema.parse({
+      ...fullBrief,
+      evidence: ["ugovor.pdf"],
+      missingFields: ["plaintiff.address"],
+    });
+    expect(parsed.evidence).toEqual([{ label: "ugovor.pdf", provided: false }]);
+    expect(parsed.missingFields).toEqual([
+      { key: "plaintiffAddress", label: "Adresa tužioca" },
+    ]);
+  });
+
+  it("normalizes evidence objects", () => {
+    expect(
+      normalizeEvidence([{ label: " Rešenje o otkazu ", provided: true }, 3]),
+    ).toEqual([{ label: "Rešenje o otkazu", provided: true }]);
+  });
+
+  it("humanizes identifiers but keeps natural phrases", () => {
+    expect(humanize("opposingPartyAddress")).toBe("Opposing party address");
+    expect(humanize("JMBG tužioca")).toBe("JMBG tužioca");
   });
 });
 
