@@ -93,6 +93,7 @@ describe("FinancialsService", () => {
       findMany: jest.fn(),
       update: jest.fn(),
     },
+    eventClient: { upsert: jest.fn() },
     task: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -105,6 +106,7 @@ describe("FinancialsService", () => {
     },
     caseActivity: { findFirst: jest.fn(), findMany: jest.fn() },
     clientActivity: { findFirst: jest.fn(), findMany: jest.fn() },
+    activityLog: { create: jest.fn() },
     $transaction: jest.fn(async (input: unknown) => {
       if (typeof input === "function") return input(db);
       return Promise.all(input as Promise<unknown>[]);
@@ -139,6 +141,21 @@ describe("FinancialsService", () => {
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
     expect(db.billingStatementLine.findMany).not.toHaveBeenCalled();
+  });
+
+  it("keeps company catalog sources workspace-wide", async () => {
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.ADMIN },
+        () =>
+          service.createPriceSource({
+            scope: "COMPANY_CATALOG",
+            clientId,
+            title: "Office catalog",
+            rawText: "Consultation",
+          } as never),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it("applies client, case, source, and status filters to statement lines", async () => {
@@ -247,6 +264,40 @@ describe("FinancialsService", () => {
     expect(db.deadline.findMany).not.toHaveBeenCalled();
     expect(db.caseActivity.findMany).not.toHaveBeenCalled();
     expect(db.clientActivity.findMany).not.toHaveBeenCalled();
+  });
+
+  it("assigns a missing client to an event candidate and returns its new key", async () => {
+    db.event.findFirst.mockResolvedValue({
+      id: eventId,
+      caseId: null,
+      case: null,
+    });
+
+    const result = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.LAWYER },
+      () =>
+        service.assignCandidateClient(
+          `EVENT:${eventId}:${userId}:UNASSIGNED`,
+          clientId,
+        ),
+    );
+
+    expect(result).toMatchObject({
+      candidateKey: `EVENT:${eventId}:${userId}:${clientId}`,
+      client: { id: clientId },
+    });
+    expect(db.eventClient.upsert).toHaveBeenCalledWith({
+      where: { eventId_clientId: { eventId, clientId } },
+      create: { workspaceId, eventId, clientId },
+      update: {},
+    });
+    expect(db.activityLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        action: "EVENT_CLIENT_ASSIGNED",
+        entityId: eventId,
+        clientId,
+      }),
+    });
   });
 
   it("cancels only an unbilled line and records the reason", async () => {

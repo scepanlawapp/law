@@ -1134,6 +1134,38 @@ async function ensureBillingStatementLine(
   });
 }
 
+async function ensureCompanyPriceCatalog(prisma, workspaceId, actorUserId) {
+  const priceSourceId = "99999999-9999-4999-a999-999999999901";
+  const versionId = "99999999-9999-4999-a999-999999999902";
+  await prisma.priceSource.upsert({
+    where: { id: priceSourceId },
+    update: {
+      scope: "COMPANY_CATALOG",
+      title: "Katalog usluga kancelarije",
+    },
+    create: {
+      id: priceSourceId,
+      workspaceId,
+      scope: "COMPANY_CATALOG",
+      title: "Katalog usluga kancelarije",
+      createdByUserId: actorUserId,
+    },
+  });
+  await prisma.priceSourceVersion.upsert({
+    where: { id: versionId },
+    update: {},
+    create: {
+      id: versionId,
+      workspaceId,
+      priceSourceId,
+      version: 1,
+      rawText:
+        "Pravni savet — cena prema utrošenom vremenu. Izrada podneska — cena prema složenosti predmeta.",
+      createdByUserId: actorUserId,
+    },
+  });
+}
+
 async function main() {
   const prisma = new PrismaClient();
   try {
@@ -1190,12 +1222,8 @@ async function main() {
       lawyers,
       refData,
     );
-    await ensureBillingStatementLine(
-      prisma,
-      workspaceId,
-      adminUser.id,
-      cases,
-    );
+    await ensureBillingStatementLine(prisma, workspaceId, adminUser.id, cases);
+    await ensureCompanyPriceCatalog(prisma, workspaceId, adminUser.id);
     await ensureClientActivities(prisma, workspaceId, adminUser.id, clients);
 
     const marker = await prisma.activityLog.findFirst({

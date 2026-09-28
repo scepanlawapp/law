@@ -34,6 +34,11 @@ export class ReviewBillingSuggestionsDto
   candidateKeys!: string[];
 }
 
+export class AssignBillingCandidateClientDto {
+  @IsUUID()
+  clientId!: string;
+}
+
 export class RecordBillingStatementLineItemDto
   implements RecordBillingStatementLineItemRequest
 {

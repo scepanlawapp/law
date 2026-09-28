@@ -12,6 +12,7 @@ import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   BillingStatementLineListQueryDto,
+  AssignBillingCandidateClientDto,
   CancelBillingStatementLineDto,
   CandidateQueryDto,
   CreateBillingStatementLineDto,
@@ -34,11 +35,6 @@ import { FinancialsService } from "./financials.service";
 export class FinancialsController {
   constructor(private readonly financials: FinancialsService) {}
 
-  @Get("overview")
-  overview() {
-    return this.financials.overview();
-  }
-
   @Get("candidates")
   candidates(@Query() query: CandidateQueryDto) {
     return this.financials.listCandidates(query);
@@ -57,6 +53,14 @@ export class FinancialsController {
   @Post("candidates/record")
   recordMany(@Body() body: RecordBillingStatementLinesDto) {
     return this.financials.recordCandidatesAsLines(body);
+  }
+
+  @Post("candidates/:candidateKey/client")
+  assignClient(
+    @Param("candidateKey") candidateKey: string,
+    @Body() body: AssignBillingCandidateClientDto,
+  ) {
+    return this.financials.assignCandidateClient(candidateKey, body.clientId);
   }
 
   @Post("candidates/:candidateKey/dismiss")
@@ -172,10 +176,5 @@ export class FinancialsController {
   @Post("statements/:id/payments")
   addPayment(@Param("id") id: string, @Body() body: CreatePaymentDto) {
     return this.financials.addPayment(id, body);
-  }
-
-  @Get("clients/:clientId/account")
-  clientAccount(@Param("clientId") clientId: string) {
-    return this.financials.clientAccount(clientId);
   }
 }

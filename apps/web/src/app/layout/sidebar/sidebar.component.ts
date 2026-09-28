@@ -13,7 +13,6 @@ import {
   lucideCalendar,
   lucideLandmark,
   lucideChartBar,
-  lucideLayoutDashboard,
   lucideTags,
   lucideClipboardCheck,
   lucideChevronRight,
@@ -98,7 +97,6 @@ interface SidebarNavigationGroup {
       lucideCalendar,
       lucideLandmark,
       lucideChartBar,
-      lucideLayoutDashboard,
       lucideTags,
       lucideClipboardCheck,
       lucideChevronRight,
@@ -149,21 +147,6 @@ export class SidebarComponent {
               route: "/finance/work-review",
               label: "nav.financeWorkReview",
               icon: "lucideClipboardCheck",
-            },
-            {
-              route: "/finance/overview",
-              label: "nav.financeOverview",
-              icon: "lucideLayoutDashboard",
-            },
-            {
-              route: "/finance/client-balances",
-              label: "nav.financeClientBalances",
-              icon: "lucideUsers",
-            },
-            {
-              route: "/finance/client-statement",
-              label: "nav.financeClientStatement",
-              icon: "lucideFileText",
             },
             {
               route: "/finance/price-sources",

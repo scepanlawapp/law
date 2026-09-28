@@ -13,6 +13,7 @@ import {
 import {
   BillingStatementLineSummary,
   BillingSuggestion,
+  AssignBillingCandidateClientResponse,
   CaseReference,
   ClientReference,
   PaginatedResponse,
@@ -541,6 +542,104 @@ export class FinancialsService {
     return review;
   }
 
+  async assignCandidateClient(
+    candidateKey: string,
+    clientId: string,
+  ): Promise<AssignBillingCandidateClientResponse> {
+    this.assertFinanceUser();
+    const client = await this.assertClient(clientId);
+    const [sourceType, sourceId, performerId] = candidateKey.split(":");
+    if (!sourceType || !sourceId || !performerId)
+      throw new ConflictException("Invalid billing candidate key");
+    if (!this.isManager() && performerId !== this.context.userId)
+      throw new ForbiddenException("Candidate belongs to another user");
+
+    await this.db.$transaction(async (tx) => {
+      if (sourceType === "TASK") {
+        const task = await tx.task.findFirst({
+          where: {
+            id: sourceId,
+            workspaceId: this.workspaceId,
+            billingStatementLineId: null,
+            assigneeUserId: performerId,
+          },
+          include: { case: true },
+        });
+        if (!task) throw new NotFoundException("Task candidate not found");
+        if (task.case && task.case.clientId !== clientId)
+          throw new ConflictException("Client does not match the task case");
+        await tx.task.update({
+          where: { id: sourceId },
+          data: { clientId },
+        });
+        await tx.activityLog.create({
+          data: {
+            workspaceId: this.workspaceId,
+            actorUserId: this.context.userId,
+            action: "TASK_CLIENT_ASSIGNED",
+            entityType: "Task",
+            entityId: sourceId,
+            caseId: task.caseId,
+            clientId,
+          },
+        });
+        return;
+      }
+
+      if (sourceType === "EVENT") {
+        const event = await tx.event.findFirst({
+          where: {
+            id: sourceId,
+            workspaceId: this.workspaceId,
+            billingStatementLineId: null,
+            OR: [
+              { assignees: { some: { userId: performerId } } },
+              {
+                assignees: { none: {} },
+                organizerUserId: performerId,
+              },
+            ],
+          },
+          include: { case: true },
+        });
+        if (!event) throw new NotFoundException("Event candidate not found");
+        if (event.case && event.case.clientId !== clientId)
+          throw new ConflictException("Client does not match the event case");
+        await tx.eventClient.upsert({
+          where: { eventId_clientId: { eventId: sourceId, clientId } },
+          create: {
+            workspaceId: this.workspaceId,
+            eventId: sourceId,
+            clientId,
+          },
+          update: {},
+        });
+        await tx.activityLog.create({
+          data: {
+            workspaceId: this.workspaceId,
+            actorUserId: this.context.userId,
+            action: "EVENT_CLIENT_ASSIGNED",
+            entityType: "Event",
+            entityId: sourceId,
+            caseId: event.caseId,
+            clientId,
+          },
+        });
+        return;
+      }
+
+      throw new ConflictException("Unsupported billing candidate source");
+    });
+
+    return {
+      candidateKey:
+        sourceType === "EVENT"
+          ? `EVENT:${sourceId}:${performerId}:${clientId}`
+          : candidateKey,
+      client: this.clientReference(client),
+    };
+  }
+
   async reviewCandidates(
     candidateKeys: string[],
     resolution: "DISMISSED" | "PENDING",
@@ -810,6 +909,14 @@ export class FinancialsService {
       throw new ConflictException("Client agreement requires a client");
     if (input.scope === PriceSourceScope.CASE_OVERRIDE && !input.caseId)
       throw new ConflictException("Case override requires a case");
+    if (
+      (input.scope === PriceSourceScope.WORKSPACE_PUBLIC_REFERENCE ||
+        input.scope === PriceSourceScope.COMPANY_CATALOG) &&
+      (input.clientId || input.caseId)
+    )
+      throw new ConflictException(
+        "Workspace price sources cannot belong to a client or case",
+      );
     if (input.clientId) await this.assertClient(input.clientId);
     await this.assertCase(input.caseId, input.clientId ?? "");
     return this.db.$transaction(async (tx) => {
@@ -1243,145 +1350,5 @@ export class FinancialsService {
         });
       return payment;
     });
-  }
-
-  async overview() {
-    this.assertManager();
-    const [pending, ready, reserved, sent] = await Promise.all([
-      this.db.billingSuggestionReview.count({
-        where: { workspaceId: this.workspaceId, resolution: "PENDING" },
-      }),
-      this.db.billingStatementLine.groupBy({
-        by: ["currency"],
-        where: {
-          workspaceId: this.workspaceId,
-          status: BillingStatementLineStatus.UNBILLED,
-        },
-        _sum: { amount: true },
-      }),
-      this.db.billingStatementLine.groupBy({
-        by: ["currency"],
-        where: {
-          workspaceId: this.workspaceId,
-          status: BillingStatementLineStatus.RESERVED,
-        },
-        _sum: { amount: true },
-      }),
-      this.db.billingStatement.findMany({
-        where: {
-          workspaceId: this.workspaceId,
-          status: BillingStatementStatus.SENT,
-        },
-        include: { lines: true, payments: true },
-      }),
-    ]);
-    const sentTotals = new Map<string, Prisma.Decimal>();
-    const externallyUnpaid = new Map<string, Prisma.Decimal>();
-    for (const statement of sent) {
-      const summary = this.statementResponse(statement);
-      const total = new Prisma.Decimal(summary.total);
-      sentTotals.set(
-        statement.currency,
-        (sentTotals.get(statement.currency) ?? new Prisma.Decimal(0)).plus(
-          total,
-        ),
-      );
-      if (statement.externalInvoiceNumber)
-        externallyUnpaid.set(
-          statement.currency,
-          (
-            externallyUnpaid.get(statement.currency) ?? new Prisma.Decimal(0)
-          ).plus(new Prisma.Decimal(summary.outstanding)),
-        );
-    }
-    const grouped = (values: Map<string, Prisma.Decimal>) =>
-      [...values].map(([currency, amount]) => ({
-        currency,
-        amount: amount.toFixed(2),
-      }));
-    return {
-      unresolvedCandidateCount: pending,
-      readyUnbilledByCurrency: ready.map((item) => ({
-        currency: item.currency,
-        amount: (item._sum.amount ?? 0).toString(),
-      })),
-      reservedDraftByCurrency: reserved.map((item) => ({
-        currency: item.currency,
-        amount: (item._sum.amount ?? 0).toString(),
-      })),
-      sentStatementCount: sent.length,
-      sentTotalsByCurrency: grouped(sentTotals),
-      externallyUnpaidByCurrency: grouped(externallyUnpaid),
-    };
-  }
-
-  async clientAccount(clientId: string) {
-    this.assertManager();
-    await this.assertClient(clientId);
-    const [lines, statements] = await Promise.all([
-      this.db.billingStatementLine.findMany({
-        where: { workspaceId: this.workspaceId, clientId },
-        include: this.lineInclude,
-        orderBy: { serviceDate: "desc" },
-        take: 50,
-      }),
-      this.db.billingStatement.findMany({
-        where: { workspaceId: this.workspaceId, clientId },
-        include: this.statementInclude,
-        orderBy: { periodEnd: "desc" },
-        take: 50,
-      }),
-    ]);
-    const ready = new Map<string, Prisma.Decimal>();
-    const reserved = new Map<string, Prisma.Decimal>();
-    for (const line of lines) {
-      const target =
-        line.status === BillingStatementLineStatus.UNBILLED
-          ? ready
-          : line.status === BillingStatementLineStatus.RESERVED
-            ? reserved
-            : null;
-      if (target)
-        target.set(
-          line.currency,
-          (target.get(line.currency) ?? new Prisma.Decimal(0)).plus(
-            line.amount,
-          ),
-        );
-    }
-    const sent = new Map<string, Prisma.Decimal>();
-    const unpaid = new Map<string, Prisma.Decimal>();
-    const summaries = statements.map((statement) =>
-      this.statementResponse(statement),
-    );
-    for (const statement of summaries) {
-      if (statement.status !== BillingStatementStatus.SENT) continue;
-      sent.set(
-        statement.currency,
-        (sent.get(statement.currency) ?? new Prisma.Decimal(0)).plus(
-          new Prisma.Decimal(statement.total),
-        ),
-      );
-      if (statement.externalInvoiceNumber)
-        unpaid.set(
-          statement.currency,
-          (unpaid.get(statement.currency) ?? new Prisma.Decimal(0)).plus(
-            new Prisma.Decimal(statement.outstanding),
-          ),
-        );
-    }
-    const grouped = (values: Map<string, Prisma.Decimal>) =>
-      [...values].map(([currency, amount]) => ({
-        currency,
-        amount: amount.toFixed(2),
-      }));
-    return {
-      lines: lines.map((line) => this.lineSummary(line)),
-      statements: summaries,
-      readyUnbilledByCurrency: grouped(ready),
-      reservedDraftByCurrency: grouped(reserved),
-      sentByCurrency: grouped(sent),
-      externallyUnpaidByCurrency: grouped(unpaid),
-    };
   }
 }
