@@ -5,7 +5,12 @@ import type {
   WorkflowJobStatus,
   WorkflowProgressStage,
 } from "@law/api-interfaces";
-import type { BriefDocumentInput, BriefResult } from "@law/brief-extraction";
+import {
+  normalizeEvidence,
+  normalizeMissingFields,
+  type BriefDocumentInput,
+  type BriefResult,
+} from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
@@ -166,7 +171,7 @@ export class AssistantDraftingService {
             messageId: scope.messageId || null,
             brief: JSON.parse(JSON.stringify(brief)),
             confidence: brief.confidence,
-            missingFields: brief.missingFields,
+            missingFields: JSON.parse(JSON.stringify(brief.missingFields)),
             promptChars,
             truncated,
             model: this.config.openRouterModel,
@@ -337,7 +342,7 @@ export class AssistantDraftingService {
     });
     try {
       const outcome = await runDraftingWorkflow(draftRevision, {
-        brief: briefRow.brief as BriefResult,
+        brief: readStoredBrief(briefRow.brief),
         caseContext: await this.caseContext(scope),
         budget: this.budget(),
         feedback:
@@ -696,7 +701,7 @@ export class AssistantDraftingService {
       draftId: saved.id,
       version: await this.versionOf(saved),
       approvalStatus: saved.approvalStatus,
-      missingFields: outcome.brief.missingFields,
+      missingFields: outcome.brief.missingFields.map((field) => field.label),
       warnings: draft.warnings,
       citationCount: outcome.citations.length,
       excerpt: draft.documentText.slice(0, DRAFT_EXCERPT_CHARS),
@@ -890,5 +895,15 @@ function scopeFromJob(
     // Queued drafting jobs never call the office tools.
     userId: null,
     userDisplayName: null,
+  };
+}
+
+// Briefs stored before structured missing fields hold plain strings.
+function readStoredBrief(value: unknown): BriefResult {
+  const brief = value as BriefResult;
+  return {
+    ...brief,
+    missingFields: normalizeMissingFields(brief?.missingFields),
+    evidence: normalizeEvidence(brief?.evidence),
   };
 }

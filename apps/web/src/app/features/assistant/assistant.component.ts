@@ -88,6 +88,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { countPlaceholders } from "./draft-placeholders";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { AssistantMarkdownPipe } from "./assistant-markdown.pipe";
 import {
@@ -664,10 +665,15 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     const activeDraft = this.draft();
     if (!workspaceId || !activeDraft) return;
+    this.confirmUnfilledPlaceholders("assistant.exportAnyway", () =>
+      this.openDraftExport(workspaceId, activeDraft.id),
+    );
+  }
 
+  private openDraftExport(workspaceId: string, draftId: string): void {
     const exportUrl = this.chat.exportUrl(
       workspaceId,
-      activeDraft.id,
+      draftId,
       this.draftScript(),
     );
     window.open(exportUrl, "_blank", "noopener,noreferrer");
@@ -694,13 +700,45 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     const activeDraft = this.draft();
     if (!workspaceId || !activeDraft) return;
+    this.confirmUnfilledPlaceholders("assistant.approveAnyway", () =>
+      this.submitDraftApproval(workspaceId, activeDraft.id),
+    );
+  }
 
+  private submitDraftApproval(workspaceId: string, draftId: string): void {
     this.chat
-      .approveDraft(workspaceId, activeDraft.id, this.draftReviewNote())
+      .approveDraft(workspaceId, draftId, this.draftReviewNote())
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
         error: () => this.error.set("Unable to approve this draft."),
+      });
+  }
+
+  // Asks before approving or exporting a draft that still has placeholders.
+  private confirmUnfilledPlaceholders(
+    confirmKey: string,
+    proceed: () => void,
+  ): void {
+    const count = countPlaceholders(this.draftText());
+    if (!count) {
+      proceed();
+      return;
+    }
+    this.confirmDialog
+      .confirm({
+        title: this.localization.translate("assistant.unfilledConfirmTitle"),
+        message: this.localization.translate(
+          "assistant.unfilledConfirmMessage",
+          { count },
+        ),
+        confirmText: this.localization.translate(confirmKey),
+        cancelText: this.localization.translate("settings.cancel"),
+        variant: "warning",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        if (confirmed) proceed();
       });
   }
 

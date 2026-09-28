@@ -1,6 +1,18 @@
 import { z } from "zod";
+import { BRIEF_MISSING_FIELD_KEYS } from "@law/api-interfaces";
+import { normalizeEvidence, normalizeMissingFields } from "./normalize";
 
 export const BRIEF_JOB_TYPES = ["lawsuit", "contract", "other"] as const;
+
+const missingFieldSchema = z.object({
+  key: z.enum(BRIEF_MISSING_FIELD_KEYS),
+  label: z.string(),
+});
+
+const evidenceSchema = z.object({
+  label: z.string(),
+  provided: z.boolean(),
+});
 
 const partySchema = z.object({
   name: z.string().nullable(),
@@ -15,9 +27,13 @@ export const briefResultSchema = z.object({
   claimValue: z.string().nullable(),
   legalBasis: z.array(z.string()).default([]),
   factualDescription: z.string().nullable(),
-  evidence: z.array(z.string()).default([]),
+  // Normalize legacy string output and unknown keys before validating.
+  evidence: z.preprocess(normalizeEvidence, z.array(evidenceSchema)),
   reliefSought: z.string().nullable(),
-  missingFields: z.array(z.string()).default([]),
+  missingFields: z.preprocess(
+    normalizeMissingFields,
+    z.array(missingFieldSchema),
+  ),
   confidence: z.number().min(0).max(1),
   warnings: z.array(z.string()).default([]),
 });

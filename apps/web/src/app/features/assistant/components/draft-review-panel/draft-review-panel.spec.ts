@@ -11,7 +11,7 @@ const draft: DraftResultResponse = {
   briefResultId: null,
   documentText: "Initial draft",
   warnings: ["Check the filing date"],
-  missingFields: ["Court"],
+  missingFields: [{ key: "competentCourt", label: "Nadležni sud" }],
   citations: [],
   promptChars: 100,
   truncated: false,
@@ -133,5 +133,68 @@ describe("DraftReviewPanelComponent", () => {
     ) as HTMLElement;
     expect(badge.dataset["status"]).toBe(status);
     expect(badge.textContent?.trim()).toBe(`assistant.draftStatus.${status}`);
+  });
+
+  it("lists placeholders to complete and fills them in the text", () => {
+    const fixture = TestBed.createComponent(DraftReviewPanelComponent);
+    fixture.componentRef.setInput("draft", draft);
+    fixture.componentRef.setInput(
+      "text",
+      "Sud: [UNOS POTREBAN: naziv suda], adresa [UNOS POTREBAN: adresa tuženog], [UNOS POTREBAN: naziv suda]",
+    );
+    fixture.detectChanges();
+
+    const items = fixture.nativeElement.querySelectorAll(
+      ".draft-todo-item",
+    ) as NodeListOf<HTMLElement>;
+    expect(items.length).toBe(2);
+    expect(items[0].textContent).toContain("Naziv suda");
+    expect(items[0].textContent).toContain("assistant.occurrences");
+
+    const emitted: string[] = [];
+    fixture.componentInstance.textChange.subscribe((value) =>
+      emitted.push(value),
+    );
+    const input = items[0].querySelector("input") as HTMLInputElement;
+    input.value = "Osnovni sud u Nišu";
+    input.dispatchEvent(new Event("input"));
+    fixture.detectChanges();
+    (items[0].querySelector("form") as HTMLFormElement).dispatchEvent(
+      new Event("submit"),
+    );
+    expect(emitted).toEqual([
+      "Sud: Osnovni sud u Nišu, adresa [UNOS POTREBAN: adresa tuženog], Osnovni sud u Nišu",
+    ]);
+  });
+
+  it("shows a complete state and notes instead of placeholder warnings", () => {
+    const fixture = TestBed.createComponent(DraftReviewPanelComponent);
+    fixture.componentRef.setInput("draft", draft);
+    fixture.componentRef.setInput("text", "TUŽBA bez praznina");
+    fixture.detectChanges();
+
+    const element = fixture.nativeElement as HTMLElement;
+    expect(element.querySelector(".draft-todo")).toBeNull();
+    expect(element.querySelector(".draft-alert-success")?.textContent).toContain(
+      "assistant.allFilled",
+    );
+    expect(element.textContent).toContain("assistant.draftNotes");
+  });
+
+  it("hides reject and approve once the draft is approved", () => {
+    const fixture = TestBed.createComponent(DraftReviewPanelComponent);
+    fixture.componentRef.setInput("draft", {
+      ...draft,
+      approvalStatus: "APPROVED",
+    });
+    fixture.componentRef.setInput("text", draft.documentText);
+    fixture.detectChanges();
+
+    const labels = Array.from(
+      fixture.nativeElement.querySelectorAll(".draft-review-footer button"),
+    ).map((button) => (button as HTMLElement).textContent?.trim());
+    expect(labels).not.toContain("assistant.approveDraft");
+    expect(labels).not.toContain("assistant.rejectDraft");
+    expect(labels).toContain("assistant.exportDocx");
   });
 });

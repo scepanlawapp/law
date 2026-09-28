@@ -10,13 +10,18 @@ import {
   BriefApplyPreview,
   BriefApplyRequest,
   BriefApplyResponse,
+  BriefEvidenceItem,
+  BriefMissingField,
+  BriefMissingFieldKey,
   BriefResult,
   BriefTaskApplyRequest,
   BriefTaskApplyResponse,
   BriefTaskPreview,
+  BriefTaskProposal,
   ChatSessionCaseSummary,
   ChatSessionSummary,
 } from "@law/api-interfaces";
+import { normalizeEvidence, normalizeMissingFields } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { ActivitiesTasksDeadlinesService } from "@law/activities-tasks-deadlines";
 import { CasesService } from "@law/cases";
@@ -25,6 +30,28 @@ import { ChatDocumentPromotionService } from "./chat-document-promotion.service"
 import { toSessionSummary } from "./chat.mappers";
 
 const AI_SOURCE = { source: "AI_ASSISTED" } as const;
+
+// Task titles for missing brief data, phrased as the action to take.
+const MISSING_TASK_TITLES: Record<
+  Exclude<BriefMissingFieldKey, "other">,
+  string
+> = {
+  plaintiffName: "Utvrditi tačno ime tužioca",
+  plaintiffAddress: "Pribaviti adresu tužioca",
+  plaintiffIdNumber: "Pribaviti JMBG / matični broj tužioca",
+  defendantName: "Utvrditi tačan naziv tuženog",
+  defendantAddress: "Pribaviti adresu tuženog",
+  defendantIdNumber: "Pribaviti matični broj tuženog",
+  competentCourt: "Utvrditi nadležni sud",
+  claimValue: "Utvrditi vrednost predmeta spora",
+  legalBasis: "Utvrditi pravni osnov",
+  factualDescription: "Dopuniti činjenični opis sa klijentom",
+  reliefSought: "Precizirati tužbeni zahtev sa klijentom",
+  serviceDate: "Utvrditi datum dostavljanja osporenog akta",
+  contractReference: "Pribaviti broj i datum ugovora",
+};
+
+const DEFAULT_DUE_WORKING_DAYS = 3;
 
 @Injectable()
 export class MatterLinkService {
@@ -430,14 +457,15 @@ export class MatterLinkService {
     );
     const brief = this.readBrief(briefRow.brief);
     const applied = new Set(briefRow.appliedTaskKeys);
+    const today = new Date();
     const proposals = [
-      ...brief.missingFields.map((title, index) =>
-        this.proposal("missing", index, title, briefRow.id, matter, applied),
+      ...brief.missingFields.map((field, index) =>
+        this.missingProposal(field, index, matter, applied, today),
       ),
-      ...brief.evidence.map((title, index) =>
-        this.proposal("evidence", index, title, briefRow.id, matter, applied),
+      ...brief.evidence.map((item, index) =>
+        this.evidenceProposal(item, index, matter, applied, today),
       ),
-    ].filter((item): item is NonNullable<typeof item> => item !== null);
+    ].filter((item): item is BriefTaskProposal => item !== null);
     return {
       briefId: briefRow.id,
       caseId: matter.id,
@@ -467,12 +495,13 @@ export class MatterLinkService {
         title: (requested.title?.trim() || proposal.title).slice(0, 320),
         description: proposal.description,
         assigneeUserId: requested.assigneeUserId || proposal.assigneeUserId,
+        dueDate: requested.dueDate || proposal.dueDate,
         caseId: preview.caseId,
         clientId: (
           await this.requireWorkspaceCase(input.workspaceId, preview.caseId)
         ).clientId,
         status: "TODO",
-        priority: "NORMAL",
+        priority: proposal.priority,
       });
       createdTaskIds.push(created.id);
       appliedKeys.push(requested.key);
@@ -506,26 +535,56 @@ export class MatterLinkService {
     };
   }
 
-  private proposal(
-    source: "missing" | "evidence",
+  private missingProposal(
+    field: BriefMissingField,
     index: number,
-    rawTitle: string,
-    briefId: string,
     matter: { responsibleUserId: string },
     applied: Set<string>,
-  ) {
-    const title = rawTitle.trim();
-    if (!title) return null;
-    const key = `${source}:${index}`;
+    today: Date,
+  ): BriefTaskProposal | null {
+    const label = field.label.trim();
+    if (!label) return null;
+    const key = `missing:${field.key}:${index}`;
+    const urgent = field.key === "serviceDate";
     return {
       key,
-      source,
-      title: title.slice(0, 320),
-      description:
-        source === "missing"
-          ? `Nedostaje podatak iz briefa ${briefId}: ${title}`
-          : `Dokaz iz briefa ${briefId}: ${title}`,
+      source: "missing",
+      fieldKey: field.key,
+      title: (field.key === "other"
+        ? `Pribaviti podatak: ${label}`
+        : MISSING_TASK_TITLES[field.key]
+      ).slice(0, 320),
+      description: urgent
+        ? "Od datuma dostavljanja zavisi rok za podnošenje tužbe — utvrditi hitno i uneti rok u kalendar."
+        : `Podatak je potreban za nacrt tužbe, a ne nalazi se u dostavljenim dokumentima: ${label}.`,
       assigneeUserId: matter.responsibleUserId,
+      priority: urgent ? "HIGH" : "NORMAL",
+      dueDate: addWorkingDays(today, urgent ? 1 : DEFAULT_DUE_WORKING_DAYS),
+      selectedByDefault: true,
+      // Briefs linked before structured fields used `missing:<index>` keys.
+      alreadyApplied: applied.has(key) || applied.has(`missing:${index}`),
+    };
+  }
+
+  private evidenceProposal(
+    item: BriefEvidenceItem,
+    index: number,
+    matter: { responsibleUserId: string },
+    applied: Set<string>,
+    today: Date,
+  ): BriefTaskProposal | null {
+    const label = item.label.trim();
+    if (!label || item.provided) return null;
+    const key = `evidence:${index}`;
+    return {
+      key,
+      source: "evidence",
+      title: `Pribaviti dokaz: ${label}`.slice(0, 320),
+      description: `Dokaz je naveden u nacrtu tužbe, a nije priložen u razgovoru: ${label}.`,
+      assigneeUserId: matter.responsibleUserId,
+      priority: "NORMAL",
+      dueDate: addWorkingDays(today, DEFAULT_DUE_WORKING_DAYS),
+      selectedByDefault: false,
       alreadyApplied: applied.has(key),
     };
   }
@@ -558,9 +617,9 @@ export class MatterLinkService {
       claimValue: brief?.claimValue ?? null,
       legalBasis: brief?.legalBasis ?? [],
       factualDescription: brief?.factualDescription ?? null,
-      evidence: brief?.evidence ?? [],
+      evidence: normalizeEvidence(brief?.evidence),
       reliefSought: brief?.reliefSought ?? null,
-      missingFields: brief?.missingFields ?? [],
+      missingFields: normalizeMissingFields(brief?.missingFields),
       confidence: brief?.confidence ?? 0,
       warnings: brief?.warnings ?? [],
     };
@@ -595,7 +654,21 @@ export function suggestDescription(brief: BriefResult): string {
     brief.legalBasis.length
       ? `Pravni osnov: ${brief.legalBasis.join("; ")}`
       : null,
-    brief.reliefSought ? `Tuzbeni zahtev: ${brief.reliefSought}` : null,
+    brief.reliefSought ? `Tužbeni zahtev: ${brief.reliefSought}` : null,
   ].filter((line): line is string => Boolean(line));
   return lines.join("\n\n");
+}
+
+// Skips Saturdays and Sundays; returns an ISO date (YYYY-MM-DD).
+export function addWorkingDays(from: Date, days: number): string {
+  const date = new Date(
+    Date.UTC(from.getFullYear(), from.getMonth(), from.getDate()),
+  );
+  let remaining = days;
+  while (remaining > 0) {
+    date.setUTCDate(date.getUTCDate() + 1);
+    const day = date.getUTCDay();
+    if (day !== 0 && day !== 6) remaining -= 1;
+  }
+  return date.toISOString().slice(0, 10);
 }

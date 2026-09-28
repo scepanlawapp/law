@@ -9,6 +9,7 @@ import {
   WorkflowProgressStage,
   WorkflowJobResponse,
 } from "@law/api-interfaces";
+import { normalizeMissingFields } from "@law/brief-extraction";
 import { describeToolCall, toolResultCount } from "@law/mastra";
 
 /**
@@ -270,8 +271,8 @@ export function toDraft(draft: {
   documentText: string;
   finalDocumentText?: string | null;
   warnings: string[];
-  missingFields?: string[];
-  briefResult?: { missingFields: string[] } | null;
+  missingFields?: unknown;
+  briefResult?: { missingFields: unknown } | null;
   citations?: Array<{
     marker: number;
     articleNumber: string | null;
@@ -309,8 +310,9 @@ export function toDraft(draft: {
     documentText: draft.documentText,
     finalDocumentText: draft.finalDocumentText ?? null,
     warnings: draft.warnings,
-    missingFields:
-      draft.briefResult?.missingFields ?? draft.missingFields ?? [],
+    missingFields: normalizeMissingFields(
+      draft.briefResult?.missingFields ?? draft.missingFields,
+    ),
     citations: (draft.citations ?? [])
       .slice()
       .sort((left, right) => left.marker - right.marker)
