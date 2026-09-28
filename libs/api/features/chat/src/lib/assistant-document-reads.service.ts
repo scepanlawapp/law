@@ -45,7 +45,9 @@ type SourceText = { status: string; text: string | null };
 /**
  * Read-only document text for the assistant: this conversation's attachments
  * that are not filed yet plus the non-archived documents of the conversation's
- * case. Text is extracted lazily and stored; every query is workspace-scoped.
+ * case. A workspace document the user names by its `doc:<id>` ref (for example
+ * from the starter-card picker) can also be read and searched. Text is
+ * extracted lazily and stored; every query is workspace-scoped.
  */
 @Injectable()
 export class AssistantDocumentReadsService {
@@ -74,7 +76,10 @@ export class AssistantDocumentReadsService {
     args: { ref: string; offset?: number },
   ): Promise<AssistantDocumentRead> {
     const { sources } = await this.sources(scope);
-    const source = sources.find((item) => item.ref === args.ref.trim());
+    const ref = args.ref.trim();
+    const source =
+      sources.find((item) => item.ref === ref) ??
+      (await this.namedDocument(scope, ref));
     if (!source) {
       return {
         status: "NOT_FOUND",
@@ -106,9 +111,12 @@ export class AssistantDocumentReadsService {
     args: { query: string; ref?: string },
   ): Promise<AssistantDocumentSearch> {
     const { sources } = await this.sources(scope);
-    const selected = args.ref
-      ? sources.filter((item) => item.ref === args.ref?.trim())
-      : sources;
+    const ref = args.ref?.trim();
+    let selected = ref ? sources.filter((item) => item.ref === ref) : sources;
+    if (ref && !selected.length) {
+      const named = await this.namedDocument(scope, ref);
+      if (named) selected = [named];
+    }
     if (!selected.length) {
       return {
         status: "NOT_FOUND",
@@ -222,6 +230,40 @@ export class AssistantDocumentReadsService {
       caseNumber: session?.case?.caseNumber ?? null,
       sources,
       truncated: documents.length > DOCUMENT_LIMIT,
+    };
+  }
+
+  /** A non-archived workspace document named explicitly by its `doc:<id>` ref. */
+  private async namedDocument(
+    scope: AssistantTurnScope,
+    ref: string,
+  ): Promise<Source | null> {
+    if (!ref.startsWith(DOC_PREFIX)) return null;
+    const document = await this.prisma.document.findFirst({
+      where: {
+        id: ref.slice(DOC_PREFIX.length),
+        workspaceId: scope.workspaceId,
+        archivedAt: null,
+        currentVersionId: { not: null },
+      },
+      select: {
+        id: true,
+        title: true,
+        createdAt: true,
+        currentVersion: {
+          select: { id: true, originalFilename: true, extractionStatus: true },
+        },
+      },
+    });
+    if (!document?.currentVersion) return null;
+    return {
+      kind: "document",
+      ref: `${DOC_PREFIX}${document.id}`,
+      title: toLatin(document.title),
+      fileName: document.currentVersion.originalFilename,
+      versionId: document.currentVersion.id,
+      status: document.currentVersion.extractionStatus,
+      addedAt: document.createdAt,
     };
   }
 

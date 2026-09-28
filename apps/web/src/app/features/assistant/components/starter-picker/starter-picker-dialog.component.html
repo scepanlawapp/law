@@ -1,0 +1,68 @@
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>
+    {{ "assistant.starter.picker." + kind + ".title" | translate }}
+  </h2>
+  <p hlmDialogDescription>
+    {{ "assistant.starter.picker." + kind + ".description" | translate }}
+  </p>
+</hlm-dialog-header>
+
+<hlm-command
+  class="border border-border"
+  [filter]="acceptAll"
+  (searchChange)="onSearch($event)"
+>
+  <hlm-command-input
+    [placeholder]="'assistant.starter.picker.' + kind + '.search' | translate"
+  />
+  <hlm-command-list
+    [attr.aria-label]="'assistant.starter.picker.' + kind + '.title' | translate"
+    [attr.aria-busy]="loading()"
+  >
+    @if (loading()) {
+      <div
+        class="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground"
+      >
+        <hlm-spinner class="size-4" />
+        {{ "assistant.starter.picker.loading" | translate }}
+      </div>
+    } @else if (failed()) {
+      <div hlmCommandEmpty role="alert" class="text-destructive">
+        {{ "assistant.starter.picker.error" | translate }}
+      </div>
+    } @else {
+      @for (option of options(); track option.id) {
+        <button
+          hlmCommandItem
+          class="min-w-0"
+          [value]="option.id"
+          [attr.title]="option.label"
+          (selected)="choose(option)"
+        >
+          <span class="flex min-w-0 flex-1 flex-col text-left">
+            <span class="truncate">{{ option.label }}</span>
+            @if (option.detail) {
+              <span class="truncate text-sm text-muted-foreground">
+                {{ option.detail }}
+              </span>
+            }
+          </span>
+        </button>
+      }
+      <div *hlmCommandEmptyState hlmCommandEmpty>
+        {{ "assistant.starter.picker.noResults" | translate }}
+      </div>
+    }
+  </hlm-command-list>
+</hlm-command>
+
+<div class="flex flex-wrap justify-end gap-2">
+  @if (kind === "document") {
+    <button hlmBtn type="button" variant="outline" (click)="attachInstead()">
+      {{ "assistant.starter.picker.attachInstead" | translate }}
+    </button>
+  }
+  <button hlmBtn type="button" variant="ghost" (click)="cancel()">
+    {{ "common.cancel" | translate }}
+  </button>
+</div>

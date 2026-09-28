@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Runtime Config Local Override](./tracks/runtime_config_local_20260928/index.md)
 - [Codex Custom Agents](./tracks/codex_custom_agents_20260928/index.md)
 - [Chat Citation Preview](./tracks/chat_citation_preview_20260927/index.md)
 - [Chat Citation Scroll](./tracks/chat_citation_scroll_20260927/index.md)
@@ -32,6 +33,7 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)
 - [Mastra Assistant Slice](./tracks/mastra_assistant_slice_20260927/index.md)
 - [Chat Starter Prompts](./tracks/chat_starter_prompts_20260928/index.md)
+- [Chat Starter Pickers](./tracks/chat_starter_pickers_20260928/index.md)
 - [Mastra Run Telemetry](./tracks/mastra_run_telemetry_20260927/index.md)
 - [Mastra Drafting Workflow](./tracks/mastra_drafting_workflow_20260927/index.md)
 - [Mastra Confirmations](./tracks/mastra_confirmations_20260927/index.md)

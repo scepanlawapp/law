@@ -77,6 +77,7 @@ import { CitationListComponent } from "./components/citation-list/citation-list"
 import { CitationPreviewController } from "./components/citation-preview/citation-preview.controller";
 import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
 import { StarterPromptsComponent } from "./components/starter-prompts/starter-prompts";
+import { StarterPickerService } from "./components/starter-picker/starter-picker.service";
 import {
   AssistantStarterPrompt,
   CASE_STARTER_PROMPTS,
@@ -220,6 +221,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly speechRecognition = inject(SpeechRecognitionService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
+  private readonly starterPicker = inject(StarterPickerService);
   private readonly toast = inject(ToastService);
   protected readonly citationPreview = inject(CitationPreviewController);
   private source: EventSource | null = null;
@@ -1091,9 +1093,36 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   protected applyStarterPrompt(prompt: AssistantStarterPrompt): void {
     if (this.sending()) return;
-    const text = this.localization.translate(
-      starterPromptKey(prompt, "prompt"),
-    );
+    const kind = prompt.pick;
+    if (!kind) {
+      this.runStarterPrompt(prompt, starterPromptKey(prompt, "prompt"));
+      return;
+    }
+    this.starterPicker
+      .open(kind)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (!result || this.sending()) return;
+        if (result === "attach") {
+          this.runStarterPrompt(
+            { ...prompt, mode: "compose" },
+            starterPromptKey(prompt, "attachPrompt"),
+          );
+          return;
+        }
+        this.runStarterPrompt(prompt, starterPromptKey(prompt, "prompt"), {
+          [kind]: result.reference,
+        });
+      });
+  }
+
+  /** Sends a complete starter question, or puts a stem in the composer. */
+  private runStarterPrompt(
+    prompt: AssistantStarterPrompt,
+    key: string,
+    params: Record<string, string> = {},
+  ): void {
+    const text = this.localization.translate(key, params);
     this.composerForm.controls.draft.setValue(text);
     if (prompt.mode === "send") {
       this.send();

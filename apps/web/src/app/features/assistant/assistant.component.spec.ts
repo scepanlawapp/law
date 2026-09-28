@@ -13,6 +13,8 @@ import { SpeechRecognitionService } from "../../core/speech/speech-recognition.s
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { AssistantComponent } from "./assistant.component";
+import { StarterPickerService } from "./components/starter-picker/starter-picker.service";
+import { StarterPickerResult } from "./assistant-starter-prompts";
 
 const createDraft = (id: string): DraftResultResponse => ({
   id,
@@ -84,6 +86,9 @@ describe("AssistantComponent review state", () => {
     error: jest.fn(),
     success: jest.fn(),
   };
+  const starterPicker = {
+    open: jest.fn((): unknown => of(undefined as StarterPickerResult)),
+  };
 
   const routeParams: Record<string, string> = {};
 
@@ -92,6 +97,7 @@ describe("AssistantComponent review state", () => {
     for (const key of Object.keys(routeParams)) delete routeParams[key];
     chat.createSession.mockReturnValue(NEVER);
     chat.sendMessage.mockReturnValue(NEVER);
+    starterPicker.open.mockReturnValue(of(undefined));
     chat.listSessions.mockReturnValue(NEVER);
     chat.getSession.mockReturnValue(NEVER);
     chat.listDrafts.mockReturnValue(of([]));
@@ -143,6 +149,7 @@ describe("AssistantComponent review state", () => {
           },
         },
         { provide: Router, useValue: { navigate: jest.fn() } },
+        { provide: StarterPickerService, useValue: starterPicker },
       ],
     }).compileComponents();
   });
@@ -722,6 +729,99 @@ describe("AssistantComponent review state", () => {
       expect(chat.sendMessage).not.toHaveBeenCalled();
     });
 
+    const clickCard = (fixture: { nativeElement: HTMLElement }, id: string) =>
+      starterCards(fixture)
+        .find((button) =>
+          button.textContent?.includes(`assistant.starter.${id}.title`),
+        )
+        ?.click();
+
+    it("sends a picked case by its exact reference without linking the chat", () => {
+      chat.createSession.mockReturnValue(of(session));
+      starterPicker.open.mockReturnValue(
+        of({
+          id: "case-7",
+          label: "P-7/2026 Naknada štete",
+          detail: null,
+          reference: "P-7/2026 („Naknada štete“)",
+        }),
+      );
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      clickCard(fixture, "pickedCaseWork");
+
+      expect(starterPicker.open).toHaveBeenCalledWith("case");
+      expect(chat.createSession).toHaveBeenCalledWith({
+        workspaceId: "workspace-1",
+        caseId: null,
+      });
+      // Untranslated in tests, so the prompt is its key; the reference is a param.
+      expect(chat.sendMessage).toHaveBeenCalledWith(
+        "workspace-1",
+        "session-1",
+        "assistant.starter.pickedCaseWork.prompt",
+        [],
+      );
+    });
+
+    it("fills in the picked reference for prompts that take one", () => {
+      starterPicker.open.mockReturnValue(
+        of({
+          id: "case-7",
+          label: "P-7/2026 Naknada štete",
+          detail: null,
+          reference: "P-7/2026",
+        }),
+      );
+      const fixture = TestBed.createComponent(AssistantComponent);
+      const translate = jest
+        .spyOn(fixture.componentInstance["localization"], "translate")
+        .mockImplementation((key, params) =>
+          key === "assistant.starter.setDeadline.prompt"
+            ? `Postavi rok na predmetu ${params?.["case"]}: `
+            : key,
+        );
+      fixture.detectChanges();
+
+      clickCard(fixture, "setDeadline");
+
+      expect(translate).toHaveBeenCalledWith(
+        "assistant.starter.setDeadline.prompt",
+        { case: "P-7/2026" },
+      );
+      expect(
+        fixture.componentInstance["composerForm"].controls.draft.value,
+      ).toBe("Postavi rok na predmetu P-7/2026: ");
+      expect(chat.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it("does nothing when the picker is cancelled", () => {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      clickCard(fixture, "clientOverview");
+
+      expect(starterPicker.open).toHaveBeenCalledWith("client");
+      expect(chat.createSession).not.toHaveBeenCalled();
+      expect(
+        fixture.componentInstance["composerForm"].controls.draft.value,
+      ).toBe("");
+    });
+
+    it("falls back to attaching a file from the document picker", () => {
+      starterPicker.open.mockReturnValue(of("attach"));
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      clickCard(fixture, "analyzeDocument");
+
+      expect(
+        fixture.componentInstance["composerForm"].controls.draft.value,
+      ).toBe("assistant.starter.analyzeDocument.attachPrompt");
+      expect(chat.sendMessage).not.toHaveBeenCalled();
+    });
+
     it("offers case prompts when the chat is opened from a case", () => {
       routeParams["caseId"] = "case-1";
       const fixture = TestBed.createComponent(AssistantComponent);
@@ -732,6 +832,9 @@ describe("AssistantComponent review state", () => {
         .join(" ");
       expect(text).toContain("assistant.starter.caseSummary.title");
       expect(text).not.toContain("assistant.starter.myTasks.title");
+      expect(
+        starterCards(fixture).some((button) => button.dataset["pick"]),
+      ).toBe(false);
     });
   });
 });

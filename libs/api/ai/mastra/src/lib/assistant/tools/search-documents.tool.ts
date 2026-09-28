@@ -10,7 +10,7 @@ export function createSearchDocumentsTool(deps: LegalAssistantToolDeps) {
   return createTool({
     id: SEARCH_DOCUMENTS_TOOL_ID,
     description:
-      "Searches the text of this conversation's attachments and the case's documents for a word or phrase (case, script, and diacritic insensitive). Returns snippets with offsets for read_document. If nothing matches, try shorter key words or word stems. Read-only.",
+      "Searches the text of this conversation's attachments and the case's documents (or one doc:<id> ref the user named) for a word or phrase (case, script, and diacritic insensitive). Returns snippets with offsets for read_document. If nothing matches, try shorter key words or word stems. Read-only.",
     inputSchema: z.object({
       query: z
         .string()
