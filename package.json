@@ -5,6 +5,7 @@
   "scripts": {
     "api:serve": "PORT=3001 npx nx serve api",
     "web:serve": "PORT=4200 npx nx serve web --port=4200 --proxy-config=apps/web/proxy.conf.json",
+    "api:serve:darwin": "PORT=3000 npx nx serve api",
     "lint": "npx nx run-many -t lint",
     "test": "npx nx run-many -t test",
     "build": "npx nx run-many -t build",
