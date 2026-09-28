@@ -76,6 +76,13 @@ import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft
 import { CitationListComponent } from "./components/citation-list/citation-list";
 import { CitationPreviewController } from "./components/citation-preview/citation-preview.controller";
 import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
+import { StarterPromptsComponent } from "./components/starter-prompts/starter-prompts";
+import {
+  AssistantStarterPrompt,
+  CASE_STARTER_PROMPTS,
+  GENERAL_STARTER_PROMPTS,
+  starterPromptKey,
+} from "./assistant-starter-prompts";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
@@ -159,6 +166,7 @@ interface SessionGroup {
     DraftReviewPanelComponent,
     CitationListComponent,
     PendingActionCardComponent,
+    StarterPromptsComponent,
     HlmSpinner,
   ],
   templateUrl: "./assistant.component.html",
@@ -272,6 +280,12 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     () =>
       this.sessions().find((session) => session.id === this.selectedSessionId())
         ?.title ?? null,
+  );
+  /** Case-linked chats get prompts scoped to that case. */
+  protected readonly starterPrompts = computed(() =>
+    this.pendingCaseId() || this.selectedSession()?.caseId
+      ? CASE_STARTER_PROMPTS
+      : GENERAL_STARTER_PROMPTS,
   );
   protected readonly pendingFiles = signal<File[]>([]);
   protected readonly sessionPage = signal(1);
@@ -1073,6 +1087,25 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       () => target.classList.remove(CITATION_FLASH_CLASS),
       { once: true },
     );
+  }
+
+  protected applyStarterPrompt(prompt: AssistantStarterPrompt): void {
+    if (this.sending()) return;
+    const text = this.localization.translate(
+      starterPromptKey(prompt, "prompt"),
+    );
+    this.composerForm.controls.draft.setValue(text);
+    if (prompt.mode === "send") {
+      this.send();
+      return;
+    }
+    requestAnimationFrame(() => {
+      const textarea = this.draftTextarea?.nativeElement;
+      if (!textarea) return;
+      textarea.focus();
+      textarea.setSelectionRange(text.length, text.length);
+      this.resizeTextareaElement(textarea);
+    });
   }
 
   protected send(): void {

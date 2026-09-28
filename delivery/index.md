@@ -30,6 +30,7 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Assistant Mastra Migration (epic)](./tracks/assistant_mastra_migration_20260927/index.md)
 - [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)
 - [Mastra Assistant Slice](./tracks/mastra_assistant_slice_20260927/index.md)
+- [Chat Starter Prompts](./tracks/chat_starter_prompts_20260928/index.md)
 - [Mastra Run Telemetry](./tracks/mastra_run_telemetry_20260927/index.md)
 - [Mastra Drafting Workflow](./tracks/mastra_drafting_workflow_20260927/index.md)
 - [Mastra Confirmations](./tracks/mastra_confirmations_20260927/index.md)

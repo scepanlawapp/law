@@ -459,7 +459,7 @@
 
 .assistant-empty-state {
   display: grid;
-  width: min(100%, 28rem);
+  width: min(100%, 44rem);
   min-height: 100%;
   margin: 0 auto;
   align-content: center;
@@ -484,6 +484,12 @@
   color: var(--muted-foreground);
   font-size: 0.875rem;
   line-height: 1.5;
+}
+
+.assistant-starter-prompts {
+  display: block;
+  width: 100%;
+  margin-top: 1.5rem;
 }
 
 .workflow-activity-list {
