@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Calendar Deadline Edit](./tracks/calendar_deadline_edit_20260929/index.md)
 - [In-App Notifications](./tracks/notifications_20260929/index.md)
 - [Billing Statement Basic Detail UI](./tracks/billing_statement_detail_ui_20260929/index.md)
 - [Billing Statement Edit, Delete, and Detail Routing](./tracks/billing_statement_crud_ui_20260929/index.md)

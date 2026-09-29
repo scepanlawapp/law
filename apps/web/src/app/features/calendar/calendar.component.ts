@@ -18,6 +18,7 @@ import {
   CalendarQuery,
   EventsApiClient,
   ReferencesApiClient,
+  WorkManagementApiClient,
 } from "@law/api-clients";
 import { CalendarItem, CalendarSourceType } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -26,6 +27,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { AuthState } from "@law/security";
+import { switchMap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import {
@@ -106,6 +108,7 @@ function mondayIndex(date: Date): number {
 export class CalendarComponent {
   private readonly api = inject(CalendarApiClient);
   private readonly eventsApi = inject(EventsApiClient);
+  private readonly workApi = inject(WorkManagementApiClient);
   private readonly referencesApi = inject(ReferencesApiClient);
   private readonly eventDialog = inject(EventDialogService);
   private readonly deadlineDialog = inject(DeadlineDialogService);
@@ -487,15 +490,28 @@ export class CalendarComponent {
   editEvent(event: MouseEvent, item: CalendarItem): void {
     event.preventDefault();
     event.stopPropagation();
-    if (item.sourceType !== "EVENT") return;
-    this.eventDialog
-      .open({ item })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (updated) => {
-          if (updated) this.loadRange(false);
-        },
-      });
+    if (item.sourceType === "EVENT") {
+      this.eventDialog
+        .open({ item })
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (updated) => {
+            if (updated) this.loadRange(false);
+          },
+        });
+    } else if (item.sourceType === "DEADLINE") {
+      this.workApi
+        .getDeadline(item.sourceId)
+        .pipe(
+          switchMap((deadline) => this.deadlineDialog.open({ deadline })),
+          takeUntilDestroyed(this.destroyRef),
+        )
+        .subscribe({
+          next: (updated) => {
+            if (updated) this.loadRange(false);
+          },
+        });
+    }
   }
 
   toggleCalendarSidebar(): void {

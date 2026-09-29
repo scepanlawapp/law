@@ -5,6 +5,7 @@ import {
   CalendarApiClient,
   EventsApiClient,
   ReferencesApiClient,
+  WorkManagementApiClient,
 } from "@law/api-clients";
 import { CalendarItem } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
@@ -20,10 +21,12 @@ describe("CalendarComponent", () => {
     list: jest.fn(() => of({ items: [], nextCursor: null })),
   };
   const deadlineDialog = { open: jest.fn() };
+  const workApi = { getDeadline: jest.fn() };
 
   beforeEach(async () => {
     jest.clearAllMocks();
     deadlineDialog.open.mockReturnValue(NEVER);
+    workApi.getDeadline.mockReturnValue(NEVER);
 
     await TestBed.configureTestingModule({
       imports: [CalendarComponent],
@@ -39,6 +42,7 @@ describe("CalendarComponent", () => {
           useValue: { open: jest.fn(() => NEVER) },
         },
         { provide: DeadlineDialogService, useValue: deadlineDialog },
+        { provide: WorkManagementApiClient, useValue: workApi },
         {
           provide: ConfirmDialogService,
           useValue: { confirm: jest.fn(() => of(false)) },
@@ -136,6 +140,33 @@ describe("CalendarComponent", () => {
     expect(deadlineDialog.open).toHaveBeenCalledWith({
       dueDate: "2026-09-30",
     });
+    expect(calendarApi.list).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads and opens a deadline for editing, then refreshes after save", () => {
+    const fixture = TestBed.createComponent(CalendarComponent);
+    const component = fixture.componentInstance;
+    const deadline = { id: "deadline-1", title: "Rok za žalbu" };
+    const item = {
+      calendarId: "DEADLINE:deadline-1",
+      sourceType: "DEADLINE",
+      sourceId: "deadline-1",
+      title: "Rok za žalbu",
+    } as CalendarItem;
+    const event = {
+      preventDefault: jest.fn(),
+      stopPropagation: jest.fn(),
+    } as unknown as MouseEvent;
+    workApi.getDeadline.mockReturnValueOnce(of(deadline));
+    deadlineDialog.open.mockReturnValueOnce(of(deadline));
+    calendarApi.list.mockClear();
+
+    component.editEvent(event, item);
+
+    expect(event.preventDefault).toHaveBeenCalledTimes(1);
+    expect(event.stopPropagation).toHaveBeenCalledTimes(1);
+    expect(workApi.getDeadline).toHaveBeenCalledWith("deadline-1");
+    expect(deadlineDialog.open).toHaveBeenCalledWith({ deadline });
     expect(calendarApi.list).toHaveBeenCalledTimes(1);
   });
 });

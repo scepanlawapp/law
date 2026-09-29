@@ -302,6 +302,7 @@
                       data-calendar-item-trigger
                       class="calendar-obligation-item"
                       (click)="selectItem($event, item)"
+                      (dblclick)="editEvent($event, item)"
                     >
                       <span aria-hidden="true">🔴</span>
                       <span class="min-w-0 flex-1 truncate">
