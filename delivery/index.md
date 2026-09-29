@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Finance Statements UX Refactor](./tracks/finance_statements_ux_refactor_20260929/index.md)
 - [Frontend Currency Selects](./tracks/frontend_currency_selects_20260929/index.md)
 - [Draft Review Template Warning](./tracks/draft_review_template_warning_20260929/index.md)
 - [Event Client Selector](./tracks/event_client_selector_20260929/index.md)

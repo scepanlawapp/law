@@ -1,7 +1,7 @@
-<div class="space-y-6 text-sm">
+<div class="mx-auto w-full max-w-[1400px] space-y-4 text-sm">
   <header class="flex flex-wrap items-start justify-between gap-4">
-    <div class="space-y-2">
-      <h1 class="text-2xl font-semibold">
+    <div class="space-y-1">
+      <h1 class="text-xl font-semibold">
         {{ "finance.clientStatements" | translate }}
       </h1>
       <p class="text-muted-foreground">
@@ -13,17 +13,15 @@
     </a>
   </header>
 
-  <section
-    class="space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm"
-  >
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      <div class="flex min-w-0 flex-col gap-1">
+  <section class="space-y-3">
+    <div class="flex flex-wrap items-end gap-3">
+      <div class="flex w-72 max-w-full flex-col gap-1">
         <label class="font-medium" for="statement-search">
           {{ "finance.statementNumber" | translate }}
         </label>
         <input hlmInput id="statement-search" [formControl]="search" />
       </div>
-      <div class="flex min-w-0 flex-col gap-1">
+      <div class="flex w-60 max-w-full flex-col gap-1">
         <label class="font-medium" for="statement-client-filter">
           {{ "finance.client" | translate }}
         </label>
@@ -32,7 +30,7 @@
           [itemToString]="clientItemToString"
         >
           <hlm-select-trigger
-            id="statement-client-filter"
+            buttonId="statement-client-filter"
             class="w-full min-w-0"
           >
             <hlm-select-value />
@@ -51,13 +49,13 @@
           </hlm-select-content>
         </hlm-select>
       </div>
-      <div class="flex min-w-0 flex-col gap-1">
+      <div class="flex w-44 max-w-full flex-col gap-1">
         <label class="font-medium" for="statement-status-filter">
           {{ "finance.status" | translate }}
         </label>
         <hlm-select [formControl]="status" [itemToString]="statusItemToString">
           <hlm-select-trigger
-            id="statement-status-filter"
+            buttonId="statement-status-filter"
             class="w-full min-w-0"
           >
             <hlm-select-value />
@@ -73,59 +71,69 @@
           </hlm-select-content>
         </hlm-select>
       </div>
-      <div class="flex min-w-0 flex-col gap-1">
-        <label class="font-medium" for="statement-currency-filter">
-          {{ "finance.currency" | translate }}
-        </label>
-        <hlm-select
-          [formControl]="currency"
-          [itemToString]="currencyItemToString"
-        >
-          <hlm-select-trigger
-            id="statement-currency-filter"
-            class="w-full min-w-0 max-w-full"
-          >
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
-            <hlm-select-group>
-              @for (option of currencyOptions; track option.value) {
-                <hlm-select-item [value]="option.value">
-                  {{ option.label | translate }}
-                </hlm-select-item>
-              }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
-      </div>
-      <div class="flex min-w-0 flex-col gap-1">
-        <label class="font-medium" for="statement-from-filter">
-          {{ "finance.effectiveFrom" | translate }}
-        </label>
-        <input
-          hlmInput
-          id="statement-from-filter"
-          type="date"
-          [formControl]="from"
-        />
-      </div>
-      <div class="flex min-w-0 flex-col gap-1">
-        <label class="font-medium" for="statement-to-filter">
-          {{ "finance.effectiveTo" | translate }}
-        </label>
-        <input
-          hlmInput
-          id="statement-to-filter"
-          type="date"
-          [formControl]="to"
-        />
-      </div>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        [attr.aria-expanded]="advancedFiltersOpen()"
+        (click)="toggleAdvancedFilters()"
+      >
+        {{ "finance.filters" | translate }}
+      </button>
+      @if (hasFilters()) {
+        <button hlmBtn type="button" variant="ghost" (click)="clearFilters()">
+          {{ "finance.clearFilters" | translate }}
+        </button>
+      }
     </div>
 
-    @if (hasFilters()) {
-      <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
-        {{ "finance.clearFilters" | translate }}
-      </button>
+    @if (advancedFiltersOpen()) {
+      <div class="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+        <div class="flex w-28 max-w-full flex-col gap-1">
+          <label class="font-medium" for="statement-currency-filter">
+            {{ "finance.currency" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="currency"
+            [itemToString]="currencyItemToString"
+          >
+            <hlm-select-trigger buttonId="statement-currency-filter" size="sm">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of currencyOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div class="flex w-44 max-w-full flex-col gap-1">
+          <label class="font-medium" for="statement-from-filter">
+            {{ "finance.effectiveFrom" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-from-filter"
+            type="date"
+            [formControl]="from"
+          />
+        </div>
+        <div class="flex w-44 max-w-full flex-col gap-1">
+          <label class="font-medium" for="statement-to-filter">
+            {{ "finance.effectiveTo" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-to-filter"
+            type="date"
+            [formControl]="to"
+          />
+        </div>
+      </div>
     }
 
     @if (loading() && !loaded()) {
@@ -167,8 +175,12 @@
         </div>
       </div>
     } @else {
-      <div hlmTableContainer [attr.aria-busy]="loading()">
-        <table hlmTable class="w-full min-w-[900px]">
+      <div
+        hlmTableContainer
+        class="rounded-lg border border-border"
+        [attr.aria-busy]="loading()"
+      >
+        <table hlmTable class="w-full min-w-[780px]">
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh>{{ "finance.statementNumber" | translate }}</th>
@@ -176,8 +188,12 @@
               <th hlmTh>{{ "finance.period" | translate }}</th>
               <th hlmTh>{{ "finance.currency" | translate }}</th>
               <th hlmTh>{{ "finance.status" | translate }}</th>
-              <th hlmTh>{{ "finance.total" | translate }}</th>
-              <th hlmTh>{{ "finance.outstanding" | translate }}</th>
+              <th hlmTh class="text-right">
+                {{ "finance.total" | translate }}
+              </th>
+              <th hlmTh class="text-right">
+                {{ "finance.outstanding" | translate }}
+              </th>
             </tr>
           </thead>
           <tbody hlmTBody>
@@ -192,10 +208,20 @@
                   {{ formatDate(statement.periodEnd) }}
                 </td>
                 <td hlmTd>{{ statement.currency }}</td>
-                <td hlmTd>{{ statusLabel(statement.status) }}</td>
-                <td hlmTd>{{ statement.total }} {{ statement.currency }}</td>
                 <td hlmTd>
-                  {{ statement.outstanding }} {{ statement.currency }}
+                  <span
+                    class="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-sm"
+                  >
+                    {{ statusLabel(statement.status) }}
+                  </span>
+                </td>
+                <td hlmTd class="text-right tabular-nums">
+                  {{ formatCurrency(statement.total, statement.currency) }}
+                </td>
+                <td hlmTd class="text-right tabular-nums">
+                  {{
+                    formatCurrency(statement.outstanding, statement.currency)
+                  }}
                 </td>
               </tr>
             }

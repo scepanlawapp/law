@@ -138,6 +138,10 @@ export class BillingStatementLineImportDialogComponent {
     this.load();
   }
 
+  hasFilters(): boolean {
+    return Boolean(this.currency.value || this.from.value || this.to.value);
+  }
+
   importSelected(): void {
     if (!this.selected().size) return;
     this.dialogRef.close([...this.selected().values()]);
@@ -148,5 +152,12 @@ export class BillingStatementLineImportDialogComponent {
       this.localization.language() === "EN" ? "en" : "sr-Latn",
       { dateStyle: "medium" },
     ).format(new Date(value));
+  }
+
+  formatCurrency(value: string, currency: string): string {
+    return new Intl.NumberFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { style: "currency", currency },
+    ).format(Number(value));
   }
 }

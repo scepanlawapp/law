@@ -62,6 +62,7 @@ export class FinanceStatementsComponent {
   readonly loaded = signal(false);
   readonly page = signal(1);
   readonly filterRevision = signal(0);
+  readonly advancedFiltersOpen = signal(false);
 
   readonly statusOptions: ReadonlyArray<
     SelectOption<BillingStatementStatus | "">
@@ -169,6 +170,10 @@ export class FinanceStatementsComponent {
     this.page.set(page);
   }
 
+  toggleAdvancedFilters(): void {
+    this.advancedFiltersOpen.update((open) => !open);
+  }
+
   clearFilters(): void {
     this.search.setValue("", { emitEvent: false });
     this.clientId.setValue("", { emitEvent: false });
@@ -177,6 +182,7 @@ export class FinanceStatementsComponent {
     this.from.setValue("", { emitEvent: false });
     this.to.setValue("", { emitEvent: false });
     this.page.set(1);
+    this.advancedFiltersOpen.set(false);
     this.filterRevision.update((value) => value + 1);
   }
 
@@ -206,5 +212,12 @@ export class FinanceStatementsComponent {
       this.localization.language() === "EN" ? "en" : "sr-Latn",
       { dateStyle: "medium" },
     ).format(new Date(value));
+  }
+
+  formatCurrency(value: string, currency: string): string {
+    return new Intl.NumberFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { style: "currency", currency },
+    ).format(Number(value));
   }
 }

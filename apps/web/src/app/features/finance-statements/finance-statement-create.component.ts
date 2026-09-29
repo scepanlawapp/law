@@ -13,6 +13,8 @@ import {
 } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
 import { Router, RouterLink } from "@angular/router";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideTrash2 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldError, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -44,6 +46,7 @@ import { ClientFormDialogService } from "../clients/client-create-edit-modal/cli
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    NgIcon,
     HlmButton,
     HlmField,
     HlmFieldError,
@@ -54,6 +57,7 @@ import { ClientFormDialogService } from "../clients/client-create-edit-modal/cli
     HlmTableImports,
     TranslatePipe,
   ],
+  providers: [provideIcons({ lucideTrash2 })],
 })
 export class FinanceStatementCreateComponent {
   private readonly api = inject(FinancialsApiClient);
@@ -213,6 +217,13 @@ export class FinanceStatementCreateComponent {
 
   isCurrencyMismatch(index: number): boolean {
     return this.mismatchIndexes().includes(index);
+  }
+
+  formatCurrency(value: number, currency: string): string {
+    return new Intl.NumberFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { style: "currency", currency },
+    ).format(value);
   }
 
   submit(): void {
