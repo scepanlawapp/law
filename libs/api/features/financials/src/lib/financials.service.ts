@@ -24,7 +24,6 @@ import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import {
   AppendPriceSourceVersionDto,
   BillableWorkQueryDto,
-  CreatePaymentDto,
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
@@ -182,7 +181,6 @@ export class FinancialsService {
       include: this.lineInclude,
       orderBy: { lineOrder: "asc" as const },
     },
-    payments: true,
   } as const;
 
   private statementResponse(statement: any) {
@@ -191,28 +189,10 @@ export class FinancialsService {
         sum.plus(line.amount),
       new Prisma.Decimal(0),
     );
-    const paid = statement.payments
-      .filter((payment: { reversedAt: Date | null }) => !payment.reversedAt)
-      .reduce(
-        (sum: Prisma.Decimal, payment: { amount: Prisma.Decimal }) =>
-          sum.plus(payment.amount),
-        new Prisma.Decimal(0),
-      );
-    const outstanding = Prisma.Decimal.max(
-      new Prisma.Decimal(0),
-      total.minus(paid),
-    );
     return {
       ...statement,
       lines: statement.lines.map((line: any) => this.lineSummary(line)),
       total: total.toFixed(2),
-      paid: paid.toFixed(2),
-      outstanding: outstanding.toFixed(2),
-      paymentStatus: paid.isZero()
-        ? "UNPAID"
-        : paid.gte(total)
-          ? "PAID"
-          : "PARTIAL",
     };
   }
 
@@ -947,65 +927,5 @@ export class FinancialsService {
       include: this.statementInclude,
     });
     return this.statementResponse(updated);
-  }
-
-  async addPayment(id: string, input: CreatePaymentDto) {
-    this.assertManager();
-    if (input.idempotencyKey) {
-      const existing = await this.db.financeMutationRequest.findUnique({
-        where: {
-          workspaceId_operation_idempotencyKey: {
-            workspaceId: this.workspaceId,
-            operation: "CREATE_PAYMENT",
-            idempotencyKey: input.idempotencyKey,
-          },
-        },
-      });
-      if (existing)
-        return this.db.externalPaymentRecord.findFirst({
-          where: { id: existing.resultEntityId, workspaceId: this.workspaceId },
-        });
-    }
-    const statement = await this.getStatement(id);
-    if (statement.status !== BillingStatementStatus.SENT)
-      throw new ConflictException("Payments require a sent statement");
-    if (input.currency !== statement.currency)
-      throw new ConflictException("Payment currency mismatch");
-    const paid = statement.payments
-      .filter((payment) => !payment.reversedAt)
-      .reduce(
-        (sum, payment) => sum.plus(payment.amount),
-        new Prisma.Decimal(0),
-      );
-    const total = statement.lines.reduce(
-      (sum, line) => sum.plus(line.amount),
-      new Prisma.Decimal(0),
-    );
-    if (paid.plus(new Prisma.Decimal(input.amount)).gt(total))
-      throw new ConflictException("Payment would exceed statement total");
-    return this.db.$transaction(async (tx) => {
-      const payment = await tx.externalPaymentRecord.create({
-        data: {
-          workspaceId: this.workspaceId,
-          statementId: id,
-          amount: input.amount,
-          currency: input.currency,
-          paidDate: new Date(input.paidDate),
-          externalReference: input.externalReference,
-          recordedByUserId: this.context.userId,
-        },
-      });
-      if (input.idempotencyKey)
-        await tx.financeMutationRequest.create({
-          data: {
-            workspaceId: this.workspaceId,
-            operation: "CREATE_PAYMENT",
-            idempotencyKey: input.idempotencyKey,
-            resultEntityId: payment.id,
-            result: { paymentId: payment.id },
-          },
-        });
-      return payment;
-    });
   }
 }

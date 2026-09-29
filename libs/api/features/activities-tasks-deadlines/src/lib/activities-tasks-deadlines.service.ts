@@ -12,7 +12,6 @@ import {
   ClientReference,
   DeadlineDetail,
   EventDetail,
-  NoteDetail,
   PaginatedResponse,
   TaskDetail,
   UserReference,
@@ -28,16 +27,12 @@ import {
   CalendarQueryDto,
   CreateDeadlineDto,
   CreateEventDto,
-  CreateNoteDto,
   CreateTaskDto,
   DeadlineListQueryDto,
   EventListQueryDto,
-  NoteListQueryDto,
   TaskListQueryDto,
-  TransitionDto,
   UpdateDeadlineDto,
   UpdateEventDto,
-  UpdateNoteDto,
   UpdateTaskDto,
 } from "./activities-tasks-deadlines.dto";
 import {
@@ -79,7 +74,6 @@ export class ActivitiesTasksDeadlinesService {
     userIds?: string[];
     clientContactIds?: string[];
     deadlineId?: string;
-    eventId?: string;
   }): Promise<void> {
     const { workspaceId } = this.context;
     if (input.caseId) {
@@ -131,14 +125,6 @@ export class ActivitiesTasksDeadlinesService {
         throw new BadRequestException("Task and deadline cases do not match");
       if (input.clientId && item.clientId && item.clientId !== input.clientId)
         throw new BadRequestException("Task and deadline clients do not match");
-    }
-    if (input.eventId) {
-      const item = await this.db.event.findFirst({
-        where: { id: input.eventId, workspaceId },
-      });
-      if (!item) throw new BadRequestException("Event is unavailable");
-      if (input.caseId && item.caseId && item.caseId !== input.caseId)
-        throw new BadRequestException("Note and event cases do not match");
     }
   }
 
@@ -201,14 +187,6 @@ export class ActivitiesTasksDeadlinesService {
       case: true,
       client: true,
       satisfiedBy: true,
-    } as const;
-  }
-
-  private noteInclude() {
-    return {
-      case: true,
-      client: true,
-      createdBy: true,
     } as const;
   }
 
@@ -351,21 +329,6 @@ export class ActivitiesTasksDeadlinesService {
       updatedAt: item.updatedAt.toISOString(),
       overdue:
         item.status === "OPEN" && !!target && target.getTime() < Date.now(),
-    };
-  }
-
-  private note(item: any): NoteDetail {
-    return {
-      id: item.id,
-      type: item.type,
-      body: item.body,
-      occurredAt: item.occurredAt.toISOString(),
-      case: item.case ? this.caseReference(item.case) : null,
-      client: item.client ? this.clientReference(item.client) : null,
-      eventId: item.eventId,
-      createdByUser: this.userReference(item.createdBy),
-      createdAt: item.createdAt.toISOString(),
-      updatedAt: item.updatedAt.toISOString(),
     };
   }
 
@@ -1118,117 +1081,6 @@ export class ActivitiesTasksDeadlinesService {
       return updated;
     });
     return this.getDeadline(item.id);
-  }
-
-  async listNotes(
-    query: NoteListQueryDto,
-  ): Promise<PaginatedResponse<NoteDetail>> {
-    const { workspaceId } = this.context;
-    const where: Prisma.NoteWhereInput = {
-      workspaceId,
-      ...(query.type && { type: query.type }),
-      ...(query.caseId && { caseId: query.caseId }),
-      ...(query.clientId && { clientId: query.clientId }),
-      ...(query.eventId && { eventId: query.eventId }),
-    };
-    const [total, items] = await this.db.$transaction([
-      this.db.note.count({ where }),
-      this.db.note.findMany({
-        where,
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-        orderBy: { occurredAt: "desc" },
-        include: this.noteInclude(),
-      }),
-    ]);
-    return {
-      items: items.map((x) => this.note(x)),
-      meta: paginationMeta(
-        query.page,
-        query.pageSize,
-        total,
-        parseSort(
-          undefined,
-          ["occurredAt"],
-          [{ field: "occurredAt", direction: "desc" }],
-        ),
-      ),
-    };
-  }
-  async getNote(id: string): Promise<NoteDetail> {
-    const item = await this.db.note.findFirst({
-      where: { id, workspaceId: this.context.workspaceId },
-      include: this.noteInclude(),
-    });
-    if (!item) throw new NotFoundException("Note not found");
-    return this.note(item);
-  }
-  async createNote(input: CreateNoteDto): Promise<NoteDetail> {
-    await this.validateContext({
-      caseId: input.caseId,
-      clientId: input.clientId,
-      eventId: input.eventId,
-    });
-    const item = await this.db.$transaction(async (tx) => {
-      const note = await tx.note.create({
-        data: {
-          workspaceId: this.context.workspaceId,
-          type: input.type,
-          body: input.body.trim(),
-          occurredAt: new Date(input.occurredAt),
-          caseId: input.caseId,
-          clientId: input.clientId,
-          eventId: input.eventId,
-          createdByUserId: this.context.userId,
-        },
-        include: this.noteInclude(),
-      });
-      await this.log(tx, {
-        action: "NOTE_CREATED",
-        entityType: "Note",
-        entityId: note.id,
-        caseId: note.caseId,
-        clientId: note.clientId,
-        metadata: { type: note.type },
-      });
-      return note;
-    });
-    return this.note(item);
-  }
-  async updateNote(id: string, input: UpdateNoteDto): Promise<NoteDetail> {
-    await this.validateContext({
-      caseId: input.caseId,
-      clientId: input.clientId,
-      eventId: input.eventId,
-    });
-    const item = await this.db.$transaction(async (tx) => {
-      const existing = await tx.note.findFirst({
-        where: { id, workspaceId: this.context.workspaceId },
-      });
-      if (!existing) throw new NotFoundException("Note not found");
-      const note = await tx.note.update({
-        where: { id },
-        data: {
-          type: input.type,
-          body: input.body.trim(),
-          occurredAt: new Date(input.occurredAt),
-          caseId: input.caseId,
-          clientId: input.clientId,
-          eventId: input.eventId,
-        },
-        include: this.noteInclude(),
-      });
-      await this.log(tx, {
-        action: "NOTE_UPDATED",
-        entityType: "Note",
-        entityId: id,
-        caseId: note.caseId,
-        clientId: note.clientId,
-        metadata: { type: note.type },
-      });
-      return note;
-    });
-    return this.note(item);
   }
 
   async calendar(query: CalendarQueryDto): Promise<CalendarResponse> {

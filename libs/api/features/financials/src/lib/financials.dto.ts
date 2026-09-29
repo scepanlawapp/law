@@ -223,24 +223,3 @@ export class ExternalInvoiceDto {
   @IsString()
   reference?: string;
 }
-
-export class CreatePaymentDto {
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
-  amount!: number;
-
-  @IsString()
-  currency!: string;
-
-  @IsDateString()
-  paidDate!: string;
-
-  @IsOptional()
-  @IsString()
-  externalReference?: string;
-
-  @IsOptional()
-  @IsString()
-  idempotencyKey?: string;
-}

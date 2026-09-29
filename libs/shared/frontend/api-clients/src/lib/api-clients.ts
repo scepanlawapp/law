@@ -48,8 +48,6 @@ import {
   DeadlineDetail,
   DeadlineStatus,
   DeadlineType,
-  NoteDetail,
-  NoteType,
   PaginatedResponse,
   TaskDetail,
   TaskStatus,
@@ -187,25 +185,6 @@ export interface DeadlineRequest {
   caseId?: string;
   clientId?: string;
   sourceDescription?: string;
-}
-
-export interface NoteListQuery {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  type?: NoteType;
-  caseId?: string;
-  clientId?: string;
-  eventId?: string;
-}
-
-export interface NoteRequest {
-  type: NoteType;
-  body: string;
-  occurredAt: string;
-  caseId?: string;
-  clientId?: string;
-  eventId?: string;
 }
 
 export interface ActivityLogListQuery {
@@ -1339,36 +1318,6 @@ export class WorkManagementApiClient {
 
   reopenDeadline(id: string): Observable<DeadlineDetail> {
     return this.transitionDeadline(id, "reopen");
-  }
-
-  listNotes(
-    query: NoteListQuery = {},
-  ): Observable<PaginatedResponse<NoteDetail>> {
-    return this.http.get<PaginatedResponse<NoteDetail>>(
-      this.endpoint("/notes"),
-      {
-        withCredentials: true,
-        params: queryParams(query),
-      },
-    );
-  }
-
-  getNote(id: string): Observable<NoteDetail> {
-    return this.http.get<NoteDetail>(this.endpoint(`/notes/${id}`), {
-      withCredentials: true,
-    });
-  }
-
-  createNote(request: NoteRequest): Observable<NoteDetail> {
-    return this.http.post<NoteDetail>(this.endpoint("/notes"), request, {
-      withCredentials: true,
-    });
-  }
-
-  updateNote(id: string, request: NoteRequest): Observable<NoteDetail> {
-    return this.http.patch<NoteDetail>(this.endpoint(`/notes/${id}`), request, {
-      withCredentials: true,
-    });
   }
 
   listActivity(

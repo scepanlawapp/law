@@ -85,7 +85,7 @@ Authenticated document APIs are implemented. The Angular documents library (list
 - Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Optional per-row category codes are stored on `Document.category`. Clients are selected before cases; case search is constrained by selected clients. Version-mode queue exists; there is no version UI entry in this slice.
 - Removing a row only drops it from the local queue. It does not archive or delete a stored document.
 
-## Calendar, events, tasks, deadlines, and notes API
+## Calendar, events, tasks, and deadlines API
 
 The backend implementation in `libs/api/features/activities-tasks-deadlines` is substantially complete as a domain API:
 
@@ -119,13 +119,11 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Deadlines support responsible users, case/client associations, time zones, and source descriptions.
 - The deadline dialog exposes responsible-user, optional-client, and optional-case selectors; new deadlines default responsibility to the signed-in user. Selecting a case selects its client, while selecting an incompatible client clears the case.
 
-### Notes and calendar aggregation
+### Calendar aggregation
 
-- List, create, read, and update notes.
-- Notes can be associated with cases, clients, or events.
 - Calendar aggregation returns events, tasks, and deadlines for a date range with filters for user (single or multiple), client, case, source type (single or multiple), status (single or multiple), a flag to include tasks/deadlines with no due date, cursor, and limit.
 - Calendar items include the full assignee list for events (not just the organizer), so multi-assignee events can be attributed correctly.
-- Event, task, deadline, note, and calendar responses include shallow case/client/user display objects where those relationships are shown in the frontend.
+- Event, task, deadline, and calendar responses include shallow case/client/user display objects where those relationships are shown in the frontend.
 - Activity-log listing is available with case and client filters.
 - Free-text search and multi-value person/status filters were previously accepted by these endpoints but silently ignored; they are now actually applied server-side.
 
@@ -215,14 +213,14 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
     - `get_client` returns one client with contacts and open cases. It never returns JMBG, ID documents, or addresses.
     - `list_work_items` lists tasks, deadlines, and events by case, client, or person, by state (open/done/all), by due-date range, or overdue only. With no filter it uses the linked case, or else the current user.
     - `get_agenda` returns the merged calendar for up to 31 days.
-    - `list_activity` merges notes, logged calls/meetings/emails, and task/deadline/event changes for a case or client, newest first.
+    - `list_activity` merges logged calls/meetings/emails and task/deadline/event changes for a case or client, newest first.
   - Read-only document tools cover the conversation's attachments that are not filed yet and the non-archived documents of the conversation's case, including documents uploaded through the upload modal:
     - `list_documents` returns refs, titles, file names, and text status.
     - `read_document` returns the text in windows of 12,000 characters with `nextOffset`.
     - `search_documents` finds a word or phrase in the text, ignoring case, script, diacritics, and line breaks. It returns up to 10 snippets per document with offsets and names the documents that have no readable text.
     - `read_document` and `search_documents` also accept an explicit `doc:<id>` ref for any non-archived workspace document with a file, even outside the conversation's case (for example one chosen in the starter-card picker). `list_documents` is unchanged.
     - Text is extracted lazily on the first read and stored on `DocumentVersion` (or on the chat attachment). The prompt tells the agent to search or read before saying it cannot access a document. There are no embeddings over office documents.
-  - "Me" is the conversation's owner, who is named in the agent prompt. A colleague can be named instead; matching is diacritic-insensitive and tolerates Serbian case endings. An ambiguous or unknown person, case, or client returns candidates or a message instead of a guess. Lists are capped and report truncation; note text is clipped to 500 characters.
+  - "Me" is the conversation's owner, who is named in the agent prompt. A colleague can be named instead; matching is diacritic-insensitive and tolerates Serbian case endings. An ambiguous or unknown person, case, or client returns candidates or a message instead of a guess. Lists are capped and report truncation; journal text is clipped to 500 characters.
   - Answers stream over the same SSE events and support feedback and regenerate.
   - Drafting requests also go to the agent. Its `draft_lawsuit` tool runs the Mastra `lawsuit-drafting` workflow:
     - It builds the brief from the conversation's client messages and the session's attachments, reusing extracted text.
@@ -255,7 +253,7 @@ documents,
 
 - Standalone Angular components with signal-based state in the implemented feature areas.
 - Reactive forms for clients, cases, events, assistant composition, and settings actions.
-- Shared API-client services for authentication, chat, clients, cases, references, settings, calendar, events, tasks, deadlines, notes, and activity logs.
+- Shared API-client services for authentication, chat, clients, cases, references, settings, calendar, events, tasks, deadlines, and activity logs.
 - Authenticated application layout and routes for dashboard, clients, cases, documents, calendar, notifications, finance, reports, Team work (`/work/team`), My work (`/work/my`), settings, and assistant.
 - Shared localization pipe/service, loading spinners, empty states, confirmation dialogs, toast feedback, and Spartan/UI components are used across the completed screens.
 
@@ -264,7 +262,7 @@ documents,
 - The deterministic Financials backend exposes completed billable work directly from tasks (`DONE`), events (`COMPLETED`), and deadlines (`SATISFIED`). A source is eligible only while it resolves to exactly one client and has no `statementId`; setting `statementId` makes it unavailable for further billing without changing its work status. The eligible-work endpoint is paginated and supports client, case, source-type, source-key, and date filters. The former candidate-review and standalone statement-line creation workflow has been removed.
 - Billing statement lines are required children of a statement and cannot exist independently. Creating or editing a draft statement transactionally validates every selected source, creates its manual and source-backed lines, assigns the current user as performer, and links each selected task/event/deadline directly to the statement. All sources in one statement must belong to its client. Deleting a draft cascades its lines and clears the sources' `statementId`; sent and voided statements cannot be deleted. Sending a statement marks its lines billed while retaining direct source history.
 - Finance access is restricted in the service layer: `OWNER`/`ADMIN` manage office-wide financials, `LAWYER` can record and view permitted own work, and ordinary `MEMBER` accounts do not receive unrestricted finance access.
-- The workflow does not issue tax/fiscal invoices, calculate tariffs or tax, process payments, create automatic charges, or call AI. A typed future proposal contract exists without a model/provider implementation.
+- The workflow does not issue tax/fiscal invoices, calculate tariffs or tax, process or record payments, create automatic charges, or call AI. Statements may retain an external invoice reference, but the platform has no payment records or derived paid/outstanding status. A typed future proposal contract exists without a model/provider implementation.
 - The Angular Financials UI opens on Work Review and lists eligible task/event/deadline sources with client, case, and source filters. Users can select one or several items belonging to one client and continue directly to a prefilled new statement; source titles open the matching event, task, or deadline editor. The obsolete billing-entry and candidate-client dialogs are no longer part of the UI. Price sources remain separated into client agreements, state/public references, and a workspace-wide company catalog; client agreements require a client while public and company sources cannot be client/case-specific.
 - The statement list, read-only detail page, and shared create/edit draft composer remain available. The composer imports eligible work for the selected client through a modal with case and source filters, supports manual lines, prevents duplicate source imports, and saves the header and all lines in one request. Work Review selections preselect the client and import their sources automatically. Changing the client during new-statement composition preserves row values but detaches their old source references. Draft rows expose edit and confirmed-delete actions; deletion is enforced server-side as draft-only. Currency entry and filtering use one ordered supported-currency list, retain ISO codes in API values, and display localized currency names.
 - Financial filters use searchable content-width comboboxes where supported: Work Review accepts multiple clients and cases, and the statement list accepts multiple clients over its loaded result set. Price-source client agreements use a searchable single-client combobox because each price source stores one `clientId`.
@@ -276,10 +274,9 @@ These areas have routes or backend groundwork but should not be described as com
 - **Client detail tabs:** the client detail page declares documents, activities, and financials tabs, but the inspected component primarily loads overview data and related cases. These tabs need their own complete UI/data workflows before they can be counted as finished.
 - **Documents UI, finance, reports, notifications, and dashboard:** the documents **backend** is implemented; the web documents route/component is still a placeholder. Financials has implemented billing-review and statement-management surfaces but remains in progress as an overall product area. Reports, notifications, and dashboard completion should be assessed separately from the implemented client, case, calendar, assistant, and document-API workflows. A route alone is not evidence that the underlying business logic is finished.
 - **Automated backend coverage:** no feature-specific backend `*.spec.ts` files were found under `libs/api/features` during this review. The backend behavior is implemented, but regression coverage is currently stronger on the assistant frontend than on the backend domain services; the new work-view frontend logic has focused unit tests, but the corresponding backend query extensions do not yet have dedicated spec tests.
-- **Reusable notes lists and client activity history integration:** notes and the ActivityLog remain read/history endpoints; they are not surfaced as their own reusable list component or integrated into client activity history yet.
 - **Board “Load more”:** pagination is tracked per record type (Task/Deadline/Event), not per rendered board column, so a column fed by more than one record type can require more than one “Load more” action to reveal further items of a specific type.
 - **Calendar List/Board filter persistence:** Calendar’s List/Board presentation deliberately does not sync its own filter state into the URL (to avoid overwriting the calendar’s `view`/`date` query parameters), so those filters reset on a full page reload, unlike the dedicated Team work/My work pages.
 
 ## Main conclusion
 
-The strongest completed product slices are authentication, client management, case management, calendar/events, assistant/chat/drafting, and the unified work-tracking experience (Team work, My work, Calendar List/Board, and Case → Work). The work-management backend now supports paginated, multi-value, and free-text-searchable task/deadline/event queries, contextual filtering, due-target forms, transitions, validation, workspace isolation, and activity logging, all consumed through one shared frontend component instead of duplicated screens. Client detail integration, reusable notes/activity aggregation, focused backend tests, and per-column board pagination remain outstanding.
+The strongest completed product slices are authentication, client management, case management, calendar/events, assistant/chat/drafting, and the unified work-tracking experience (Team work, My work, Calendar List/Board, and Case → Work). The work-management backend now supports paginated, multi-value, and free-text-searchable task/deadline/event queries, contextual filtering, due-target forms, transitions, validation, workspace isolation, and activity logging, all consumed through one shared frontend component instead of duplicated screens. Client detail integration, focused backend tests, and per-column board pagination remain outstanding.

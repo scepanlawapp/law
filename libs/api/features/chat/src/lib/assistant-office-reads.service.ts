@@ -15,7 +15,6 @@ import {
   CalendarQueryDto,
   DeadlineListQueryDto,
   EventListQueryDto,
-  NoteListQueryDto,
   TaskListQueryDto,
 } from "@law/activities-tasks-deadlines";
 import { CaseListQueryDto, CasesService } from "@law/cases";
@@ -409,16 +408,7 @@ export class AssistantOfficeReadsService {
       }
       const limit = args.limit;
       const where = caseId ? { caseId } : { clientId };
-      const [notes, journal, log, members] = await Promise.all([
-        args.includeNotes
-          ? this.work!.listNotes(
-              Object.assign(new NoteListQueryDto(), {
-                ...where,
-                page: 1,
-                pageSize: limit,
-              }),
-            ).then((page) => page.items)
-          : [],
+      const [journal, log, members] = await Promise.all([
         caseId
           ? this.cases!.listActivities(caseId)
           : this.clients!.listActivities(
@@ -435,7 +425,7 @@ export class AssistantOfficeReadsService {
             page: 1,
             pageSize: limit * 2,
           }),
-        ).then((page) => page.items.filter((row) => row.entityType !== "Note")),
+        ).then((page) => page.items),
         this.members(scope.workspaceId),
       ]);
       const names = new Map(
@@ -444,15 +434,6 @@ export class AssistantOfficeReadsService {
       const titles = await this.entityTitles(scope.workspaceId, log);
 
       const entries: Array<AssistantActivityEntry & { at: number }> = [
-        ...notes.map((note) => ({
-          at: Date.parse(note.occurredAt),
-          date: belgradeDateTime(note.occurredAt),
-          kind: "NOTE" as const,
-          type: note.type,
-          title: null,
-          text: clipText(note.body),
-          author: toLatin(note.createdByUser.displayName),
-        })),
         ...journal.slice(0, limit).map((item) => ({
           at: item.activityDate.getTime(),
           date: belgradeDateTime(item.activityDate),

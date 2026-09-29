@@ -20,13 +20,16 @@ import {
   DeadlineType,
   EventStatus,
   EventType,
-  NoteType,
   TaskStatus,
 } from "@prisma/client";
 
 // Normalizes a single query value or repeated query keys into a string array.
 const toArray = ({ value }: { value: unknown }): string[] | undefined =>
-  value === undefined ? undefined : Array.isArray(value) ? value : [value as string];
+  value === undefined
+    ? undefined
+    : Array.isArray(value)
+      ? value
+      : [value as string];
 
 @ValidatorConstraint({ name: "dateTimeXor", async: false })
 class DateTimeXorConstraint implements ValidatorConstraintInterface {
@@ -172,24 +175,6 @@ export class CreateDeadlineDto extends DueTargetDto {
 }
 
 export class UpdateDeadlineDto extends CreateDeadlineDto {}
-
-export class NoteListQueryDto extends PaginationQueryDto {
-  @IsOptional() @IsEnum(NoteType) type?: NoteType;
-  @IsOptional() @IsUUID() caseId?: string;
-  @IsOptional() @IsUUID() clientId?: string;
-  @IsOptional() @IsUUID() eventId?: string;
-}
-
-export class CreateNoteDto {
-  @IsEnum(NoteType) type!: NoteType;
-  @IsString() @MaxLength(10000) body!: string;
-  @IsDateString() occurredAt!: string;
-  @IsOptional() @IsUUID() caseId?: string;
-  @IsOptional() @IsUUID() clientId?: string;
-  @IsOptional() @IsUUID() eventId?: string;
-}
-
-export class UpdateNoteDto extends CreateNoteDto {}
 
 export class CalendarQueryDto {
   @IsDateString() from!: string;

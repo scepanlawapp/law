@@ -713,12 +713,6 @@ export type DeadlineType =
   | "INTERNAL"
   | "OTHER";
 export type DeadlineStatus = "OPEN" | "SATISFIED" | "CANCELLED";
-export type NoteType =
-  | "GENERAL"
-  | "CALL_SUMMARY"
-  | "MEETING_SUMMARY"
-  | "CASE_UPDATE";
-
 export interface UserReference {
   id: string;
   displayName: string;
@@ -807,19 +801,6 @@ export interface DeadlineSummary {
   updatedAt: string;
 }
 export type DeadlineDetail = DeadlineSummary;
-export interface NoteSummary {
-  id: string;
-  type: NoteType;
-  body: string;
-  occurredAt: string;
-  case: CaseReference | null;
-  client: ClientReference | null;
-  eventId: string | null;
-  createdByUser: UserReference;
-  createdAt: string;
-  updatedAt: string;
-}
-export type NoteDetail = NoteSummary;
 export interface ActivityLogSummary {
   id: string;
   action: string;
@@ -1031,21 +1012,6 @@ export interface PriceSourceSummary {
   versions: PriceSourceVersion[];
 }
 
-export interface ExternalPaymentRecord {
-  id: string;
-  workspaceId: string;
-  statementId: string;
-  amount: string;
-  currency: string;
-  paidDate: string;
-  externalReference: string | null;
-  reversedAt: string | null;
-  reversalReason: string | null;
-  recordedByUserId: string;
-  reversedByUserId: string | null;
-  createdAt: string;
-}
-
 export interface BillingStatement {
   id: string;
   workspaceId: string;
@@ -1066,11 +1032,7 @@ export interface BillingStatement {
   updatedAt: string;
   client: FinancialClientReference;
   lines: BillingStatementLineSummary[];
-  payments: ExternalPaymentRecord[];
   total: string;
-  paid: string;
-  outstanding: string;
-  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
 }
 
 export type FinancialClientReference = ClientReference;
@@ -1118,9 +1080,6 @@ export interface BillingStatementSummary {
   currency: string;
   status: BillingStatementStatus;
   total: string;
-  paid: string;
-  outstanding: string;
-  paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
   lines: BillingStatementLineSummary[];
 }
 

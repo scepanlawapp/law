@@ -1,0 +1,9 @@
+{
+  "track_id": "notes_external_payments_removal_20260930",
+  "parent_track_id": null,
+  "type": "chore",
+  "status": "completed",
+  "created_at": "2026-09-30T00:00:00Z",
+  "updated_at": "2026-09-30T00:00:00Z",
+  "keywords": ["notes", "external-payments", "prisma", "financials", "frontend"]
+}
