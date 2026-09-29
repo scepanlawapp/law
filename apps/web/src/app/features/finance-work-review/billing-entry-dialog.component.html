@@ -85,13 +85,26 @@
                     />
                   </td>
                   <td hlmTd>
-                    <input
-                      hlmInput
-                      maxlength="3"
+                    <hlm-select
                       formControlName="currency"
-                      class="min-w-24 uppercase"
-                      required
-                    />
+                      [itemToString]="currencyItemToString"
+                    >
+                      <hlm-select-trigger
+                        [id]="'billing-line-currency-' + index"
+                        class="min-w-40 max-w-full"
+                      >
+                        <hlm-select-value />
+                      </hlm-select-trigger>
+                      <hlm-select-content *hlmSelectPortal>
+                        <hlm-select-group>
+                          @for (option of currencyOptions; track option.value) {
+                            <hlm-select-item [value]="option.value">
+                              {{ option.label | translate }}
+                            </hlm-select-item>
+                          }
+                        </hlm-select-group>
+                      </hlm-select-content>
+                    </hlm-select>
                   </td>
                   <td hlmTd>
                     <button

@@ -1100,6 +1100,12 @@ export interface CreateBillingStatementRequest {
   idempotencyKey?: string;
 }
 
+export interface UpdateBillingStatementRequest {
+  periodStart?: string;
+  periodEnd?: string;
+  lineIds?: string[];
+}
+
 export type PriceEvidence = {
   priceSourceId: string;
   priceSourceVersionId: string;

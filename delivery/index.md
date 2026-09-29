@@ -8,6 +8,12 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Billing Statement Basic Detail UI](./tracks/billing_statement_detail_ui_20260929/index.md)
+- [Billing Statement Edit, Delete, and Detail Routing](./tracks/billing_statement_crud_ui_20260929/index.md)
+- [Finance Statements UX Refactor](./tracks/finance_statements_ux_refactor_20260929/index.md)
+- [Frontend Currency Selects](./tracks/frontend_currency_selects_20260929/index.md)
+- [Draft Review Template Warning](./tracks/draft_review_template_warning_20260929/index.md)
+- [Event Client Selector](./tracks/event_client_selector_20260929/index.md)
 - [Billing Statement UI](./tracks/billing_statement_ui_20260929/index.md)
 - [Work Creation Assignment and Billing Candidates](./tracks/work_creation_assignment_candidates_20260929/index.md)
 - [Billing Statement Line Workflow](./tracks/billing_statement_line_workflow_20260928/index.md)

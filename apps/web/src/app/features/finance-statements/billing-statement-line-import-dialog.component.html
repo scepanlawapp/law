@@ -1,36 +1,53 @@
 <hlm-dialog-header>
   <h2 hlmDialogTitle>{{ "finance.importOpenLines" | translate }}</h2>
   <p hlmDialogDescription>
-    {{ "finance.importOpenLinesFor" | translate }} {{ client.displayName }}
+    {{
+      "finance.importClientContext" | translate: { client: client.displayName }
+    }}
   </p>
 </hlm-dialog-header>
 
-<div class="flex min-h-0 flex-1 flex-col gap-4 text-sm">
-  <div class="grid gap-3 sm:grid-cols-3">
-    <div class="flex min-w-0 flex-col gap-1">
+<div class="flex min-h-0 flex-1 flex-col gap-3 text-sm">
+  <div class="flex flex-wrap items-end gap-3">
+    <div class="flex w-28 max-w-full flex-col gap-1">
       <label class="font-medium" for="line-import-currency">
         {{ "finance.currency" | translate }}
       </label>
-      <input
-        hlmInput
-        id="line-import-currency"
-        maxlength="3"
-        class="uppercase"
+      <hlm-select
         [formControl]="currency"
-      />
+        [itemToString]="currencyItemToString"
+      >
+        <hlm-select-trigger buttonId="line-import-currency" size="sm">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of currencyOptions; track option.value) {
+              <hlm-select-item [value]="option.value">
+                {{ option.label | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
-    <div class="flex min-w-0 flex-col gap-1">
+    <div class="flex w-40 max-w-full flex-col gap-1">
       <label class="font-medium" for="line-import-from">
         {{ "finance.effectiveFrom" | translate }}
       </label>
       <input hlmInput id="line-import-from" type="date" [formControl]="from" />
     </div>
-    <div class="flex min-w-0 flex-col gap-1">
+    <div class="flex w-40 max-w-full flex-col gap-1">
       <label class="font-medium" for="line-import-to">
         {{ "finance.effectiveTo" | translate }}
       </label>
       <input hlmInput id="line-import-to" type="date" [formControl]="to" />
     </div>
+    @if (hasFilters()) {
+      <button hlmBtn type="button" variant="ghost" (click)="clearFilters()">
+        {{ "finance.clearFilters" | translate }}
+      </button>
+    }
   </div>
 
   <div class="min-h-0 flex-1 overflow-y-auto">
@@ -42,7 +59,7 @@
     } @else if (error()) {
       <div
         role="alert"
-        class="space-y-3 rounded-lg border border-destructive p-4"
+        class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive p-3"
       >
         <p>{{ "finance.loadError" | translate }}</p>
         <button hlmBtn type="button" variant="outline" (click)="load()">
@@ -50,48 +67,73 @@
         </button>
       </div>
     } @else if (!items().length) {
-      <div class="space-y-3 rounded-lg bg-muted p-4 text-muted-foreground">
+      <div
+        class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed border-border p-4 text-muted-foreground"
+      >
         <p>{{ "finance.noOpenLines" | translate }}</p>
-        <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
-          {{ "finance.clearFilters" | translate }}
-        </button>
+        @if (hasFilters()) {
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            (click)="clearFilters()"
+          >
+            {{ "finance.clearFilters" | translate }}
+          </button>
+        }
       </div>
     } @else {
-      <div hlmTableContainer>
-        <table hlmTable class="w-full min-w-[760px]">
+      <div hlmTableContainer class="rounded-lg border border-border">
+        <table hlmTable class="w-full min-w-[640px]">
           <thead hlmTHead>
             <tr hlmTr>
-              <th hlmTh>{{ "finance.select" | translate }}</th>
-              <th hlmTh>{{ "finance.serviceDate" | translate }}</th>
+              <th hlmTh class="w-24">
+                <span class="sr-only">{{ "finance.select" | translate }}</span>
+              </th>
+              <th hlmTh class="w-36">
+                {{ "finance.serviceDate" | translate }}
+              </th>
               <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
-              <th hlmTh>{{ "finance.performer" | translate }}</th>
-              <th hlmTh>{{ "finance.amount" | translate }}</th>
+              <th hlmTh class="w-40">
+                {{ "finance.performer" | translate }}
+              </th>
+              <th hlmTh class="w-36 text-right">
+                {{ "finance.amount" | translate }}
+              </th>
             </tr>
           </thead>
           <tbody hlmTBody>
             @for (line of items(); track line.id) {
               <tr hlmTr>
                 <td hlmTd>
-                  <input
-                    type="checkbox"
-                    class="h-4 w-4 accent-primary"
-                    [checked]="
-                      selected().has(line.id) || excludedLineIds.has(line.id)
-                    "
-                    [disabled]="excludedLineIds.has(line.id)"
-                    (change)="toggle(line)"
-                    [attr.aria-label]="line.description"
-                  />
-                  @if (excludedLineIds.has(line.id)) {
-                    <span class="ms-2 text-muted-foreground">
-                      {{ "finance.alreadyAdded" | translate }}
-                    </span>
-                  }
+                  <div class="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      class="h-4 w-4 accent-primary"
+                      [checked]="
+                        selected().has(line.id) || excludedLineIds.has(line.id)
+                      "
+                      [disabled]="excludedLineIds.has(line.id)"
+                      (change)="toggle(line)"
+                      [attr.aria-label]="line.description"
+                    />
+                    @if (excludedLineIds.has(line.id)) {
+                      <span class="text-muted-foreground">
+                        ✓ {{ "finance.added" | translate }}
+                      </span>
+                    }
+                  </div>
                 </td>
                 <td hlmTd>{{ formatDate(line.serviceDate) }}</td>
-                <td hlmTd>{{ line.description }}</td>
-                <td hlmTd>{{ line.performedBy.displayName }}</td>
-                <td hlmTd>{{ line.amount }} {{ line.currency }}</td>
+                <td hlmTd class="whitespace-normal">
+                  {{ line.description }}
+                </td>
+                <td hlmTd class="whitespace-normal">
+                  {{ line.performedBy.displayName }}
+                </td>
+                <td hlmTd class="text-right tabular-nums">
+                  {{ formatCurrency(line.amount, line.currency) }}
+                </td>
               </tr>
             }
           </tbody>
@@ -100,44 +142,57 @@
     }
   </div>
 
-  <div class="flex flex-wrap items-center justify-between gap-3">
-    <p class="text-muted-foreground">
-      {{ "finance.page" | translate: { page: page(), total: pageCount() } }}
-      · {{ totalItems() }}
-    </p>
+  <hlm-dialog-footer class="items-center sm:justify-between">
+    <div class="flex flex-wrap items-center gap-3">
+      <p class="text-muted-foreground">
+        {{ "finance.page" | translate: { page: page(), total: pageCount() } }}
+        · {{ totalItems() }} {{ "finance.items" | translate }}
+      </p>
+      <div class="flex gap-1">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          [disabled]="page() === 1 || loading()"
+          (click)="changePage(page() - 1)"
+        >
+          {{ "finance.previous" | translate }}
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          [disabled]="page() === pageCount() || loading()"
+          (click)="changePage(page() + 1)"
+        >
+          {{ "finance.next" | translate }}
+        </button>
+      </div>
+    </div>
     <div class="flex gap-2">
       <button
         hlmBtn
         type="button"
         variant="outline"
-        [disabled]="page() === 1 || loading()"
-        (click)="changePage(page() - 1)"
+        (click)="dialogRef.close()"
       >
-        {{ "finance.previous" | translate }}
+        {{ "common.cancel" | translate }}
       </button>
       <button
         hlmBtn
         type="button"
-        variant="outline"
-        [disabled]="page() === pageCount() || loading()"
-        (click)="changePage(page() + 1)"
+        [disabled]="!selected().size"
+        (click)="importSelected()"
       >
-        {{ "finance.next" | translate }}
+        @if (selected().size) {
+          {{
+            "finance.importSelectedCount"
+              | translate: { count: selected().size }
+          }}
+        } @else {
+          {{ "finance.importItems" | translate }}
+        }
       </button>
     </div>
-  </div>
-
-  <hlm-dialog-footer class="flex justify-end gap-2">
-    <button hlmBtn type="button" variant="outline" (click)="dialogRef.close()">
-      {{ "common.cancel" | translate }}
-    </button>
-    <button
-      hlmBtn
-      type="button"
-      [disabled]="!selected().size"
-      (click)="importSelected()"
-    >
-      {{ "finance.importSelected" | translate }} ({{ selected().size }})
-    </button>
   </hlm-dialog-footer>
 </div>

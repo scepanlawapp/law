@@ -8,6 +8,8 @@ import {
 } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
 import { RouterLink } from "@angular/router";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucidePencil, lucideTrash2 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmEmptyImports } from "@spartan-ng/helm/empty";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -17,7 +19,13 @@ import { HlmTableImports } from "@spartan-ng/helm/table";
 import { debounceTime, distinctUntilChanged, forkJoin } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  CURRENCY_FILTER_OPTIONS,
+  createCurrencyItemToString,
+} from "../../shared/currency";
 import { createSelectItemToString, SelectOption } from "../../shared/utils";
+import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { ToastService } from "../../shared/ui/toast/toast.service";
 
 const PAGE_SIZE = 15;
 
@@ -28,6 +36,7 @@ const PAGE_SIZE = 15;
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    NgIcon,
     HlmButton,
     HlmEmptyImports,
     HlmInput,
@@ -36,12 +45,15 @@ const PAGE_SIZE = 15;
     HlmTableImports,
     TranslatePipe,
   ],
+  providers: [provideIcons({ lucidePencil, lucideTrash2 })],
 })
 export class FinanceStatementsComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
+  private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly toast = inject(ToastService);
 
   readonly search = new FormControl("", { nonNullable: true });
   readonly clientId = new FormControl("", { nonNullable: true });
@@ -58,6 +70,8 @@ export class FinanceStatementsComponent {
   readonly loaded = signal(false);
   readonly page = signal(1);
   readonly filterRevision = signal(0);
+  readonly advancedFiltersOpen = signal(false);
+  readonly deletingStatementId = signal<string | null>(null);
 
   readonly statusOptions: ReadonlyArray<
     SelectOption<BillingStatementStatus | "">
@@ -70,6 +84,11 @@ export class FinanceStatementsComponent {
   readonly statusItemToString = createSelectItemToString(
     this.statusOptions,
     (key) => this.localization.translate(key),
+  );
+  readonly currencyOptions = CURRENCY_FILTER_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString(
+    (key) => this.localization.translate(key),
+    true,
   );
   readonly clientItemToString = (value: string | null | undefined): string =>
     value
@@ -160,6 +179,51 @@ export class FinanceStatementsComponent {
     this.page.set(page);
   }
 
+  deleteStatement(statement: BillingStatementSummary, event: Event): void {
+    event.stopPropagation();
+    if (statement.status !== "DRAFT" || this.deletingStatementId()) return;
+    this.confirmDialog
+      .confirm({
+        title: this.localization.translate("finance.deleteStatementTitle"),
+        message: this.localization.translate("finance.deleteStatementMessage", {
+          number: statement.statementNumber,
+        }),
+        confirmText: this.localization.translate("finance.deleteStatement"),
+        cancelText: this.localization.translate("common.cancel"),
+        variant: "danger",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        this.deletingStatementId.set(statement.id);
+        this.api
+          .deleteStatement(statement.id)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.statements.update((items) =>
+                items.filter((item) => item.id !== statement.id),
+              );
+              this.page.set(Math.min(this.page(), this.pageCount()));
+              this.deletingStatementId.set(null);
+              this.toast.success(
+                this.localization.translate("finance.statementDeleted"),
+              );
+            },
+            error: () => {
+              this.deletingStatementId.set(null);
+              this.toast.error(
+                this.localization.translate("finance.statementDeleteError"),
+              );
+            },
+          });
+      });
+  }
+
+  toggleAdvancedFilters(): void {
+    this.advancedFiltersOpen.update((open) => !open);
+  }
+
   clearFilters(): void {
     this.search.setValue("", { emitEvent: false });
     this.clientId.setValue("", { emitEvent: false });
@@ -168,6 +232,7 @@ export class FinanceStatementsComponent {
     this.from.setValue("", { emitEvent: false });
     this.to.setValue("", { emitEvent: false });
     this.page.set(1);
+    this.advancedFiltersOpen.set(false);
     this.filterRevision.update((value) => value + 1);
   }
 
@@ -197,5 +262,12 @@ export class FinanceStatementsComponent {
       this.localization.language() === "EN" ? "en" : "sr-Latn",
       { dateStyle: "medium" },
     ).format(new Date(value));
+  }
+
+  formatCurrency(value: string, currency: string): string {
+    return new Intl.NumberFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { style: "currency", currency },
+    ).format(Number(value));
   }
 }

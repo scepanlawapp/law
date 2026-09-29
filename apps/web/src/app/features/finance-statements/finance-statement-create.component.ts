@@ -8,11 +8,14 @@ import {
   Validators,
 } from "@angular/forms";
 import {
+  BillingStatement,
   BillingStatementLineSummary,
   ClientSummary,
 } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
-import { Router, RouterLink } from "@angular/router";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideTrash2 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldError, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -21,6 +24,11 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { Observable, concatMap, from, switchMap, tap, toArray } from "rxjs";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { LocalizationService } from "../../core/localization/localization.service";
+import {
+  CURRENCY_OPTIONS,
+  createCurrencyItemToString,
+} from "../../shared/currency";
 import {
   BillingStatementLineForm,
   appendUniqueBillingStatementLines,
@@ -30,6 +38,7 @@ import {
   normalizeCurrency,
 } from "./billing-statement-form";
 import { BillingStatementLineImportDialogService } from "./billing-statement-line-import-dialog.service";
+import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
 
 @Component({
   selector: "law-finance-statement-create",
@@ -38,6 +47,7 @@ import { BillingStatementLineImportDialogService } from "./billing-statement-lin
   imports: [
     ReactiveFormsModule,
     RouterLink,
+    NgIcon,
     HlmButton,
     HlmField,
     HlmFieldError,
@@ -48,6 +58,7 @@ import { BillingStatementLineImportDialogService } from "./billing-statement-lin
     HlmTableImports,
     TranslatePipe,
   ],
+  providers: [provideIcons({ lucideTrash2 })],
 })
 export class FinanceStatementCreateComponent {
   private readonly api = inject(FinancialsApiClient);
@@ -56,16 +67,23 @@ export class FinanceStatementCreateComponent {
     BillingStatementLineImportDialogService,
   );
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
+  private readonly clientDialog = inject(ClientFormDialogService);
+  private readonly localization = inject(LocalizationService);
 
   readonly clients = signal<ClientSummary[]>([]);
   readonly clientsLoading = signal(false);
   readonly clientsError = signal(false);
+  readonly statementLoading = signal(false);
+  readonly statementLoadError = signal("");
   readonly saving = signal(false);
   readonly saveError = signal("");
   readonly formRevision = signal(0);
   readonly selectedClient = signal<ClientSummary | null>(null);
   readonly statementIdempotencyKey = crypto.randomUUID();
+  readonly statementId = this.route.snapshot.paramMap.get("id");
+  readonly isEditMode = this.statementId !== null;
 
   readonly form = new FormGroup({
     clientId: new FormControl("", {
@@ -82,13 +100,17 @@ export class FinanceStatementCreateComponent {
     }),
     currency: new FormControl("RSD", {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^[A-Za-z]{3}$/)],
+      validators: Validators.required,
     }),
     lines: new FormArray<BillingStatementLineForm>([]),
   });
 
   readonly clientItemToString = (value: string | null | undefined): string =>
     this.clients().find((client) => client.id === value)?.displayName ?? "";
+  readonly currencyOptions = CURRENCY_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString((key) =>
+    this.localization.translate(key),
+  );
   readonly mismatchIndexes = computed(() => {
     this.formRevision();
     return incompatibleCurrencyIndexes(
@@ -119,6 +141,11 @@ export class FinanceStatementCreateComponent {
   });
 
   constructor() {
+    if (this.isEditMode) {
+      this.form.controls.clientId.disable({ emitEvent: false });
+      this.form.controls.currency.disable({ emitEvent: false });
+      this.loadStatement();
+    }
     this.loadClients();
     let previousClientId = this.form.controls.clientId.value;
     this.form.controls.clientId.valueChanges
@@ -136,6 +163,30 @@ export class FinanceStatementCreateComponent {
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.bumpRevision());
+  }
+
+  loadStatement(): void {
+    if (!this.statementId) return;
+    this.statementLoading.set(true);
+    this.statementLoadError.set("");
+    this.api
+      .statement(this.statementId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (statement) => {
+          if (statement.status !== "DRAFT") {
+            this.statementLoading.set(false);
+            this.statementLoadError.set("finance.statementNotEditable");
+            return;
+          }
+          this.populateStatement(statement);
+          this.statementLoading.set(false);
+        },
+        error: () => {
+          this.statementLoading.set(false);
+          this.statementLoadError.set("finance.statementLoadError");
+        },
+      });
   }
 
   loadClients(): void {
@@ -203,6 +254,13 @@ export class FinanceStatementCreateComponent {
     return this.mismatchIndexes().includes(index);
   }
 
+  formatCurrency(value: number, currency: string): string {
+    return new Intl.NumberFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { style: "currency", currency },
+    ).format(value);
+  }
+
   submit(): void {
     this.saveError.set("");
     if (!this.canSave()) {
@@ -225,16 +283,24 @@ export class FinanceStatementCreateComponent {
           ),
         ),
         toArray(),
-        switchMap((lines) =>
-          this.api.createStatement({
+        switchMap((lines) => {
+          const lineIds = lines.map((line) => line.id);
+          if (this.statementId) {
+            return this.api.updateStatement(this.statementId, {
+              periodStart: header.periodStart,
+              periodEnd: header.periodEnd,
+              lineIds,
+            });
+          }
+          return this.api.createStatement({
             clientId: header.clientId,
             periodStart: header.periodStart,
             periodEnd: header.periodEnd,
             currency: normalizeCurrency(header.currency),
-            lineIds: lines.map((line) => line.id),
+            lineIds,
             idempotencyKey: this.statementIdempotencyKey,
-          }),
-        ),
+          });
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
@@ -271,8 +337,41 @@ export class FinanceStatementCreateComponent {
     });
   }
 
+  private populateStatement(statement: BillingStatement): void {
+    this.form.patchValue(
+      {
+        clientId: statement.clientId,
+        periodStart: statement.periodStart.slice(0, 10),
+        periodEnd: statement.periodEnd.slice(0, 10),
+        currency: statement.currency,
+      },
+      { emitEvent: false },
+    );
+    this.form.controls.lines.clear({ emitEvent: false });
+    for (const line of statement.lines) {
+      this.form.controls.lines.push(createBillingStatementLineForm(line), {
+        emitEvent: false,
+      });
+    }
+    this.selectedClient.set(
+      this.clients().find((client) => client.id === statement.clientId) ?? null,
+    );
+    this.form.markAsPristine();
+    this.bumpRevision();
+  }
+
   private bumpRevision(): void {
     this.formRevision.update((value) => value + 1);
+  }
+
+  openClientDialog(): void {
+    this.clientDialog
+      .create()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((client) => {
+        if (!client) return;
+        this.form.controls.clientId.setValue(client.id);
+      });
   }
 }
 

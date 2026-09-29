@@ -22,7 +22,7 @@ export class BillingStatementLineImportDialogService {
     >(BillingStatementLineImportDialogComponent, {
       context: { client, excludedLineIds },
       contentClass:
-        "flex max-h-[90dvh] w-[min(64rem,calc(100vw-2rem))] max-w-5xl flex-col",
+        "flex max-h-[90dvh] w-[min(56rem,calc(100vw-2rem))] flex-col sm:max-w-4xl",
     }).closed$;
   }
 }
