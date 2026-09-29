@@ -25,6 +25,7 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmComboboxContent,
   HlmComboboxEmpty,
+  HlmComboboxInput,
   HlmComboboxItem,
   HlmComboboxList,
   HlmComboboxMultiple,
@@ -114,6 +115,7 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     HlmButton,
     HlmComboboxContent,
     HlmComboboxEmpty,
+    HlmComboboxInput,
     HlmComboboxItem,
     HlmComboboxList,
     HlmComboboxMultiple,

@@ -173,26 +173,40 @@
           <label hlmFieldLabel for="lawyer-select">
             {{ "calendar.lawyer" | translate }}
           </label>
-          <hlm-select
-            [formControl]="lawyerIdControl"
+          <div
+            hlmComboboxMultiple
+            [value]="lawyerIds()"
+            (valueChange)="setLawyerIds($event ?? [])"
             [itemToString]="lawyerItemToString"
           >
-            <hlm-select-trigger id="lawyer-select" class="w-full">
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
-                <hlm-select-item value="">
-                  {{ "calendar.allLawyers" | translate }}
-                </hlm-select-item>
-                @for (lawyer of lawyers(); track lawyer.id) {
-                  <hlm-select-item [value]="lawyer.id">
-                    {{ lawyer.name }}
-                  </hlm-select-item>
+            <hlm-combobox-trigger buttonId="lawyer-select" class="w-full">
+              <span data-slot="combobox-value" class="truncate">
+                @if (selectedLawyersLabel(); as label) {
+                  {{ label }}
+                } @else {
+                  <span class="text-muted-foreground">
+                    {{ "calendar.allLawyers" | translate }}
+                  </span>
                 }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
+              </span>
+            </hlm-combobox-trigger>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
+              <hlm-combobox-input
+                [placeholder]="'calendar.searchPlaceholder' | translate"
+                [showTrigger]="false"
+              />
+              <hlm-combobox-empty>
+                {{ "work.filters.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (lawyer of lawyers(); track lawyer.id) {
+                  <hlm-combobox-item [value]="lawyer.id">
+                    {{ lawyer.name }}
+                  </hlm-combobox-item>
+                }
+              </div>
+            </hlm-combobox-content>
+          </div>
         </div>
         <label class="flex h-10 items-center gap-2 text-sm">
           <input

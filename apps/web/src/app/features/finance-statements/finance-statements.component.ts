@@ -11,6 +11,16 @@ import { RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucidePencil, lucideTrash2 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
 import { HlmEmptyImports } from "@spartan-ng/helm/empty";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -38,6 +48,14 @@ const PAGE_SIZE = 15;
     RouterLink,
     NgIcon,
     HlmButton,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
     HlmEmptyImports,
     HlmInput,
     HlmSelectImports,
@@ -56,7 +74,7 @@ export class FinanceStatementsComponent {
   private readonly toast = inject(ToastService);
 
   readonly search = new FormControl("", { nonNullable: true });
-  readonly clientId = new FormControl("", { nonNullable: true });
+  readonly clientIds = signal<string[]>([]);
   readonly status = new FormControl<BillingStatementStatus | "">("", {
     nonNullable: true,
   });
@@ -94,7 +112,10 @@ export class FinanceStatementsComponent {
     value
       ? (this.clients().find((client) => client.id === value)?.displayName ??
         value)
-      : this.localization.translate("finance.allClients");
+      : "";
+  readonly selectedClientsLabel = computed(() =>
+    this.clientIds().map(this.clientItemToString).join(", "),
+  );
 
   readonly filteredStatements = computed(() => {
     this.filterRevision();
@@ -108,7 +129,10 @@ export class FinanceStatementsComponent {
         !statement.statementNumber.toLocaleLowerCase().includes(search)
       )
         return false;
-      if (this.clientId.value && statement.client.id !== this.clientId.value)
+      if (
+        this.clientIds().length &&
+        !this.clientIds().includes(statement.client.id)
+      )
         return false;
       if (this.status.value && statement.status !== this.status.value)
         return false;
@@ -130,7 +154,6 @@ export class FinanceStatementsComponent {
   constructor() {
     const controls = [
       this.search,
-      this.clientId,
       this.status,
       this.currency,
       this.from,
@@ -226,7 +249,7 @@ export class FinanceStatementsComponent {
 
   clearFilters(): void {
     this.search.setValue("", { emitEvent: false });
-    this.clientId.setValue("", { emitEvent: false });
+    this.clientIds.set([]);
     this.status.setValue("", { emitEvent: false });
     this.currency.setValue("", { emitEvent: false });
     this.from.setValue("", { emitEvent: false });
@@ -239,12 +262,18 @@ export class FinanceStatementsComponent {
   hasFilters(): boolean {
     return Boolean(
       this.search.value ||
-        this.clientId.value ||
+        this.clientIds().length ||
         this.status.value ||
         this.currency.value ||
         this.from.value ||
         this.to.value,
     );
+  }
+
+  setClientIds(value: string[]): void {
+    this.clientIds.set([...new Set(value)]);
+    this.page.set(1);
+    this.filterRevision.update((revision) => revision + 1);
   }
 
   statusLabel(status: BillingStatementStatus): string {

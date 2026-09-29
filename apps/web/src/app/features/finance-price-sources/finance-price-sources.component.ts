@@ -14,6 +14,17 @@ import {
   PriceSourceSummary,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
@@ -32,6 +43,15 @@ type SourceTab =
     DatePipe,
     ReactiveFormsModule,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmInput,
     HlmTextarea,
     HlmSpinner,
@@ -129,6 +149,13 @@ export class FinancePriceSourcesComponent {
       this.clients().find((client) => client.id === clientId)?.displayName ??
       "—"
     );
+  }
+  readonly clientItemToString = (value: string | null | undefined): string =>
+    value ? this.clientName(value) : "";
+
+  setClientId(value: string | null | undefined): void {
+    this.form.controls.clientId.setValue(value ?? "");
+    this.form.controls.clientId.markAsTouched();
   }
   save(): void {
     if (this.tab() !== "CLIENT_AGREEMENT") {

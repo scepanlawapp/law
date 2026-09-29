@@ -2,7 +2,7 @@ import { CaseSummary } from "@law/api-interfaces";
 import {
   clientIdForCase,
   compatibleCaseId,
-  eventClientIds,
+  withCaseClient,
 } from "./event-dialog.utils";
 
 const caseItem = {
@@ -11,9 +11,14 @@ const caseItem = {
 } as CaseSummary;
 
 describe("event dialog client helpers", () => {
-  it("maps the optional selected client to the event API shape", () => {
-    expect(eventClientIds("client-1")).toEqual(["client-1"]);
-    expect(eventClientIds("")).toEqual([]);
+  it("adds the selected case client without dropping other clients", () => {
+    expect(withCaseClient([caseItem], "case-1", ["client-2"])).toEqual([
+      "client-2",
+      "client-1",
+    ]);
+    expect(withCaseClient([caseItem], "missing", ["client-2"])).toEqual([
+      "client-2",
+    ]);
   });
 
   it("derives the client when a case is selected", () => {
@@ -22,7 +27,7 @@ describe("event dialog client helpers", () => {
   });
 
   it("clears a case that does not belong to the selected client", () => {
-    expect(compatibleCaseId([caseItem], "case-1", "client-1")).toBe("case-1");
-    expect(compatibleCaseId([caseItem], "case-1", "client-2")).toBe("");
+    expect(compatibleCaseId([caseItem], "case-1", ["client-1"])).toBe("case-1");
+    expect(compatibleCaseId([caseItem], "case-1", ["client-2"])).toBe("");
   });
 });

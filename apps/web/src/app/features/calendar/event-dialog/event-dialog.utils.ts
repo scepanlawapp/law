@@ -10,12 +10,17 @@ export function clientIdForCase(
 export function compatibleCaseId(
   cases: CaseSummary[],
   caseId: string,
-  clientId: string,
+  clientIds: string[],
 ): string {
   const caseItem = cases.find((item) => item.id === caseId);
-  return caseItem && caseItem.client.id !== clientId ? "" : caseId;
+  return caseItem && !clientIds.includes(caseItem.client.id) ? "" : caseId;
 }
 
-export function eventClientIds(clientId: string): string[] {
-  return clientId ? [clientId] : [];
+export function withCaseClient(
+  cases: CaseSummary[],
+  caseId: string,
+  clientIds: string[],
+): string[] {
+  const clientId = clientIdForCase(cases, caseId);
+  return clientId ? [...new Set([...clientIds, clientId])] : clientIds;
 }

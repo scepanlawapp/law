@@ -85,6 +85,21 @@ describe("CalendarComponent", () => {
     );
   });
 
+  it("sends every selected lawyer to the calendar API", () => {
+    const fixture = TestBed.createComponent(CalendarComponent);
+    const component = fixture.componentInstance;
+    component.setLawyerIds(["lawyer-1", "lawyer-2"]);
+    calendarApi.list.mockClear();
+
+    component["loadRange"](false);
+
+    expect(calendarApi.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        userIds: ["lawyer-1", "lawyer-2"],
+      }),
+    );
+  });
+
   it("groups date-only and timed obligations under their Belgrade due day", () => {
     const fixture = TestBed.createComponent(CalendarComponent);
     const component = fixture.componentInstance;
