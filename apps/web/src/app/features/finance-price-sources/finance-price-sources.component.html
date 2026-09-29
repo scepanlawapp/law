@@ -88,16 +88,42 @@
             <input hlmInput formControlName="title" />
           </label>
           @if (tab() === "CLIENT_AGREEMENT") {
-            <label class="block space-y-1">
+            <label class="block space-y-1" for="price-source-client">
               <span>{{ "finance.client" | translate }}</span>
-              <select hlmInput formControlName="clientId">
-                <option value="">
-                  {{ "finance.selectClient" | translate }}
-                </option>
-                @for (client of clients(); track client.id) {
-                  <option [value]="client.id">{{ client.displayName }}</option>
-                }
-              </select>
+              <div
+                hlmCombobox
+                [value]="form.controls.clientId.value"
+                (valueChange)="setClientId($event)"
+                [itemToString]="clientItemToString"
+              >
+                <hlm-combobox-trigger
+                  buttonId="price-source-client"
+                  class="w-full min-w-0 max-w-full"
+                >
+                  <hlm-combobox-value
+                    [placeholder]="'finance.selectClient' | translate"
+                  />
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'finance.selectClient' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "finance.noFilterOptions" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    <hlm-combobox-item value="">
+                      {{ "finance.selectClient" | translate }}
+                    </hlm-combobox-item>
+                    @for (client of clients(); track client.id) {
+                      <hlm-combobox-item [value]="client.id">
+                        {{ client.displayName }}
+                      </hlm-combobox-item>
+                    }
+                  </div>
+                </hlm-combobox-content>
+              </div>
             </label>
           }
           <label class="block space-y-1">

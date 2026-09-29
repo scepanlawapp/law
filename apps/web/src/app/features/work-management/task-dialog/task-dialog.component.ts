@@ -24,6 +24,17 @@ import {
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
+import {
   HlmDialogDescription,
   HlmDialogFooter,
   HlmDialogHeader,
@@ -51,6 +62,15 @@ import { TaskDialogContext } from "./task-dialog.models";
   imports: [
     ReactiveFormsModule,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
@@ -251,6 +271,19 @@ export class TaskDialogComponent {
       next: (task) => this.dialogRef.close(task),
       error: () => this.saving.set(false),
     });
+  }
+
+  setClientId(value: string | null | undefined): void {
+    this.form.controls.clientId.setValue(value ?? "");
+  }
+
+  setCaseId(value: string | null | undefined): void {
+    this.form.controls.caseId.setValue(value ?? "");
+  }
+
+  setAssigneeUserId(value: string | null | undefined): void {
+    this.form.controls.assigneeUserId.setValue(value ?? "");
+    this.form.controls.assigneeUserId.markAsTouched();
   }
 
   private toIsoDateTime(value: string): string {

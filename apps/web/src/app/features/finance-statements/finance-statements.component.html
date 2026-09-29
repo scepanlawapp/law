@@ -25,29 +25,43 @@
         <label class="font-medium" for="statement-client-filter">
           {{ "finance.client" | translate }}
         </label>
-        <hlm-select
-          [formControl]="clientId"
+        <div
+          hlmComboboxMultiple
+          [value]="clientIds()"
+          (valueChange)="setClientIds($event ?? [])"
           [itemToString]="clientItemToString"
         >
-          <hlm-select-trigger
+          <hlm-combobox-trigger
             buttonId="statement-client-filter"
             class="w-full min-w-0"
           >
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
-            <hlm-select-group>
-              <hlm-select-item value="">
-                {{ "finance.allClients" | translate }}
-              </hlm-select-item>
-              @for (client of clients(); track client.id) {
-                <hlm-select-item [value]="client.id">
-                  {{ client.displayName }}
-                </hlm-select-item>
+            <span data-slot="combobox-value" class="truncate">
+              @if (selectedClientsLabel(); as label) {
+                {{ label }}
+              } @else {
+                <span class="text-muted-foreground">
+                  {{ "finance.allClients" | translate }}
+                </span>
               }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
+            </span>
+          </hlm-combobox-trigger>
+          <hlm-combobox-content *hlmComboboxPortal width="content">
+            <hlm-combobox-input
+              [placeholder]="'finance.selectClient' | translate"
+              [showTrigger]="false"
+            />
+            <hlm-combobox-empty>
+              {{ "finance.noFilterOptions" | translate }}
+            </hlm-combobox-empty>
+            <div hlmComboboxList>
+              @for (client of clients(); track client.id) {
+                <hlm-combobox-item [value]="client.id">
+                  {{ client.displayName }}
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </div>
       </div>
       <div class="flex w-44 max-w-full flex-col gap-1">
         <label class="font-medium" for="statement-status-filter">

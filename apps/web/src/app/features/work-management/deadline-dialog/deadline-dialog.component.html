@@ -35,57 +35,75 @@
           <label hlmFieldLabel for="deadline-client">
             {{ "work.client" | translate }}
           </label>
-          <hlm-select
-            formControlName="clientId"
+          <div
+            hlmCombobox
+            [value]="form.controls.clientId.value"
+            (valueChange)="setClientId($event)"
             [itemToString]="clientItemToString"
           >
-            <hlm-select-trigger
-              id="deadline-client"
+            <hlm-combobox-trigger
+              buttonId="deadline-client"
               class="w-full min-w-0 max-w-full"
             >
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
-                <hlm-select-item value="">
+              <hlm-combobox-value />
+            </hlm-combobox-trigger>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
+              <hlm-combobox-input
+                [placeholder]="'work.filters.searchPlaceholder' | translate"
+                [showTrigger]="false"
+              />
+              <hlm-combobox-empty>
+                {{ "work.filters.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                <hlm-combobox-item value="">
                   {{ "work.noClient" | translate }}
-                </hlm-select-item>
+                </hlm-combobox-item>
                 @for (client of clients(); track client.id) {
-                  <hlm-select-item [value]="client.id">
+                  <hlm-combobox-item [value]="client.id">
                     {{ client.displayName }}
-                  </hlm-select-item>
+                  </hlm-combobox-item>
                 }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
+              </div>
+            </hlm-combobox-content>
+          </div>
         </div>
         <div hlmField>
           <label hlmFieldLabel for="deadline-case">
             {{ "work.case" | translate }}
           </label>
-          <hlm-select
-            formControlName="caseId"
+          <div
+            hlmCombobox
+            [value]="form.controls.caseId.value"
+            (valueChange)="setCaseId($event)"
             [itemToString]="caseItemToString"
           >
-            <hlm-select-trigger
-              id="deadline-case"
+            <hlm-combobox-trigger
+              buttonId="deadline-case"
               class="w-full min-w-0 max-w-full"
             >
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
-                <hlm-select-item value="">
+              <hlm-combobox-value />
+            </hlm-combobox-trigger>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
+              <hlm-combobox-input
+                [placeholder]="'work.filters.searchPlaceholder' | translate"
+                [showTrigger]="false"
+              />
+              <hlm-combobox-empty>
+                {{ "work.filters.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                <hlm-combobox-item value="">
                   {{ "work.noCase" | translate }}
-                </hlm-select-item>
+                </hlm-combobox-item>
                 @for (caseItem of cases(); track caseItem.id) {
-                  <hlm-select-item [value]="caseItem.id">
+                  <hlm-combobox-item [value]="caseItem.id">
                     {{ caseItem.caseNumber }} — {{ caseItem.name }}
-                  </hlm-select-item>
+                  </hlm-combobox-item>
                 }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
+              </div>
+            </hlm-combobox-content>
+          </div>
         </div>
         <div hlmField>
           <label hlmFieldLabel for="deadline-type">
@@ -116,26 +134,35 @@
           <label hlmFieldLabel for="deadline-responsible">
             {{ "work.responsible" | translate }}
           </label>
-          <hlm-select
-            formControlName="responsibleUserId"
+          <div
+            hlmCombobox
+            [value]="form.controls.responsibleUserId.value"
+            (valueChange)="setResponsibleUserId($event)"
             [itemToString]="userItemToString"
           >
-            <hlm-select-trigger
-              id="deadline-responsible"
+            <hlm-combobox-trigger
+              buttonId="deadline-responsible"
               class="w-full min-w-0 max-w-full"
             >
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
+              <hlm-combobox-value />
+            </hlm-combobox-trigger>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
+              <hlm-combobox-input
+                [placeholder]="'work.filters.searchPlaceholder' | translate"
+                [showTrigger]="false"
+              />
+              <hlm-combobox-empty>
+                {{ "work.filters.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
                 @for (user of users(); track user.id) {
-                  <hlm-select-item [value]="user.id">
+                  <hlm-combobox-item [value]="user.id">
                     {{ user.name }}
-                  </hlm-select-item>
+                  </hlm-combobox-item>
                 }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
+              </div>
+            </hlm-combobox-content>
+          </div>
         </div>
       </div>
       <div class="grid gap-4 md:grid-cols-2">

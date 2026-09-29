@@ -18,6 +18,18 @@ import {
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
+import {
   HlmDialogDescription,
   HlmDialogFooter,
   HlmDialogHeader,
@@ -25,17 +37,12 @@ import {
 } from "@spartan-ng/helm/dialog";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
-import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { EventDialogContext } from "./event-dialog.models";
-import {
-  clientIdForCase,
-  compatibleCaseId,
-  eventClientIds,
-} from "./event-dialog.utils";
+import { compatibleCaseId, withCaseClient } from "./event-dialog.utils";
 
 function localDateTime(value: string): string {
   const date = new Date(value);
@@ -50,6 +57,16 @@ function localDateTime(value: string): string {
   imports: [
     ReactiveFormsModule,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
@@ -57,7 +74,6 @@ function localDateTime(value: string): string {
     HlmField,
     HlmFieldLabel,
     HlmInput,
-    HlmSelectImports,
     HlmSpinner,
     HlmTextarea,
     TranslatePipe,
@@ -95,6 +111,11 @@ export class EventDialogComponent {
     const caseItem = this.cases().find((item) => item.id === value);
     return caseItem ? `${caseItem.caseNumber} — ${caseItem.name}` : value;
   };
+  readonly selectedClientsLabel = (): string =>
+    this.form.controls.clientIds.value
+      .map(this.clientItemToString)
+      .filter(Boolean)
+      .join(", ");
   readonly form = new FormGroup({
     type: new FormControl<"MEETING" | "HEARING" | "CALL" | "OTHER">("MEETING", {
       nonNullable: true,
@@ -134,8 +155,10 @@ export class EventDialogComponent {
         nonNullable: true,
       },
     ),
-    clientId: new FormControl(
-      this.context.event?.clients[0]?.id ?? this.context.item?.client?.id ?? "",
+    clientIds: new FormControl<string[]>(
+      this.context.event?.clients.length
+        ? this.context.event.clients.map((client) => client.id)
+        : [this.context.item?.client?.id ?? ""].filter(Boolean),
       { nonNullable: true },
     ),
   });
@@ -177,16 +200,22 @@ export class EventDialogComponent {
     this.form.controls.caseId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((caseId) => {
-        const clientId = clientIdForCase(this.cases(), caseId);
-        if (clientId) {
-          this.form.controls.clientId.setValue(clientId, { emitEvent: false });
+        const clientIds = withCaseClient(
+          this.cases(),
+          caseId,
+          this.form.controls.clientIds.value,
+        );
+        if (clientIds !== this.form.controls.clientIds.value) {
+          this.form.controls.clientIds.setValue(clientIds, {
+            emitEvent: false,
+          });
         }
       });
-    this.form.controls.clientId.valueChanges
+    this.form.controls.clientIds.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((clientId) => {
+      .subscribe((clientIds) => {
         const caseId = this.form.controls.caseId.value;
-        const nextCaseId = compatibleCaseId(this.cases(), caseId, clientId);
+        const nextCaseId = compatibleCaseId(this.cases(), caseId, clientIds);
         if (nextCaseId !== caseId) {
           this.form.controls.caseId.setValue(nextCaseId, { emitEvent: false });
         }
@@ -211,17 +240,14 @@ export class EventDialogComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => {
         this.cases.set(response.items);
-        if (!this.form.controls.clientId.value) {
-          const clientId = clientIdForCase(
+        this.form.controls.clientIds.setValue(
+          withCaseClient(
             response.items,
             this.form.controls.caseId.value,
-          );
-          if (clientId) {
-            this.form.controls.clientId.setValue(clientId, {
-              emitEvent: false,
-            });
-          }
-        }
+            this.form.controls.clientIds.value,
+          ),
+          { emitEvent: false },
+        );
       });
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
@@ -235,7 +261,7 @@ export class EventDialogComponent {
       return;
     }
     const value = this.form.getRawValue();
-    const { responsibleUserId, caseId, clientId, ...eventValue } = value;
+    const { responsibleUserId, caseId, clientIds, ...eventValue } = value;
     const request: EventRequest = {
       ...eventValue,
       description: value.description || undefined,
@@ -245,7 +271,7 @@ export class EventDialogComponent {
       endsAt: new Date(value.endsAt).toISOString(),
       caseId: caseId || undefined,
       assigneeUserIds: [responsibleUserId],
-      clientIds: eventClientIds(clientId),
+      clientIds,
     };
     if (new Date(request.endsAt) <= new Date(request.startsAt)) {
       this.form.controls.endsAt.setErrors({ order: true });
@@ -259,5 +285,18 @@ export class EventDialogComponent {
       next: (event) => this.dialogRef.close(event),
       error: () => this.saving.set(false),
     });
+  }
+
+  setClientIds(value: string[]): void {
+    this.form.controls.clientIds.setValue([...new Set(value)]);
+  }
+
+  setCaseId(value: string | null | undefined): void {
+    this.form.controls.caseId.setValue(value ?? "");
+  }
+
+  setResponsibleUserId(value: string | null | undefined): void {
+    this.form.controls.responsibleUserId.setValue(value ?? "");
+    this.form.controls.responsibleUserId.markAsTouched();
   }
 }

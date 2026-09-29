@@ -19,7 +19,7 @@
             />
           </div>
 
-          @if (!fixedUserId()) {
+          @if (!fixedUserId() && viewMode() !== "my") {
             <div class="flex w-56 max-w-full flex-col gap-1">
               <label class="text-sm font-medium" for="work-view-people">
                 {{ "work.filters.people" | translate }}
@@ -45,6 +45,10 @@
                   </span>
                 </hlm-combobox-trigger>
                 <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'work.filters.searchPlaceholder' | translate"
+                    [showTrigger]="false"
+                  />
                   <hlm-combobox-empty>
                     {{ "work.filters.noResults" | translate }}
                   </hlm-combobox-empty>

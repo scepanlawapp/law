@@ -37,6 +37,10 @@
             </span>
           </hlm-combobox-trigger>
           <hlm-combobox-content *hlmComboboxPortal width="content">
+            <hlm-combobox-input
+              [placeholder]="'finance.selectClient' | translate"
+              [showTrigger]="false"
+            />
             <hlm-combobox-empty>
               {{ "finance.noFilterOptions" | translate }}
             </hlm-combobox-empty>
@@ -76,6 +80,10 @@
             </span>
           </hlm-combobox-trigger>
           <hlm-combobox-content *hlmComboboxPortal width="content">
+            <hlm-combobox-input
+              [placeholder]="'work.filters.searchPlaceholder' | translate"
+              [showTrigger]="false"
+            />
             <hlm-combobox-empty>
               {{ "finance.noFilterOptions" | translate }}
             </hlm-combobox-empty>

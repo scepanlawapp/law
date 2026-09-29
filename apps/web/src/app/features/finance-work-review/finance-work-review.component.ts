@@ -25,6 +25,7 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmComboboxContent,
   HlmComboboxEmpty,
+  HlmComboboxInput,
   HlmComboboxItem,
   HlmComboboxList,
   HlmComboboxMultiple,
@@ -49,6 +50,7 @@ import { TaskDialogService } from "../work-management/task-dialog/task-dialog.se
     HlmButton,
     HlmComboboxContent,
     HlmComboboxEmpty,
+    HlmComboboxInput,
     HlmComboboxItem,
     HlmComboboxList,
     HlmComboboxMultiple,

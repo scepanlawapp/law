@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Relation Autocomplete Filters](./tracks/relation_autocomplete_filters_20260929/index.md)
 - [Dashboard Documents and Notifications](./tracks/dashboard_documents_notifications_20260929/index.md)
 - [Direct Statement Source Billing](./tracks/direct_statement_source_billing_20260929/index.md)
 - [Calendar Deadline Edit](./tracks/calendar_deadline_edit_20260929/index.md)

@@ -22,6 +22,16 @@ import {
 } from "@law/api-clients";
 import { CalendarItem, CalendarSourceType } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -95,6 +105,14 @@ function mondayIndex(date: Date): number {
   imports: [
     ReactiveFormsModule,
     HlmButton,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
     HlmField,
     HlmFieldLabel,
     HlmInput,
@@ -123,15 +141,10 @@ export class CalendarComponent {
   readonly sourceControl = new FormControl<CalendarSourceType | "">("", {
     nonNullable: true,
   });
-  readonly lawyerIdControl = new FormControl("", { nonNullable: true });
   readonly anchor = signal(this.initialDate());
   readonly view = signal<CalendarView>(this.initialView());
   readonly source = signal<CalendarSourceType | "">("");
-  readonly lawyerId = signal(
-    this.route.snapshot.queryParamMap.get("lawyer") ??
-      this.authState.session()?.user.id ??
-      "",
-  );
+  readonly lawyerIds = signal(this.initialLawyerIds());
   readonly lawyers = signal<Array<{ id: string; name: string }>>([]);
   readonly sourceOptions: ReadonlyArray<SelectOption<CalendarSourceType | "">> =
     [
@@ -147,7 +160,10 @@ export class CalendarComponent {
   readonly lawyerItemToString = (value: string | null | undefined): string =>
     value
       ? (this.lawyers().find((lawyer) => lawyer.id === value)?.name ?? value)
-      : this.localization.translate("calendar.allLawyers");
+      : "";
+  readonly selectedLawyersLabel = computed(() =>
+    this.lawyerIds().map(this.lawyerItemToString).join(", "),
+  );
   readonly includeClosed = signal(false);
   readonly items = signal<CalendarItem[]>([]);
   readonly loading = signal(false);
@@ -338,8 +354,14 @@ export class CalendarComponent {
     const query = this.search.value.trim().toLocaleLowerCase();
     return this.items().filter((item) => {
       if (this.source() && item.sourceType !== this.source()) return false;
-      if (this.lawyerId() && item.responsibleUser?.id !== this.lawyerId()) {
-        return false;
+      if (this.lawyerIds().length) {
+        const itemUserIds = new Set([
+          item.responsibleUser?.id,
+          ...item.assigneeUsers.map((user) => user.id),
+        ]);
+        if (!this.lawyerIds().some((userId) => itemUserIds.has(userId))) {
+          return false;
+        }
       }
       if (
         !this.includeClosed() &&
@@ -355,7 +377,7 @@ export class CalendarComponent {
       this.anchor();
       this.view();
       this.source();
-      this.lawyerId();
+      this.lawyerIds();
       this.includeClosed();
       this.loadRange();
     });
@@ -368,18 +390,9 @@ export class CalendarComponent {
         this.sourceControl.setValue(next, { emitEvent: false });
       }
     });
-    effect(() => {
-      const next = this.lawyerId();
-      if (this.lawyerIdControl.value !== next) {
-        this.lawyerIdControl.setValue(next, { emitEvent: false });
-      }
-    });
     this.sourceControl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => this.setSource(value ?? ""));
-    this.lawyerIdControl.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((value) => this.setLawyer(value ?? ""));
     this.search.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.persistUrl());
@@ -523,8 +536,8 @@ export class CalendarComponent {
     this.persistUrl();
   }
 
-  setLawyer(value: string): void {
-    this.lawyerId.set(value);
+  setLawyerIds(value: string[]): void {
+    this.lawyerIds.set([...new Set(value)]);
     this.persistUrl();
   }
 
@@ -747,7 +760,7 @@ export class CalendarComponent {
       to: `${this.nextDate(this.visibleTo())}T00:00:00.000Z`,
       limit: 100,
       sourceTypes: ["EVENT", "TASK", "DEADLINE"],
-      ...(this.lawyerId() && { userId: this.lawyerId() }),
+      ...(this.lawyerIds().length && { userIds: this.lawyerIds() }),
     };
     this.api
       .list(query)
@@ -777,7 +790,7 @@ export class CalendarComponent {
         view: this.view(),
         search: this.search.value || null,
         source: this.source() || null,
-        lawyer: this.lawyerId() || null,
+        lawyer: this.lawyerIds().length ? this.lawyerIds() : null,
         closed: this.includeClosed() ? "1" : null,
         presentation:
           this.view() === "list" || this.view() === "board"
@@ -785,6 +798,15 @@ export class CalendarComponent {
             : null,
       },
     });
+  }
+
+  private initialLawyerIds(): string[] {
+    const selected = this.route.snapshot.queryParamMap
+      .getAll("lawyer")
+      .filter(Boolean);
+    if (selected.length) return [...new Set(selected)];
+    const currentUserId = this.authState.session()?.user.id;
+    return currentUserId ? [currentUserId] : [];
   }
 
   private initialDate(): Date {

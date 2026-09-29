@@ -49,21 +49,6 @@
         </div>
 
         <div class="flex flex-wrap items-center gap-2 lg:justify-end">
-          <a hlmBtn type="button" [routerLink]="returnUrl || '/cases'">
-            {{ "cases.cancel" | translate }}
-          </a>
-          @if (!caseId) {
-            <button
-              hlmBtn
-              type="button"
-              [disabled]="saving()"
-              (click)="saveDraft()"
-            >
-              {{
-                (saving() ? "cases.saving" : "cases.form.saveDraft") | translate
-              }}
-            </button>
-          }
           <button hlmBtn type="submit" [disabled]="saving()">
             {{
               (saving()
@@ -74,6 +59,27 @@
               ) | translate
             }}
           </button>
+          @if (!caseId) {
+            <button
+              hlmBtn
+              variant="ghost"
+              type="button"
+              [disabled]="saving()"
+              (click)="saveDraft()"
+            >
+              {{
+                (saving() ? "cases.saving" : "cases.form.saveDraft") | translate
+              }}
+            </button>
+          }
+          <a
+            hlmBtn
+            type="button"
+            [routerLink]="returnUrl || '/cases'"
+            variant="ghost"
+          >
+            {{ "cases.cancel" | translate }}
+          </a>
         </div>
       </div>
     </header>

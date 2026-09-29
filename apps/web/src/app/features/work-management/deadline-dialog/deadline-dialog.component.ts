@@ -23,6 +23,17 @@ import {
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
+import {
   HlmDialogDescription,
   HlmDialogFooter,
   HlmDialogHeader,
@@ -52,6 +63,15 @@ type DeadlineDueMode = "DATE" | "DATE_TIME";
   imports: [
     ReactiveFormsModule,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
@@ -257,6 +277,19 @@ export class DeadlineDialogComponent {
       next: (deadline) => this.dialogRef.close(deadline),
       error: () => this.saving.set(false),
     });
+  }
+
+  setClientId(value: string | null | undefined): void {
+    this.form.controls.clientId.setValue(value ?? "");
+  }
+
+  setCaseId(value: string | null | undefined): void {
+    this.form.controls.caseId.setValue(value ?? "");
+  }
+
+  setResponsibleUserId(value: string | null | undefined): void {
+    this.form.controls.responsibleUserId.setValue(value ?? "");
+    this.form.controls.responsibleUserId.markAsTouched();
   }
 
   private toIsoDateTime(value: string): string {
