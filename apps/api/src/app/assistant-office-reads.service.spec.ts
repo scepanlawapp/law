@@ -109,7 +109,6 @@ function setup() {
     listDeadlines: jest.fn().mockResolvedValue(page([])),
     listEvents: jest.fn().mockResolvedValue(page([])),
     calendar: jest.fn().mockResolvedValue({ items: [], nextCursor: null }),
-    listNotes: jest.fn().mockResolvedValue(page([])),
     listActivity: jest.fn().mockResolvedValue(page([])),
   };
   const service = new AssistantOfficeReadsService(
@@ -419,7 +418,8 @@ describe("AssistantOfficeReadsService", () => {
     );
 
     expect(result.found).toBe("one");
-    const client = (result as unknown as { client: Record<string, unknown> }).client;
+    const client = (result as unknown as { client: Record<string, unknown> })
+      .client;
     expect(JSON.stringify(client)).not.toContain("0101990710000");
     expect(client["contacts"]).toEqual([
       expect.objectContaining({ name: "Jelena Petrović", isPrimary: true }),
@@ -430,18 +430,8 @@ describe("AssistantOfficeReadsService", () => {
     expect((client["notes"] as string).length).toBe(500);
   });
 
-  it("merges notes, journal entries, and work-item changes, newest first", async () => {
+  it("merges journal entries and work-item changes, newest first", async () => {
     const { cases, work, service } = setup();
-    work.listNotes.mockResolvedValue(
-      page([
-        {
-          type: "CALL_SUMMARY",
-          body: "Klijent je potvrdio termin.",
-          occurredAt: "2026-09-25T10:00:00.000Z",
-          createdByUser: user("user-ana", "Ana Anić"),
-        },
-      ]),
-    );
     cases.listActivities.mockResolvedValue([
       {
         type: "MEETING",
@@ -460,27 +450,16 @@ describe("AssistantOfficeReadsService", () => {
           entityType: "Task",
           entityId: "task-1",
         },
-        {
-          action: "NOTE_CREATED",
-          actorUserId: "user-ana",
-          occurredAt: "2026-09-25T10:00:01.000Z",
-          entityType: "Note",
-          entityId: "note-1",
-        },
       ]),
     );
 
     const result = await inWorkspace(() =>
       service.listActivity(scope, {
-        includeNotes: true,
         limit: 10,
         linkedCaseId: "case-1",
       }),
     );
 
-    expect(work.listNotes).toHaveBeenCalledWith(
-      expect.objectContaining({ caseId: "case-1" }),
-    );
     expect(result).toMatchObject({
       status: "OK",
       items: [
@@ -490,14 +469,13 @@ describe("AssistantOfficeReadsService", () => {
           title: "Pozvati svedoka",
           author: "Ana Anić",
         },
-        { kind: "NOTE", text: "Klijent je potvrdio termin." },
         {
           kind: "JOURNAL",
           title: "Sastanak sa klijentom",
           author: "Marko Marković",
         },
       ],
-      total: 3,
+      total: 2,
       truncated: false,
     });
   });
@@ -507,7 +485,6 @@ describe("AssistantOfficeReadsService", () => {
 
     const result = await inWorkspace(() =>
       service.listActivity(scope, {
-        includeNotes: true,
         limit: 10,
         linkedCaseId: null,
       }),

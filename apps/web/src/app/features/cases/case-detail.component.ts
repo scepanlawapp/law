@@ -42,7 +42,6 @@ type CaseTab =
   | "activities"
   | "work"
   | "documents"
-  | "notes"
   | "assistant"
   | "responsibilities";
 
@@ -129,9 +128,6 @@ export class CaseDetailComponent {
       .slice(0, 5),
   );
   readonly recentDocuments = computed(() => this.documents().slice(0, 3));
-  readonly noteActivities = computed(() =>
-    this.activities().filter((activity) => activity.type === "NOTE"),
-  );
   readonly activeResponsibilities = computed(() =>
     this.responsibilities().filter((responsibility) => !responsibility.endedAt),
   );
@@ -245,7 +241,6 @@ export class CaseDetailComponent {
     this.selectedTab.set(selected);
     if (selected === "activities") this.loadActivities();
     if (selected === "responsibilities") this.loadResponsibilities();
-    if (selected === "notes") this.loadActivities();
     if (selected === "assistant") this.loadAssistantLinks();
     if (selected === "documents") this.loadDocuments();
   }

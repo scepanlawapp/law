@@ -15,15 +15,12 @@ import {
   CalendarQueryDto,
   CreateDeadlineDto,
   CreateEventDto,
-  CreateNoteDto,
   CreateTaskDto,
   DeadlineListQueryDto,
   EventListQueryDto,
-  NoteListQueryDto,
   TaskListQueryDto,
   UpdateDeadlineDto,
   UpdateEventDto,
-  UpdateNoteDto,
   UpdateTaskDto,
 } from "./activities-tasks-deadlines.dto";
 import { ActivitiesTasksDeadlinesService } from "./activities-tasks-deadlines.service";
@@ -104,22 +101,6 @@ export class ActivitiesTasksDeadlinesController {
   }
   @Post("deadlines/:id/reopen") reopenDeadline(@Param("id") id: string) {
     return this.service.transitionDeadline(id, "OPEN");
-  }
-
-  @Get("notes") listNotes(@Query() query: NoteListQueryDto) {
-    return this.service.listNotes(query);
-  }
-  @Post("notes") createNote(@Body() body: CreateNoteDto) {
-    return this.service.createNote(body);
-  }
-  @Get("notes/:id") getNote(@Param("id") id: string) {
-    return this.service.getNote(id);
-  }
-  @Patch("notes/:id") updateNote(
-    @Param("id") id: string,
-    @Body() body: UpdateNoteDto,
-  ) {
-    return this.service.updateNote(id, body);
   }
 
   @Get("calendar") calendar(@Query() query: CalendarQueryDto) {

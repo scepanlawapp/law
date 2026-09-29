@@ -13,7 +13,6 @@ import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   BillableWorkQueryDto,
-  CreatePaymentDto,
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
@@ -106,10 +105,5 @@ export class FinancialsController {
     @Body() body: ExternalInvoiceDto,
   ) {
     return this.financials.linkExternalInvoice(id, body);
-  }
-
-  @Post("statements/:id/payments")
-  addPayment(@Param("id") id: string, @Body() body: CreatePaymentDto) {
-    return this.financials.addPayment(id, body);
   }
 }

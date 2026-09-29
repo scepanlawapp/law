@@ -10,7 +10,7 @@ The Financials area answers five separate questions:
 2. **What work was actually performed?** A person records the service, date, performer, actual duration or quantity, description, client, optional case and any expense.
 3. **What does the office charge for it?** A reviewer decides `BILLABLE`, `INCLUDED`, `NO_CHARGE` or `INTERNAL`, enters the proposed amount, and can refer to a particular version of a price source.
 4. **What should the client see?** Selected and reviewed entries become lines on an informational service statement. Included/no-charge services may be shown at zero. Internal work and unresolved suggestions are never client-facing.
-5. **What happened outside this app?** The office records the number of the formal invoice created in its other software and any payments received there. The app does not claim to issue a compliant tax/fiscal invoice or move money.
+5. **What happened outside this app?** The office can record a reference to the formal invoice created in its other software. Payments remain outside this app. The app does not claim to issue a compliant tax/fiscal invoice or move money.
 
 Call the client-facing document a **service statement** or **billing summary** in code and in the UI. The office may call it an invoice informally, but the document must clearly identify its role. Any legally required invoice fields, numbering, tax computation and transmission remain in the external invoice product until separately designed and verified.
 
@@ -20,29 +20,29 @@ The current schema contains no finance models. In particular, `Case` has no bill
 
 Use one **Financials** sidebar group with the following routes. Case and client detail pages link into filtered views rather than implement a second finance system.
 
-| Page | Primary question | Main actions |
-| --- | --- | --- |
-| Overview | What needs attention, and what is recorded? | Review work, record work, prepare statement |
-| Work review | Which source records might represent billable work? | Record actual work, dismiss suggestion, open source |
-| Recorded work | What time, fees and expenses are eligible? | Add/edit entry, mark included/no charge, select for statement |
-| Client statements | What was shown to each client? | Compose, edit draft, preview, finalize/share, link external invoice |
-| Client balances | What remains unbilled or externally unpaid by client/case? | Open account, drill into entries and statements |
-| Price sources | What did this client agree, and what public/state text is referenced? | Paste free-form text, save a new version, inspect source history |
+| Page              | Primary question                                                      | Main actions                                                        |
+| ----------------- | --------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Overview          | What needs attention, and what is recorded?                           | Review work, record work, prepare statement                         |
+| Work review       | Which source records might represent billable work?                   | Record actual work, dismiss suggestion, open source                 |
+| Recorded work     | What time, fees and expenses are eligible?                            | Add/edit entry, mark included/no charge, select for statement       |
+| Client statements | What was shown to each client?                                        | Compose, edit draft, preview, finalize/share, link external invoice |
+| Client balances   | What remains unbilled by client/case?                                 | Open account, drill into entries and statements                     |
+| Price sources     | What did this client agree, and what public/state text is referenced? | Paste free-form text, save a new version, inspect source history    |
 
-In the prototype, Work review and Recorded work are tabs on one page. They can remain tabs in the Angular application. Client statement detail has an internal tracking view and a client-facing preview. Dialogs/drawers include candidate review, record time/fee/expense, entry detail/edit, statement composer, statement preview, external invoice/payment recording and price-source version history. Prefer reusing the application's existing dialog patterns.
+In the prototype, Work review and Recorded work are tabs on one page. They can remain tabs in the Angular application. Client statement detail has an internal tracking view and a client-facing preview. Dialogs/drawers include candidate review, record time/fee/expense, entry detail/edit, statement composer, statement preview, external invoice reference recording and price-source version history. Prefer reusing the application's existing dialog patterns.
 
 ## 3. Business rules
 
 ### Sources and review
 
-| Existing source | Candidate trigger | What can be inferred | What must be supplied or confirmed |
-| --- | --- | --- | --- |
-| `Event` | Completed meeting, hearing or call | Title, case, clients through `EventClient`, organizer/assignees, scheduled start/end | Actual duration, participating worker(s), one billing client, service, decision, amount |
-| `Task` | `DONE` | Title, case/client, assignee, completion time | Actual work and time; a task may lead to several entries |
-| `Deadline` | `SATISFIED` | Filing/completion clue and related case/client | The performed service, if any; the deadline itself is not charged |
-| `CaseActivity` / `ClientActivity` | Recorded activity | Type, title, date, linked case/client | Actual duration, work description, charge decision; a note/email may be non-billable |
-| `Document`, `DraftResult`, `ActivityLog` | Later optional reminder | Work may have happened | Never infer a charge from upload, approval or log action alone |
-| Manual entry | User records work or expense | User-supplied facts | Validate and review as usual |
+| Existing source                          | Candidate trigger                  | What can be inferred                                                                 | What must be supplied or confirmed                                                      |
+| ---------------------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
+| `Event`                                  | Completed meeting, hearing or call | Title, case, clients through `EventClient`, organizer/assignees, scheduled start/end | Actual duration, participating worker(s), one billing client, service, decision, amount |
+| `Task`                                   | `DONE`                             | Title, case/client, assignee, completion time                                        | Actual work and time; a task may lead to several entries                                |
+| `Deadline`                               | `SATISFIED`                        | Filing/completion clue and related case/client                                       | The performed service, if any; the deadline itself is not charged                       |
+| `CaseActivity` / `ClientActivity`        | Recorded activity                  | Type, title, date, linked case/client                                                | Actual duration, work description, charge decision; a note/email may be non-billable    |
+| `Document`, `DraftResult`, `ActivityLog` | Later optional reminder            | Work may have happened                                                               | Never infer a charge from upload, approval or log action alone                          |
+| Manual entry                             | User records work or expense       | User-supplied facts                                                                  | Validate and review as usual                                                            |
 
 Generate candidate rows only for workspace-accessible sources and define a stable source identity. If an event has multiple lawyers, one event can legitimately lead to separate entries for different performers. If an event has several linked clients, require explicit client selection. Case-linked candidates derive the client from `Case.clientId`; when both client and case are present they must agree. Dismissal must be remembered so the same source does not reappear on every refresh. Completing a task again or retrying a request must not create duplicate suggestions or billing entries.
 
@@ -73,7 +73,7 @@ A `BillingStatement` is scoped to one client and workspace; it has a period, int
 
 The statement can show `BILLABLE` lines with amounts and explicitly selected `INCLUDED`/`NO_CHARGE` lines at zero. It must never expose `INTERNAL` work, unresolved suggestions, price-source raw text, private notes or confidential supporting documents. The preview should match the exported/printed document. DRAFT remains editable; on `SENT`, freeze the line and amount snapshots and mark linked entries sent. Share/send is an explicit user action; if the application has no delivery integration, record that the user shared/exported it externally and do not imply an email was sent.
 
-Store an optional formal external invoice number/date/URL or attachment as **external reference** on the statement or in a one-to-one linked record. Store payments as separate `ExternalPaymentRecord` rows (amount, currency, paid date, reference, recorder, optional correction/reversal), not as a manually editable payment-status enum. `paid = sum(non-reversed payments)`, `outstanding = max(0, charged total - paid)`, and `UNPAID`/`PARTIAL`/`PAID` are derived. In MVP, manual external invoice/payment tracking may be limited to these records; it is not a general ledger. Do not count draft statements as receivables. Void or correct sent statements explicitly while preserving history; never silently recycle a sent statement number.
+Store an optional formal external invoice number/date/URL or attachment as an **external reference** on the statement or in a one-to-one linked record. Do not store payment transactions, paid/outstanding amounts, or payment status; payment tracking remains in the external financial system. Void or correct sent statements explicitly while preserving history; never silently recycle a sent statement number.
 
 ### Summary calculations
 
@@ -81,44 +81,41 @@ Store an optional formal external invoice number/date/URL or attachment as **ext
 - **Unbilled work:** sum of `READY + BILLABLE` entries that are not reserved on a draft or already sent; show reserved draft amounts separately if needed.
 - **No-charge/included:** tracked effort and zero client charge, never revenue.
 - **Sent statements:** sum of frozen billable line amounts; a statement with zero-charge lines can still total zero.
-- **Externally unpaid:** sum of outstanding on sent, non-void statements with manual external tracking. If there is no corresponding external invoice, label the value “unmatched sent statements” rather than a legally recognized receivable.
 - Aggregate by workspace, client, case and performer; never sum unlike currencies without conversion.
 
 ## 4. Data model proposal
 
 The exact Prisma syntax should follow the repository's migration conventions. Suggested entities and fields:
 
-| Entity | Essential data | Constraints / relationships |
-| --- | --- | --- |
-| `BillingEntry` | workspace, client, optional case, performer, sourceType/sourceId, kind, disposition, lifecycle, date, description, actual/billed minutes, quantity, unit/rate, amount `Decimal`, currency, reason, price source version, creator/updater, timestamps | Validate client/case/workspace and performer membership; index workspace + client/case/date/status; linked entry may appear on at most one active statement |
-| `BillingSuggestionReview` | workspace, sourceType/sourceId, proposed performer, resolution `PENDING/RECORDED/DISMISSED`, actor, date, optional entry link | Stable unique candidate identity; supports reopening and idempotent completion hooks |
-| `PriceSource` and `PriceSourceVersion` | scope, workspace, optional client/case, title, versioned raw text, source metadata, effective dates, author | One current version pointer or active flag; append version instead of overwrite; old version referenced by old entries |
-| `BillingStatement` | workspace, client, internal number, period, currency, status, shared method/date, external invoice reference, timestamps | Unique number per workspace, sent snapshot immutable, client remains consistent |
-| `BillingStatementLine` | statement, entry, order, client-facing service snapshot, amount `Decimal`, currency, charge label, case snapshot | All lines belong to statement's client; prevent entry appearing on two active statements; zero amount for included/no charge |
-| `ExternalPaymentRecord` | workspace, statement, paid amount `Decimal`, currency, paid date, external reference, actor, optional reversal | Positive amounts; no cross-client/workspace link; sums cannot exceed statement total without explicit overpayment policy |
+| Entity                                 | Essential data                                                                                                                                                                                                                                       | Constraints / relationships                                                                                                                                 |
+| -------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BillingEntry`                         | workspace, client, optional case, performer, sourceType/sourceId, kind, disposition, lifecycle, date, description, actual/billed minutes, quantity, unit/rate, amount `Decimal`, currency, reason, price source version, creator/updater, timestamps | Validate client/case/workspace and performer membership; index workspace + client/case/date/status; linked entry may appear on at most one active statement |
+| `BillingSuggestionReview`              | workspace, sourceType/sourceId, proposed performer, resolution `PENDING/RECORDED/DISMISSED`, actor, date, optional entry link                                                                                                                        | Stable unique candidate identity; supports reopening and idempotent completion hooks                                                                        |
+| `PriceSource` and `PriceSourceVersion` | scope, workspace, optional client/case, title, versioned raw text, source metadata, effective dates, author                                                                                                                                          | One current version pointer or active flag; append version instead of overwrite; old version referenced by old entries                                      |
+| `BillingStatement`                     | workspace, client, internal number, period, currency, status, shared method/date, external invoice reference, timestamps                                                                                                                             | Unique number per workspace, sent snapshot immutable, client remains consistent                                                                             |
+| `BillingStatementLine`                 | statement, entry, order, client-facing service snapshot, amount `Decimal`, currency, charge label, case snapshot                                                                                                                                     | All lines belong to statement's client; prevent entry appearing on two active statements; zero amount for included/no charge                                |
 
-Use Prisma `Decimal` with an explicit precision/scale for money, never JavaScript floating-point arithmetic for persisted totals. Store currency as an ISO code even if the initial UI defaults to `RSD`. Add reverse relations on `Workspace`, `Client`, `Case` and `User` as appropriate. Avoid cascade deletes that could erase sent financial history; existing `Client` and `Case` are archived rather than physically deleted in ordinary use. Use database transactions and a row lock or equivalent protection for concurrent statement composition/finalization and payment recording.
+Use Prisma `Decimal` with an explicit precision/scale for money, never JavaScript floating-point arithmetic for persisted totals. Store currency as an ISO code even if the initial UI defaults to `RSD`. Add reverse relations on `Workspace`, `Client`, `Case` and `User` as appropriate. Avoid cascade deletes that could erase sent financial history; existing `Client` and `Case` are archived rather than physically deleted in ordinary use. Use database transactions and a row lock or equivalent protection for concurrent statement composition/finalization.
 
 ## 5. API and service boundaries
 
 Keep financial logic in one NestJS feature module, calling existing domain/read services rather than introducing write dependencies into every Case/Task/Event service. Initial endpoints, adjusted to repository naming/contracts:
 
-| Endpoint | Purpose |
-| --- | --- |
-| `GET /api/financials/overview` | Scoped counts and totals with currency and date filters |
-| `GET /api/financials/candidates` | Cursor/paginated, filtered candidate inbox with source display refs |
-| `POST /api/financials/candidates/:key/dismiss` / `.../reopen` | Persist review decision idempotently |
-| `GET/POST /api/financials/entries` | List and manually record time, fee, expense |
-| `GET/PATCH /api/financials/entries/:id` | Detail/edit allowed states; validate transitions |
-| `GET/POST /api/financials/price-sources` and `GET/POST /:id/versions` | List, inspect and append raw-text versions |
-| `GET/POST /api/financials/statements`, `GET/PATCH /:id` | List, compose and edit draft |
-| `POST /api/financials/statements/:id/send` / `.../void` | Explicit state transitions with audited actor |
-| `POST /api/financials/statements/:id/payments` | Record a verified external payment |
-| `GET /api/financials/clients/:clientId/account` | Client case, entry and statement summary |
+| Endpoint                                                              | Purpose                                                             |
+| --------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `GET /api/financials/overview`                                        | Scoped counts and totals with currency and date filters             |
+| `GET /api/financials/candidates`                                      | Cursor/paginated, filtered candidate inbox with source display refs |
+| `POST /api/financials/candidates/:key/dismiss` / `.../reopen`         | Persist review decision idempotently                                |
+| `GET/POST /api/financials/entries`                                    | List and manually record time, fee, expense                         |
+| `GET/PATCH /api/financials/entries/:id`                               | Detail/edit allowed states; validate transitions                    |
+| `GET/POST /api/financials/price-sources` and `GET/POST /:id/versions` | List, inspect and append raw-text versions                          |
+| `GET/POST /api/financials/statements`, `GET/PATCH /:id`               | List, compose and edit draft                                        |
+| `POST /api/financials/statements/:id/send` / `.../void`               | Explicit state transitions with audited actor                       |
+| `GET /api/financials/clients/:clientId/account`                       | Client case, entry and statement summary                            |
 
-Expose shallow display references for client/case/user as the other app APIs do; keep request payloads and filters ID-based. Use the authenticated workspace context, existing CSRF/origin protection, validation and shared API contracts/clients. Add explicit finance permissions: a lawyer can record and see permitted own work; a finance manager (at first OWNER/ADMIN unless existing permissions provide a better fit) can edit office price sources, view all amounts, finalize statements, and record external payments. `MEMBER` must not receive all-client finances merely from workspace membership. Respect any existing case visibility rules. Validate scope server-side even when the frontend filters choices.
+Expose shallow display references for client/case/user as the other app APIs do; keep request payloads and filters ID-based. Use the authenticated workspace context, existing CSRF/origin protection, validation and shared API contracts/clients. Add explicit finance permissions: a lawyer can record and see permitted own work; a finance manager (at first OWNER/ADMIN unless existing permissions provide a better fit) can edit office price sources, view all amounts, finalize statements, and manage external invoice references. `MEMBER` must not receive all-client finances merely from workspace membership. Respect any existing case visibility rules. Validate scope server-side even when the frontend filters choices.
 
-Create financial audit events for amount changes, price-source versions, candidate decisions, statements, external references and payments. Avoid writing full sensitive pasted price text or document bodies into the audit log. Use idempotency for mutation retries that can create statements/payments, plus unique constraints and transactional checks. Do not let a background event completion service create a charge. Prefer a Finance candidate builder on read, or a narrow domain event subscribed by Finance, with deduplication.
+Create financial audit events for amount changes, price-source versions, candidate decisions, statements, and external references. Avoid writing full sensitive pasted price text or document bodies into the audit log. Use idempotency for mutation retries that can create statements, plus unique constraints and transactional checks. Do not let a background event completion service create a charge. Prefer a Finance candidate builder on read, or a narrow domain event subscribed by Finance, with deduplication.
 
 ## 6. Future AI agent: exact responsibility and workflow
 
@@ -164,8 +161,8 @@ Persist original free-form price text with versions and attribution; stable IDs 
 ## 8. Delivery order and acceptance
 
 1. **Backend foundations:** migrations, scoped contracts and permissions, entries, deterministic review candidate/decision, price-source versioning.
-2. **Statement core:** draft composer, reserved entries, immutable send transition, preview/print representation, external invoice references and payment records.
+2. **Statement core:** draft composer, reserved entries, immutable send transition, preview/print representation and external invoice references.
 3. **Frontend:** pages and dialogs from the prototype, filters, validation, totals, loading/empty/error states, localization and responsive layout.
 4. **Later AI:** only after reviewed entries, price versions, statement line snapshots, auth and auditing work end to end.
 
-Acceptance cases: same completed event is not repeatedly suggested after dismissal; multi-worker and multi-client events require deliberate choices; Case/Client mismatches and cross-workspace IDs fail; one entry cannot be placed on two active statements; draft edits work and sent snapshots stay unchanged; included/no-charge shows zero only when selected; totals use Decimal; partial external payment changes derived outstanding; price-source edits create new versions while prior statements keep their old amount and citation; finance access is enforced on API endpoints. The frontend must never treat a source record or AI proposal as an approved charge.
+Acceptance cases: same completed event is not repeatedly suggested after dismissal; multi-worker and multi-client events require deliberate choices; Case/Client mismatches and cross-workspace IDs fail; one entry cannot be placed on two active statements; draft edits work and sent snapshots stay unchanged; included/no-charge shows zero only when selected; totals use Decimal; price-source edits create new versions while prior statements keep their old amount and citation; finance access is enforced on API endpoints. The frontend must never treat a source record or AI proposal as an approved charge.

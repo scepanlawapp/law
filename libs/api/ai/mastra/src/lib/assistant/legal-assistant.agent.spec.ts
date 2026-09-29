@@ -95,14 +95,12 @@ function deps(
     listWorkItems: jest.fn().mockResolvedValue(emptyList),
     getAgenda: jest.fn().mockResolvedValue(emptyList),
     listActivity: jest.fn().mockResolvedValue(emptyList),
-    listDocuments: jest
-      .fn()
-      .mockResolvedValue({
-        status: "OK",
-        case: null,
-        items: [],
-        truncated: false,
-      }),
+    listDocuments: jest.fn().mockResolvedValue({
+      status: "OK",
+      case: null,
+      items: [],
+      truncated: false,
+    }),
     readDocument: jest
       .fn()
       .mockResolvedValue({ status: "NOT_FOUND", message: "none" }),
@@ -351,10 +349,7 @@ describe("assistant tools", () => {
       { from: "2026-09-28", to: "2026-10-04", person: "Marko" },
       context,
     );
-    await createListActivityTool(toolDeps).execute?.(
-      { includeNotes: true, limit: 5 },
-      context,
-    );
+    await createListActivityTool(toolDeps).execute?.({ limit: 5 }, context);
 
     expect(toolDeps.searchCases).toHaveBeenCalledWith(turn, {
       query: "Razvod",
@@ -379,7 +374,6 @@ describe("assistant tools", () => {
       person: "Marko",
     });
     expect(toolDeps.listActivity).toHaveBeenCalledWith(turn, {
-      includeNotes: true,
       limit: 5,
       linkedCaseId: "case-1",
     });
@@ -401,7 +395,7 @@ describe("assistant tools", () => {
     ).toMatchObject({ person: "me" });
     expect(work.parse({})).toEqual({ kind: "all", state: "open" });
     expect(work.safeParse({ kind: "invoice" }).success).toBe(false);
-    expect(activity.parse({})).toEqual({ includeNotes: true, limit: 10 });
+    expect(activity.parse({})).toEqual({ limit: 10 });
     expect(activity.safeParse({ limit: 100 }).success).toBe(false);
   });
 

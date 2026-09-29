@@ -77,7 +77,6 @@ function fullStatement() {
     currency: "RSD",
     status: "DRAFT",
     lines: [statementLine()],
-    payments: [],
   };
 }
 

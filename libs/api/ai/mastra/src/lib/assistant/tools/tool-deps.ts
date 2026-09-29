@@ -93,8 +93,8 @@ export interface AssistantWorkItem {
 export interface AssistantActivityEntry {
   /** YYYY-MM-DD HH:mm (Europe/Belgrade). */
   date: string;
-  /** NOTE: a written note; JOURNAL: a logged call/meeting/email; LOG: a work-item change. */
-  kind: "NOTE" | "JOURNAL" | "LOG";
+  /** JOURNAL: a logged call/meeting/email; LOG: a work-item change. */
+  kind: "JOURNAL" | "LOG";
   type: string;
   title: string | null;
   text: string | null;
@@ -142,7 +142,6 @@ export interface WorkItemQuery {
 export interface ActivityQuery {
   case?: string;
   client?: string;
-  includeNotes: boolean;
   limit: number;
   linkedCaseId: string | null;
 }

@@ -195,7 +195,7 @@
         class="rounded-lg border border-border"
         [attr.aria-busy]="loading()"
       >
-        <table hlmTable class="w-full min-w-[880px]">
+        <table hlmTable class="w-full min-w-[780px]">
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh>{{ "finance.statementNumber" | translate }}</th>
@@ -205,9 +205,6 @@
               <th hlmTh>{{ "finance.status" | translate }}</th>
               <th hlmTh class="text-right">
                 {{ "finance.total" | translate }}
-              </th>
-              <th hlmTh class="text-right">
-                {{ "finance.outstanding" | translate }}
               </th>
               <th hlmTh class="w-24 text-right">
                 {{ "finance.actions" | translate }}
@@ -239,11 +236,6 @@
                 </td>
                 <td hlmTd class="text-right tabular-nums">
                   {{ formatCurrency(statement.total, statement.currency) }}
-                </td>
-                <td hlmTd class="text-right tabular-nums">
-                  {{
-                    formatCurrency(statement.outstanding, statement.currency)
-                  }}
                 </td>
                 <td hlmTd>
                   @if (statement.status === "DRAFT") {

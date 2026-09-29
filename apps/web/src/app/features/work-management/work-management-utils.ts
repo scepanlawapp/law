@@ -2,7 +2,6 @@ import {
   ActivityLogSummary,
   DeadlineDetail,
   DeadlineStatus,
-  NoteType,
   TaskDetail,
   TaskStatus,
 } from "@law/api-interfaces";
@@ -78,8 +77,6 @@ export function isTaskOpen(status: TaskStatus): boolean {
 
 export function actionLabel(entry: ActivityLogSummary): string {
   const labels: Record<string, string> = {
-    NOTE_CREATED: "work.activity.noteCreated",
-    NOTE_UPDATED: "work.activity.noteUpdated",
     TASK_CREATED: "work.activity.taskCreated",
     TASK_UPDATED: "work.activity.taskUpdated",
     TASK_DONE: "work.activity.taskDone",
@@ -96,13 +93,4 @@ export function actionLabel(entry: ActivityLogSummary): string {
     EVENT_CANCELLED: "work.activity.eventCancelled",
   };
   return labels[entry.action] ?? "work.activity.other";
-}
-
-export function noteTypeLabel(type: NoteType): string {
-  return `work.noteType.${type.toLowerCase()}`;
-}
-
-export function preview(body: string): string {
-  const compact = body.replace(/\s+/g, " ").trim();
-  return compact.length > 160 ? `${compact.slice(0, 157)}...` : compact;
 }

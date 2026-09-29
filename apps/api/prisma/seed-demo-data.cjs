@@ -323,22 +323,6 @@ const EVENT_TEMPLATES = [
   { type: "OTHER", title: "Uviđaj" },
   { type: "OTHER", title: "Dostava dokumentacije" },
 ];
-const NOTE_TEMPLATES = [
-  {
-    type: "GENERAL",
-    body: "Opšta beleška o statusu predmeta i narednim koracima.",
-  },
-  { type: "CALL_SUMMARY", body: "Rezime telefonskog razgovora sa klijentom." },
-  {
-    type: "MEETING_SUMMARY",
-    body: "Rezime sastanka: dogovorene su naredne aktivnosti i rokovi.",
-  },
-  {
-    type: "CASE_UPDATE",
-    body: "Ažuriranje statusa predmeta nakon poslednje aktivnosti.",
-  },
-];
-
 function localPart(firstName, lastName) {
   return `${firstName}.${lastName}`
     .toLowerCase()
@@ -1062,41 +1046,6 @@ async function ensureDeadlines(
   return activityLogRows;
 }
 
-async function ensureNotes(prisma, workspaceId, actorUserId, cases, clients) {
-  const activityLogRows = [];
-  for (let i = 0; i < 22; i++) {
-    const template = pick(NOTE_TEMPLATES);
-    const linkedCase = random() < 0.7 ? pick(cases) : null;
-    const client = linkedCase
-      ? clients.find((c) => c.id === linkedCase.clientId)
-      : pick(clients);
-    const occurredAt = dateBetween(new Date("2026-02-01"), TODAY);
-    const note = await prisma.note.create({
-      data: {
-        workspaceId,
-        type: template.type,
-        body: `${template.body} (${client ? client.displayName : "opšta napomena"})`,
-        occurredAt,
-        caseId: linkedCase ? linkedCase.id : null,
-        clientId: !linkedCase && client ? client.id : null,
-        createdByUserId: actorUserId,
-      },
-    });
-    activityLogRows.push({
-      workspaceId,
-      action: "NOTE_CREATED",
-      actorUserId,
-      occurredAt: note.createdAt,
-      caseId: note.caseId,
-      clientId: note.clientId,
-      entityType: "Note",
-      entityId: note.id,
-      metadata: { type: note.type },
-    });
-  }
-  return activityLogRows;
-}
-
 async function ensureBillingStatement(prisma, workspaceId, actorUserId, cases) {
   const primaryCase = cases[0];
   if (!primaryCase) return;
@@ -1249,7 +1198,7 @@ async function main() {
     });
     if (marker) {
       console.log(
-        "Demo work-item data already seeded (events/tasks/deadlines/notes) — skipping to avoid duplicates.",
+        "Demo work-item data already seeded (events/tasks/deadlines) — skipping to avoid duplicates.",
       );
       console.log(
         "Delete existing Events/Tasks/Deadlines/Notes/ActivityLog rows to reseed them.",
@@ -1282,7 +1231,6 @@ async function main() {
         clients,
         lawyers,
       )),
-      ...(await ensureNotes(prisma, workspaceId, adminUser.id, cases, clients)),
     ];
     activityLogRows.push({
       workspaceId,
