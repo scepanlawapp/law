@@ -142,7 +142,7 @@ The calendar is the finished frontend surface for the event/calendar portion of 
 - Multi-day event segmentation and overlap layout in the week view.
 - The week view uses non-interactive date headers plus a sticky tasks/deadlines row while the hourly event grid scrolls. Obligation entries are one-line, truncated, red-marked, and selectable; selection opens the existing details popover rather than duplicating it in a tooltip.
 - Event detail popovers/menu actions and event create/edit dialog.
-- Separate Calendar actions create obligations/events or open the reusable deadline dialog with the selected date prefilled; successful deadline creation refreshes the visible range.
+- Separate Calendar actions create obligations/events or open the reusable deadline dialog with the selected date prefilled; successful deadline creation refreshes the visible range. Editing a Calendar deadline loads its full detail, opens the same deadline dialog in edit mode, and refreshes the range after save.
 - Event form validation, including end-after-start validation, and API-backed create/update operations.
 - Calendar state is represented with Angular signals and uses the shared API clients.
 
