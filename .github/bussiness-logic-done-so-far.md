@@ -168,10 +168,10 @@ The case detail page has an additional Work tab, alongside the existing Overview
 The dashboard is a real, API-backed landing page (previously an empty placeholder), composed from a dashboard-scoped facade (`DashboardStore`) and reusable presentation components rather than one large component:
 
 - A greeting (authenticated user's name with a safe fallback) and an assistant prompt box that hands the entered text to the existing assistant page once, via a one-time query parameter the assistant consumes and immediately strips from the URL — no second chat implementation and no auto-sent/duplicated messages.
-- Four summary cards (active cases workspace-wide, upcoming hearings for the current user in the next 7 days, pending tasks assigned to the current user including tasks without due dates, and a documents count marked explicitly unavailable since document counting is not implemented). Counts use bounded queries (`pageSize: 1` reads against each existing list endpoint's authoritative `meta.totalItems`), never the length of a fetched page.
+- Four summary cards (active cases workspace-wide, upcoming hearings for the current user in the next 7 days, pending tasks assigned to the current user including tasks without due dates, and total documents workspace-wide including archived records). Counts use bounded queries (`pageSize: 1` reads against each existing list endpoint's authoritative `meta.totalItems`), never the length of a fetched page.
 - An Upcoming obligations panel built on the existing calendar aggregation endpoint (deduplicated, unfinished Task/Deadline/Event items for the current user in the next 7 days), with a separate overdue count/link into My work so overdue items remain visible outside the 7-day window, and item selection opens the existing Task/Deadline/Event dialogs.
 - A Recent activity panel built on the existing ActivityLog endpoint, reusing the same action-label mapping as the Team/My work views.
-- The Notifications panel points users to the real header notification bell and notification settings. The Total documents stat remains explicitly unavailable because aggregate document counting is not implemented.
+- The Notifications panel reuses the root notification store shared with the header, shows the four latest notifications with unread state, context, relative time, loading/error/empty handling, marks selected items read, and navigates to My work or Calendar. Its settings action still opens workspace notification preferences.
 
 ## In-app notifications
 

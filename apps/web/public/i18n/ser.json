@@ -745,8 +745,6 @@
   "dashboard.viewAll": "Prikaži sve",
   "dashboard.viewRelatedRecord": "Prikaži povezani zapis",
   "dashboard.notifications": "Obaveštenja",
-  "dashboard.notificationsUnavailable": "Obaveštenja će se prikazati ovde kada podsetnici i dostava obaveštenja budu dostupni.",
-  "dashboard.notificationsInHeader": "Otvorite zvono u zaglavlju da pregledate najnovija obaveštenja.",
   "dashboard.notificationSettings": "Podešavanja",
   "dashboard.casesOverview": "Pregled predmeta",
   "dashboard.caseNumber": "Broj predmeta",

@@ -746,8 +746,6 @@
   "dashboard.viewAll": "View all",
   "dashboard.viewRelatedRecord": "View related record",
   "dashboard.notifications": "Notifications",
-  "dashboard.notificationsUnavailable": "Notifications will appear here when reminders and notification delivery are available.",
-  "dashboard.notificationsInHeader": "Open the bell in the header to review your latest notifications.",
   "dashboard.notificationSettings": "Settings",
   "dashboard.casesOverview": "Cases overview",
   "dashboard.caseNumber": "Case number",

@@ -7,11 +7,14 @@ import {
   lucideArrowUp,
   lucideBot,
   lucideCalendarPlus,
+  lucideCalendar,
+  lucideCheckCheck,
   lucideClock,
   lucideFilePlus,
   lucideFolderPlus,
   lucideSparkles,
   lucideSquareCheck,
+  lucideTriangleAlert,
   lucideUserPlus,
 } from "@ng-icons/lucide";
 import {
@@ -25,7 +28,13 @@ import {
 } from "@spartan-ng/helm/table";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
-import { CalendarItem, DeadlineDetail, TaskDetail } from "@law/api-interfaces";
+import {
+  CalendarItem,
+  DeadlineDetail,
+  NotificationDto,
+  NotificationType,
+  TaskDetail,
+} from "@law/api-interfaces";
 import { WorkManagementApiClient } from "@law/api-clients";
 import { AuthState } from "@law/security";
 import { ActivityFeedComponent } from "../../shared/components/activity-feed/activity-feed.component";
@@ -43,6 +52,7 @@ import { ObligationItem, obligationToCalendarItem } from "./dashboard.models";
 import { DashboardStore } from "./dashboard.store";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 import { nameInVocative } from "../../shared/utils";
+import { NotificationsStore } from "../../core/notifications/notifications.store";
 
 const PROMPT_SUGGESTION_KEYS = [
   "dashboard.suggestSummarizeCase",
@@ -50,6 +60,21 @@ const PROMPT_SUGGESTION_KEYS = [
   "dashboard.suggestExplainDeadline",
   "dashboard.suggestFindSimilarCases",
 ] as const;
+
+const NOTIFICATION_ICON: Record<NotificationType, string> = {
+  DEADLINE_ASSIGNED: "lucideClock",
+  DEADLINE_DUE_SOON: "lucideTriangleAlert",
+  DEADLINE_DUE_TODAY: "lucideTriangleAlert",
+  DEADLINE_OVERDUE: "lucideTriangleAlert",
+  DEADLINE_CHANGED: "lucideClock",
+  TASK_ASSIGNED: "lucideCheckCheck",
+  TASK_DUE_SOON: "lucideCheckCheck",
+  TASK_DUE_TODAY: "lucideCheckCheck",
+  TASK_OVERDUE: "lucideTriangleAlert",
+  EVENT_UPCOMING: "lucideCalendar",
+  EVENT_CHANGED: "lucideCalendar",
+  EVENT_CANCELLED: "lucideCalendar",
+};
 
 @Component({
   selector: "law-dashboard",
@@ -80,12 +105,15 @@ const PROMPT_SUGGESTION_KEYS = [
     provideIcons({
       lucideArrowUp,
       lucideBot,
+      lucideCalendar,
       lucideCalendarPlus,
+      lucideCheckCheck,
       lucideClock,
       lucideFilePlus,
       lucideFolderPlus,
       lucideSparkles,
       lucideSquareCheck,
+      lucideTriangleAlert,
       lucideUserPlus,
     }),
   ],
@@ -102,9 +130,13 @@ export class DashboardComponent {
   private readonly clientDialog = inject(ClientFormDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly settingsStore = inject(UserSettingsStore);
+  protected readonly notifications = inject(NotificationsStore);
 
   protected readonly promptControl = new FormControl("", { nonNullable: true });
   protected readonly suggestionKeys = PROMPT_SUGGESTION_KEYS;
+  protected readonly recentNotifications = computed(() =>
+    this.notifications.items().slice(0, 4),
+  );
 
   protected readonly greetingName = computed(() => {
     const profile = this.settingsStore.profile();
@@ -112,11 +144,7 @@ export class DashboardComponent {
     const lastName = profile?.lastName?.trim();
     const username = profile?.username?.trim();
 
-    if (
-      this.localization.language() === "SR" &&
-      firstName &&
-      profile?.gender
-    ) {
+    if (this.localization.language() === "SR" && firstName && profile?.gender) {
       return nameInVocative(firstName, profile.gender);
     }
     if (lastName && profile?.gender) {
@@ -140,6 +168,7 @@ export class DashboardComponent {
 
   constructor() {
     this.store.refreshAll();
+    this.notifications.open();
   }
 
   protected applySuggestion(key: string): void {
@@ -224,6 +253,55 @@ export class DashboardComponent {
       .subscribe((result) => {
         if (result) this.refreshAfterMutation();
       });
+  }
+
+  protected notificationIcon(type: NotificationType): string {
+    return NOTIFICATION_ICON[type];
+  }
+
+  protected notificationContext(item: NotificationDto): string {
+    return item.metadata?.caseName ?? item.metadata?.clientName ?? "";
+  }
+
+  protected notificationRelativeTime(value: string): string {
+    const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
+    const formatter = new Intl.RelativeTimeFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { numeric: "auto" },
+    );
+    const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+      ["year", 31_536_000],
+      ["month", 2_592_000],
+      ["week", 604_800],
+      ["day", 86_400],
+      ["hour", 3_600],
+      ["minute", 60],
+    ];
+    for (const [unit, size] of ranges) {
+      if (Math.abs(seconds) >= size) {
+        return formatter.format(Math.round(seconds / size), unit);
+      }
+    }
+    return formatter.format(seconds, "second");
+  }
+
+  protected openNotification(item: NotificationDto): void {
+    this.notifications.markRead(item);
+    if (item.entityType === "TASK") {
+      void this.router.navigate(["/work/my"], {
+        queryParams: { search: item.message },
+      });
+      return;
+    }
+    if (item.entityType === "DEADLINE" || item.entityType === "EVENT") {
+      const date =
+        item.metadata?.dueDate ??
+        item.metadata?.dueAt?.slice(0, 10) ??
+        item.metadata?.startsAt?.slice(0, 10);
+      void this.router.navigate(["/calendar"], {
+        queryParams: { view: "list", ...(date ? { date } : {}) },
+      });
+    }
   }
 
   private refreshAfterMutation(): void {

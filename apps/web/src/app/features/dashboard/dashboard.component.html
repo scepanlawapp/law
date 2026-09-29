@@ -111,7 +111,10 @@
     <law-dashboard-stat-card
       [title]="'dashboard.statTotalDocuments' | translate"
       icon="lucideFileText"
-      [unavailable]="true"
+      [value]="store.totalDocumentsCount() ?? undefined"
+      [loading]="store.statsLoading()"
+      subtitleKey="dashboard.scopeWorkspace"
+      routerLink="/documents"
     />
   </div>
   @if (store.statsError()) {
@@ -169,10 +172,64 @@
       titleKey="dashboard.notifications"
       actionLabelKey="dashboard.notificationSettings"
       actionLink="/settings/workspace"
+      [loading]="notifications.loading()"
+      [error]="notifications.error()"
+      [empty]="!notifications.loading() && recentNotifications().length === 0"
+      emptyKey="header.noNotifications"
+      (retry)="notifications.retry()"
     >
-      <p class="py-4 text-sm text-muted-foreground">
-        {{ "dashboard.notificationsInHeader" | translate }}
-      </p>
+      <div class="-mx-2 flex flex-col">
+        @for (notification of recentNotifications(); track notification.id) {
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            class="h-auto w-full justify-start gap-3 whitespace-normal px-2 py-3 text-start"
+            [class.bg-accent]="!notification.isRead"
+            (click)="openNotification(notification)"
+          >
+            <span
+              class="grid size-8 shrink-0 place-items-center rounded-full bg-muted text-muted-foreground"
+              aria-hidden="true"
+            >
+              <ng-icon [name]="notificationIcon(notification.type)" />
+            </span>
+            <span class="min-w-0 flex-1">
+              <span class="flex items-start gap-2">
+                <strong
+                  class="min-w-0 flex-1 text-sm"
+                  [class.font-semibold]="!notification.isRead"
+                  [class.font-normal]="notification.isRead"
+                >
+                  {{ notification.title }}
+                </strong>
+                @if (!notification.isRead) {
+                  <span
+                    class="mt-1.5 size-2 shrink-0 rounded-full bg-primary"
+                    aria-hidden="true"
+                  ></span>
+                  <span class="sr-only">{{ "header.unread" | translate }}</span>
+                }
+              </span>
+              <span
+                class="mt-0.5 block text-sm leading-snug text-muted-foreground"
+              >
+                {{ notification.message }}
+              </span>
+              <span
+                class="mt-1 flex flex-wrap gap-x-2 text-sm text-muted-foreground"
+              >
+                @if (notificationContext(notification); as context) {
+                  <span>{{ context }}</span>
+                }
+                <time [attr.datetime]="notification.createdAt">
+                  {{ notificationRelativeTime(notification.createdAt) }}
+                </time>
+              </span>
+            </span>
+          </button>
+        }
+      </div>
     </law-section-panel>
   </div>
 

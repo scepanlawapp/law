@@ -4,6 +4,7 @@ import {
   CalendarApiClient,
   CasesApiClient,
   ClientsApiClient,
+  DocumentsApiClient,
   EventsApiClient,
   ReferencesApiClient,
   WorkManagementApiClient,
@@ -39,6 +40,7 @@ export class DashboardStore {
   private readonly workApi = inject(WorkManagementApiClient);
   private readonly eventsApi = inject(EventsApiClient);
   private readonly calendarApi = inject(CalendarApiClient);
+  private readonly documentsApi = inject(DocumentsApiClient);
   private readonly referencesApi = inject(ReferencesApiClient);
   private readonly auth = inject(AuthState);
   private readonly destroyRef = inject(DestroyRef);
@@ -49,6 +51,7 @@ export class DashboardStore {
   readonly activeCasesCount = signal<number | null>(null);
   readonly upcomingHearingsCount = signal<number | null>(null);
   readonly pendingTasksCount = signal<number | null>(null);
+  readonly totalDocumentsCount = signal<number | null>(null);
   readonly overdueCount = signal<number | null>(null);
 
   // Upcoming obligations (next 7 days)
@@ -92,6 +95,7 @@ export class DashboardStore {
     this.activeCasesCount.set(null);
     this.upcomingHearingsCount.set(null);
     this.pendingTasksCount.set(null);
+    this.totalDocumentsCount.set(null);
     this.overdueCount.set(null);
     this.obligations.set([]);
     this.activityItems.set([]);
@@ -129,6 +133,11 @@ export class DashboardStore {
         page: 1,
         pageSize: 1,
       }),
+      documents: this.documentsApi.list({
+        archived: "all",
+        page: 1,
+        pageSize: 1,
+      }),
       overdueTasks: this.workApi.listTasks({
         assigneeUserIds: [userId],
         statuses: ["TODO", "IN_PROGRESS"],
@@ -150,6 +159,7 @@ export class DashboardStore {
           this.activeCasesCount.set(result.activeCases.meta.totalItems);
           this.upcomingHearingsCount.set(result.hearings.meta.totalItems);
           this.pendingTasksCount.set(result.pendingTasks.meta.totalItems);
+          this.totalDocumentsCount.set(result.documents.meta.totalItems);
           this.overdueCount.set(
             result.overdueTasks.meta.totalItems +
               result.overdueDeadlines.meta.totalItems,
