@@ -1040,6 +1040,23 @@ export interface RecordBillingStatementLinesRequest {
   items: RecordBillingStatementLineItemRequest[];
 }
 
+export interface CreateBillingStatementLineRequest {
+  clientId: string;
+  performedByUserId?: string;
+  serviceDate?: string;
+  description: string;
+  amount: number;
+  currency: string;
+  sourceType?: string;
+  sourceId?: string;
+}
+
+export interface UpdateBillingStatementLineRequest {
+  description?: string;
+  amount?: number;
+  currency?: string;
+}
+
 export interface BillingStatementLineSummary {
   id: string;
   statementId: string | null;
@@ -1072,6 +1089,15 @@ export interface BillingStatementSummary {
   outstanding: string;
   paymentStatus: "UNPAID" | "PARTIAL" | "PAID";
   lines: BillingStatementLineSummary[];
+}
+
+export interface CreateBillingStatementRequest {
+  clientId: string;
+  periodStart: string;
+  periodEnd: string;
+  currency: string;
+  lineIds?: string[];
+  idempotencyKey?: string;
 }
 
 export type PriceEvidence = {

@@ -59,6 +59,10 @@ import {
   DocumentUpdateRequest,
   DocumentVersionListResponse,
   BillingStatementLineSummary,
+  BillingStatement,
+  BillingStatementSummary,
+  CreateBillingStatementLineRequest,
+  CreateBillingStatementRequest,
   AssignBillingCandidateClientResponse,
   BillingSuggestion,
   BillingSuggestionReview,
@@ -67,6 +71,7 @@ import {
   PriceSourceScope,
   ReviewBillingSuggestionsRequest,
   RecordBillingStatementLinesRequest,
+  UpdateBillingStatementLineRequest,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -1815,7 +1820,7 @@ export class FinancialsApiClient {
   }
 
   createLine(
-    body: Record<string, unknown>,
+    body: CreateBillingStatementLineRequest,
   ): Observable<BillingStatementLineSummary> {
     return this.http.post<BillingStatementLineSummary>(
       this.endpoint("/financials/lines"),
@@ -1826,7 +1831,7 @@ export class FinancialsApiClient {
 
   updateLine(
     id: string,
-    body: Record<string, unknown>,
+    body: UpdateBillingStatementLineRequest,
   ): Observable<BillingStatementLineSummary> {
     return this.http.patch<BillingStatementLineSummary>(
       this.endpoint(`/financials/lines/${id}`),
@@ -1842,6 +1847,23 @@ export class FinancialsApiClient {
     return this.http.post<BillingStatementLineSummary>(
       this.endpoint(`/financials/lines/${id}/cancel`),
       { reason },
+      { withCredentials: true },
+    );
+  }
+
+  statements(): Observable<BillingStatementSummary[]> {
+    return this.http.get<BillingStatementSummary[]>(
+      this.endpoint("/financials/statements"),
+      { withCredentials: true },
+    );
+  }
+
+  createStatement(
+    body: CreateBillingStatementRequest,
+  ): Observable<BillingStatement> {
+    return this.http.post<BillingStatement>(
+      this.endpoint("/financials/statements"),
+      body,
       { withCredentials: true },
     );
   }

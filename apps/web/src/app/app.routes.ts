@@ -23,6 +23,8 @@ import { CaseDetailComponent } from "./features/cases/case-detail.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
 import { FinancePriceSourcesComponent } from "./features/finance-price-sources/finance-price-sources.component";
 import { FinanceWorkReviewComponent } from "./features/finance-work-review/finance-work-review.component";
+import { FinanceStatementsComponent } from "./features/finance-statements/finance-statements.component";
+import { FinanceStatementCreateComponent } from "./features/finance-statements/finance-statement-create.component";
 import { ReportsComponent } from "./features/reports/reports.component";
 import { WorkViewComponent } from "./features/work-management/work-view/work-view.component";
 import { TasksDeadlinesRedirectComponent } from "./features/work-management/tasks-deadlines-redirect.component";
@@ -66,6 +68,11 @@ export const appRoutes: Route[] = [
           { path: "", pathMatch: "full", redirectTo: "work-review" },
           { path: "price-sources", component: FinancePriceSourcesComponent },
           { path: "work-review", component: FinanceWorkReviewComponent },
+          {
+            path: "statements/new",
+            component: FinanceStatementCreateComponent,
+          },
+          { path: "statements", component: FinanceStatementsComponent },
         ],
       },
       { path: "reports", component: ReportsComponent },

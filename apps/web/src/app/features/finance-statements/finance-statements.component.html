@@ -1,0 +1,219 @@
+<div class="space-y-6 text-sm">
+  <header class="flex flex-wrap items-start justify-between gap-4">
+    <div class="space-y-2">
+      <h1 class="text-2xl font-semibold">
+        {{ "finance.clientStatements" | translate }}
+      </h1>
+      <p class="text-muted-foreground">
+        {{ "finance.statementsDescription" | translate }}
+      </p>
+    </div>
+    <a hlmBtn routerLink="/finance/statements/new">
+      {{ "finance.newStatement" | translate }}
+    </a>
+  </header>
+
+  <section
+    class="space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm"
+  >
+    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="font-medium" for="statement-search">
+          {{ "finance.statementNumber" | translate }}
+        </label>
+        <input hlmInput id="statement-search" [formControl]="search" />
+      </div>
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="font-medium" for="statement-client-filter">
+          {{ "finance.client" | translate }}
+        </label>
+        <hlm-select
+          [formControl]="clientId"
+          [itemToString]="clientItemToString"
+        >
+          <hlm-select-trigger
+            id="statement-client-filter"
+            class="w-full min-w-0"
+          >
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              <hlm-select-item value="">
+                {{ "finance.allClients" | translate }}
+              </hlm-select-item>
+              @for (client of clients(); track client.id) {
+                <hlm-select-item [value]="client.id">
+                  {{ client.displayName }}
+                </hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+      </div>
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="font-medium" for="statement-status-filter">
+          {{ "finance.status" | translate }}
+        </label>
+        <hlm-select [formControl]="status" [itemToString]="statusItemToString">
+          <hlm-select-trigger
+            id="statement-status-filter"
+            class="w-full min-w-0"
+          >
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal>
+            <hlm-select-group>
+              @for (option of statusOptions; track option.value) {
+                <hlm-select-item [value]="option.value">
+                  {{ option.label | translate }}
+                </hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+      </div>
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="font-medium" for="statement-currency-filter">
+          {{ "finance.currency" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="statement-currency-filter"
+          maxlength="3"
+          class="uppercase"
+          [formControl]="currency"
+        />
+      </div>
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="font-medium" for="statement-from-filter">
+          {{ "finance.effectiveFrom" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="statement-from-filter"
+          type="date"
+          [formControl]="from"
+        />
+      </div>
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="font-medium" for="statement-to-filter">
+          {{ "finance.effectiveTo" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="statement-to-filter"
+          type="date"
+          [formControl]="to"
+        />
+      </div>
+    </div>
+
+    @if (hasFilters()) {
+      <button hlmBtn type="button" variant="outline" (click)="clearFilters()">
+        {{ "finance.clearFilters" | translate }}
+      </button>
+    }
+
+    @if (loading() && !loaded()) {
+      <div class="flex items-center gap-2 py-8" aria-live="polite">
+        <hlm-spinner />
+        <span>{{ "finance.loading" | translate }}</span>
+      </div>
+    } @else if (error()) {
+      <div
+        role="alert"
+        class="space-y-3 rounded-lg border border-destructive p-4"
+      >
+        <p>{{ "finance.loadError" | translate }}</p>
+        <button hlmBtn type="button" variant="outline" (click)="load()">
+          {{ "finance.retry" | translate }}
+        </button>
+      </div>
+    } @else if (!filteredStatements().length) {
+      <div hlmEmpty>
+        <div hlmEmptyHeader>
+          <h2 hlmEmptyTitle>{{ "finance.noStatementsTitle" | translate }}</h2>
+          <p hlmEmptyDescription>{{ "finance.noStatements" | translate }}</p>
+        </div>
+        <div hlmEmptyContent>
+          @if (hasFilters()) {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="clearFilters()"
+            >
+              {{ "finance.clearFilters" | translate }}
+            </button>
+          } @else {
+            <a hlmBtn routerLink="/finance/statements/new">
+              {{ "finance.newStatement" | translate }}
+            </a>
+          }
+        </div>
+      </div>
+    } @else {
+      <div hlmTableContainer [attr.aria-busy]="loading()">
+        <table hlmTable class="w-full min-w-[900px]">
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh>{{ "finance.statementNumber" | translate }}</th>
+              <th hlmTh>{{ "finance.client" | translate }}</th>
+              <th hlmTh>{{ "finance.period" | translate }}</th>
+              <th hlmTh>{{ "finance.currency" | translate }}</th>
+              <th hlmTh>{{ "finance.status" | translate }}</th>
+              <th hlmTh>{{ "finance.total" | translate }}</th>
+              <th hlmTh>{{ "finance.outstanding" | translate }}</th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (statement of visibleStatements(); track statement.id) {
+              <tr hlmTr>
+                <td hlmTd class="font-medium">
+                  {{ statement.statementNumber }}
+                </td>
+                <td hlmTd>{{ statement.client.displayName }}</td>
+                <td hlmTd>
+                  {{ formatDate(statement.periodStart) }} –
+                  {{ formatDate(statement.periodEnd) }}
+                </td>
+                <td hlmTd>{{ statement.currency }}</td>
+                <td hlmTd>{{ statusLabel(statement.status) }}</td>
+                <td hlmTd>{{ statement.total }} {{ statement.currency }}</td>
+                <td hlmTd>
+                  {{ statement.outstanding }} {{ statement.currency }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <p class="text-muted-foreground">
+          {{ "finance.page" | translate: { page: page(), total: pageCount() } }}
+        </p>
+        <div class="flex gap-2">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="page() === 1"
+            (click)="changePage(page() - 1)"
+          >
+            {{ "finance.previous" | translate }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="page() === pageCount()"
+            (click)="changePage(page() + 1)"
+          >
+            {{ "finance.next" | translate }}
+          </button>
+        </div>
+      </div>
+    }
+  </section>
+</div>
