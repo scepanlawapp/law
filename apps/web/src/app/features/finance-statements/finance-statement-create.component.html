@@ -80,6 +80,9 @@
           <hlm-field-error validator="required">
             {{ "finance.required" | translate }}
           </hlm-field-error>
+          <button hlmBtn size="sm" type="button" (click)="openClientDialog()">
+            {{ "clients.create" | translate }}
+          </button>
         </div>
         <div hlmField>
           <label hlmFieldLabel for="statement-period-start">

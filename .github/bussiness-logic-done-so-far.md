@@ -96,7 +96,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Event completion and cancellation transitions.
 - Event validation ensures the end time is after the start time.
 - Events can reference cases, clients, workspace assignees, and client contacts as attendees.
-- The event dialog exposes a responsible-user and optional-case selector; new events default responsibility to the signed-in user.
+- The event dialog exposes responsible-user, optional-client, and optional-case selectors; selecting a case selects its client, choosing an incompatible client clears the case, and new events default responsibility to the signed-in user.
 - Event creation/update trims user-entered text and records activity-log entries.
 
 ### Tasks

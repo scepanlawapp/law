@@ -1,0 +1,9 @@
+{
+  "track_id": "event_client_selector_20260929",
+  "parent_track_id": "work_creation_assignment_candidates_20260929",
+  "type": "fix",
+  "status": "completed",
+  "created_at": "2026-09-29T00:00:00Z",
+  "updated_at": "2026-09-29T00:00:00Z",
+  "keywords": ["calendar", "event", "client", "angular", "dialog"]
+}

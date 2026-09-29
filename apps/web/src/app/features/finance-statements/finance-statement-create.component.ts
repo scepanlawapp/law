@@ -30,6 +30,7 @@ import {
   normalizeCurrency,
 } from "./billing-statement-form";
 import { BillingStatementLineImportDialogService } from "./billing-statement-line-import-dialog.service";
+import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
 
 @Component({
   selector: "law-finance-statement-create",
@@ -57,6 +58,7 @@ export class FinanceStatementCreateComponent {
   );
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
+  private readonly clientDialog = inject(ClientFormDialogService);
 
   readonly clients = signal<ClientSummary[]>([]);
   readonly clientsLoading = signal(false);
@@ -273,6 +275,16 @@ export class FinanceStatementCreateComponent {
 
   private bumpRevision(): void {
     this.formRevision.update((value) => value + 1);
+  }
+
+  openClientDialog(): void {
+    this.clientDialog
+      .create()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((client) => {
+        if (!client) return;
+        this.form.controls.clientId.setValue(client.id);
+      });
   }
 }
 

@@ -7,9 +7,10 @@ import {
   Validators,
 } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { CaseSummary, EventDetail } from "@law/api-interfaces";
+import { CaseSummary, ClientSummary, EventDetail } from "@law/api-interfaces";
 import {
   CasesApiClient,
+  ClientsApiClient,
   EventRequest,
   EventsApiClient,
   ReferencesApiClient,
@@ -30,6 +31,11 @@ import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { EventDialogContext } from "./event-dialog.models";
+import {
+  clientIdForCase,
+  compatibleCaseId,
+  eventClientIds,
+} from "./event-dialog.utils";
 
 function localDateTime(value: string): string {
   const date = new Date(value);
@@ -60,6 +66,7 @@ function localDateTime(value: string): string {
 export class EventDialogComponent {
   private readonly api = inject(EventsApiClient);
   private readonly casesApi = inject(CasesApiClient);
+  private readonly clientsApi = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly auth = inject(AuthState);
   private readonly localization = inject(LocalizationService);
@@ -69,6 +76,7 @@ export class EventDialogComponent {
   readonly saving = signal(false);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly cases = signal<CaseSummary[]>([]);
+  readonly clients = signal<ClientSummary[]>([]);
   readonly eventId =
     this.context.event?.id ??
     (this.context.item?.sourceType === "EVENT"
@@ -76,6 +84,12 @@ export class EventDialogComponent {
       : undefined);
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().find((user) => user.id === value)?.name ?? "";
+  readonly clientItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("work.noClient");
+    return (
+      this.clients().find((client) => client.id === value)?.displayName ?? value
+    );
+  };
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("work.noCase");
     const caseItem = this.cases().find((item) => item.id === value);
@@ -120,6 +134,10 @@ export class EventDialogComponent {
         nonNullable: true,
       },
     ),
+    clientId: new FormControl(
+      this.context.event?.clients[0]?.id ?? this.context.item?.client?.id ?? "",
+      { nonNullable: true },
+    ),
   });
 
   constructor() {
@@ -156,6 +174,24 @@ export class EventDialogComponent {
         this.form.controls.endsAt.setValue(startsAt);
       });
 
+    this.form.controls.caseId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((caseId) => {
+        const clientId = clientIdForCase(this.cases(), caseId);
+        if (clientId) {
+          this.form.controls.clientId.setValue(clientId, { emitEvent: false });
+        }
+      });
+    this.form.controls.clientId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((clientId) => {
+        const caseId = this.form.controls.caseId.value;
+        const nextCaseId = compatibleCaseId(this.cases(), caseId, clientId);
+        if (nextCaseId !== caseId) {
+          this.form.controls.caseId.setValue(nextCaseId, { emitEvent: false });
+        }
+      });
+
     this.references
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -173,7 +209,24 @@ export class EventDialogComponent {
     this.casesApi
       .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((response) => this.cases.set(response.items));
+      .subscribe((response) => {
+        this.cases.set(response.items);
+        if (!this.form.controls.clientId.value) {
+          const clientId = clientIdForCase(
+            response.items,
+            this.form.controls.caseId.value,
+          );
+          if (clientId) {
+            this.form.controls.clientId.setValue(clientId, {
+              emitEvent: false,
+            });
+          }
+        }
+      });
+    this.clientsApi
+      .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.clients.set(response.items));
   }
 
   submit(): void {
@@ -182,7 +235,7 @@ export class EventDialogComponent {
       return;
     }
     const value = this.form.getRawValue();
-    const { responsibleUserId, caseId, ...eventValue } = value;
+    const { responsibleUserId, caseId, clientId, ...eventValue } = value;
     const request: EventRequest = {
       ...eventValue,
       description: value.description || undefined,
@@ -192,6 +245,7 @@ export class EventDialogComponent {
       endsAt: new Date(value.endsAt).toISOString(),
       caseId: caseId || undefined,
       assigneeUserIds: [responsibleUserId],
+      clientIds: eventClientIds(clientId),
     };
     if (new Date(request.endsAt) <= new Date(request.startsAt)) {
       this.form.controls.endsAt.setErrors({ order: true });

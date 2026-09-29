@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Draft Review Template Warning](./tracks/draft_review_template_warning_20260929/index.md)
+- [Event Client Selector](./tracks/event_client_selector_20260929/index.md)
 - [Billing Statement UI](./tracks/billing_statement_ui_20260929/index.md)
 - [Work Creation Assignment and Billing Candidates](./tracks/work_creation_assignment_candidates_20260929/index.md)
 - [Billing Statement Line Workflow](./tracks/billing_statement_line_workflow_20260928/index.md)
