@@ -17,3 +17,6 @@
 - [x] Add client controls to task and deadline create/edit dialogs.
 - [x] Submit the selected client and preserve contextual/edit defaults.
 - [x] Update business-logic documentation and verify the frontend build.
+- [x] Make missing-client warnings open the assignment dialog without starting billing.
+- [x] Open task/event edit dialogs from work-review source titles.
+- [x] Update Serbian labels, documentation, and frontend verification.

@@ -1,0 +1,318 @@
+<div class="space-y-6 text-sm">
+  <nav [attr.aria-label]="'finance.breadcrumb' | translate">
+    <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
+      <li>
+        <a
+          class="underline-offset-4 hover:underline"
+          routerLink="/finance/statements"
+        >
+          {{ "finance.clientStatements" | translate }}
+        </a>
+      </li>
+      <li aria-hidden="true">/</li>
+      <li class="text-foreground" aria-current="page">
+        {{ "finance.newStatement" | translate }}
+      </li>
+    </ol>
+  </nav>
+
+  <header class="space-y-2">
+    <h1 class="text-2xl font-semibold">
+      {{ "finance.statementComposer" | translate }}
+    </h1>
+    <p class="text-muted-foreground">
+      {{ "finance.statementInfo" | translate }}
+    </p>
+  </header>
+
+  <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-6" novalidate>
+    <section
+      class="space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm"
+    >
+      <div>
+        <h2 class="text-lg font-semibold">
+          {{ "finance.statementDetails" | translate }}
+        </h2>
+        <p class="text-muted-foreground">
+          {{ "finance.statementDetailsDescription" | translate }}
+        </p>
+      </div>
+
+      @if (clientsError()) {
+        <div
+          role="alert"
+          class="space-y-3 rounded-lg border border-destructive p-4"
+        >
+          <p>{{ "finance.clientsLoadError" | translate }}</p>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            (click)="loadClients()"
+          >
+            {{ "finance.retry" | translate }}
+          </button>
+        </div>
+      }
+
+      <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div hlmField>
+          <label hlmFieldLabel for="statement-client">
+            {{ "finance.client" | translate }}
+          </label>
+          <hlm-select
+            formControlName="clientId"
+            [itemToString]="clientItemToString"
+          >
+            <hlm-select-trigger id="statement-client" class="w-full min-w-0">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (client of clients(); track client.id) {
+                  <hlm-select-item [value]="client.id">
+                    {{ client.displayName }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+          <hlm-field-error validator="required">
+            {{ "finance.required" | translate }}
+          </hlm-field-error>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-period-start">
+            {{ "finance.periodStart" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-period-start"
+            type="date"
+            formControlName="periodStart"
+            required
+          />
+          <hlm-field-error validator="required">
+            {{ "finance.required" | translate }}
+          </hlm-field-error>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-period-end">
+            {{ "finance.periodEnd" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-period-end"
+            type="date"
+            formControlName="periodEnd"
+            required
+          />
+          <hlm-field-error validator="required">
+            {{ "finance.required" | translate }}
+          </hlm-field-error>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-currency">
+            {{ "finance.currency" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-currency"
+            maxlength="3"
+            class="uppercase"
+            formControlName="currency"
+            required
+          />
+          <hlm-field-error>
+            {{ "finance.currencyCodeError" | translate }}
+          </hlm-field-error>
+        </div>
+      </div>
+    </section>
+
+    <section
+      class="space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm"
+    >
+      <div class="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-semibold">
+            {{ "finance.billingLines" | translate }}
+          </h2>
+          <p class="text-muted-foreground">
+            {{ "finance.statementLinesDescription" | translate }}
+          </p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="!selectedClient() || saving()"
+            (click)="openImportDialog()"
+            [attr.title]="
+              !selectedClient()
+                ? ('finance.selectClientBeforeImport' | translate)
+                : null
+            "
+          >
+            {{ "finance.importOpenLines" | translate }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="saving()"
+            (click)="addManualLine()"
+          >
+            {{ "finance.addManualLine" | translate }}
+          </button>
+        </div>
+      </div>
+
+      @if (!selectedClient()) {
+        <p class="rounded-lg bg-muted p-3 text-muted-foreground">
+          {{ "finance.selectClientBeforeImport" | translate }}
+        </p>
+      }
+
+      @if (mismatchIndexes().length) {
+        <div role="alert" class="rounded-lg border border-destructive p-4">
+          <p class="font-semibold">
+            {{ "finance.currencyMismatchTitle" | translate }}
+          </p>
+          <p>
+            {{
+              "finance.currencyMismatchDescription"
+                | translate
+                  : {
+                      rows: mismatchRows(),
+                      currency: form.controls.currency.value.toUpperCase(),
+                    }
+            }}
+          </p>
+        </div>
+      }
+
+      @if (form.controls.lines.length) {
+        <div hlmTableContainer>
+          <table hlmTable class="w-full min-w-[980px]">
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "finance.source" | translate }}</th>
+                <th hlmTh>{{ "finance.serviceDate" | translate }}</th>
+                <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
+                <th hlmTh>{{ "finance.amount" | translate }}</th>
+                <th hlmTh>{{ "finance.currency" | translate }}</th>
+                <th hlmTh>{{ "finance.actions" | translate }}</th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (
+                line of form.controls.lines.controls;
+                track line;
+                let index = $index
+              ) {
+                <tr
+                  hlmTr
+                  [formGroup]="line"
+                  [class.bg-muted]="isCurrencyMismatch(index)"
+                >
+                  <td hlmTd>
+                    {{
+                      (line.controls.id.value
+                        ? "finance.importedLine"
+                        : "finance.manualBillingItem"
+                      ) | translate
+                    }}
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      type="date"
+                      formControlName="serviceDate"
+                      class="min-w-40"
+                      [readOnly]="!!line.controls.id.value"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      formControlName="description"
+                      class="min-w-72"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputmode="decimal"
+                      formControlName="amount"
+                      class="min-w-32"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      maxlength="3"
+                      formControlName="currency"
+                      class="min-w-24 uppercase"
+                      [attr.aria-invalid]="isCurrencyMismatch(index)"
+                      required
+                    />
+                    @if (isCurrencyMismatch(index)) {
+                      <span class="mt-1 block text-destructive">
+                        {{ "finance.currencyMismatchRow" | translate }}
+                      </span>
+                    }
+                  </td>
+                  <td hlmTd>
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="outline"
+                      [disabled]="saving()"
+                      (click)="removeLine(index)"
+                    >
+                      {{ "common.remove" | translate }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="flex justify-end rounded-lg bg-muted p-3 font-semibold">
+          {{ "finance.total" | translate }}: {{ total().toFixed(2) }}
+          {{ form.controls.currency.value.toUpperCase() }}
+        </div>
+      } @else {
+        <p class="rounded-lg bg-muted p-4 text-muted-foreground">
+          {{ "finance.noLines" | translate }}
+        </p>
+      }
+    </section>
+
+    @if (saveError()) {
+      <p role="alert" class="rounded-lg border border-destructive p-4">
+        {{ saveError() | translate }}
+      </p>
+    }
+
+    <div class="flex justify-end gap-2">
+      <a hlmBtn variant="outline" routerLink="/finance/statements">
+        {{ "common.cancel" | translate }}
+      </a>
+      <button hlmBtn type="submit" [disabled]="!canSave()">
+        @if (saving()) {
+          <hlm-spinner />
+        }
+        {{ "finance.createDraft" | translate }}
+      </button>
+    </div>
+  </form>
+</div>

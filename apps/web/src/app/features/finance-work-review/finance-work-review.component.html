@@ -340,7 +340,16 @@
                 </td>
                 <td hlmTd>{{ formatDate(item.date) }}</td>
                 <td hlmTd>
-                  <strong>{{ item.title }}</strong>
+                  <button
+                    type="button"
+                    class="block max-w-72 truncate text-left font-semibold text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                    (click)="openSource(item)"
+                    [attr.aria-label]="
+                      ('finance.openSource' | translate) + ': ' + item.title
+                    "
+                  >
+                    {{ item.title }}
+                  </button>
                   <br />
                   <span class="text-muted-foreground">
                     {{ sourceLabel(item.sourceType) }}
@@ -354,9 +363,12 @@
                       item.case?.caseNumber ?? ("finance.noCase" | translate)
                     }}
                   } @else {
-                    <div
-                      class="flex max-w-64 items-start gap-2 text-destructive"
+                    <button
+                      type="button"
+                      class="flex max-w-64 items-start gap-2 rounded-sm text-left text-destructive underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-50"
                       [id]="'candidate-missing-client-' + rowIndex"
+                      [disabled]="assigningClientKey() === item.candidateKey"
+                      (click)="selectClient(item)"
                     >
                       <ng-icon
                         name="lucideTriangleAlert"
@@ -371,7 +383,7 @@
                           {{ "finance.missingClientDescription" | translate }}
                         </span>
                       </span>
-                    </div>
+                    </button>
                   }
                 </td>
                 <td hlmTd>

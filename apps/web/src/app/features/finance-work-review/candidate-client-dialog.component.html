@@ -35,7 +35,12 @@
       {{ "common.cancel" | translate }}
     </button>
     <button hlmBtn type="submit" [disabled]="form.invalid">
-      {{ "finance.continueToBilling" | translate }}
+      {{
+        (context.continueToBilling
+          ? "finance.continueToBilling"
+          : "finance.saveClient"
+        ) | translate
+      }}
     </button>
   </hlm-dialog-footer>
 </form>

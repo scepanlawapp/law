@@ -13,7 +13,9 @@ import { lucideTriangleAlert } from "@ng-icons/lucide";
 import {
   CasesApiClient,
   ClientsApiClient,
+  EventsApiClient,
   FinancialsApiClient,
+  WorkManagementApiClient,
 } from "@law/api-clients";
 import {
   BillingStatementLineSummary,
@@ -46,6 +48,8 @@ import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { EventDialogService } from "../calendar/event-dialog/event-dialog.service";
+import { TaskDialogService } from "../work-management/task-dialog/task-dialog.service";
 import { BillingStatementLineDialogService } from "./billing-entry-dialog.service";
 import { CandidateClientDialogService } from "./candidate-client-dialog.service";
 
@@ -90,9 +94,13 @@ export class FinanceWorkReviewComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly casesApi = inject(CasesApiClient);
+  private readonly eventsApi = inject(EventsApiClient);
+  private readonly workApi = inject(WorkManagementApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly lineDialog = inject(BillingStatementLineDialogService);
   private readonly clientDialog = inject(CandidateClientDialogService);
+  private readonly eventDialog = inject(EventDialogService);
+  private readonly taskDialog = inject(TaskDialogService);
   private readonly route = inject(ActivatedRoute);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
@@ -364,16 +372,20 @@ export class FinanceWorkReviewComponent {
 
   recordCandidate(item: BillingSuggestion): void {
     if (!item.client) {
-      this.selectClientAndRecord(item);
+      this.selectClient(item, true);
       return;
     }
     this.recordCandidates([item]);
   }
 
-  private selectClientAndRecord(item: BillingSuggestion): void {
+  selectClient(item: BillingSuggestion, continueToBilling = false): void {
     if (this.assigningClientKey()) return;
     this.clientDialog
-      .open({ candidateTitle: item.title, clients: this.clients() })
+      .open({
+        candidateTitle: item.title,
+        clients: this.clients(),
+        continueToBilling,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((client) => {
         if (!client) return;
@@ -396,7 +408,7 @@ export class FinanceWorkReviewComponent {
                     : candidate,
                 ),
               );
-              this.recordCandidates([assigned]);
+              if (continueToBilling) this.recordCandidates([assigned]);
             },
             error: () => {
               this.assigningClientKey.set(null);
@@ -404,6 +416,47 @@ export class FinanceWorkReviewComponent {
             },
           });
       });
+  }
+
+  openSource(item: BillingSuggestion): void {
+    if (item.sourceType === "TASK") {
+      this.workApi
+        .getTask(item.sourceId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (task) => {
+            this.taskDialog
+              .open({
+                task,
+                caseId: task.case?.id ?? undefined,
+                clientId: task.client?.id ?? undefined,
+              })
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe((updated) => {
+                if (updated) this.loadCandidates();
+              });
+          },
+          error: () => this.toast.error("finance.sourceLoadError"),
+        });
+      return;
+    }
+
+    if (item.sourceType === "EVENT") {
+      this.eventsApi
+        .get(item.sourceId)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (event) => {
+            this.eventDialog
+              .open({ event })
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe((updated) => {
+                if (updated) this.loadCandidates();
+              });
+          },
+          error: () => this.toast.error("finance.sourceLoadError"),
+        });
+    }
   }
 
   private recordCandidates(items: BillingSuggestion[]): void {
