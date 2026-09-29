@@ -94,8 +94,8 @@ function setup() {
       description: null,
       opposingPartyName: null,
     }),
-    listActivities: jest.fn().mockResolvedValue([]),
-    listResponsibilities: jest.fn().mockResolvedValue([]),
+    listActivities: jest.fn().mockResolvedValue(page([])),
+    listResponsibilities: jest.fn().mockResolvedValue(page([])),
   };
   const clients = {
     list: jest.fn().mockResolvedValue(page([])),
@@ -432,15 +432,17 @@ describe("AssistantOfficeReadsService", () => {
 
   it("merges journal entries and work-item changes, newest first", async () => {
     const { cases, work, service } = setup();
-    cases.listActivities.mockResolvedValue([
-      {
-        type: "MEETING",
-        title: "Sastanak sa klijentom",
-        description: null,
-        activityDate: new Date("2026-09-20T09:00:00.000Z"),
-        createdByUserId: "user-marko",
-      },
-    ]);
+    cases.listActivities.mockResolvedValue(
+      page([
+        {
+          type: "MEETING",
+          title: "Sastanak sa klijentom",
+          description: null,
+          activityDate: new Date("2026-09-20T09:00:00.000Z"),
+          createdByUserId: "user-marko",
+        },
+      ]),
+    );
     work.listActivity.mockResolvedValue(
       page([
         {
@@ -506,10 +508,12 @@ describe("AssistantOfficeReadsService", () => {
 
   it("adds responsible lawyers and open work counts to a case", async () => {
     const { cases, work, service } = setup();
-    cases.listResponsibilities.mockResolvedValue([
-      { userId: "user-marko", endedAt: null },
-      { userId: "user-ana", endedAt: new Date() },
-    ]);
+    cases.listResponsibilities.mockResolvedValue(
+      page([
+        { userId: "user-marko", endedAt: null },
+        { userId: "user-ana", endedAt: new Date() },
+      ]),
+    );
     work.listTasks.mockResolvedValue(page([], 4));
     work.listDeadlines.mockResolvedValue(page([], 2));
 

@@ -34,6 +34,7 @@ import {
   WorkspaceRole,
 } from "@law/api-interfaces";
 import {
+  CaseLinksQueryDto,
   ChatSessionListQueryDto,
   BriefApplyDto,
   BriefTaskApplyDto,
@@ -179,8 +180,12 @@ export class ChatController {
   }
 
   @Get("cases/:caseId/links")
-  caseLinks(@Req() request: WorkspaceRequest, @Param("caseId") caseId: string) {
-    return this.chat.caseLinks(request.workspace!.workspaceId, caseId);
+  caseLinks(
+    @Req() request: WorkspaceRequest,
+    @Param("caseId") caseId: string,
+    @Query() query: CaseLinksQueryDto,
+  ) {
+    return this.chat.caseLinks(request.workspace!.workspaceId, caseId, query);
   }
 
   @Delete("sessions/:sessionId")

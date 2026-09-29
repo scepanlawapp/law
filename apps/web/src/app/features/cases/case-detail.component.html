@@ -196,22 +196,21 @@
         <p class="text-muted-foreground text-xs uppercase tracking-wide">
           {{ "cases.activities" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ activities().length }}</p>
+        <p class="mt-2 text-2xl font-semibold">{{ activitiesTotal() }}</p>
       </div>
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
         <p class="text-muted-foreground text-xs uppercase tracking-wide">
           {{ "cases.responsibilities" | translate }}
         </p>
         <p class="mt-2 text-2xl font-semibold">
-          {{ activeResponsibilities().length }}
+          {{ responsibilitiesTotal() }}
         </p>
       </div>
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
         <p class="text-muted-foreground text-xs uppercase tracking-wide">
           {{ "cases.documents" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ documents().length }}</p>
-        <!-- TODO(case-document-count): Replace placeholder document count with real count when document summary data is exposed. -->
+        <p class="mt-2 text-2xl font-semibold">{{ documentsTotal() }}</p>
       </div>
       <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
         <p class="text-muted-foreground text-xs uppercase tracking-wide">
@@ -618,9 +617,12 @@
                     <p class="mb-2 font-medium">
                       {{ "cases.assistantSessions" | translate }}
                     </p>
-                    @if (links.sessions.length) {
+                    @if (links.sessions.items.length) {
                       <ul class="space-y-2">
-                        @for (session of links.sessions; track session.id) {
+                        @for (
+                          session of links.sessions.items;
+                          track session.id
+                        ) {
                           <li>
                             <a
                               class="underline-offset-4 hover:underline"
@@ -645,9 +647,9 @@
                     <p class="mb-2 font-medium">
                       {{ "cases.assistantDrafts" | translate }}
                     </p>
-                    @if (links.drafts.length) {
+                    @if (links.drafts.items.length) {
                       <ul class="space-y-2">
-                        @for (draft of links.drafts; track draft.id) {
+                        @for (draft of links.drafts.items; track draft.id) {
                           <li
                             class="rounded-md border border-border bg-muted p-2"
                           >
@@ -791,6 +793,66 @@
             </div>
           }
 
+          <div
+            class="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
+          >
+            <div class="flex w-72 max-w-full flex-col gap-1">
+              <label class="font-medium" for="case-activity-search">
+                {{ "cases.detail.keyword" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="case-activity-search"
+                [formControl]="activitySearch"
+                [placeholder]="'cases.detail.searchActivities' | translate"
+              />
+            </div>
+            <div class="flex w-72 max-w-full flex-col gap-1">
+              <label class="font-medium" for="case-activity-types">
+                {{ "cases.detail.activityTypes" | translate }}
+              </label>
+              <div
+                hlmComboboxMultiple
+                [value]="activityTypes()"
+                (valueChange)="setActivityTypes($event ?? [])"
+                [itemToString]="activityTypeItemToString"
+              >
+                <hlm-combobox-trigger
+                  buttonId="case-activity-types"
+                  class="w-full min-w-0"
+                >
+                  <span data-slot="combobox-value" class="truncate">
+                    @if (selectedActivityTypesLabel(); as label) {
+                      {{ label }}
+                    } @else {
+                      <span class="text-muted-foreground">
+                        {{ "cases.detail.allActivityTypes" | translate }}
+                      </span>
+                    }
+                  </span>
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="
+                      'cases.detail.searchActivityTypes' | translate
+                    "
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "work.filters.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    @for (type of activityTypeOptions; track type) {
+                      <hlm-combobox-item [value]="type">
+                        {{ activityTypeLabel(type) }}
+                      </hlm-combobox-item>
+                    }
+                  </div>
+                </hlm-combobox-content>
+              </div>
+            </div>
+          </div>
+
           @if (activitiesLoading()) {
             <div class="flex items-center gap-2 py-4">
               <hlm-spinner aria-label="{{ 'cases.activities' | translate }}" />
@@ -833,6 +895,43 @@
               {{ "cases.detail.noActivities" | translate }}
             </div>
           }
+          @if (activitiesTotal() > 0) {
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-muted-foreground">
+                {{
+                  "cases.page"
+                    | translate
+                      : {
+                          page: activitiesPage(),
+                          total: activitiesPageCount(),
+                        }
+                }}
+              </p>
+              <div class="flex gap-2">
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  [disabled]="activitiesPage() === 1 || activitiesLoading()"
+                  (click)="changeActivitiesPage(activitiesPage() - 1)"
+                >
+                  {{ "cases.previous" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  [disabled]="
+                    activitiesPage() >= activitiesPageCount() ||
+                    activitiesLoading()
+                  "
+                  (click)="changeActivitiesPage(activitiesPage() + 1)"
+                >
+                  {{ "cases.next" | translate }}
+                </button>
+              </div>
+            </div>
+          }
         </div>
       </section>
 
@@ -849,6 +948,21 @@
             <button hlmBtn type="button" (click)="openDocumentsUpload()">
               {{ "documents.upload.action" | translate }}
             </button>
+          </div>
+          <div
+            class="flex flex-wrap items-end gap-3 rounded-xl border border-border bg-card p-4 shadow-sm"
+          >
+            <div class="flex w-96 max-w-full flex-col gap-1">
+              <label class="font-medium" for="case-document-search">
+                {{ "documents.search" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="case-document-search"
+                [formControl]="documentSearch"
+                [placeholder]="'cases.detail.searchDocuments' | translate"
+              />
+            </div>
           </div>
           @if (documentsLoading()) {
             <div class="flex items-center gap-2 py-4">
@@ -902,8 +1016,44 @@
               {{ "cases.detail.noDocuments" | translate }}
             </div>
           }
+          @if (documentsTotal() > 0) {
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-muted-foreground">
+                {{
+                  "documents.pageInfo"
+                    | translate
+                      : {
+                          page: documentsPage(),
+                          total: documentsPageCount(),
+                        }
+                }}
+              </p>
+              <div class="flex gap-2">
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  [disabled]="documentsPage() === 1 || documentsLoading()"
+                  (click)="changeDocumentsPage(documentsPage() - 1)"
+                >
+                  {{ "documents.previous" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  [disabled]="
+                    documentsPage() >= documentsPageCount() ||
+                    documentsLoading()
+                  "
+                  (click)="changeDocumentsPage(documentsPage() + 1)"
+                >
+                  {{ "documents.next" | translate }}
+                </button>
+              </div>
+            </div>
+          }
         </div>
-        <!-- TODO(case-documents): Load case documents from a real case-scoped documents API. Upload already works through DocumentUploadDialogService. -->
       </section>
 
       <section hlmTabsContent="assistant" class="pt-6">
@@ -936,9 +1086,9 @@
                 <h3 class="mb-3 font-medium">
                   {{ "cases.assistantSessions" | translate }}
                 </h3>
-                @if (links.sessions.length) {
+                @if (links.sessions.items.length) {
                   <ul class="space-y-2">
-                    @for (session of links.sessions; track session.id) {
+                    @for (session of links.sessions.items; track session.id) {
                       <li>
                         <a
                           class="underline-offset-4 hover:underline"
@@ -952,6 +1102,53 @@
                       </li>
                     }
                   </ul>
+                  <div
+                    class="mt-4 flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <p class="text-muted-foreground">
+                      {{
+                        "cases.page"
+                          | translate
+                            : {
+                                page: assistantSessionsPage(),
+                                total: assistantSessionsPageCount(),
+                              }
+                      }}
+                    </p>
+                    <div class="flex gap-2">
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="outline"
+                        [disabled]="
+                          assistantSessionsPage() === 1 || assistantLoading()
+                        "
+                        (click)="
+                          changeAssistantSessionsPage(
+                            assistantSessionsPage() - 1
+                          )
+                        "
+                      >
+                        {{ "cases.previous" | translate }}
+                      </button>
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="outline"
+                        [disabled]="
+                          assistantSessionsPage() >=
+                            assistantSessionsPageCount() || assistantLoading()
+                        "
+                        (click)="
+                          changeAssistantSessionsPage(
+                            assistantSessionsPage() + 1
+                          )
+                        "
+                      >
+                        {{ "cases.next" | translate }}
+                      </button>
+                    </div>
+                  </div>
                 } @else {
                   <p class="text-muted-foreground">
                     {{ "cases.detail.noAssistantSessions" | translate }}
@@ -964,9 +1161,9 @@
                 <h3 class="mb-3 font-medium">
                   {{ "cases.assistantDrafts" | translate }}
                 </h3>
-                @if (links.drafts.length) {
+                @if (links.drafts.items.length) {
                   <ul class="space-y-2">
-                    @for (draft of links.drafts; track draft.id) {
+                    @for (draft of links.drafts.items; track draft.id) {
                       <li class="rounded-md border border-border bg-muted p-3">
                         <p class="font-medium">{{ draft.id }}</p>
                         <p class="text-xs text-muted-foreground">
@@ -975,6 +1172,49 @@
                       </li>
                     }
                   </ul>
+                  <div
+                    class="mt-4 flex flex-wrap items-center justify-between gap-3"
+                  >
+                    <p class="text-muted-foreground">
+                      {{
+                        "cases.page"
+                          | translate
+                            : {
+                                page: assistantDraftsPage(),
+                                total: assistantDraftsPageCount(),
+                              }
+                      }}
+                    </p>
+                    <div class="flex gap-2">
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="outline"
+                        [disabled]="
+                          assistantDraftsPage() === 1 || assistantLoading()
+                        "
+                        (click)="
+                          changeAssistantDraftsPage(assistantDraftsPage() - 1)
+                        "
+                      >
+                        {{ "cases.previous" | translate }}
+                      </button>
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="outline"
+                        [disabled]="
+                          assistantDraftsPage() >= assistantDraftsPageCount() ||
+                          assistantLoading()
+                        "
+                        (click)="
+                          changeAssistantDraftsPage(assistantDraftsPage() + 1)
+                        "
+                      >
+                        {{ "cases.next" | translate }}
+                      </button>
+                    </div>
+                  </div>
                 } @else {
                   <p class="text-muted-foreground">
                     {{ "cases.detail.noAssistantDrafts" | translate }}
@@ -1120,6 +1360,49 @@
               class="rounded-xl border border-dashed border-border bg-card p-6 text-center text-muted-foreground"
             >
               {{ "cases.detail.noResponsibilities" | translate }}
+            </div>
+          }
+          @if (responsibilitiesTotal() > 0) {
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <p class="text-muted-foreground">
+                {{
+                  "cases.page"
+                    | translate
+                      : {
+                          page: responsibilitiesPage(),
+                          total: responsibilitiesPageCount(),
+                        }
+                }}
+              </p>
+              <div class="flex gap-2">
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  [disabled]="
+                    responsibilitiesPage() === 1 || responsibilitiesLoading()
+                  "
+                  (click)="
+                    changeResponsibilitiesPage(responsibilitiesPage() - 1)
+                  "
+                >
+                  {{ "cases.previous" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  [disabled]="
+                    responsibilitiesPage() >= responsibilitiesPageCount() ||
+                    responsibilitiesLoading()
+                  "
+                  (click)="
+                    changeResponsibilitiesPage(responsibilitiesPage() + 1)
+                  "
+                >
+                  {{ "cases.next" | translate }}
+                </button>
+              </div>
             </div>
           }
         </div>

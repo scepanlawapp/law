@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Case Detail Filters and Pagination](./tracks/case_detail_filters_pagination_20260930/index.md)
 - [Notes and External Payments Removal](./tracks/notes_external_payments_removal_20260930/index.md)
 - [Frontend Localization Completeness](./tracks/frontend_localization_completeness_20260930/index.md)
 - [Relation Autocomplete Filters](./tracks/relation_autocomplete_filters_20260929/index.md)

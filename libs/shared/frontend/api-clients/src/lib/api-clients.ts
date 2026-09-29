@@ -385,19 +385,17 @@ export class ChatApiClient {
     );
   }
 
-  caseLinks(workspaceId: string, caseId: string) {
-    return this.http.get<{
-      sessions: Array<{ id: string; title: string | null; updatedAt: string }>;
-      drafts: Array<{
-        id: string;
-        sessionId: string;
-        approvalStatus: string;
-        reviewedAt: string | null;
-        createdAt: string;
-      }>;
-    }>(
+  caseLinks(
+    workspaceId: string,
+    caseId: string,
+    query: CaseLinksQuery = {},
+  ): Observable<CaseLinksResponse> {
+    return this.http.get<CaseLinksResponse>(
       this.endpoint(`/chat/cases/${caseId}/links`),
-      this.workspaceOptions(workspaceId),
+      {
+        ...this.workspaceOptions(workspaceId),
+        params: queryParams(query),
+      },
     );
   }
 
@@ -858,6 +856,33 @@ export interface CaseResponsibilityRequest {
   userId: string;
   isPrimary?: boolean;
   startedAt?: string;
+}
+
+export interface CaseActivityQuery extends PaginationQuery {
+  types?: ActivityRequest["type"][];
+}
+
+export type CaseResponsibilityQuery = PaginationQuery;
+
+export interface CaseLinksQuery {
+  page?: number;
+  draftPage?: number;
+  pageSize?: number;
+}
+
+export interface CaseLinksResponse {
+  sessions: PaginatedResponse<{
+    id: string;
+    title: string | null;
+    updatedAt: string;
+  }>;
+  drafts: PaginatedResponse<{
+    id: string;
+    sessionId: string;
+    approvalStatus: string;
+    reviewedAt: string | null;
+    createdAt: string;
+  }>;
 }
 
 export interface CaseResponsibilityUpdateRequest {
@@ -1432,10 +1457,13 @@ export class CasesApiClient {
     );
   }
 
-  listActivities(caseId: string): Observable<DomainActivity[]> {
-    return this.http.get<DomainActivity[]>(
+  listActivities(
+    caseId: string,
+    query: CaseActivityQuery = {},
+  ): Observable<PaginatedResponse<DomainActivity>> {
+    return this.http.get<PaginatedResponse<DomainActivity>>(
       this.endpoint(`/cases/${caseId}/activities`),
-      { withCredentials: true },
+      { withCredentials: true, params: queryParams(query) },
     );
   }
 
@@ -1462,10 +1490,13 @@ export class CasesApiClient {
     );
   }
 
-  listResponsibilities(caseId: string): Observable<CaseResponsibility[]> {
-    return this.http.get<CaseResponsibility[]>(
+  listResponsibilities(
+    caseId: string,
+    query: CaseResponsibilityQuery = {},
+  ): Observable<PaginatedResponse<CaseResponsibility>> {
+    return this.http.get<PaginatedResponse<CaseResponsibility>>(
       this.endpoint(`/cases/${caseId}/responsibilities`),
-      { withCredentials: true },
+      { withCredentials: true, params: queryParams(query) },
     );
   }
 

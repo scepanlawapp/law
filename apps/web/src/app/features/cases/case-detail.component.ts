@@ -12,6 +12,7 @@ import { CaseDetail, DocumentSummary } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import {
   CaseResponsibility,
+  CaseLinksResponse,
   CasesApiClient,
   ChatApiClient,
   DocumentsApiClient,
@@ -19,6 +20,16 @@ import {
   ReferencesApiClient,
 } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -36,6 +47,9 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
 import { WorkViewComponent } from "../work-management/work-view/work-view.component";
+import { debounceTime, distinctUntilChanged } from "rxjs";
+
+const CASE_DETAIL_PAGE_SIZE = 10;
 
 type CaseTab =
   | "overview"
@@ -53,6 +67,14 @@ type CaseTab =
     ReactiveFormsModule,
     RouterLink,
     HlmButton,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
     HlmField,
     HlmFieldLabel,
     HlmInput,
@@ -88,23 +110,36 @@ export class CaseDetailComponent {
   readonly activities = signal<DomainActivity[]>([]);
   readonly activitiesLoading = signal(false);
   readonly activitiesLoaded = signal(false);
+  readonly activitiesPage = signal(1);
+  readonly activitiesPageCount = signal(1);
+  readonly activitiesTotal = signal(0);
+  readonly activityTypes = signal<DomainActivity["type"][]>([]);
+  readonly activitySearch = new FormControl("", { nonNullable: true });
   readonly responsibilities = signal<CaseResponsibility[]>([]);
   readonly responsibilitiesLoading = signal(false);
   readonly responsibilitiesLoaded = signal(false);
+  readonly responsibilitiesPage = signal(1);
+  readonly responsibilitiesPageCount = signal(1);
+  readonly responsibilitiesTotal = signal(0);
   readonly documents = signal<DocumentSummary[]>([]);
   readonly documentsLoading = signal(false);
   readonly documentsLoaded = signal(false);
+  readonly documentsPage = signal(1);
+  readonly documentsPageCount = signal(1);
+  readonly documentsTotal = signal(0);
+  readonly documentSearch = new FormControl("", { nonNullable: true });
   readonly users = signal(new Map<string, string>());
   readonly tags = signal(new Map<string, string>());
   readonly caseTypes = signal(new Map<string, string>());
   readonly practiceAreas = signal(new Map<string, string>());
   readonly showCloseForm = signal(false);
   readonly showActivityForm = signal(false);
-  readonly assistantLinks = signal<{
-    sessions: Array<{ id: string; title: string | null; updatedAt: string }>;
-    drafts: Array<{ id: string; sessionId: string; approvalStatus: string }>;
-  } | null>(null);
+  readonly assistantLinks = signal<CaseLinksResponse | null>(null);
   readonly assistantLoading = signal(false);
+  readonly assistantSessionsPage = signal(1);
+  readonly assistantSessionsPageCount = signal(1);
+  readonly assistantDraftsPage = signal(1);
+  readonly assistantDraftsPageCount = signal(1);
 
   readonly activityTypeOptions: ReadonlyArray<DomainActivity["type"]> = [
     "NOTE",
@@ -115,7 +150,15 @@ export class CaseDetailComponent {
   ];
   readonly activityTypeItemToString = (
     value: DomainActivity["type"] | string | null | undefined,
-  ): string => value ?? "";
+  ): string =>
+    value
+      ? this.local.translate(
+          `cases.activity.type.${value as DomainActivity["type"]}`,
+        )
+      : "";
+  readonly selectedActivityTypesLabel = computed(() =>
+    this.activityTypes().map(this.activityTypeItemToString).join(", "),
+  );
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().get(value ?? "") ?? "";
   readonly recentActivities = computed(() =>
@@ -128,15 +171,6 @@ export class CaseDetailComponent {
       .slice(0, 5),
   );
   readonly recentDocuments = computed(() => this.documents().slice(0, 3));
-  readonly activeResponsibilities = computed(() =>
-    this.responsibilities().filter((responsibility) => !responsibility.endedAt),
-  );
-  readonly primaryResponsibility = computed(
-    () =>
-      this.responsibilities().find(
-        (responsibility) => responsibility.isPrimary,
-      ) ?? null,
-  );
   readonly caseTypeLabel = computed(() => {
     const item = this.item();
     if (!item) return "—";
@@ -192,6 +226,26 @@ export class CaseDetailComponent {
   });
 
   constructor() {
+    this.activitySearch.valueChanges
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.activitiesPage.set(1);
+        this.loadActivities(true);
+      });
+    this.documentSearch.valueChanges
+      .pipe(
+        debounceTime(300),
+        distinctUntilChanged(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(() => {
+        this.documentsPage.set(1);
+        this.loadDocuments(true);
+      });
     this.refs
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -312,6 +366,7 @@ export class CaseDetailComponent {
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
+        this.documentsPage.set(1);
         this.loadDocuments(true);
       });
   }
@@ -337,17 +392,29 @@ export class CaseDetailComponent {
       });
   }
 
-  private loadAssistantLinks(): void {
+  loadAssistantLinks(): void {
     const workspaceId = this.auth.session()?.memberships[0]?.workspaceId;
     if (!workspaceId) return;
 
     this.assistantLoading.set(true);
     this.chat
-      .caseLinks(workspaceId, this.id)
+      .caseLinks(workspaceId, this.id, {
+        page: this.assistantSessionsPage(),
+        draftPage: this.assistantDraftsPage(),
+        pageSize: CASE_DETAIL_PAGE_SIZE,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (links) => {
           this.assistantLinks.set(links);
+          this.assistantSessionsPage.set(links.sessions.meta.page);
+          this.assistantSessionsPageCount.set(
+            Math.max(1, links.sessions.meta.totalPages),
+          );
+          this.assistantDraftsPage.set(links.drafts.meta.page);
+          this.assistantDraftsPageCount.set(
+            Math.max(1, links.drafts.meta.totalPages),
+          );
           this.assistantLoading.set(false);
         },
         error: () => {
@@ -361,11 +428,19 @@ export class CaseDetailComponent {
     if (this.activitiesLoaded() && !force) return;
     this.activitiesLoading.set(true);
     this.api
-      .listActivities(this.id)
+      .listActivities(this.id, {
+        search: this.activitySearch.value.trim() || undefined,
+        types: this.activityTypes().length ? this.activityTypes() : undefined,
+        page: this.activitiesPage(),
+        pageSize: CASE_DETAIL_PAGE_SIZE,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (items) => {
-          this.activities.set(items);
+        next: (response) => {
+          this.activities.set(response.items);
+          this.activitiesPage.set(response.meta.page);
+          this.activitiesPageCount.set(Math.max(1, response.meta.totalPages));
+          this.activitiesTotal.set(response.meta.totalItems);
           this.activitiesLoaded.set(true);
           this.activitiesLoading.set(false);
         },
@@ -380,11 +455,19 @@ export class CaseDetailComponent {
     if (this.responsibilitiesLoaded() && !force) return;
     this.responsibilitiesLoading.set(true);
     this.api
-      .listResponsibilities(this.id)
+      .listResponsibilities(this.id, {
+        page: this.responsibilitiesPage(),
+        pageSize: CASE_DETAIL_PAGE_SIZE,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (items) => {
-          this.responsibilities.set(items);
+        next: (response) => {
+          this.responsibilities.set(response.items);
+          this.responsibilitiesPage.set(response.meta.page);
+          this.responsibilitiesPageCount.set(
+            Math.max(1, response.meta.totalPages),
+          );
+          this.responsibilitiesTotal.set(response.meta.totalItems);
           this.responsibilitiesLoaded.set(true);
           this.responsibilitiesLoading.set(false);
         },
@@ -399,11 +482,19 @@ export class CaseDetailComponent {
     if (this.documentsLoaded() && !force) return;
     this.documentsLoading.set(true);
     this.documentsApi
-      .list({ caseId: this.id, page: 1, pageSize: 50 })
+      .list({
+        caseId: this.id,
+        search: this.documentSearch.value.trim() || undefined,
+        page: this.documentsPage(),
+        pageSize: CASE_DETAIL_PAGE_SIZE,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
           this.documents.set(response.items);
+          this.documentsPage.set(response.meta.page);
+          this.documentsPageCount.set(Math.max(1, response.meta.totalPages));
+          this.documentsTotal.set(response.meta.totalItems);
           this.documentsLoaded.set(true);
           this.documentsLoading.set(false);
         },
@@ -412,6 +503,42 @@ export class CaseDetailComponent {
           this.toast.error(this.local.translate("cases.loadError"));
         },
       });
+  }
+
+  setActivityTypes(types: DomainActivity["type"][]): void {
+    this.activityTypes.set(types);
+    this.activitiesPage.set(1);
+    this.loadActivities(true);
+  }
+
+  changeActivitiesPage(page: number): void {
+    if (page < 1 || page > this.activitiesPageCount()) return;
+    this.activitiesPage.set(page);
+    this.loadActivities(true);
+  }
+
+  changeDocumentsPage(page: number): void {
+    if (page < 1 || page > this.documentsPageCount()) return;
+    this.documentsPage.set(page);
+    this.loadDocuments(true);
+  }
+
+  changeResponsibilitiesPage(page: number): void {
+    if (page < 1 || page > this.responsibilitiesPageCount()) return;
+    this.responsibilitiesPage.set(page);
+    this.loadResponsibilities(true);
+  }
+
+  changeAssistantSessionsPage(page: number): void {
+    if (page < 1 || page > this.assistantSessionsPageCount()) return;
+    this.assistantSessionsPage.set(page);
+    this.loadAssistantLinks();
+  }
+
+  changeAssistantDraftsPage(page: number): void {
+    if (page < 1 || page > this.assistantDraftsPageCount()) return;
+    this.assistantDraftsPage.set(page);
+    this.loadAssistantLinks();
   }
 
   lifecycle(
@@ -491,6 +618,7 @@ export class CaseDetailComponent {
             activityDate: "",
           });
           this.toast.success(this.local.translate("cases.saved"));
+          this.activitiesPage.set(1);
           this.loadActivities(true);
         },
         error: () => this.toast.error(this.local.translate("cases.saveError")),
@@ -519,6 +647,7 @@ export class CaseDetailComponent {
             isPrimary: false,
           });
           this.toast.success(this.local.translate("cases.saved"));
+          this.responsibilitiesPage.set(1);
           this.loadResponsibilities(true);
           this.reload();
         },
