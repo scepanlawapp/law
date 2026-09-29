@@ -410,7 +410,10 @@ export class AssistantOfficeReadsService {
       const where = caseId ? { caseId } : { clientId };
       const [journal, log, members] = await Promise.all([
         caseId
-          ? this.cases!.listActivities(caseId)
+          ? this.cases!.listActivities(caseId, {
+              page: 1,
+              pageSize: limit,
+            }).then((page) => page.items)
           : this.clients!.listActivities(
               clientId!,
               Object.assign(new ClientActivityListQueryDto(), {
@@ -476,7 +479,9 @@ export class AssistantOfficeReadsService {
   > {
     if (!this.cases || !this.work) return {};
     const [responsibilities, members, tasks, deadlines] = await Promise.all([
-      this.cases.listResponsibilities(caseId),
+      this.cases
+        .listResponsibilities(caseId, { page: 1, pageSize: 100 })
+        .then((page) => page.items),
       this.members(workspaceId),
       this.work.listTasks(
         Object.assign(new TaskListQueryDto(), {

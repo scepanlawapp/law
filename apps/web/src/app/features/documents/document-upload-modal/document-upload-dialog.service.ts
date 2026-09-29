@@ -20,6 +20,7 @@ export class DocumentUploadDialogService {
     >(DocumentUploadDialogComponent, {
       context,
       disableClose: true,
+      closeOnOutsidePointerEvents: false,
       showCloseButton: false,
       contentClass:
         "sm:max-w-4xl max-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",

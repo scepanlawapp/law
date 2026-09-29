@@ -20,8 +20,10 @@ import {
 } from "@law/api-interfaces";
 import {
   CaseActivityDto,
+  CaseActivityListQueryDto,
   CaseListQueryDto,
   CaseResponsibilityDto,
+  CaseResponsibilityListQueryDto,
   CloseCaseDto,
   CreateCaseDto,
   UpdateCaseActivityDto,
@@ -606,12 +608,35 @@ export class CasesService {
     return this.get(caseId);
   }
 
-  async listActivities(caseId: string) {
+  async listActivities(caseId: string, query: CaseActivityListQueryDto) {
     await this.requireCase(caseId);
-    return this.db.caseActivity.findMany({
-      where: { caseId, workspaceId: this.context.workspaceId },
-      orderBy: { activityDate: "desc" },
-    });
+    const search = query.search?.trim();
+    const where: Prisma.CaseActivityWhereInput = {
+      caseId,
+      workspaceId: this.context.workspaceId,
+      ...(query.types?.length && { type: { in: query.types } }),
+      ...(search && {
+        OR: [
+          { title: { contains: search, mode: "insensitive" } },
+          { description: { contains: search, mode: "insensitive" } },
+        ],
+      }),
+    };
+    const [totalItems, items] = await this.db.$transaction([
+      this.db.caseActivity.count({ where }),
+      this.db.caseActivity.findMany({
+        where,
+        orderBy: [{ activityDate: "desc" }, { createdAt: "desc" }],
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+    ]);
+    return {
+      items,
+      meta: paginationMeta(query.page, query.pageSize, totalItems, [
+        { field: "activityDate", direction: "desc" },
+      ]),
+    };
   }
   async createActivity(caseId: string, input: CaseActivityDto) {
     await this.requireCase(caseId);
@@ -658,16 +683,37 @@ export class CasesService {
     });
   }
 
-  async listResponsibilities(caseId: string) {
+  async listResponsibilities(
+    caseId: string,
+    query: CaseResponsibilityListQueryDto,
+  ) {
     await this.requireCase(caseId);
-    return this.db.caseResponsibility.findMany({
-      where: { caseId, workspaceId: this.context.workspaceId },
-      orderBy: [
-        { endedAt: "asc" },
-        { isPrimary: "desc" },
-        { startedAt: "asc" },
-      ],
-    });
+    const where: Prisma.CaseResponsibilityWhereInput = {
+      caseId,
+      workspaceId: this.context.workspaceId,
+    };
+    const orderBy: Prisma.CaseResponsibilityOrderByWithRelationInput[] = [
+      { endedAt: "asc" },
+      { isPrimary: "desc" },
+      { startedAt: "asc" },
+    ];
+    const [totalItems, items] = await this.db.$transaction([
+      this.db.caseResponsibility.count({ where }),
+      this.db.caseResponsibility.findMany({
+        where,
+        orderBy,
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+    ]);
+    return {
+      items,
+      meta: paginationMeta(query.page, query.pageSize, totalItems, [
+        { field: "endedAt", direction: "asc" },
+        { field: "isPrimary", direction: "desc" },
+        { field: "startedAt", direction: "asc" },
+      ]),
+    };
   }
   async addResponsibility(caseId: string, input: CaseResponsibilityDto) {
     await this.requireCase(caseId);

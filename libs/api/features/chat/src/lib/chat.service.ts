@@ -408,8 +408,12 @@ export class ChatService {
     });
   }
 
-  caseLinks(workspaceId: string, caseId: string) {
-    return this.requireMatterLink().listForCase(workspaceId, caseId);
+  caseLinks(
+    workspaceId: string,
+    caseId: string,
+    query: { page: number; draftPage: number; pageSize: number },
+  ) {
+    return this.requireMatterLink().listForCase(workspaceId, caseId, query);
   }
 
   async sendMessage(params: {

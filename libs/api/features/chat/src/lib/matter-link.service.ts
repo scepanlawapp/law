@@ -21,8 +21,11 @@ import {
   ChatSessionCaseSummary,
   ChatSessionSummary,
 } from "@law/api-interfaces";
-import { normalizeEvidence, normalizeMissingFields } from "@law/brief-extraction";
-import { PlatformPrismaService } from "@law/core";
+import {
+  normalizeEvidence,
+  normalizeMissingFields,
+} from "@law/brief-extraction";
+import { PlatformPrismaService, paginationMeta } from "@law/core";
 import { ActivitiesTasksDeadlinesService } from "@law/activities-tasks-deadlines";
 import { CasesService } from "@law/cases";
 import { ClientsService } from "@law/clients";
@@ -219,18 +222,30 @@ export class MatterLinkService {
     return lines.join("\n");
   }
 
-  async listForCase(workspaceId: string, caseId: string) {
+  async listForCase(
+    workspaceId: string,
+    caseId: string,
+    query: { page: number; draftPage: number; pageSize: number },
+  ) {
     await this.requireWorkspaceCase(workspaceId, caseId);
-    const [sessions, drafts] = await Promise.all([
+    const [sessionTotal, sessions, draftTotal, drafts] = await Promise.all([
+      this.db.chatSession.count({
+        where: { workspaceId, caseId, isDeleted: false },
+      }),
       this.db.chatSession.findMany({
         where: { workspaceId, caseId, isDeleted: false },
         orderBy: { updatedAt: "desc" },
-        take: 20,
+        skip: (query.page - 1) * query.pageSize,
+        take: query.pageSize,
+      }),
+      this.db.draftResult.count({
+        where: { workspaceId, caseId },
       }),
       this.db.draftResult.findMany({
         where: { workspaceId, caseId },
         orderBy: { createdAt: "desc" },
-        take: 20,
+        skip: (query.draftPage - 1) * query.pageSize,
+        take: query.pageSize,
         select: {
           id: true,
           sessionId: true,
@@ -242,19 +257,29 @@ export class MatterLinkService {
       }),
     ]);
     return {
-      sessions: sessions.map((session) => ({
-        id: session.id,
-        title: session.title,
-        updatedAt: session.updatedAt.toISOString(),
-      })),
-      drafts: drafts.map((draft) => ({
-        id: draft.id,
-        sessionId: draft.sessionId,
-        approvalStatus: draft.approvalStatus,
-        reviewedAt: draft.reviewedAt?.toISOString() ?? null,
-        createdAt: draft.createdAt.toISOString(),
-        warnings: draft.warnings,
-      })),
+      sessions: {
+        items: sessions.map((session) => ({
+          id: session.id,
+          title: session.title,
+          updatedAt: session.updatedAt.toISOString(),
+        })),
+        meta: paginationMeta(query.page, query.pageSize, sessionTotal, [
+          { field: "updatedAt", direction: "desc" },
+        ]),
+      },
+      drafts: {
+        items: drafts.map((draft) => ({
+          id: draft.id,
+          sessionId: draft.sessionId,
+          approvalStatus: draft.approvalStatus,
+          reviewedAt: draft.reviewedAt?.toISOString() ?? null,
+          createdAt: draft.createdAt.toISOString(),
+          warnings: draft.warnings,
+        })),
+        meta: paginationMeta(query.draftPage, query.pageSize, draftTotal, [
+          { field: "createdAt", direction: "desc" },
+        ]),
+      },
     };
   }
 

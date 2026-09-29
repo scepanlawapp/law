@@ -12,9 +12,11 @@ import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   CaseActivityDto,
+  CaseActivityListQueryDto,
   CaseListQueryDto,
   CaseNumberSuggestionQueryDto,
   CaseResponsibilityDto,
+  CaseResponsibilityListQueryDto,
   CloseCaseDto,
   CreateCaseDto,
   UpdateCaseActivityDto,
@@ -68,8 +70,11 @@ export class CasesController {
   @Post(":caseId/archive") archive(@Param("caseId") caseId: string) {
     return this.cases.transition(caseId, "ARCHIVED");
   }
-  @Get(":caseId/activities") listActivities(@Param("caseId") caseId: string) {
-    return this.cases.listActivities(caseId);
+  @Get(":caseId/activities") listActivities(
+    @Param("caseId") caseId: string,
+    @Query() query: CaseActivityListQueryDto,
+  ) {
+    return this.cases.listActivities(caseId, query);
   }
   @Post(":caseId/activities") createActivity(
     @Param("caseId") caseId: string,
@@ -86,8 +91,9 @@ export class CasesController {
   }
   @Get(":caseId/responsibilities") listResponsibilities(
     @Param("caseId") caseId: string,
+    @Query() query: CaseResponsibilityListQueryDto,
   ) {
-    return this.cases.listResponsibilities(caseId);
+    return this.cases.listResponsibilities(caseId, query);
   }
   @Post(":caseId/responsibilities") addResponsibility(
     @Param("caseId") caseId: string,

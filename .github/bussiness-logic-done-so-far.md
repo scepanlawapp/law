@@ -60,11 +60,11 @@ The cases backend and frontend implement the main case lifecycle:
 - Case creation, detail loading, and editing.
 - Case status transitions: activate, put on hold, resume, close, reopen, and archive.
 - Case close data includes a closed date and optional closing note.
-- Case activities: list, create, and update.
-- Case responsibilities: list, add, update, end, and set a primary responsible user.
+- Case activities: paginated list, create, and update. The list supports case-insensitive title/description search and multiple activity-type filters applied before pagination.
+- Case responsibilities: paginated list, add, update, end, and set a primary responsible user.
 - Case/client relationship validation is enforced in the backend.
 - Case list/detail responses include shallow client and responsible-user display objects, so the frontend shows names instead of relation IDs while edit/create payloads remain ID-based.
-- The frontend includes case list, case creation/edit form, case detail, lifecycle controls, activities, responsibilities, confirmation dialogs, and save/error feedback. The routed create/edit form includes a breadcrumb back to its originating return URL or the Cases list.
+- The frontend includes case list, case creation/edit form, case detail, lifecycle controls, activities, responsibilities, confirmation dialogs, and save/error feedback. Case-detail activities expose keyword and searchable multi-type filters; activities, documents, responsibilities, assistant sessions, and assistant drafts have server-backed pagination. The routed create/edit form includes a breadcrumb back to its originating return URL or the Cases list.
 
 ## Workspace documents (backend)
 
@@ -84,6 +84,7 @@ Authenticated document APIs are implemented. The Angular documents library (list
 - Each selected file is its own document. Title is required (max 320). Case/client links are locked on those detail pages and searchable on the documents page.
 - Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Optional per-row category codes are stored on `Document.category`. Clients are selected before cases; case search is constrained by selected clients. Version-mode queue exists; there is no version UI entry in this slice.
 - Removing a row only drops it from the local queue. It does not archive or delete a stored document.
+- The upload dialog does not dismiss on an outside/backdrop click; users close it through its explicit actions.
 
 ## Calendar, events, tasks, and deadlines API
 
@@ -160,7 +161,7 @@ The former Tasks & Deadlines page has been replaced by a single reusable `WorkVi
 
 ## Cases: Work tab
 
-The case detail page has an additional Work tab, alongside the existing Overview/Cases/Activities/Responsibilities tabs, rendering the same shared `WorkView` component with the case fixed. Creating a task, deadline, or event from this tab prefills the case. The existing activities/responsibilities tabs and their API calls are unchanged.
+The case detail page has an additional Work tab alongside Overview, Activities, Documents, Assistant, and Responsibilities, rendering the same shared `WorkView` component with the case fixed. Creating a task, deadline, or event from this tab prefills the case.
 
 ## Dashboard
 

@@ -1,6 +1,8 @@
 import {
   IsArray,
+  IsInt,
   IsIn,
+  Min,
   IsOptional,
   IsString,
   IsUUID,
@@ -13,6 +15,14 @@ import { PaginationQueryDto } from "@law/core";
 import { ChatMessageFeedback, DocumentScript } from "@law/api-interfaces";
 
 export class ChatSessionListQueryDto extends PaginationQueryDto {}
+
+export class CaseLinksQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  draftPage = 1;
+}
 
 export class DraftQueryDto {
   @IsOptional()

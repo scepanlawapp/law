@@ -60,6 +60,14 @@ describe("MatterLinkService", () => {
         ),
       },
       chatSession: {
+        count: jest.fn(async () => 12),
+        findMany: jest.fn(async () => [
+          {
+            id: "session-1",
+            title: "Chat",
+            updatedAt: new Date("2026-09-21T00:00:00.000Z"),
+          },
+        ]),
         create: jest.fn(
           async ({ data }: { data: Record<string, unknown> }) => ({
             id: "session-1",
@@ -82,6 +90,17 @@ describe("MatterLinkService", () => {
         ),
       },
       draftResult: {
+        count: jest.fn(async () => 12),
+        findMany: jest.fn(async () => [
+          {
+            id: "draft-1",
+            sessionId: "session-1",
+            approvalStatus: "PENDING",
+            reviewedAt: null,
+            createdAt: new Date("2026-09-20T00:00:00.000Z"),
+            warnings: [],
+          },
+        ]),
         updateMany: jest.fn(
           async ({ where }: { where: Record<string, unknown> }) => {
             return { where };
@@ -166,6 +185,33 @@ describe("MatterLinkService", () => {
         caseId: "missing",
       }),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it("paginates sessions and drafts linked to a case", async () => {
+    const { service, prisma } = harness();
+
+    const result = await service.listForCase(workspaceId, "case-1", {
+      page: 2,
+      draftPage: 3,
+      pageSize: 5,
+    });
+
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 5, take: 5 }),
+    );
+    expect(prisma.draftResult.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 10, take: 5 }),
+    );
+    expect(result.sessions.meta).toMatchObject({
+      page: 2,
+      totalItems: 12,
+      totalPages: 3,
+    });
+    expect(result.drafts.meta).toMatchObject({
+      page: 3,
+      totalItems: 12,
+      totalPages: 3,
+    });
   });
 
   it("does not move approved drafts when relinking", async () => {
@@ -410,13 +456,15 @@ describe("MatterLinkService", () => {
         briefId: "brief-1",
       });
       expect(
-        preview.proposals.map(({ key, title, priority, dueDate, selectedByDefault }) => ({
-          key,
-          title,
-          priority,
-          dueDate,
-          selectedByDefault,
-        })),
+        preview.proposals.map(
+          ({ key, title, priority, dueDate, selectedByDefault }) => ({
+            key,
+            title,
+            priority,
+            dueDate,
+            selectedByDefault,
+          }),
+        ),
       ).toEqual([
         {
           key: "missing:defendantAddress:0",

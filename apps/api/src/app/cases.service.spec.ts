@@ -48,7 +48,15 @@ describe("CasesService", () => {
       update: jest.fn(),
       count: jest.fn(),
     },
-    caseActivity: { create: jest.fn() },
+    caseActivity: {
+      create: jest.fn(),
+      count: jest.fn(),
+      findMany: jest.fn(),
+    },
+    caseResponsibility: {
+      count: jest.fn(),
+      findMany: jest.fn(),
+    },
   };
   const db = platformPrisma;
   const context = {
@@ -190,5 +198,64 @@ describe("CasesService", () => {
         }),
       }),
     );
+  });
+
+  it("filters and paginates case activities before returning results", async () => {
+    db.case.findFirst.mockResolvedValue(caseRecord("ACTIVE"));
+    db.caseActivity.count.mockResolvedValue(12);
+    db.caseActivity.findMany.mockResolvedValue([]);
+
+    const result = await WorkspaceContextService.run(context as never, () =>
+      service.listActivities(caseRecord("ACTIVE").id, {
+        page: 2,
+        pageSize: 5,
+        search: "poziv",
+        types: ["PHONE_CALL", "EMAIL"],
+      } as never),
+    );
+
+    expect(db.caseActivity.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          caseId: caseRecord("ACTIVE").id,
+          workspaceId,
+          type: { in: ["PHONE_CALL", "EMAIL"] },
+          OR: [
+            { title: { contains: "poziv", mode: "insensitive" } },
+            { description: { contains: "poziv", mode: "insensitive" } },
+          ],
+        },
+        skip: 5,
+        take: 5,
+      }),
+    );
+    expect(result.meta).toMatchObject({
+      page: 2,
+      pageSize: 5,
+      totalItems: 12,
+      totalPages: 3,
+    });
+  });
+
+  it("paginates case responsibilities", async () => {
+    db.case.findFirst.mockResolvedValue(caseRecord("ACTIVE"));
+    db.caseResponsibility.count.mockResolvedValue(11);
+    db.caseResponsibility.findMany.mockResolvedValue([]);
+
+    const result = await WorkspaceContextService.run(context as never, () =>
+      service.listResponsibilities(caseRecord("ACTIVE").id, {
+        page: 2,
+        pageSize: 10,
+      } as never),
+    );
+
+    expect(db.caseResponsibility.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ skip: 10, take: 10 }),
+    );
+    expect(result.meta).toMatchObject({
+      page: 2,
+      totalItems: 11,
+      totalPages: 2,
+    });
   });
 });

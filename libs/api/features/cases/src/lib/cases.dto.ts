@@ -106,6 +106,14 @@ export class CaseActivityDto {
   @IsDateString() activityDate!: string;
 }
 
+export class CaseActivityListQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsEnum(ActivityType, { each: true })
+  types?: ActivityType[];
+}
+
 export class UpdateCaseActivityDto {
   @IsOptional() @IsEnum(ActivityType) type?: ActivityType;
   @IsOptional() @IsString() @MaxLength(320) title?: string;
@@ -118,6 +126,8 @@ export class CaseResponsibilityDto {
   @IsOptional() @IsBoolean() isPrimary?: boolean;
   @IsOptional() @IsDateString() startedAt?: string;
 }
+
+export class CaseResponsibilityListQueryDto extends PaginationQueryDto {}
 
 export class UpdateCaseResponsibilityDto {
   @IsOptional() @IsDateString() startedAt?: string;
