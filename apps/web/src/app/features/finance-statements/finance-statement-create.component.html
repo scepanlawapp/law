@@ -118,16 +118,28 @@
           <label hlmFieldLabel for="statement-currency">
             {{ "finance.currency" | translate }}
           </label>
-          <input
-            hlmInput
-            id="statement-currency"
-            maxlength="3"
-            class="uppercase"
+          <hlm-select
             formControlName="currency"
-            required
-          />
-          <hlm-field-error>
-            {{ "finance.currencyCodeError" | translate }}
+            [itemToString]="currencyItemToString"
+          >
+            <hlm-select-trigger
+              id="statement-currency"
+              class="w-full min-w-0 max-w-full"
+            >
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of currencyOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+          <hlm-field-error validator="required">
+            {{ "finance.required" | translate }}
           </hlm-field-error>
         </div>
       </div>
@@ -259,14 +271,27 @@
                     />
                   </td>
                   <td hlmTd>
-                    <input
-                      hlmInput
-                      maxlength="3"
+                    <hlm-select
                       formControlName="currency"
-                      class="min-w-24 uppercase"
-                      [attr.aria-invalid]="isCurrencyMismatch(index)"
-                      required
-                    />
+                      [itemToString]="currencyItemToString"
+                    >
+                      <hlm-select-trigger
+                        [id]="'statement-line-currency-' + index"
+                        class="min-w-40 max-w-full"
+                        [forceInvalid]="isCurrencyMismatch(index)"
+                      >
+                        <hlm-select-value />
+                      </hlm-select-trigger>
+                      <hlm-select-content *hlmSelectPortal>
+                        <hlm-select-group>
+                          @for (option of currencyOptions; track option.value) {
+                            <hlm-select-item [value]="option.value">
+                              {{ option.label | translate }}
+                            </hlm-select-item>
+                          }
+                        </hlm-select-group>
+                      </hlm-select-content>
+                    </hlm-select>
                     @if (isCurrencyMismatch(index)) {
                       <span class="mt-1 block text-destructive">
                         {{ "finance.currencyMismatchRow" | translate }}

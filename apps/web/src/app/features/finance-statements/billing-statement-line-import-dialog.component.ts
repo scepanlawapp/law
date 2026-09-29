@@ -12,11 +12,16 @@ import {
   HlmDialogTitle,
 } from "@spartan-ng/helm/dialog";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { debounceTime, distinctUntilChanged } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  CURRENCY_FILTER_OPTIONS,
+  createCurrencyItemToString,
+} from "../../shared/currency";
 import { BillingStatementLineImportDialogContext } from "./billing-statement-line-import-dialog.models";
 
 const PAGE_SIZE = 10;
@@ -33,6 +38,7 @@ const PAGE_SIZE = 10;
     HlmDialogHeader,
     HlmDialogTitle,
     HlmInput,
+    HlmSelectImports,
     HlmSpinner,
     HlmTableImports,
     TranslatePipe,
@@ -50,6 +56,11 @@ export class BillingStatementLineImportDialogComponent {
   readonly client = this.context.client;
   readonly excludedLineIds = new Set(this.context.excludedLineIds);
   readonly currency = new FormControl("", { nonNullable: true });
+  readonly currencyOptions = CURRENCY_FILTER_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString(
+    (key) => this.localization.translate(key),
+    true,
+  );
   readonly from = new FormControl("", { nonNullable: true });
   readonly to = new FormControl("", { nonNullable: true });
   readonly items = signal<BillingStatementLineSummary[]>([]);

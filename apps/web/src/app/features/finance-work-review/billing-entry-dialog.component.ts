@@ -36,6 +36,11 @@ import {
 } from "@spartan-ng/helm/table";
 import { forkJoin } from "rxjs";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { LocalizationService } from "../../core/localization/localization.service";
+import {
+  CURRENCY_OPTIONS,
+  createCurrencyItemToString,
+} from "../../shared/currency";
 import { BillingStatementLineDialogContext } from "./billing-entry-dialog.models";
 
 type BillingLineItemForm = FormGroup<{
@@ -78,10 +83,15 @@ export class BillingStatementLineDialogComponent {
   private readonly context =
     injectBrnDialogContext<BillingStatementLineDialogContext>();
   private readonly destroyRef = inject(DestroyRef);
+  private readonly localization = inject(LocalizationService);
   readonly dialogRef = inject(BrnDialogRef<BillingStatementLineSummary[]>);
   readonly clients = signal<ClientSummary[]>([]);
   readonly saving = signal(false);
   readonly error = signal("");
+  readonly currencyOptions = CURRENCY_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString((key) =>
+    this.localization.translate(key),
+  );
   readonly candidates = this.context.candidates ?? [];
   readonly clientItemToString = (value: string | null | undefined): string =>
     this.clients().find((client) => client.id === value)?.displayName ?? "";
@@ -188,11 +198,7 @@ export class BillingStatementLineDialogComponent {
       ]),
       currency: new FormControl("RSD", {
         nonNullable: true,
-        validators: [
-          Validators.required,
-          Validators.minLength(3),
-          Validators.maxLength(3),
-        ],
+        validators: Validators.required,
       }),
     });
   }

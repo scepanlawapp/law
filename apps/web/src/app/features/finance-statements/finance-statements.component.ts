@@ -17,6 +17,10 @@ import { HlmTableImports } from "@spartan-ng/helm/table";
 import { debounceTime, distinctUntilChanged, forkJoin } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  CURRENCY_FILTER_OPTIONS,
+  createCurrencyItemToString,
+} from "../../shared/currency";
 import { createSelectItemToString, SelectOption } from "../../shared/utils";
 
 const PAGE_SIZE = 15;
@@ -70,6 +74,11 @@ export class FinanceStatementsComponent {
   readonly statusItemToString = createSelectItemToString(
     this.statusOptions,
     (key) => this.localization.translate(key),
+  );
+  readonly currencyOptions = CURRENCY_FILTER_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString(
+    (key) => this.localization.translate(key),
+    true,
   );
   readonly clientItemToString = (value: string | null | undefined): string =>
     value

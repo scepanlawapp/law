@@ -11,13 +11,26 @@
       <label class="font-medium" for="line-import-currency">
         {{ "finance.currency" | translate }}
       </label>
-      <input
-        hlmInput
-        id="line-import-currency"
-        maxlength="3"
-        class="uppercase"
+      <hlm-select
         [formControl]="currency"
-      />
+        [itemToString]="currencyItemToString"
+      >
+        <hlm-select-trigger
+          id="line-import-currency"
+          class="w-full min-w-0 max-w-full"
+        >
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of currencyOptions; track option.value) {
+              <hlm-select-item [value]="option.value">
+                {{ option.label | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
     </div>
     <div class="flex min-w-0 flex-col gap-1">
       <label class="font-medium" for="line-import-from">

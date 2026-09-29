@@ -21,6 +21,11 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { Observable, concatMap, from, switchMap, tap, toArray } from "rxjs";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { LocalizationService } from "../../core/localization/localization.service";
+import {
+  CURRENCY_OPTIONS,
+  createCurrencyItemToString,
+} from "../../shared/currency";
 import {
   BillingStatementLineForm,
   appendUniqueBillingStatementLines,
@@ -59,6 +64,7 @@ export class FinanceStatementCreateComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly clientDialog = inject(ClientFormDialogService);
+  private readonly localization = inject(LocalizationService);
 
   readonly clients = signal<ClientSummary[]>([]);
   readonly clientsLoading = signal(false);
@@ -84,13 +90,17 @@ export class FinanceStatementCreateComponent {
     }),
     currency: new FormControl("RSD", {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^[A-Za-z]{3}$/)],
+      validators: Validators.required,
     }),
     lines: new FormArray<BillingStatementLineForm>([]),
   });
 
   readonly clientItemToString = (value: string | null | undefined): string =>
     this.clients().find((client) => client.id === value)?.displayName ?? "";
+  readonly currencyOptions = CURRENCY_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString((key) =>
+    this.localization.translate(key),
+  );
   readonly mismatchIndexes = computed(() => {
     this.formRevision();
     return incompatibleCurrencyIndexes(
