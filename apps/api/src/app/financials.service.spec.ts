@@ -2,6 +2,7 @@ import { ConflictException, ForbiddenException } from "@nestjs/common";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { WorkspaceContextService } from "@law/core";
 import { FinancialsService } from "@law/financials";
+import { Prisma } from "@prisma/client";
 
 const workspaceId = "11111111-1111-4111-a111-111111111111";
 const userId = "22222222-2222-4222-a222-222222222222";
@@ -9,6 +10,7 @@ const clientId = "33333333-3333-4333-a333-333333333333";
 const caseId = "44444444-4444-4444-a444-444444444444";
 const taskId = "55555555-5555-4555-a555-555555555555";
 const eventId = "66666666-6666-4666-a666-666666666666";
+const statementId = "77777777-7777-4777-a777-777777777777";
 
 function client() {
   return {
@@ -38,32 +40,44 @@ function caseRecord() {
     name: "Client matter",
     status: "ACTIVE",
     priority: "NORMAL",
+    client: client(),
   };
 }
 
-function line(
-  id: string,
-  sourceType: string,
-  sourceId: string,
-  amount: number,
-) {
+function statementLine() {
   return {
-    id,
-    statementId: null,
+    id: "88888888-8888-4888-a888-888888888888",
+    statementId,
     client: client(),
     caseLinks: [{ case: caseRecord() }],
     performedBy: user(),
-    lineOrder: null,
-    description: `${sourceType} work`,
-    serviceDate: new Date("2026-09-23T10:00:00.000Z"),
-    amount: { toString: () => amount.toFixed(2) },
+    lineOrder: 0,
+    description: "Completed task",
+    serviceDate: new Date("2026-09-23"),
+    amount: new Prisma.Decimal(100),
     currency: "RSD",
-    status: "UNBILLED",
-    sourceType,
-    sourceId,
+    status: "RESERVED",
+    sourceType: "TASK",
+    sourceId: taskId,
     billedAt: null,
     cancelledAt: null,
     cancellationReason: null,
+  };
+}
+
+function fullStatement() {
+  return {
+    id: statementId,
+    workspaceId,
+    clientId,
+    client: client(),
+    statementNumber: "ST-000001",
+    periodStart: new Date("2026-09-01"),
+    periodEnd: new Date("2026-09-30"),
+    currency: "RSD",
+    status: "DRAFT",
+    lines: [statementLine()],
+    payments: [],
   };
 }
 
@@ -71,47 +85,43 @@ describe("FinancialsService", () => {
   const db = {
     client: { findFirst: jest.fn() },
     case: { findFirst: jest.fn() },
-    workspaceMember: { findUnique: jest.fn() },
-    billingStatementLine: {
-      create: jest.fn(),
-      findFirst: jest.fn(),
-      findMany: jest.fn(),
-      count: jest.fn(),
-      update: jest.fn(),
-      updateMany: jest.fn(),
-      aggregate: jest.fn(),
-      groupBy: jest.fn(),
-    },
-    billingStatement: {
-      findFirst: jest.fn(),
-      delete: jest.fn(),
-    },
-    financeMutationRequest: { deleteMany: jest.fn() },
-    billingSuggestionReview: {
-      count: jest.fn(),
-      findMany: jest.fn(),
-      findUnique: jest.fn(),
-      upsert: jest.fn(),
-    },
     event: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
-    eventClient: { upsert: jest.fn() },
     task: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     deadline: {
       findFirst: jest.fn(),
       findMany: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
-    caseActivity: { findFirst: jest.fn(), findMany: jest.fn() },
-    clientActivity: { findFirst: jest.fn(), findMany: jest.fn() },
-    activityLog: { create: jest.fn() },
+    billingStatementLine: {
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    billingStatement: {
+      create: jest.fn(),
+      findFirst: jest.fn(),
+      findMany: jest.fn(),
+      findUniqueOrThrow: jest.fn(),
+      update: jest.fn(),
+      delete: jest.fn(),
+    },
+    financeMutationRequest: {
+      findUnique: jest.fn(),
+      create: jest.fn(),
+      deleteMany: jest.fn(),
+    },
+    domainCounter: { upsert: jest.fn() },
     $transaction: jest.fn(async (input: unknown) => {
       if (typeof input === "function") return input(db);
       return Promise.all(input as Promise<unknown>[]);
@@ -122,111 +132,34 @@ describe("FinancialsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     db.client.findFirst.mockResolvedValue(client());
-    db.case.findFirst.mockResolvedValue(caseRecord());
-    db.workspaceMember.findUnique.mockResolvedValue({
-      status: "ACTIVE",
-      user: user(),
-    });
-    db.billingStatementLine.findMany.mockResolvedValue([]);
-    db.billingStatementLine.count.mockResolvedValue(0);
-    db.billingSuggestionReview.findMany.mockResolvedValue([]);
-    db.billingSuggestionReview.findUnique.mockResolvedValue(null);
     db.event.findMany.mockResolvedValue([]);
     db.task.findMany.mockResolvedValue([]);
     db.deadline.findMany.mockResolvedValue([]);
-    db.caseActivity.findMany.mockResolvedValue([]);
-    db.clientActivity.findMany.mockResolvedValue([]);
+    db.event.updateMany.mockResolvedValue({ count: 0 });
+    db.task.updateMany.mockResolvedValue({ count: 0 });
+    db.deadline.updateMany.mockResolvedValue({ count: 0 });
+    db.billingStatementLine.deleteMany.mockResolvedValue({ count: 0 });
+    db.financeMutationRequest.findUnique.mockResolvedValue(null);
   });
 
-  it("rejects ordinary members before exposing statement lines", async () => {
+  it("rejects ordinary members before exposing billable work", async () => {
     await expect(
       WorkspaceContextService.run(
         { workspaceId, userId, role: WorkspaceRole.MEMBER },
-        () => service.listLines({} as never),
+        () => service.listBillableWork({ page: 1, pageSize: 20 }),
       ),
     ).rejects.toBeInstanceOf(ForbiddenException);
-    expect(db.billingStatementLine.findMany).not.toHaveBeenCalled();
+    expect(db.task.findMany).not.toHaveBeenCalled();
   });
 
-  it("keeps company catalog sources workspace-wide", async () => {
-    await expect(
-      WorkspaceContextService.run(
-        { workspaceId, userId, role: WorkspaceRole.ADMIN },
-        () =>
-          service.createPriceSource({
-            scope: "COMPANY_CATALOG",
-            clientId,
-            title: "Office catalog",
-            rawText: "Consultation",
-          } as never),
-      ),
-    ).rejects.toBeInstanceOf(ConflictException);
-  });
-
-  it("applies client, case, source, and status filters to statement lines", async () => {
-    await WorkspaceContextService.run(
-      { workspaceId, userId, role: WorkspaceRole.ADMIN },
-      () =>
-        service.listLines({
-          page: 1,
-          pageSize: 50,
-          clientIds: [clientId],
-          caseIds: [caseId],
-          sourceTypes: ["EVENT", "TASK"],
-          status: "UNBILLED",
-        } as never),
-    );
-
-    expect(db.billingStatementLine.findMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: expect.objectContaining({
-          clientId: { in: [clientId] },
-          caseLinks: { some: { caseId: { in: [caseId] } } },
-          sourceType: { in: ["EVENT", "TASK"] },
-          status: "UNBILLED",
-        }),
-      }),
-    );
-  });
-
-  it("rejects duplicate candidates before creating statement lines", async () => {
-    const candidateKey = `TASK:${taskId}:${userId}`;
-
-    await expect(
-      WorkspaceContextService.run(
-        { workspaceId, userId, role: WorkspaceRole.ADMIN },
-        () =>
-          service.recordCandidatesAsLines({
-            clientId,
-            items: [
-              {
-                candidateKey,
-                description: "Task",
-                amount: 100,
-                currency: "RSD",
-              },
-              {
-                candidateKey,
-                description: "Task",
-                amount: 100,
-                currency: "RSD",
-              },
-            ],
-          }),
-      ),
-    ).rejects.toBeInstanceOf(ConflictException);
-    expect(db.billingStatementLine.create).not.toHaveBeenCalled();
-  });
-
-  it("lists every unbilled task and event and excludes other source types", async () => {
+  it("lists only completed, unlinked work and applies source filters", async () => {
     db.event.findMany.mockResolvedValue([
       {
         id: eventId,
-        title: "Future client meeting",
-        status: "SCHEDULED",
-        startsAt: new Date("2026-10-10T10:00:00.000Z"),
-        billingStatementLineId: null,
-        case: { ...caseRecord(), client: client() },
+        caseId,
+        title: "Completed hearing",
+        startsAt: new Date("2026-09-24T10:00:00.000Z"),
+        case: caseRecord(),
         clients: [],
         organizer: user(),
         assignees: [],
@@ -235,12 +168,12 @@ describe("FinancialsService", () => {
     db.task.findMany.mockResolvedValue([
       {
         id: taskId,
-        title: "Draft submission",
-        status: "TODO",
-        completedAt: null,
-        updatedAt: new Date("2026-09-29T10:00:00.000Z"),
-        billingStatementLineId: null,
-        case: { ...caseRecord(), client: client() },
+        caseId,
+        clientId: null,
+        title: "Completed task",
+        completedAt: new Date("2026-09-23T10:00:00.000Z"),
+        updatedAt: new Date("2026-09-23T10:00:00.000Z"),
+        case: caseRecord(),
         client: null,
         assignee: user(),
       },
@@ -248,99 +181,133 @@ describe("FinancialsService", () => {
 
     const result = await WorkspaceContextService.run(
       { workspaceId, userId, role: WorkspaceRole.ADMIN },
-      () => service.listCandidates({ page: 1, pageSize: 20 } as never),
+      () =>
+        service.listBillableWork({
+          clientId,
+          sourceTypes: ["TASK"],
+          page: 1,
+          pageSize: 20,
+        }),
     );
 
     expect(result.items).toEqual([
       expect.objectContaining({
-        sourceType: "EVENT",
+        sourceKey: `TASK:${taskId}`,
+        sourceType: "TASK",
         client: expect.objectContaining({ id: clientId }),
       }),
-      expect.objectContaining({ sourceType: "TASK" }),
     ]);
-    expect(db.event.findMany.mock.calls[0][0].where).toEqual({
-      workspaceId,
-      billingStatementLineId: null,
-    });
-    expect(db.task.findMany.mock.calls[0][0].where).toEqual({
-      workspaceId,
-      billingStatementLineId: null,
-    });
-    expect(db.deadline.findMany).not.toHaveBeenCalled();
-    expect(db.caseActivity.findMany).not.toHaveBeenCalled();
-    expect(db.clientActivity.findMany).not.toHaveBeenCalled();
-  });
-
-  it("assigns a missing client to an event candidate and returns its new key", async () => {
-    db.event.findFirst.mockResolvedValue({
-      id: eventId,
-      caseId: null,
-      case: null,
-    });
-
-    const result = await WorkspaceContextService.run(
-      { workspaceId, userId, role: WorkspaceRole.LAWYER },
-      () =>
-        service.assignCandidateClient(
-          `EVENT:${eventId}:${userId}:UNASSIGNED`,
-          clientId,
-        ),
-    );
-
-    expect(result).toMatchObject({
-      candidateKey: `EVENT:${eventId}:${userId}:${clientId}`,
-      client: { id: clientId },
-    });
-    expect(db.eventClient.upsert).toHaveBeenCalledWith({
-      where: { eventId_clientId: { eventId, clientId } },
-      create: { workspaceId, eventId, clientId },
-      update: {},
-    });
-    expect(db.activityLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        action: "EVENT_CLIENT_ASSIGNED",
-        entityId: eventId,
-        clientId,
-      }),
-    });
-  });
-
-  it("cancels only an unbilled line and records the reason", async () => {
-    db.billingStatementLine.findFirst.mockResolvedValue({
-      id: "line-task",
-      status: "UNBILLED",
-    });
-    db.billingStatementLine.update.mockResolvedValue({
-      ...line("line-task", "TASK", taskId, 100),
-      status: "CANCELLED",
-      cancelledAt: new Date("2026-09-29T10:00:00.000Z"),
-      cancellationReason: "Entered by mistake",
-    });
-
-    const result = await WorkspaceContextService.run(
-      { workspaceId, userId, role: WorkspaceRole.LAWYER },
-      () => service.cancelLine("line-task", "Entered by mistake"),
-    );
-
-    expect(result).toMatchObject({
-      id: "line-task",
-      status: "CANCELLED",
-      cancellationReason: "Entered by mistake",
-    });
-    expect(db.billingStatementLine.update).toHaveBeenCalledWith(
+    expect(db.event.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { id: "line-task" },
-        data: expect.objectContaining({
-          status: "CANCELLED",
-          cancellationReason: "Entered by mistake",
-          cancelledByUserId: userId,
+        where: expect.objectContaining({
+          status: "COMPLETED",
+          statementId: null,
+        }),
+      }),
+    );
+    expect(db.task.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ status: "DONE", statementId: null }),
+      }),
+    );
+    expect(db.deadline.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          status: "SATISFIED",
+          statementId: null,
         }),
       }),
     );
   });
 
-  it("deletes a draft statement and releases its reserved lines", async () => {
-    const statementId = "77777777-7777-4777-a777-777777777777";
+  it("creates statement lines with the current user and links each source", async () => {
+    const createdStatement = {
+      id: statementId,
+      clientId,
+      currency: "RSD",
+    };
+    db.domainCounter.upsert.mockResolvedValue({ value: 1 });
+    db.billingStatement.create.mockResolvedValue(createdStatement);
+    db.billingStatement.findUniqueOrThrow.mockResolvedValue(fullStatement());
+    db.task.findFirst.mockResolvedValue({
+      id: taskId,
+      clientId: null,
+      caseId,
+      case: caseRecord(),
+    });
+
+    await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () =>
+        service.createStatement({
+          clientId,
+          periodStart: "2026-09-01",
+          periodEnd: "2026-09-30",
+          currency: "RSD",
+          lines: [
+            {
+              serviceDate: "2026-09-23",
+              description: "Completed task",
+              amount: 100,
+              currency: "RSD",
+              sourceType: "TASK",
+              sourceId: taskId,
+            },
+          ],
+        }),
+    );
+
+    expect(db.billingStatementLine.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        statementId,
+        clientId,
+        performedByUserId: userId,
+        status: "RESERVED",
+        sourceType: "TASK",
+        sourceId: taskId,
+      }),
+    });
+    expect(db.task.update).toHaveBeenCalledWith({
+      where: { id: taskId },
+      data: { statementId },
+    });
+  });
+
+  it("rejects a source already connected to another statement", async () => {
+    db.domainCounter.upsert.mockResolvedValue({ value: 1 });
+    db.billingStatement.create.mockResolvedValue({
+      id: statementId,
+      clientId,
+      currency: "RSD",
+    });
+    db.task.findFirst.mockResolvedValue(null);
+
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.ADMIN },
+        () =>
+          service.createStatement({
+            clientId,
+            periodStart: "2026-09-01",
+            periodEnd: "2026-09-30",
+            currency: "RSD",
+            lines: [
+              {
+                serviceDate: "2026-09-23",
+                description: "Task",
+                amount: 100,
+                currency: "RSD",
+                sourceType: "TASK",
+                sourceId: taskId,
+              },
+            ],
+          }),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.task.update).not.toHaveBeenCalled();
+  });
+
+  it("deletes a draft statement and relies on database cascades to release sources", async () => {
     db.billingStatement.findFirst.mockResolvedValue({
       id: statementId,
       status: "DRAFT",
@@ -351,19 +318,6 @@ describe("FinancialsService", () => {
       () => service.deleteStatement(statementId),
     );
 
-    expect(db.billingStatementLine.updateMany).toHaveBeenCalledWith({
-      where: {
-        workspaceId,
-        statementId,
-        status: "RESERVED",
-      },
-      data: {
-        statementId: null,
-        lineOrder: null,
-        status: "UNBILLED",
-        updatedByUserId: userId,
-      },
-    });
     expect(db.billingStatement.delete).toHaveBeenCalledWith({
       where: { id: statementId },
     });
@@ -376,97 +330,18 @@ describe("FinancialsService", () => {
     });
   });
 
-  it("refuses to delete a non-draft statement", async () => {
+  it("refuses to delete a sent statement", async () => {
     db.billingStatement.findFirst.mockResolvedValue({
-      id: "77777777-7777-4777-a777-777777777777",
+      id: statementId,
       status: "SENT",
     });
 
     await expect(
       WorkspaceContextService.run(
         { workspaceId, userId, role: WorkspaceRole.ADMIN },
-        () => service.deleteStatement("77777777-7777-4777-a777-777777777777"),
+        () => service.deleteStatement(statementId),
       ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(db.billingStatement.delete).not.toHaveBeenCalled();
-  });
-
-  it("creates one statement line per item and links each source", async () => {
-    const taskKey = `TASK:${taskId}:${userId}`;
-    const eventKey = `EVENT:${eventId}:${userId}:${clientId}`;
-    db.task.findFirst.mockResolvedValue({
-      id: taskId,
-      clientId,
-      caseId,
-      case: caseRecord(),
-      completedAt: new Date("2026-09-23T10:00:00.000Z"),
-      updatedAt: new Date("2026-09-23T10:00:00.000Z"),
-    });
-    db.event.findFirst.mockResolvedValue({
-      id: eventId,
-      caseId,
-      startsAt: new Date("2026-09-24T10:00:00.000Z"),
-    });
-    db.billingStatementLine.create
-      .mockResolvedValueOnce(line("line-task", "TASK", taskId, 100))
-      .mockResolvedValueOnce(line("line-event", "EVENT", eventId, 250));
-
-    const result = await WorkspaceContextService.run(
-      { workspaceId, userId, role: WorkspaceRole.ADMIN },
-      () =>
-        service.recordCandidatesAsLines({
-          clientId,
-          items: [
-            {
-              candidateKey: taskKey,
-              description: "Prepare submission",
-              amount: 100,
-              currency: "rsd",
-            },
-            {
-              candidateKey: eventKey,
-              description: "Client meeting",
-              amount: 250,
-              currency: "RSD",
-            },
-          ],
-        }),
-    );
-
-    expect(result).toHaveLength(2);
-    expect(db.billingStatementLine.create).toHaveBeenCalledTimes(2);
-    expect(db.billingStatementLine.create).toHaveBeenNthCalledWith(
-      1,
-      expect.objectContaining({
-        data: expect.objectContaining({
-          clientId,
-          description: "Prepare submission",
-          amount: 100,
-          currency: "RSD",
-          sourceType: "TASK",
-          sourceId: taskId,
-          caseLinks: { create: { workspaceId, caseId } },
-        }),
-      }),
-    );
-    expect(db.task.update).toHaveBeenCalledWith({
-      where: { id: taskId },
-      data: { billingStatementLineId: "line-task" },
-    });
-    expect(db.event.update).toHaveBeenCalledWith({
-      where: { id: eventId },
-      data: { billingStatementLineId: "line-event" },
-    });
-    expect(db.billingSuggestionReview.upsert).toHaveBeenCalledTimes(2);
-    expect(db.billingSuggestionReview.upsert).toHaveBeenNthCalledWith(
-      2,
-      expect.objectContaining({
-        create: expect.objectContaining({
-          candidateKey: eventKey,
-          resolution: "RECORDED",
-          billingStatementLineId: "line-event",
-        }),
-      }),
-    );
   });
 });

@@ -7,11 +7,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import {
-  BillingStatement,
-  BillingStatementLineSummary,
-  ClientSummary,
-} from "@law/api-interfaces";
+import { BillingStatement, ClientSummary } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
@@ -22,7 +18,6 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
-import { Observable, concatMap, from, switchMap, tap, toArray } from "rxjs";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import {
@@ -31,7 +26,7 @@ import {
 } from "../../shared/currency";
 import {
   BillingStatementLineForm,
-  appendUniqueBillingStatementLines,
+  appendUniqueBillableWork,
   createBillingStatementLineForm,
   detachBillingStatementLineSources,
   incompatibleCurrencyIndexes,
@@ -84,6 +79,11 @@ export class FinanceStatementCreateComponent {
   readonly statementIdempotencyKey = crypto.randomUUID();
   readonly statementId = this.route.snapshot.paramMap.get("id");
   readonly isEditMode = this.statementId !== null;
+  private readonly requestedClientId =
+    this.route.snapshot.queryParamMap.get("clientId");
+  private readonly requestedSourceKeys =
+    this.route.snapshot.queryParamMap.getAll("source");
+  private prefillStarted = false;
 
   readonly form = new FormGroup({
     clientId: new FormControl("", {
@@ -197,13 +197,27 @@ export class FinanceStatementCreateComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
-          this.clients.set(response.items);
-          this.selectedClient.set(
-            response.items.find(
-              (client) => client.id === this.form.controls.clientId.value,
-            ) ?? null,
-          );
-          this.clientsLoading.set(false);
+          if (
+            !this.isEditMode &&
+            this.requestedClientId &&
+            !response.items.some(
+              (client) => client.id === this.requestedClientId,
+            )
+          ) {
+            this.clientsApi
+              .get(this.requestedClientId)
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe({
+                next: (client) =>
+                  this.applyClients([client, ...response.items]),
+                error: () => {
+                  this.applyClients(response.items);
+                  this.saveError.set("finance.workImportError");
+                },
+              });
+            return;
+          }
+          this.applyClients(response.items);
         },
         error: () => {
           this.clientsLoading.set(false);
@@ -232,17 +246,22 @@ export class FinanceStatementCreateComponent {
   openImportDialog(): void {
     const client = this.selectedClient();
     if (!client) return;
-    const importedIds = this.form.controls.lines.controls
-      .map((line) => line.controls.id.value)
-      .filter((id): id is string => Boolean(id));
+    const importedSourceKeys = this.form.controls.lines.controls.flatMap(
+      (line) => {
+        const type = line.controls.sourceType.value;
+        const id = line.controls.sourceId.value;
+        return type && id ? [`${type}:${id}`] : [];
+      },
+    );
     this.importDialog
-      .open(client, importedIds)
+      .open(client, importedSourceKeys)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((lines) => {
-        if (!lines?.length) return;
-        const added = appendUniqueBillingStatementLines(
+      .subscribe((items) => {
+        if (!items?.length) return;
+        const added = appendUniqueBillableWork(
           this.form.controls.lines,
-          lines,
+          items,
+          normalizeCurrency(this.form.controls.currency.value),
         );
         if (!added) return;
         this.form.controls.lines.markAsDirty();
@@ -270,70 +289,40 @@ export class FinanceStatementCreateComponent {
     }
 
     const header = this.form.getRawValue();
-    const controls = [...this.form.controls.lines.controls];
-    this.saving.set(true);
-    from(controls)
-      .pipe(
-        concatMap((control) =>
-          this.persistLine(control, header.clientId).pipe(
-            tap((line) => {
-              control.controls.id.setValue(line.id, { emitEvent: false });
-              control.markAsPristine();
-            }),
-          ),
-        ),
-        toArray(),
-        switchMap((lines) => {
-          const lineIds = lines.map((line) => line.id);
-          if (this.statementId) {
-            return this.api.updateStatement(this.statementId, {
-              periodStart: header.periodStart,
-              periodEnd: header.periodEnd,
-              lineIds,
-            });
-          }
-          return this.api.createStatement({
-            clientId: header.clientId,
-            periodStart: header.periodStart,
-            periodEnd: header.periodEnd,
-            currency: normalizeCurrency(header.currency),
-            lineIds,
-            idempotencyKey: this.statementIdempotencyKey,
-          });
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: () => void this.router.navigate(["/finance/statements"]),
-        error: () => {
-          this.saving.set(false);
-          this.saveError.set("finance.saveError");
-          this.bumpRevision();
-        },
-      });
-  }
-
-  private persistLine(
-    control: BillingStatementLineForm,
-    clientId: string,
-  ): Observable<BillingStatementLineSummary> {
-    const value = control.getRawValue();
-    const amount = value.amount ?? 0;
-    const currency = normalizeCurrency(value.currency);
-    if (value.id) {
-      return this.api.updateLine(value.id, {
+    const lines = this.form.controls.lines.controls.map((control) => {
+      const value = control.getRawValue();
+      return {
+        serviceDate: value.serviceDate,
         description: value.description.trim(),
-        amount,
-        currency,
-      });
-    }
-    return this.api.createLine({
-      clientId,
-      performedByUserId: value.performedByUserId ?? undefined,
-      serviceDate: value.serviceDate,
-      description: value.description.trim(),
-      amount,
-      currency,
+        amount: value.amount ?? 0,
+        currency: normalizeCurrency(value.currency),
+        ...(value.sourceType && value.sourceId
+          ? { sourceType: value.sourceType, sourceId: value.sourceId }
+          : {}),
+      };
+    });
+    this.saving.set(true);
+    const request = this.statementId
+      ? this.api.updateStatement(this.statementId, {
+          periodStart: header.periodStart,
+          periodEnd: header.periodEnd,
+          lines,
+        })
+      : this.api.createStatement({
+          clientId: header.clientId,
+          periodStart: header.periodStart,
+          periodEnd: header.periodEnd,
+          currency: normalizeCurrency(header.currency),
+          lines,
+          idempotencyKey: this.statementIdempotencyKey,
+        });
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: () => void this.router.navigate(["/finance/statements"]),
+      error: () => {
+        this.saving.set(false);
+        this.saveError.set("finance.saveError");
+        this.bumpRevision();
+      },
     });
   }
 
@@ -362,6 +351,59 @@ export class FinanceStatementCreateComponent {
 
   private bumpRevision(): void {
     this.formRevision.update((value) => value + 1);
+  }
+
+  private loadRequestedWork(): void {
+    if (
+      this.prefillStarted ||
+      !this.requestedClientId ||
+      !this.requestedSourceKeys.length
+    ) {
+      return;
+    }
+    this.prefillStarted = true;
+    this.api
+      .billableWork({
+        clientId: this.requestedClientId,
+        sourceKeys: this.requestedSourceKeys,
+        page: 1,
+        pageSize: Math.max(1, this.requestedSourceKeys.length),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          appendUniqueBillableWork(
+            this.form.controls.lines,
+            response.items,
+            normalizeCurrency(this.form.controls.currency.value),
+          );
+          if (response.items.length !== this.requestedSourceKeys.length) {
+            this.saveError.set("finance.someWorkUnavailable");
+          }
+          this.form.controls.lines.markAsDirty();
+          this.bumpRevision();
+        },
+        error: () => this.saveError.set("finance.workImportError"),
+      });
+  }
+
+  private applyClients(clients: ClientSummary[]): void {
+    this.clients.set(clients);
+    if (!this.isEditMode && this.requestedClientId) {
+      const requestedClient = clients.find(
+        (client) => client.id === this.requestedClientId,
+      );
+      if (requestedClient) {
+        this.form.controls.clientId.setValue(requestedClient.id);
+        this.loadRequestedWork();
+      }
+    }
+    this.selectedClient.set(
+      clients.find(
+        (client) => client.id === this.form.controls.clientId.value,
+      ) ?? null,
+    );
+    this.clientsLoading.set(false);
   }
 
   openClientDialog(): void {

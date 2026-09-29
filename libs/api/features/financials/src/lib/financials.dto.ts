@@ -1,7 +1,6 @@
 import { Transform, Type } from "class-transformer";
 import {
   ArrayMinSize,
-  ArrayUnique,
   IsArray,
   IsDateString,
   IsEnum,
@@ -17,61 +16,8 @@ import {
   ValidateNested,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
-import {
-  RecordBillingStatementLineItemRequest,
-  RecordBillingStatementLinesRequest,
-  ReviewBillingSuggestionsRequest,
-} from "@law/api-interfaces";
-import { BillingStatementLineStatus, PriceSourceScope } from "@prisma/client";
-
-export class ReviewBillingSuggestionsDto
-  implements ReviewBillingSuggestionsRequest
-{
-  @IsArray()
-  @ArrayMinSize(1)
-  @ArrayUnique()
-  @IsString({ each: true })
-  candidateKeys!: string[];
-}
-
-export class AssignBillingCandidateClientDto {
-  @IsUUID()
-  clientId!: string;
-}
-
-export class RecordBillingStatementLineItemDto
-  implements RecordBillingStatementLineItemRequest
-{
-  @IsString()
-  @MinLength(1)
-  candidateKey!: string;
-
-  @IsString()
-  @MinLength(1)
-  description!: string;
-
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
-  amount!: number;
-
-  @IsString()
-  @Length(3, 3)
-  currency!: string;
-}
-
-export class RecordBillingStatementLinesDto
-  implements RecordBillingStatementLinesRequest
-{
-  @IsUUID()
-  clientId!: string;
-
-  @IsArray()
-  @ArrayMinSize(1)
-  @ValidateNested({ each: true })
-  @Type(() => RecordBillingStatementLineItemDto)
-  items!: RecordBillingStatementLineItemDto[];
-}
+import { BillableWorkSourceType } from "@law/api-interfaces";
+import { PriceSourceScope } from "@prisma/client";
 
 const toArray = ({ value }: { value: unknown }): string[] | undefined =>
   value === undefined
@@ -114,33 +60,23 @@ export class FinancialDateQueryDto extends PaginationQueryDto {
   to?: string;
 }
 
-export class BillingStatementLineListQueryDto extends FinancialDateQueryDto {
+export class BillableWorkQueryDto extends FinancialDateQueryDto {
+  @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsIn(["EVENT", "TASK", "DEADLINE"], { each: true })
+  sourceTypes?: BillableWorkSourceType[];
+
   @IsOptional()
   @Transform(toArray)
   @IsArray()
   @IsString({ each: true })
-  sourceTypes?: string[];
-
-  @IsOptional()
-  @IsEnum(BillingStatementLineStatus)
-  status?: BillingStatementLineStatus;
-
-  @IsOptional()
-  @IsString()
-  currency?: string;
+  sourceKeys?: string[];
 }
 
-export class CreateBillingStatementLineDto {
-  @IsUUID()
-  clientId!: string;
-
-  @IsOptional()
-  @IsUUID()
-  performedByUserId?: string;
-
-  @IsOptional()
+export class BillingStatementLineInputDto {
   @IsDateString()
-  serviceDate?: string;
+  serviceDate!: string;
 
   @MinLength(1)
   @IsString()
@@ -156,35 +92,12 @@ export class CreateBillingStatementLineDto {
   currency!: string;
 
   @IsOptional()
-  @IsString()
-  sourceType?: string;
+  @IsIn(["EVENT", "TASK", "DEADLINE"])
+  sourceType?: BillableWorkSourceType;
 
   @IsOptional()
-  @IsString()
+  @IsUUID()
   sourceId?: string;
-}
-
-export class UpdateBillingStatementLineDto {
-  @IsOptional()
-  @IsString()
-  description?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
-  amount?: number;
-
-  @IsOptional()
-  @IsString()
-  @Length(3, 3)
-  currency?: string;
-}
-
-export class CancelBillingStatementLineDto {
-  @IsString()
-  @MinLength(1)
-  reason!: string;
 }
 
 export class CreatePriceSourceDto {
@@ -259,9 +172,11 @@ export class CreateStatementDto {
   @IsString()
   currency!: string;
 
-  @IsOptional()
-  @IsUUID("4", { each: true })
-  lineIds?: string[];
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => BillingStatementLineInputDto)
+  lines!: BillingStatementLineInputDto[];
 
   @IsOptional()
   @IsString()
@@ -278,8 +193,11 @@ export class UpdateStatementDto {
   periodEnd?: string;
 
   @IsOptional()
-  @IsUUID("4", { each: true })
-  lineIds?: string[];
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => BillingStatementLineInputDto)
+  lines?: BillingStatementLineInputDto[];
 }
 
 export class SendStatementDto {
@@ -325,24 +243,4 @@ export class CreatePaymentDto {
   @IsOptional()
   @IsString()
   idempotencyKey?: string;
-}
-
-export class CandidateQueryDto extends FinancialDateQueryDto {
-  @IsOptional()
-  @IsString()
-  sourceType?: string;
-
-  @IsOptional()
-  @Transform(toArray)
-  @IsArray()
-  @IsString({ each: true })
-  sourceTypes?: string[];
-
-  @IsOptional()
-  @IsIn(["PENDING", "RECORDED", "DISMISSED"])
-  resolution?: "PENDING" | "RECORDED" | "DISMISSED";
-
-  @IsOptional()
-  @IsString()
-  includeResolved?: string;
 }

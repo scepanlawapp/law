@@ -1,8 +1,5 @@
 import { Injectable, inject } from "@angular/core";
-import {
-  BillingStatementLineSummary,
-  ClientSummary,
-} from "@law/api-interfaces";
+import { BillableWorkItem, ClientSummary } from "@law/api-interfaces";
 import { HlmDialogService } from "@spartan-ng/helm/dialog";
 import { Observable } from "rxjs";
 import { BillingStatementLineImportDialogComponent } from "./billing-statement-line-import-dialog.component";
@@ -14,13 +11,13 @@ export class BillingStatementLineImportDialogService {
 
   open(
     client: ClientSummary,
-    excludedLineIds: string[],
-  ): Observable<BillingStatementLineSummary[] | undefined> {
+    excludedSourceKeys: string[],
+  ): Observable<BillableWorkItem[] | undefined> {
     return this.dialog.open<
-      BillingStatementLineSummary[],
+      BillableWorkItem[],
       BillingStatementLineImportDialogContext
     >(BillingStatementLineImportDialogComponent, {
-      context: { client, excludedLineIds },
+      context: { client, excludedSourceKeys },
       contentClass:
         "flex max-h-[90dvh] w-[min(56rem,calc(100vw-2rem))] flex-col sm:max-w-4xl",
     }).closed$;
