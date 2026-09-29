@@ -10,11 +10,13 @@ import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import {
   CasePriority,
   CaseSummary,
+  ClientSummary,
   TaskDetail,
   TaskStatus,
 } from "@law/api-interfaces";
 import {
   CasesApiClient,
+  ClientsApiClient,
   ReferencesApiClient,
   TaskRequest,
   WorkManagementApiClient,
@@ -65,6 +67,7 @@ import { TaskDialogContext } from "./task-dialog.models";
 export class TaskDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
   private readonly casesApi = inject(CasesApiClient);
+  private readonly clientsApi = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly auth = inject(AuthState);
   private readonly context = injectBrnDialogContext<TaskDialogContext>();
@@ -73,6 +76,7 @@ export class TaskDialogComponent {
   readonly dialogRef = inject(BrnDialogRef<TaskDetail>);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly cases = signal<CaseSummary[]>([]);
+  readonly clients = signal<ClientSummary[]>([]);
   readonly saving = signal(false);
   readonly editing = Boolean(this.context.task);
   readonly priorities: CasePriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
@@ -99,6 +103,12 @@ export class TaskDialogComponent {
       : "";
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().find((user) => user.id === value)?.name ?? "";
+  readonly clientItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("work.noClient");
+    return (
+      this.clients().find((client) => client.id === value)?.displayName ?? value
+    );
+  };
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("work.noCase");
     const caseItem = this.cases().find((item) => item.id === value);
@@ -127,6 +137,10 @@ export class TaskDialogComponent {
       this.context.caseId ?? this.context.task?.case?.id ?? "",
       { nonNullable: true },
     ),
+    clientId: new FormControl(
+      this.context.clientId ?? this.context.task?.client?.id ?? "",
+      { nonNullable: true },
+    ),
     dueMode: new FormControl<DueTargetMode>(taskDueMode(this.context.task), {
       nonNullable: true,
     }),
@@ -145,6 +159,26 @@ export class TaskDialogComponent {
         if (mode !== "DATE") this.form.controls.dueDate.setValue("");
         if (mode !== "DATE_TIME") this.form.controls.dueAt.setValue("");
       });
+    this.form.controls.caseId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((caseId) => {
+        if (!caseId) return;
+        const caseItem = this.cases().find((item) => item.id === caseId);
+        if (caseItem) {
+          this.form.controls.clientId.setValue(caseItem.client.id, {
+            emitEvent: false,
+          });
+        }
+      });
+    this.form.controls.clientId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((clientId) => {
+        const caseId = this.form.controls.caseId.value;
+        const caseItem = this.cases().find((item) => item.id === caseId);
+        if (caseItem && caseItem.client.id !== clientId) {
+          this.form.controls.caseId.setValue("", { emitEvent: false });
+        }
+      });
     this.references
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -162,7 +196,21 @@ export class TaskDialogComponent {
     this.casesApi
       .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((response) => this.cases.set(response.items));
+      .subscribe((response) => {
+        this.cases.set(response.items);
+        const caseItem = response.items.find(
+          (item) => item.id === this.form.controls.caseId.value,
+        );
+        if (caseItem && !this.form.controls.clientId.value) {
+          this.form.controls.clientId.setValue(caseItem.client.id, {
+            emitEvent: false,
+          });
+        }
+      });
+    this.clientsApi
+      .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.clients.set(response.items));
   }
 
   submit(): void {
@@ -178,8 +226,7 @@ export class TaskDialogComponent {
       priority: value.priority,
       assigneeUserId: value.assigneeUserId,
       caseId: value.caseId || undefined,
-      clientId:
-        this.context.clientId ?? this.context.task?.client?.id ?? undefined,
+      clientId: value.clientId || undefined,
       deadlineId:
         this.context.deadlineId ?? this.context.task?.deadlineId ?? undefined,
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,

@@ -30,6 +30,34 @@
       </div>
       <div class="grid gap-4 md:grid-cols-2">
         <div hlmField>
+          <label hlmFieldLabel for="task-client">
+            {{ "work.client" | translate }}
+          </label>
+          <hlm-select
+            formControlName="clientId"
+            [itemToString]="clientItemToString"
+          >
+            <hlm-select-trigger
+              id="task-client"
+              class="w-full min-w-0 max-w-full"
+            >
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "work.noClient" | translate }}
+                </hlm-select-item>
+                @for (client of clients(); track client.id) {
+                  <hlm-select-item [value]="client.id">
+                    {{ client.displayName }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div hlmField>
           <label hlmFieldLabel for="task-case">
             {{ "work.case" | translate }}
           </label>

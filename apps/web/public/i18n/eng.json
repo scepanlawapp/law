@@ -133,6 +133,7 @@
   "work.case": "Case",
   "work.noCase": "No case",
   "work.client": "Client",
+  "work.noClient": "No client",
   "work.related": "Related",
   "work.due": "Due",
   "work.actions": "Actions",
