@@ -5,7 +5,10 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
-import { UserSettingsDateTimeFormat } from "@law/api-interfaces";
+import {
+  NotificationPreferences,
+  UserSettingsDateTimeFormat,
+} from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
@@ -54,6 +57,56 @@ export class WorkspaceSettingsComponent {
     { value: "Europe/London", label: "settings.london" },
     { value: "America/New_York", label: "settings.newYork" },
   ];
+  readonly notificationGroups: ReadonlyArray<{
+    title: string;
+    items: ReadonlyArray<{
+      key: keyof NotificationPreferences;
+      label: string;
+    }>;
+  }> = [
+    {
+      title: "settings.notificationDeadlines",
+      items: [
+        {
+          key: "deadlineAssigned",
+          label: "settings.notificationDeadlineAssigned",
+        },
+        {
+          key: "deadlineDueSoon",
+          label: "settings.notificationDeadlineDueSoon",
+        },
+        {
+          key: "deadlineDueToday",
+          label: "settings.notificationDeadlineDueToday",
+        },
+        {
+          key: "deadlineOverdue",
+          label: "settings.notificationDeadlineOverdue",
+        },
+        {
+          key: "deadlineChanged",
+          label: "settings.notificationDeadlineChanged",
+        },
+      ],
+    },
+    {
+      title: "settings.notificationTasks",
+      items: [
+        { key: "taskAssigned", label: "settings.notificationTaskAssigned" },
+        { key: "taskDueSoon", label: "settings.notificationTaskDueSoon" },
+        { key: "taskDueToday", label: "settings.notificationTaskDueToday" },
+        { key: "taskOverdue", label: "settings.notificationTaskOverdue" },
+      ],
+    },
+    {
+      title: "settings.notificationEvents",
+      items: [
+        { key: "eventUpcoming", label: "settings.notificationEventUpcoming" },
+        { key: "eventChanged", label: "settings.notificationEventChanged" },
+        { key: "eventCancelled", label: "settings.notificationEventCancelled" },
+      ],
+    },
+  ];
   readonly dateTimeFormatItemToString = createSelectItemToString(
     this.dateTimeFormatOptions,
     (key) => this.localization.translate(key),
@@ -64,6 +117,22 @@ export class WorkspaceSettingsComponent {
   );
   readonly form = new FormGroup({
     workspaceNotifications: new FormControl(true, { nonNullable: true }),
+    notificationPreferences: new FormGroup<{
+      [K in keyof NotificationPreferences]: FormControl<boolean>;
+    }>({
+      deadlineAssigned: new FormControl(true, { nonNullable: true }),
+      deadlineDueSoon: new FormControl(true, { nonNullable: true }),
+      deadlineDueToday: new FormControl(true, { nonNullable: true }),
+      deadlineOverdue: new FormControl(true, { nonNullable: true }),
+      deadlineChanged: new FormControl(true, { nonNullable: true }),
+      taskAssigned: new FormControl(true, { nonNullable: true }),
+      taskDueSoon: new FormControl(true, { nonNullable: true }),
+      taskDueToday: new FormControl(true, { nonNullable: true }),
+      taskOverdue: new FormControl(true, { nonNullable: true }),
+      eventUpcoming: new FormControl(true, { nonNullable: true }),
+      eventChanged: new FormControl(true, { nonNullable: true }),
+      eventCancelled: new FormControl(true, { nonNullable: true }),
+    }),
     dateTimeFormat: new FormControl<UserSettingsDateTimeFormat>(
       "TWENTY_FOUR_HOUR",
       { nonNullable: true },

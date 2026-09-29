@@ -16,7 +16,12 @@ describe("ActivitiesTasksDeadlinesService validation", () => {
     deadline: { findFirst: jest.fn() },
     event: { findFirst: jest.fn() },
   };
-  const service = new ActivitiesTasksDeadlinesService(db as never);
+  const service = new ActivitiesTasksDeadlinesService(
+    db as never,
+    {
+      create: jest.fn().mockResolvedValue({ status: "created" }),
+    } as never,
+  );
   const run = <T>(callback: () => Promise<T>) =>
     WorkspaceContextService.run(
       { workspaceId, userId, role: WorkspaceRole.OWNER } as never,
@@ -41,37 +46,43 @@ describe("ActivitiesTasksDeadlinesService validation", () => {
   });
 
   it("rejects an event whose end is not after its start", async () => {
-    await expect(run(() =>
-      service.createEvent({
-        type: "MEETING",
-        title: "Meeting",
-        startsAt: "2026-09-17T10:00:00.000Z",
-        endsAt: "2026-09-17T10:00:00.000Z",
-        timeZone: "Europe/Belgrade",
-      }),
-    )).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      run(() =>
+        service.createEvent({
+          type: "MEETING",
+          title: "Meeting",
+          startsAt: "2026-09-17T10:00:00.000Z",
+          endsAt: "2026-09-17T10:00:00.000Z",
+          timeZone: "Europe/Belgrade",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("rejects a task with both date-only and exact-time targets", async () => {
-    await expect(run(() =>
-      service.createTask({
-        title: "Review",
-        assigneeUserId: userId,
-        dueDate: "2026-09-18",
-        dueAt: "2026-09-18T10:00:00.000Z",
-      }),
-    )).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      run(() =>
+        service.createTask({
+          title: "Review",
+          assigneeUserId: userId,
+          dueDate: "2026-09-18",
+          dueAt: "2026-09-18T10:00:00.000Z",
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("requires exactly one deadline target", async () => {
-    await expect(run(() =>
-      service.createDeadline({
-        title: "Submit response",
-        type: "COURT",
-        timeZone: "Europe/Belgrade",
-        responsibleUserId: userId,
-      }),
-    )).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      run(() =>
+        service.createDeadline({
+          title: "Submit response",
+          type: "COURT",
+          timeZone: "Europe/Belgrade",
+          responsibleUserId: userId,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it("rejects a direct client that does not belong to the supplied case", async () => {
@@ -79,13 +90,15 @@ describe("ActivitiesTasksDeadlinesService validation", () => {
       id: caseId,
       clientId: "77777777-7777-4777-a777-777777777777",
     });
-    await expect(run(() =>
-      service.createTask({
-        title: "Review",
-        assigneeUserId: userId,
-        caseId,
-        clientId,
-      }),
-    )).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      run(() =>
+        service.createTask({
+          title: "Review",
+          assigneeUserId: userId,
+          caseId,
+          clientId,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 });

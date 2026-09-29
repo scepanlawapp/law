@@ -73,6 +73,9 @@ import {
   RecordBillingStatementLinesRequest,
   UpdateBillingStatementLineRequest,
   UpdateBillingStatementRequest,
+  NotificationDto,
+  NotificationListResponse,
+  NotificationUnreadCountResponse,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -682,6 +685,49 @@ export class UserSettingsApiClient {
   deleteAvatar(): Observable<{ avatarUrl: null }> {
     return this.http.delete<{ avatarUrl: null }>(
       this.endpoint("/users/me/avatar"),
+      { withCredentials: true },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class NotificationsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(page = 1, pageSize = 10): Observable<NotificationListResponse> {
+    return this.http.get<NotificationListResponse>(
+      this.endpoint("/notifications"),
+      {
+        withCredentials: true,
+        params: new HttpParams().set("page", page).set("pageSize", pageSize),
+      },
+    );
+  }
+
+  unreadCount(): Observable<NotificationUnreadCountResponse> {
+    return this.http.get<NotificationUnreadCountResponse>(
+      this.endpoint("/notifications/unread-count"),
+      { withCredentials: true },
+    );
+  }
+
+  markRead(id: string): Observable<NotificationDto> {
+    return this.http.patch<NotificationDto>(
+      this.endpoint(`/notifications/${id}/read`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  markAllRead(): Observable<{ updated: number }> {
+    return this.http.patch<{ updated: number }>(
+      this.endpoint("/notifications/read-all"),
+      {},
       { withCredentials: true },
     );
   }

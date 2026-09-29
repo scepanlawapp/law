@@ -221,6 +221,21 @@ enum DeadlineStatus {
   CANCELLED
 }
 
+enum NotificationType {
+  DEADLINE_ASSIGNED
+  DEADLINE_DUE_SOON
+  DEADLINE_DUE_TODAY
+  DEADLINE_OVERDUE
+  DEADLINE_CHANGED
+  TASK_ASSIGNED
+  TASK_DUE_SOON
+  TASK_DUE_TODAY
+  TASK_OVERDUE
+  EVENT_UPCOMING
+  EVENT_CHANGED
+  EVENT_CANCELLED
+}
+
 enum NoteType {
   GENERAL
   CALL_SUMMARY
@@ -318,6 +333,7 @@ model User {
   reviewedSuggestions      BillingSuggestionReview[] @relation("BillingSuggestionReviewer")
   authoredPriceSources     PriceSource[]             @relation("PriceSourceAuthor")
   authoredPriceVersions    PriceSourceVersion[]      @relation("PriceSourceVersionAuthor")
+  notifications            Notification[]
   sharedBillingStatements  BillingStatement[]        @relation("BillingStatementSharer")
   voidedBillingStatements  BillingStatement[]        @relation("BillingStatementVoider")
   createdBillingStatements BillingStatement[]        @relation("BillingStatementCreator")
@@ -327,17 +343,18 @@ model User {
 }
 
 model UserSettings {
-  userId                 String                   @id
-  theme                  ThemePreference          @default(CHARCOAL)
-  language               LanguagePreference       @default(SR)
-  accentColor            String                   @default("GOLD")
-  finish                 String                   @default("METALLIC")
-  workspaceNotifications Boolean                  @default(true)
-  dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
-  timeZone               String                   @default("Europe/Belgrade")
-  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
-  user                   User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                  String                   @id
+  theme                   ThemePreference          @default(CHARCOAL)
+  language                LanguagePreference       @default(SR)
+  accentColor             String                   @default("GOLD")
+  finish                  String                   @default("METALLIC")
+  workspaceNotifications  Boolean                  @default(true)
+  notificationPreferences Json?
+  dateTimeFormat          DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
+  timeZone                String                   @default("Europe/Belgrade")
+  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
+  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Workspace {
@@ -390,6 +407,7 @@ model Workspace {
   billingStatements         BillingStatement[]
   paymentRecords            ExternalPaymentRecord[]
   financeMutations          FinanceMutationRequest[]
+  notifications             Notification[]
 }
 
 model WorkspaceConfig {
@@ -401,6 +419,29 @@ model WorkspaceConfig {
   createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
   workspace              Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model Notification {
+  id          String           @id @default(uuid())
+  workspaceId String
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  entityType  String?
+  entityId    String?
+  metadata    Json?
+  isRead      Boolean          @default(false)
+  readAt      DateTime?        @db.Timestamptz(3)
+  dedupeKey   String?
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, dedupeKey])
+  @@index([workspaceId, userId, createdAt])
+  @@index([workspaceId, userId, isRead, createdAt])
 }
 
 model DomainCounter {

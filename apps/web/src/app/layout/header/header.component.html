@@ -23,38 +23,170 @@
       size="icon"
       class="relative"
       type="button"
-      [attr.aria-label]="'header.notifications' | translate"
+      [attr.aria-label]="notificationAriaLabel()"
       [hlmDropdownMenuTrigger]="notificationMenu"
+      align="end"
+      (hlmDropdownMenuOpened)="notifications.open()"
     >
-      <ng-icon name="lucideBell" />
-      <span class="absolute">3</span>
+      <ng-icon name="lucideBell" aria-hidden="true" />
+      @if (notifications.unreadCount() > 0) {
+        <span
+          class="bg-primary text-primary-foreground pointer-events-none absolute -top-1 -end-1 grid min-h-5 min-w-5 place-items-center rounded-full px-1 text-sm font-semibold"
+          aria-hidden="true"
+        >
+          {{
+            notifications.unreadCount() > 99
+              ? "99+"
+              : notifications.unreadCount()
+          }}
+        </span>
+      }
     </button>
     <ng-template #notificationMenu>
-      <hlm-dropdown-menu width="content" [attr.aria-label]="'header.notifications' | translate">
-        <hlm-dropdown-menu-group>
-          <div class="flex items-center justify-between">
-            <h2>{{ "header.notifications" | translate }}</h2>
-            <span>
-              {{ "header.newNotifications" | translate: { count: 10 } }}
-            </span>
-          </div>
-          @for (notification of notifications; track notification.titleKey) {
-            <div class="flex items-center">
-              <span [class]="notification.tone">
-                <ng-icon [name]="notification.icon" />
-              </span>
-              <span>
-                <strong>{{ notification.titleKey | translate }}</strong>
-                <small>{{ notification.detailKey | translate }}</small>
-              </span>
-              <time>{{ notification.time }}</time>
-            </div>
+      <hlm-dropdown-menu
+        width="content"
+        class="flex max-h-[32rem] w-[min(25rem,calc(100vw-1rem))] flex-col overflow-hidden p-0"
+        [attr.aria-label]="'header.notifications' | translate"
+      >
+        <div
+          class="flex shrink-0 items-center justify-between border-b border-border px-4 py-3"
+        >
+          <h2 class="text-base font-semibold">
+            {{ "header.notifications" | translate }}
+          </h2>
+          @if (notifications.hasUnread()) {
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              size="sm"
+              (click)="notifications.markAllRead()"
+            >
+              {{ "header.markAllRead" | translate }}
+            </button>
           }
-          <a hlmDropdownMenuItem routerLink="/notifications">
-            {{ "header.viewAllNotifications" | translate }}
-            <ng-icon name="lucideArrowRight" />
-          </a>
-        </hlm-dropdown-menu-group>
+        </div>
+
+        <div class="min-h-0 flex-1 overflow-y-auto p-1" aria-live="polite">
+          @if (notifications.loading()) {
+            <div
+              class="text-muted-foreground flex min-h-32 items-center justify-center gap-2 text-sm"
+            >
+              <hlm-spinner
+                [attr.aria-label]="'header.notificationsLoading' | translate"
+              />
+              <span>{{ "header.notificationsLoading" | translate }}</span>
+            </div>
+          } @else if (notifications.error()) {
+            <div
+              class="flex min-h-32 flex-col items-center justify-center gap-3 px-4 text-center"
+            >
+              <p class="text-muted-foreground text-sm">
+                {{ "header.notificationsError" | translate }}
+              </p>
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                size="sm"
+                (click)="notifications.retry()"
+              >
+                {{ "header.retry" | translate }}
+              </button>
+            </div>
+          } @else if (notifications.items().length === 0) {
+            <div
+              class="flex min-h-32 flex-col items-center justify-center px-4 text-center"
+            >
+              <strong class="text-sm">
+                {{ "header.noNotifications" | translate }}
+              </strong>
+              <p class="text-muted-foreground mt-1 text-sm">
+                {{ "header.allCaughtUp" | translate }}
+              </p>
+            </div>
+          } @else {
+            <hlm-dropdown-menu-group>
+              @for (
+                notification of notifications.items();
+                track notification.id
+              ) {
+                <button
+                  hlmDropdownMenuItem
+                  type="button"
+                  class="items-start gap-3 px-3 py-3"
+                  [class.bg-accent]="!notification.isRead"
+                  (click)="openNotification(notification)"
+                >
+                  <span
+                    class="bg-muted text-muted-foreground mt-0.5 grid size-8 shrink-0 place-items-center rounded-full"
+                    aria-hidden="true"
+                  >
+                    <ng-icon [name]="iconFor(notification.type)" />
+                  </span>
+                  <span class="min-w-0 flex-1 text-left">
+                    <span class="flex items-start gap-2">
+                      <strong
+                        class="min-w-0 flex-1 text-sm"
+                        [class.font-semibold]="!notification.isRead"
+                        [class.font-normal]="notification.isRead"
+                      >
+                        {{ notification.title }}
+                      </strong>
+                      @if (!notification.isRead) {
+                        <span
+                          class="bg-primary mt-1.5 size-2 shrink-0 rounded-full"
+                          aria-hidden="true"
+                        ></span>
+                        <span class="sr-only">
+                          {{ "header.unread" | translate }}
+                        </span>
+                      }
+                    </span>
+                    <span
+                      class="text-muted-foreground mt-0.5 block text-sm leading-snug"
+                    >
+                      {{ notification.message }}
+                    </span>
+                    @if (contextLabel(notification)) {
+                      <span
+                        class="text-muted-foreground mt-1 block truncate text-sm"
+                      >
+                        {{ contextLabel(notification) }}
+                      </span>
+                    }
+                    <time
+                      class="text-muted-foreground mt-1 block text-sm"
+                      [attr.datetime]="notification.createdAt"
+                    >
+                      {{ relativeTime(notification.createdAt) }}
+                    </time>
+                  </span>
+                </button>
+              }
+            </hlm-dropdown-menu-group>
+          }
+        </div>
+
+        @if (notifications.hasMore()) {
+          <div class="shrink-0 border-t border-border p-2">
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              class="w-full"
+              [disabled]="notifications.loadingMore()"
+              (click)="notifications.loadMore()"
+            >
+              @if (notifications.loadingMore()) {
+                <hlm-spinner
+                  [attr.aria-label]="'header.notificationsLoading' | translate"
+                />
+              }
+              {{ "header.showMore" | translate }}
+            </button>
+          </div>
+        }
       </hlm-dropdown-menu>
     </ng-template>
   </div>

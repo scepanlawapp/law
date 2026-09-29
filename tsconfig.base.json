@@ -26,6 +26,7 @@
       "@law/activities-tasks-deadlines": [
         "./libs/api/features/activities-tasks-deadlines/src/index.ts"
       ],
+      "@law/notifications": ["./libs/api/features/notifications/src/index.ts"],
       "@law/legal-knowledge": [
         "./libs/api/features/legal-knowledge/src/index.ts"
       ],

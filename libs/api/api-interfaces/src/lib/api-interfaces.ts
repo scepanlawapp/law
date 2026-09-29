@@ -39,6 +39,53 @@ export type UserSettingsLanguage = "SR" | "EN";
 export type UserSettingsDateTimeFormat = "TWELVE_HOUR" | "TWENTY_FOUR_HOUR";
 export type UserProfileGender = "MALE" | "FEMALE";
 
+export const NOTIFICATION_TYPES = [
+  "DEADLINE_ASSIGNED",
+  "DEADLINE_DUE_SOON",
+  "DEADLINE_DUE_TODAY",
+  "DEADLINE_OVERDUE",
+  "DEADLINE_CHANGED",
+  "TASK_ASSIGNED",
+  "TASK_DUE_SOON",
+  "TASK_DUE_TODAY",
+  "TASK_OVERDUE",
+  "EVENT_UPCOMING",
+  "EVENT_CHANGED",
+  "EVENT_CANCELLED",
+] as const;
+
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+
+export interface NotificationPreferences {
+  deadlineAssigned: boolean;
+  deadlineDueSoon: boolean;
+  deadlineDueToday: boolean;
+  deadlineOverdue: boolean;
+  deadlineChanged: boolean;
+  taskAssigned: boolean;
+  taskDueSoon: boolean;
+  taskDueToday: boolean;
+  taskOverdue: boolean;
+  eventUpcoming: boolean;
+  eventChanged: boolean;
+  eventCancelled: boolean;
+}
+
+export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
+  deadlineAssigned: true,
+  deadlineDueSoon: true,
+  deadlineDueToday: true,
+  deadlineOverdue: true,
+  deadlineChanged: true,
+  taskAssigned: true,
+  taskDueSoon: true,
+  taskDueToday: true,
+  taskOverdue: true,
+  eventUpcoming: true,
+  eventChanged: true,
+  eventCancelled: true,
+};
+
 export interface UserSettingsProfile {
   firstName: string | null;
   lastName: string | null;
@@ -60,8 +107,45 @@ export interface UserSettingsPreferences {
   accentColor: UserSettingsAccent;
   finish: UserSettingsFinish;
   workspaceNotifications: boolean;
+  notificationPreferences: NotificationPreferences;
   dateTimeFormat: UserSettingsDateTimeFormat;
   timeZone: string;
+}
+
+export interface NotificationMetadata {
+  caseId?: string;
+  caseName?: string;
+  clientId?: string;
+  clientName?: string;
+  dueDate?: string;
+  dueAt?: string;
+  startsAt?: string;
+  oldDueDate?: string | null;
+  newDueDate?: string | null;
+  oldDueAt?: string | null;
+  newDueAt?: string | null;
+}
+
+export interface NotificationDto {
+  id: string;
+  type: NotificationType;
+  title: string;
+  message: string;
+  entityType: "TASK" | "DEADLINE" | "EVENT" | null;
+  entityId: string | null;
+  metadata: NotificationMetadata | null;
+  isRead: boolean;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListResponse {
+  items: NotificationDto[];
+  meta: PaginationMeta;
+}
+
+export interface NotificationUnreadCountResponse {
+  count: number;
 }
 
 export interface UserSettingsResponse {
