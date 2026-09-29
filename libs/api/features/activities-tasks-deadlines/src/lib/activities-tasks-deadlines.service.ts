@@ -40,6 +40,10 @@ import {
   UpdateNoteDto,
   UpdateTaskDto,
 } from "./activities-tasks-deadlines.dto";
+import {
+  buildNotificationContent,
+  NotificationsService,
+} from "@law/notifications";
 
 // CalendarQueryDto.statuses is one combined string[] filter shared across Event/Task/Deadline;
 // each record type only accepts its own enum, so requested values must be narrowed per type.
@@ -59,7 +63,10 @@ function narrowStatuses<T extends string>(
 
 @Injectable()
 export class ActivitiesTasksDeadlinesService {
-  constructor(private readonly db: PlatformPrismaService) {}
+  constructor(
+    private readonly db: PlatformPrismaService,
+    private readonly notifications: NotificationsService,
+  ) {}
 
   private get context() {
     return WorkspaceContextService.required;
@@ -205,6 +212,21 @@ export class ActivitiesTasksDeadlinesService {
     } as const;
   }
 
+  private notificationContext(item: any) {
+    return {
+      title: item.title,
+      caseId: item.case?.id ?? item.caseId,
+      caseName: item.case?.name,
+      clientId:
+        item.client?.id ?? item.clients?.[0]?.client?.id ?? item.clientId,
+      clientName:
+        item.client?.displayName ?? item.clients?.[0]?.client?.displayName,
+      dueDate: item.dueDate?.toISOString().slice(0, 10),
+      dueAt: item.dueAt?.toISOString(),
+      startsAt: item.startsAt?.toISOString(),
+    };
+  }
+
   private userReference(user: {
     id: string;
     firstName: string | null;
@@ -214,8 +236,7 @@ export class ActivitiesTasksDeadlinesService {
     return {
       id: user.id,
       displayName:
-        [user.firstName, user.lastName].filter(Boolean).join(" ") ||
-        user.email,
+        [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email,
       email: user.email,
     };
   }
@@ -269,7 +290,8 @@ export class ActivitiesTasksDeadlinesService {
       courtroom: item.courtroom,
       organizerUser: this.userReference(item.organizer),
       case: item.case ? this.caseReference(item.case) : null,
-      clients: item.clients?.map((x: any) => this.clientReference(x.client)) ?? [],
+      clients:
+        item.clients?.map((x: any) => this.clientReference(x.client)) ?? [],
       assigneeUsers:
         item.assignees?.map((x: any) => this.userReference(x.user)) ?? [],
       createdAt: item.createdAt.toISOString(),
@@ -488,7 +510,7 @@ export class ActivitiesTasksDeadlinesService {
       userIds: [this.context.userId, ...(input.assigneeUserIds ?? [])],
     });
     const item = await this.db.$transaction(async (tx) => {
-      await tx.event.findFirstOrThrow({
+      const existing = await tx.event.findFirstOrThrow({
         where: { id, workspaceId: this.context.workspaceId },
       });
       const event = await tx.event.update({
@@ -536,6 +558,40 @@ export class ActivitiesTasksDeadlinesService {
         entityId: id,
         caseId: event.caseId,
       });
+      const changed =
+        existing.startsAt.toISOString() !== event.startsAt.toISOString() ||
+        existing.endsAt.toISOString() !== event.endsAt.toISOString() ||
+        existing.location !== event.location ||
+        existing.courtName !== event.courtName ||
+        existing.courtroom !== event.courtroom ||
+        existing.meetingUrl !== event.meetingUrl;
+      if (changed) {
+        const content = buildNotificationContent(
+          "EVENT_CHANGED",
+          this.notificationContext(event),
+        );
+        const recipients = new Set([
+          event.organizerUserId,
+          ...event.assignees.map((assignee: any) => assignee.userId),
+        ]);
+        recipients.delete(this.context.userId);
+        await Promise.all(
+          [...recipients].map((userId) =>
+            this.notifications.create(
+              {
+                workspaceId: event.workspaceId,
+                userId,
+                type: "EVENT_CHANGED",
+                ...content,
+                entityType: "EVENT",
+                entityId: event.id,
+                dedupeKey: `event:${event.id}:changed:${event.updatedAt.toISOString()}:${userId}`,
+              },
+              tx,
+            ),
+          ),
+        );
+      }
       return event;
     });
     return this.event(item);
@@ -548,6 +604,7 @@ export class ActivitiesTasksDeadlinesService {
     const item = await this.db.$transaction(async (tx) => {
       const event = await tx.event.findFirst({
         where: { id, workspaceId: this.context.workspaceId },
+        include: this.eventInclude(),
       });
       if (!event) throw new NotFoundException("Event not found");
       if (
@@ -558,6 +615,7 @@ export class ActivitiesTasksDeadlinesService {
       const updated = await tx.event.update({
         where: { id },
         data: { status: target },
+        include: this.eventInclude(),
       });
       await this.log(tx, {
         action: `EVENT_${target}`,
@@ -565,6 +623,33 @@ export class ActivitiesTasksDeadlinesService {
         entityId: id,
         caseId: event.caseId,
       });
+      if (target === "CANCELLED") {
+        const content = buildNotificationContent(
+          "EVENT_CANCELLED",
+          this.notificationContext(updated),
+        );
+        const recipients = new Set([
+          updated.organizerUserId,
+          ...updated.assignees.map((assignee: any) => assignee.userId),
+        ]);
+        recipients.delete(this.context.userId);
+        await Promise.all(
+          [...recipients].map((userId) =>
+            this.notifications.create(
+              {
+                workspaceId: updated.workspaceId,
+                userId,
+                type: "EVENT_CANCELLED",
+                ...content,
+                entityType: "EVENT",
+                entityId: updated.id,
+                dedupeKey: `event:${updated.id}:cancelled:${userId}`,
+              },
+              tx,
+            ),
+          ),
+        );
+      }
       return updated;
     });
     return this.getEvent(item.id);
@@ -673,6 +758,24 @@ export class ActivitiesTasksDeadlinesService {
         caseId: task.caseId,
         clientId: task.clientId,
       });
+      if (task.assigneeUserId !== this.context.userId) {
+        const content = buildNotificationContent(
+          "TASK_ASSIGNED",
+          this.notificationContext(task),
+        );
+        await this.notifications.create(
+          {
+            workspaceId: task.workspaceId,
+            userId: task.assigneeUserId,
+            type: "TASK_ASSIGNED",
+            ...content,
+            entityType: "TASK",
+            entityId: task.id,
+            dedupeKey: `task:${task.id}:assigned:${task.createdAt.toISOString()}:${task.assigneeUserId}`,
+          },
+          tx,
+        );
+      }
       return task;
     });
     return this.task(item);
@@ -715,6 +818,27 @@ export class ActivitiesTasksDeadlinesService {
         caseId: task.caseId,
         clientId: task.clientId,
       });
+      if (
+        existing.assigneeUserId !== task.assigneeUserId &&
+        task.assigneeUserId !== this.context.userId
+      ) {
+        const content = buildNotificationContent(
+          "TASK_ASSIGNED",
+          this.notificationContext(task),
+        );
+        await this.notifications.create(
+          {
+            workspaceId: task.workspaceId,
+            userId: task.assigneeUserId,
+            type: "TASK_ASSIGNED",
+            ...content,
+            entityType: "TASK",
+            entityId: task.id,
+            dedupeKey: `task:${task.id}:assigned:${task.updatedAt.toISOString()}:${task.assigneeUserId}`,
+          },
+          tx,
+        );
+      }
       return task;
     });
     return this.task(item);
@@ -850,6 +974,24 @@ export class ActivitiesTasksDeadlinesService {
         caseId: deadline.caseId,
         clientId: deadline.clientId,
       });
+      if (deadline.responsibleUserId !== this.context.userId) {
+        const content = buildNotificationContent(
+          "DEADLINE_ASSIGNED",
+          this.notificationContext(deadline),
+        );
+        await this.notifications.create(
+          {
+            workspaceId: deadline.workspaceId,
+            userId: deadline.responsibleUserId,
+            type: "DEADLINE_ASSIGNED",
+            ...content,
+            entityType: "DEADLINE",
+            entityId: deadline.id,
+            dedupeKey: `deadline:${deadline.id}:assigned:${deadline.createdAt.toISOString()}:${deadline.responsibleUserId}`,
+          },
+          tx,
+        );
+      }
       return deadline;
     });
     return this.deadline(item);
@@ -894,6 +1036,56 @@ export class ActivitiesTasksDeadlinesService {
         caseId: deadline.caseId,
         clientId: deadline.clientId,
       });
+      const assigneeChanged =
+        existing.responsibleUserId !== deadline.responsibleUserId;
+      const scheduleChanged =
+        existing.dueDate?.toISOString() !== deadline.dueDate?.toISOString() ||
+        existing.dueAt?.toISOString() !== deadline.dueAt?.toISOString() ||
+        existing.timeZone !== deadline.timeZone;
+      if (
+        assigneeChanged &&
+        deadline.responsibleUserId !== this.context.userId
+      ) {
+        const content = buildNotificationContent(
+          "DEADLINE_ASSIGNED",
+          this.notificationContext(deadline),
+        );
+        await this.notifications.create(
+          {
+            workspaceId: deadline.workspaceId,
+            userId: deadline.responsibleUserId,
+            type: "DEADLINE_ASSIGNED",
+            ...content,
+            entityType: "DEADLINE",
+            entityId: deadline.id,
+            dedupeKey: `deadline:${deadline.id}:assigned:${deadline.updatedAt.toISOString()}:${deadline.responsibleUserId}`,
+          },
+          tx,
+        );
+      } else if (
+        scheduleChanged &&
+        deadline.responsibleUserId !== this.context.userId
+      ) {
+        const content = buildNotificationContent("DEADLINE_CHANGED", {
+          ...this.notificationContext(deadline),
+          oldDueDate: existing.dueDate?.toISOString().slice(0, 10) ?? null,
+          newDueDate: deadline.dueDate?.toISOString().slice(0, 10) ?? null,
+          oldDueAt: existing.dueAt?.toISOString() ?? null,
+          newDueAt: deadline.dueAt?.toISOString() ?? null,
+        });
+        await this.notifications.create(
+          {
+            workspaceId: deadline.workspaceId,
+            userId: deadline.responsibleUserId,
+            type: "DEADLINE_CHANGED",
+            ...content,
+            entityType: "DEADLINE",
+            entityId: deadline.id,
+            dedupeKey: `deadline:${deadline.id}:changed:${deadline.updatedAt.toISOString()}:${deadline.responsibleUserId}`,
+          },
+          tx,
+        );
+      }
       return deadline;
     });
     return this.deadline(item);

@@ -13,6 +13,7 @@ import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines"
 import { LegalKnowledgeModule } from "@law/legal-knowledge";
 import { WorkspaceDocumentsModule } from "@law/workspace-documents";
 import { FinancialsModule } from "@law/financials";
+import { NotificationsModule } from "@law/notifications";
 import { validateEnvironment } from "./config.validation";
 
 @Module({
@@ -29,6 +30,7 @@ import { validateEnvironment } from "./config.validation";
     LegalKnowledgeModule,
     WorkspaceDocumentsModule,
     FinancialsModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

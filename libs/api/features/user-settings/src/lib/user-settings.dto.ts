@@ -1,5 +1,8 @@
 import { Type } from "class-transformer";
-import { UserProfileGender } from "@law/api-interfaces";
+import {
+  NotificationPreferences,
+  UserProfileGender,
+} from "@law/api-interfaces";
 import {
   IsBoolean,
   IsIn,
@@ -49,12 +52,33 @@ export class UpdateProfileDto {
   avatarUrl?: string;
 }
 
+export class NotificationPreferencesDto
+  implements Partial<NotificationPreferences>
+{
+  @IsOptional() @IsBoolean() deadlineAssigned?: boolean;
+  @IsOptional() @IsBoolean() deadlineDueSoon?: boolean;
+  @IsOptional() @IsBoolean() deadlineDueToday?: boolean;
+  @IsOptional() @IsBoolean() deadlineOverdue?: boolean;
+  @IsOptional() @IsBoolean() deadlineChanged?: boolean;
+  @IsOptional() @IsBoolean() taskAssigned?: boolean;
+  @IsOptional() @IsBoolean() taskDueSoon?: boolean;
+  @IsOptional() @IsBoolean() taskDueToday?: boolean;
+  @IsOptional() @IsBoolean() taskOverdue?: boolean;
+  @IsOptional() @IsBoolean() eventUpcoming?: boolean;
+  @IsOptional() @IsBoolean() eventChanged?: boolean;
+  @IsOptional() @IsBoolean() eventCancelled?: boolean;
+}
+
 export class UpdatePreferencesDto {
   @IsOptional() @IsIn(themes) theme?: (typeof themes)[number];
   @IsOptional() @IsIn(languages) language?: (typeof languages)[number];
   @IsOptional() @IsIn(accentColors) accentColor?: (typeof accentColors)[number];
   @IsOptional() @IsIn(finishes) finish?: (typeof finishes)[number];
   @IsOptional() @IsBoolean() workspaceNotifications?: boolean;
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => NotificationPreferencesDto)
+  notificationPreferences?: NotificationPreferencesDto;
   @IsOptional()
   @IsIn(dateTimeFormats)
   dateTimeFormat?: (typeof dateTimeFormats)[number];

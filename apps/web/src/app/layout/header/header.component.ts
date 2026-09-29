@@ -1,38 +1,42 @@
-import { Component, signal } from "@angular/core";
+import { Component, computed, inject, signal } from "@angular/core";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideSearch,
   lucideBell,
-  lucideArrowRight,
-  lucideCreditCard,
-  lucideFolderOpen,
-  lucideMessageCircle,
-  lucideTriangleAlert,
-  lucideFileText,
   lucideCalendar,
-  lucideUsers,
-  lucideSquareCheck,
-  lucideFileCheck,
-  lucideInfo,
+  lucideCheckCheck,
+  lucideClock3,
+  lucideTriangleAlert,
 } from "@ng-icons/lucide";
-import { RouterLink } from "@angular/router";
+import { Router } from "@angular/router";
+import { NotificationDto, NotificationType } from "@law/api-interfaces";
 import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { LocalizationService } from "../../core/localization/localization.service";
+import { NotificationsStore } from "../../core/notifications/notifications.store";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-
-interface HeaderNotification {
-  titleKey: string;
-  detailKey: string;
-  time: string;
-  icon: string;
-  tone: "blue" | "orange" | "red" | "purple";
-}
 
 const LEGAL_QUOTE_KEYS = Array.from(
   { length: 120 },
   (_, index) => `header.quote${String(index + 1).padStart(2, "0")}`,
 );
+
+const notificationIcon: Record<NotificationType, string> = {
+  DEADLINE_ASSIGNED: "lucideClock3",
+  DEADLINE_DUE_SOON: "lucideTriangleAlert",
+  DEADLINE_DUE_TODAY: "lucideTriangleAlert",
+  DEADLINE_OVERDUE: "lucideTriangleAlert",
+  DEADLINE_CHANGED: "lucideClock3",
+  TASK_ASSIGNED: "lucideCheckCheck",
+  TASK_DUE_SOON: "lucideCheckCheck",
+  TASK_DUE_TODAY: "lucideCheckCheck",
+  TASK_OVERDUE: "lucideTriangleAlert",
+  EVENT_UPCOMING: "lucideCalendar",
+  EVENT_CHANGED: "lucideCalendar",
+  EVENT_CANCELLED: "lucideCalendar",
+};
 
 @Component({
   selector: "law-header",
@@ -40,105 +44,82 @@ const LEGAL_QUOTE_KEYS = Array.from(
   templateUrl: "./header.component.html",
   imports: [
     NgIcon,
-    RouterLink,
     ...HlmDropdownMenuImports,
     HlmButton,
     HlmInputGroupImports,
+    HlmSpinner,
     TranslatePipe,
   ],
   providers: [
     provideIcons({
       lucideSearch,
       lucideBell,
-      lucideArrowRight,
-      lucideCreditCard,
-      lucideFolderOpen,
-      lucideMessageCircle,
-      lucideTriangleAlert,
-      lucideFileText,
       lucideCalendar,
-      lucideUsers,
-      lucideSquareCheck,
-      lucideFileCheck,
-      lucideInfo,
+      lucideCheckCheck,
+      lucideClock3,
+      lucideTriangleAlert,
     }),
   ],
 })
 export class HeaderComponent {
+  private readonly router = inject(Router);
+  private readonly localization = inject(LocalizationService);
+  readonly notifications = inject(NotificationsStore);
   readonly quoteKey = signal(
     LEGAL_QUOTE_KEYS[Math.floor(Math.random() * LEGAL_QUOTE_KEYS.length)],
   );
+  readonly notificationAriaLabel = computed(() =>
+    this.localization.translate("header.notificationsAria", {
+      count: this.notifications.unreadCount(),
+    }),
+  );
 
-  readonly notifications: HeaderNotification[] = [
-    {
-      titleKey: "header.notification.documentUploaded",
-      detailKey: "header.notification.documentUploadedDetail",
-      time: "10m",
-      icon: "lucideFileText",
-      tone: "blue",
-    },
-    {
-      titleKey: "header.notification.hearingReminder",
-      detailKey: "header.notification.hearingReminderDetail",
-      time: "1h",
-      icon: "lucideCalendar",
-      tone: "blue",
-    },
-    {
-      titleKey: "header.notification.deadlineApproaching",
-      detailKey: "header.notification.deadlineApproachingDetail",
-      time: "3h",
-      icon: "lucideTriangleAlert",
-      tone: "red",
-    },
-    {
-      titleKey: "header.notification.newClientMessage",
-      detailKey: "header.notification.newClientMessageDetail",
-      time: "5h",
-      icon: "lucideMessageCircle",
-      tone: "blue",
-    },
-    {
-      titleKey: "header.notification.systemUpdate",
-      detailKey: "header.notification.systemUpdateDetail",
-      time: "1d",
-      icon: "lucideInfo",
-      tone: "purple",
-    },
-    {
-      titleKey: "header.notification.paymentReceived",
-      detailKey: "header.notification.paymentReceivedDetail",
-      time: "1d",
-      icon: "lucideCreditCard",
-      tone: "orange",
-    },
-    {
-      titleKey: "header.notification.caseStatusChanged",
-      detailKey: "header.notification.caseStatusChangedDetail",
-      time: "2d",
-      icon: "lucideFolderOpen",
-      tone: "orange",
-    },
-    {
-      titleKey: "header.notification.newClientAdded",
-      detailKey: "header.notification.newClientAddedDetail",
-      time: "2d",
-      icon: "lucideUsers",
-      tone: "blue",
-    },
-    {
-      titleKey: "header.notification.taskCompleted",
-      detailKey: "header.notification.taskCompletedDetail",
-      time: "3d",
-      icon: "lucideSquareCheck",
-      tone: "purple",
-    },
-    {
-      titleKey: "header.notification.documentReviewFinished",
-      detailKey: "header.notification.documentReviewFinishedDetail",
-      time: "3d",
-      icon: "lucideFileCheck",
-      tone: "blue",
-    },
-  ];
+  iconFor(type: NotificationType): string {
+    return notificationIcon[type];
+  }
+
+  contextLabel(item: NotificationDto): string {
+    return item.metadata?.caseName ?? item.metadata?.clientName ?? "";
+  }
+
+  relativeTime(value: string): string {
+    const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
+    const formatter = new Intl.RelativeTimeFormat(
+      this.localization.language() === "EN" ? "en" : "sr-Latn",
+      { numeric: "auto" },
+    );
+    const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
+      ["year", 31_536_000],
+      ["month", 2_592_000],
+      ["week", 604_800],
+      ["day", 86_400],
+      ["hour", 3_600],
+      ["minute", 60],
+    ];
+    for (const [unit, size] of ranges) {
+      if (Math.abs(seconds) >= size) {
+        return formatter.format(Math.round(seconds / size), unit);
+      }
+    }
+    return formatter.format(seconds, "second");
+  }
+
+  openNotification(item: NotificationDto): void {
+    this.notifications.markRead(item);
+    if (item.entityType === "TASK") {
+      void this.router.navigate(["/work/my"], {
+        queryParams: { search: item.message },
+      });
+      return;
+    }
+    if (item.entityType === "DEADLINE" || item.entityType === "EVENT") {
+      const date =
+        item.metadata?.dueDate ??
+        item.metadata?.dueAt?.slice(0, 10) ??
+        item.metadata?.startsAt?.slice(0, 10);
+      void this.router.navigate(["/calendar"], {
+        queryParams: { view: "list", ...(date ? { date } : {}) },
+      });
+    }
+  }
 }

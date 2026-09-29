@@ -41,6 +41,45 @@
         </div>
       </section>
 
+      <section
+        class="flex flex-col gap-5"
+        formGroupName="notificationPreferences"
+      >
+        <div>
+          <h3 class="text-sm font-semibold">
+            {{ "settings.notificationPreferences" | translate }}
+          </h3>
+          <p class="text-muted-foreground mt-1 text-sm leading-snug">
+            {{ "settings.notificationPreferencesHint" | translate }}
+          </p>
+        </div>
+        <div class="grid gap-6 md:grid-cols-3">
+          @for (group of notificationGroups; track group.title) {
+            <fieldset class="flex min-w-0 flex-col gap-3">
+              <legend class="mb-1 text-sm font-semibold">
+                {{ group.title | translate }}
+              </legend>
+              @for (item of group.items; track item.key) {
+                <div class="flex min-h-10 items-center justify-between gap-4">
+                  <label
+                    class="min-w-0 text-sm"
+                    [for]="'notification-' + item.key"
+                  >
+                    {{ item.label | translate }}
+                  </label>
+                  <hlm-switch
+                    class="shrink-0"
+                    [id]="'notification-' + item.key"
+                    [formControlName]="item.key"
+                    [attr.aria-label]="item.label | translate"
+                  />
+                </div>
+              }
+            </fieldset>
+          }
+        </div>
+      </section>
+
       <section class="flex flex-col gap-4">
         <h3 class="text-sm font-semibold">
           {{ "settings.regionalPreferences" | translate }}

@@ -1,7 +1,10 @@
 import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import { UserSettingsApiClient } from "@law/api-clients";
-import { UserSettingsResponse } from "@law/api-interfaces";
+import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  UserSettingsResponse,
+} from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { of, throwError } from "rxjs";
 import { UserSettingsStore } from "./user-settings.store";
@@ -23,6 +26,7 @@ const mockResponse: UserSettingsResponse = {
     accentColor: "GOLD",
     finish: "METALLIC",
     workspaceNotifications: true,
+    notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
     dateTimeFormat: "TWENTY_FOUR_HOUR",
     timeZone: "Europe/Belgrade",
   },

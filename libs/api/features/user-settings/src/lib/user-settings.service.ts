@@ -3,8 +3,11 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
+import { Prisma } from "@prisma/client";
 import { PrismaService } from "@law/core";
 import {
+  DEFAULT_NOTIFICATION_PREFERENCES,
+  NotificationPreferences,
   UserAvatarResponse,
   UserSettingsAccent,
   UserSettingsFinish,
@@ -35,6 +38,7 @@ const DEFAULT_SETTINGS: UserSettingsRecord = {
   accentColor: "GOLD",
   finish: "METALLIC",
   workspaceNotifications: true,
+  notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
   dateTimeFormat: "TWENTY_FOUR_HOUR",
   timeZone: "Europe/Belgrade",
 };
@@ -65,10 +69,21 @@ export class UserSettingsService {
       data: input.profile ?? {},
       include: { settings: true },
     });
+    const { notificationPreferences, ...otherPreferences } =
+      input.preferences ?? {};
+    const preferencesData = {
+      ...otherPreferences,
+      ...(notificationPreferences
+        ? {
+            notificationPreferences:
+              notificationPreferences as unknown as Prisma.InputJsonValue,
+          }
+        : {}),
+    };
     const settings = await this.prisma.userSettings.upsert({
       where: { userId },
-      create: { userId, ...(input.preferences ?? {}) },
-      update: input.preferences ?? {},
+      create: { userId, ...preferencesData },
+      update: preferencesData,
     });
     return this.toResponse(user, settings);
   }
@@ -240,6 +255,9 @@ export class UserSettingsService {
         accentColor: normalizeAccent(settings.accentColor),
         finish: normalizeFinish(settings.finish),
         workspaceNotifications: settings.workspaceNotifications,
+        notificationPreferences: normalizeNotificationPreferences(
+          settings.notificationPreferences,
+        ),
         dateTimeFormat: settings.dateTimeFormat,
         timeZone: settings.timeZone,
       },
@@ -259,11 +277,27 @@ type UserSettingsUser = Pick<UserSettingsResponse["profile"], never> & {
 };
 type UserSettingsRecord = Omit<
   UserSettingsResponse["preferences"],
-  "accentColor" | "finish"
+  "accentColor" | "finish" | "notificationPreferences"
 > & {
   accentColor: string;
   finish: string;
+  notificationPreferences?: unknown;
 };
+
+function normalizeNotificationPreferences(
+  value: unknown,
+): NotificationPreferences {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return { ...DEFAULT_NOTIFICATION_PREFERENCES };
+  }
+  const record = value as Record<string, unknown>;
+  return Object.fromEntries(
+    Object.entries(DEFAULT_NOTIFICATION_PREFERENCES).map(([key, fallback]) => [
+      key,
+      typeof record[key] === "boolean" ? record[key] : fallback,
+    ]),
+  ) as unknown as NotificationPreferences;
+}
 
 const accents = [
   "GOLD",

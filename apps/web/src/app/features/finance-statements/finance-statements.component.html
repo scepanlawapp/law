@@ -57,6 +57,7 @@
           <hlm-select-trigger
             buttonId="statement-status-filter"
             class="w-full min-w-0"
+            width="content"
           >
             <hlm-select-value />
           </hlm-select-trigger>
@@ -201,14 +202,13 @@
           </thead>
           <tbody hlmTBody>
             @for (statement of visibleStatements(); track statement.id) {
-              <tr hlmTr>
+              <tr
+                hlmTr
+                [routerLink]="['/finance/statements', statement.id]"
+                class="cursor-pointer"
+              >
                 <td hlmTd class="font-medium">
-                  <a
-                    class="underline-offset-4 hover:underline focus-visible:underline"
-                    [routerLink]="['/finance/statements', statement.id]"
-                  >
-                    {{ statement.statementNumber }}
-                  </a>
+                  {{ statement.statementNumber }}
                 </td>
                 <td hlmTd>{{ statement.client.displayName }}</td>
                 <td hlmTd>
@@ -236,7 +236,6 @@
                     <div class="flex items-center justify-end gap-1">
                       <a
                         hlmBtn
-                        variant="ghost"
                         size="icon-sm"
                         [routerLink]="[
                           '/finance/statements',
@@ -255,7 +254,6 @@
                       <button
                         hlmBtn
                         type="button"
-                        variant="ghost"
                         size="icon-sm"
                         [disabled]="deletingStatementId() !== null"
                         [attr.aria-label]="

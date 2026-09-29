@@ -70,4 +70,30 @@ describe("UpdatePreferencesDto appearance values", () => {
     const errors = await validate(dto);
     expect(errors.map((error) => error.property)).toEqual(["finish"]);
   });
+
+  it("validates notification preference keys and boolean values", async () => {
+    const valid = plainToInstance(UpdatePreferencesDto, {
+      notificationPreferences: {
+        taskAssigned: false,
+        deadlineDueSoon: true,
+      },
+    });
+    expect(
+      await validate(valid, { whitelist: true, forbidNonWhitelisted: true }),
+    ).toHaveLength(0);
+
+    const invalid = plainToInstance(UpdatePreferencesDto, {
+      notificationPreferences: {
+        taskAssigned: "no",
+        arbitraryChannel: true,
+      },
+    });
+    const errors = await validate(invalid, {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    });
+    const serialized = JSON.stringify(errors);
+    expect(serialized).toContain("taskAssigned");
+    expect(serialized).toContain("arbitraryChannel");
+  });
 });

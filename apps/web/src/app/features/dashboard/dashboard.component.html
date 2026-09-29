@@ -167,9 +167,13 @@
 
     <law-section-panel
       titleKey="dashboard.notifications"
-      [unavailable]="true"
-      unavailableKey="dashboard.notificationsUnavailable"
-    />
+      actionLabelKey="dashboard.notificationSettings"
+      actionLink="/settings/workspace"
+    >
+      <p class="py-4 text-sm text-muted-foreground">
+        {{ "dashboard.notificationsInHeader" | translate }}
+      </p>
+    </law-section-panel>
   </div>
 
   <!-- Row 4: Cases overview and Quick actions -->
