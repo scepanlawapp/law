@@ -9,9 +9,10 @@ Work review currently derives candidates from completed events, completed tasks,
 ## Requirements
 
 - Let users choose an optional case when creating or editing a task, event, or deadline.
+- Let users choose an optional client when creating or editing a task or deadline.
 - Let users choose the responsible person for each of those records.
 - Default the responsible person to the signed-in user only for new records.
-- Preserve existing responsible-person and case values when editing.
+- Preserve existing responsible-person, client, and case values when editing.
 - Return work-review candidates from tasks and events whose `billingStatementLineId` is null.
 - Do not include deadlines, case activities, or client activities as candidates.
 - Keep workspace, role, client, case, source, review-resolution, and pagination behavior intact.

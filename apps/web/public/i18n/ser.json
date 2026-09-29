@@ -132,6 +132,7 @@
   "work.case": "Predmet",
   "work.noCase": "Bez predmeta",
   "work.client": "Klijent",
+  "work.noClient": "Bez klijenta",
   "work.related": "Povezano",
   "work.due": "Rok",
   "work.actions": "Radnje",

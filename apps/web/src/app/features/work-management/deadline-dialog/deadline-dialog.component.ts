@@ -7,9 +7,15 @@ import {
   Validators,
 } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { CaseSummary, DeadlineDetail, DeadlineType } from "@law/api-interfaces";
+import {
+  CaseSummary,
+  ClientSummary,
+  DeadlineDetail,
+  DeadlineType,
+} from "@law/api-interfaces";
 import {
   CasesApiClient,
+  ClientsApiClient,
   DeadlineRequest,
   ReferencesApiClient,
   WorkManagementApiClient,
@@ -62,6 +68,7 @@ type DeadlineDueMode = "DATE" | "DATE_TIME";
 export class DeadlineDialogComponent {
   private readonly api = inject(WorkManagementApiClient);
   private readonly casesApi = inject(CasesApiClient);
+  private readonly clientsApi = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly auth = inject(AuthState);
   private readonly context = injectBrnDialogContext<DeadlineDialogContext>();
@@ -70,6 +77,7 @@ export class DeadlineDialogComponent {
   readonly dialogRef = inject(BrnDialogRef<DeadlineDetail>);
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly cases = signal<CaseSummary[]>([]);
+  readonly clients = signal<ClientSummary[]>([]);
   readonly saving = signal(false);
   readonly editing = Boolean(this.context.deadline);
   readonly types: DeadlineType[] = [
@@ -92,6 +100,12 @@ export class DeadlineDialogComponent {
       : "";
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().find((user) => user.id === value)?.name ?? "";
+  readonly clientItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("work.noClient");
+    return (
+      this.clients().find((client) => client.id === value)?.displayName ?? value
+    );
+  };
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("work.noCase");
     const caseItem = this.cases().find((item) => item.id === value);
@@ -135,6 +149,10 @@ export class DeadlineDialogComponent {
       this.context.caseId ?? this.context.deadline?.case?.id ?? "",
       { nonNullable: true },
     ),
+    clientId: new FormControl(
+      this.context.clientId ?? this.context.deadline?.client?.id ?? "",
+      { nonNullable: true },
+    ),
     sourceDescription: new FormControl(
       this.context.deadline?.sourceDescription ?? "",
       { nonNullable: true },
@@ -147,6 +165,26 @@ export class DeadlineDialogComponent {
       .subscribe((mode) => {
         if (mode !== "DATE") this.form.controls.dueDate.setValue("");
         if (mode !== "DATE_TIME") this.form.controls.dueAt.setValue("");
+      });
+    this.form.controls.caseId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((caseId) => {
+        if (!caseId) return;
+        const caseItem = this.cases().find((item) => item.id === caseId);
+        if (caseItem) {
+          this.form.controls.clientId.setValue(caseItem.client.id, {
+            emitEvent: false,
+          });
+        }
+      });
+    this.form.controls.clientId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((clientId) => {
+        const caseId = this.form.controls.caseId.value;
+        const caseItem = this.cases().find((item) => item.id === caseId);
+        if (caseItem && caseItem.client.id !== clientId) {
+          this.form.controls.caseId.setValue("", { emitEvent: false });
+        }
       });
     this.references
       .users()
@@ -165,7 +203,21 @@ export class DeadlineDialogComponent {
     this.casesApi
       .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((response) => this.cases.set(response.items));
+      .subscribe((response) => {
+        this.cases.set(response.items);
+        const caseItem = response.items.find(
+          (item) => item.id === this.form.controls.caseId.value,
+        );
+        if (caseItem && !this.form.controls.clientId.value) {
+          this.form.controls.clientId.setValue(caseItem.client.id, {
+            emitEvent: false,
+          });
+        }
+      });
+    this.clientsApi
+      .list({ page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((response) => this.clients.set(response.items));
   }
 
   submit(): void {
@@ -182,8 +234,7 @@ export class DeadlineDialogComponent {
       responsibleUserId: value.responsibleUserId,
       sourceDescription: value.sourceDescription || undefined,
       caseId: value.caseId || undefined,
-      clientId:
-        this.context.clientId ?? this.context.deadline?.client?.id ?? undefined,
+      clientId: value.clientId || undefined,
       dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
       dueAt:
         value.dueMode === "DATE_TIME"

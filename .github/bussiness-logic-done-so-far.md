@@ -107,7 +107,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Newly created tasks default to no due target; a due date or exact due timestamp is only added when the user explicitly selects it. Edit mode preserves the stored due target.
 - Task completion, cancellation, and reopening transitions.
 - Tasks can be associated with cases, clients, and deadlines.
-- The task dialog exposes a responsible-user and optional-case selector; new tasks default responsibility to the signed-in user.
+- The task dialog exposes responsible-user, optional-client, and optional-case selectors; new tasks default responsibility to the signed-in user. Selecting a case selects its client, while selecting an incompatible client clears the case.
 
 ### Deadlines
 
@@ -117,7 +117,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Deadline satisfaction, cancellation, and reopening transitions.
 - API responses calculate whether an open deadline is overdue.
 - Deadlines support responsible users, case/client associations, time zones, and source descriptions.
-- The deadline dialog exposes a responsible-user and optional-case selector; new deadlines default responsibility to the signed-in user.
+- The deadline dialog exposes responsible-user, optional-client, and optional-case selectors; new deadlines default responsibility to the signed-in user. Selecting a case selects its client, while selecting an incompatible client clears the case.
 
 ### Notes and calendar aggregation
 
