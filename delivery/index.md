@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Dashboard Documents and Notifications](./tracks/dashboard_documents_notifications_20260929/index.md)
+- [Direct Statement Source Billing](./tracks/direct_statement_source_billing_20260929/index.md)
 - [Calendar Deadline Edit](./tracks/calendar_deadline_edit_20260929/index.md)
 - [In-App Notifications](./tracks/notifications_20260929/index.md)
 - [Billing Statement Basic Detail UI](./tracks/billing_statement_detail_ui_20260929/index.md)

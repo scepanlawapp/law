@@ -11,9 +11,8 @@ import {
   PriceSourceScope,
 } from "@prisma/client";
 import {
+  BillableWorkItem,
   BillingStatementLineSummary,
-  BillingSuggestion,
-  AssignBillingCandidateClientResponse,
   CaseReference,
   ClientReference,
   PaginatedResponse,
@@ -24,18 +23,17 @@ import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, paginationMeta } from "@law/core";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import {
   AppendPriceSourceVersionDto,
-  BillingStatementLineListQueryDto,
-  CandidateQueryDto,
-  CreateBillingStatementLineDto,
+  BillableWorkQueryDto,
   CreatePaymentDto,
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
-  RecordBillingStatementLinesDto,
   SendStatementDto,
-  UpdateBillingStatementLineDto,
   UpdateStatementDto,
 } from "./financials.dto";
+
+const isPresent = <T>(value: T | null | undefined): value is T =>
+  value !== null && value !== undefined;
 
 @Injectable()
 export class FinancialsService {
@@ -84,16 +82,6 @@ export class FinancialsService {
     if (caseRecord.clientId !== clientId)
       throw new ConflictException("Case does not belong to client");
     return caseRecord;
-  }
-
-  private async assertPerformer(userId: string) {
-    const member = await this.db.workspaceMember.findUnique({
-      where: { userId_workspaceId: { userId, workspaceId: this.workspaceId } },
-      include: { user: true },
-    });
-    if (!member || member.status !== "ACTIVE")
-      throw new NotFoundException("Performer not found");
-    return member.user;
   }
 
   private clientReference(client: {
@@ -228,171 +216,28 @@ export class FinancialsService {
     };
   }
 
-  async listLines(
-    query: BillingStatementLineListQueryDto,
-  ): Promise<PaginatedResponse<BillingStatementLineSummary>> {
+  async listBillableWork(
+    query: BillableWorkQueryDto,
+  ): Promise<PaginatedResponse<BillableWorkItem>> {
     this.assertFinanceUser();
-    const page = query.page ?? DEFAULT_PAGE;
-    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
-    const where: Prisma.BillingStatementLineWhereInput = {
-      workspaceId: this.workspaceId,
-    };
-    if (!this.isManager()) where.performedByUserId = this.context.userId;
-    const clientIds = query.clientIds?.length
-      ? query.clientIds
-      : query.clientId
-        ? [query.clientId]
-        : [];
-    const caseIds = query.caseIds?.length
-      ? query.caseIds
-      : query.caseId
-        ? [query.caseId]
-        : [];
-    if (clientIds.length) where.clientId = { in: clientIds };
-    if (caseIds.length) where.caseLinks = { some: { caseId: { in: caseIds } } };
-    if (query.sourceTypes?.length) where.sourceType = { in: query.sourceTypes };
-    if (query.performerId && this.isManager())
-      where.performedByUserId = query.performerId;
-    if (query.status) where.status = query.status;
-    if (query.currency) where.currency = query.currency;
-    if (query.from || query.to)
-      where.serviceDate = {
-        ...(query.from ? { gte: new Date(query.from) } : {}),
-        ...(query.to ? { lte: new Date(query.to) } : {}),
-      };
-    const [items, totalItems] = await this.db.$transaction([
-      this.db.billingStatementLine.findMany({
-        where,
-        include: this.lineInclude,
-        orderBy: { serviceDate: "desc" },
-        skip: (page - 1) * pageSize,
-        take: pageSize,
-      }),
-      this.db.billingStatementLine.count({ where }),
-    ]);
-    return {
-      items: items.map((item) => this.lineSummary(item)),
-      meta: paginationMeta(page, pageSize, totalItems, [
-        { field: "serviceDate", direction: "desc" },
-      ]),
-    };
-  }
-
-  async createLine(
-    input: CreateBillingStatementLineDto,
-  ): Promise<BillingStatementLineSummary> {
-    this.assertFinanceUser();
-    await this.assertClient(input.clientId);
-    const performerId = input.performedByUserId ?? this.context.userId;
-    if (performerId !== this.context.userId) this.assertManager();
-    await this.assertPerformer(performerId);
-    if (input.amount <= 0)
-      throw new ConflictException("Statement line amount must be positive");
-    const line = await this.db.billingStatementLine.create({
-      data: {
-        workspaceId: this.workspaceId,
-        clientId: input.clientId,
-        performedByUserId: performerId,
-        serviceDate: input.serviceDate
-          ? new Date(input.serviceDate)
-          : new Date(),
-        description: input.description,
-        amount: input.amount,
-        currency: input.currency.toUpperCase(),
-        sourceType: input.sourceType,
-        sourceId: input.sourceId,
-        createdByUserId: this.context.userId,
-        updatedByUserId: this.context.userId,
-      },
-      include: this.lineInclude,
-    });
-    return this.lineSummary(line);
-  }
-
-  async getLine(id: string): Promise<BillingStatementLineSummary> {
-    this.assertFinanceUser();
-    const line = await this.db.billingStatementLine.findFirst({
-      where: {
-        id,
-        workspaceId: this.workspaceId,
-        ...(this.isManager() ? {} : { performedByUserId: this.context.userId }),
-      },
-      include: this.lineInclude,
-    });
-    if (!line) throw new NotFoundException("Billing statement line not found");
-    return this.lineSummary(line);
-  }
-
-  async updateLine(
-    id: string,
-    input: UpdateBillingStatementLineDto,
-  ): Promise<BillingStatementLineSummary> {
-    this.assertFinanceUser();
-    const line = await this.db.billingStatementLine.findFirst({
-      where: {
-        id,
-        workspaceId: this.workspaceId,
-        ...(this.isManager() ? {} : { performedByUserId: this.context.userId }),
-      },
-    });
-    if (!line) throw new NotFoundException("Billing statement line not found");
-    if (
-      line.status === BillingStatementLineStatus.BILLED ||
-      line.status === BillingStatementLineStatus.CANCELLED
-    )
-      throw new ConflictException("Billed or cancelled lines are immutable");
-    if (input.amount !== undefined && input.amount <= 0)
-      throw new ConflictException("Statement line amount must be positive");
-    const updated = await this.db.billingStatementLine.update({
-      where: { id },
-      data: {
-        ...input,
-        currency: input.currency?.toUpperCase(),
-        updatedByUserId: this.context.userId,
-      },
-      include: this.lineInclude,
-    });
-    return this.lineSummary(updated);
-  }
-
-  async cancelLine(
-    id: string,
-    reason: string,
-  ): Promise<BillingStatementLineSummary> {
-    this.assertFinanceUser();
-    const line = await this.db.billingStatementLine.findFirst({
-      where: {
-        id,
-        workspaceId: this.workspaceId,
-        ...(this.isManager() ? {} : { performedByUserId: this.context.userId }),
-      },
-    });
-    if (!line) throw new NotFoundException("Billing statement line not found");
-    if (line.status !== BillingStatementLineStatus.UNBILLED)
-      throw new ConflictException("Only unbilled lines can be cancelled");
-    const cancelled = await this.db.billingStatementLine.update({
-      where: { id },
-      data: {
-        status: BillingStatementLineStatus.CANCELLED,
-        cancelledAt: new Date(),
-        cancellationReason: reason,
-        cancelledByUserId: this.context.userId,
-        updatedByUserId: this.context.userId,
-      },
-      include: this.lineInclude,
-    });
-    return this.lineSummary(cancelled);
-  }
-
-  async listCandidates(
-    query: CandidateQueryDto,
-  ): Promise<PaginatedResponse<BillingSuggestion>> {
-    this.assertFinanceUser();
-    const [events, tasks] = await Promise.all([
+    const manager = this.isManager();
+    const [events, tasks, deadlines] = await Promise.all([
       this.db.event.findMany({
         where: {
           workspaceId: this.workspaceId,
-          billingStatementLineId: null,
+          status: "COMPLETED",
+          statementId: null,
+          ...(manager
+            ? {}
+            : {
+                OR: [
+                  { assignees: { some: { userId: this.context.userId } } },
+                  {
+                    assignees: { none: {} },
+                    organizerUserId: this.context.userId,
+                  },
+                ],
+              }),
         },
         include: {
           case: { include: { client: true } },
@@ -400,73 +245,125 @@ export class FinancialsService {
           organizer: true,
           assignees: { include: { user: true } },
         },
-        orderBy: { startsAt: "desc" },
       }),
       this.db.task.findMany({
         where: {
           workspaceId: this.workspaceId,
-          billingStatementLineId: null,
+          status: "DONE",
+          statementId: null,
+          ...(manager ? {} : { assigneeUserId: this.context.userId }),
         },
         include: {
           case: { include: { client: true } },
           client: true,
           assignee: true,
         },
-        orderBy: { updatedAt: "desc" },
+      }),
+      this.db.deadline.findMany({
+        where: {
+          workspaceId: this.workspaceId,
+          status: "SATISFIED",
+          statementId: null,
+          ...(manager ? {} : { responsibleUserId: this.context.userId }),
+        },
+        include: {
+          case: { include: { client: true } },
+          client: true,
+          responsibleUser: true,
+        },
       }),
     ]);
-    const raw: Array<any> = [];
+
+    const raw: Array<
+      BillableWorkItem & {
+        sortDate: Date;
+        clientId: string;
+        caseId: string | null;
+      }
+    > = [];
+
     for (const event of events) {
-      const clients = event.clients.length
-        ? event.clients.map((relation) => relation.client)
-        : event.case?.client
-          ? [event.case.client]
-          : [null];
-      for (const performer of event.assignees.length
-        ? event.assignees
-        : [{ user: event.organizer }])
-        for (const client of clients)
-          raw.push({
-            candidateKey: `EVENT:${event.id}:${performer.user.id}:${client?.id ?? "UNASSIGNED"}`,
-            sourceType: "EVENT",
-            sourceId: event.id,
-            title: event.title,
-            date: event.startsAt,
-            client,
-            case: event.case,
-            performer: performer.user,
-            reason: "Event",
-            warnings:
-              clients.length > 1
-                ? ["Event has multiple clients; confirm the billing client."]
-                : [],
-          });
-    }
-    for (const task of tasks)
+      const relatedClients = [
+        ...event.clients.map((relation) => relation.client),
+        ...(event.case?.client ? [event.case.client] : []),
+      ];
+      const clientsById = new Map(
+        relatedClients.map((client) => [client.id, client]),
+      );
+      const client =
+        clientsById.size === 1 ? [...clientsById.values()][0] : null;
+      if (!client) continue;
+      const responsibleUser =
+        (!manager
+          ? event.assignees.find(
+              (assignment) => assignment.userId === this.context.userId,
+            )?.user
+          : null) ?? event.organizer;
       raw.push({
-        candidateKey: `TASK:${task.id}:${task.assignee.id}`,
+        sourceKey: `EVENT:${event.id}`,
+        sourceType: "EVENT",
+        sourceId: event.id,
+        title: event.title,
+        date: event.startsAt.toISOString(),
+        client: this.clientReference(client),
+        case: this.caseReference(event.case),
+        responsibleUser: this.userReference(responsibleUser),
+        sortDate: event.startsAt,
+        clientId: client.id,
+        caseId: event.caseId,
+      });
+    }
+
+    for (const task of tasks) {
+      const clientsById = new Map(
+        [task.client, task.case?.client]
+          .filter(isPresent)
+          .map((client) => [client.id, client]),
+      );
+      const client =
+        clientsById.size === 1 ? [...clientsById.values()][0] : null;
+      if (!client) continue;
+      const date = task.completedAt ?? task.updatedAt;
+      raw.push({
+        sourceKey: `TASK:${task.id}`,
         sourceType: "TASK",
         sourceId: task.id,
         title: task.title,
-        date: task.completedAt ?? task.updatedAt,
-        client: task.client ?? task.case?.client,
-        case: task.case,
-        performer: task.assignee,
-        reason: "Task",
-        warnings: [],
+        date: date.toISOString(),
+        client: this.clientReference(client),
+        case: this.caseReference(task.case),
+        responsibleUser: this.userReference(task.assignee),
+        sortDate: date,
+        clientId: client.id,
+        caseId: task.caseId,
       });
-    const reviews = await this.db.billingSuggestionReview.findMany({
-      where: {
-        workspaceId: this.workspaceId,
-        candidateKey: { in: raw.map((item) => item.candidateKey) },
-      },
-    });
-    const reviewMap = new Map(
-      reviews.map((review) => [review.candidateKey, review]),
-    );
-    const visibleRaw = this.isManager()
-      ? raw
-      : raw.filter((item) => item.performer?.id === this.context.userId);
+    }
+
+    for (const deadline of deadlines) {
+      const clientsById = new Map(
+        [deadline.client, deadline.case?.client]
+          .filter(isPresent)
+          .map((client) => [client.id, client]),
+      );
+      const client =
+        clientsById.size === 1 ? [...clientsById.values()][0] : null;
+      if (!client) continue;
+      const date = deadline.satisfiedAt ?? deadline.updatedAt;
+      raw.push({
+        sourceKey: `DEADLINE:${deadline.id}`,
+        sourceType: "DEADLINE",
+        sourceId: deadline.id,
+        title: deadline.title,
+        date: date.toISOString(),
+        client: this.clientReference(client),
+        case: this.caseReference(deadline.case),
+        responsibleUser: this.userReference(deadline.responsibleUser),
+        sortDate: date,
+        clientId: client.id,
+        caseId: deadline.caseId,
+      });
+    }
+
     const clientIds = query.clientIds?.length
       ? query.clientIds
       : query.clientId
@@ -477,421 +374,42 @@ export class FinancialsService {
       : query.caseId
         ? [query.caseId]
         : [];
-    const sourceTypes = query.sourceTypes?.length
-      ? query.sourceTypes
-      : query.sourceType
-        ? [query.sourceType]
-        : [];
-    const items = visibleRaw
-      .filter(
-        (item) =>
-          !clientIds.length ||
-          (item.client ? clientIds.includes(item.client.id) : false),
-      )
+    const sourceTypes = new Set(query.sourceTypes ?? []);
+    const sourceKeys = new Set(query.sourceKeys ?? []);
+    const from = query.from ? new Date(query.from) : null;
+    const to = query.to ? new Date(query.to) : null;
+    const filtered = raw
+      .filter((item) => !clientIds.length || clientIds.includes(item.clientId))
       .filter(
         (item) =>
           !caseIds.length ||
-          (item.case ? caseIds.includes(item.case.id) : false),
+          (item.caseId ? caseIds.includes(item.caseId) : false),
       )
-      .filter(
-        (item) => !sourceTypes.length || sourceTypes.includes(item.sourceType),
-      )
-      .filter((item) => {
-        const resolution =
-          reviewMap.get(item.candidateKey)?.resolution ?? "PENDING";
-        return query.resolution
-          ? resolution === query.resolution
-          : query.includeResolved === "true" ||
-              !["DISMISSED", "RECORDED"].includes(resolution);
-      })
-      .map((item) => ({
-        ...item,
-        resolution: reviewMap.get(item.candidateKey)?.resolution ?? "PENDING",
-      }));
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
+      .filter((item) => !sourceTypes.size || sourceTypes.has(item.sourceType))
+      .filter((item) => !sourceKeys.size || sourceKeys.has(item.sourceKey))
+      .filter((item) => !from || item.sortDate >= from)
+      .filter((item) => !to || item.sortDate <= to)
+      .sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime());
+
+    const page = query.page ?? DEFAULT_PAGE;
+    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
     return {
-      items: items
+      items: filtered
         .slice((page - 1) * pageSize, page * pageSize)
         .map((item) => ({
-          candidateKey: item.candidateKey,
+          sourceKey: item.sourceKey,
           sourceType: item.sourceType,
           sourceId: item.sourceId,
           title: item.title,
-          date: item.date.toISOString(),
-          client: item.client ? this.clientReference(item.client) : null,
-          case: this.caseReference(item.case),
-          proposedPerformer: item.performer
-            ? this.userReference(item.performer)
-            : null,
-          resolution: item.resolution,
-          reason: item.reason,
-          warnings: item.warnings,
+          date: item.date,
+          client: item.client,
+          case: item.case,
+          responsibleUser: item.responsibleUser,
         })),
-      meta: paginationMeta(page, pageSize, items.length, [
+      meta: paginationMeta(page, pageSize, filtered.length, [
         { field: "date", direction: "desc" },
       ]),
     };
-  }
-
-  async reviewCandidate(
-    candidateKey: string,
-    resolution: "DISMISSED" | "PENDING",
-  ) {
-    const [review] = await this.reviewCandidates([candidateKey], resolution);
-    return review;
-  }
-
-  async assignCandidateClient(
-    candidateKey: string,
-    clientId: string,
-  ): Promise<AssignBillingCandidateClientResponse> {
-    this.assertFinanceUser();
-    const client = await this.assertClient(clientId);
-    const [sourceType, sourceId, performerId] = candidateKey.split(":");
-    if (!sourceType || !sourceId || !performerId)
-      throw new ConflictException("Invalid billing candidate key");
-    if (!this.isManager() && performerId !== this.context.userId)
-      throw new ForbiddenException("Candidate belongs to another user");
-
-    await this.db.$transaction(async (tx) => {
-      if (sourceType === "TASK") {
-        const task = await tx.task.findFirst({
-          where: {
-            id: sourceId,
-            workspaceId: this.workspaceId,
-            billingStatementLineId: null,
-            assigneeUserId: performerId,
-          },
-          include: { case: true },
-        });
-        if (!task) throw new NotFoundException("Task candidate not found");
-        if (task.case && task.case.clientId !== clientId)
-          throw new ConflictException("Client does not match the task case");
-        await tx.task.update({
-          where: { id: sourceId },
-          data: { clientId },
-        });
-        await tx.activityLog.create({
-          data: {
-            workspaceId: this.workspaceId,
-            actorUserId: this.context.userId,
-            action: "TASK_CLIENT_ASSIGNED",
-            entityType: "Task",
-            entityId: sourceId,
-            caseId: task.caseId,
-            clientId,
-          },
-        });
-        return;
-      }
-
-      if (sourceType === "EVENT") {
-        const event = await tx.event.findFirst({
-          where: {
-            id: sourceId,
-            workspaceId: this.workspaceId,
-            billingStatementLineId: null,
-            OR: [
-              { assignees: { some: { userId: performerId } } },
-              {
-                assignees: { none: {} },
-                organizerUserId: performerId,
-              },
-            ],
-          },
-          include: { case: true },
-        });
-        if (!event) throw new NotFoundException("Event candidate not found");
-        if (event.case && event.case.clientId !== clientId)
-          throw new ConflictException("Client does not match the event case");
-        await tx.eventClient.upsert({
-          where: { eventId_clientId: { eventId: sourceId, clientId } },
-          create: {
-            workspaceId: this.workspaceId,
-            eventId: sourceId,
-            clientId,
-          },
-          update: {},
-        });
-        await tx.activityLog.create({
-          data: {
-            workspaceId: this.workspaceId,
-            actorUserId: this.context.userId,
-            action: "EVENT_CLIENT_ASSIGNED",
-            entityType: "Event",
-            entityId: sourceId,
-            caseId: event.caseId,
-            clientId,
-          },
-        });
-        return;
-      }
-
-      throw new ConflictException("Unsupported billing candidate source");
-    });
-
-    return {
-      candidateKey:
-        sourceType === "EVENT"
-          ? `EVENT:${sourceId}:${performerId}:${clientId}`
-          : candidateKey,
-      client: this.clientReference(client),
-    };
-  }
-
-  async reviewCandidates(
-    candidateKeys: string[],
-    resolution: "DISMISSED" | "PENDING",
-  ) {
-    this.assertFinanceUser();
-    const reviewedAt = new Date();
-    return this.db.$transaction(
-      candidateKeys.map((candidateKey) => {
-        const source = candidateKey.split(":");
-        return this.db.billingSuggestionReview.upsert({
-          where: {
-            workspaceId_candidateKey: {
-              workspaceId: this.workspaceId,
-              candidateKey,
-            },
-          },
-          create: {
-            workspaceId: this.workspaceId,
-            candidateKey,
-            sourceType: source[0],
-            sourceId: source[1],
-            resolution,
-            reviewedByUserId: this.context.userId,
-            reviewedAt,
-          },
-          update: {
-            resolution,
-            reviewedByUserId: this.context.userId,
-            reviewedAt,
-          },
-        });
-      }),
-    );
-  }
-
-  async recordCandidatesAsLines(
-    input: RecordBillingStatementLinesDto,
-  ): Promise<BillingStatementLineSummary[]> {
-    this.assertFinanceUser();
-    await this.assertClient(input.clientId);
-
-    const candidateKeys = input.items.map((item) => item.candidateKey);
-    if (new Set(candidateKeys).size !== candidateKeys.length) {
-      throw new ConflictException("Billing candidates must be unique");
-    }
-
-    const itemSources = input.items.map((item) => {
-      if (item.amount <= 0)
-        throw new ConflictException("Statement line amount must be positive");
-      const [sourceType, sourceId, proposedPerformerId, proposedClientId] =
-        item.candidateKey.split(":");
-      if (!sourceType || !sourceId || !proposedPerformerId) {
-        throw new ConflictException("Invalid billing candidate key");
-      }
-      if (proposedPerformerId !== this.context.userId) this.assertManager();
-      return {
-        item,
-        sourceType,
-        sourceId,
-        performedByUserId: proposedPerformerId,
-        proposedClientId,
-      };
-    });
-
-    await Promise.all(
-      [...new Set(itemSources.map((item) => item.performedByUserId))].map(
-        (performerId) => this.assertPerformer(performerId),
-      ),
-    );
-
-    return this.db.$transaction(async (tx) => {
-      const lines: BillingStatementLineSummary[] = [];
-      for (const source of itemSources) {
-        const existingReview = await tx.billingSuggestionReview.findUnique({
-          where: {
-            workspaceId_candidateKey: {
-              workspaceId: this.workspaceId,
-              candidateKey: source.item.candidateKey,
-            },
-          },
-        });
-        if (existingReview?.resolution === "RECORDED")
-          throw new ConflictException("Billing candidate is already recorded");
-
-        let serviceDate: Date;
-        let caseId: string | null = null;
-        switch (source.sourceType) {
-          case "EVENT": {
-            const event = await tx.event.findFirst({
-              where: {
-                id: source.sourceId,
-                workspaceId: this.workspaceId,
-                billingStatementLineId: null,
-                OR: [
-                  { clients: { some: { clientId: input.clientId } } },
-                  { case: { clientId: input.clientId } },
-                ],
-              },
-            });
-            if (!event || source.proposedClientId !== input.clientId)
-              throw new ConflictException(
-                "Event is unavailable for the selected client",
-              );
-            serviceDate = event.startsAt;
-            caseId = event.caseId;
-            break;
-          }
-          case "TASK": {
-            const task = await tx.task.findFirst({
-              where: {
-                id: source.sourceId,
-                workspaceId: this.workspaceId,
-                billingStatementLineId: null,
-              },
-              include: { case: true },
-            });
-            if (
-              !task ||
-              (task.clientId ?? task.case?.clientId) !== input.clientId
-            )
-              throw new ConflictException(
-                "Task is unavailable for the selected client",
-              );
-            serviceDate = task.completedAt ?? task.updatedAt;
-            caseId = task.caseId;
-            break;
-          }
-          case "DEADLINE": {
-            const deadline = await tx.deadline.findFirst({
-              where: {
-                id: source.sourceId,
-                workspaceId: this.workspaceId,
-                status: "SATISFIED",
-                billingStatementLineId: null,
-              },
-              include: { case: true },
-            });
-            if (
-              !deadline ||
-              (deadline.clientId ?? deadline.case?.clientId) !== input.clientId
-            )
-              throw new ConflictException(
-                "Deadline is unavailable for the selected client",
-              );
-            serviceDate = deadline.satisfiedAt ?? deadline.updatedAt;
-            caseId = deadline.caseId;
-            break;
-          }
-          case "CASE_ACTIVITY": {
-            const activity = await tx.caseActivity.findFirst({
-              where: { id: source.sourceId, workspaceId: this.workspaceId },
-              include: { case: true },
-            });
-            if (!activity || activity.case.clientId !== input.clientId)
-              throw new ConflictException(
-                "Case activity is unavailable for the selected client",
-              );
-            serviceDate = activity.activityDate;
-            caseId = activity.caseId;
-            break;
-          }
-          case "CLIENT_ACTIVITY": {
-            const activity = await tx.clientActivity.findFirst({
-              where: {
-                id: source.sourceId,
-                workspaceId: this.workspaceId,
-                clientId: input.clientId,
-              },
-            });
-            if (!activity)
-              throw new ConflictException(
-                "Client activity is unavailable for the selected client",
-              );
-            serviceDate = activity.activityDate;
-            caseId = activity.relatedCaseId;
-            break;
-          }
-          default:
-            throw new ConflictException("Unsupported billing candidate source");
-        }
-
-        const line = await tx.billingStatementLine.create({
-          data: {
-            workspaceId: this.workspaceId,
-            clientId: input.clientId,
-            performedByUserId: source.performedByUserId,
-            serviceDate,
-            description: source.item.description,
-            amount: source.item.amount,
-            currency: source.item.currency.toUpperCase(),
-            sourceType: source.sourceType,
-            sourceId: source.sourceId,
-            createdByUserId: this.context.userId,
-            updatedByUserId: this.context.userId,
-            caseLinks: caseId
-              ? {
-                  create: {
-                    workspaceId: this.workspaceId,
-                    caseId,
-                  },
-                }
-              : undefined,
-          },
-          include: this.lineInclude,
-        });
-
-        if (source.sourceType === "EVENT")
-          await tx.event.update({
-            where: { id: source.sourceId },
-            data: { billingStatementLineId: line.id },
-          });
-        if (source.sourceType === "TASK")
-          await tx.task.update({
-            where: { id: source.sourceId },
-            data: { billingStatementLineId: line.id },
-          });
-        if (source.sourceType === "DEADLINE")
-          await tx.deadline.update({
-            where: { id: source.sourceId },
-            data: { billingStatementLineId: line.id },
-          });
-
-        await tx.billingSuggestionReview.upsert({
-          where: {
-            workspaceId_candidateKey: {
-              workspaceId: this.workspaceId,
-              candidateKey: source.item.candidateKey,
-            },
-          },
-          create: {
-            workspaceId: this.workspaceId,
-            candidateKey: source.item.candidateKey,
-            sourceType: source.sourceType,
-            sourceId: source.sourceId,
-            proposedPerformerId: source.performedByUserId,
-            resolution: "RECORDED",
-            reviewedByUserId: this.context.userId,
-            reviewedAt: new Date(),
-            billingStatementLineId: line.id,
-          },
-          update: {
-            proposedPerformerId: source.performedByUserId,
-            resolution: "RECORDED",
-            reviewedByUserId: this.context.userId,
-            reviewedAt: new Date(),
-            billingStatementLineId: line.id,
-          },
-        });
-        lines.push(this.lineSummary(line));
-      }
-      return lines;
-    });
   }
 
   async listPriceSources() {
@@ -1023,6 +541,176 @@ export class FinancialsService {
     return statements.map((statement) => this.statementResponse(statement));
   }
 
+  private async replaceStatementLines(
+    tx: Prisma.TransactionClient,
+    statement: { id: string; clientId: string; currency: string },
+    lines: CreateStatementDto["lines"],
+  ): Promise<void> {
+    const sourceKeys = lines.flatMap((line) =>
+      line.sourceType && line.sourceId
+        ? [`${line.sourceType}:${line.sourceId}`]
+        : [],
+    );
+    if (sourceKeys.length !== new Set(sourceKeys).size)
+      throw new ConflictException("Statement work sources must be unique");
+    if (
+      lines.some(
+        (line) =>
+          Boolean(line.sourceType) !== Boolean(line.sourceId) ||
+          line.currency.toUpperCase() !== statement.currency.toUpperCase(),
+      )
+    )
+      throw new ConflictException(
+        "Statement lines must have a complete source and matching currency",
+      );
+
+    await Promise.all([
+      tx.event.updateMany({
+        where: { workspaceId: this.workspaceId, statementId: statement.id },
+        data: { statementId: null },
+      }),
+      tx.task.updateMany({
+        where: { workspaceId: this.workspaceId, statementId: statement.id },
+        data: { statementId: null },
+      }),
+      tx.deadline.updateMany({
+        where: { workspaceId: this.workspaceId, statementId: statement.id },
+        data: { statementId: null },
+      }),
+    ]);
+    await tx.billingStatementLine.deleteMany({
+      where: { workspaceId: this.workspaceId, statementId: statement.id },
+    });
+
+    for (const [index, input] of lines.entries()) {
+      let caseId: string | null = null;
+      if (input.sourceType && input.sourceId) {
+        switch (input.sourceType) {
+          case "EVENT": {
+            const event = await tx.event.findFirst({
+              where: {
+                id: input.sourceId,
+                workspaceId: this.workspaceId,
+                status: "COMPLETED",
+                statementId: null,
+              },
+              include: {
+                case: true,
+                clients: true,
+              },
+            });
+            const clientIds = new Set([
+              ...(event?.clients.map((item) => item.clientId) ?? []),
+              ...(event?.case?.clientId ? [event.case.clientId] : []),
+            ]);
+            const clientId = clientIds.size === 1 ? [...clientIds][0] : null;
+            if (!event || clientId !== statement.clientId)
+              throw new ConflictException(
+                "Event is unavailable for the statement client",
+              );
+            caseId = event.caseId;
+            break;
+          }
+          case "TASK": {
+            const task = await tx.task.findFirst({
+              where: {
+                id: input.sourceId,
+                workspaceId: this.workspaceId,
+                status: "DONE",
+                statementId: null,
+              },
+              include: { case: true },
+            });
+            const clientIds = new Set(
+              [task?.clientId, task?.case?.clientId].filter(
+                (clientId): clientId is string => Boolean(clientId),
+              ),
+            );
+            if (
+              !task ||
+              clientIds.size !== 1 ||
+              !clientIds.has(statement.clientId)
+            )
+              throw new ConflictException(
+                "Task is unavailable for the statement client",
+              );
+            caseId = task.caseId;
+            break;
+          }
+          case "DEADLINE": {
+            const deadline = await tx.deadline.findFirst({
+              where: {
+                id: input.sourceId,
+                workspaceId: this.workspaceId,
+                status: "SATISFIED",
+                statementId: null,
+              },
+              include: { case: true },
+            });
+            const clientIds = new Set(
+              [deadline?.clientId, deadline?.case?.clientId].filter(
+                (clientId): clientId is string => Boolean(clientId),
+              ),
+            );
+            if (
+              !deadline ||
+              clientIds.size !== 1 ||
+              !clientIds.has(statement.clientId)
+            )
+              throw new ConflictException(
+                "Deadline is unavailable for the statement client",
+              );
+            caseId = deadline.caseId;
+            break;
+          }
+        }
+      }
+
+      await tx.billingStatementLine.create({
+        data: {
+          workspaceId: this.workspaceId,
+          statementId: statement.id,
+          clientId: statement.clientId,
+          performedByUserId: this.context.userId,
+          lineOrder: index,
+          serviceDate: new Date(input.serviceDate),
+          description: input.description.trim(),
+          amount: input.amount,
+          currency: statement.currency.toUpperCase(),
+          status: BillingStatementLineStatus.RESERVED,
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          createdByUserId: this.context.userId,
+          updatedByUserId: this.context.userId,
+          caseLinks: caseId
+            ? {
+                create: {
+                  workspaceId: this.workspaceId,
+                  caseId,
+                },
+              }
+            : undefined,
+        },
+      });
+
+      if (input.sourceType === "EVENT" && input.sourceId)
+        await tx.event.update({
+          where: { id: input.sourceId },
+          data: { statementId: statement.id },
+        });
+      if (input.sourceType === "TASK" && input.sourceId)
+        await tx.task.update({
+          where: { id: input.sourceId },
+          data: { statementId: statement.id },
+        });
+      if (input.sourceType === "DEADLINE" && input.sourceId)
+        await tx.deadline.update({
+          where: { id: input.sourceId },
+          data: { statementId: statement.id },
+        });
+    }
+  }
+
   private async nextStatementNumber(
     tx: Prisma.TransactionClient,
   ): Promise<string> {
@@ -1058,19 +746,6 @@ export class FinancialsService {
       });
       if (existing) return this.getStatement(existing.resultEntityId);
     }
-    const lines = await this.db.billingStatementLine.findMany({
-      where: {
-        workspaceId: this.workspaceId,
-        id: { in: input.lineIds ?? [] },
-        clientId: input.clientId,
-        currency: input.currency,
-        status: BillingStatementLineStatus.UNBILLED,
-      },
-    });
-    if (lines.length !== (input.lineIds ?? []).length)
-      throw new ConflictException(
-        "Some lines are unavailable or not statement eligible",
-      );
     return this.db.$transaction(async (tx) => {
       const number = await this.nextStatementNumber(tx);
       const statement = await tx.billingStatement.create({
@@ -1085,17 +760,7 @@ export class FinancialsService {
           updatedByUserId: this.context.userId,
         },
       });
-      for (const [index, line] of lines.entries()) {
-        await tx.billingStatementLine.update({
-          where: { id: line.id },
-          data: {
-            statementId: statement.id,
-            lineOrder: index,
-            status: BillingStatementLineStatus.RESERVED,
-            updatedByUserId: this.context.userId,
-          },
-        });
-      }
+      await this.replaceStatementLines(tx, statement, input.lines);
       if (input.idempotencyKey)
         await tx.financeMutationRequest.create({
           data: {
@@ -1129,46 +794,8 @@ export class FinancialsService {
     const statement = await this.getStatement(id);
     if (statement.status !== BillingStatementStatus.DRAFT)
       throw new ConflictException("Only draft statements can be edited");
-    if (input.lineIds) {
-      await this.db.$transaction(async (tx) => {
-        await tx.billingStatementLine.updateMany({
-          where: {
-            workspaceId: this.workspaceId,
-            statementId: id,
-            status: BillingStatementLineStatus.RESERVED,
-          },
-          data: {
-            statementId: null,
-            lineOrder: null,
-            status: BillingStatementLineStatus.UNBILLED,
-            updatedByUserId: this.context.userId,
-          },
-        });
-        const lines = await tx.billingStatementLine.findMany({
-          where: {
-            workspaceId: this.workspaceId,
-            id: { in: input.lineIds },
-            clientId: statement.clientId,
-            currency: statement.currency,
-            status: BillingStatementLineStatus.UNBILLED,
-          },
-        });
-        if (lines.length !== input.lineIds.length)
-          throw new ConflictException("Some lines are unavailable");
-        for (const [index, line] of lines.entries())
-          await tx.billingStatementLine.update({
-            where: { id: line.id },
-            data: {
-              statementId: id,
-              lineOrder: index,
-              status: BillingStatementLineStatus.RESERVED,
-              updatedByUserId: this.context.userId,
-            },
-          });
-      });
-    }
-    if (input.periodStart || input.periodEnd)
-      await this.db.billingStatement.update({
+    await this.db.$transaction(async (tx) => {
+      await tx.billingStatement.update({
         where: { id },
         data: {
           periodStart: input.periodStart
@@ -1178,6 +805,9 @@ export class FinancialsService {
           updatedByUserId: this.context.userId,
         },
       });
+      if (input.lines)
+        await this.replaceStatementLines(tx, statement, input.lines);
+    });
     return this.getStatement(id);
   }
 
@@ -1192,19 +822,6 @@ export class FinancialsService {
       throw new ConflictException("Only draft statements can be deleted");
 
     await this.db.$transaction(async (tx) => {
-      await tx.billingStatementLine.updateMany({
-        where: {
-          workspaceId: this.workspaceId,
-          statementId: id,
-          status: BillingStatementLineStatus.RESERVED,
-        },
-        data: {
-          statementId: null,
-          lineOrder: null,
-          status: BillingStatementLineStatus.UNBILLED,
-          updatedByUserId: this.context.userId,
-        },
-      });
       await tx.financeMutationRequest.deleteMany({
         where: {
           workspaceId: this.workspaceId,
@@ -1287,20 +904,25 @@ export class FinancialsService {
           updatedByUserId: this.context.userId,
         },
       });
-      if (statement.status === BillingStatementStatus.DRAFT)
-        await tx.billingStatementLine.updateMany({
-          where: {
-            workspaceId: this.workspaceId,
-            statementId: id,
-            status: BillingStatementLineStatus.RESERVED,
-          },
-          data: {
-            statementId: null,
-            lineOrder: null,
-            status: BillingStatementLineStatus.UNBILLED,
-            updatedByUserId: this.context.userId,
-          },
+      if (statement.status === BillingStatementStatus.DRAFT) {
+        await Promise.all([
+          tx.event.updateMany({
+            where: { workspaceId: this.workspaceId, statementId: id },
+            data: { statementId: null },
+          }),
+          tx.task.updateMany({
+            where: { workspaceId: this.workspaceId, statementId: id },
+            data: { statementId: null },
+          }),
+          tx.deadline.updateMany({
+            where: { workspaceId: this.workspaceId, statementId: id },
+            data: { statementId: null },
+          }),
+        ]);
+        await tx.billingStatementLine.deleteMany({
+          where: { workspaceId: this.workspaceId, statementId: id },
         });
+      }
       const full = await tx.billingStatement.findUniqueOrThrow({
         where: { id },
         include: this.statementInclude,

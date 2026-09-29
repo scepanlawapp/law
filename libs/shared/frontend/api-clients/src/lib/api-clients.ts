@@ -58,20 +58,13 @@ import {
   DocumentListResponse,
   DocumentUpdateRequest,
   DocumentVersionListResponse,
-  BillingStatementLineSummary,
   BillingStatement,
   BillingStatementSummary,
-  CreateBillingStatementLineRequest,
   CreateBillingStatementRequest,
-  AssignBillingCandidateClientResponse,
-  BillingSuggestion,
-  BillingSuggestionReview,
+  BillableWorkItem,
   PriceSourceSummary,
   PriceSourceVersion,
   PriceSourceScope,
-  ReviewBillingSuggestionsRequest,
-  RecordBillingStatementLinesRequest,
-  UpdateBillingStatementLineRequest,
   UpdateBillingStatementRequest,
   NotificationDto,
   NotificationListResponse,
@@ -1783,118 +1776,12 @@ export class FinancialsApiClient {
     return `${config.apiUrl}${config.apiPrefix}${path}`;
   }
 
-  candidates(
+  billableWork(
     query: Record<string, string | number | string[] | undefined>,
-  ): Observable<PaginatedResponse<BillingSuggestion>> {
-    return this.http.get<PaginatedResponse<BillingSuggestion>>(
-      this.endpoint("/financials/candidates"),
+  ): Observable<PaginatedResponse<BillableWorkItem>> {
+    return this.http.get<PaginatedResponse<BillableWorkItem>>(
+      this.endpoint("/financials/billable-work"),
       { params: queryParams(query), withCredentials: true },
-    );
-  }
-
-  dismissCandidate(candidateKey: string): Observable<BillingSuggestionReview> {
-    return this.http.post<BillingSuggestionReview>(
-      this.endpoint(
-        `/financials/candidates/${encodeURIComponent(candidateKey)}/dismiss`,
-      ),
-      {},
-      { withCredentials: true },
-    );
-  }
-
-  dismissCandidates(
-    candidateKeys: string[],
-  ): Observable<BillingSuggestionReview[]> {
-    const request: ReviewBillingSuggestionsRequest = { candidateKeys };
-    return this.http.post<BillingSuggestionReview[]>(
-      this.endpoint("/financials/candidates/dismiss"),
-      request,
-      { withCredentials: true },
-    );
-  }
-
-  reopenCandidate(candidateKey: string): Observable<BillingSuggestionReview> {
-    return this.http.post<BillingSuggestionReview>(
-      this.endpoint(
-        `/financials/candidates/${encodeURIComponent(candidateKey)}/reopen`,
-      ),
-      {},
-      { withCredentials: true },
-    );
-  }
-
-  reopenCandidates(
-    candidateKeys: string[],
-  ): Observable<BillingSuggestionReview[]> {
-    const request: ReviewBillingSuggestionsRequest = { candidateKeys };
-    return this.http.post<BillingSuggestionReview[]>(
-      this.endpoint("/financials/candidates/reopen"),
-      request,
-      { withCredentials: true },
-    );
-  }
-
-  recordCandidateLines(
-    request: RecordBillingStatementLinesRequest,
-  ): Observable<BillingStatementLineSummary[]> {
-    return this.http.post<BillingStatementLineSummary[]>(
-      this.endpoint("/financials/candidates/record"),
-      request,
-      { withCredentials: true },
-    );
-  }
-
-  assignCandidateClient(
-    candidateKey: string,
-    clientId: string,
-  ): Observable<AssignBillingCandidateClientResponse> {
-    return this.http.post<AssignBillingCandidateClientResponse>(
-      this.endpoint(
-        `/financials/candidates/${encodeURIComponent(candidateKey)}/client`,
-      ),
-      { clientId },
-      { withCredentials: true },
-    );
-  }
-
-  lines(
-    query: Record<string, string | number | string[] | undefined>,
-  ): Observable<PaginatedResponse<BillingStatementLineSummary>> {
-    return this.http.get<PaginatedResponse<BillingStatementLineSummary>>(
-      this.endpoint("/financials/lines"),
-      { params: queryParams(query), withCredentials: true },
-    );
-  }
-
-  createLine(
-    body: CreateBillingStatementLineRequest,
-  ): Observable<BillingStatementLineSummary> {
-    return this.http.post<BillingStatementLineSummary>(
-      this.endpoint("/financials/lines"),
-      body,
-      { withCredentials: true },
-    );
-  }
-
-  updateLine(
-    id: string,
-    body: UpdateBillingStatementLineRequest,
-  ): Observable<BillingStatementLineSummary> {
-    return this.http.patch<BillingStatementLineSummary>(
-      this.endpoint(`/financials/lines/${id}`),
-      body,
-      { withCredentials: true },
-    );
-  }
-
-  cancelLine(
-    id: string,
-    reason: string,
-  ): Observable<BillingStatementLineSummary> {
-    return this.http.post<BillingStatementLineSummary>(
-      this.endpoint(`/financials/lines/${id}/cancel`),
-      { reason },
-      { withCredentials: true },
     );
   }
 

@@ -4,38 +4,14 @@
       {{ "finance.reviewWork" | translate }}
     </h1>
     <p class="text-muted-foreground">
-      {{ "finance.needsAttentionDescription" | translate }}
+      {{ "finance.billableWorkDescription" | translate }}
     </p>
   </header>
 
   <section
     class="space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm"
   >
-    <div class="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <div class="flex min-w-0 flex-col gap-1">
-        <label class="font-medium" for="finance-billing-list">
-          {{ "finance.billingList" | translate }}
-        </label>
-        <hlm-select
-          [value]="list()"
-          (valueChange)="selectList($event)"
-          [itemToString]="listItemToString"
-        >
-          <hlm-select-trigger id="finance-billing-list" class="w-full">
-            <hlm-select-value />
-          </hlm-select-trigger>
-          <hlm-select-content *hlmSelectPortal>
-            <hlm-select-group>
-              @for (option of listOptions; track option.value) {
-                <hlm-select-item [value]="option.value">
-                  {{ option.label | translate }}
-                </hlm-select-item>
-              }
-            </hlm-select-group>
-          </hlm-select-content>
-        </hlm-select>
-      </div>
-
+    <div class="grid gap-3 md:grid-cols-3">
       <div class="flex min-w-0 flex-col gap-1">
         <label class="font-medium" for="finance-client-filter">
           {{ "finance.client" | translate }}
@@ -46,7 +22,10 @@
           (valueChange)="setClientIds($event ?? [])"
           [itemToString]="clientItemToString"
         >
-          <hlm-combobox-trigger buttonId="finance-client-filter" class="w-full">
+          <hlm-combobox-trigger
+            buttonId="finance-client-filter"
+            class="w-full min-w-0 max-w-full"
+          >
             <span data-slot="combobox-value" class="truncate">
               @if (selectedClientsLabel(); as label) {
                 {{ label }}
@@ -82,7 +61,10 @@
           (valueChange)="setCaseIds($event ?? [])"
           [itemToString]="caseItemToString"
         >
-          <hlm-combobox-trigger buttonId="finance-case-filter" class="w-full">
+          <hlm-combobox-trigger
+            buttonId="finance-case-filter"
+            class="w-full min-w-0 max-w-full"
+          >
             <span data-slot="combobox-value" class="truncate">
               @if (selectedCasesLabel(); as label) {
                 {{ label }}
@@ -118,7 +100,10 @@
           (valueChange)="setSourceTypes($event ?? [])"
           [itemToString]="sourceItemToString"
         >
-          <hlm-combobox-trigger buttonId="finance-source-filter" class="w-full">
+          <hlm-combobox-trigger
+            buttonId="finance-source-filter"
+            class="w-full min-w-0 max-w-full"
+          >
             <span data-slot="combobox-value" class="truncate">
               @if (selectedSourcesLabel(); as label) {
                 {{ label }}
@@ -145,198 +130,65 @@
       </div>
     </div>
 
-    @if (list() !== "entries" && selectedCandidateKeys().size) {
+    @if (selectedSourceKeys().size) {
       <div
         class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
       >
-        <div>
-          <p class="font-medium">
-            {{ "finance.selectedCandidates" | translate }}:
-            {{ selectedCandidateKeys().size }}
-          </p>
-        </div>
-        <div class="flex flex-wrap gap-2">
-          <button
-            hlmBtn
-            variant="outline"
-            type="button"
-            [disabled]="bulkReviewPending()"
-            (click)="reviewSelectedCandidates()"
-          >
-            {{
-              (list() === "dismissed"
-                ? "finance.returnToUnbilled"
-                : "finance.dismiss"
-              ) | translate
-            }}
-          </button>
-          <button
-            hlmBtn
-            type="button"
-            [disabled]="bulkReviewPending()"
-            (click)="recordSelectedCandidates()"
-          >
-            {{ "finance.makeBill" | translate }}
-          </button>
-        </div>
+        <p class="font-medium">
+          {{ "finance.selectedWork" | translate }}:
+          {{ selectedSourceKeys().size }}
+        </p>
+        <button hlmBtn type="button" (click)="recordSelectedCandidates()">
+          {{ "finance.makeBill" | translate }}
+        </button>
       </div>
-    }
-
-    @if (list() === "entries") {
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <h2 class="text-lg font-semibold">
-          {{ "finance.billedEntries" | translate }}
-        </h2>
-        <span class="text-muted-foreground">
-          {{ "finance.selectedEntries" | translate }}: {{ selected().size }}
-        </span>
-      </div>
-    } @else {
-      <h2 class="text-lg font-semibold">
-        {{
-          (list() === "dismissed"
-            ? "finance.dismissedCandidates"
-            : "finance.billingCandidates"
-          ) | translate
-        }}
-      </h2>
     }
 
     @if (loading()) {
-      <div class="flex items-center gap-2 py-8">
+      <div class="flex items-center gap-2 py-8" aria-live="polite">
         <hlm-spinner />
         <span>{{ "finance.loading" | translate }}</span>
       </div>
     } @else if (error()) {
-      <p role="alert" class="rounded-lg border border-destructive p-4">
-        {{ "finance.loadError" | translate }}
-      </p>
-    } @else if (list() === "entries" && !entries().length) {
-      <p class="rounded-lg bg-muted p-4 text-muted-foreground">
-        {{ "finance.noRecordedWork" | translate }}
-      </p>
-    } @else if (list() !== "entries" && !candidates().length) {
-      <p class="rounded-lg bg-muted p-4 text-muted-foreground">
-        {{
-          (list() === "dismissed"
-            ? "finance.noDismissedCandidates"
-            : "finance.noSuggestions"
-          ) | translate
-        }}
-      </p>
-    } @else if (list() === "entries") {
-      <div hlmTableContainer>
-        <table hlmTable class="w-full min-w-[900px]">
-          <thead hlmTHead>
-            <tr hlmTr>
-              <th hlmTh>{{ "finance.select" | translate }}</th>
-              <th hlmTh>{{ "finance.serviceDate" | translate }}</th>
-              <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
-              <th hlmTh>{{ "finance.client" | translate }}</th>
-              <th hlmTh>{{ "finance.performer" | translate }}</th>
-              <th hlmTh>{{ "finance.amount" | translate }}</th>
-              <th hlmTh>{{ "finance.status" | translate }}</th>
-            </tr>
-          </thead>
-          <tbody hlmTBody>
-            @for (entry of entries(); track entry.id) {
-              <tr hlmTr>
-                <td hlmTd>
-                  <input
-                    type="checkbox"
-                    [checked]="selected().has(entry.id)"
-                    [disabled]="entry.status !== 'UNBILLED'"
-                    (change)="toggleEntry(entry)"
-                    [attr.aria-label]="entry.description"
-                  />
-                </td>
-                <td hlmTd>{{ entry.serviceDate }}</td>
-                <td hlmTd>{{ entry.description }}</td>
-                <td hlmTd>
-                  {{ entry.client.displayName }}
-                  <br />
-                  @if (entry.cases.length) {
-                    @for (
-                      caseItem of entry.cases;
-                      track caseItem.id;
-                      let last = $last
-                    ) {
-                      {{ caseItem.caseNumber }}
-                      @if (!last) {
-                        ,
-                      }
-                    }
-                  } @else {
-                    {{ "finance.noCase" | translate }}
-                  }
-                </td>
-                <td hlmTd>{{ entry.performedBy.displayName }}</td>
-                <td hlmTd>
-                  {{ formatCurrency(entry.amount, entry.currency) }}
-                </td>
-                <td hlmTd>{{ entry.status }}</td>
-              </tr>
-            }
-          </tbody>
-        </table>
+      <div
+        role="alert"
+        class="flex items-center justify-between gap-3 rounded-lg border border-destructive p-4"
+      >
+        <p>{{ "finance.loadError" | translate }}</p>
+        <button hlmBtn type="button" variant="outline" (click)="load()">
+          {{ "finance.retry" | translate }}
+        </button>
       </div>
+    } @else if (!items().length) {
+      <p class="rounded-lg bg-muted p-4 text-muted-foreground">
+        {{ "finance.noBillableWork" | translate }}
+      </p>
     } @else {
       <div hlmTableContainer>
         <table hlmTable class="w-full min-w-[760px]">
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh class="w-12">
-                <input
-                  type="checkbox"
-                  class="h-4 w-4 accent-primary"
-                  [checked]="allVisibleCandidatesSelected()"
-                  [indeterminate]="someVisibleCandidatesSelected()"
-                  [disabled]="
-                    bulkReviewPending() || !selectableCandidates().length
-                  "
-                  (change)="toggleAllVisibleCandidates()"
-                  [attr.aria-label]="
-                    'finance.selectAllVisibleCandidates' | translate
-                  "
-                />
+                <span class="sr-only">{{ "finance.select" | translate }}</span>
               </th>
               <th hlmTh>{{ "finance.workDate" | translate }}</th>
               <th hlmTh>{{ "finance.source" | translate }}</th>
               <th hlmTh>{{ "finance.client" | translate }}</th>
               <th hlmTh>{{ "finance.performer" | translate }}</th>
-              <th hlmTh>{{ "finance.reason" | translate }}</th>
               <th hlmTh>{{ "finance.actions" | translate }}</th>
             </tr>
           </thead>
           <tbody hlmTBody>
-            @for (
-              item of candidates();
-              track item.candidateKey;
-              let rowIndex = $index
-            ) {
+            @for (item of items(); track item.sourceKey) {
               <tr hlmTr>
                 <td hlmTd>
-                  <span
-                    [hlmTooltip]="
-                      !item.client
-                        ? ('finance.missingClientSelectionTooltip' | translate)
-                        : ''
-                    "
-                  >
-                    <input
-                      type="checkbox"
-                      class="h-4 w-4 accent-primary"
-                      [checked]="selectedCandidateKeys().has(item.candidateKey)"
-                      [disabled]="bulkReviewPending() || !item.client"
-                      (change)="toggleCandidate(item)"
-                      [attr.aria-label]="item.title"
-                      [attr.aria-describedby]="
-                        !item.client
-                          ? 'candidate-missing-client-' + rowIndex
-                          : null
-                      "
-                    />
-                  </span>
+                  <input
+                    type="checkbox"
+                    class="h-4 w-4 accent-primary"
+                    [checked]="selectedSourceKeys().has(item.sourceKey)"
+                    (change)="toggle(item)"
+                    [attr.aria-label]="item.title"
+                  />
                 </td>
                 <td hlmTd>{{ formatDate(item.date) }}</td>
                 <td hlmTd>
@@ -344,107 +196,32 @@
                     type="button"
                     class="block max-w-72 truncate text-left font-semibold text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     (click)="openSource(item)"
-                    [attr.aria-label]="
-                      ('finance.openSource' | translate) + ': ' + item.title
-                    "
                   >
                     {{ item.title }}
                   </button>
-                  <br />
                   <span class="text-muted-foreground">
                     {{ sourceLabel(item.sourceType) }}
                   </span>
                 </td>
                 <td hlmTd>
-                  @if (item.client) {
-                    {{ item.client.displayName }}
-                    <br />
+                  {{ item.client.displayName }}
+                  <br />
+                  <span class="text-muted-foreground">
                     {{
                       item.case?.caseNumber ?? ("finance.noCase" | translate)
                     }}
-                  } @else {
-                    <button
-                      type="button"
-                      class="flex max-w-64 items-start gap-2 rounded-sm text-left text-destructive underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-wait disabled:opacity-50"
-                      [id]="'candidate-missing-client-' + rowIndex"
-                      [disabled]="assigningClientKey() === item.candidateKey"
-                      (click)="selectClient(item)"
-                    >
-                      <ng-icon
-                        name="lucideTriangleAlert"
-                        class="mt-0.5 shrink-0"
-                        aria-hidden="true"
-                      />
-                      <span>
-                        <strong class="block">
-                          {{ "finance.clientUnknown" | translate }}
-                        </strong>
-                        <span class="block text-xs">
-                          {{ "finance.missingClientDescription" | translate }}
-                        </span>
-                      </span>
-                    </button>
-                  }
+                  </span>
                 </td>
+                <td hlmTd>{{ item.responsibleUser.displayName }}</td>
                 <td hlmTd>
-                  {{ item.proposedPerformer?.displayName ?? "—" }}
-                </td>
-                <td hlmTd>
-                  {{ item.reason }}
-                  @for (warning of item.warnings; track warning) {
-                    <br />
-                    <span class="text-muted-foreground">{{ warning }}</span>
-                  }
-                </td>
-                <td hlmTd>
-                  <div class="flex flex-wrap gap-2">
-                    @if (list() === "dismissed") {
-                      <button
-                        hlmBtn
-                        variant="outline"
-                        type="button"
-                        [disabled]="
-                          selectedCandidateKeys().size > 0 ||
-                          assigningClientKey() === item.candidateKey
-                        "
-                        (click)="reopen(item)"
-                      >
-                        {{ "finance.returnToUnbilled" | translate }}
-                      </button>
-                      <button
-                        hlmBtn
-                        type="button"
-                        [disabled]="
-                          selectedCandidateKeys().size > 0 ||
-                          assigningClientKey() === item.candidateKey
-                        "
-                        (click)="recordCandidate(item)"
-                      >
-                        {{ "finance.makeBill" | translate }}
-                      </button>
-                    } @else {
-                      <button
-                        hlmBtn
-                        type="button"
-                        [disabled]="
-                          selectedCandidateKeys().size > 0 ||
-                          assigningClientKey() === item.candidateKey
-                        "
-                        (click)="recordCandidate(item)"
-                      >
-                        {{ "finance.recordWork" | translate }}
-                      </button>
-                      <button
-                        hlmBtn
-                        variant="outline"
-                        type="button"
-                        [disabled]="selectedCandidateKeys().size > 0"
-                        (click)="dismiss(item)"
-                      >
-                        {{ "finance.dismiss" | translate }}
-                      </button>
-                    }
-                  </div>
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="outline"
+                    (click)="recordItem(item)"
+                  >
+                    {{ "finance.makeBill" | translate }}
+                  </button>
                 </td>
               </tr>
             }

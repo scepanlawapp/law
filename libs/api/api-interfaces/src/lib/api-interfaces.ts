@@ -1003,22 +1003,6 @@ export type PriceSourceScope =
   | "COMPANY_CATALOG"
   | "CASE_OVERRIDE";
 
-export interface BillingSuggestionReview {
-  id?: string;
-  workspaceId: string;
-  candidateKey: string;
-  sourceType: string;
-  sourceId: string;
-  resolution: "PENDING" | "RECORDED" | "DISMISSED";
-  reviewedByUserId?: string | null;
-  reviewedAt?: string | null;
-  billingStatementLineId?: string | null;
-}
-
-export interface ReviewBillingSuggestionsRequest {
-  candidateKeys: string[];
-}
-
 export interface PriceSourceVersion {
   id: string;
   workspaceId: string;
@@ -1093,57 +1077,22 @@ export type FinancialClientReference = ClientReference;
 
 export type FinancialCaseReference = CaseReference;
 
-export interface BillingSuggestion {
-  candidateKey: string;
-  sourceType: string;
+export type BillableWorkSourceType = "EVENT" | "TASK" | "DEADLINE";
+
+export interface BillableWorkItem {
+  sourceKey: string;
+  sourceType: BillableWorkSourceType;
   sourceId: string;
   title: string;
   date: string;
-  client: FinancialClientReference | null;
-  case: FinancialCaseReference | null;
-  proposedPerformer: UserReference | null;
-  resolution: "PENDING" | "RECORDED" | "DISMISSED";
-  reason: string;
-  warnings: string[];
-}
-
-export interface AssignBillingCandidateClientResponse {
-  candidateKey: string;
   client: FinancialClientReference;
-}
-
-export interface RecordBillingStatementLineItemRequest {
-  candidateKey: string;
-  description: string;
-  amount: number;
-  currency: string;
-}
-
-export interface RecordBillingStatementLinesRequest {
-  clientId: string;
-  items: RecordBillingStatementLineItemRequest[];
-}
-
-export interface CreateBillingStatementLineRequest {
-  clientId: string;
-  performedByUserId?: string;
-  serviceDate?: string;
-  description: string;
-  amount: number;
-  currency: string;
-  sourceType?: string;
-  sourceId?: string;
-}
-
-export interface UpdateBillingStatementLineRequest {
-  description?: string;
-  amount?: number;
-  currency?: string;
+  case: FinancialCaseReference | null;
+  responsibleUser: UserReference;
 }
 
 export interface BillingStatementLineSummary {
   id: string;
-  statementId: string | null;
+  statementId: string;
   client: FinancialClientReference;
   cases: FinancialCaseReference[];
   performedBy: UserReference;
@@ -1153,7 +1102,7 @@ export interface BillingStatementLineSummary {
   amount: string;
   currency: string;
   status: BillingStatementLineStatus;
-  sourceType: string | null;
+  sourceType: BillableWorkSourceType | null;
   sourceId: string | null;
   billedAt: string | null;
   cancelledAt: string | null;
@@ -1180,14 +1129,23 @@ export interface CreateBillingStatementRequest {
   periodStart: string;
   periodEnd: string;
   currency: string;
-  lineIds?: string[];
+  lines: BillingStatementLineInput[];
   idempotencyKey?: string;
 }
 
 export interface UpdateBillingStatementRequest {
   periodStart?: string;
   periodEnd?: string;
-  lineIds?: string[];
+  lines?: BillingStatementLineInput[];
+}
+
+export interface BillingStatementLineInput {
+  serviceDate: string;
+  description: string;
+  amount: number;
+  currency: string;
+  sourceType?: BillableWorkSourceType;
+  sourceId?: string;
 }
 
 export type PriceEvidence = {

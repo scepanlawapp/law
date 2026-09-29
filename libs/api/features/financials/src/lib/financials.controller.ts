@@ -12,20 +12,13 @@ import {
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
-  BillingStatementLineListQueryDto,
-  AssignBillingCandidateClientDto,
-  CancelBillingStatementLineDto,
-  CandidateQueryDto,
-  CreateBillingStatementLineDto,
+  BillableWorkQueryDto,
   CreatePaymentDto,
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
   AppendPriceSourceVersionDto,
-  RecordBillingStatementLinesDto,
-  ReviewBillingSuggestionsDto,
   SendStatementDto,
-  UpdateBillingStatementLineDto,
   UpdateStatementDto,
 } from "./financials.dto";
 import { FinancialsService } from "./financials.service";
@@ -36,73 +29,9 @@ import { FinancialsService } from "./financials.service";
 export class FinancialsController {
   constructor(private readonly financials: FinancialsService) {}
 
-  @Get("candidates")
-  candidates(@Query() query: CandidateQueryDto) {
-    return this.financials.listCandidates(query);
-  }
-
-  @Post("candidates/dismiss")
-  dismissMany(@Body() body: ReviewBillingSuggestionsDto) {
-    return this.financials.reviewCandidates(body.candidateKeys, "DISMISSED");
-  }
-
-  @Post("candidates/reopen")
-  reopenMany(@Body() body: ReviewBillingSuggestionsDto) {
-    return this.financials.reviewCandidates(body.candidateKeys, "PENDING");
-  }
-
-  @Post("candidates/record")
-  recordMany(@Body() body: RecordBillingStatementLinesDto) {
-    return this.financials.recordCandidatesAsLines(body);
-  }
-
-  @Post("candidates/:candidateKey/client")
-  assignClient(
-    @Param("candidateKey") candidateKey: string,
-    @Body() body: AssignBillingCandidateClientDto,
-  ) {
-    return this.financials.assignCandidateClient(candidateKey, body.clientId);
-  }
-
-  @Post("candidates/:candidateKey/dismiss")
-  dismiss(@Param("candidateKey") candidateKey: string) {
-    return this.financials.reviewCandidate(candidateKey, "DISMISSED");
-  }
-
-  @Post("candidates/:candidateKey/reopen")
-  reopen(@Param("candidateKey") candidateKey: string) {
-    return this.financials.reviewCandidate(candidateKey, "PENDING");
-  }
-
-  @Get("lines")
-  lines(@Query() query: BillingStatementLineListQueryDto) {
-    return this.financials.listLines(query);
-  }
-
-  @Post("lines")
-  createLine(@Body() body: CreateBillingStatementLineDto) {
-    return this.financials.createLine(body);
-  }
-
-  @Get("lines/:id")
-  line(@Param("id") id: string) {
-    return this.financials.getLine(id);
-  }
-
-  @Patch("lines/:id")
-  updateLine(
-    @Param("id") id: string,
-    @Body() body: UpdateBillingStatementLineDto,
-  ) {
-    return this.financials.updateLine(id, body);
-  }
-
-  @Post("lines/:id/cancel")
-  cancelLine(
-    @Param("id") id: string,
-    @Body() body: CancelBillingStatementLineDto,
-  ) {
-    return this.financials.cancelLine(id, body.reason);
+  @Get("billable-work")
+  billableWork(@Query() query: BillableWorkQueryDto) {
+    return this.financials.listBillableWork(query);
   }
 
   @Get("price-sources")

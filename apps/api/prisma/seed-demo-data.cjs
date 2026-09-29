@@ -1097,28 +1097,46 @@ async function ensureNotes(prisma, workspaceId, actorUserId, cases, clients) {
   return activityLogRows;
 }
 
-async function ensureBillingStatementLine(
-  prisma,
-  workspaceId,
-  actorUserId,
-  cases,
-) {
+async function ensureBillingStatement(prisma, workspaceId, actorUserId, cases) {
   const primaryCase = cases[0];
   if (!primaryCase) return;
   const relatedCases = cases
     .filter((caseItem) => caseItem.clientId === primaryCase.clientId)
     .slice(0, 2);
   const id = "eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee";
+  const statementId = "dddddddd-dddd-4ddd-addd-dddddddddddd";
+  await prisma.billingStatement.upsert({
+    where: { id: statementId },
+    update: {},
+    create: {
+      id: statementId,
+      workspaceId,
+      clientId: primaryCase.clientId,
+      statementNumber: "ST-DEMO-000001",
+      periodStart: new Date("2026-09-01"),
+      periodEnd: new Date("2026-09-30"),
+      currency: "RSD",
+      status: "DRAFT",
+      createdByUserId: actorUserId,
+      updatedByUserId: actorUserId,
+    },
+  });
   await prisma.billingStatementLine.upsert({
     where: { id },
-    update: {},
+    update: {
+      statementId,
+      lineOrder: 0,
+      status: "RESERVED",
+    },
     create: {
       id,
       workspaceId,
+      statementId,
       clientId: primaryCase.clientId,
       performedByUserId: actorUserId,
+      lineOrder: 0,
       serviceDate: new Date("2026-09-15"),
-      status: "UNBILLED",
+      status: "RESERVED",
       description: "Pravno mišljenje za povezane predmete",
       amount: 45000,
       currency: "RSD",
@@ -1222,7 +1240,7 @@ async function main() {
       lawyers,
       refData,
     );
-    await ensureBillingStatementLine(prisma, workspaceId, adminUser.id, cases);
+    await ensureBillingStatement(prisma, workspaceId, adminUser.id, cases);
     await ensureCompanyPriceCatalog(prisma, workspaceId, adminUser.id);
     await ensureClientActivities(prisma, workspaceId, adminUser.id, clients);
 

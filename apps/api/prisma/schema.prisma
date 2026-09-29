@@ -131,12 +131,6 @@ enum BillingStatementLineStatus {
   CANCELLED
 }
 
-enum BillingSuggestionResolution {
-  PENDING
-  RECORDED
-  DISMISSED
-}
-
 enum PriceSourceScope {
   CLIENT_AGREEMENT
   WORKSPACE_PUBLIC_REFERENCE
@@ -330,7 +324,6 @@ model User {
   createdStatementLines    BillingStatementLine[]    @relation("BillingStatementLineCreator")
   updatedStatementLines    BillingStatementLine[]    @relation("BillingStatementLineUpdater")
   cancelledStatementLines  BillingStatementLine[]    @relation("BillingStatementLineCanceller")
-  reviewedSuggestions      BillingSuggestionReview[] @relation("BillingSuggestionReviewer")
   authoredPriceSources     PriceSource[]             @relation("PriceSourceAuthor")
   authoredPriceVersions    PriceSourceVersion[]      @relation("PriceSourceVersionAuthor")
   notifications            Notification[]
@@ -401,7 +394,6 @@ model Workspace {
   uploadOperations          UploadOperation[]
   billingStatementLines     BillingStatementLine[]
   billingStatementLineCases BillingStatementLineCase[]
-  suggestionReviews         BillingSuggestionReview[]
   priceSources              PriceSource[]
   priceSourceVersions       PriceSourceVersion[]
   billingStatements         BillingStatement[]
@@ -719,7 +711,7 @@ model Event {
   courtroom              String?
   organizerUserId        String
   caseId                 String?
-  billingStatementLineId String?               @unique
+  statementId            String?
   createdByUserId        String
   createdAt              DateTime              @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime              @updatedAt @db.Timestamptz(3)
@@ -727,7 +719,7 @@ model Event {
   organizer              User                  @relation("EventOrganizer", fields: [organizerUserId], references: [id], onDelete: Restrict)
   createdBy              User                  @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   case                   Case?                 @relation("EventCase", fields: [caseId], references: [id], onDelete: SetNull)
-  billingStatementLine   BillingStatementLine? @relation(fields: [billingStatementLineId], references: [id], onDelete: SetNull)
+  statement              BillingStatement?     @relation(fields: [statementId], references: [id], onDelete: SetNull)
   assignees              EventAssignee[]
   clients                EventClient[]
   attendees              EventAttendee[]
@@ -736,6 +728,7 @@ model Event {
   @@index([workspaceId, startsAt, endsAt])
   @@index([workspaceId, status, startsAt])
   @@index([caseId])
+  @@index([workspaceId, statementId])
   @@index([organizerUserId, startsAt])
 }
 
@@ -791,7 +784,7 @@ model Task {
   caseId                 String?
   clientId               String?
   deadlineId             String?
-  billingStatementLineId String?               @unique
+  statementId            String?
   completedAt            DateTime?             @db.Timestamptz(3)
   completedByUserId      String?
   createdByUserId        String
@@ -804,7 +797,7 @@ model Task {
   case                   Case?                 @relation("TaskCase", fields: [caseId], references: [id], onDelete: SetNull)
   client                 Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
   deadline               Deadline?             @relation("DeadlineTasks", fields: [deadlineId], references: [id], onDelete: SetNull)
-  billingStatementLine   BillingStatementLine? @relation(fields: [billingStatementLineId], references: [id], onDelete: SetNull)
+  statement              BillingStatement?     @relation(fields: [statementId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status, dueDate])
   @@index([workspaceId, assigneeUserId, status])
@@ -812,6 +805,7 @@ model Task {
   @@index([caseId])
   @@index([clientId])
   @@index([deadlineId])
+  @@index([workspaceId, statementId])
 }
 
 model Deadline {
@@ -828,7 +822,7 @@ model Deadline {
   caseId                 String?
   clientId               String?
   sourceDescription      String?
-  billingStatementLineId String?               @unique
+  statementId            String?
   satisfiedAt            DateTime?             @db.Timestamptz(3)
   satisfiedByUserId      String?
   createdByUserId        String
@@ -841,13 +835,14 @@ model Deadline {
   case                   Case?                 @relation("DeadlineCase", fields: [caseId], references: [id], onDelete: SetNull)
   client                 Client?               @relation(fields: [clientId], references: [id], onDelete: SetNull)
   tasks                  Task[]                @relation("DeadlineTasks")
-  billingStatementLine   BillingStatementLine? @relation(fields: [billingStatementLineId], references: [id], onDelete: SetNull)
+  statement              BillingStatement?     @relation(fields: [statementId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status, dueDate])
   @@index([workspaceId, responsibleUserId, status])
   @@index([workspaceId, dueAt])
   @@index([caseId])
   @@index([clientId])
+  @@index([workspaceId, statementId])
 }
 
 model Note {
@@ -895,28 +890,6 @@ model ActivityLog {
   @@index([workspaceId, caseId, occurredAt])
   @@index([workspaceId, clientId, occurredAt])
   @@index([workspaceId, entityType, entityId])
-}
-
-model BillingSuggestionReview {
-  id                     String                      @id @default(uuid())
-  workspaceId            String
-  candidateKey           String
-  sourceType             String
-  sourceId               String
-  proposedPerformerId    String?
-  resolution             BillingSuggestionResolution @default(PENDING)
-  reviewedByUserId       String?
-  reviewedAt             DateTime?                   @db.Timestamptz(3)
-  billingStatementLineId String?
-  createdAt              DateTime                    @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime                    @updatedAt @db.Timestamptz(3)
-  workspace              Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  reviewedBy             User?                       @relation("BillingSuggestionReviewer", fields: [reviewedByUserId], references: [id], onDelete: SetNull)
-  billingStatementLine   BillingStatementLine?       @relation(fields: [billingStatementLineId], references: [id], onDelete: SetNull)
-
-  @@unique([workspaceId, candidateKey])
-  @@index([workspaceId, resolution, updatedAt])
-  @@index([workspaceId, sourceType, sourceId])
 }
 
 model PriceSource {
@@ -992,6 +965,9 @@ model BillingStatement {
   replacementFor        BillingStatement?       @relation("StatementReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
   replacement           BillingStatement[]      @relation("StatementReplacement")
   lines                 BillingStatementLine[]
+  events                Event[]
+  tasks                 Task[]
+  deadlines             Deadline[]
   payments              ExternalPaymentRecord[]
 
   @@unique([workspaceId, statementNumber])
@@ -1002,7 +978,7 @@ model BillingStatement {
 model BillingStatementLine {
   id                 String                     @id @default(uuid())
   workspaceId        String
-  statementId        String?
+  statementId        String
   clientId           String
   performedByUserId  String
   lineOrder          Int?
@@ -1010,7 +986,7 @@ model BillingStatementLine {
   serviceDate        DateTime                   @db.Date
   amount             Decimal                    @db.Decimal(18, 2)
   currency           String
-  status             BillingStatementLineStatus @default(UNBILLED)
+  status             BillingStatementLineStatus @default(RESERVED)
   sourceType         String?
   sourceId           String?
   billedAt           DateTime?                  @db.Timestamptz(3)
@@ -1022,17 +998,13 @@ model BillingStatementLine {
   createdAt          DateTime                   @default(now()) @db.Timestamptz(3)
   updatedAt          DateTime                   @updatedAt @db.Timestamptz(3)
   workspace          Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  statement          BillingStatement?          @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  statement          BillingStatement           @relation(fields: [statementId], references: [id], onDelete: Cascade)
   client             Client                     @relation(fields: [clientId], references: [id], onDelete: Restrict)
   performedBy        User                       @relation("BillingStatementLinePerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
   cancelledBy        User?                      @relation("BillingStatementLineCanceller", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
   createdBy          User                       @relation("BillingStatementLineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   updatedBy          User                       @relation("BillingStatementLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
   caseLinks          BillingStatementLineCase[]
-  events             Event[]
-  tasks              Task[]
-  deadlines          Deadline[]
-  suggestionReviews  BillingSuggestionReview[]
 
   @@unique([statementId, lineOrder])
   @@index([workspaceId, clientId, status, serviceDate])

@@ -1,27 +1,32 @@
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { FormControl, ReactiveFormsModule } from "@angular/forms";
-import { BillingStatementLineSummary } from "@law/api-interfaces";
-import { FinancialsApiClient } from "@law/api-clients";
+import {
+  BillableWorkItem,
+  BillableWorkSourceType,
+  CaseSummary,
+} from "@law/api-interfaces";
+import { CasesApiClient, FinancialsApiClient } from "@law/api-clients";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
 import {
   HlmDialogDescription,
   HlmDialogFooter,
   HlmDialogHeader,
   HlmDialogTitle,
 } from "@spartan-ng/helm/dialog";
-import { HlmInput } from "@spartan-ng/helm/input";
-import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
-import { debounceTime, distinctUntilChanged } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-import {
-  CURRENCY_FILTER_OPTIONS,
-  createCurrencyItemToString,
-} from "../../shared/currency";
 import { BillingStatementLineImportDialogContext } from "./billing-statement-line-import-dialog.models";
 
 const PAGE_SIZE = 10;
@@ -31,14 +36,18 @@ const PAGE_SIZE = 10;
   standalone: true,
   templateUrl: "./billing-statement-line-import-dialog.component.html",
   imports: [
-    ReactiveFormsModule,
     HlmButton,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
     HlmDialogTitle,
-    HlmInput,
-    HlmSelectImports,
     HlmSpinner,
     HlmTableImports,
     TranslatePipe,
@@ -46,57 +55,80 @@ const PAGE_SIZE = 10;
 })
 export class BillingStatementLineImportDialogComponent {
   private readonly api = inject(FinancialsApiClient);
+  private readonly casesApi = inject(CasesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
   private readonly context =
     injectBrnDialogContext<BillingStatementLineImportDialogContext>();
-  readonly dialogRef =
-    inject<BrnDialogRef<BillingStatementLineSummary[]>>(BrnDialogRef);
+  readonly dialogRef = inject<BrnDialogRef<BillableWorkItem[]>>(BrnDialogRef);
 
   readonly client = this.context.client;
-  readonly excludedLineIds = new Set(this.context.excludedLineIds);
-  readonly currency = new FormControl("", { nonNullable: true });
-  readonly currencyOptions = CURRENCY_FILTER_OPTIONS;
-  readonly currencyItemToString = createCurrencyItemToString(
-    (key) => this.localization.translate(key),
-    true,
-  );
-  readonly from = new FormControl("", { nonNullable: true });
-  readonly to = new FormControl("", { nonNullable: true });
-  readonly items = signal<BillingStatementLineSummary[]>([]);
-  readonly selected = signal(new Map<string, BillingStatementLineSummary>());
+  readonly excludedSourceKeys = new Set(this.context.excludedSourceKeys);
+  readonly cases = signal<CaseSummary[]>([]);
+  readonly caseIds = signal<string[]>([]);
+  readonly sourceTypes = signal<BillableWorkSourceType[]>([]);
+  readonly items = signal<BillableWorkItem[]>([]);
+  readonly selected = signal(new Map<string, BillableWorkItem>());
   readonly page = signal(1);
   readonly pageCount = signal(1);
   readonly totalItems = signal(0);
   readonly loading = signal(false);
   readonly error = signal(false);
 
-  constructor() {
-    for (const control of [this.currency, this.from, this.to]) {
-      control.valueChanges
-        .pipe(
-          debounceTime(250),
-          distinctUntilChanged(),
-          takeUntilDestroyed(this.destroyRef),
+  readonly sourceOptions: ReadonlyArray<{
+    value: BillableWorkSourceType;
+    label: string;
+  }> = [
+    { value: "EVENT", label: "finance.sourceEvent" },
+    { value: "TASK", label: "finance.sourceTask" },
+    { value: "DEADLINE", label: "finance.sourceDeadline" },
+  ];
+  readonly caseItemToString = (value: string | null | undefined): string => {
+    const item = this.cases().find((caseItem) => caseItem.id === value);
+    return item ? `${item.caseNumber} — ${item.name}` : "";
+  };
+  readonly sourceItemToString = (
+    value: BillableWorkSourceType | null | undefined,
+  ): string =>
+    value
+      ? this.localization.translate(
+          this.sourceOptions.find((option) => option.value === value)?.label ??
+            "",
         )
-        .subscribe(() => {
-          this.page.set(1);
-          this.load();
-        });
-    }
+      : "";
+  readonly selectedCasesLabel = computed(() =>
+    this.caseIds().map(this.caseItemToString).join(", "),
+  );
+  readonly selectedSourcesLabel = computed(() =>
+    this.sourceTypes().map(this.sourceItemToString).join(", "),
+  );
+
+  constructor() {
+    this.casesApi
+      .list({ clientId: this.client.id, page: 1, pageSize: 100 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: (response) => this.cases.set(response.items) });
     this.load();
+  }
+
+  setCaseIds(value: string[]): void {
+    this.caseIds.set(value);
+    this.filtersChanged();
+  }
+
+  setSourceTypes(value: BillableWorkSourceType[]): void {
+    this.sourceTypes.set(value);
+    this.filtersChanged();
   }
 
   load(): void {
     this.loading.set(true);
     this.error.set(false);
     this.api
-      .lines({
+      .billableWork({
         clientId: this.client.id,
-        status: "UNBILLED",
-        currency: this.currency.value.trim().toUpperCase() || undefined,
-        from: this.from.value || undefined,
-        to: this.to.value || undefined,
+        caseIds: this.caseIds(),
+        sourceTypes: this.sourceTypes(),
         page: this.page(),
         pageSize: PAGE_SIZE,
       })
@@ -116,11 +148,11 @@ export class BillingStatementLineImportDialogComponent {
       });
   }
 
-  toggle(line: BillingStatementLineSummary): void {
-    if (this.excludedLineIds.has(line.id)) return;
+  toggle(item: BillableWorkItem): void {
+    if (this.excludedSourceKeys.has(item.sourceKey)) return;
     const selected = new Map(this.selected());
-    if (selected.has(line.id)) selected.delete(line.id);
-    else selected.set(line.id, line);
+    if (selected.has(item.sourceKey)) selected.delete(item.sourceKey);
+    else selected.set(item.sourceKey, item);
     this.selected.set(selected);
   }
 
@@ -131,20 +163,19 @@ export class BillingStatementLineImportDialogComponent {
   }
 
   clearFilters(): void {
-    this.currency.setValue("", { emitEvent: false });
-    this.from.setValue("", { emitEvent: false });
-    this.to.setValue("", { emitEvent: false });
-    this.page.set(1);
-    this.load();
-  }
-
-  hasFilters(): boolean {
-    return Boolean(this.currency.value || this.from.value || this.to.value);
+    this.caseIds.set([]);
+    this.sourceTypes.set([]);
+    this.filtersChanged();
   }
 
   importSelected(): void {
-    if (!this.selected().size) return;
-    this.dialogRef.close([...this.selected().values()]);
+    if (this.selected().size) {
+      this.dialogRef.close([...this.selected().values()]);
+    }
+  }
+
+  sourceLabel(value: BillableWorkSourceType): string {
+    return this.sourceItemToString(value);
   }
 
   formatDate(value: string): string {
@@ -154,10 +185,8 @@ export class BillingStatementLineImportDialogComponent {
     ).format(new Date(value));
   }
 
-  formatCurrency(value: string, currency: string): string {
-    return new Intl.NumberFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { style: "currency", currency },
-    ).format(Number(value));
+  private filtersChanged(): void {
+    this.page.set(1);
+    this.load();
   }
 }
