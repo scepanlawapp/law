@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   Patch,
@@ -153,6 +154,11 @@ export class FinancialsController {
   @Patch("statements/:id")
   updateStatement(@Param("id") id: string, @Body() body: UpdateStatementDto) {
     return this.financials.updateStatement(id, body);
+  }
+
+  @Delete("statements/:id")
+  deleteStatement(@Param("id") id: string) {
+    return this.financials.deleteStatement(id);
   }
 
   @Post("statements/:id/send")

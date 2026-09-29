@@ -1181,6 +1181,41 @@ export class FinancialsService {
     return this.getStatement(id);
   }
 
+  async deleteStatement(id: string): Promise<void> {
+    this.assertManager();
+    const statement = await this.db.billingStatement.findFirst({
+      where: { id, workspaceId: this.workspaceId },
+      select: { id: true, status: true },
+    });
+    if (!statement) throw new NotFoundException("Statement not found");
+    if (statement.status !== BillingStatementStatus.DRAFT)
+      throw new ConflictException("Only draft statements can be deleted");
+
+    await this.db.$transaction(async (tx) => {
+      await tx.billingStatementLine.updateMany({
+        where: {
+          workspaceId: this.workspaceId,
+          statementId: id,
+          status: BillingStatementLineStatus.RESERVED,
+        },
+        data: {
+          statementId: null,
+          lineOrder: null,
+          status: BillingStatementLineStatus.UNBILLED,
+          updatedByUserId: this.context.userId,
+        },
+      });
+      await tx.financeMutationRequest.deleteMany({
+        where: {
+          workspaceId: this.workspaceId,
+          operation: "CREATE_STATEMENT",
+          resultEntityId: id,
+        },
+      });
+      await tx.billingStatement.delete({ where: { id } });
+    });
+  }
+
   async sendStatement(id: string, input: SendStatementDto) {
     this.assertManager();
     if (input.idempotencyKey) {

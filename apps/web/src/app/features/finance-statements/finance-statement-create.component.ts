@@ -8,11 +8,12 @@ import {
   Validators,
 } from "@angular/forms";
 import {
+  BillingStatement,
   BillingStatementLineSummary,
   ClientSummary,
 } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
-import { Router, RouterLink } from "@angular/router";
+import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideTrash2 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -66,6 +67,7 @@ export class FinanceStatementCreateComponent {
     BillingStatementLineImportDialogService,
   );
   private readonly destroyRef = inject(DestroyRef);
+  private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly clientDialog = inject(ClientFormDialogService);
   private readonly localization = inject(LocalizationService);
@@ -73,11 +75,15 @@ export class FinanceStatementCreateComponent {
   readonly clients = signal<ClientSummary[]>([]);
   readonly clientsLoading = signal(false);
   readonly clientsError = signal(false);
+  readonly statementLoading = signal(false);
+  readonly statementLoadError = signal("");
   readonly saving = signal(false);
   readonly saveError = signal("");
   readonly formRevision = signal(0);
   readonly selectedClient = signal<ClientSummary | null>(null);
   readonly statementIdempotencyKey = crypto.randomUUID();
+  readonly statementId = this.route.snapshot.paramMap.get("id");
+  readonly isEditMode = this.statementId !== null;
 
   readonly form = new FormGroup({
     clientId: new FormControl("", {
@@ -135,6 +141,11 @@ export class FinanceStatementCreateComponent {
   });
 
   constructor() {
+    if (this.isEditMode) {
+      this.form.controls.clientId.disable({ emitEvent: false });
+      this.form.controls.currency.disable({ emitEvent: false });
+      this.loadStatement();
+    }
     this.loadClients();
     let previousClientId = this.form.controls.clientId.value;
     this.form.controls.clientId.valueChanges
@@ -152,6 +163,30 @@ export class FinanceStatementCreateComponent {
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.bumpRevision());
+  }
+
+  loadStatement(): void {
+    if (!this.statementId) return;
+    this.statementLoading.set(true);
+    this.statementLoadError.set("");
+    this.api
+      .statement(this.statementId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (statement) => {
+          if (statement.status !== "DRAFT") {
+            this.statementLoading.set(false);
+            this.statementLoadError.set("finance.statementNotEditable");
+            return;
+          }
+          this.populateStatement(statement);
+          this.statementLoading.set(false);
+        },
+        error: () => {
+          this.statementLoading.set(false);
+          this.statementLoadError.set("finance.statementLoadError");
+        },
+      });
   }
 
   loadClients(): void {
@@ -248,16 +283,24 @@ export class FinanceStatementCreateComponent {
           ),
         ),
         toArray(),
-        switchMap((lines) =>
-          this.api.createStatement({
+        switchMap((lines) => {
+          const lineIds = lines.map((line) => line.id);
+          if (this.statementId) {
+            return this.api.updateStatement(this.statementId, {
+              periodStart: header.periodStart,
+              periodEnd: header.periodEnd,
+              lineIds,
+            });
+          }
+          return this.api.createStatement({
             clientId: header.clientId,
             periodStart: header.periodStart,
             periodEnd: header.periodEnd,
             currency: normalizeCurrency(header.currency),
-            lineIds: lines.map((line) => line.id),
+            lineIds,
             idempotencyKey: this.statementIdempotencyKey,
-          }),
-        ),
+          });
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
@@ -292,6 +335,29 @@ export class FinanceStatementCreateComponent {
       amount,
       currency,
     });
+  }
+
+  private populateStatement(statement: BillingStatement): void {
+    this.form.patchValue(
+      {
+        clientId: statement.clientId,
+        periodStart: statement.periodStart.slice(0, 10),
+        periodEnd: statement.periodEnd.slice(0, 10),
+        currency: statement.currency,
+      },
+      { emitEvent: false },
+    );
+    this.form.controls.lines.clear({ emitEvent: false });
+    for (const line of statement.lines) {
+      this.form.controls.lines.push(createBillingStatementLineForm(line), {
+        emitEvent: false,
+      });
+    }
+    this.selectedClient.set(
+      this.clients().find((client) => client.id === statement.clientId) ?? null,
+    );
+    this.form.markAsPristine();
+    this.bumpRevision();
   }
 
   private bumpRevision(): void {

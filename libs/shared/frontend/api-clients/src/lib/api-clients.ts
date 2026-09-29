@@ -72,6 +72,7 @@ import {
   ReviewBillingSuggestionsRequest,
   RecordBillingStatementLinesRequest,
   UpdateBillingStatementLineRequest,
+  UpdateBillingStatementRequest,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -1864,6 +1865,31 @@ export class FinancialsApiClient {
     return this.http.post<BillingStatement>(
       this.endpoint("/financials/statements"),
       body,
+      { withCredentials: true },
+    );
+  }
+
+  statement(id: string): Observable<BillingStatement> {
+    return this.http.get<BillingStatement>(
+      this.endpoint(`/financials/statements/${id}`),
+      { withCredentials: true },
+    );
+  }
+
+  updateStatement(
+    id: string,
+    body: UpdateBillingStatementRequest,
+  ): Observable<BillingStatement> {
+    return this.http.patch<BillingStatement>(
+      this.endpoint(`/financials/statements/${id}`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  deleteStatement(id: string): Observable<void> {
+    return this.http.delete<void>(
+      this.endpoint(`/financials/statements/${id}`),
       { withCredentials: true },
     );
   }

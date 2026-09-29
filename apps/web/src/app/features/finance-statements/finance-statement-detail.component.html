@@ -1,0 +1,31 @@
+<div class="mx-auto w-full max-w-6xl space-y-4 text-sm">
+  <nav [attr.aria-label]="'finance.breadcrumb' | translate">
+    <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
+      <li>
+        <a
+          class="underline-offset-4 hover:underline"
+          routerLink="/finance/statements"
+        >
+          {{ "finance.clientStatements" | translate }}
+        </a>
+      </li>
+      <li aria-hidden="true">/</li>
+      <li class="text-foreground" aria-current="page">
+        {{ "finance.statementDetail" | translate }}
+      </li>
+    </ol>
+  </nav>
+
+  <header class="space-y-1">
+    <h1 class="text-xl font-semibold">
+      {{ "finance.statementDetail" | translate }}
+    </h1>
+    <p class="text-muted-foreground">
+      {{ "finance.statementDetailComingSoon" | translate }}
+    </p>
+  </header>
+
+  <a hlmBtn variant="outline" routerLink="/finance/statements">
+    {{ "finance.backToStatements" | translate }}
+  </a>
+</div>

@@ -180,7 +180,7 @@
         class="rounded-lg border border-border"
         [attr.aria-busy]="loading()"
       >
-        <table hlmTable class="w-full min-w-[780px]">
+        <table hlmTable class="w-full min-w-[880px]">
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh>{{ "finance.statementNumber" | translate }}</th>
@@ -194,13 +194,26 @@
               <th hlmTh class="text-right">
                 {{ "finance.outstanding" | translate }}
               </th>
+              <th hlmTh class="w-24 text-right">
+                {{ "finance.actions" | translate }}
+              </th>
             </tr>
           </thead>
           <tbody hlmTBody>
             @for (statement of visibleStatements(); track statement.id) {
-              <tr hlmTr>
+              <tr
+                hlmTr
+                class="cursor-pointer"
+                (click)="viewStatement(statement.id)"
+              >
                 <td hlmTd class="font-medium">
-                  {{ statement.statementNumber }}
+                  <a
+                    class="underline-offset-4 hover:underline focus-visible:underline"
+                    [routerLink]="['/finance/statements', statement.id]"
+                    (click)="$event.stopPropagation()"
+                  >
+                    {{ statement.statementNumber }}
+                  </a>
                 </td>
                 <td hlmTd>{{ statement.client.displayName }}</td>
                 <td hlmTd>
@@ -222,6 +235,56 @@
                   {{
                     formatCurrency(statement.outstanding, statement.currency)
                   }}
+                </td>
+                <td hlmTd>
+                  @if (statement.status === "DRAFT") {
+                    <div class="flex items-center justify-end gap-1">
+                      <a
+                        hlmBtn
+                        variant="ghost"
+                        size="icon-sm"
+                        [routerLink]="[
+                          '/finance/statements',
+                          statement.id,
+                          'edit',
+                        ]"
+                        [attr.aria-label]="
+                          'finance.editStatementNumber'
+                            | translate: { number: statement.statementNumber }
+                        "
+                        [attr.title]="'common.edit' | translate"
+                        (click)="$event.stopPropagation()"
+                      >
+                        <ng-icon name="lucidePencil" aria-hidden="true" />
+                      </a>
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        [disabled]="deletingStatementId() !== null"
+                        [attr.aria-label]="
+                          'finance.deleteStatementNumber'
+                            | translate: { number: statement.statementNumber }
+                        "
+                        [attr.title]="'finance.deleteStatement' | translate"
+                        (click)="deleteStatement(statement, $event)"
+                      >
+                        @if (deletingStatementId() === statement.id) {
+                          <hlm-spinner />
+                        } @else {
+                          <ng-icon name="lucideTrash2" aria-hidden="true" />
+                        }
+                      </button>
+                    </div>
+                  } @else {
+                    <span
+                      class="block text-right text-muted-foreground"
+                      aria-hidden="true"
+                    >
+                      —
+                    </span>
+                  }
                 </td>
               </tr>
             }

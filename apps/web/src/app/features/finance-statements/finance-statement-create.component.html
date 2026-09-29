@@ -11,21 +11,52 @@
       </li>
       <li aria-hidden="true">/</li>
       <li class="text-foreground" aria-current="page">
-        {{ "finance.newStatement" | translate }}
+        {{
+          (isEditMode ? "finance.editStatement" : "finance.newStatement")
+            | translate
+        }}
       </li>
     </ol>
   </nav>
 
   <header class="space-y-1">
     <h1 class="text-xl font-semibold">
-      {{ "finance.statementComposer" | translate }}
+      {{
+        (isEditMode ? "finance.editStatement" : "finance.statementComposer")
+          | translate
+      }}
     </h1>
     <p class="text-muted-foreground">
       {{ "finance.statementInfo" | translate }}
     </p>
   </header>
 
-  <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
+  @if (statementLoading()) {
+    <div
+      class="flex min-h-40 items-center justify-center rounded-lg border border-border"
+      aria-live="polite"
+    >
+      <hlm-spinner />
+      <span class="sr-only">{{ "finance.loadingStatement" | translate }}</span>
+    </div>
+  } @else if (statementLoadError()) {
+    <div
+      role="alert"
+      class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive p-4"
+    >
+      <p>{{ statementLoadError() | translate }}</p>
+      <button hlmBtn type="button" variant="outline" (click)="loadStatement()">
+        {{ "finance.retry" | translate }}
+      </button>
+    </div>
+  }
+  <form
+    [formGroup]="form"
+    (ngSubmit)="submit()"
+    class="space-y-4"
+    [class.hidden]="statementLoading() || statementLoadError()"
+    novalidate
+  >
     <section class="space-y-3 border-b border-border pb-4">
       <h2 class="text-base font-semibold">
         {{ "finance.statementDetails" | translate }}
@@ -54,14 +85,16 @@
             <label hlmFieldLabel for="statement-client">
               {{ "finance.client" | translate }}
             </label>
-            <button
-              hlmBtn
-              type="button"
-              variant="ghost"
-              (click)="openClientDialog()"
-            >
-              + {{ "clients.create" | translate }}
-            </button>
+            @if (!isEditMode) {
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                (click)="openClientDialog()"
+              >
+                + {{ "clients.create" | translate }}
+              </button>
+            }
           </div>
           <hlm-select
             formControlName="clientId"
@@ -343,7 +376,10 @@
         @if (saving()) {
           <hlm-spinner />
         }
-        {{ "finance.createDraft" | translate }}
+        {{
+          (isEditMode ? "finance.saveStatementChanges" : "finance.createDraft")
+            | translate
+        }}
       </button>
     </div>
   </form>

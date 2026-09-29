@@ -82,6 +82,11 @@ describe("FinancialsService", () => {
       aggregate: jest.fn(),
       groupBy: jest.fn(),
     },
+    billingStatement: {
+      findFirst: jest.fn(),
+      delete: jest.fn(),
+    },
+    financeMutationRequest: { deleteMany: jest.fn() },
     billingSuggestionReview: {
       count: jest.fn(),
       findMany: jest.fn(),
@@ -332,6 +337,58 @@ describe("FinancialsService", () => {
         }),
       }),
     );
+  });
+
+  it("deletes a draft statement and releases its reserved lines", async () => {
+    const statementId = "77777777-7777-4777-a777-777777777777";
+    db.billingStatement.findFirst.mockResolvedValue({
+      id: statementId,
+      status: "DRAFT",
+    });
+
+    await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () => service.deleteStatement(statementId),
+    );
+
+    expect(db.billingStatementLine.updateMany).toHaveBeenCalledWith({
+      where: {
+        workspaceId,
+        statementId,
+        status: "RESERVED",
+      },
+      data: {
+        statementId: null,
+        lineOrder: null,
+        status: "UNBILLED",
+        updatedByUserId: userId,
+      },
+    });
+    expect(db.billingStatement.delete).toHaveBeenCalledWith({
+      where: { id: statementId },
+    });
+    expect(db.financeMutationRequest.deleteMany).toHaveBeenCalledWith({
+      where: {
+        workspaceId,
+        operation: "CREATE_STATEMENT",
+        resultEntityId: statementId,
+      },
+    });
+  });
+
+  it("refuses to delete a non-draft statement", async () => {
+    db.billingStatement.findFirst.mockResolvedValue({
+      id: "77777777-7777-4777-a777-777777777777",
+      status: "SENT",
+    });
+
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.ADMIN },
+        () => service.deleteStatement("77777777-7777-4777-a777-777777777777"),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.billingStatement.delete).not.toHaveBeenCalled();
   });
 
   it("creates one statement line per item and links each source", async () => {
