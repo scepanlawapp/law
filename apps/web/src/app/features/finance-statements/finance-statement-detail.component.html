@@ -16,16 +16,123 @@
     </ol>
   </nav>
 
-  <header class="space-y-1">
-    <h1 class="text-xl font-semibold">
-      {{ "finance.statementDetail" | translate }}
-    </h1>
-    <p class="text-muted-foreground">
-      {{ "finance.statementDetailComingSoon" | translate }}
-    </p>
-  </header>
+  @if (loading()) {
+    <div class="flex items-center gap-2 py-10" role="status">
+      <hlm-spinner />
+      <span>{{ "finance.loadingStatement" | translate }}</span>
+    </div>
+  } @else if (error()) {
+    <div class="space-y-3 py-10" role="alert">
+      <p>{{ "finance.statementLoadError" | translate }}</p>
+      <button hlmBtn type="button" variant="outline" (click)="load()">
+        {{ "finance.retry" | translate }}
+      </button>
+    </div>
+  } @else if (statement(); as item) {
+    <header>
+      <h1 class="text-xl font-semibold">
+        {{
+          "finance.statementTitle" | translate: { number: item.statementNumber }
+        }}
+      </h1>
+    </header>
 
-  <a hlmBtn variant="outline" routerLink="/finance/statements">
-    {{ "finance.backToStatements" | translate }}
-  </a>
+    <section class="space-y-3 border-b border-border pb-4">
+      <h2 class="text-base font-semibold">
+        {{ "finance.statementDetails" | translate }}
+      </h2>
+      <dl
+        class="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1.5fr)_minmax(6rem,0.5fr)]"
+      >
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.client" | translate }}
+          </dt>
+          <dd class="font-medium">{{ item.client.displayName }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.period" | translate }}
+          </dt>
+          <dd class="font-medium">
+            {{ formatDate(item.periodStart) }} –
+            {{ formatDate(item.periodEnd) }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.currency" | translate }}
+          </dt>
+          <dd class="font-medium">{{ item.currency }}</dd>
+        </div>
+      </dl>
+    </section>
+
+    <section class="space-y-3">
+      <h2 class="text-base font-semibold">
+        {{ "finance.statementLines" | translate }}
+      </h2>
+
+      @if (item.lines.length) {
+        <div hlmTableContainer class="rounded-lg border border-border">
+          <table hlmTable class="w-full min-w-[720px]">
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh class="w-24">
+                  {{ "finance.source" | translate }}
+                </th>
+                <th hlmTh class="w-36">
+                  {{ "finance.serviceDate" | translate }}
+                </th>
+                <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
+                <th hlmTh class="w-36 text-right">
+                  {{ "finance.amount" | translate }}
+                </th>
+                <th hlmTh class="w-24">
+                  {{ "finance.currency" | translate }}
+                </th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (line of item.lines; track line.id) {
+                <tr hlmTr>
+                  <td hlmTd>
+                    <span
+                      class="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-sm"
+                    >
+                      {{ sourceLabel(line) }}
+                    </span>
+                  </td>
+                  <td hlmTd>{{ formatDate(line.serviceDate) }}</td>
+                  <td hlmTd>{{ line.description }}</td>
+                  <td hlmTd class="text-right tabular-nums">
+                    {{ formatAmount(line.amount) }}
+                  </td>
+                  <td hlmTd>{{ line.currency }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div
+          class="flex justify-end border-b border-border pb-3 font-semibold tabular-nums"
+        >
+          {{ "finance.total" | translate }}:
+          {{ formatCurrency(item.total, item.currency) }}
+        </div>
+      } @else {
+        <p
+          class="rounded-lg border border-dashed border-border p-4 text-muted-foreground"
+        >
+          {{ "finance.noLines" | translate }}
+        </p>
+      }
+    </section>
+
+    <div class="border-t border-border pt-4">
+      <a hlmBtn variant="outline" routerLink="/finance/statements">
+        {{ "finance.backToStatements" | translate }}
+      </a>
+    </div>
+  }
 </div>

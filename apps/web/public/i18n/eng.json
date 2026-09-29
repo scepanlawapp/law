@@ -621,7 +621,7 @@
   "finance.statementDeleted": "The draft statement was deleted.",
   "finance.statementDeleteError": "The draft statement could not be deleted.",
   "finance.statementDetail": "Statement details",
-  "finance.statementDetailComingSoon": "The statement detail view will be available here later.",
+  "finance.statementTitle": "Statement {number}",
   "finance.backToStatements": "Back to statements",
   "finance.loadingStatement": "Loading statement",
   "reports.emptyTitle": "No reports yet",

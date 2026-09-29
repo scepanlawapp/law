@@ -620,7 +620,7 @@
   "finance.statementDeleted": "Nacrt računa je obrisan.",
   "finance.statementDeleteError": "Nacrt računa nije mogao da se obriše.",
   "finance.statementDetail": "Detalji računa",
-  "finance.statementDetailComingSoon": "Detaljan prikaz računa biće dodat naknadno.",
+  "finance.statementTitle": "Račun {number}",
   "finance.backToStatements": "Nazad na račune",
   "finance.loadingStatement": "Učitavanje računa",
   "reports.emptyTitle": "Još nema izveštaja",

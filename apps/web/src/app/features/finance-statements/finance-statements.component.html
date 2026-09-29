@@ -201,16 +201,11 @@
           </thead>
           <tbody hlmTBody>
             @for (statement of visibleStatements(); track statement.id) {
-              <tr
-                hlmTr
-                class="cursor-pointer"
-                (click)="viewStatement(statement.id)"
-              >
+              <tr hlmTr>
                 <td hlmTd class="font-medium">
                   <a
                     class="underline-offset-4 hover:underline focus-visible:underline"
                     [routerLink]="['/finance/statements', statement.id]"
-                    (click)="$event.stopPropagation()"
                   >
                     {{ statement.statementNumber }}
                   </a>

@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Billing Statement Basic Detail UI](./tracks/billing_statement_detail_ui_20260929/index.md)
 - [Billing Statement Edit, Delete, and Detail Routing](./tracks/billing_statement_crud_ui_20260929/index.md)
 - [Finance Statements UX Refactor](./tracks/finance_statements_ux_refactor_20260929/index.md)
 - [Frontend Currency Selects](./tracks/frontend_currency_selects_20260929/index.md)

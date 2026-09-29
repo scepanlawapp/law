@@ -7,7 +7,7 @@ import {
   ClientSummary,
 } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
-import { Router, RouterLink } from "@angular/router";
+import { RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucidePencil, lucideTrash2 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -51,7 +51,6 @@ export class FinanceStatementsComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
@@ -178,10 +177,6 @@ export class FinanceStatementsComponent {
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
     this.page.set(page);
-  }
-
-  viewStatement(statementId: string): void {
-    void this.router.navigate(["/finance/statements", statementId]);
   }
 
   deleteStatement(statement: BillingStatementSummary, event: Event): void {
