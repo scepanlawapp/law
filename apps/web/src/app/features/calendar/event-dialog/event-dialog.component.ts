@@ -70,9 +70,10 @@ export class EventDialogComponent {
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly cases = signal<CaseSummary[]>([]);
   readonly eventId =
-    this.context.item?.sourceType === "EVENT"
+    this.context.event?.id ??
+    (this.context.item?.sourceType === "EVENT"
       ? this.context.item.sourceId
-      : undefined;
+      : undefined);
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().find((user) => user.id === value)?.name ?? "";
   readonly caseItemToString = (value: string | null | undefined): string => {
@@ -105,20 +106,37 @@ export class EventDialogComponent {
     location: new FormControl("", { nonNullable: true }),
     meetingUrl: new FormControl("", { nonNullable: true }),
     responsibleUserId: new FormControl(
-      this.context.item?.assigneeUsers[0]?.id ??
+      this.context.event?.assigneeUsers[0]?.id ??
+        this.context.event?.organizerUser.id ??
+        this.context.item?.assigneeUsers[0]?.id ??
         this.context.item?.responsibleUser?.id ??
         this.auth.session()?.user.id ??
         "",
       { nonNullable: true, validators: [Validators.required] },
     ),
-    caseId: new FormControl(this.context.item?.case?.id ?? "", {
-      nonNullable: true,
-    }),
+    caseId: new FormControl(
+      this.context.event?.case?.id ?? this.context.item?.case?.id ?? "",
+      {
+        nonNullable: true,
+      },
+    ),
   });
 
   constructor() {
+    const event = this.context.event;
     const item = this.context.item;
-    if (item?.sourceType === "EVENT") {
+    if (event) {
+      this.form.patchValue({
+        type: event.type,
+        title: event.title,
+        description: event.description ?? "",
+        startsAt: localDateTime(event.startsAt),
+        endsAt: localDateTime(event.endsAt),
+        timeZone: event.timeZone,
+        location: event.location ?? "",
+        meetingUrl: event.meetingUrl ?? "",
+      });
+    } else if (item?.sourceType === "EVENT") {
       this.form.patchValue({
         title: item.title,
         startsAt: item.startsAt ? localDateTime(item.startsAt) : "",

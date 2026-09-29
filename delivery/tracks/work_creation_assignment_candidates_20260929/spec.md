@@ -28,3 +28,6 @@ Work review currently derives candidates from completed events, completed tasks,
 - Keep billing statement backend persistence and endpoints intact because billing lines still reference statement lifecycle data and deletion would require a destructive data migration.
 - Split price sources into three tabs: client agreements, state/public sources, and company catalog.
 - Client agreements must always belong to a client; state/public and company catalog sources are workspace-wide.
+- Clicking a missing-client warning assigns a client to the candidate without opening billing automatically.
+- Clicking a work-review source title opens the underlying task or event edit dialog and refreshes candidates after save.
+- Serbian work-review copy uses “Niste odabrali klijenta” and “Ne fakturisati”.
