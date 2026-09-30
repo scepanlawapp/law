@@ -897,8 +897,18 @@ model BillingStatement {
   workspaceId           String
   clientId              String
   statementNumber       String
-  periodStart           DateTime               @db.Date
-  periodEnd             DateTime               @db.Date
+  dateOfCreate          DateTime               @db.Date
+  dateOfMaturity        DateTime               @db.Date
+  dateOfTurnover        DateTime               @db.Date
+  placeOfIssue          String
+  methodOfPayment       String
+  comment               String                 @db.Text
+  netAmount             Decimal                @db.Decimal(18, 2)
+  vatRate               Decimal                @db.Decimal(5, 2)
+  vatAmount             Decimal                @db.Decimal(18, 2)
+  grossAmount           Decimal                @db.Decimal(18, 2)
+  numberOfCashBill      String
+  country               String
   currency              String
   status                BillingStatementStatus @default(DRAFT)
   sharedAt              DateTime?              @db.Timestamptz(3)
@@ -929,8 +939,8 @@ model BillingStatement {
   deadlines             Deadline[]
 
   @@unique([workspaceId, statementNumber])
-  @@index([workspaceId, clientId, status, periodEnd])
-  @@index([workspaceId, status, periodEnd])
+  @@index([workspaceId, clientId, status, dateOfMaturity])
+  @@index([workspaceId, status, dateOfMaturity])
 }
 
 model BillingStatementLine {
@@ -942,7 +952,10 @@ model BillingStatementLine {
   lineOrder          Int?
   description        String                     @db.Text
   serviceDate        DateTime                   @db.Date
-  amount             Decimal                    @db.Decimal(18, 2)
+  netAmount          Decimal                    @db.Decimal(18, 2)
+  vatRate            Decimal                    @db.Decimal(5, 2)
+  vatAmount          Decimal                    @db.Decimal(18, 2)
+  grossAmount        Decimal                    @db.Decimal(18, 2)
   currency           String
   status             BillingStatementLineStatus @default(RESERVED)
   sourceType         String?

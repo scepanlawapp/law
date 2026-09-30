@@ -138,8 +138,8 @@ export class FinanceStatementsComponent {
         return false;
       if (currency && statement.currency.toUpperCase() !== currency)
         return false;
-      if (from && statement.periodEnd < from) return false;
-      if (to && statement.periodStart > to) return false;
+      if (from && statement.dateOfMaturity < from) return false;
+      if (to && statement.dateOfCreate > to) return false;
       return true;
     });
   });

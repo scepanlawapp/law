@@ -43,7 +43,10 @@ const savedLine: BillingStatementLineSummary = {
   lineOrder: 0,
   description: sourceItem.title,
   serviceDate: "2026-09-29",
-  amount: "12000.00",
+  netAmount: "12000.00",
+  vatRate: "20.00",
+  vatAmount: "2400.00",
+  grossAmount: "14400.00",
   currency: "RSD",
   status: "RESERVED",
   sourceType: sourceItem.sourceType,
@@ -60,7 +63,10 @@ describe("billing statement form helpers", () => {
       sourceId: sourceItem.sourceId,
       serviceDate: "2026-09-29",
       description: sourceItem.title,
-      amount: 12000,
+      netAmount: 12000,
+      vatRate: 20,
+      vatAmount: 2400,
+      grossAmount: 14400,
       currency: "RSD",
     });
   });
@@ -72,7 +78,10 @@ describe("billing statement form helpers", () => {
         sourceId: sourceItem.sourceId,
         serviceDate: "2026-09-29",
         description: sourceItem.title,
-        amount: null,
+        netAmount: null,
+        vatRate: 0,
+        vatAmount: 0,
+        grossAmount: null,
         currency: "RSD",
       },
     );
@@ -80,13 +89,19 @@ describe("billing statement form helpers", () => {
 
   it("detaches a source without clearing entered values", () => {
     const form = createBillableWorkLineForm(sourceItem, "RSD");
-    form.controls.amount.setValue(12000);
+    form.controls.netAmount.setValue(12000);
+    form.controls.vatRate.setValue(20);
+    form.controls.vatAmount.setValue(2400);
+    form.controls.grossAmount.setValue(14400);
     detachBillingStatementLineSources([form]);
 
     expect(form.controls.sourceType.value).toBeNull();
     expect(form.controls.sourceId.value).toBeNull();
     expect(form.controls.description.value).toBe(sourceItem.title);
-    expect(form.controls.amount.value).toBe(12000);
+    expect(form.controls.netAmount.value).toBe(12000);
+    expect(form.controls.vatRate.value).toBe(20);
+    expect(form.controls.vatAmount.value).toBe(2400);
+    expect(form.controls.grossAmount.value).toBe(14400);
   });
 
   it("identifies only rows whose currency differs from the statement", () => {

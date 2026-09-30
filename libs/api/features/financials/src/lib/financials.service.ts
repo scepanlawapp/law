@@ -158,7 +158,10 @@ export class FinancialsService {
       lineOrder: line.lineOrder,
       description: line.description,
       serviceDate: line.serviceDate.toISOString().slice(0, 10),
-      amount: line.amount.toString(),
+      netAmount: line.netAmount.toString(),
+      vatRate: line.vatRate.toString(),
+      vatAmount: line.vatAmount.toString(),
+      grossAmount: line.grossAmount.toString(),
       currency: line.currency,
       status: line.status,
       sourceType: line.sourceType,
@@ -184,15 +187,17 @@ export class FinancialsService {
   } as const;
 
   private statementResponse(statement: any) {
-    const total = statement.lines.reduce(
-      (sum: Prisma.Decimal, line: { amount: Prisma.Decimal }) =>
-        sum.plus(line.amount),
-      new Prisma.Decimal(0),
-    );
     return {
       ...statement,
+      dateOfCreate: statement.dateOfCreate.toISOString().slice(0, 10),
+      dateOfMaturity: statement.dateOfMaturity.toISOString().slice(0, 10),
+      dateOfTurnover: statement.dateOfTurnover.toISOString().slice(0, 10),
+      netAmount: statement.netAmount.toString(),
+      vatRate: statement.vatRate.toString(),
+      vatAmount: statement.vatAmount.toString(),
+      grossAmount: statement.grossAmount.toString(),
       lines: statement.lines.map((line: any) => this.lineSummary(line)),
-      total: total.toFixed(2),
+      total: statement.grossAmount.toFixed(2),
     };
   }
 
@@ -655,7 +660,10 @@ export class FinancialsService {
           lineOrder: index,
           serviceDate: new Date(input.serviceDate),
           description: input.description.trim(),
-          amount: input.amount,
+          netAmount: input.netAmount,
+          vatRate: input.vatRate,
+          vatAmount: input.vatAmount,
+          grossAmount: input.grossAmount,
           currency: statement.currency.toUpperCase(),
           status: BillingStatementLineStatus.RESERVED,
           sourceType: input.sourceType,
@@ -733,9 +741,19 @@ export class FinancialsService {
           workspaceId: this.workspaceId,
           clientId: input.clientId,
           statementNumber: number,
-          periodStart: new Date(input.periodStart),
-          periodEnd: new Date(input.periodEnd),
-          currency: input.currency,
+          dateOfCreate: new Date(input.dateOfCreate),
+          dateOfMaturity: new Date(input.dateOfMaturity),
+          dateOfTurnover: new Date(input.dateOfTurnover),
+          placeOfIssue: input.placeOfIssue.trim(),
+          methodOfPayment: input.methodOfPayment.trim(),
+          comment: input.comment.trim(),
+          netAmount: input.netAmount,
+          vatRate: input.vatRate,
+          vatAmount: input.vatAmount,
+          grossAmount: input.grossAmount,
+          numberOfCashBill: input.numberOfCashBill.trim(),
+          country: input.country.trim(),
+          currency: input.currency.toUpperCase(),
           createdByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
         },
@@ -778,10 +796,24 @@ export class FinancialsService {
       await tx.billingStatement.update({
         where: { id },
         data: {
-          periodStart: input.periodStart
-            ? new Date(input.periodStart)
+          dateOfCreate: input.dateOfCreate
+            ? new Date(input.dateOfCreate)
             : undefined,
-          periodEnd: input.periodEnd ? new Date(input.periodEnd) : undefined,
+          dateOfMaturity: input.dateOfMaturity
+            ? new Date(input.dateOfMaturity)
+            : undefined,
+          dateOfTurnover: input.dateOfTurnover
+            ? new Date(input.dateOfTurnover)
+            : undefined,
+          placeOfIssue: input.placeOfIssue?.trim(),
+          methodOfPayment: input.methodOfPayment?.trim(),
+          comment: input.comment?.trim(),
+          netAmount: input.netAmount,
+          vatRate: input.vatRate,
+          vatAmount: input.vatAmount,
+          grossAmount: input.grossAmount,
+          numberOfCashBill: input.numberOfCashBill?.trim(),
+          country: input.country?.trim(),
           updatedByUserId: this.context.userId,
         },
       });

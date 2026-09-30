@@ -10,7 +10,10 @@ export type BillingStatementLineForm = FormGroup<{
   sourceId: FormControl<string | null>;
   serviceDate: FormControl<string>;
   description: FormControl<string>;
-  amount: FormControl<number | null>;
+  netAmount: FormControl<number | null>;
+  vatRate: FormControl<number | null>;
+  vatAmount: FormControl<number | null>;
+  grossAmount: FormControl<number | null>;
   currency: FormControl<string>;
 }>;
 
@@ -34,10 +37,23 @@ export function createBillingStatementLineForm(
       nonNullable: true,
       validators: [Validators.required, Validators.maxLength(10_000)],
     }),
-    amount: new FormControl<number | null>(line ? Number(line.amount) : null, [
+    netAmount: new FormControl<number | null>(
+      line ? Number(line.netAmount) : null,
+      [Validators.required, Validators.min(0.01)],
+    ),
+    vatRate: new FormControl<number | null>(line ? Number(line.vatRate) : 0, [
       Validators.required,
-      Validators.min(0.01),
+      Validators.min(0),
+      Validators.max(100),
     ]),
+    vatAmount: new FormControl<number | null>(
+      line ? Number(line.vatAmount) : 0,
+      [Validators.required, Validators.min(0)],
+    ),
+    grossAmount: new FormControl<number | null>(
+      line ? Number(line.grossAmount) : null,
+      [Validators.required, Validators.min(0.01)],
+    ),
     currency: new FormControl(line?.currency ?? defaultCurrency, {
       nonNullable: true,
       validators: [Validators.required, Validators.pattern(/^[A-Za-z]{3}$/)],
@@ -60,7 +76,20 @@ export function createBillableWorkLineForm(
       nonNullable: true,
       validators: [Validators.required, Validators.maxLength(10_000)],
     }),
-    amount: new FormControl<number | null>(null, [
+    netAmount: new FormControl<number | null>(null, [
+      Validators.required,
+      Validators.min(0.01),
+    ]),
+    vatRate: new FormControl<number | null>(0, [
+      Validators.required,
+      Validators.min(0),
+      Validators.max(100),
+    ]),
+    vatAmount: new FormControl<number | null>(0, [
+      Validators.required,
+      Validators.min(0),
+    ]),
+    grossAmount: new FormControl<number | null>(null, [
       Validators.required,
       Validators.min(0.01),
     ]),

@@ -14,6 +14,7 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Frontend Localization Completeness](./tracks/frontend_localization_completeness_20260930/index.md)
 - [Relation Autocomplete Filters](./tracks/relation_autocomplete_filters_20260929/index.md)
 - [Dashboard Documents and Notifications](./tracks/dashboard_documents_notifications_20260929/index.md)
+- [Billing Statement Invoice Fields](./tracks/billing_statement_invoice_fields_20260930/index.md)
 - [Direct Statement Source Billing](./tracks/direct_statement_source_billing_20260929/index.md)
 - [Calendar Deadline Edit](./tracks/calendar_deadline_edit_20260929/index.md)
 - [In-App Notifications](./tracks/notifications_20260929/index.md)

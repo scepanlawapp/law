@@ -18,6 +18,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
+import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import {
@@ -51,6 +52,7 @@ import { ClientFormDialogService } from "../clients/client-create-edit-modal/cli
     HlmSelectImports,
     HlmSpinner,
     HlmTableImports,
+    HlmTextarea,
     TranslatePipe,
   ],
   providers: [provideIcons({ lucideTrash2 })],
@@ -90,13 +92,53 @@ export class FinanceStatementCreateComponent {
       nonNullable: true,
       validators: Validators.required,
     }),
-    periodStart: new FormControl(today(), {
+    dateOfCreate: new FormControl(today(), {
       nonNullable: true,
       validators: Validators.required,
     }),
-    periodEnd: new FormControl(today(), {
+    dateOfMaturity: new FormControl(today(), {
       nonNullable: true,
       validators: Validators.required,
+    }),
+    dateOfTurnover: new FormControl(today(), {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    placeOfIssue: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.maxLength(255),
+    }),
+    methodOfPayment: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.maxLength(255),
+    }),
+    comment: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.maxLength(10_000),
+    }),
+    netAmount: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    vatRate: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0), Validators.max(100)],
+    }),
+    vatAmount: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    grossAmount: new FormControl(0, {
+      nonNullable: true,
+      validators: [Validators.required, Validators.min(0)],
+    }),
+    numberOfCashBill: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.maxLength(255),
+    }),
+    country: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.maxLength(255),
     }),
     currency: new FormControl("RSD", {
       nonNullable: true,
@@ -126,7 +168,7 @@ export class FinanceStatementCreateComponent {
   readonly total = computed(() => {
     this.formRevision();
     return this.form.controls.lines.controls.reduce(
-      (sum, line) => sum + (line.controls.amount.value ?? 0),
+      (sum, line) => sum + (line.controls.grossAmount.value ?? 0),
       0,
     );
   });
@@ -294,7 +336,10 @@ export class FinanceStatementCreateComponent {
       return {
         serviceDate: value.serviceDate,
         description: value.description.trim(),
-        amount: value.amount ?? 0,
+        netAmount: value.netAmount ?? 0,
+        vatRate: value.vatRate ?? 0,
+        vatAmount: value.vatAmount ?? 0,
+        grossAmount: value.grossAmount ?? 0,
         currency: normalizeCurrency(value.currency),
         ...(value.sourceType && value.sourceId
           ? { sourceType: value.sourceType, sourceId: value.sourceId }
@@ -304,14 +349,34 @@ export class FinanceStatementCreateComponent {
     this.saving.set(true);
     const request = this.statementId
       ? this.api.updateStatement(this.statementId, {
-          periodStart: header.periodStart,
-          periodEnd: header.periodEnd,
+          dateOfCreate: header.dateOfCreate,
+          dateOfMaturity: header.dateOfMaturity,
+          dateOfTurnover: header.dateOfTurnover,
+          placeOfIssue: header.placeOfIssue.trim(),
+          methodOfPayment: header.methodOfPayment.trim(),
+          comment: header.comment.trim(),
+          netAmount: header.netAmount,
+          vatRate: header.vatRate,
+          vatAmount: header.vatAmount,
+          grossAmount: header.grossAmount,
+          numberOfCashBill: header.numberOfCashBill.trim(),
+          country: header.country.trim(),
           lines,
         })
       : this.api.createStatement({
           clientId: header.clientId,
-          periodStart: header.periodStart,
-          periodEnd: header.periodEnd,
+          dateOfCreate: header.dateOfCreate,
+          dateOfMaturity: header.dateOfMaturity,
+          dateOfTurnover: header.dateOfTurnover,
+          placeOfIssue: header.placeOfIssue.trim(),
+          methodOfPayment: header.methodOfPayment.trim(),
+          comment: header.comment.trim(),
+          netAmount: header.netAmount,
+          vatRate: header.vatRate,
+          vatAmount: header.vatAmount,
+          grossAmount: header.grossAmount,
+          numberOfCashBill: header.numberOfCashBill.trim(),
+          country: header.country.trim(),
           currency: normalizeCurrency(header.currency),
           lines,
           idempotencyKey: this.statementIdempotencyKey,
@@ -330,8 +395,18 @@ export class FinanceStatementCreateComponent {
     this.form.patchValue(
       {
         clientId: statement.clientId,
-        periodStart: statement.periodStart.slice(0, 10),
-        periodEnd: statement.periodEnd.slice(0, 10),
+        dateOfCreate: statement.dateOfCreate.slice(0, 10),
+        dateOfMaturity: statement.dateOfMaturity.slice(0, 10),
+        dateOfTurnover: statement.dateOfTurnover.slice(0, 10),
+        placeOfIssue: statement.placeOfIssue,
+        methodOfPayment: statement.methodOfPayment,
+        comment: statement.comment,
+        netAmount: Number(statement.netAmount),
+        vatRate: Number(statement.vatRate),
+        vatAmount: Number(statement.vatAmount),
+        grossAmount: Number(statement.grossAmount),
+        numberOfCashBill: statement.numberOfCashBill,
+        country: statement.country,
         currency: statement.currency,
       },
       { emitEvent: false },

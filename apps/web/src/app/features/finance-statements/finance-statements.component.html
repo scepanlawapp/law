@@ -202,7 +202,7 @@
             <tr hlmTr>
               <th hlmTh>{{ "finance.statementNumber" | translate }}</th>
               <th hlmTh>{{ "finance.client" | translate }}</th>
-              <th hlmTh>{{ "finance.period" | translate }}</th>
+              <th hlmTh>{{ "finance.invoiceDates" | translate }}</th>
               <th hlmTh>{{ "finance.currency" | translate }}</th>
               <th hlmTh>{{ "finance.status" | translate }}</th>
               <th hlmTh class="text-right">
@@ -225,8 +225,8 @@
                 </td>
                 <td hlmTd>{{ statement.client.displayName }}</td>
                 <td hlmTd>
-                  {{ formatDate(statement.periodStart) }} –
-                  {{ formatDate(statement.periodEnd) }}
+                  {{ formatDate(statement.dateOfCreate) }} –
+                  {{ formatDate(statement.dateOfMaturity) }}
                 </td>
                 <td hlmTd>{{ statement.currency }}</td>
                 <td hlmTd>
