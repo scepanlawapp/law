@@ -67,7 +67,7 @@
   <div class="calendar-body gap-5">
     <aside
       id="calendar-mini-panel"
-      class="calendar-sidebar h-fit rounded-md border border-border bg-card p-4"
+      class="calendar-sidebar app-card-surface h-fit p-4"
     >
       <div class="mb-4 flex items-center justify-between gap-2">
         <h2 class="min-w-0 flex-1 truncate font-semibold capitalize">
@@ -138,7 +138,7 @@
       </div>
     </aside>
     <div class="calendar-main">
-      <div class="calendar-filters grid gap-3">
+      <div class="calendar-filters app-filter-toolbar grid gap-3">
         <label class="grid gap-1 text-sm">
           {{ "calendar.search" | translate }}
           <input
@@ -155,7 +155,7 @@
             [formControl]="sourceControl"
             [itemToString]="sourceItemToString"
           >
-            <hlm-select-trigger id="source-select" class="w-full">
+            <hlm-select-trigger buttonId="source-select" class="w-full">
               <hlm-select-value />
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal>
@@ -278,7 +278,7 @@
       } @else if (view() === "week") {
         <section
           #scheduleViewport
-          class="calendar-viewport rounded-md border border-border"
+          class="calendar-viewport app-data-region"
           aria-label="{{ 'calendar.week' | translate }}"
         >
           <div class="calendar-grid-wrapper">
@@ -421,10 +421,12 @@
               @for (day of monthDays(); track day.date) {
                 <button
                   type="button"
-                  class="min-h-32 border-b border-r border-border p-2 text-left align-top"
+                  class="min-h-32 border-b border-r border-border-subtle p-2 text-left align-top transition-colors hover:bg-surface-row-hover"
                   [class.bg-muted]="!day.currentMonth"
+                  [class.bg-surface-selected]="day.date === selectedDay()"
                   [class.ring-2]="day.today"
                   [class.ring-primary]="day.today"
+                  [attr.aria-pressed]="day.date === selectedDay()"
                   (click)="selectDay(day.date)"
                   (dblclick)="
                     itemsFor(day.date).length === 0 && openCreateEvent(day.date)
@@ -445,7 +447,7 @@
                         data-calendar-item-trigger
                         role="button"
                         tabindex="0"
-                        class="block truncate rounded border border-border bg-card px-2 py-1 text-xs"
+                        class="block truncate rounded border border-border-subtle bg-surface-card px-2 py-1 text-sm transition-colors hover:bg-surface-field-hover"
                         (click)="selectItem($event, item)"
                         (keydown.enter)="selectItem($event, item)"
                         (contextmenu)="openEventMenu($event, item)"
@@ -454,7 +456,7 @@
                       </span>
                     }
                     @if (itemsFor(day.date).length > 3) {
-                      <span class="text-xs text-muted-foreground">
+                      <span class="text-sm text-muted-foreground">
                         +{{ itemsFor(day.date).length - 3 }}
                         {{ "calendar.more" | translate }}
                       </span>
@@ -468,7 +470,7 @@
       }
       @if (selectedItem(); as item) {
         <aside
-          class="calendar-item-popover fixed z-50 w-[min(22.5rem,calc(100vw-1rem))] rounded-md border border-border bg-card p-5 shadow-lg"
+          class="calendar-item-popover fixed z-50 w-[min(22.5rem,calc(100vw-1rem))] rounded-lg border border-border-subtle bg-popover p-5 shadow-lg"
           [style.left.px]="itemPopoverPosition().left"
           [style.top.px]="itemPopoverPosition().top"
           tabindex="-1"

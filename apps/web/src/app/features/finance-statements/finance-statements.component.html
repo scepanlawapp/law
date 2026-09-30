@@ -13,8 +13,8 @@
     </a>
   </header>
 
-  <section class="space-y-3">
-    <div class="flex flex-wrap items-end gap-3">
+  <section class="app-section-surface space-y-3 p-3">
+    <div class="app-filter-toolbar border-0 bg-transparent p-0">
       <div class="flex w-72 max-w-full flex-col gap-1">
         <label class="font-medium" for="statement-search">
           {{ "finance.statementNumber" | translate }}
@@ -103,7 +103,9 @@
     </div>
 
     @if (advancedFiltersOpen()) {
-      <div class="flex flex-wrap items-end gap-3 border-t border-border pt-3">
+      <div
+        class="flex flex-wrap items-end gap-3 border-t border-border-subtle pt-3"
+      >
         <div class="flex w-28 max-w-full flex-col gap-1">
           <label class="font-medium" for="statement-currency-filter">
             {{ "finance.currency" | translate }}
@@ -192,7 +194,7 @@
     } @else {
       <div
         hlmTableContainer
-        class="rounded-lg border border-border"
+        class="app-data-region"
         [attr.aria-busy]="loading()"
       >
         <table hlmTable class="w-full min-w-[780px]">

@@ -18,33 +18,33 @@
     </div>
 
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "documents.stats.active" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ stats().active }}</p>
+        <p class="app-stat-value">{{ stats().active }}</p>
       </div>
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "documents.stats.addedThisMonth" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ stats().addedThisMonth }}</p>
+        <p class="app-stat-value">{{ stats().addedThisMonth }}</p>
       </div>
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "documents.stats.needsLinking" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ stats().needsLinking }}</p>
+        <p class="app-stat-value">{{ stats().needsLinking }}</p>
       </div>
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-xs uppercase tracking-wide text-muted-foreground">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "documents.stats.archived" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ stats().archived }}</p>
+        <p class="app-stat-value">{{ stats().archived }}</p>
       </div>
     </div>
 
-    <section class="rounded-xl border border-border bg-card p-4 shadow-sm">
+    <section class="app-section-surface p-4">
       <div class="flex flex-col gap-4">
         <div
           class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
@@ -88,16 +88,19 @@
           </div>
         </div>
 
-        <div class="flex flex-col gap-3 md:flex-row md:flex-wrap">
+        <div class="app-filter-toolbar md:flex-row">
           <div class="min-w-[180px] flex-1">
-            <label class="mb-1 block text-sm font-medium">
+            <label
+              class="mb-1 block text-sm font-medium"
+              for="documents-case-filter"
+            >
               {{ "documents.filters.case" | translate }}
             </label>
             <hlm-select
               [formControl]="selectedCaseId"
               [itemToString]="caseItemToString"
             >
-              <hlm-select-trigger>
+              <hlm-select-trigger buttonId="documents-case-filter">
                 <hlm-select-value />
               </hlm-select-trigger>
               <hlm-select-content *hlmSelectPortal>
@@ -116,14 +119,17 @@
           </div>
 
           <div class="min-w-[180px] flex-1">
-            <label class="mb-1 block text-sm font-medium">
+            <label
+              class="mb-1 block text-sm font-medium"
+              for="documents-client-filter"
+            >
               {{ "documents.filters.client" | translate }}
             </label>
             <hlm-select
               [formControl]="selectedClientId"
               [itemToString]="clientItemToString"
             >
-              <hlm-select-trigger>
+              <hlm-select-trigger buttonId="documents-client-filter">
                 <hlm-select-value />
               </hlm-select-trigger>
               <hlm-select-content *hlmSelectPortal>
@@ -142,14 +148,17 @@
           </div>
 
           <div class="min-w-[180px] flex-1">
-            <label class="mb-1 block text-sm font-medium">
+            <label
+              class="mb-1 block text-sm font-medium"
+              for="documents-category-filter"
+            >
               {{ "documents.filters.category" | translate }}
             </label>
             <hlm-select
               [formControl]="selectedCategory"
               [itemToString]="categoryItemToString"
             >
-              <hlm-select-trigger>
+              <hlm-select-trigger buttonId="documents-category-filter">
                 <hlm-select-value />
               </hlm-select-trigger>
               <hlm-select-content *hlmSelectPortal>
@@ -228,7 +237,7 @@
       } @else if (viewMode() === "list") {
         <div
           hlmTableContainer
-          class="mt-4 overflow-x-auto"
+          class="app-data-region mt-4 overflow-x-auto"
           [attr.aria-busy]="loading()"
         >
           <table hlmTable class="w-full min-w-[760px]">
@@ -365,7 +374,7 @@
           @for (document of documents(); track document.id) {
             <button
               type="button"
-              class="rounded-xl border border-border bg-background p-4 text-left shadow-sm transition hover:border-primary/50"
+              class="app-interactive-card p-4 text-left"
               (click)="openDocumentDetail(document)"
             >
               <div class="mb-3 flex items-center justify-between gap-2">
@@ -537,20 +546,30 @@
               @if (detailEditing()) {
                 <form [formGroup]="detailForm" class="space-y-4">
                   <div>
-                    <label class="mb-1 block text-sm font-medium">
+                    <label
+                      class="mb-1 block text-sm font-medium"
+                      for="document-detail-title"
+                    >
                       {{ "documents.form.title" | translate }}
                     </label>
-                    <input hlmInput formControlName="title" />
+                    <input
+                      hlmInput
+                      id="document-detail-title"
+                      formControlName="title"
+                    />
                   </div>
                   <div>
-                    <label class="mb-1 block text-sm font-medium">
+                    <label
+                      class="mb-1 block text-sm font-medium"
+                      for="document-detail-category"
+                    >
                       {{ "documents.form.category" | translate }}
                     </label>
                     <hlm-select
                       formControlName="category"
                       [itemToString]="categoryItemToString"
                     >
-                      <hlm-select-trigger>
+                      <hlm-select-trigger buttonId="document-detail-category">
                         <hlm-select-value />
                       </hlm-select-trigger>
                       <hlm-select-content *hlmSelectPortal>
@@ -565,7 +584,10 @@
                     </hlm-select>
                   </div>
                   <div>
-                    <label class="mb-1 block text-sm font-medium">
+                    <label
+                      class="mb-1 block text-sm font-medium"
+                      for="document-detail-cases"
+                    >
                       {{ "documents.form.case" | translate }}
                     </label>
                     <hlm-select
@@ -573,7 +595,7 @@
                       [itemToString]="caseItemToString"
                       multiple
                     >
-                      <hlm-select-trigger>
+                      <hlm-select-trigger buttonId="document-detail-cases">
                         <hlm-select-value />
                       </hlm-select-trigger>
                       <hlm-select-content *hlmSelectPortal>
@@ -588,7 +610,10 @@
                     </hlm-select>
                   </div>
                   <div>
-                    <label class="mb-1 block text-sm font-medium">
+                    <label
+                      class="mb-1 block text-sm font-medium"
+                      for="document-detail-clients"
+                    >
                       {{ "documents.form.client" | translate }}
                     </label>
                     <hlm-select
@@ -596,7 +621,7 @@
                       [itemToString]="clientItemToString"
                       multiple
                     >
-                      <hlm-select-trigger>
+                      <hlm-select-trigger buttonId="document-detail-clients">
                         <hlm-select-value />
                       </hlm-select-trigger>
                       <hlm-select-content *hlmSelectPortal>

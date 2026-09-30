@@ -30,9 +30,9 @@ export class HlmSelectItem {
   protected readonly _active = this._brnSelectItem.active;
 
   constructor() {
-    classes(
-      () =>
-        "data-highlighted:bg-accent data-highlighted:text-accent-foreground not-data-[variant=destructive]:data-highlighted:**:text-accent-foreground gap-1.5 rounded-md py-1 ps-1.5 pe-8 text-sm *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex min-h-8 w-full cursor-pointer items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
-    );
+    classes(() => [
+      "data-highlighted:bg-surface-row-hover data-highlighted:text-foreground gap-1.5 rounded-md px-2 py-1.5 text-sm *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex min-h-9 w-full cursor-pointer items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
+      this._active() ? "bg-surface-selected font-medium text-foreground" : "",
+    ]);
   }
 }
