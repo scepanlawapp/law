@@ -157,16 +157,6 @@
     </div>
 
     <law-section-panel
-      titleKey="dashboard.recentActivity"
-      [loading]="store.activityLoading()"
-      [error]="store.activityError()"
-      [empty]="!store.activityLoading() && store.activityItems().length === 0"
-      (retry)="store.loadActivity()"
-    >
-      <law-activity-feed [items]="store.activityItems()" />
-    </law-section-panel>
-
-    <law-section-panel
       titleKey="dashboard.notifications"
       actionLabelKey="dashboard.notificationSettings"
       actionLink="/settings/workspace"
@@ -228,6 +218,16 @@
           </button>
         }
       </div>
+    </law-section-panel>
+
+    <law-section-panel
+      titleKey="dashboard.recentActivity"
+      [loading]="store.activityLoading()"
+      [error]="store.activityError()"
+      [empty]="!store.activityLoading() && store.activityItems().length === 0"
+      (retry)="store.loadActivity()"
+    >
+      <law-activity-feed [items]="store.activityItems()" />
     </law-section-panel>
   </div>
 

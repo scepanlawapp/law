@@ -81,7 +81,7 @@ export class HlmTr {
   constructor() {
     classes(
       () =>
-        "border-border-subtle hover:bg-surface-row-hover data-[state=selected]:bg-surface-selected border-b transition-colors has-aria-expanded:bg-surface-row-hover",
+        "border-border-subtle hover:bg-surface-row-hover hover:text-primary data-[state=selected]:bg-surface-selected border-b transition-colors has-aria-expanded:bg-surface-row-hover",
     );
   }
 }

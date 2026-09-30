@@ -31,7 +31,7 @@ export class HlmComboboxItem {
 
   constructor() {
     classes(() => [
-      "data-highlighted:bg-surface-row-hover data-highlighted:text-foreground gap-2 rounded-md px-2 py-1.5 text-sm relative flex min-h-9 w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-hidden:hidden [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
+      "data-highlighted:bg-surface-row-hover data-highlighted:text-primary gap-2 rounded-md px-2 py-1.5 text-sm relative flex min-h-9 w-full cursor-default items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 data-hidden:hidden [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
       this._active() ? "bg-surface-selected font-medium text-foreground" : "",
     ]);
   }

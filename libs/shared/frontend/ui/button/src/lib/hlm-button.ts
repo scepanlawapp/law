@@ -12,11 +12,11 @@ export const buttonVariants = cva(
       variant: {
         default: "premium-primary",
         outline:
-          "border-border-interactive bg-surface-field hover:bg-surface-field-hover hover:text-foreground aria-expanded:bg-surface-selected aria-expanded:text-foreground",
+          "border-border-interactive bg-surface-field hover:bg-surface-field-hover hover:text-primary aria-expanded:bg-surface-selected aria-expanded:text-foreground",
         secondary:
-          "border-border-subtle bg-secondary text-secondary-foreground hover:bg-surface-field-hover aria-expanded:bg-surface-selected aria-expanded:text-secondary-foreground",
+          "border-border-subtle bg-secondary text-secondary-foreground hover:bg-surface-field-hover hover:text-primary aria-expanded:bg-surface-selected aria-expanded:text-secondary-foreground",
         ghost:
-          "hover:bg-surface-row-hover hover:text-foreground aria-expanded:bg-surface-selected aria-expanded:text-foreground",
+          "hover:bg-surface-row-hover hover:text-primary aria-expanded:bg-surface-selected aria-expanded:text-foreground",
         destructive:
           "bg-destructive/10 hover:bg-destructive/20 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/20 text-destructive focus-visible:border-destructive/40 dark:hover:bg-destructive/30",
         link: "text-primary underline-offset-4 hover:underline",

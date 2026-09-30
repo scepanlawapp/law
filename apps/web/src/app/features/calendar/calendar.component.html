@@ -124,7 +124,7 @@
             @for (day of week; track day.date) {
               <button
                 type="button"
-                class="aspect-square rounded text-xs hover:bg-accent"
+                class="aspect-square rounded text-xs transition-colors hover:bg-accent hover:text-primary"
                 [class.bg-primary]="day.date === selectedDay()"
                 [class.text-primary-foreground]="day.date === selectedDay()"
                 [class.text-muted-foreground]="!day.currentMonth"
@@ -421,7 +421,7 @@
               @for (day of monthDays(); track day.date) {
                 <button
                   type="button"
-                  class="min-h-32 border-b border-r border-border-subtle p-2 text-left align-top transition-colors hover:bg-surface-row-hover"
+                  class="min-h-32 border-b border-r border-border-subtle p-2 text-left align-top transition-colors hover:bg-surface-row-hover hover:text-primary"
                   [class.bg-muted]="!day.currentMonth"
                   [class.bg-surface-selected]="day.date === selectedDay()"
                   [class.ring-2]="day.today"
@@ -447,7 +447,7 @@
                         data-calendar-item-trigger
                         role="button"
                         tabindex="0"
-                        class="block truncate rounded border border-border-subtle bg-surface-card px-2 py-1 text-sm transition-colors hover:bg-surface-field-hover"
+                        class="block truncate rounded border border-border-subtle bg-surface-card px-2 py-1 text-sm transition-colors hover:bg-surface-field-hover hover:text-primary"
                         (click)="selectItem($event, item)"
                         (keydown.enter)="selectItem($event, item)"
                         (contextmenu)="openEventMenu($event, item)"

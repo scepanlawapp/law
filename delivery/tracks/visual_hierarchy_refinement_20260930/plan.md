@@ -10,6 +10,21 @@
 - [x] Verify web build, lint, relevant tests, and representative runtime interaction/theme states.
 - [x] Record verification results and remaining limitations; mark metadata complete.
 
+## Primary-text hover follow-up (2026-09-30)
+
+- [x] Inventory neutral hover and highlighted states across shared selects, menus, buttons, tables, cards, and feature-specific interactive rows.
+- [x] Change neutral hover text to the semantic primary color while preserving primary, destructive, selected, disabled, and editable-field behavior.
+- [x] Apply the same behavior to native selects and feature-specific cards/rows that do not use a shared primitive.
+- [x] Verify the web build, targeted lint/tests, and the final diff; record results and mark the track complete again.
+
+### Follow-up verification results
+
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false npx nx build web --configuration development --skip-nx-cache --output-style=static` — passed outside the filesystem sandbox after the sandboxed esbuild service deadlocked; all shared Helm dependencies and the Angular application compiled.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false npx nx test web --skip-nx-cache --runInBand --output-style=static` — 27 suites / 130 tests passed.
+- Direct ESLint over every changed Helm TypeScript file passed.
+- `NX_DAEMON=false NX_ISOLATE_PLUGINS=false NX_TUI=false npx nx lint web --skip-nx-cache --output-style=static` — changed templates produced no errors; the target remains blocked by the two pre-existing errors recorded above and reports the same two pre-existing warnings.
+- Prettier over all follow-up files and `git diff --check` passed.
+
 ## Verification results
 
 - `NX_TUI=false npx nx build web --configuration development --skip-nx-cache` — passed; all Angular templates, TypeScript, shared Helm libraries, and Tailwind styles compiled.
