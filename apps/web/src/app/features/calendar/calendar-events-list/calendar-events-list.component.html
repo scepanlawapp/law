@@ -17,7 +17,7 @@
       <ul class="flex flex-col gap-2">
         @for (item of sortedItems(); track item.calendarId) {
           <li
-            class="group flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/40"
+            class="group flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3 transition-colors hover:bg-accent/40 hover:text-primary"
             [class.border-primary]="
               selectedItem()?.calendarId === item.calendarId
             "
@@ -34,7 +34,9 @@
               (dblclick)="onItemDblClick($event, item)"
               (contextmenu)="onItemContextMenu($event, item)"
             >
-              <span class="break-words text-sm font-medium text-foreground">
+              <span
+                class="break-words text-sm font-medium text-foreground group-hover:text-primary"
+              >
                 {{ item.title }}
               </span>
               <div

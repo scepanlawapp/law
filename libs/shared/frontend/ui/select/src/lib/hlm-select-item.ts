@@ -31,7 +31,7 @@ export class HlmSelectItem {
 
   constructor() {
     classes(() => [
-      "data-highlighted:bg-surface-row-hover data-highlighted:text-foreground gap-1.5 rounded-md px-2 py-1.5 text-sm *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex min-h-9 w-full cursor-pointer items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
+      "data-highlighted:bg-surface-row-hover data-highlighted:text-primary gap-1.5 rounded-md px-2 py-1.5 text-sm *:[span]:last:flex *:[span]:last:items-center *:[span]:last:gap-2 relative flex min-h-9 w-full cursor-pointer items-center outline-hidden select-none data-disabled:pointer-events-none data-disabled:opacity-50 [&_ng-icon]:pointer-events-none [&_ng-icon]:shrink-0",
       this._active() ? "bg-surface-selected font-medium text-foreground" : "",
     ]);
   }

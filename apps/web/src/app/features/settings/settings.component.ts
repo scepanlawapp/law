@@ -16,7 +16,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
   templateUrl: "./settings.component.html",
   styleUrl: "./settings.component.scss",
   host: {
-    class: "block min-w-0",
+    class: "block min-w-0 h-full",
   },
   imports: [NgIcon, RouterLink, RouterLinkActive, RouterOutlet, TranslatePipe],
   providers: [

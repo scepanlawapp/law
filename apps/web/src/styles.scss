@@ -695,7 +695,7 @@ textarea {
 }
 
 select {
-  @apply h-9 cursor-pointer py-1 pe-8;
+  @apply h-9 cursor-pointer py-1 pe-8 hover:text-primary disabled:hover:text-muted-foreground;
 }
 
 textarea {
@@ -753,7 +753,7 @@ select optgroup {
   }
 
   .app-interactive-card {
-    @apply rounded-xl border border-border-subtle bg-surface-card transition-[background-color,border-color,transform,box-shadow] hover:border-border-interactive hover:bg-surface-field focus-within:border-ring;
+    @apply rounded-xl border border-border-subtle bg-surface-card transition-[background-color,border-color,color,transform,box-shadow] hover:border-border-interactive hover:bg-surface-field hover:text-primary focus-within:border-ring;
   }
 
   .app-filter-toolbar {
