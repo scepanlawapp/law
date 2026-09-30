@@ -11,7 +11,7 @@
     </button>
   </div>
 } @else if (client(); as item) {
-  <div class="space-y-6 text-sm">
+  <div class="app-detail-hierarchy space-y-6 text-sm">
     <nav aria-label="{{ 'clients.breadcrumb' | translate }}">
       <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
         <li>
@@ -53,7 +53,7 @@
       <dl class="grid gap-3 sm:grid-cols-3">
         <div>
           <dt class="font-medium">{{ "clients.email" | translate }}</dt>
-          <dd class="text-muted-foreground">
+          <dd>
             @if (item.email) {
               <a
                 class="underline-offset-4 hover:underline"
@@ -68,7 +68,7 @@
         </div>
         <div>
           <dt class="font-medium">{{ "clients.phone" | translate }}</dt>
-          <dd class="text-muted-foreground">
+          <dd>
             @if (item.phone) {
               <a
                 class="underline-offset-4 hover:underline"
@@ -83,8 +83,11 @@
         </div>
         <div>
           <dt class="font-medium">{{ "clients.responsible" | translate }}</dt>
-          <dd class="text-muted-foreground">
-            {{ item.responsibleUser?.displayName || ("common.notProvided" | translate) }}
+          <dd>
+            {{
+              item.responsibleUser?.displayName ||
+                ("common.notProvided" | translate)
+            }}
           </dd>
         </div>
       </dl>
@@ -259,7 +262,10 @@
                     {{ "clients.responsible" | translate }}
                   </dt>
                   <dd class="text-muted-foreground">
-                    {{ item.responsibleUser?.displayName || ("common.notProvided" | translate) }}
+                    {{
+                      item.responsibleUser?.displayName ||
+                        ("common.notProvided" | translate)
+                    }}
                   </dd>
                 </div>
                 <div class="sm:col-span-2">

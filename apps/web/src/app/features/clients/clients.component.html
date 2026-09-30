@@ -4,7 +4,7 @@
     {{ "clients.create" | translate }}
   </button>
 </div>
-<div class="filters">
+<div class="flex flex-wrap items-end gap-3">
   <div class="flex w-56 max-w-full flex-col gap-1">
     <label class="text-sm font-medium" for="client-search">
       {{ "clients.search" | translate }}
@@ -62,7 +62,7 @@
       </hlm-empty-content>
     </hlm-empty>
   } @else {
-    <div hlmTableContainer>
+    <div hlmTableContainer class="app-data-region">
       <table hlmTable>
         <thead hlmTHead>
           <tr hlmTr>
@@ -104,7 +104,7 @@
         </tbody>
       </table>
     </div>
-    <div class="flex flex-wrap items-center justify-between gap-3">
+    <div class="app-pagination">
       <p class="text-sm text-muted-foreground">
         {{ "clients.page" | translate: { page: page(), total: pageCount() } }}
       </p>

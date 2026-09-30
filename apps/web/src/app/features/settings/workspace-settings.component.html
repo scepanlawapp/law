@@ -93,7 +93,10 @@
               formControlName="dateTimeFormat"
               [itemToString]="dateTimeFormatItemToString"
             >
-              <hlm-select-trigger id="date-time-format-select" class="w-full">
+              <hlm-select-trigger
+                buttonId="date-time-format-select"
+                class="w-full"
+              >
                 <hlm-select-value />
               </hlm-select-trigger>
               <hlm-select-content *hlmSelectPortal>
@@ -115,7 +118,7 @@
               formControlName="timeZone"
               [itemToString]="timeZoneItemToString"
             >
-              <hlm-select-trigger id="time-zone-select" class="w-full">
+              <hlm-select-trigger buttonId="time-zone-select" class="w-full">
                 <hlm-select-value />
               </hlm-select-trigger>
               <hlm-select-content *hlmSelectPortal>

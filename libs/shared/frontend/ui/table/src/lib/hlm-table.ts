@@ -7,7 +7,10 @@ import { classes } from "@spartan-ng/helm/utils";
 })
 export class HlmTableContainer {
   constructor() {
-    classes(() => "relative w-full overflow-x-auto");
+    classes(
+      () =>
+        "border-border-subtle bg-surface-card relative w-full overflow-x-auto rounded-xl border",
+    );
   }
 }
 
@@ -34,7 +37,7 @@ export class HlmTable {
 })
 export class HlmTHead {
   constructor() {
-    classes(() => "[&_tr]:border-b");
+    classes(() => "bg-surface-section [&_tr]:border-b");
   }
 }
 
@@ -78,7 +81,7 @@ export class HlmTr {
   constructor() {
     classes(
       () =>
-        "hover:bg-muted/50 data-[state=selected]:bg-muted border-b transition-colors has-aria-expanded:bg-muted/50",
+        "border-border-subtle hover:bg-surface-row-hover data-[state=selected]:bg-surface-selected border-b transition-colors has-aria-expanded:bg-surface-row-hover",
     );
   }
 }
@@ -95,7 +98,7 @@ export class HlmTh {
   constructor() {
     classes(
       () =>
-        "text-foreground h-10 px-2 text-start align-middle font-medium whitespace-nowrap [&:has([role=checkbox])]:pe-0",
+        "text-foreground h-10 px-3 text-start align-middle font-semibold whitespace-nowrap [&:has([role=checkbox])]:pe-0",
     );
   }
 }
@@ -111,7 +114,8 @@ export class HlmTh {
 export class HlmTd {
   constructor() {
     classes(
-      () => "p-2 align-middle whitespace-nowrap [&:has([role=checkbox])]:pe-0",
+      () =>
+        "px-3 py-2.5 align-middle whitespace-nowrap [&:has([role=checkbox])]:pe-0",
     );
   }
 }

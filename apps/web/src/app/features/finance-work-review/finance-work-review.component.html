@@ -8,9 +8,7 @@
     </p>
   </header>
 
-  <section
-    class="space-y-5 rounded-xl border border-border bg-card p-5 shadow-sm"
-  >
+  <section class="app-section-surface space-y-5 p-5">
     <div class="grid gap-3 md:grid-cols-3">
       <div class="flex min-w-0 flex-col gap-1">
         <label class="font-medium" for="finance-client-filter">
@@ -172,7 +170,7 @@
         {{ "finance.noBillableWork" | translate }}
       </p>
     } @else {
-      <div hlmTableContainer>
+      <div hlmTableContainer class="app-data-region">
         <table hlmTable class="w-full min-w-[760px]">
           <thead hlmTHead>
             <tr hlmTr>

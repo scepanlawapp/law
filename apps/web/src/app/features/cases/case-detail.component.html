@@ -4,7 +4,7 @@
     <span>{{ "cases.loading" | translate }}</span>
   </div>
 } @else if (item(); as caseItem) {
-  <div class="space-y-6 text-sm">
+  <div class="app-detail-hierarchy space-y-6 text-sm">
     <nav aria-label="{{ 'cases.breadcrumb' | translate }}">
       <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
         <li>
@@ -19,9 +19,7 @@
       </ol>
     </nav>
 
-    <header
-      class="space-y-4 rounded-xl border border-border bg-card p-5 shadow-sm"
-    >
+    <header class="app-card-surface space-y-4 p-5">
       <div class="flex flex-wrap items-start justify-between gap-4">
         <div class="min-w-0 space-y-2">
           <h1 class="break-words text-2xl font-semibold tracking-tight">
@@ -182,38 +180,38 @@
     }
 
     <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "cases.detail.openWork" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">—</p>
+        <p class="app-stat-value">—</p>
         <p class="mt-1 text-xs text-muted-foreground">
           {{ "common.notAvailableYet" | translate }}
         </p>
         <!-- TODO(case-work-summary): Expose task/deadline/event summary from WorkView or add a case work-summary endpoint. -->
       </div>
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "cases.activities" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ activitiesTotal() }}</p>
+        <p class="app-stat-value">{{ activitiesTotal() }}</p>
       </div>
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "cases.responsibilities" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">
+        <p class="app-stat-value">
           {{ responsibilitiesTotal() }}
         </p>
       </div>
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "cases.documents" | translate }}
         </p>
-        <p class="mt-2 text-2xl font-semibold">{{ documentsTotal() }}</p>
+        <p class="app-stat-value">{{ documentsTotal() }}</p>
       </div>
-      <div class="rounded-xl border border-border bg-card p-4 shadow-sm">
-        <p class="text-muted-foreground text-xs uppercase tracking-wide">
+      <div class="app-stat-card">
+        <p class="app-stat-label uppercase tracking-wide">
           {{ "cases.detail.nextDeadline" | translate }}
         </p>
         <p class="mt-2 text-lg font-semibold">—</p>

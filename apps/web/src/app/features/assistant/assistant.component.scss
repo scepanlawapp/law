@@ -10,14 +10,14 @@
   height: 100%;
   min-height: 0;
   overflow: hidden;
-  background: var(--background);
+  background: var(--surface-page);
 }
 
 .desktop-conversations {
   min-height: 0;
   overflow: hidden;
-  background: var(--sidebar);
-  border-right: 1px solid var(--sidebar-border);
+  background: var(--surface-section);
+  border-right: 1px solid var(--border-subtle);
 }
 
 .conversation-navigation {
@@ -62,7 +62,7 @@
   margin: 0.25rem 0 0;
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   line-height: 1.35;
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
@@ -83,7 +83,7 @@
   margin: 1rem 0 0.375rem;
   padding: 0 0.5rem;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   font-weight: 700;
   line-height: 1rem;
   text-transform: uppercase;
@@ -106,7 +106,7 @@
 
 .conversation-item.is-selected {
   color: var(--accent-foreground);
-  background: var(--accent);
+  background: var(--surface-selected);
 }
 
 .conversation-item-icon {
@@ -131,7 +131,7 @@
 
 .conversation-item strong {
   overflow: hidden;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -140,7 +140,7 @@
 .conversation-item-copy small {
   overflow: hidden;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   line-height: 1rem;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -152,7 +152,7 @@
 
 .conversation-item time {
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   line-height: 1.25rem;
 }
 
@@ -160,7 +160,7 @@
 .conversation-loading {
   margin: 1rem 0;
   color: var(--muted-foreground);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   line-height: 1.4;
   text-align: center;
 }
@@ -194,8 +194,8 @@
   padding: 0.625rem 1rem;
   align-items: center;
   gap: 0.75rem;
-  background: var(--background);
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-section);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .assistant-header-copy {
@@ -207,7 +207,7 @@
 
 .assistant-header-copy span {
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   line-height: 1rem;
   text-transform: uppercase;
 }
@@ -306,8 +306,8 @@
 .message-content {
   max-width: min(82%, 42rem);
   padding: 0.75rem 0.875rem;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
   border-radius: 0.5rem;
   box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 6%, transparent);
 }
@@ -357,14 +357,14 @@
   padding: 0.125rem 0.25rem;
   background: var(--muted);
   border-radius: 0.25rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .message-content time {
   display: block;
   margin-top: 0.5rem;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   text-align: right;
 }
 
@@ -407,7 +407,7 @@
   align-items: center;
   gap: 0.375rem;
   color: var(--primary);
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
 }
 
@@ -419,7 +419,7 @@
 .message-attachments small {
   padding-left: 1.125rem;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
 }
 
 .message-attachments small[data-status="FAILED"],
@@ -441,7 +441,7 @@
 .message-sources h3 {
   margin: 0 0 0.375rem;
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
   font-weight: 700;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -504,8 +504,8 @@
   align-items: center;
   gap: 0.625rem;
   padding: 0.625rem 0.75rem;
-  background: var(--muted);
-  border: 1px solid var(--border);
+  background: var(--surface-section);
+  border: 1px solid var(--border-subtle);
   border-radius: 0.375rem;
   flex-wrap: wrap;
 }
@@ -535,12 +535,12 @@
 }
 
 .workflow-activity-copy strong {
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .workflow-activity-copy small {
   color: var(--muted-foreground);
-  font-size: 0.6875rem;
+  font-size: 0.875rem;
 }
 
 .workflow-elapsed {
@@ -582,22 +582,23 @@
   background: color-mix(in srgb, var(--destructive) 10%, var(--card));
   border: 1px solid color-mix(in srgb, var(--destructive) 35%, var(--border));
   border-radius: 0.375rem;
-  font-size: 0.8125rem;
+  font-size: 0.875rem;
 }
 
 .composer-footer {
   padding: 0 1rem 1rem;
-  background: linear-gradient(to bottom, transparent, var(--background) 1rem);
+  background: linear-gradient(to bottom, transparent, var(--surface-page) 1rem);
 }
 
 .composer {
   width: min(100%, 52rem);
   margin: 0 auto;
   padding: 0.5rem;
-  background: var(--card);
-  border: 1px solid var(--border);
+  background: var(--surface-field);
+  border: 1px solid var(--border-interactive);
   border-radius: 0.5rem;
-  box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--foreground) 8%, transparent);
+  box-shadow: 0 0.5rem 1.5rem
+    color-mix(in srgb, var(--foreground) 8%, transparent);
 }
 
 .composer:focus-within {
@@ -641,7 +642,7 @@
   background: var(--muted);
   border: 1px solid var(--border);
   border-radius: 0.375rem;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
 }
 
 .pending-file > span {
@@ -667,8 +668,8 @@
   display: flex;
   gap: 0.375rem;
   padding: 0.625rem 0.75rem;
-  background: var(--card);
-  border-bottom: 1px solid var(--border);
+  background: var(--surface-section);
+  border-bottom: 1px solid var(--border-subtle);
 }
 
 .assistant-rail-tabs button {
@@ -678,9 +679,9 @@
   padding: 0.25rem 0.625rem;
   overflow: hidden;
   color: var(--muted-foreground);
-  background: var(--muted);
+  background: var(--surface-field);
   border-radius: 0.375rem;
-  font-size: 0.75rem;
+  font-size: 0.875rem;
   font-weight: 600;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -688,7 +689,7 @@
 
 .assistant-rail-tabs button.selected {
   color: var(--foreground);
-  background: var(--card);
+  background: var(--surface-selected);
   box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 

@@ -1,0 +1,19 @@
+{
+  "created_at": "2026-09-30T00:00:00Z",
+  "keywords": [
+    "angular",
+    "spartan-ui",
+    "visual-hierarchy",
+    "themes",
+    "forms",
+    "filters",
+    "tables",
+    "accessibility"
+  ],
+  "parent_track_id": "theme_accent_system_20260914",
+  "priority": "high",
+  "status": "completed",
+  "track_id": "visual_hierarchy_refinement_20260930",
+  "type": "feature",
+  "updated_at": "2026-09-30T00:00:00Z"
+}

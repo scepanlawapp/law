@@ -4,9 +4,7 @@
   >
     <div class="filters flex">
       <div class="flex w-full justify-between gap-3">
-        <div
-          class="flex flex-wrap items-end gap-3 rounded-lg border border-border p-3"
-        >
+        <div class="app-filter-toolbar">
           <div class="flex w-48 max-w-full flex-col gap-1">
             <label class="text-sm font-medium" for="work-view-search">
               {{ "work.filters.search" | translate }}
@@ -113,7 +111,7 @@
                 (valueChange)="setCaseFilter($event ?? '')"
                 [itemToString]="caseItemToString"
               >
-                <hlm-select-trigger id="work-view-case" class="w-full">
+                <hlm-select-trigger buttonId="work-view-case" class="w-full">
                   <hlm-select-value />
                 </hlm-select-trigger>
                 <hlm-select-content *hlmSelectPortal width="content">
@@ -183,7 +181,7 @@
         <ul class="flex shrink-0 flex-col gap-2">
           @for (item of workItems(); track item.sourceType + item.id) {
             <li
-              class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-3"
+              class="app-section-surface flex flex-wrap items-center justify-between gap-3 p-3"
             >
               <button
                 type="button"
@@ -292,7 +290,7 @@
               (cdkDropListExited)="onColumnExited(column)"
               (cdkDropListDropped)="onBoardDrop($event)"
               [class.work-board-column-hover]="hoveredColumn() === column"
-              class="flex min-h-0 flex-col gap-2 rounded-lg border border-border bg-muted/30 p-2"
+              class="flex min-h-0 flex-col gap-2 rounded-xl border border-border-subtle bg-surface-section p-2"
             >
               <h3 class="px-1 text-sm font-semibold">
                 {{ "work.board." + column.toLowerCase() | translate }}
@@ -311,7 +309,7 @@
                     [cdkDragData]="item"
                     (cdkDragStarted)="onDragStarted(item)"
                     (cdkDragEnded)="onDragEnded()"
-                    class="work-board-card rounded-lg border border-border bg-card p-2 shadow-xs"
+                    class="work-board-card rounded-lg border border-border-subtle bg-surface-card p-3 transition-[background-color,border-color,transform,box-shadow] hover:border-border-interactive hover:bg-surface-field hover:shadow-sm"
                   >
                     <button
                       type="button"

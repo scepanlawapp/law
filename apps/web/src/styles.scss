@@ -35,6 +35,16 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
 
+  --color-surface-page: var(--surface-page);
+  --color-surface-section: var(--surface-section);
+  --color-surface-card: var(--surface-card);
+  --color-surface-field: var(--surface-field);
+  --color-surface-field-hover: var(--surface-field-hover);
+  --color-surface-row-hover: var(--surface-row-hover);
+  --color-surface-selected: var(--surface-selected);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-interactive: var(--border-interactive);
+
   --color-primary-highlight: var(--premium-highlight);
   --color-primary-shadow: var(--premium-shadow);
 
@@ -393,6 +403,28 @@ html[data-theme="ivory"][data-accent="ivory"] {
   --ring: #a69d8d;
 }
 
+/* Reusable hierarchy derived from the active theme rather than a second palette. */
+:root,
+html {
+  --surface-page: var(--background);
+  --surface-section: color-mix(in oklab, var(--card) 72%, var(--background));
+  --surface-card: var(--card);
+  --surface-field: color-mix(in oklab, var(--secondary) 72%, var(--card));
+  --surface-field-hover: color-mix(
+    in oklab,
+    var(--secondary) 78%,
+    var(--popover)
+  );
+  --surface-row-hover: color-mix(in oklab, var(--accent) 38%, var(--card));
+  --surface-selected: color-mix(in oklab, var(--accent) 62%, var(--card));
+  --border-subtle: color-mix(in oklab, var(--border) 72%, transparent);
+  --border-interactive: color-mix(
+    in oklab,
+    var(--border) 84%,
+    var(--foreground) 16%
+  );
+}
+
 /* Premium finish surfaces: SOLID (and any accent without a rule below) mirrors --primary exactly. */
 :root,
 html {
@@ -659,11 +691,11 @@ body {
 
 select,
 textarea {
-  @apply w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm;
+  @apply w-full rounded-lg border border-border-interactive bg-surface-field px-3 py-2 text-base text-foreground transition-colors outline-none placeholder:text-muted-foreground hover:bg-surface-field-hover focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40 disabled:cursor-not-allowed disabled:bg-muted disabled:text-muted-foreground disabled:opacity-70 md:text-sm;
 }
 
 select {
-  @apply h-8 cursor-pointer py-1 pe-8;
+  @apply h-9 cursor-pointer py-1 pe-8;
 }
 
 textarea {
@@ -712,6 +744,66 @@ select optgroup {
 
 /* Opt-in premium surface utilities; SOLID and unsupported accents fall back to a flat --primary. */
 @layer components {
+  .app-section-surface {
+    @apply rounded-xl border border-border-subtle bg-surface-section;
+  }
+
+  .app-card-surface {
+    @apply rounded-xl border border-border-subtle bg-surface-card;
+  }
+
+  .app-interactive-card {
+    @apply rounded-xl border border-border-subtle bg-surface-card transition-[background-color,border-color,transform,box-shadow] hover:border-border-interactive hover:bg-surface-field focus-within:border-ring;
+  }
+
+  .app-filter-toolbar {
+    @apply flex flex-wrap items-end gap-3 rounded-xl border border-border-subtle bg-surface-section p-3;
+  }
+
+  .app-filter-toolbar label {
+    @apply text-sm font-medium text-muted-foreground;
+  }
+
+  .app-filter-toolbar
+    :is(
+      [data-slot="input"],
+      [data-slot="input-group"],
+      [data-slot="select-trigger"],
+      [data-slot="combobox-trigger"],
+      select
+    ) {
+    min-height: 2.25rem;
+  }
+
+  .app-data-region {
+    @apply overflow-hidden rounded-xl border border-border-subtle bg-surface-card;
+  }
+
+  .app-empty-state {
+    @apply rounded-xl border border-dashed border-border-subtle bg-surface-section text-muted-foreground;
+  }
+
+  .app-stat-card {
+    @apply rounded-xl border border-border-subtle bg-surface-card p-4;
+  }
+
+  .app-stat-label,
+  .app-detail-label {
+    @apply text-sm font-medium text-muted-foreground;
+  }
+
+  .app-stat-value {
+    @apply mt-2 text-2xl font-semibold text-foreground;
+  }
+
+  .app-detail-value {
+    @apply mt-1 text-sm font-medium text-foreground;
+  }
+
+  .app-pagination {
+    @apply -mt-px flex flex-wrap items-center justify-between gap-3 rounded-b-xl border border-border-subtle bg-surface-section px-3 py-2;
+  }
+
   /* background-color is the flat fallback; background-image (invalid for plain colors) only paints when --primary-surface is a real gradient. */
   .premium-primary {
     background-color: var(--primary);
@@ -750,6 +842,20 @@ select optgroup {
     height: 1.5rem;
     display: inline-block;
   }
+}
+
+/* Detail values intentionally outrank legacy per-element muted utilities. */
+.app-detail-hierarchy dt {
+  color: var(--muted-foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.app-detail-hierarchy dd {
+  margin-top: 0.25rem;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  font-weight: 500;
 }
 
 @layer components {
