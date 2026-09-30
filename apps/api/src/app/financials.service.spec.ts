@@ -54,7 +54,10 @@ function statementLine() {
     lineOrder: 0,
     description: "Completed task",
     serviceDate: new Date("2026-09-23"),
-    amount: new Prisma.Decimal(100),
+    netAmount: new Prisma.Decimal(100),
+    vatRate: new Prisma.Decimal(20),
+    vatAmount: new Prisma.Decimal(20),
+    grossAmount: new Prisma.Decimal(120),
     currency: "RSD",
     status: "RESERVED",
     sourceType: "TASK",
@@ -72,8 +75,18 @@ function fullStatement() {
     clientId,
     client: client(),
     statementNumber: "ST-000001",
-    periodStart: new Date("2026-09-01"),
-    periodEnd: new Date("2026-09-30"),
+    dateOfCreate: new Date("2026-09-01"),
+    dateOfMaturity: new Date("2026-09-30"),
+    dateOfTurnover: new Date("2026-09-15"),
+    placeOfIssue: "Beograd",
+    methodOfPayment: "Prenos na račun",
+    comment: "",
+    netAmount: new Prisma.Decimal(100),
+    vatRate: new Prisma.Decimal(20),
+    vatAmount: new Prisma.Decimal(20),
+    grossAmount: new Prisma.Decimal(120),
+    numberOfCashBill: "",
+    country: "Srbija",
     currency: "RSD",
     status: "DRAFT",
     lines: [statementLine()],
@@ -240,14 +253,27 @@ describe("FinancialsService", () => {
       () =>
         service.createStatement({
           clientId,
-          periodStart: "2026-09-01",
-          periodEnd: "2026-09-30",
+          dateOfCreate: "2026-09-01",
+          dateOfMaturity: "2026-09-30",
+          dateOfTurnover: "2026-09-15",
+          placeOfIssue: "Beograd",
+          methodOfPayment: "Prenos na račun",
+          comment: "",
+          netAmount: 100,
+          vatRate: 20,
+          vatAmount: 20,
+          grossAmount: 120,
+          numberOfCashBill: "",
+          country: "Srbija",
           currency: "RSD",
           lines: [
             {
               serviceDate: "2026-09-23",
               description: "Completed task",
-              amount: 100,
+              netAmount: 100,
+              vatRate: 20,
+              vatAmount: 20,
+              grossAmount: 120,
               currency: "RSD",
               sourceType: "TASK",
               sourceId: taskId,
@@ -256,11 +282,29 @@ describe("FinancialsService", () => {
         }),
     );
 
+    expect(db.billingStatement.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        dateOfCreate: new Date("2026-09-01"),
+        dateOfMaturity: new Date("2026-09-30"),
+        dateOfTurnover: new Date("2026-09-15"),
+        placeOfIssue: "Beograd",
+        methodOfPayment: "Prenos na račun",
+        netAmount: 100,
+        vatRate: 20,
+        vatAmount: 20,
+        grossAmount: 120,
+        country: "Srbija",
+      }),
+    });
     expect(db.billingStatementLine.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         statementId,
         clientId,
         performedByUserId: userId,
+        netAmount: 100,
+        vatRate: 20,
+        vatAmount: 20,
+        grossAmount: 120,
         status: "RESERVED",
         sourceType: "TASK",
         sourceId: taskId,
@@ -287,14 +331,27 @@ describe("FinancialsService", () => {
         () =>
           service.createStatement({
             clientId,
-            periodStart: "2026-09-01",
-            periodEnd: "2026-09-30",
+            dateOfCreate: "2026-09-01",
+            dateOfMaturity: "2026-09-30",
+            dateOfTurnover: "2026-09-15",
+            placeOfIssue: "Beograd",
+            methodOfPayment: "Prenos na račun",
+            comment: "",
+            netAmount: 100,
+            vatRate: 20,
+            vatAmount: 20,
+            grossAmount: 120,
+            numberOfCashBill: "",
+            country: "Srbija",
             currency: "RSD",
             lines: [
               {
                 serviceDate: "2026-09-23",
                 description: "Task",
-                amount: 100,
+                netAmount: 100,
+                vatRate: 20,
+                vatAmount: 20,
+                grossAmount: 120,
                 currency: "RSD",
                 sourceType: "TASK",
                 sourceId: taskId,
@@ -304,6 +361,48 @@ describe("FinancialsService", () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(db.task.update).not.toHaveBeenCalled();
+  });
+
+  it("updates invoice dates, metadata, and totals on a draft statement", async () => {
+    db.billingStatement.findFirst.mockResolvedValue(fullStatement());
+    db.billingStatement.update.mockResolvedValue(fullStatement());
+
+    await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.ADMIN },
+      () =>
+        service.updateStatement(statementId, {
+          dateOfCreate: "2026-09-02",
+          dateOfMaturity: "2026-10-02",
+          dateOfTurnover: "2026-09-16",
+          placeOfIssue: "Novi Sad",
+          methodOfPayment: "Gotovina",
+          comment: "Izmenjen komentar",
+          netAmount: 200,
+          vatRate: 10,
+          vatAmount: 20,
+          grossAmount: 220,
+          numberOfCashBill: "GR-42",
+          country: "Srbija",
+        }),
+    );
+
+    expect(db.billingStatement.update).toHaveBeenCalledWith({
+      where: { id: statementId },
+      data: expect.objectContaining({
+        dateOfCreate: new Date("2026-09-02"),
+        dateOfMaturity: new Date("2026-10-02"),
+        dateOfTurnover: new Date("2026-09-16"),
+        placeOfIssue: "Novi Sad",
+        methodOfPayment: "Gotovina",
+        comment: "Izmenjen komentar",
+        netAmount: 200,
+        vatRate: 10,
+        vatAmount: 20,
+        grossAmount: 220,
+        numberOfCashBill: "GR-42",
+        country: "Srbija",
+      }),
+    });
   });
 
   it("deletes a draft statement and relies on database cascades to release sources", async () => {

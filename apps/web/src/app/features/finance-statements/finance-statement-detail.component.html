@@ -52,12 +52,9 @@
         </div>
         <div>
           <dt class="text-muted-foreground">
-            {{ "finance.period" | translate }}
+            {{ "finance.dateOfCreate" | translate }}
           </dt>
-          <dd class="font-medium">
-            {{ formatDate(item.periodStart) }} –
-            {{ formatDate(item.periodEnd) }}
-          </dd>
+          <dd class="font-medium">{{ formatDate(item.dateOfCreate) }}</dd>
         </div>
         <div>
           <dt class="text-muted-foreground">
@@ -65,7 +62,79 @@
           </dt>
           <dd class="font-medium">{{ item.currency }}</dd>
         </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.dateOfMaturity" | translate }}
+          </dt>
+          <dd class="font-medium">{{ formatDate(item.dateOfMaturity) }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.dateOfTurnover" | translate }}
+          </dt>
+          <dd class="font-medium">{{ formatDate(item.dateOfTurnover) }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.placeOfIssue" | translate }}
+          </dt>
+          <dd class="font-medium">{{ item.placeOfIssue || "—" }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.methodOfPayment" | translate }}
+          </dt>
+          <dd class="font-medium">{{ item.methodOfPayment || "—" }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.numberOfCashBill" | translate }}
+          </dt>
+          <dd class="font-medium">{{ item.numberOfCashBill || "—" }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.country" | translate }}
+          </dt>
+          <dd class="font-medium">{{ item.country || "—" }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.netAmount" | translate }}
+          </dt>
+          <dd class="font-medium">
+            {{ formatCurrency(item.netAmount, item.currency) }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.vatRate" | translate }}
+          </dt>
+          <dd class="font-medium">{{ formatAmount(item.vatRate) }}%</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.vatAmount" | translate }}
+          </dt>
+          <dd class="font-medium">
+            {{ formatCurrency(item.vatAmount, item.currency) }}
+          </dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.grossAmount" | translate }}
+          </dt>
+          <dd class="font-medium">
+            {{ formatCurrency(item.grossAmount, item.currency) }}
+          </dd>
+        </div>
       </dl>
+      <div>
+        <h3 class="text-muted-foreground">
+          {{ "finance.comment" | translate }}
+        </h3>
+        <p class="whitespace-pre-wrap font-medium">{{ item.comment || "—" }}</p>
+      </div>
     </section>
 
     <section class="space-y-3">
@@ -75,7 +144,7 @@
 
       @if (item.lines.length) {
         <div hlmTableContainer class="rounded-lg border border-border">
-          <table hlmTable class="w-full min-w-[720px]">
+          <table hlmTable class="w-full min-w-[1040px]">
             <thead hlmTHead>
               <tr hlmTr>
                 <th hlmTh class="w-24">
@@ -86,7 +155,16 @@
                 </th>
                 <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
                 <th hlmTh class="w-36 text-right">
-                  {{ "finance.amount" | translate }}
+                  {{ "finance.lineNetAmount" | translate }}
+                </th>
+                <th hlmTh class="w-28 text-right">
+                  {{ "finance.vatRate" | translate }}
+                </th>
+                <th hlmTh class="w-36 text-right">
+                  {{ "finance.vatAmount" | translate }}
+                </th>
+                <th hlmTh class="w-36 text-right">
+                  {{ "finance.grossAmount" | translate }}
                 </th>
                 <th hlmTh class="w-24">
                   {{ "finance.currency" | translate }}
@@ -106,7 +184,16 @@
                   <td hlmTd>{{ formatDate(line.serviceDate) }}</td>
                   <td hlmTd>{{ line.description }}</td>
                   <td hlmTd class="text-right tabular-nums">
-                    {{ formatAmount(line.amount) }}
+                    {{ formatAmount(line.netAmount) }}
+                  </td>
+                  <td hlmTd class="text-right tabular-nums">
+                    {{ formatAmount(line.vatRate) }}%
+                  </td>
+                  <td hlmTd class="text-right tabular-nums">
+                    {{ formatAmount(line.vatAmount) }}
+                  </td>
+                  <td hlmTd class="text-right tabular-nums">
+                    {{ formatAmount(line.grossAmount) }}
                   </td>
                   <td hlmTd>{{ line.currency }}</td>
                 </tr>
@@ -117,7 +204,7 @@
         <div
           class="flex justify-end border-b border-border pb-3 font-semibold tabular-nums"
         >
-          {{ "finance.total" | translate }}:
+          {{ "finance.grossTotal" | translate }}:
           {{ formatCurrency(item.total, item.currency) }}
         </div>
       } @else {

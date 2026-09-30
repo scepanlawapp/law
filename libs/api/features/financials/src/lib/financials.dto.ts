@@ -11,6 +11,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   Min,
   MinLength,
   ValidateNested,
@@ -85,7 +86,23 @@ export class BillingStatementLineInputDto {
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
   @Min(0.01)
-  amount!: number;
+  netAmount!: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  vatRate!: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  vatAmount!: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  grossAmount!: number;
 
   @IsString()
   @Length(3, 3)
@@ -164,10 +181,49 @@ export class CreateStatementDto {
   clientId!: string;
 
   @IsDateString()
-  periodStart!: string;
+  dateOfCreate!: string;
 
   @IsDateString()
-  periodEnd!: string;
+  dateOfMaturity!: string;
+
+  @IsDateString()
+  dateOfTurnover!: string;
+
+  @IsString()
+  placeOfIssue!: string;
+
+  @IsString()
+  methodOfPayment!: string;
+
+  @IsString()
+  comment!: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  netAmount!: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  vatRate!: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  vatAmount!: number;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  grossAmount!: number;
+
+  @IsString()
+  numberOfCashBill!: string;
+
+  @IsString()
+  country!: string;
 
   @IsString()
   currency!: string;
@@ -186,11 +242,60 @@ export class CreateStatementDto {
 export class UpdateStatementDto {
   @IsOptional()
   @IsDateString()
-  periodStart?: string;
+  dateOfCreate?: string;
 
   @IsOptional()
   @IsDateString()
-  periodEnd?: string;
+  dateOfMaturity?: string;
+
+  @IsOptional()
+  @IsDateString()
+  dateOfTurnover?: string;
+
+  @IsOptional()
+  @IsString()
+  placeOfIssue?: string;
+
+  @IsOptional()
+  @IsString()
+  methodOfPayment?: string;
+
+  @IsOptional()
+  @IsString()
+  comment?: string;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  netAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  @Max(100)
+  vatRate?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  vatAmount?: number;
+
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  grossAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  numberOfCashBill?: string;
+
+  @IsOptional()
+  @IsString()
+  country?: string;
 
   @IsOptional()
   @IsArray()

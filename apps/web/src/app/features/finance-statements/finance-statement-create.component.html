@@ -1,4 +1,4 @@
-<div class="mx-auto w-full max-w-6xl space-y-4 text-sm">
+<div class="mx-auto w-full space-y-4 text-sm">
   <nav [attr.aria-label]="'finance.breadcrumb' | translate">
     <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
       <li>
@@ -80,7 +80,7 @@
       }
 
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
-        <div hlmField class="xl:col-span-5">
+        <div hlmField class="xl:col-span-4">
           <div class="flex items-center justify-between gap-2">
             <label hlmFieldLabel for="statement-client">
               {{ "finance.client" | translate }}
@@ -120,37 +120,52 @@
             {{ "finance.required" | translate }}
           </hlm-field-error>
         </div>
-        <div hlmField class="xl:col-span-3">
-          <label hlmFieldLabel for="statement-period-start">
-            {{ "finance.periodStart" | translate }}
+        <div hlmField class="xl:col-span-2">
+          <label hlmFieldLabel for="statement-date-of-create">
+            {{ "finance.dateOfCreate" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-period-start"
+            id="statement-date-of-create"
             type="date"
-            formControlName="periodStart"
+            formControlName="dateOfCreate"
             required
           />
           <hlm-field-error validator="required">
             {{ "finance.required" | translate }}
           </hlm-field-error>
         </div>
-        <div hlmField class="xl:col-span-3">
-          <label hlmFieldLabel for="statement-period-end">
-            {{ "finance.periodEnd" | translate }}
+        <div hlmField class="xl:col-span-2">
+          <label hlmFieldLabel for="statement-date-of-maturity">
+            {{ "finance.dateOfMaturity" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-period-end"
+            id="statement-date-of-maturity"
             type="date"
-            formControlName="periodEnd"
+            formControlName="dateOfMaturity"
             required
           />
           <hlm-field-error validator="required">
             {{ "finance.required" | translate }}
           </hlm-field-error>
         </div>
-        <div hlmField class="xl:col-span-1">
+        <div hlmField class="xl:col-span-2">
+          <label hlmFieldLabel for="statement-date-of-turnover">
+            {{ "finance.dateOfTurnover" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-date-of-turnover"
+            type="date"
+            formControlName="dateOfTurnover"
+            required
+          />
+          <hlm-field-error validator="required">
+            {{ "finance.required" | translate }}
+          </hlm-field-error>
+        </div>
+        <div hlmField class="xl:col-span-2">
           <label hlmFieldLabel for="statement-currency">
             {{ "finance.currency" | translate }}
           </label>
@@ -178,6 +193,121 @@
             {{ "finance.required" | translate }}
           </hlm-field-error>
         </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div hlmField>
+          <label hlmFieldLabel for="statement-place-of-issue">
+            {{ "finance.placeOfIssue" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-place-of-issue"
+            formControlName="placeOfIssue"
+          />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-method-of-payment">
+            {{ "finance.methodOfPayment" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-method-of-payment"
+            formControlName="methodOfPayment"
+          />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-number-of-cash-bill">
+            {{ "finance.numberOfCashBill" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-number-of-cash-bill"
+            formControlName="numberOfCashBill"
+          />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-country">
+            {{ "finance.country" | translate }}
+          </label>
+          <input hlmInput id="statement-country" formControlName="country" />
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <div hlmField>
+          <label hlmFieldLabel for="statement-net-amount">
+            {{ "finance.netAmount" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-net-amount"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            formControlName="netAmount"
+            required
+          />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-vat-rate">
+            {{ "finance.vatRate" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-vat-rate"
+            type="number"
+            min="0"
+            max="100"
+            step="0.01"
+            inputmode="decimal"
+            formControlName="vatRate"
+            required
+          />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-vat-amount">
+            {{ "finance.vatAmount" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-vat-amount"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            formControlName="vatAmount"
+            required
+          />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="statement-gross-amount">
+            {{ "finance.grossAmount" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="statement-gross-amount"
+            type="number"
+            min="0"
+            step="0.01"
+            inputmode="decimal"
+            formControlName="grossAmount"
+            required
+          />
+        </div>
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="statement-comment">
+          {{ "finance.comment" | translate }}
+        </label>
+        <textarea
+          hlmTextarea
+          id="statement-comment"
+          formControlName="comment"
+          rows="3"
+        ></textarea>
       </div>
     </section>
 
@@ -226,7 +356,7 @@
 
       @if (form.controls.lines.length) {
         <div hlmTableContainer class="app-data-region">
-          <table hlmTable class="w-full min-w-[760px]">
+          <table hlmTable class="w-full min-w-[1180px]">
             <thead hlmTHead>
               <tr hlmTr>
                 <th hlmTh class="w-24">
@@ -237,7 +367,16 @@
                 </th>
                 <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
                 <th hlmTh class="w-36">
-                  {{ "finance.amount" | translate }}
+                  {{ "finance.lineNetAmount" | translate }}
+                </th>
+                <th hlmTh class="w-28">
+                  {{ "finance.vatRate" | translate }}
+                </th>
+                <th hlmTh class="w-36">
+                  {{ "finance.vatAmount" | translate }}
+                </th>
+                <th hlmTh class="w-36">
+                  {{ "finance.grossAmount" | translate }}
                 </th>
                 <th hlmTh class="w-28">
                   {{ "finance.currency" | translate }}
@@ -293,7 +432,44 @@
                       min="0.01"
                       step="0.01"
                       inputmode="decimal"
-                      formControlName="amount"
+                      formControlName="netAmount"
+                      class="w-32 text-right tabular-nums"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      type="number"
+                      min="0"
+                      max="100"
+                      step="0.01"
+                      inputmode="decimal"
+                      formControlName="vatRate"
+                      class="w-24 text-right tabular-nums"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputmode="decimal"
+                      formControlName="vatAmount"
+                      class="w-32 text-right tabular-nums"
+                      required
+                    />
+                  </td>
+                  <td hlmTd>
+                    <input
+                      hlmInput
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      inputmode="decimal"
+                      formControlName="grossAmount"
                       class="w-32 text-right tabular-nums"
                       required
                     />
@@ -348,7 +524,7 @@
         <div
           class="flex justify-end border-t border-border-subtle bg-surface-section px-3 pt-3 text-base font-semibold tabular-nums"
         >
-          {{ "finance.total" | translate }}:
+          {{ "finance.grossTotal" | translate }}:
           {{
             formatCurrency(total(), form.controls.currency.value.toUpperCase())
           }}

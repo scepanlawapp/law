@@ -1017,8 +1017,18 @@ export interface BillingStatement {
   workspaceId: string;
   clientId: string;
   statementNumber: string;
-  periodStart: string;
-  periodEnd: string;
+  dateOfCreate: string;
+  dateOfMaturity: string;
+  dateOfTurnover: string;
+  placeOfIssue: string;
+  methodOfPayment: string;
+  comment: string;
+  netAmount: string;
+  vatRate: string;
+  vatAmount: string;
+  grossAmount: string;
+  numberOfCashBill: string;
+  country: string;
   currency: string;
   status: BillingStatementStatus;
   sharedAt: string | null;
@@ -1061,7 +1071,10 @@ export interface BillingStatementLineSummary {
   lineOrder: number | null;
   description: string;
   serviceDate: string;
-  amount: string;
+  netAmount: string;
+  vatRate: string;
+  vatAmount: string;
+  grossAmount: string;
   currency: string;
   status: BillingStatementLineStatus;
   sourceType: BillableWorkSourceType | null;
@@ -1075,8 +1088,8 @@ export interface BillingStatementSummary {
   id: string;
   statementNumber: string;
   client: FinancialClientReference;
-  periodStart: string;
-  periodEnd: string;
+  dateOfCreate: string;
+  dateOfMaturity: string;
   currency: string;
   status: BillingStatementStatus;
   total: string;
@@ -1085,23 +1098,46 @@ export interface BillingStatementSummary {
 
 export interface CreateBillingStatementRequest {
   clientId: string;
-  periodStart: string;
-  periodEnd: string;
+  dateOfCreate: string;
+  dateOfMaturity: string;
+  dateOfTurnover: string;
+  placeOfIssue: string;
+  methodOfPayment: string;
+  comment: string;
+  netAmount: number;
+  vatRate: number;
+  vatAmount: number;
+  grossAmount: number;
+  numberOfCashBill: string;
+  country: string;
   currency: string;
   lines: BillingStatementLineInput[];
   idempotencyKey?: string;
 }
 
 export interface UpdateBillingStatementRequest {
-  periodStart?: string;
-  periodEnd?: string;
+  dateOfCreate?: string;
+  dateOfMaturity?: string;
+  dateOfTurnover?: string;
+  placeOfIssue?: string;
+  methodOfPayment?: string;
+  comment?: string;
+  netAmount?: number;
+  vatRate?: number;
+  vatAmount?: number;
+  grossAmount?: number;
+  numberOfCashBill?: string;
+  country?: string;
   lines?: BillingStatementLineInput[];
 }
 
 export interface BillingStatementLineInput {
   serviceDate: string;
   description: string;
-  amount: number;
+  netAmount: number;
+  vatRate: number;
+  vatAmount: number;
+  grossAmount: number;
   currency: string;
   sourceType?: BillableWorkSourceType;
   sourceId?: string;
