@@ -1,0 +1,282 @@
+<div class="print-page">
+  <header
+    class="print-toolbar"
+    [attr.aria-label]="'finance.printControls' | translate"
+  >
+    <a
+      hlmBtn
+      variant="outline"
+      [routerLink]="['/finance/statements', statementId]"
+    >
+      {{ "finance.backToStatement" | translate }}
+    </a>
+    <button hlmBtn type="button" (click)="print()">
+      {{ "finance.printNow" | translate }}
+    </button>
+  </header>
+
+  @if (loading()) {
+    <div class="print-state" role="status">
+      <hlm-spinner />
+      <span>{{ "finance.loadingStatement" | translate }}</span>
+    </div>
+  } @else if (error()) {
+    <div class="print-state" role="alert">
+      <p>{{ "finance.statementLoadError" | translate }}</p>
+      <button hlmBtn type="button" variant="outline" (click)="load()">
+        {{ "finance.retry" | translate }}
+      </button>
+    </div>
+  } @else if (statement(); as item) {
+    <main class="paper-wrap">
+      <article
+        class="invoice-paper"
+        [attr.aria-label]="'finance.invoice' | translate"
+      >
+        <header class="invoice-header">
+          <div class="brand">
+            <span class="brand-mark" aria-hidden="true">L</span>
+            <div>
+              <p class="brand-name">LEGAL AI</p>
+              <p class="brand-tagline">
+                {{ "finance.brandTagline" | translate }}
+              </p>
+            </div>
+          </div>
+          <address class="issuer-address">
+            <strong>{{ issuer.name }}</strong>
+            <span>{{ issuer.address }}</span>
+            <span>
+              {{ "finance.taxNumber" | translate }}: {{ issuer.taxNumber }}
+              <b aria-hidden="true">|</b>
+              {{ "finance.registrationNumber" | translate }}:
+              {{ issuer.registrationNumber }}
+            </span>
+            <span>
+              {{ "finance.bankAccount" | translate }}: {{ issuer.bankAccount }}
+            </span>
+            <span>
+              {{ issuer.email }}
+              <b aria-hidden="true">|</b>
+              {{ issuer.phone }}
+            </span>
+            <span>{{ issuer.website }}</span>
+          </address>
+        </header>
+
+        <section class="invoice-hero">
+          <div>
+            <h1>{{ "finance.invoice" | translate }}</h1>
+            <p>{{ item.statementNumber }}</p>
+          </div>
+          <dl class="date-panel">
+            <div>
+              <dt>{{ "finance.dateOfCreate" | translate }}:</dt>
+              <dd>{{ formatDate(item.dateOfCreate) }}</dd>
+            </div>
+            <div>
+              <dt>{{ "finance.dateOfTurnover" | translate }}:</dt>
+              <dd>{{ formatDate(item.dateOfTurnover) }}</dd>
+            </div>
+            <div>
+              <dt>{{ "finance.dateOfMaturity" | translate }}:</dt>
+              <dd>{{ formatDate(item.dateOfMaturity) }}</dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="info-grid">
+          <div class="info-card">
+            <h2>{{ "finance.clientData" | translate }}</h2>
+            <p class="info-name">{{ item.client.displayName }}</p>
+            <p>{{ clientAddress(primaryAddress()) }}</p>
+            @if (client(); as clientItem) {
+              <p>
+                {{ "finance.taxNumber" | translate }}:
+                {{ clientItem.taxNumber || "—" }}
+              </p>
+              <p>
+                {{ "finance.registrationNumber" | translate }}:
+                {{ clientItem.registrationNumber || "—" }}
+              </p>
+            }
+          </div>
+          <div class="info-card">
+            <h2>{{ "finance.invoiceData" | translate }}</h2>
+            <dl class="info-list">
+              <div>
+                <dt>{{ "finance.currency" | translate }}:</dt>
+                <dd>{{ item.currency }}</dd>
+              </div>
+              <div>
+                <dt>{{ "finance.methodOfPayment" | translate }}:</dt>
+                <dd>{{ item.methodOfPayment || "—" }}</dd>
+              </div>
+              <div>
+                <dt>{{ "finance.numberOfCashBill" | translate }}:</dt>
+                <dd>{{ item.numberOfCashBill || "—" }}</dd>
+              </div>
+              <div>
+                <dt>{{ "finance.placeOfIssue" | translate }}:</dt>
+                <dd>{{ item.placeOfIssue || "—" }}</dd>
+              </div>
+              <div>
+                <dt>{{ "finance.country" | translate }}:</dt>
+                <dd>{{ item.country || "—" }}</dd>
+              </div>
+              @if (item.externalInvoiceNumber) {
+                <div>
+                  <dt>{{ "finance.invoiceNumber" | translate }}:</dt>
+                  <dd>{{ item.externalInvoiceNumber }}</dd>
+                </div>
+              }
+              @if (item.externalReference) {
+                <div>
+                  <dt>{{ "finance.externalReference" | translate }}:</dt>
+                  <dd>{{ item.externalReference }}</dd>
+                </div>
+              }
+            </dl>
+          </div>
+        </section>
+
+        <div class="line-table-wrap">
+          <table class="line-table">
+            <thead>
+              <tr>
+                <th>{{ "finance.ordinalNumber" | translate }}</th>
+                <th>{{ "finance.lineDescription" | translate }}</th>
+                <th>{{ "finance.serviceDate" | translate }}</th>
+                <th class="number">{{ "finance.quantity" | translate }}</th>
+                <th class="number">{{ "finance.unitPrice" | translate }}</th>
+                <th class="number">
+                  {{ "finance.lineNetAmount" | translate }}
+                </th>
+                <th class="number">{{ "finance.vatRate" | translate }}</th>
+                <th class="number">{{ "finance.vatAmount" | translate }}</th>
+                <th class="number">{{ "finance.total" | translate }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of item.lines; track line.id; let row = $index) {
+                <tr>
+                  <td>{{ row + 1 }}</td>
+                  <td>{{ line.description }}</td>
+                  <td>{{ formatDate(line.serviceDate) }}</td>
+                  <td class="number">{{ lineQuantity() }}</td>
+                  <td class="number">{{ formatAmount(line.netAmount) }}</td>
+                  <td class="number">{{ formatAmount(line.netAmount) }}</td>
+                  <td class="number">{{ formatAmount(line.vatRate) }}%</td>
+                  <td class="number">{{ formatAmount(line.vatAmount) }}</td>
+                  <td class="number">{{ formatAmount(line.grossAmount) }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="9">{{ "finance.noLines" | translate }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <section class="summary-grid">
+          <div class="comment-card">
+            <h2>{{ "finance.note" | translate }}</h2>
+            <p>{{ item.comment || "—" }}</p>
+          </div>
+          <div class="total-card">
+            <dl>
+              <div>
+                <dt>{{ "finance.netAmount" | translate }}:</dt>
+                <dd>{{ formatCurrency(item.netAmount, item.currency) }}</dd>
+              </div>
+              <div>
+                <dt>{{ "finance.vatRate" | translate }}:</dt>
+                <dd>{{ formatAmount(item.vatRate) }}%</dd>
+              </div>
+              <div>
+                <dt>{{ "finance.vatAmount" | translate }}:</dt>
+                <dd>{{ formatCurrency(item.vatAmount, item.currency) }}</dd>
+              </div>
+            </dl>
+            <div class="grand-total">
+              <strong>{{ "finance.totalDue" | translate }}:</strong>
+              <strong>
+                {{ formatCurrency(item.grossAmount, item.currency) }}
+              </strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="payment-card">
+          <h2>{{ "finance.paymentInstructions" | translate }}</h2>
+          <dl>
+            <div>
+              <dt>{{ "finance.recipientName" | translate }}:</dt>
+              <dd>{{ issuer.name }}</dd>
+            </div>
+            <div>
+              <dt>{{ "finance.bankAccount" | translate }}:</dt>
+              <dd>{{ issuer.bankAccount }}</dd>
+            </div>
+            <div>
+              <dt>{{ "finance.bank" | translate }}:</dt>
+              <dd>{{ issuer.bankName }}</dd>
+            </div>
+            <div>
+              <dt>{{ "finance.paymentReference" | translate }}:</dt>
+              <dd>{{ item.statementNumber }}</dd>
+            </div>
+            <div>
+              <dt>{{ "finance.paymentPurpose" | translate }}:</dt>
+              <dd>
+                {{
+                  "finance.invoicePaymentPurpose"
+                    | translate: { number: item.statementNumber }
+                }}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <section class="closing-row">
+          <p>
+            {{ item.placeOfIssue || issuer.address }},
+            {{ formatDate(item.dateOfCreate) }}
+          </p>
+          <div
+            class="signature-block"
+            [attr.aria-label]="'finance.signatureLine' | translate"
+          >
+            <span></span>
+            <small>{{ "finance.stamp" | translate }}</small>
+          </div>
+        </section>
+
+        <footer class="invoice-footer">
+          <div>
+            <strong>{{ issuer.name }}</strong>
+            <span>{{ issuer.address }}</span>
+            <span>
+              {{ "finance.taxNumber" | translate }}: {{ issuer.taxNumber }}
+              <b aria-hidden="true">|</b>
+              {{ "finance.registrationNumber" | translate }}:
+              {{ issuer.registrationNumber }}
+            </span>
+          </div>
+          <div>
+            <span>
+              {{ issuer.website }}
+              <b aria-hidden="true">|</b>
+              {{ issuer.email }}
+            </span>
+            <span>{{ issuer.phone }}</span>
+            <span>
+              {{ "finance.pageOf" | translate: { page: 1, total: 1 } }}
+            </span>
+          </div>
+        </footer>
+      </article>
+    </main>
+  }
+</div>

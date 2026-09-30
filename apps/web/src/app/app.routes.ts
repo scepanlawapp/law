@@ -48,6 +48,14 @@ export const appRoutes: Route[] = [
   },
   { path: "accept-invitation", component: AcceptInvitationComponent },
   {
+    path: "finance/statements/:id/print",
+    canActivate: [authGuard],
+    loadComponent: () =>
+      import("./features/finance-statements/invoice-print-view.component").then(
+        (module) => module.InvoicePrintViewComponent,
+      ),
+  },
+  {
     path: "",
     canActivate: [authGuard],
     loadComponent: () => MainLayoutComponent,
