@@ -378,7 +378,8 @@ export class FinanceStatementCreateComponent {
           idempotencyKey: this.statementIdempotencyKey,
         });
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => void this.router.navigate(["/finance/statements"]),
+      next: (statement) =>
+        void this.router.navigate(["/finance/statements", statement.id]),
       error: () => {
         this.saving.set(false);
         this.saveError.set("finance.saveError");

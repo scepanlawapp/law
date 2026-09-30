@@ -79,19 +79,14 @@
         </div>
       }
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-12">
+      <div class="flex items-end gap-3 md:grid-cols-2 xl:grid-cols-12">
         <div hlmField class="xl:col-span-4">
           <div class="flex items-center justify-between gap-2">
             <label hlmFieldLabel for="statement-client">
               {{ "finance.client" | translate }}
             </label>
             @if (!isEditMode) {
-              <button
-                hlmBtn
-                type="button"
-                variant="ghost"
-                (click)="openClientDialog()"
-              >
+              <button hlmBtn type="button" (click)="openClientDialog()">
                 + {{ "clients.create" | translate }}
               </button>
             }
@@ -254,7 +249,8 @@
               @if (!selectedClient()) {
                 <span
                   id="statement-import-helper"
-                  class="max-w-32 text-right text-sm leading-tight text-muted-foreground"
+                  role="status"
+                  class="inline-flex max-w-40 items-center rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-left text-sm font-medium leading-tight text-warning"
                 >
                   {{ "finance.selectClientFirst" | translate }}
                 </span>
@@ -280,8 +276,8 @@
             <button
               hlmBtn
               type="button"
-              [disabled]="saving()"
               (click)="addManualLine()"
+              [disabled]="!selectedClient() || saving()"
             >
               {{ "finance.addManualLine" | translate }}
             </button>

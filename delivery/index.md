@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Billing Statement Print View](./tracks/billing_statement_print_view_20260930/index.md)
+- [Statement Import Warning](./tracks/statement_import_warning_20260930/index.md)
 - [Billing Statement Reactive Totals](./tracks/billing_statement_reactive_totals_20260930/index.md)
 - [Visual Hierarchy Refinement](./tracks/visual_hierarchy_refinement_20260930/index.md)
 - [Case Detail Filters and Pagination](./tracks/case_detail_filters_pagination_20260930/index.md)
