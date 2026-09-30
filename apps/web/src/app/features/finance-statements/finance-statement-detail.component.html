@@ -1,4 +1,4 @@
-<div class="mx-auto w-full max-w-6xl space-y-4 text-sm">
+<div class="mx-auto w-full space-y-4 text-sm">
   <nav [attr.aria-label]="'finance.breadcrumb' | translate">
     <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
       <li>
@@ -98,46 +98,10 @@
           </dt>
           <dd class="font-medium">{{ item.country || "—" }}</dd>
         </div>
-        <div>
-          <dt class="text-muted-foreground">
-            {{ "finance.netAmount" | translate }}
-          </dt>
-          <dd class="font-medium">
-            {{ formatCurrency(item.netAmount, item.currency) }}
-          </dd>
-        </div>
-        <div>
-          <dt class="text-muted-foreground">
-            {{ "finance.vatRate" | translate }}
-          </dt>
-          <dd class="font-medium">{{ formatAmount(item.vatRate) }}%</dd>
-        </div>
-        <div>
-          <dt class="text-muted-foreground">
-            {{ "finance.vatAmount" | translate }}
-          </dt>
-          <dd class="font-medium">
-            {{ formatCurrency(item.vatAmount, item.currency) }}
-          </dd>
-        </div>
-        <div>
-          <dt class="text-muted-foreground">
-            {{ "finance.grossAmount" | translate }}
-          </dt>
-          <dd class="font-medium">
-            {{ formatCurrency(item.grossAmount, item.currency) }}
-          </dd>
-        </div>
       </dl>
-      <div>
-        <h3 class="text-muted-foreground">
-          {{ "finance.comment" | translate }}
-        </h3>
-        <p class="whitespace-pre-wrap font-medium">{{ item.comment || "—" }}</p>
-      </div>
     </section>
 
-    <section class="space-y-3">
+    <section class="space-y-4">
       <h2 class="text-base font-semibold">
         {{ "finance.statementLines" | translate }}
       </h2>
@@ -201,12 +165,6 @@
             </tbody>
           </table>
         </div>
-        <div
-          class="flex justify-end border-b border-border pb-3 font-semibold tabular-nums"
-        >
-          {{ "finance.grossTotal" | translate }}:
-          {{ formatCurrency(item.total, item.currency) }}
-        </div>
       } @else {
         <p
           class="rounded-lg border border-dashed border-border p-4 text-muted-foreground"
@@ -214,6 +172,55 @@
           {{ "finance.noLines" | translate }}
         </p>
       }
+
+      <div
+        class="ms-auto w-full max-w-md rounded-lg border border-border bg-surface-section p-4"
+      >
+        <h3 class="mb-3 text-base font-semibold">
+          {{ "finance.invoiceSummary" | translate }}
+        </h3>
+        <dl class="space-y-3 tabular-nums">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <dt class="text-muted-foreground">
+              {{ "finance.netAmount" | translate }}
+            </dt>
+            <dd class="text-right font-medium">
+              {{ formatCurrency(item.netAmount, item.currency) }}
+            </dd>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <dt class="text-muted-foreground">
+              {{ "finance.vatRate" | translate }}
+            </dt>
+            <dd class="text-right font-medium">
+              {{ formatAmount(item.vatRate) }}%
+            </dd>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <dt class="text-muted-foreground">
+              {{ "finance.vatAmount" | translate }}
+            </dt>
+            <dd class="text-right font-medium">
+              {{ formatCurrency(item.vatAmount, item.currency) }}
+            </dd>
+          </div>
+          <div
+            class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border-subtle pt-3 text-base font-semibold"
+          >
+            <dt>{{ "finance.grossAmount" | translate }}</dt>
+            <dd class="text-right">
+              {{ formatCurrency(item.grossAmount, item.currency) }}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <div class="space-y-1 pt-2">
+        <h3 class="font-medium">{{ "finance.comment" | translate }}</h3>
+        <p class="whitespace-pre-wrap text-muted-foreground">
+          {{ item.comment || "—" }}
+        </p>
+      </div>
     </section>
 
     <div class="border-t border-border pt-4">

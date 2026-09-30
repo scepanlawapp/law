@@ -28,6 +28,8 @@ import {
 import {
   BillingStatementLineForm,
   appendUniqueBillableWork,
+  calculateBillingStatementLineAmounts,
+  calculateBillingStatementTotals,
   createBillingStatementLineForm,
   detachBillingStatementLineSources,
   incompatibleCurrencyIndexes,
@@ -86,6 +88,7 @@ export class FinanceStatementCreateComponent {
   private readonly requestedSourceKeys =
     this.route.snapshot.queryParamMap.getAll("source");
   private prefillStarted = false;
+  private readonly registeredLines = new WeakSet<BillingStatementLineForm>();
 
   readonly form = new FormGroup({
     clientId: new FormControl("", {
@@ -116,21 +119,9 @@ export class FinanceStatementCreateComponent {
       nonNullable: true,
       validators: Validators.maxLength(10_000),
     }),
-    netAmount: new FormControl(0, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
-    }),
     vatRate: new FormControl(0, {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0), Validators.max(100)],
-    }),
-    vatAmount: new FormControl(0, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
-    }),
-    grossAmount: new FormControl(0, {
-      nonNullable: true,
-      validators: [Validators.required, Validators.min(0)],
     }),
     numberOfCashBill: new FormControl("", {
       nonNullable: true,
@@ -165,11 +156,13 @@ export class FinanceStatementCreateComponent {
       .map((index) => index + 1)
       .join(", "),
   );
-  readonly total = computed(() => {
+  readonly invoiceTotals = computed(() => {
     this.formRevision();
-    return this.form.controls.lines.controls.reduce(
-      (sum, line) => sum + (line.controls.grossAmount.value ?? 0),
-      0,
+    return calculateBillingStatementTotals(
+      this.form.controls.lines.controls.map((line) => ({
+        netAmount: line.controls.netAmount.value,
+        vatAmount: line.controls.vatAmount.value,
+      })),
     );
   });
   readonly canSave = computed(() => {
@@ -269,12 +262,12 @@ export class FinanceStatementCreateComponent {
   }
 
   addManualLine(): void {
-    this.form.controls.lines.push(
-      createBillingStatementLineForm(
-        undefined,
-        normalizeCurrency(this.form.controls.currency.value) || "RSD",
-      ),
+    const line = createBillingStatementLineForm(
+      undefined,
+      normalizeCurrency(this.form.controls.currency.value) || "RSD",
     );
+    this.form.controls.lines.push(line);
+    this.registerLine(line);
     this.form.controls.lines.markAsDirty();
     this.bumpRevision();
   }
@@ -300,12 +293,14 @@ export class FinanceStatementCreateComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((items) => {
         if (!items?.length) return;
+        const firstNewIndex = this.form.controls.lines.length;
         const added = appendUniqueBillableWork(
           this.form.controls.lines,
           items,
           normalizeCurrency(this.form.controls.currency.value),
         );
         if (!added) return;
+        this.registerLinesFrom(firstNewIndex);
         this.form.controls.lines.markAsDirty();
         this.bumpRevision();
       });
@@ -331,6 +326,7 @@ export class FinanceStatementCreateComponent {
     }
 
     const header = this.form.getRawValue();
+    const totals = this.invoiceTotals();
     const lines = this.form.controls.lines.controls.map((control) => {
       const value = control.getRawValue();
       return {
@@ -355,10 +351,10 @@ export class FinanceStatementCreateComponent {
           placeOfIssue: header.placeOfIssue.trim(),
           methodOfPayment: header.methodOfPayment.trim(),
           comment: header.comment.trim(),
-          netAmount: header.netAmount,
+          netAmount: totals.netAmount,
           vatRate: header.vatRate,
-          vatAmount: header.vatAmount,
-          grossAmount: header.grossAmount,
+          vatAmount: totals.vatAmount,
+          grossAmount: totals.grossAmount,
           numberOfCashBill: header.numberOfCashBill.trim(),
           country: header.country.trim(),
           lines,
@@ -371,10 +367,10 @@ export class FinanceStatementCreateComponent {
           placeOfIssue: header.placeOfIssue.trim(),
           methodOfPayment: header.methodOfPayment.trim(),
           comment: header.comment.trim(),
-          netAmount: header.netAmount,
+          netAmount: totals.netAmount,
           vatRate: header.vatRate,
-          vatAmount: header.vatAmount,
-          grossAmount: header.grossAmount,
+          vatAmount: totals.vatAmount,
+          grossAmount: totals.grossAmount,
           numberOfCashBill: header.numberOfCashBill.trim(),
           country: header.country.trim(),
           currency: normalizeCurrency(header.currency),
@@ -401,10 +397,7 @@ export class FinanceStatementCreateComponent {
         placeOfIssue: statement.placeOfIssue,
         methodOfPayment: statement.methodOfPayment,
         comment: statement.comment,
-        netAmount: Number(statement.netAmount),
         vatRate: Number(statement.vatRate),
-        vatAmount: Number(statement.vatAmount),
-        grossAmount: Number(statement.grossAmount),
         numberOfCashBill: statement.numberOfCashBill,
         country: statement.country,
         currency: statement.currency,
@@ -413,9 +406,11 @@ export class FinanceStatementCreateComponent {
     );
     this.form.controls.lines.clear({ emitEvent: false });
     for (const line of statement.lines) {
-      this.form.controls.lines.push(createBillingStatementLineForm(line), {
+      const lineForm = createBillingStatementLineForm(line);
+      this.form.controls.lines.push(lineForm, {
         emitEvent: false,
       });
+      this.registerLine(lineForm);
     }
     this.selectedClient.set(
       this.clients().find((client) => client.id === statement.clientId) ?? null,
@@ -447,11 +442,13 @@ export class FinanceStatementCreateComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
+          const firstNewIndex = this.form.controls.lines.length;
           appendUniqueBillableWork(
             this.form.controls.lines,
             response.items,
             normalizeCurrency(this.form.controls.currency.value),
           );
+          this.registerLinesFrom(firstNewIndex);
           if (response.items.length !== this.requestedSourceKeys.length) {
             this.saveError.set("finance.someWorkUnavailable");
           }
@@ -489,6 +486,47 @@ export class FinanceStatementCreateComponent {
         if (!client) return;
         this.form.controls.clientId.setValue(client.id);
       });
+  }
+
+  private registerLinesFrom(firstIndex: number): void {
+    for (
+      let index = firstIndex;
+      index < this.form.controls.lines.length;
+      index += 1
+    ) {
+      this.registerLine(this.form.controls.lines.at(index));
+    }
+  }
+
+  private registerLine(line: BillingStatementLineForm): void {
+    if (this.registeredLines.has(line)) return;
+    this.registeredLines.add(line);
+
+    const recalculate = (
+      source: Parameters<typeof calculateBillingStatementLineAmounts>[0],
+    ): void => {
+      const amounts = calculateBillingStatementLineAmounts(
+        source,
+        line.getRawValue(),
+      );
+      line.patchValue(amounts, { emitEvent: false });
+      this.bumpRevision();
+    };
+
+    line.controls.netAmount.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => recalculate("netAmount"));
+    line.controls.vatRate.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => recalculate("vatRate"));
+    line.controls.vatAmount.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => recalculate("vatAmount"));
+    line.controls.grossAmount.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => recalculate("grossAmount"));
+
+    if (line.controls.netAmount.value !== null) recalculate("netAmount");
   }
 }
 

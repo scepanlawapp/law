@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Billing Statement Reactive Totals](./tracks/billing_statement_reactive_totals_20260930/index.md)
 - [Visual Hierarchy Refinement](./tracks/visual_hierarchy_refinement_20260930/index.md)
 - [Case Detail Filters and Pagination](./tracks/case_detail_filters_pagination_20260930/index.md)
 - [Notes and External Payments Removal](./tracks/notes_external_payments_removal_20260930/index.md)
