@@ -584,6 +584,7 @@
   "finance.vatAmount": "PDV iznos",
   "finance.grossAmount": "Bruto iznos",
   "finance.grossTotal": "Ukupno bruto",
+  "finance.invoiceSummary": "Pregled iznosa",
   "finance.numberOfCashBill": "Broj gotovinskog računa",
   "finance.country": "Država",
   "finance.periodStart": "Početak perioda",

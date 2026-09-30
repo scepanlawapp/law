@@ -233,72 +233,310 @@
           <input hlmInput id="statement-country" formControlName="country" />
         </div>
       </div>
+    </section>
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <div hlmField>
-          <label hlmFieldLabel for="statement-net-amount">
-            {{ "finance.netAmount" | translate }}
-          </label>
-          <input
-            hlmInput
-            id="statement-net-amount"
-            type="number"
-            min="0"
-            step="0.01"
-            inputmode="decimal"
-            formControlName="netAmount"
-            required
-          />
+    <section class="app-section-surface space-y-3 p-4">
+      @if (mismatchIndexes().length) {
+        <div role="alert" class="rounded-lg border border-destructive p-3">
+          <p>{{ "finance.currencyMismatchCompact" | translate }}</p>
         </div>
-        <div hlmField>
-          <label hlmFieldLabel for="statement-vat-rate">
-            {{ "finance.vatRate" | translate }}
-          </label>
-          <input
-            hlmInput
-            id="statement-vat-rate"
-            type="number"
-            min="0"
-            max="100"
-            step="0.01"
-            inputmode="decimal"
-            formControlName="vatRate"
-            required
-          />
+      }
+
+      <div class="app-data-region">
+        <div
+          class="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-3 py-2"
+        >
+          <h2 class="text-base font-semibold">
+            {{ "finance.statementLines" | translate }}
+          </h2>
+          <div class="flex flex-wrap items-center justify-end gap-2">
+            <div class="flex items-center gap-2">
+              @if (!selectedClient()) {
+                <span
+                  id="statement-import-helper"
+                  class="max-w-32 text-right text-sm leading-tight text-muted-foreground"
+                >
+                  {{ "finance.selectClientFirst" | translate }}
+                </span>
+              }
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                [disabled]="!selectedClient() || saving()"
+                [attr.aria-describedby]="
+                  !selectedClient() ? 'statement-import-helper' : null
+                "
+                (click)="openImportDialog()"
+                [attr.title]="
+                  !selectedClient()
+                    ? ('finance.selectClientBeforeImport' | translate)
+                    : null
+                "
+              >
+                {{ "finance.importBillableWork" | translate }}
+              </button>
+            </div>
+            <button
+              hlmBtn
+              type="button"
+              [disabled]="saving()"
+              (click)="addManualLine()"
+            >
+              {{ "finance.addManualLine" | translate }}
+            </button>
+          </div>
         </div>
-        <div hlmField>
-          <label hlmFieldLabel for="statement-vat-amount">
-            {{ "finance.vatAmount" | translate }}
-          </label>
-          <input
-            hlmInput
-            id="statement-vat-amount"
-            type="number"
-            min="0"
-            step="0.01"
-            inputmode="decimal"
-            formControlName="vatAmount"
-            required
-          />
-        </div>
-        <div hlmField>
-          <label hlmFieldLabel for="statement-gross-amount">
-            {{ "finance.grossAmount" | translate }}
-          </label>
-          <input
-            hlmInput
-            id="statement-gross-amount"
-            type="number"
-            min="0"
-            step="0.01"
-            inputmode="decimal"
-            formControlName="grossAmount"
-            required
-          />
-        </div>
+
+        @if (form.controls.lines.length) {
+          <div class="overflow-x-auto">
+            <table hlmTable class="w-full min-w-[1180px]">
+              <thead hlmTHead>
+                <tr hlmTr>
+                  <th hlmTh class="w-24">
+                    {{ "finance.source" | translate }}
+                  </th>
+                  <th hlmTh class="w-40">
+                    {{ "finance.serviceDate" | translate }}
+                  </th>
+                  <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
+                  <th hlmTh class="w-36">
+                    {{ "finance.lineNetAmount" | translate }}
+                  </th>
+                  <th hlmTh class="w-28">
+                    {{ "finance.vatRate" | translate }}
+                  </th>
+                  <th hlmTh class="w-36">
+                    {{ "finance.vatAmount" | translate }}
+                  </th>
+                  <th hlmTh class="w-36">
+                    {{ "finance.grossAmount" | translate }}
+                  </th>
+                  <th hlmTh class="w-28">
+                    {{ "finance.currency" | translate }}
+                  </th>
+                  <th hlmTh class="w-14 text-right">
+                    <span class="sr-only">
+                      {{ "finance.actions" | translate }}
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody hlmTBody>
+                @for (
+                  line of form.controls.lines.controls;
+                  track line;
+                  let index = $index
+                ) {
+                  <tr hlmTr [formGroup]="line">
+                    <td hlmTd>
+                      <span
+                        class="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-sm"
+                      >
+                        {{
+                          (line.controls.sourceId.value
+                            ? "finance.billableWorkSource"
+                            : "finance.manualLineSource"
+                          ) | translate
+                        }}
+                      </span>
+                    </td>
+                    <td hlmTd>
+                      <input
+                        hlmInput
+                        type="date"
+                        formControlName="serviceDate"
+                        class="w-36"
+                        [readOnly]="!!line.controls.sourceId.value"
+                        required
+                      />
+                    </td>
+                    <td hlmTd>
+                      <input
+                        hlmInput
+                        formControlName="description"
+                        class="min-w-56"
+                        required
+                      />
+                    </td>
+                    <td hlmTd>
+                      <input
+                        hlmInput
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        inputmode="decimal"
+                        formControlName="netAmount"
+                        class="w-32 text-right tabular-nums"
+                        required
+                      />
+                    </td>
+                    <td hlmTd>
+                      <input
+                        hlmInput
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        inputmode="decimal"
+                        formControlName="vatRate"
+                        class="w-24 text-right tabular-nums"
+                        required
+                      />
+                    </td>
+                    <td hlmTd>
+                      <input
+                        hlmInput
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputmode="decimal"
+                        formControlName="vatAmount"
+                        class="w-32 text-right tabular-nums"
+                        required
+                      />
+                    </td>
+                    <td hlmTd>
+                      <input
+                        hlmInput
+                        type="number"
+                        min="0.01"
+                        step="0.01"
+                        inputmode="decimal"
+                        formControlName="grossAmount"
+                        class="w-32 text-right tabular-nums"
+                        required
+                      />
+                    </td>
+                    <td hlmTd>
+                      <hlm-select
+                        formControlName="currency"
+                        [itemToString]="currencyItemToString"
+                      >
+                        <hlm-select-trigger
+                          [buttonId]="'statement-line-currency-' + index"
+                          class="w-full min-w-0 max-w-full"
+                          [forceInvalid]="isCurrencyMismatch(index)"
+                        >
+                          <hlm-select-value />
+                        </hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal width="content">
+                          <hlm-select-group>
+                            @for (
+                              option of currencyOptions;
+                              track option.value
+                            ) {
+                              <hlm-select-item [value]="option.value">
+                                {{ option.label | translate }}
+                              </hlm-select-item>
+                            }
+                          </hlm-select-group>
+                        </hlm-select-content>
+                      </hlm-select>
+                      @if (isCurrencyMismatch(index)) {
+                        <span class="mt-1 block text-destructive">
+                          {{ "finance.currencyMismatchRow" | translate }}
+                        </span>
+                      }
+                    </td>
+                    <td hlmTd class="text-right">
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        [disabled]="saving()"
+                        [attr.aria-label]="'common.remove' | translate"
+                        [attr.title]="'common.remove' | translate"
+                        (click)="removeLine(index)"
+                      >
+                        <ng-icon name="lucideTrash2" aria-hidden="true" />
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="p-4 text-muted-foreground">
+            {{ "finance.noLines" | translate }}
+          </p>
+        }
       </div>
 
-      <div hlmField>
+      <div
+        class="ms-auto w-full max-w-md rounded-lg border border-border bg-surface-section p-4"
+      >
+        <h3 class="mb-3 text-base font-semibold">
+          {{ "finance.invoiceSummary" | translate }}
+        </h3>
+        <dl class="space-y-3 tabular-nums">
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <dt class="text-muted-foreground">
+              {{ "finance.netAmount" | translate }}
+            </dt>
+            <dd class="text-right font-medium">
+              {{
+                formatCurrency(
+                  invoiceTotals().netAmount,
+                  form.controls.currency.value.toUpperCase()
+                )
+              }}
+            </dd>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <dt>
+              <label hlmFieldLabel for="statement-vat-rate">
+                {{ "finance.vatRate" | translate }}
+              </label>
+            </dt>
+            <dd class="flex items-center justify-end gap-2">
+              <input
+                hlmInput
+                id="statement-vat-rate"
+                type="number"
+                min="0"
+                max="100"
+                step="0.01"
+                inputmode="decimal"
+                formControlName="vatRate"
+                class="w-28 text-right tabular-nums"
+                required
+              />
+              <span aria-hidden="true">%</span>
+            </dd>
+          </div>
+          <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
+            <dt class="text-muted-foreground">
+              {{ "finance.vatAmount" | translate }}
+            </dt>
+            <dd class="text-right font-medium">
+              {{
+                formatCurrency(
+                  invoiceTotals().vatAmount,
+                  form.controls.currency.value.toUpperCase()
+                )
+              }}
+            </dd>
+          </div>
+          <div
+            class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 border-t border-border-subtle pt-3 text-base font-semibold"
+          >
+            <dt>{{ "finance.grossAmount" | translate }}</dt>
+            <dd class="text-right">
+              {{
+                formatCurrency(
+                  invoiceTotals().grossAmount,
+                  form.controls.currency.value.toUpperCase()
+                )
+              }}
+            </dd>
+          </div>
+        </dl>
+      </div>
+
+      <div hlmField class="pt-2">
         <label hlmFieldLabel for="statement-comment">
           {{ "finance.comment" | translate }}
         </label>
@@ -309,231 +547,6 @@
           rows="3"
         ></textarea>
       </div>
-    </section>
-
-    <section class="app-section-surface space-y-3 p-4">
-      <div class="flex flex-wrap items-start justify-between gap-3">
-        <h2 class="text-base font-semibold">
-          {{ "finance.statementLines" | translate }}
-        </h2>
-        <div class="flex flex-wrap items-center justify-end gap-2">
-          @if (!selectedClient()) {
-            <span class="text-muted-foreground">
-              {{ "finance.selectClientFirst" | translate }}
-            </span>
-          }
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            [disabled]="!selectedClient() || saving()"
-            (click)="openImportDialog()"
-            [attr.title]="
-              !selectedClient()
-                ? ('finance.selectClientBeforeImport' | translate)
-                : null
-            "
-          >
-            {{ "finance.importBillableWork" | translate }}
-          </button>
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            [disabled]="saving()"
-            (click)="addManualLine()"
-          >
-            {{ "finance.addManualLine" | translate }}
-          </button>
-        </div>
-      </div>
-
-      @if (mismatchIndexes().length) {
-        <div role="alert" class="rounded-lg border border-destructive p-3">
-          <p>{{ "finance.currencyMismatchCompact" | translate }}</p>
-        </div>
-      }
-
-      @if (form.controls.lines.length) {
-        <div hlmTableContainer class="app-data-region">
-          <table hlmTable class="w-full min-w-[1180px]">
-            <thead hlmTHead>
-              <tr hlmTr>
-                <th hlmTh class="w-24">
-                  {{ "finance.source" | translate }}
-                </th>
-                <th hlmTh class="w-40">
-                  {{ "finance.serviceDate" | translate }}
-                </th>
-                <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
-                <th hlmTh class="w-36">
-                  {{ "finance.lineNetAmount" | translate }}
-                </th>
-                <th hlmTh class="w-28">
-                  {{ "finance.vatRate" | translate }}
-                </th>
-                <th hlmTh class="w-36">
-                  {{ "finance.vatAmount" | translate }}
-                </th>
-                <th hlmTh class="w-36">
-                  {{ "finance.grossAmount" | translate }}
-                </th>
-                <th hlmTh class="w-28">
-                  {{ "finance.currency" | translate }}
-                </th>
-                <th hlmTh class="w-14 text-right">
-                  <span class="sr-only">
-                    {{ "finance.actions" | translate }}
-                  </span>
-                </th>
-              </tr>
-            </thead>
-            <tbody hlmTBody>
-              @for (
-                line of form.controls.lines.controls;
-                track line;
-                let index = $index
-              ) {
-                <tr hlmTr [formGroup]="line">
-                  <td hlmTd>
-                    <span
-                      class="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-sm"
-                    >
-                      {{
-                        (line.controls.sourceId.value
-                          ? "finance.billableWorkSource"
-                          : "finance.manualLineSource"
-                        ) | translate
-                      }}
-                    </span>
-                  </td>
-                  <td hlmTd>
-                    <input
-                      hlmInput
-                      type="date"
-                      formControlName="serviceDate"
-                      class="w-36"
-                      [readOnly]="!!line.controls.sourceId.value"
-                      required
-                    />
-                  </td>
-                  <td hlmTd>
-                    <input
-                      hlmInput
-                      formControlName="description"
-                      class="min-w-56"
-                      required
-                    />
-                  </td>
-                  <td hlmTd>
-                    <input
-                      hlmInput
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      inputmode="decimal"
-                      formControlName="netAmount"
-                      class="w-32 text-right tabular-nums"
-                      required
-                    />
-                  </td>
-                  <td hlmTd>
-                    <input
-                      hlmInput
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      inputmode="decimal"
-                      formControlName="vatRate"
-                      class="w-24 text-right tabular-nums"
-                      required
-                    />
-                  </td>
-                  <td hlmTd>
-                    <input
-                      hlmInput
-                      type="number"
-                      min="0"
-                      step="0.01"
-                      inputmode="decimal"
-                      formControlName="vatAmount"
-                      class="w-32 text-right tabular-nums"
-                      required
-                    />
-                  </td>
-                  <td hlmTd>
-                    <input
-                      hlmInput
-                      type="number"
-                      min="0.01"
-                      step="0.01"
-                      inputmode="decimal"
-                      formControlName="grossAmount"
-                      class="w-32 text-right tabular-nums"
-                      required
-                    />
-                  </td>
-                  <td hlmTd>
-                    <hlm-select
-                      formControlName="currency"
-                      [itemToString]="currencyItemToString"
-                    >
-                      <hlm-select-trigger
-                        [buttonId]="'statement-line-currency-' + index"
-                        class="w-full min-w-0 max-w-full"
-                        [forceInvalid]="isCurrencyMismatch(index)"
-                      >
-                        <hlm-select-value />
-                      </hlm-select-trigger>
-                      <hlm-select-content *hlmSelectPortal width="content">
-                        <hlm-select-group>
-                          @for (option of currencyOptions; track option.value) {
-                            <hlm-select-item [value]="option.value">
-                              {{ option.label | translate }}
-                            </hlm-select-item>
-                          }
-                        </hlm-select-group>
-                      </hlm-select-content>
-                    </hlm-select>
-                    @if (isCurrencyMismatch(index)) {
-                      <span class="mt-1 block text-destructive">
-                        {{ "finance.currencyMismatchRow" | translate }}
-                      </span>
-                    }
-                  </td>
-                  <td hlmTd class="text-right">
-                    <button
-                      hlmBtn
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      [disabled]="saving()"
-                      [attr.aria-label]="'common.remove' | translate"
-                      [attr.title]="'common.remove' | translate"
-                      (click)="removeLine(index)"
-                    >
-                      <ng-icon name="lucideTrash2" aria-hidden="true" />
-                    </button>
-                  </td>
-                </tr>
-              }
-            </tbody>
-          </table>
-        </div>
-        <div
-          class="flex justify-end border-t border-border-subtle bg-surface-section px-3 pt-3 text-base font-semibold tabular-nums"
-        >
-          {{ "finance.grossTotal" | translate }}:
-          {{
-            formatCurrency(total(), form.controls.currency.value.toUpperCase())
-          }}
-        </div>
-      } @else {
-        <p class="app-empty-state p-4">
-          {{ "finance.noLines" | translate }}
-        </p>
-      }
     </section>
 
     @if (saveError()) {

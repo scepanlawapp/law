@@ -6,6 +6,8 @@ import {
 import {
   appendUniqueBillableWork,
   BillingStatementLineForm,
+  calculateBillingStatementLineAmounts,
+  calculateBillingStatementTotals,
   createBillableWorkLineForm,
   createBillingStatementLineForm,
   detachBillingStatementLineSources,
@@ -128,5 +130,98 @@ describe("billing statement form helpers", () => {
     expect(appendUniqueBillableWork(lines, [sourceItem], "RSD")).toBe(1);
     expect(appendUniqueBillableWork(lines, [sourceItem], "RSD")).toBe(0);
     expect(lines.length).toBe(1);
+  });
+
+  it("recalculates VAT and gross when net or VAT rate changes", () => {
+    expect(
+      calculateBillingStatementLineAmounts("netAmount", {
+        netAmount: 2323,
+        vatRate: 22,
+      }),
+    ).toEqual({
+      netAmount: 2323,
+      vatRate: 22,
+      vatAmount: 511.06,
+      grossAmount: 2834.06,
+    });
+
+    expect(
+      calculateBillingStatementLineAmounts("vatRate", {
+        netAmount: 100,
+        vatRate: 20,
+      }),
+    ).toEqual({
+      netAmount: 100,
+      vatRate: 20,
+      vatAmount: 20,
+      grossAmount: 120,
+    });
+  });
+
+  it("derives VAT rate from a manually changed VAT amount", () => {
+    expect(
+      calculateBillingStatementLineAmounts("vatAmount", {
+        netAmount: 200,
+        vatAmount: 35,
+      }),
+    ).toEqual({
+      netAmount: 200,
+      vatRate: 17.5,
+      vatAmount: 35,
+      grossAmount: 235,
+    });
+  });
+
+  it("derives net and VAT from a manually changed gross amount", () => {
+    expect(
+      calculateBillingStatementLineAmounts("grossAmount", {
+        vatRate: 22,
+        grossAmount: 2834.06,
+      }),
+    ).toEqual({
+      netAmount: 2323,
+      vatRate: 22,
+      vatAmount: 511.06,
+      grossAmount: 2834.06,
+    });
+  });
+
+  it("normalizes invalid values and handles VAT derivation from zero net", () => {
+    expect(
+      calculateBillingStatementLineAmounts("vatAmount", {
+        netAmount: 0,
+        vatAmount: 100,
+      }),
+    ).toEqual({
+      netAmount: 0,
+      vatRate: 0,
+      vatAmount: 0,
+      grossAmount: 0,
+    });
+    expect(
+      calculateBillingStatementLineAmounts("netAmount", {
+        netAmount: Number.NaN,
+        vatRate: Number.POSITIVE_INFINITY,
+      }),
+    ).toEqual({
+      netAmount: 0,
+      vatRate: 0,
+      vatAmount: 0,
+      grossAmount: 0,
+    });
+  });
+
+  it("derives rounded statement totals from row net and VAT amounts", () => {
+    expect(
+      calculateBillingStatementTotals([
+        { netAmount: 2323, vatAmount: 511.06 },
+        { netAmount: 1000.1, vatAmount: 200.02 },
+        { netAmount: Number.NaN, vatAmount: -5 },
+      ]),
+    ).toEqual({
+      netAmount: 3323.1,
+      vatAmount: 711.08,
+      grossAmount: 4034.18,
+    });
   });
 });

@@ -584,6 +584,7 @@
   "finance.vatAmount": "VAT amount",
   "finance.grossAmount": "Gross amount",
   "finance.grossTotal": "Gross total",
+  "finance.invoiceSummary": "Invoice summary",
   "finance.numberOfCashBill": "Cash bill number",
   "finance.country": "Country",
   "finance.periodStart": "Period start",

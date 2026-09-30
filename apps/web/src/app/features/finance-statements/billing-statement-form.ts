@@ -17,6 +17,78 @@ export type BillingStatementLineForm = FormGroup<{
   currency: FormControl<string>;
 }>;
 
+export type BillingStatementLineAmountSource =
+  | "netAmount"
+  | "vatRate"
+  | "vatAmount"
+  | "grossAmount";
+
+export interface BillingStatementLineAmounts {
+  netAmount: number;
+  vatRate: number;
+  vatAmount: number;
+  grossAmount: number;
+}
+
+export interface BillingStatementTotals {
+  netAmount: number;
+  vatAmount: number;
+  grossAmount: number;
+}
+
+export function calculateBillingStatementLineAmounts(
+  source: BillingStatementLineAmountSource,
+  values: Partial<Record<BillingStatementLineAmountSource, number | null>>,
+): BillingStatementLineAmounts {
+  const currentNet = normalizedNumber(values.netAmount);
+  const currentRate = normalizedNumber(values.vatRate);
+  const currentVat = normalizedNumber(values.vatAmount);
+  const currentGross = normalizedNumber(values.grossAmount);
+
+  if (source === "vatAmount") {
+    if (currentNet === 0) return zeroAmounts();
+    const vatRate = roundDecimal((currentVat / currentNet) * 100);
+    return {
+      netAmount: roundDecimal(currentNet),
+      vatRate,
+      vatAmount: roundDecimal(currentVat),
+      grossAmount: roundDecimal(currentNet + currentVat),
+    };
+  }
+
+  if (source === "grossAmount") {
+    const netAmount = roundDecimal(currentGross / (1 + currentRate / 100));
+    const vatAmount = roundDecimal(currentGross - netAmount);
+    return {
+      netAmount,
+      vatRate: roundDecimal(currentRate),
+      vatAmount,
+      grossAmount: roundDecimal(netAmount + vatAmount),
+    };
+  }
+
+  return amountsFromNetAndRate(currentNet, currentRate);
+}
+
+export function calculateBillingStatementTotals(
+  rows: ReadonlyArray<{
+    netAmount: number | null | undefined;
+    vatAmount: number | null | undefined;
+  }>,
+): BillingStatementTotals {
+  const netAmount = roundDecimal(
+    rows.reduce((sum, row) => sum + normalizedNumber(row.netAmount), 0),
+  );
+  const vatAmount = roundDecimal(
+    rows.reduce((sum, row) => sum + normalizedNumber(row.vatAmount), 0),
+  );
+  return {
+    netAmount,
+    vatAmount,
+    grossAmount: roundDecimal(netAmount + vatAmount),
+  };
+}
+
 export function createBillingStatementLineForm(
   line?: BillingStatementLineSummary,
   defaultCurrency = "RSD",
@@ -147,6 +219,36 @@ export function incompatibleCurrencyIndexes(
 
 export function normalizeCurrency(value: string): string {
   return value.trim().toUpperCase();
+}
+
+function amountsFromNetAndRate(
+  netAmountValue: number,
+  vatRateValue: number,
+): BillingStatementLineAmounts {
+  const netAmount = roundDecimal(netAmountValue);
+  const vatRate = roundDecimal(vatRateValue);
+  const vatAmount = roundDecimal((netAmount * vatRate) / 100);
+  return {
+    netAmount,
+    vatRate,
+    vatAmount,
+    grossAmount: roundDecimal(netAmount + vatAmount),
+  };
+}
+
+function normalizedNumber(value: number | null | undefined): number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0
+    ? value
+    : 0;
+}
+
+function roundDecimal(value: number): number {
+  if (!Number.isFinite(value) || value < 0) return 0;
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function zeroAmounts(): BillingStatementLineAmounts {
+  return { netAmount: 0, vatRate: 0, vatAmount: 0, grossAmount: 0 };
 }
 
 function isBillableWorkSourceType(
