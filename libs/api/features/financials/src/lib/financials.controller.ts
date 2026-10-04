@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Post,
+  Query,
   UseGuards,
 } from "@nestjs/common";
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
@@ -60,6 +61,11 @@ export class FinancialsController {
   @Get("invoices")
   invoices() {
     return this.financials.listInvoices();
+  }
+
+  @Get("invoices/number-suggestion")
+  invoiceNumberSuggestion(@Query("date") date?: string) {
+    return this.financials.suggestInvoiceNumber(date);
   }
 
   @Post("invoices")

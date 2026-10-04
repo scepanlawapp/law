@@ -1204,6 +1204,18 @@ async function ensureRatesAndRetainers(
     update: {},
     create: { workspaceId },
   });
+  await prisma.organizationSettings.upsert({
+    where: { workspaceId },
+    update: {},
+    create: {
+      workspaceId,
+      displayName: "Demo advokatska kancelarija",
+      countryCode: "RS",
+      availableVatRates: [0, 10, 20],
+      allowedCurrencyCodes: ["RSD", "EUR"],
+      allowedSefAttachmentFileExtensions: ["pdf", "docx", "xlsx"],
+    },
+  });
   // Only fill the office target when nobody has set one yet.
   await prisma.workspaceConfig.updateMany({
     where: { workspaceId, targetHourlyRate: null },

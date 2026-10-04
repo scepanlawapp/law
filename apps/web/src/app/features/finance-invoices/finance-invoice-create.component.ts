@@ -12,6 +12,7 @@ import {
   BillingSetupApiClient,
   ClientsApiClient,
   FinancialsApiClient,
+  OrganizationSettingsApiClient,
   WorkEntriesApiClient,
 } from "@law/api-clients";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
@@ -78,6 +79,9 @@ import { ClientFormDialogService } from "../clients/client-create-edit-modal/cli
 })
 export class FinanceInvoiceCreateComponent {
   private readonly api = inject(FinancialsApiClient);
+  private readonly organizationSettingsApi = inject(
+    OrganizationSettingsApiClient,
+  );
   private readonly workEntriesApi = inject(WorkEntriesApiClient);
   private readonly billingSetupApi = inject(BillingSetupApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
@@ -94,6 +98,8 @@ export class FinanceInvoiceCreateComponent {
   readonly invoiceLoading = signal(false);
   readonly invoiceLoadError = signal("");
   readonly saving = signal(false);
+  readonly suggestingNumber = signal(false);
+  readonly allowManualOverride = signal(true);
   readonly saveError = signal("");
   readonly formRevision = signal(0);
   readonly selectedClient = signal<ClientSummary | null>(null);
@@ -116,6 +122,7 @@ export class FinanceInvoiceCreateComponent {
   private readonly registeredLines = new WeakSet<InvoiceLineForm>();
 
   readonly form = new FormGroup({
+    invoiceNumber: new FormControl("", { nonNullable: true }),
     clientId: new FormControl("", {
       nonNullable: true,
       validators: Validators.required,
@@ -208,6 +215,15 @@ export class FinanceInvoiceCreateComponent {
   });
 
   constructor() {
+    this.organizationSettingsApi
+      .get()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (settings) =>
+          this.allowManualOverride.set(
+            settings.invoiceNumbering.allowManualOverride,
+          ),
+      });
     if (this.isEditMode) {
       this.form.controls.clientId.disable({ emitEvent: false });
       this.form.controls.currency.disable({ emitEvent: false });
@@ -354,6 +370,9 @@ export class FinanceInvoiceCreateComponent {
     this.saving.set(true);
     const request = this.invoiceId
       ? this.api.updateInvoice(this.invoiceId, {
+          invoiceNumber: this.allowManualOverride()
+            ? header.invoiceNumber?.trim() || undefined
+            : undefined,
           dateOfCreate: header.dateOfCreate,
           dateOfMaturity: header.dateOfMaturity,
           dateOfTurnover: header.dateOfTurnover,
@@ -370,6 +389,9 @@ export class FinanceInvoiceCreateComponent {
           lines,
         })
       : this.api.createInvoice({
+          invoiceNumber: this.allowManualOverride()
+            ? header.invoiceNumber?.trim() || undefined
+            : undefined,
           clientId: header.clientId,
           dateOfCreate: header.dateOfCreate,
           dateOfMaturity: header.dateOfMaturity,
@@ -402,6 +424,7 @@ export class FinanceInvoiceCreateComponent {
   private populateInvoice(invoice: Invoice): void {
     this.form.patchValue(
       {
+        invoiceNumber: invoice.invoiceNumber,
         clientId: invoice.clientId,
         dateOfCreate: invoice.dateOfCreate.slice(0, 10),
         dateOfMaturity: invoice.dateOfMaturity.slice(0, 10),
@@ -430,6 +453,23 @@ export class FinanceInvoiceCreateComponent {
     );
     this.form.markAsPristine();
     this.bumpRevision();
+  }
+
+  suggestInvoiceNumber(): void {
+    this.suggestingNumber.set(true);
+    this.api
+      .suggestInvoiceNumber(this.form.controls.dateOfCreate.value)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ invoiceNumber }) => {
+          this.form.controls.invoiceNumber.setValue(invoiceNumber);
+          this.suggestingNumber.set(false);
+        },
+        error: () => {
+          this.saveError.set("finance.invoiceNumberSuggestionError");
+          this.suggestingNumber.set(false);
+        },
+      });
   }
 
   private bumpRevision(): void {
