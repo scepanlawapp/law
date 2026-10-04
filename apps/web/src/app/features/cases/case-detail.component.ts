@@ -48,6 +48,7 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
 import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 import { debounceTime, distinctUntilChanged } from "rxjs";
+import { integerValidator } from "../time/validators";
 
 const CASE_DETAIL_PAGE_SIZE = 10;
 
@@ -215,9 +216,12 @@ export class CaseDetailComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
-    durationMinutes: new FormControl<number | null>(null, {
-      validators: [Validators.min(1), Validators.max(1440)],
-    }),
+    durationMinutes: new FormControl<number | null>(
+      { value: null, disabled: true },
+      {
+        validators: [integerValidator, Validators.min(1), Validators.max(1440)],
+      },
+    ),
   });
   readonly activityMinuteChips = [15, 30, 60, 120] as const;
   private readonly selectedActivityType = toSignal(
@@ -228,6 +232,19 @@ export class CaseDetailComponent {
   readonly activityTakesDuration = computed(() =>
     ["PHONE_CALL", "MEETING", "EMAIL"].includes(this.selectedActivityType()),
   );
+  private readonly syncActivityDuration =
+    this.activityForm.controls.type.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((type) => {
+        const control = this.activityForm.controls.durationMinutes;
+        if (["PHONE_CALL", "MEETING", "EMAIL"].includes(type)) {
+          control.enable();
+        } else {
+          // A hidden, stale value must neither block submit nor be sent.
+          control.reset(null);
+          control.disable();
+        }
+      });
   readonly responsibilityForm = new FormGroup({
     userId: new FormControl("", {
       nonNullable: true,

@@ -8,11 +8,9 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
-  AbstractControl,
   FormControl,
   FormGroup,
   ReactiveFormsModule,
-  ValidationErrors,
   Validators,
 } from "@angular/forms";
 import {
@@ -81,6 +79,7 @@ import {
   agreementTerms,
   defaultTreatment,
 } from "../treatment";
+import { integerValidator } from "../validators";
 import { QuickCaptureInput } from "./quick-capture.models";
 
 const OFFICE_TIME_ZONE = "Europe/Belgrade";
@@ -106,14 +105,6 @@ const TITLE_KEYS: Record<QuickCaptureInput["mode"], string> = {
   "confirm-source": "time.capture.title.confirmSource",
   edit: "time.capture.title.edit",
 };
-
-/** Whole numbers only; empty is left to `required`. */
-function integerValidator(control: AbstractControl): ValidationErrors | null {
-  const value = control.value;
-  return value === null || value === "" || Number.isInteger(value)
-    ? null
-    : { integer: true };
-}
 
 /** Today as a YYYY-MM-DD calendar day in the office time zone. */
 function today(): string {

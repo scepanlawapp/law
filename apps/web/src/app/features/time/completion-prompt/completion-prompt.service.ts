@@ -50,7 +50,17 @@ export class CompletionPromptService {
   prompt(source: CompletionPromptSource): void {
     this.clearTimer();
     this.state.set(source);
-    this.timer = setTimeout(() => this.skip(), COMPLETION_PROMPT_TIMEOUT_MS);
+    this.startTimer();
+  }
+
+  /** Holds the auto-dismiss while the user hovers or focuses the panel. */
+  pause(): void {
+    this.clearTimer();
+  }
+
+  /** Restarts the full countdown once the user leaves the panel. */
+  resume(): void {
+    if (this.state() && this.timer === undefined) this.startTimer();
   }
 
   confirm(minutes: number): void {
@@ -98,6 +108,10 @@ export class CompletionPromptService {
   private close(): void {
     this.clearTimer();
     this.state.set(null);
+  }
+
+  private startTimer(): void {
+    this.timer = setTimeout(() => this.skip(), COMPLETION_PROMPT_TIMEOUT_MS);
   }
 
   private clearTimer(): void {

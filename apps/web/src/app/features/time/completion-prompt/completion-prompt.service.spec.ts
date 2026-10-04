@@ -112,6 +112,20 @@ describe("CompletionPromptService", () => {
     expect(confirmFromSource).not.toHaveBeenCalled();
   });
 
+  it("holds the timeout while paused and restarts it on resume", () => {
+    service.prompt(task);
+
+    service.pause();
+    jest.advanceTimersByTime(COMPLETION_PROMPT_TIMEOUT_MS * 2);
+    expect(service.current()).not.toBeNull();
+
+    service.resume();
+    jest.advanceTimersByTime(COMPLETION_PROMPT_TIMEOUT_MS - 1);
+    expect(service.current()).not.toBeNull();
+    jest.advanceTimersByTime(1);
+    expect(service.current()).toBeNull();
+  });
+
   it("restarts the timeout when a prompt is replaced", () => {
     service.prompt(task);
     jest.advanceTimersByTime(COMPLETION_PROMPT_TIMEOUT_MS - 1000);
