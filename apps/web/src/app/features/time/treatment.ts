@@ -38,6 +38,7 @@ export function activeAgreementOn(
   workDate: Date,
 ): AgreementTerms | null {
   const time = workDate.getTime();
+  if (Number.isNaN(time)) return null;
   let active: AgreementTerms | null = null;
   for (const agreement of agreements) {
     if (agreement.validFrom.getTime() > time) continue;

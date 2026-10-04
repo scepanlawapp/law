@@ -8,9 +8,11 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
+  AbstractControl,
   FormControl,
   FormGroup,
   ReactiveFormsModule,
+  ValidationErrors,
   Validators,
 } from "@angular/forms";
 import {
@@ -56,12 +58,14 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
   catchError,
+  debounceTime,
   distinctUntilChanged,
   finalize,
   map,
   Observable,
   of,
   startWith,
+  Subject,
   switchMap,
   tap,
   throwError,
@@ -82,6 +86,7 @@ import { QuickCaptureInput } from "./quick-capture.models";
 const OFFICE_TIME_ZONE = "Europe/Belgrade";
 const RECENT_ENTRY_COUNT = 20;
 const LIST_PAGE_SIZE = 100;
+const SEARCH_DEBOUNCE_MS = 250;
 
 interface ClientOption {
   id: string;
@@ -101,6 +106,14 @@ const TITLE_KEYS: Record<QuickCaptureInput["mode"], string> = {
   "confirm-source": "time.capture.title.confirmSource",
   edit: "time.capture.title.edit",
 };
+
+/** Whole numbers only; empty is left to `required`. */
+function integerValidator(control: AbstractControl): ValidationErrors | null {
+  const value = control.value;
+  return value === null || value === "" || Number.isInteger(value)
+    ? null
+    : { integer: true };
+}
 
 /** Today as a YYYY-MM-DD calendar day in the office time zone. */
 function today(): string {
@@ -178,6 +191,7 @@ export class QuickCaptureDialogComponent {
     minutes: new FormControl<number | null>(this.context.minutes ?? null, {
       validators: [
         Validators.required,
+        integerValidator,
         Validators.min(1),
         Validators.max(1440),
       ],
@@ -209,6 +223,8 @@ export class QuickCaptureDialogComponent {
 
   private readonly recentClients = signal<ClientReference[]>([]);
   private readonly listedClients = signal<ClientOption[]>([]);
+  private readonly clientQuery = signal("");
+  private readonly clientSearchTerms = new Subject<string>();
   private readonly pickedClients = signal<ClientOption[]>([]);
   private readonly listedCases = signal<CaseOption[]>([]);
   private readonly pickedCases = signal<CaseOption[]>([]);
@@ -221,7 +237,21 @@ export class QuickCaptureDialogComponent {
   private applyingCase = false;
   private micBaseText = "";
 
-  /** Recent clients first, then the picked ones, then the rest. */
+  /** Every client the form can currently label, whatever the search says. */
+  private readonly knownClients = computed(() => {
+    const byId = new Map<string, ClientOption>();
+    for (const client of this.recentClients()) {
+      byId.set(client.id, { id: client.id, name: client.displayName });
+    }
+    for (const client of [...this.pickedClients(), ...this.listedClients()]) {
+      byId.set(client.id, client);
+    }
+    return byId;
+  });
+  /**
+   * Without a search: recent clients first, then picked, then the rest. With a
+   * search the server already filtered, so only its results are offered.
+   */
   readonly clientOptions = computed(() => {
     const seen = new Set<string>();
     const options: ClientOption[] = [];
@@ -230,13 +260,17 @@ export class QuickCaptureDialogComponent {
       seen.add(option.id);
       options.push(option);
     };
-    for (const client of this.recentClients()) {
-      add({ id: client.id, name: client.displayName });
+    if (!this.clientQuery()) {
+      for (const client of this.recentClients()) {
+        add({ id: client.id, name: client.displayName });
+      }
+      this.pickedClients().forEach(add);
     }
-    this.pickedClients().forEach(add);
     this.listedClients().forEach(add);
     return options;
   });
+  /** The server filters; the combobox must not filter the results again. */
+  readonly acceptAll = () => true;
   readonly caseOptions = computed(() => {
     const clientId = this.selectedClientId();
     const byId = new Map<string, CaseOption>();
@@ -255,9 +289,7 @@ export class QuickCaptureDialogComponent {
 
   readonly clientItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("time.capture.selectClient");
-    return (
-      this.clientOptions().find((client) => client.id === value)?.name ?? ""
-    );
+    return this.knownClients().get(value)?.name ?? "";
   };
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("time.capture.noCase");
@@ -332,19 +364,34 @@ export class QuickCaptureDialogComponent {
         if (!this.keepTreatment) this.applyDefaultTreatment();
       });
 
-    this.clientsApi
-      .list({ page: 1, pageSize: LIST_PAGE_SIZE, status: "ACTIVE" })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) =>
-          this.listedClients.set(
-            response.items.map((item) => ({
-              id: item.id,
-              name: item.displayName,
-            })),
-          ),
-        error: () => undefined,
-      });
+    this.clientSearchTerms
+      .pipe(
+        debounceTime(SEARCH_DEBOUNCE_MS),
+        map((term) => term.trim()),
+        startWith(""),
+        distinctUntilChanged(),
+        tap((term) => this.clientQuery.set(term)),
+        switchMap((term) =>
+          this.clientsApi
+            .list({
+              page: 1,
+              pageSize: LIST_PAGE_SIZE,
+              status: "ACTIVE",
+              ...(term ? { search: term } : {}),
+            })
+            .pipe(
+              map((response) =>
+                response.items.map((item) => ({
+                  id: item.id,
+                  name: item.displayName,
+                })),
+              ),
+              catchError(() => of([] as ClientOption[])),
+            ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((items) => this.listedClients.set(items));
     this.billingApi
       .listCategories()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -387,8 +434,14 @@ export class QuickCaptureDialogComponent {
 
   readonly titleKey = TITLE_KEYS[this.mode];
 
+  searchClients(term: string): void {
+    this.clientSearchTerms.next(term);
+  }
+
   setClientId(value: string | null | undefined): void {
-    this.form.controls.clientId.setValue(value ?? "");
+    const known = value ? this.knownClients().get(value) : undefined;
+    if (known) this.applyClient(known);
+    else this.form.controls.clientId.setValue(value ?? "");
     this.form.controls.clientId.markAsTouched();
   }
 
@@ -445,7 +498,6 @@ export class QuickCaptureDialogComponent {
   pickCaseCandidate(item: CaseReference): void {
     this.applyCaseById(item.id, null);
     this.caseCandidates.set([]);
-    this.aiParsed.set(true);
   }
 
   private applyParse(result: WorkCaptureParseResponse): void {
@@ -457,6 +509,8 @@ export class QuickCaptureDialogComponent {
     }
     const { minutes, serviceCategoryId, description } = this.form.controls;
     let filled = false;
+    // A matched case only counts once its lookup has filled the form.
+    const caseLookup = Boolean(result.caseId);
 
     if (result.clientId) {
       this.applyClient({ id: result.clientId, name: "" });
@@ -467,7 +521,6 @@ export class QuickCaptureDialogComponent {
     }
     if (result.caseId) {
       this.applyCaseById(result.caseId, result.clientId);
-      filled = true;
     } else {
       this.caseCandidates.set(result.caseCandidates);
     }
@@ -488,7 +541,11 @@ export class QuickCaptureDialogComponent {
     }
     if (filled) this.aiParsed.set(true);
     // Nothing usable came back: same hint as a failed call.
-    else if (!this.clientCandidates().length && !this.caseCandidates().length) {
+    else if (
+      !caseLookup &&
+      !this.clientCandidates().length &&
+      !this.caseCandidates().length
+    ) {
       this.parseFailed.set(true);
     }
   }
@@ -500,11 +557,19 @@ export class QuickCaptureDialogComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (detail) => {
-          if (expectedClientId && detail.client.id !== expectedClientId) return;
+          if (expectedClientId && detail.client.id !== expectedClientId) {
+            this.caseLookupFailed();
+            return;
+          }
           this.selectCase(detail);
+          this.aiParsed.set(true);
         },
-        error: () => undefined,
+        error: () => this.caseLookupFailed(),
       });
+  }
+
+  private caseLookupFailed(): void {
+    if (!this.aiParsed()) this.parseFailed.set(true);
   }
 
   private selectCase(item: CaseOption): void {

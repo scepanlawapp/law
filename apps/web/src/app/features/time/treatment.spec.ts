@@ -37,6 +37,14 @@ describe("client-side treatment defaults", () => {
     ).toBe("UNDECIDED");
   });
 
+  it("is undecided for an invalid or missing work date", () => {
+    const terms = agreementTerms([agreement()]);
+    expect(activeAgreementOn(terms, new Date(""))).toBeNull();
+    expect(
+      defaultTreatment(activeAgreementOn(terms, new Date("T00:00:00Z")), null),
+    ).toBe("UNDECIDED");
+  });
+
   it("ignores inactive agreements and honours validTo", () => {
     const terms = agreementTerms([
       agreement({ active: false }),

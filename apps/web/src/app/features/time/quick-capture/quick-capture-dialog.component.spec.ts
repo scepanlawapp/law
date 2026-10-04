@@ -13,7 +13,7 @@ import {
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
-import { NEVER, of, throwError } from "rxjs";
+import { NEVER, of, Subject, throwError } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { QuickCaptureDialogComponent } from "./quick-capture-dialog.component";
@@ -188,6 +188,39 @@ describe("QuickCaptureDialogComponent", () => {
     });
   });
 
+  it("searches clients on the server with a debounce while typing", () => {
+    jest.useFakeTimers();
+    try {
+      const { componentInstance: component } = render();
+      clients.list.mockClear();
+      clients.list.mockReturnValue(
+        of({ items: [{ id: "client-9", displayName: "Alfa Omega" }] }),
+      );
+
+      component.searchClients("al");
+      component.searchClients("alfa");
+      jest.advanceTimersByTime(249);
+      expect(clients.list).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+
+      expect(clients.list).toHaveBeenCalledTimes(1);
+      expect(clients.list).toHaveBeenCalledWith({
+        page: 1,
+        pageSize: 100,
+        status: "ACTIVE",
+        search: "alfa",
+      });
+      // A search shows only the server's matches, not the recent clients.
+      expect(component.clientOptions().map((client) => client.id)).toEqual([
+        "client-9",
+      ]);
+      component.setClientId("client-9");
+      expect(component.clientItemToString("client-9")).toBe("Alfa Omega");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
   it("sets 30 minutes from the 30 chip", () => {
     const fixture = render();
     const chip = buttonWithText(
@@ -205,6 +238,14 @@ describe("QuickCaptureDialogComponent", () => {
     component.form.controls.minutes.setValue(1441);
     expect(component.form.controls.minutes.invalid).toBe(true);
     component.form.controls.minutes.setValue(1440);
+    expect(component.form.controls.minutes.valid).toBe(true);
+  });
+
+  it("rejects fractional durations", () => {
+    const { componentInstance: component } = render();
+    component.form.controls.minutes.setValue(30.5);
+    expect(component.form.controls.minutes.hasError("integer")).toBe(true);
+    component.form.controls.minutes.setValue(30);
     expect(component.form.controls.minutes.valid).toBe(true);
   });
 
@@ -285,6 +326,36 @@ describe("QuickCaptureDialogComponent", () => {
       expect(component.aiParsed()).toBe(true);
     });
 
+    it("only flags aiParsed once the matched case has been loaded", () => {
+      const lookup = new Subject<unknown>();
+      cases.get.mockReturnValue(lookup);
+      entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
+      const component = render().componentInstance;
+      component.freeText.setValue("spor P-9");
+      component.fillFromText();
+
+      expect(component.aiParsed()).toBe(false);
+      expect(component.parseFailed()).toBe(false);
+      lookup.next({
+        id: "case-9",
+        caseNumber: "P-9/2026",
+        name: "Spor",
+        client: clientRef("client-3", "Gama d.o.o."),
+      });
+      expect(component.aiParsed()).toBe(true);
+    });
+
+    it("shows the hint when the matched case cannot be loaded", () => {
+      cases.get.mockReturnValue(throwError(() => new Error("404")));
+      entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
+      const component = render().componentInstance;
+      component.freeText.setValue("spor P-9");
+      component.fillFromText();
+
+      expect(component.aiParsed()).toBe(false);
+      expect(component.parseFailed()).toBe(true);
+    });
+
     it("offers ambiguous candidates and leaves the field empty", () => {
       entries.parse.mockReturnValue(
         of(
@@ -318,6 +389,26 @@ describe("QuickCaptureDialogComponent", () => {
       expect(component.aiParsed()).toBe(false);
       expect(component.parseFailed()).toBe(true);
     });
+  });
+
+  it("hides the date and the AI box when confirming from a source", () => {
+    context = {
+      mode: "confirm-source",
+      minutes: 45,
+      description: "Ročište",
+      source: { sourceType: "EVENT", sourceId: "event-1" },
+    };
+    const fixture = render();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector("#capture-date")).toBeNull();
+    expect(root.querySelector("#capture-free-text")).toBeNull();
+    expect(root.querySelector("#capture-minutes")).not.toBeNull();
+  });
+
+  it("shows the date and the AI box when creating", () => {
+    const root: HTMLElement = render().nativeElement;
+    expect(root.querySelector("#capture-date")).not.toBeNull();
+    expect(root.querySelector("#capture-free-text")).not.toBeNull();
   });
 
   it("clears the case when the client changes", () => {

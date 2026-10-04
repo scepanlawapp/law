@@ -5,92 +5,94 @@
 
 <div class="min-h-0 flex-1 overflow-y-auto text-sm">
   <div class="grid gap-4">
-    <div hlmField>
-      <label hlmFieldLabel for="capture-free-text">
-        {{ "time.capture.freeText" | translate }}
-      </label>
-      <div class="flex items-center gap-2">
-        <input
-          hlmInput
-          id="capture-free-text"
-          class="min-w-0 flex-1"
-          [formControl]="freeText"
-          [placeholder]="'time.capture.freeTextPlaceholder' | translate"
-          (keydown.enter)="fillFromText(); $event.preventDefault()"
-        />
-        @if (speech.isSupported()) {
+    @if (!fromSource) {
+      <div hlmField>
+        <label hlmFieldLabel for="capture-free-text">
+          {{ "time.capture.freeText" | translate }}
+        </label>
+        <div class="flex items-center gap-2">
+          <input
+            hlmInput
+            id="capture-free-text"
+            class="min-w-0 flex-1"
+            [formControl]="freeText"
+            [placeholder]="'time.capture.freeTextPlaceholder' | translate"
+            (keydown.enter)="fillFromText(); $event.preventDefault()"
+          />
+          @if (speech.isSupported()) {
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              size="icon"
+              [attr.aria-label]="
+                (speech.isListening() ? 'speech.stop' : 'speech.start')
+                  | translate
+              "
+              (click)="toggleMic()"
+            >
+              <ng-icon
+                [name]="speech.isListening() ? 'lucideMicOff' : 'lucideMic'"
+                aria-hidden="true"
+              />
+            </button>
+          }
           <button
             hlmBtn
             type="button"
-            variant="ghost"
-            size="icon"
-            [attr.aria-label]="
-              (speech.isListening() ? 'speech.stop' : 'speech.start')
-                | translate
-            "
-            (click)="toggleMic()"
+            variant="outline"
+            [disabled]="parsing() || !freeText.value.trim()"
+            (click)="fillFromText()"
           >
-            <ng-icon
-              [name]="speech.isListening() ? 'lucideMicOff' : 'lucideMic'"
-              aria-hidden="true"
-            />
+            @if (parsing()) {
+              <hlm-spinner />
+            }
+            {{ "time.capture.fill" | translate }}
           </button>
+        </div>
+        @if (parseFailed()) {
+          <p class="text-muted-foreground" role="status">
+            {{ "time.capture.parseFailed" | translate }}
+          </p>
         }
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          [disabled]="parsing() || !freeText.value.trim()"
-          (click)="fillFromText()"
-        >
-          @if (parsing()) {
-            <hlm-spinner />
-          }
-          {{ "time.capture.fill" | translate }}
-        </button>
+        @if (clientCandidates().length > 0) {
+          <div class="flex flex-wrap items-center gap-2" role="group">
+            <span class="text-muted-foreground">
+              {{ "time.capture.pickClient" | translate }}
+            </span>
+            @for (candidate of clientCandidates(); track candidate.id) {
+              <button
+                hlmBtn
+                type="button"
+                size="sm"
+                variant="secondary"
+                (click)="pickClientCandidate(candidate)"
+              >
+                {{ candidate.displayName }}
+              </button>
+            }
+          </div>
+        }
+        @if (caseCandidates().length > 0) {
+          <div class="flex flex-wrap items-center gap-2" role="group">
+            <span class="text-muted-foreground">
+              {{ "time.capture.pickCase" | translate }}
+            </span>
+            @for (candidate of caseCandidates(); track candidate.id) {
+              <button
+                hlmBtn
+                type="button"
+                size="sm"
+                variant="secondary"
+                (click)="pickCaseCandidate(candidate)"
+              >
+                {{ candidate.caseNumber }} — {{ candidate.name }}
+              </button>
+            }
+          </div>
+        }
       </div>
-      @if (parseFailed()) {
-        <p class="text-muted-foreground" role="status">
-          {{ "time.capture.parseFailed" | translate }}
-        </p>
-      }
-      @if (clientCandidates().length > 0) {
-        <div class="flex flex-wrap items-center gap-2" role="group">
-          <span class="text-muted-foreground">
-            {{ "time.capture.pickClient" | translate }}
-          </span>
-          @for (candidate of clientCandidates(); track candidate.id) {
-            <button
-              hlmBtn
-              type="button"
-              size="sm"
-              variant="secondary"
-              (click)="pickClientCandidate(candidate)"
-            >
-              {{ candidate.displayName }}
-            </button>
-          }
-        </div>
-      }
-      @if (caseCandidates().length > 0) {
-        <div class="flex flex-wrap items-center gap-2" role="group">
-          <span class="text-muted-foreground">
-            {{ "time.capture.pickCase" | translate }}
-          </span>
-          @for (candidate of caseCandidates(); track candidate.id) {
-            <button
-              hlmBtn
-              type="button"
-              size="sm"
-              variant="secondary"
-              (click)="pickCaseCandidate(candidate)"
-            >
-              {{ candidate.caseNumber }} — {{ candidate.name }}
-            </button>
-          }
-        </div>
-      }
-    </div>
+    }
 
     <form
       id="quick-capture-form"
@@ -116,6 +118,8 @@
               [value]="form.controls.clientId.value"
               (valueChange)="setClientId($event)"
               [itemToString]="clientItemToString"
+              [filter]="acceptAll"
+              (searchChange)="searchClients($event)"
             >
               <hlm-combobox-trigger
                 buttonId="capture-client"
@@ -244,19 +248,19 @@
         }
       </div>
 
-      <div class="grid gap-4 md:grid-cols-3">
-        <div hlmField>
-          <label hlmFieldLabel for="capture-date">
-            {{ "time.capture.date" | translate }}
-          </label>
-          <input
-            hlmInput
-            id="capture-date"
-            type="date"
-            formControlName="workDate"
-          />
-        </div>
-        @if (!fromSource) {
+      @if (!fromSource) {
+        <div class="grid gap-4 md:grid-cols-3">
+          <div hlmField>
+            <label hlmFieldLabel for="capture-date">
+              {{ "time.capture.date" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="capture-date"
+              type="date"
+              formControlName="workDate"
+            />
+          </div>
           <div hlmField>
             <label hlmFieldLabel for="capture-category">
               {{ "time.capture.category" | translate }}
@@ -303,8 +307,8 @@
               </hlm-select-content>
             </hlm-select>
           </div>
-        }
-      </div>
+        </div>
+      }
     </form>
   </div>
 </div>
