@@ -29,6 +29,8 @@ const mockResponse: UserSettingsResponse = {
     notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
     dateTimeFormat: "TWENTY_FOUR_HOUR",
     timeZone: "Europe/Belgrade",
+    timeReviewReminderEnabled: false,
+    timeReviewReminderTime: "17:30",
   },
 };
 

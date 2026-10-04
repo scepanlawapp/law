@@ -6,13 +6,11 @@ import {
   Param,
   Patch,
   Post,
-  Query,
   UseGuards,
 } from "@nestjs/common";
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
-  BillableWorkQueryDto,
   CreatePriceSourceDto,
   CreateInvoiceDto,
   ExternalInvoiceDto,
@@ -27,11 +25,6 @@ import { FinancialsService } from "./financials.service";
 @WorkspaceAccess()
 export class FinancialsController {
   constructor(private readonly financials: FinancialsService) {}
-
-  @Get("billable-work")
-  billableWork(@Query() query: BillableWorkQueryDto) {
-    return this.financials.listBillableWork(query);
-  }
 
   @Get("price-sources")
   priceSources() {

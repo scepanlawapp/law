@@ -7,19 +7,20 @@ import {
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { Router } from "@angular/router";
 import {
   CasesApiClient,
   ClientsApiClient,
-  EventsApiClient,
-  FinancialsApiClient,
-  WorkManagementApiClient,
+  ReferencesApiClient,
+  WorkEntriesApiClient,
 } from "@law/api-clients";
 import {
-  BillableWorkItem,
-  BillableWorkSourceType,
   CaseSummary,
   ClientSummary,
+  WorkEntry,
+  WorkEntryQuery,
+  WorkEntryTreatment,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -32,21 +33,35 @@ import {
   HlmComboboxPortal,
   HlmComboboxTrigger,
 } from "@spartan-ng/helm/combobox";
+import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
-import { EventDialogService } from "../calendar/event-dialog/event-dialog.service";
-import { DeadlineDialogService } from "../work-management/deadline-dialog/deadline-dialog.service";
-import { TaskDialogService } from "../work-management/task-dialog/task-dialog.service";
+import {
+  TREATMENT_LABEL_KEYS,
+  formatMinutes,
+  formatWorkDate,
+  isIsoDate,
+} from "../time/time-utils";
 
+const PAGE_SIZE = 25;
+const OPTION_PAGE_SIZE = 100;
+
+const TREATMENT_VALUES = Object.keys(
+  TREATMENT_LABEL_KEYS,
+) as WorkEntryTreatment[];
+
+/** "Neobračunat rad": confirmed work entries that no invoice bills yet. */
 @Component({
   selector: "law-finance-work-review",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: "./finance-work-review.component.html",
   imports: [
+    ReactiveFormsModule,
     HlmButton,
     HlmComboboxContent,
     HlmComboboxEmpty,
@@ -56,224 +71,246 @@ import { TaskDialogService } from "../work-management/task-dialog/task-dialog.se
     HlmComboboxMultiple,
     HlmComboboxPortal,
     HlmComboboxTrigger,
+    HlmInput,
+    HlmSelectImports,
     HlmSpinner,
     HlmTableImports,
     TranslatePipe,
   ],
 })
 export class FinanceWorkReviewComponent {
-  private readonly api = inject(FinancialsApiClient);
+  private readonly api = inject(WorkEntriesApiClient);
+  private readonly usersApi = inject(ReferencesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly casesApi = inject(CasesApiClient);
-  private readonly eventsApi = inject(EventsApiClient);
-  private readonly workApi = inject(WorkManagementApiClient);
-  private readonly eventDialog = inject(EventDialogService);
-  private readonly taskDialog = inject(TaskDialogService);
-  private readonly deadlineDialog = inject(DeadlineDialogService);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
+  private requestId = 0;
 
-  readonly items = signal<BillableWorkItem[]>([]);
+  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  readonly treatmentOptions = TREATMENT_VALUES;
+  readonly formatMinutes = formatMinutes;
+
+  readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly clients = signal<ClientSummary[]>([]);
   readonly cases = signal<CaseSummary[]>([]);
+
+  readonly peopleIds = signal<string[]>([]);
   readonly clientIds = signal<string[]>([]);
-  readonly caseIds = signal<string[]>([]);
-  readonly sourceTypes = signal<BillableWorkSourceType[]>([]);
-  readonly selectedSourceKeys = signal(new Set<string>());
-  readonly loading = signal(true);
+  readonly caseId = signal("");
+  readonly treatments = signal<WorkEntryTreatment[]>([]);
+  readonly from = new FormControl("", { nonNullable: true });
+  readonly to = new FormControl("", { nonNullable: true });
+
+  readonly entries = signal<WorkEntry[]>([]);
+  readonly selected = signal(new Map<string, WorkEntry>());
+  readonly page = signal(0);
+  readonly hasMore = signal(false);
+  readonly loading = signal(false);
   readonly error = signal(false);
 
-  readonly selectedItems = computed(() =>
-    this.items().filter((item) =>
-      this.selectedSourceKeys().has(item.sourceKey),
-    ),
-  );
+  readonly selectedCount = computed(() => this.selected().size);
 
-  readonly sourceOptions: ReadonlyArray<{
-    value: BillableWorkSourceType;
-    label: string;
-  }> = [
-    { value: "EVENT", label: "finance.sourceEvent" },
-    { value: "TASK", label: "finance.sourceTask" },
-    { value: "DEADLINE", label: "finance.sourceDeadline" },
-  ];
-
+  readonly userItemToString = (value: string | null | undefined): string =>
+    value
+      ? (this.users().find((user) => user.id === value)?.name ?? value)
+      : "";
   readonly clientItemToString = (value: string | null | undefined): string =>
     value
       ? (this.clients().find((client) => client.id === value)?.displayName ??
         value)
       : "";
   readonly caseItemToString = (value: string | null | undefined): string => {
-    if (!value) return "";
-    const caseItem = this.cases().find((item) => item.id === value);
-    return caseItem ? `${caseItem.caseNumber} — ${caseItem.name}` : value;
+    if (!value) return this.localization.translate("work.filters.allCases");
+    const item = this.cases().find((option) => option.id === value);
+    return item ? `${item.caseNumber} — ${item.name}` : value;
   };
-  readonly sourceItemToString = (
-    value: BillableWorkSourceType | null | undefined,
+  readonly treatmentItemToString = (
+    value: WorkEntryTreatment | null | undefined,
   ): string =>
-    value
-      ? this.localization.translate(
-          this.sourceOptions.find((option) => option.value === value)?.label ??
-            "",
-        )
-      : "";
+    value ? this.localization.translate(TREATMENT_LABEL_KEYS[value]) : "";
+
+  readonly selectedPeopleLabel = computed(() =>
+    this.peopleIds().map(this.userItemToString).join(", "),
+  );
   readonly selectedClientsLabel = computed(() =>
     this.clientIds().map(this.clientItemToString).join(", "),
   );
-  readonly selectedCasesLabel = computed(() =>
-    this.caseIds().map(this.caseItemToString).join(", "),
-  );
-  readonly selectedSourcesLabel = computed(() =>
-    this.sourceTypes().map(this.sourceItemToString).join(", "),
+  readonly selectedTreatmentsLabel = computed(() =>
+    this.treatments().map(this.treatmentItemToString).join(", "),
   );
 
   constructor() {
+    this.usersApi
+      .users()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (items) =>
+          this.users.set(
+            items.map((item) => ({
+              id: item.userId,
+              name:
+                [item.user.firstName, item.user.lastName]
+                  .filter(Boolean)
+                  .join(" ") || item.user.email,
+            })),
+          ),
+        error: () => undefined,
+      });
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list({ page: 1, pageSize: OPTION_PAGE_SIZE })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: (response) => this.clients.set(response.items) });
+      .subscribe({
+        next: (response) => this.clients.set(response.items),
+        error: () => undefined,
+      });
     this.casesApi
-      .list({ page: 1, pageSize: 100 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: (response) => this.cases.set(response.items) });
-    this.load();
-  }
-
-  setClientIds(value: string[]): void {
-    this.clientIds.set(value);
-    this.filtersChanged();
-  }
-
-  setCaseIds(value: string[]): void {
-    this.caseIds.set(value);
-    this.filtersChanged();
-  }
-
-  setSourceTypes(value: BillableWorkSourceType[]): void {
-    this.sourceTypes.set(value);
-    this.filtersChanged();
-  }
-
-  load(): void {
-    this.loading.set(true);
-    this.error.set(false);
-    this.api
-      .billableWork({
-        page: 1,
-        pageSize: 100,
-        clientIds: this.clientIds(),
-        caseIds: this.caseIds(),
-        sourceTypes: this.sourceTypes(),
-      })
+      .list({ page: 1, pageSize: OPTION_PAGE_SIZE })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (response) => {
-          this.items.set(response.items);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.loading.set(false);
-          this.error.set(true);
-        },
+        next: (response) => this.cases.set(response.items),
+        error: () => undefined,
       });
-  }
 
-  toggle(item: BillableWorkItem): void {
-    const selected = new Set(this.selectedSourceKeys());
-    if (selected.has(item.sourceKey)) {
-      selected.delete(item.sourceKey);
-      this.selectedSourceKeys.set(selected);
-      return;
-    }
-    const currentClient = this.selectedItems()[0]?.client.id;
-    if (currentClient && currentClient !== item.client.id) {
-      this.toast.error("finance.selectionOneClient");
-      return;
-    }
-    selected.add(item.sourceKey);
-    this.selectedSourceKeys.set(selected);
-  }
-
-  recordSelectedCandidates(): void {
-    this.navigateToInvoice(this.selectedItems());
-  }
-
-  recordItem(item: BillableWorkItem): void {
-    this.navigateToInvoice([item]);
-  }
-
-  openSource(item: BillableWorkItem): void {
-    if (item.sourceType === "EVENT") {
-      this.eventsApi
-        .get(item.sourceId)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: (event) =>
-            this.eventDialog
-              .open({ event })
-              .pipe(takeUntilDestroyed(this.destroyRef))
-              .subscribe((updated) => updated && this.load()),
-          error: () => this.toast.error("finance.sourceLoadError"),
-        });
-      return;
-    }
-    if (item.sourceType === "TASK") {
-      this.workApi
-        .getTask(item.sourceId)
-        .pipe(takeUntilDestroyed(this.destroyRef))
-        .subscribe({
-          next: (task) =>
-            this.taskDialog
-              .open({ task })
-              .pipe(takeUntilDestroyed(this.destroyRef))
-              .subscribe((updated) => updated && this.load()),
-          error: () => this.toast.error("finance.sourceLoadError"),
-        });
-      return;
-    }
-    this.workApi
-      .getDeadline(item.sourceId)
+    this.from.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (deadline) =>
-          this.deadlineDialog
-            .open({ deadline })
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe((updated) => updated && this.load()),
-        error: () => this.toast.error("finance.sourceLoadError"),
-      });
+      .subscribe(() => this.reload());
+    this.to.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.reload());
+
+    this.load(true);
   }
 
-  formatDate(value: string): string {
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "SR" ? "sr-Latn-RS" : "en-US",
-      { dateStyle: "medium" },
-    ).format(new Date(value));
+  setPeopleIds(values: string[]): void {
+    this.peopleIds.set(values);
+    this.reload();
   }
 
-  sourceLabel(value: BillableWorkSourceType): string {
-    return this.sourceItemToString(value);
+  setClientIds(values: string[]): void {
+    this.clientIds.set(values);
+    this.reload();
   }
 
-  private filtersChanged(): void {
-    this.selectedSourceKeys.set(new Set());
-    this.load();
+  setCaseId(value: string): void {
+    this.caseId.set(value);
+    this.reload();
   }
 
-  private navigateToInvoice(items: BillableWorkItem[]): void {
-    if (!items.length) return;
-    const clientIds = new Set(items.map((item) => item.client.id));
+  setTreatments(values: WorkEntryTreatment[]): void {
+    this.treatments.set(values);
+    this.reload();
+  }
+
+  /** A new filter starts a new list; the previous selection no longer applies. */
+  reload(): void {
+    this.selected.set(new Map());
+    this.load(true);
+  }
+
+  retry(): void {
+    this.load(true);
+  }
+
+  loadMore(): void {
+    if (this.hasMore() && !this.loading()) this.load(false);
+  }
+
+  isSelected(entry: WorkEntry): boolean {
+    return this.selected().has(entry.id);
+  }
+
+  toggle(entry: WorkEntry): void {
+    const selected = new Map(this.selected());
+    if (selected.has(entry.id)) {
+      selected.delete(entry.id);
+      this.selected.set(selected);
+      return;
+    }
+    const currentClient = selected.values().next().value?.client.id;
+    if (currentClient && currentClient !== entry.client.id) {
+      this.toast.error(
+        this.localization.translate("finance.selectionOneClient"),
+      );
+      return;
+    }
+    selected.set(entry.id, entry);
+    this.selected.set(selected);
+  }
+
+  newStatementFromSelection(): void {
+    this.navigateToStatement([...this.selected().values()]);
+  }
+
+  newStatementFor(entry: WorkEntry): void {
+    this.navigateToStatement([entry]);
+  }
+
+  workDateLabel(date: string): string {
+    return formatWorkDate(date, this.localization.language());
+  }
+
+  private navigateToStatement(entries: WorkEntry[]): void {
+    if (!entries.length) return;
+    const clientIds = new Set(entries.map((entry) => entry.client.id));
     if (clientIds.size !== 1) {
-      this.toast.error("finance.selectionOneClient");
+      this.toast.error(
+        this.localization.translate("finance.selectionOneClient"),
+      );
       return;
     }
     void this.router.navigate(["/finance/invoices/new"], {
       queryParams: {
-        clientId: items[0].client.id,
-        source: items.map((item) => item.sourceKey),
+        clientId: entries[0].client.id,
+        workEntryIds: entries.map((entry) => entry.id),
       },
     });
+  }
+
+  private query(page: number): Partial<WorkEntryQuery> {
+    const from = this.from.value;
+    const to = this.to.value;
+    return {
+      page,
+      pageSize: PAGE_SIZE,
+      statuses: ["CONFIRMED"],
+      unbilledOnly: true,
+      userIds: this.peopleIds().length ? this.peopleIds() : undefined,
+      clientIds: this.clientIds().length ? this.clientIds() : undefined,
+      caseId: this.caseId() || undefined,
+      treatments: this.treatments().length ? this.treatments() : undefined,
+      from: isIsoDate(from) ? from : undefined,
+      to: isIsoDate(to) ? to : undefined,
+    };
+  }
+
+  private load(reset: boolean): void {
+    const page = reset ? 1 : this.page() + 1;
+    const requestId = ++this.requestId;
+    this.loading.set(true);
+    this.error.set(false);
+    this.api
+      .list(this.query(page))
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (response) => {
+          if (requestId !== this.requestId) return;
+          this.entries.update((items) =>
+            reset ? response.items : [...items, ...response.items],
+          );
+          this.page.set(page);
+          this.hasMore.set(page < response.meta.totalPages);
+          this.loading.set(false);
+        },
+        error: () => {
+          if (requestId !== this.requestId) return;
+          if (reset) this.entries.set([]);
+          this.hasMore.set(false);
+          this.error.set(true);
+          this.loading.set(false);
+        },
+      });
   }
 }

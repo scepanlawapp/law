@@ -7,8 +7,13 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { Invoice, ClientSummary } from "@law/api-interfaces";
-import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
+import { Invoice, ClientSummary, WorkEntry } from "@law/api-interfaces";
+import {
+  BillingSetupApiClient,
+  ClientsApiClient,
+  FinancialsApiClient,
+  WorkEntriesApiClient,
+} from "@law/api-clients";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideTrash2 } from "@ng-icons/lucide";
@@ -19,6 +24,15 @@ import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import {
+  EMPTY,
+  Observable,
+  catchError,
+  forkJoin,
+  map,
+  of,
+  switchMap,
+} from "rxjs";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import {
@@ -27,13 +41,16 @@ import {
 } from "../../shared/currency";
 import {
   InvoiceLineForm,
-  appendUniqueBillableWork,
-  calculateInvoiceLineAmounts,
+  ClientRate,
+  appendUniqueWorkEntries,
   calculateInvoiceTotals,
   createInvoiceLineForm,
-  detachInvoiceLineSources,
+  detachInvoiceLineWorkEntries,
   incompatibleCurrencyIndexes,
+  lineWorkEntryIds,
   normalizeCurrency,
+  recalculateInvoiceLine,
+  toInvoiceLineInput,
 } from "./invoice-form";
 import { InvoiceLineImportDialogService } from "./invoice-line-import-dialog.service";
 import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
@@ -61,6 +78,8 @@ import { ClientFormDialogService } from "../clients/client-create-edit-modal/cli
 })
 export class FinanceInvoiceCreateComponent {
   private readonly api = inject(FinancialsApiClient);
+  private readonly workEntriesApi = inject(WorkEntriesApiClient);
+  private readonly billingSetupApi = inject(BillingSetupApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly importDialog = inject(InvoiceLineImportDialogService);
   private readonly destroyRef = inject(DestroyRef);
@@ -83,8 +102,16 @@ export class FinanceInvoiceCreateComponent {
   readonly isEditMode = this.invoiceId !== null;
   private readonly requestedClientId =
     this.route.snapshot.queryParamMap.get("clientId");
-  private readonly requestedSourceKeys =
-    this.route.snapshot.queryParamMap.getAll("source");
+  /** `?workEntryIds=a&workEntryIds=b` (or comma separated) from Unbilled work. */
+  private readonly requestedWorkEntryIds = [
+    ...new Set(
+      this.route.snapshot.queryParamMap
+        .getAll("workEntryIds")
+        .flatMap((value) => value.split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  ];
   private prefillStarted = false;
   private readonly registeredLines = new WeakSet<InvoiceLineForm>();
 
@@ -133,6 +160,7 @@ export class FinanceInvoiceCreateComponent {
       nonNullable: true,
       validators: Validators.required,
     }),
+    printWorkSpecification: new FormControl(true, { nonNullable: true }),
     lines: new FormArray<InvoiceLineForm>([]),
   });
 
@@ -163,6 +191,12 @@ export class FinanceInvoiceCreateComponent {
       })),
     );
   });
+  readonly pricingRequiredCount = computed(() => {
+    this.formRevision();
+    return this.form.controls.lines.controls.filter(
+      (line) => line.controls.pricingRequired.value,
+    ).length;
+  });
   readonly canSave = computed(() => {
     this.formRevision();
     return (
@@ -185,7 +219,7 @@ export class FinanceInvoiceCreateComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((clientId) => {
         if (previousClientId && previousClientId !== clientId) {
-          detachInvoiceLineSources(this.form.controls.lines.controls);
+          detachInvoiceLineWorkEntries(this.form.controls.lines.controls);
         }
         previousClientId = clientId;
         this.selectedClient.set(
@@ -279,29 +313,20 @@ export class FinanceInvoiceCreateComponent {
   openImportDialog(): void {
     const client = this.selectedClient();
     if (!client) return;
-    const importedSourceKeys = this.form.controls.lines.controls.flatMap(
-      (line) => {
-        const type = line.controls.sourceType.value;
-        const id = line.controls.sourceId.value;
-        return type && id ? [`${type}:${id}`] : [];
-      },
-    );
     this.importDialog
-      .open(client, importedSourceKeys)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((items) => {
-        if (!items?.length) return;
-        const firstNewIndex = this.form.controls.lines.length;
-        const added = appendUniqueBillableWork(
-          this.form.controls.lines,
-          items,
-          normalizeCurrency(this.form.controls.currency.value),
-        );
-        if (!added) return;
-        this.registerLinesFrom(firstNewIndex);
-        this.form.controls.lines.markAsDirty();
-        this.bumpRevision();
-      });
+      .open(client, lineWorkEntryIds(this.form.controls.lines.controls))
+      .pipe(
+        switchMap((entries) =>
+          entries?.length
+            ? forkJoin({
+                entries: of(entries),
+                rate: this.clientRate(client.id),
+              })
+            : EMPTY,
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe(({ entries, rate }) => this.appendEntries(entries, rate));
   }
 
   isCurrencyMismatch(index: number): boolean {
@@ -325,21 +350,7 @@ export class FinanceInvoiceCreateComponent {
 
     const header = this.form.getRawValue();
     const totals = this.invoiceTotals();
-    const lines = this.form.controls.lines.controls.map((control) => {
-      const value = control.getRawValue();
-      return {
-        serviceDate: value.serviceDate,
-        description: value.description.trim(),
-        netAmount: value.netAmount ?? 0,
-        vatRate: value.vatRate ?? 0,
-        vatAmount: value.vatAmount ?? 0,
-        grossAmount: value.grossAmount ?? 0,
-        currency: normalizeCurrency(value.currency),
-        ...(value.sourceType && value.sourceId
-          ? { sourceType: value.sourceType, sourceId: value.sourceId }
-          : {}),
-      };
-    });
+    const lines = this.form.controls.lines.controls.map(toInvoiceLineInput);
     this.saving.set(true);
     const request = this.invoiceId
       ? this.api.updateInvoice(this.invoiceId, {
@@ -355,6 +366,7 @@ export class FinanceInvoiceCreateComponent {
           grossAmount: totals.grossAmount,
           numberOfCashBill: header.numberOfCashBill.trim(),
           country: header.country.trim(),
+          printWorkSpecification: header.printWorkSpecification,
           lines,
         })
       : this.api.createInvoice({
@@ -372,6 +384,7 @@ export class FinanceInvoiceCreateComponent {
           numberOfCashBill: header.numberOfCashBill.trim(),
           country: header.country.trim(),
           currency: normalizeCurrency(header.currency),
+          printWorkSpecification: header.printWorkSpecification,
           lines,
           idempotencyKey: this.invoiceIdempotencyKey,
         });
@@ -400,6 +413,7 @@ export class FinanceInvoiceCreateComponent {
         numberOfCashBill: invoice.numberOfCashBill,
         country: invoice.country,
         currency: invoice.currency,
+        printWorkSpecification: invoice.printWorkSpecification,
       },
       { emitEvent: false },
     );
@@ -426,36 +440,77 @@ export class FinanceInvoiceCreateComponent {
     if (
       this.prefillStarted ||
       !this.requestedClientId ||
-      !this.requestedSourceKeys.length
+      !this.requestedWorkEntryIds.length
     ) {
       return;
     }
     this.prefillStarted = true;
-    this.api
-      .billableWork({
-        clientId: this.requestedClientId,
-        sourceKeys: this.requestedSourceKeys,
-        page: 1,
-        pageSize: Math.max(1, this.requestedSourceKeys.length),
-      })
+    const clientId = this.requestedClientId;
+    forkJoin({
+      entries: forkJoin(
+        this.requestedWorkEntryIds.map((id) =>
+          this.workEntriesApi.get(id).pipe(catchError(() => of(null))),
+        ),
+      ),
+      rate: this.clientRate(clientId),
+    })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (response) => {
-          const firstNewIndex = this.form.controls.lines.length;
-          appendUniqueBillableWork(
-            this.form.controls.lines,
-            response.items,
-            normalizeCurrency(this.form.controls.currency.value),
+        next: ({ entries, rate }) => {
+          const usable = entries.filter(
+            (entry): entry is WorkEntry =>
+              entry !== null &&
+              entry.client.id === clientId &&
+              entry.status === "CONFIRMED" &&
+              entry.invoiceId === null,
           );
-          this.registerLinesFrom(firstNewIndex);
-          if (response.items.length !== this.requestedSourceKeys.length) {
+          this.appendEntries(usable, rate);
+          if (usable.length !== this.requestedWorkEntryIds.length) {
             this.saveError.set("finance.someWorkUnavailable");
           }
-          this.form.controls.lines.markAsDirty();
-          this.bumpRevision();
         },
         error: () => this.saveError.set("finance.workImportError"),
       });
+  }
+
+  /** The client's hourly rate; `null` when it is not set or not readable. */
+  private clientRate(clientId: string): Observable<ClientRate | null> {
+    return this.billingSetupApi.getProfile(clientId).pipe(
+      map((profile) => ({
+        hourlyRate: profile.hourlyRate,
+        currency: profile.currency,
+      })),
+      catchError(() => of(null)),
+    );
+  }
+
+  private appendEntries(
+    entries: readonly WorkEntry[],
+    rate: ClientRate | null,
+  ): void {
+    // A new invoice bills in the client's currency, so the imported
+    // entries can be priced from the client's rate.
+    if (
+      !this.isEditMode &&
+      !this.form.controls.lines.length &&
+      rate &&
+      CURRENCY_OPTIONS.some(
+        (option) => option.value === normalizeCurrency(rate.currency),
+      )
+    ) {
+      this.form.controls.currency.setValue(normalizeCurrency(rate.currency));
+    }
+    const firstNewIndex = this.form.controls.lines.length;
+    const added = appendUniqueWorkEntries(
+      this.form.controls.lines,
+      entries,
+      normalizeCurrency(this.form.controls.currency.value) || "RSD",
+      rate,
+    );
+    if (!added) return;
+    this.registerLinesFrom(firstNewIndex);
+    this.form.controls.lines.markAsDirty();
+    this.bumpRevision();
   }
 
   private applyClients(clients: ClientSummary[]): void {
@@ -502,10 +557,9 @@ export class FinanceInvoiceCreateComponent {
     this.registeredLines.add(line);
 
     const recalculate = (
-      source: Parameters<typeof calculateInvoiceLineAmounts>[0],
+      source: Parameters<typeof recalculateInvoiceLine>[1],
     ): void => {
-      const amounts = calculateInvoiceLineAmounts(source, line.getRawValue());
-      line.patchValue(amounts, { emitEvent: false });
+      recalculateInvoiceLine(line, source);
       this.bumpRevision();
     };
 

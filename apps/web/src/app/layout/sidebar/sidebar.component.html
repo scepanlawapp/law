@@ -49,7 +49,7 @@
       </div>
     </div>
 
-    @for (group of navigationGroups; track group.label) {
+    @for (group of navigationGroups(); track group.label) {
       <div hlmSidebarGroup [attr.aria-label]="group.label | translate">
         <div hlmSidebarGroupLabel>{{ group.label | translate }}</div>
         <div hlmSidebarGroupContent>
@@ -96,6 +96,7 @@
                     hlmSidebarMenuButton
                     [routerLink]="item.route"
                     routerLinkActive
+                    [routerLinkActiveOptions]="{ exact: !!item.exact }"
                     #groupActive="routerLinkActive"
                     [isActive]="groupActive.isActive"
                     [tooltip]="item.label | translate"

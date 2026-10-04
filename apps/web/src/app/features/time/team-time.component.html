@@ -1,0 +1,312 @@
+<section class="flex flex-col gap-4 p-4 md:p-6">
+  <header>
+    <h1 class="text-xl font-semibold">{{ "time.team.title" | translate }}</h1>
+    <p class="text-muted-foreground text-sm">
+      {{ "time.team.description" | translate }}
+    </p>
+  </header>
+
+  <div class="flex flex-wrap items-end gap-3">
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="team-time-people">
+        {{ "work.filters.people" | translate }}
+      </label>
+      <div
+        hlmComboboxMultiple
+        [value]="peopleIds()"
+        (valueChange)="setPeopleIds($event ?? [])"
+        [itemToString]="userItemToString"
+      >
+        <hlm-combobox-trigger buttonId="team-time-people" class="w-full">
+          <span data-slot="combobox-value" class="truncate">
+            @if (selectedPeopleLabel(); as label) {
+              {{ label }}
+            } @else {
+              <span class="text-muted-foreground">
+                {{ "work.filters.peoplePlaceholder" | translate }}
+              </span>
+            }
+          </span>
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-input
+            [placeholder]="'work.filters.searchPlaceholder' | translate"
+            [showTrigger]="false"
+          />
+          <hlm-combobox-empty>
+            {{ "work.filters.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            @for (user of users(); track user.id) {
+              <hlm-combobox-item [value]="user.id">
+                {{ user.name }}
+              </hlm-combobox-item>
+            }
+          </div>
+        </hlm-combobox-content>
+      </div>
+    </div>
+
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="team-time-clients">
+        {{ "time.team.client" | translate }}
+      </label>
+      <div
+        hlmComboboxMultiple
+        [value]="clientIds()"
+        (valueChange)="setClientIds($event ?? [])"
+        [itemToString]="clientItemToString"
+      >
+        <hlm-combobox-trigger buttonId="team-time-clients" class="w-full">
+          <span data-slot="combobox-value" class="truncate">
+            @if (selectedClientsLabel(); as label) {
+              {{ label }}
+            } @else {
+              <span class="text-muted-foreground">
+                {{ "time.team.allClients" | translate }}
+              </span>
+            }
+          </span>
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-input
+            [placeholder]="'work.filters.searchPlaceholder' | translate"
+            [showTrigger]="false"
+          />
+          <hlm-combobox-empty>
+            {{ "work.filters.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            @for (client of clients(); track client.id) {
+              <hlm-combobox-item [value]="client.id">
+                {{ client.displayName }}
+              </hlm-combobox-item>
+            }
+          </div>
+        </hlm-combobox-content>
+      </div>
+    </div>
+
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="team-time-case">
+        {{ "work.filters.case" | translate }}
+      </label>
+      <hlm-select
+        [value]="caseId()"
+        (valueChange)="setCaseId($event ?? '')"
+        [itemToString]="caseItemToString"
+      >
+        <hlm-select-trigger buttonId="team-time-case" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal width="content">
+          <hlm-select-group>
+            <hlm-select-item value="">
+              {{ "work.filters.allCases" | translate }}
+            </hlm-select-item>
+            @for (item of cases(); track item.id) {
+              <hlm-select-item [value]="item.id">
+                {{ item.caseNumber }} — {{ item.name }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="team-time-statuses">
+        {{ "work.filters.statuses" | translate }}
+      </label>
+      <div
+        hlmComboboxMultiple
+        [value]="statuses()"
+        (valueChange)="setStatuses($event ?? [])"
+        [itemToString]="statusItemToString"
+      >
+        <hlm-combobox-trigger buttonId="team-time-statuses" class="w-full">
+          <span data-slot="combobox-value" class="truncate">
+            @if (selectedStatusesLabel(); as label) {
+              {{ label }}
+            } @else {
+              <span class="text-muted-foreground">
+                {{ "work.filters.statusesPlaceholder" | translate }}
+              </span>
+            }
+          </span>
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-empty>
+            {{ "work.filters.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            @for (status of statusOptions; track status) {
+              <hlm-combobox-item [value]="status">
+                {{ statusLabelKeys[status] | translate }}
+              </hlm-combobox-item>
+            }
+          </div>
+        </hlm-combobox-content>
+      </div>
+    </div>
+
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="team-time-treatments">
+        {{ "time.capture.treatment" | translate }}
+      </label>
+      <div
+        hlmComboboxMultiple
+        [value]="treatments()"
+        (valueChange)="setTreatments($event ?? [])"
+        [itemToString]="treatmentItemToString"
+      >
+        <hlm-combobox-trigger buttonId="team-time-treatments" class="w-full">
+          <span data-slot="combobox-value" class="truncate">
+            @if (selectedTreatmentsLabel(); as label) {
+              {{ label }}
+            } @else {
+              <span class="text-muted-foreground">
+                {{ "time.team.allTreatments" | translate }}
+              </span>
+            }
+          </span>
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-empty>
+            {{ "work.filters.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            @for (treatment of treatmentOptions; track treatment) {
+              <hlm-combobox-item [value]="treatment">
+                {{ treatmentLabelKeys[treatment] | translate }}
+              </hlm-combobox-item>
+            }
+          </div>
+        </hlm-combobox-content>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="team-time-from">
+        {{ "time.team.from" | translate }}
+      </label>
+      <input hlmInput id="team-time-from" type="date" [formControl]="from" />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="team-time-to">
+        {{ "time.team.to" | translate }}
+      </label>
+      <input hlmInput id="team-time-to" type="date" [formControl]="to" />
+    </div>
+  </div>
+
+  @if (error()) {
+    <div class="flex items-center gap-3" role="alert">
+      <p class="text-destructive text-sm">
+        {{ "time.team.loadError" | translate }}
+      </p>
+      <button hlmBtn type="button" variant="outline" (click)="reload()">
+        {{ "time.retry" | translate }}
+      </button>
+    </div>
+  }
+
+  <div hlmTableContainer>
+    <table hlmTable>
+      <thead hlmTHead>
+        <tr hlmTr>
+          <th hlmTh>{{ "time.capture.date" | translate }}</th>
+          <th hlmTh>{{ "time.team.person" | translate }}</th>
+          <th hlmTh>{{ "time.capture.client" | translate }}</th>
+          <th hlmTh>{{ "time.capture.workDescription" | translate }}</th>
+          <th hlmTh>{{ "time.capture.duration" | translate }}</th>
+          <th hlmTh>{{ "time.capture.treatment" | translate }}</th>
+          <th hlmTh>{{ "time.team.status" | translate }}</th>
+          <th hlmTh>
+            <span class="sr-only">{{ "time.team.actions" | translate }}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @for (entry of entries(); track entry.id) {
+          <tr hlmTr data-testid="team-entry">
+            <td hlmTd class="whitespace-nowrap">
+              {{ workDateLabel(entry.workDate) }}
+            </td>
+            <td hlmTd>{{ entry.user.displayName }}</td>
+            <td hlmTd>
+              {{ entry.client.displayName }}
+              @if (entry.case) {
+                <span class="text-muted-foreground block text-xs">
+                  {{ entry.case.caseNumber }}
+                </span>
+              }
+            </td>
+            <td hlmTd class="max-w-xs">
+              <span class="line-clamp-2">{{ entry.description }}</span>
+              @if (entry.writeOffReason) {
+                <span class="text-muted-foreground block text-xs">
+                  {{ entry.writeOffReason }}
+                </span>
+              }
+            </td>
+            <td hlmTd class="whitespace-nowrap">
+              {{ formatMinutes(entry.minutes ?? 0) }}
+            </td>
+            <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
+            <td hlmTd>
+              <span
+                class="rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
+                [class]="statusBadgeClasses[entry.status]"
+              >
+                {{ statusLabelKeys[entry.status] | translate }}
+              </span>
+            </td>
+            <td hlmTd class="text-end whitespace-nowrap">
+              @if (isEditable(entry)) {
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  [disabled]="busyEntryId() === entry.id"
+                  (click)="edit(entry)"
+                >
+                  {{ "common.edit" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  [disabled]="busyEntryId() === entry.id"
+                  (click)="writeOff(entry)"
+                >
+                  {{ "time.review.writeOff" | translate }}
+                </button>
+              }
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (loading()) {
+    <div class="flex items-center gap-2" role="status">
+      <hlm-spinner [attr.aria-label]="'time.team.loading' | translate" />
+    </div>
+  } @else if (!entries().length && !error()) {
+    <p class="text-muted-foreground text-sm">
+      {{ "time.team.empty" | translate }}
+    </p>
+  }
+
+  @if (hasMore() && !loading()) {
+    <div class="flex justify-center">
+      <button hlmBtn type="button" variant="outline" (click)="loadMore()">
+        {{ "work.loadMore" | translate }}
+      </button>
+    </div>
+  }
+</section>

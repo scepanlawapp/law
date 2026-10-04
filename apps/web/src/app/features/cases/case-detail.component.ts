@@ -1,5 +1,5 @@
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
-import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 import { KeyValuePipe } from "@angular/common";
 import {
   FormControl,
@@ -48,6 +48,7 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
 import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 import { debounceTime, distinctUntilChanged } from "rxjs";
+import { integerValidator } from "../time/validators";
 
 const CASE_DETAIL_PAGE_SIZE = 10;
 
@@ -215,7 +216,35 @@ export class CaseDetailComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
+    durationMinutes: new FormControl<number | null>(
+      { value: null, disabled: true },
+      {
+        validators: [integerValidator, Validators.min(1), Validators.max(1440)],
+      },
+    ),
   });
+  readonly activityMinuteChips = [15, 30, 60, 120] as const;
+  private readonly selectedActivityType = toSignal(
+    this.activityForm.controls.type.valueChanges,
+    { initialValue: this.activityForm.controls.type.value },
+  );
+  /** Only calls, meetings and emails take a duration. */
+  readonly activityTakesDuration = computed(() =>
+    ["PHONE_CALL", "MEETING", "EMAIL"].includes(this.selectedActivityType()),
+  );
+  private readonly syncActivityDuration =
+    this.activityForm.controls.type.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((type) => {
+        const control = this.activityForm.controls.durationMinutes;
+        if (["PHONE_CALL", "MEETING", "EMAIL"].includes(type)) {
+          control.enable();
+        } else {
+          // A hidden, stale value must neither block submit nor be sent.
+          control.reset(null);
+          control.disable();
+        }
+      });
   readonly responsibilityForm = new FormGroup({
     userId: new FormControl("", {
       nonNullable: true,
@@ -595,17 +624,24 @@ export class CaseDetailComponent {
       });
   }
 
+  setActivityMinutes(minutes: number): void {
+    this.activityForm.controls.durationMinutes.setValue(minutes);
+  }
+
   addActivity(): void {
     if (this.activityForm.invalid) {
       this.activityForm.markAllAsTouched();
       return;
     }
 
-    const value = this.activityForm.getRawValue();
+    const { durationMinutes, ...value } = this.activityForm.getRawValue();
     this.api
       .createActivity(this.id, {
         ...value,
         description: value.description ?? undefined,
+        ...(this.activityTakesDuration() && durationMinutes
+          ? { durationMinutes }
+          : {}),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -616,6 +652,7 @@ export class CaseDetailComponent {
             title: "",
             description: "",
             activityDate: "",
+            durationMinutes: null,
           });
           this.toast.success(this.local.translate("cases.saved"));
           this.activitiesPage.set(1);

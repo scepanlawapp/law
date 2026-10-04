@@ -2,7 +2,11 @@ import { DOCUMENT } from "@angular/common";
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute, RouterLink } from "@angular/router";
-import { Invoice, ClientDetail } from "@law/api-interfaces";
+import {
+  Invoice,
+  InvoiceLineSummary,
+  ClientDetail,
+} from "@law/api-interfaces";
 import {
   ClientAddress,
   ClientsApiClient,
@@ -13,6 +17,10 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { catchError, forkJoin, of, switchMap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { formatDate, formatHoursMinutes } from "../../shared/billing";
+
+export type WorkSpecificationRow =
+  InvoiceLineSummary["workEntries"][number];
 
 @Component({
   selector: "law-invoice-print-view",
@@ -35,6 +43,24 @@ export class InvoicePrintViewComponent {
   readonly addresses = signal<ClientAddress[]>([]);
   readonly loading = signal(true);
   readonly error = signal(false);
+  /**
+   * "Specifikacija rada": every work entry behind the invoice lines, by
+   * date. Empty when the invoice does not print it or has no entry-backed
+   * lines (manual lines have nothing to specify).
+   */
+  readonly workSpecification = computed<WorkSpecificationRow[]>(() => {
+    const invoice = this.invoice();
+    if (!invoice?.printWorkSpecification) return [];
+    return invoice.lines
+      .flatMap((line) => line.workEntries)
+      .sort((a, b) => a.workDate.localeCompare(b.workDate));
+  });
+  readonly workSpecificationMinutes = computed(() =>
+    this.workSpecification().reduce(
+      (total, entry) => total + (entry.minutes ?? 0),
+      0,
+    ),
+  );
   readonly primaryAddress = computed(
     () =>
       this.addresses().find((address) => address.isPrimary) ??
@@ -103,6 +129,14 @@ export class InvoicePrintViewComponent {
       this.localization.language() === "EN" ? "en" : "sr-Latn",
       { day: "numeric", month: "numeric", year: "numeric" },
     ).format(new Date(value));
+  }
+
+  formatWorkDate(value: string): string {
+    return formatDate(value.slice(0, 10), this.localization.language());
+  }
+
+  formatDuration(minutes: number | null): string {
+    return minutes === null ? "—" : formatHoursMinutes(minutes);
   }
 
   formatAmount(value: string): string {

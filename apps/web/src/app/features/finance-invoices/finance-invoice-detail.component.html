@@ -33,10 +33,59 @@
       <h1 class="text-xl font-semibold">
         {{ "finance.invoiceTitle" | translate: { number: item.invoiceNumber } }}
       </h1>
-      <a hlmBtn [routerLink]="['/finance/invoices', item.id, 'print']">
-        {{ "finance.printInvoice" | translate }}
-      </a>
+      <div class="flex flex-wrap items-center gap-2">
+        @if (item.status === "DRAFT" && canSend()) {
+          @if (sendBlocked()) {
+            <span
+              tabindex="0"
+              [hlmTooltip]="'finance.sendBlockedTooltip' | translate"
+              aria-describedby="invoice-send-blocked"
+            >
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                data-testid="send-invoice"
+                disabled
+              >
+                {{ "finance.sendInvoice" | translate }}
+              </button>
+            </span>
+          } @else {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              data-testid="send-invoice"
+              [disabled]="sending()"
+              (click)="send()"
+            >
+              @if (sending()) {
+                <hlm-spinner />
+              }
+              {{ "finance.sendInvoice" | translate }}
+            </button>
+          }
+        }
+        <a hlmBtn [routerLink]="['/finance/invoices', item.id, 'print']">
+          {{ "finance.printStatement" | translate }}
+        </a>
+      </div>
     </header>
+
+    @if (item.status === "DRAFT" && canSend() && sendBlocked()) {
+      <p
+        id="invoice-send-blocked"
+        role="status"
+        data-testid="send-blocked-notice"
+        class="rounded-lg border border-warning/40 bg-warning/10 p-3 text-warning"
+      >
+        {{
+          "finance.pricingRequiredNotice"
+            | translate: { count: pricingRequiredCount() }
+        }}
+      </p>
+    }
 
     <section class="space-y-3 border-b border-border pb-4">
       <h2 class="text-base font-semibold">
@@ -99,6 +148,17 @@
           </dt>
           <dd class="font-medium">{{ item.country || "—" }}</dd>
         </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "finance.printWorkSpecification" | translate }}
+          </dt>
+          <dd class="font-medium">
+            {{
+              (item.printWorkSpecification ? "finance.yes" : "finance.no")
+                | translate
+            }}
+          </dd>
+        </div>
       </dl>
     </section>
 
@@ -137,7 +197,17 @@
               @for (line of item.lines; track line.id) {
                 <tr hlmTr>
                   <td hlmTd>{{ formatDate(line.serviceDate) }}</td>
-                  <td hlmTd>{{ line.description }}</td>
+                  <td hlmTd>
+                    {{ line.description }}
+                    @if (line.pricingRequired) {
+                      <span
+                        data-testid="pricing-required-badge"
+                        class="ms-2 inline-flex rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-sm text-warning"
+                      >
+                        {{ "finance.pricingRequired" | translate }}
+                      </span>
+                    }
+                  </td>
                   <td hlmTd class="text-right tabular-nums">
                     {{ formatAmount(line.netAmount) }}
                   </td>

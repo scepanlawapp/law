@@ -1,239 +1,279 @@
-<div class="space-y-6 text-sm">
-  <header class="space-y-2">
-    <h1 class="text-2xl font-semibold">
-      {{ "finance.reviewWork" | translate }}
+<section class="flex flex-col gap-4 p-4 md:p-6">
+  <header class="space-y-1">
+    <h1 class="text-xl font-semibold">
+      {{ "finance.unbilledWork" | translate }}
     </h1>
-    <p class="text-muted-foreground">
-      {{ "finance.billableWorkDescription" | translate }}
+    <p class="text-muted-foreground text-sm">
+      {{ "finance.unbilledWorkDescription" | translate }}
     </p>
   </header>
 
-  <section class="app-section-surface space-y-5 p-5">
-    <div class="grid gap-3 md:grid-cols-3">
-      <div class="flex min-w-0 flex-col gap-1">
-        <label class="font-medium" for="finance-client-filter">
-          {{ "finance.client" | translate }}
-        </label>
-        <div
-          hlmComboboxMultiple
-          [value]="clientIds()"
-          (valueChange)="setClientIds($event ?? [])"
-          [itemToString]="clientItemToString"
-        >
-          <hlm-combobox-trigger
-            buttonId="finance-client-filter"
-            class="w-full min-w-0 max-w-full"
-          >
-            <span data-slot="combobox-value" class="truncate">
-              @if (selectedClientsLabel(); as label) {
-                {{ label }}
-              } @else {
-                <span class="text-muted-foreground">
-                  {{ "finance.allClients" | translate }}
-                </span>
-              }
-            </span>
-          </hlm-combobox-trigger>
-          <hlm-combobox-content *hlmComboboxPortal width="content">
-            <hlm-combobox-input
-              [placeholder]="'finance.selectClient' | translate"
-              [showTrigger]="false"
-            />
-            <hlm-combobox-empty>
-              {{ "finance.noFilterOptions" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (client of clients(); track client.id) {
-                <hlm-combobox-item [value]="client.id">
-                  {{ client.displayName }}
-                </hlm-combobox-item>
-              }
-            </div>
-          </hlm-combobox-content>
-        </div>
-      </div>
-
-      <div class="flex min-w-0 flex-col gap-1">
-        <label class="font-medium" for="finance-case-filter">
-          {{ "finance.case" | translate }}
-        </label>
-        <div
-          hlmComboboxMultiple
-          [value]="caseIds()"
-          (valueChange)="setCaseIds($event ?? [])"
-          [itemToString]="caseItemToString"
-        >
-          <hlm-combobox-trigger
-            buttonId="finance-case-filter"
-            class="w-full min-w-0 max-w-full"
-          >
-            <span data-slot="combobox-value" class="truncate">
-              @if (selectedCasesLabel(); as label) {
-                {{ label }}
-              } @else {
-                <span class="text-muted-foreground">
-                  {{ "finance.allCases" | translate }}
-                </span>
-              }
-            </span>
-          </hlm-combobox-trigger>
-          <hlm-combobox-content *hlmComboboxPortal width="content">
-            <hlm-combobox-input
-              [placeholder]="'work.filters.searchPlaceholder' | translate"
-              [showTrigger]="false"
-            />
-            <hlm-combobox-empty>
-              {{ "finance.noFilterOptions" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (caseItem of cases(); track caseItem.id) {
-                <hlm-combobox-item [value]="caseItem.id">
-                  {{ caseItem.caseNumber }} — {{ caseItem.name }}
-                </hlm-combobox-item>
-              }
-            </div>
-          </hlm-combobox-content>
-        </div>
-      </div>
-
-      <div class="flex min-w-0 flex-col gap-1">
-        <label class="font-medium" for="finance-source-filter">
-          {{ "finance.source" | translate }}
-        </label>
-        <div
-          hlmComboboxMultiple
-          [value]="sourceTypes()"
-          (valueChange)="setSourceTypes($event ?? [])"
-          [itemToString]="sourceItemToString"
-        >
-          <hlm-combobox-trigger
-            buttonId="finance-source-filter"
-            class="w-full min-w-0 max-w-full"
-          >
-            <span data-slot="combobox-value" class="truncate">
-              @if (selectedSourcesLabel(); as label) {
-                {{ label }}
-              } @else {
-                <span class="text-muted-foreground">
-                  {{ "finance.allSources" | translate }}
-                </span>
-              }
-            </span>
-          </hlm-combobox-trigger>
-          <hlm-combobox-content *hlmComboboxPortal width="content">
-            <hlm-combobox-empty>
-              {{ "finance.noFilterOptions" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (option of sourceOptions; track option.value) {
-                <hlm-combobox-item [value]="option.value">
-                  {{ option.label | translate }}
-                </hlm-combobox-item>
-              }
-            </div>
-          </hlm-combobox-content>
-        </div>
+  <div class="flex flex-wrap items-end gap-3">
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="unbilled-clients">
+        {{ "time.team.client" | translate }}
+      </label>
+      <div
+        hlmComboboxMultiple
+        [value]="clientIds()"
+        (valueChange)="setClientIds($event ?? [])"
+        [itemToString]="clientItemToString"
+      >
+        <hlm-combobox-trigger buttonId="unbilled-clients" class="w-full">
+          <span data-slot="combobox-value" class="truncate">
+            @if (selectedClientsLabel(); as label) {
+              {{ label }}
+            } @else {
+              <span class="text-muted-foreground">
+                {{ "time.team.allClients" | translate }}
+              </span>
+            }
+          </span>
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-input
+            [placeholder]="'work.filters.searchPlaceholder' | translate"
+            [showTrigger]="false"
+          />
+          <hlm-combobox-empty>
+            {{ "work.filters.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            @for (client of clients(); track client.id) {
+              <hlm-combobox-item [value]="client.id">
+                {{ client.displayName }}
+              </hlm-combobox-item>
+            }
+          </div>
+        </hlm-combobox-content>
       </div>
     </div>
 
-    @if (selectedSourceKeys().size) {
-      <div
-        class="flex flex-wrap items-center justify-between gap-3 border-t border-border pt-4"
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="unbilled-case">
+        {{ "work.filters.case" | translate }}
+      </label>
+      <hlm-select
+        [value]="caseId()"
+        (valueChange)="setCaseId($event ?? '')"
+        [itemToString]="caseItemToString"
       >
-        <p class="font-medium">
-          {{ "finance.selectedWork" | translate }}:
-          {{ selectedSourceKeys().size }}
-        </p>
-        <button hlmBtn type="button" (click)="recordSelectedCandidates()">
-          {{ "finance.makeBill" | translate }}
-        </button>
-      </div>
-    }
-
-    @if (loading()) {
-      <div class="flex items-center gap-2 py-8" aria-live="polite">
-        <hlm-spinner />
-        <span>{{ "finance.loading" | translate }}</span>
-      </div>
-    } @else if (error()) {
-      <div
-        role="alert"
-        class="flex items-center justify-between gap-3 rounded-lg border border-destructive p-4"
-      >
-        <p>{{ "finance.loadError" | translate }}</p>
-        <button hlmBtn type="button" variant="outline" (click)="load()">
-          {{ "finance.retry" | translate }}
-        </button>
-      </div>
-    } @else if (!items().length) {
-      <p class="rounded-lg bg-muted p-4 text-muted-foreground">
-        {{ "finance.noBillableWork" | translate }}
-      </p>
-    } @else {
-      <div hlmTableContainer class="app-data-region">
-        <table hlmTable class="w-full min-w-[760px]">
-          <thead hlmTHead>
-            <tr hlmTr>
-              <th hlmTh class="w-12">
-                <span class="sr-only">{{ "finance.select" | translate }}</span>
-              </th>
-              <th hlmTh>{{ "finance.workDate" | translate }}</th>
-              <th hlmTh>{{ "finance.source" | translate }}</th>
-              <th hlmTh>{{ "finance.client" | translate }}</th>
-              <th hlmTh>{{ "finance.performer" | translate }}</th>
-              <th hlmTh>{{ "finance.actions" | translate }}</th>
-            </tr>
-          </thead>
-          <tbody hlmTBody>
-            @for (item of items(); track item.sourceKey) {
-              <tr hlmTr>
-                <td hlmTd>
-                  <input
-                    type="checkbox"
-                    class="h-4 w-4 accent-primary"
-                    [checked]="selectedSourceKeys().has(item.sourceKey)"
-                    (change)="toggle(item)"
-                    [attr.aria-label]="item.title"
-                  />
-                </td>
-                <td hlmTd>{{ formatDate(item.date) }}</td>
-                <td hlmTd>
-                  <button
-                    type="button"
-                    class="block max-w-72 truncate text-left font-semibold text-primary underline-offset-4 hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                    (click)="openSource(item)"
-                  >
-                    {{ item.title }}
-                  </button>
-                  <span class="text-muted-foreground">
-                    {{ sourceLabel(item.sourceType) }}
-                  </span>
-                </td>
-                <td hlmTd>
-                  {{ item.client.displayName }}
-                  <br />
-                  <span class="text-muted-foreground">
-                    {{
-                      item.case?.caseNumber ?? ("finance.noCase" | translate)
-                    }}
-                  </span>
-                </td>
-                <td hlmTd>{{ item.responsibleUser.displayName }}</td>
-                <td hlmTd>
-                  <button
-                    hlmBtn
-                    type="button"
-                    variant="outline"
-                    (click)="recordItem(item)"
-                  >
-                    {{ "finance.makeBill" | translate }}
-                  </button>
-                </td>
-              </tr>
+        <hlm-select-trigger buttonId="unbilled-case" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal width="content">
+          <hlm-select-group>
+            <hlm-select-item value="">
+              {{ "work.filters.allCases" | translate }}
+            </hlm-select-item>
+            @for (item of cases(); track item.id) {
+              <hlm-select-item [value]="item.id">
+                {{ item.caseNumber }} — {{ item.name }}
+              </hlm-select-item>
             }
-          </tbody>
-        </table>
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="unbilled-people">
+        {{ "work.filters.people" | translate }}
+      </label>
+      <div
+        hlmComboboxMultiple
+        [value]="peopleIds()"
+        (valueChange)="setPeopleIds($event ?? [])"
+        [itemToString]="userItemToString"
+      >
+        <hlm-combobox-trigger buttonId="unbilled-people" class="w-full">
+          <span data-slot="combobox-value" class="truncate">
+            @if (selectedPeopleLabel(); as label) {
+              {{ label }}
+            } @else {
+              <span class="text-muted-foreground">
+                {{ "work.filters.peoplePlaceholder" | translate }}
+              </span>
+            }
+          </span>
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-input
+            [placeholder]="'work.filters.searchPlaceholder' | translate"
+            [showTrigger]="false"
+          />
+          <hlm-combobox-empty>
+            {{ "work.filters.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            @for (user of users(); track user.id) {
+              <hlm-combobox-item [value]="user.id">
+                {{ user.name }}
+              </hlm-combobox-item>
+            }
+          </div>
+        </hlm-combobox-content>
       </div>
-    }
-  </section>
-</div>
+    </div>
+
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="unbilled-treatments">
+        {{ "time.capture.treatment" | translate }}
+      </label>
+      <div
+        hlmComboboxMultiple
+        [value]="treatments()"
+        (valueChange)="setTreatments($event ?? [])"
+        [itemToString]="treatmentItemToString"
+      >
+        <hlm-combobox-trigger buttonId="unbilled-treatments" class="w-full">
+          <span data-slot="combobox-value" class="truncate">
+            @if (selectedTreatmentsLabel(); as label) {
+              {{ label }}
+            } @else {
+              <span class="text-muted-foreground">
+                {{ "time.team.allTreatments" | translate }}
+              </span>
+            }
+          </span>
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-empty>
+            {{ "work.filters.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            @for (treatment of treatmentOptions; track treatment) {
+              <hlm-combobox-item [value]="treatment">
+                {{ treatmentLabelKeys[treatment] | translate }}
+              </hlm-combobox-item>
+            }
+          </div>
+        </hlm-combobox-content>
+      </div>
+    </div>
+
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="unbilled-from">
+        {{ "time.team.from" | translate }}
+      </label>
+      <input hlmInput id="unbilled-from" type="date" [formControl]="from" />
+    </div>
+    <div class="flex flex-col gap-1">
+      <label class="text-sm font-medium" for="unbilled-to">
+        {{ "time.team.to" | translate }}
+      </label>
+      <input hlmInput id="unbilled-to" type="date" [formControl]="to" />
+    </div>
+  </div>
+
+  @if (selectedCount()) {
+    <div
+      class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-surface-section p-3"
+    >
+      <p class="font-medium">
+        {{ "finance.selectedWork" | translate }}: {{ selectedCount() }}
+      </p>
+      <button
+        hlmBtn
+        type="button"
+        data-testid="new-invoice"
+        (click)="newStatementFromSelection()"
+      >
+        {{ "finance.newStatementFromWork" | translate }}
+      </button>
+    </div>
+  }
+
+  @if (error()) {
+    <div class="flex items-center gap-3" role="alert">
+      <p class="text-destructive text-sm">
+        {{ "finance.loadError" | translate }}
+      </p>
+      <button hlmBtn type="button" variant="outline" (click)="retry()">
+        {{ "finance.retry" | translate }}
+      </button>
+    </div>
+  }
+
+  <div hlmTableContainer>
+    <table hlmTable>
+      <thead hlmTHead>
+        <tr hlmTr>
+          <th hlmTh class="w-12">
+            <span class="sr-only">{{ "finance.select" | translate }}</span>
+          </th>
+          <th hlmTh>{{ "time.capture.date" | translate }}</th>
+          <th hlmTh>{{ "time.capture.client" | translate }}</th>
+          <th hlmTh>{{ "time.capture.workDescription" | translate }}</th>
+          <th hlmTh>{{ "time.team.person" | translate }}</th>
+          <th hlmTh>{{ "time.capture.duration" | translate }}</th>
+          <th hlmTh>{{ "time.capture.treatment" | translate }}</th>
+          <th hlmTh>
+            <span class="sr-only">{{ "finance.actions" | translate }}</span>
+          </th>
+        </tr>
+      </thead>
+      <tbody hlmTBody>
+        @for (entry of entries(); track entry.id) {
+          <tr hlmTr data-testid="unbilled-entry">
+            <td hlmTd>
+              <input
+                type="checkbox"
+                class="h-4 w-4 accent-primary"
+                [checked]="isSelected(entry)"
+                (change)="toggle(entry)"
+                [attr.aria-label]="entry.description"
+              />
+            </td>
+            <td hlmTd class="whitespace-nowrap">
+              {{ workDateLabel(entry.workDate) }}
+            </td>
+            <td hlmTd>
+              {{ entry.client.displayName }}
+              <span class="text-muted-foreground block text-xs">
+                {{ entry.case?.caseNumber ?? ("finance.noCase" | translate) }}
+              </span>
+            </td>
+            <td hlmTd class="max-w-xs">
+              <span class="line-clamp-2">{{ entry.description }}</span>
+            </td>
+            <td hlmTd>{{ entry.user.displayName }}</td>
+            <td hlmTd class="whitespace-nowrap">
+              {{ formatMinutes(entry.minutes ?? 0) }}
+            </td>
+            <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
+            <td hlmTd class="text-end whitespace-nowrap">
+              <button
+                hlmBtn
+                type="button"
+                size="sm"
+                variant="outline"
+                (click)="newStatementFor(entry)"
+              >
+                {{ "finance.newStatementFromWork" | translate }}
+              </button>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  @if (loading()) {
+    <div class="flex items-center gap-2" role="status">
+      <hlm-spinner [attr.aria-label]="'finance.loading' | translate" />
+    </div>
+  } @else if (!entries().length && !error()) {
+    <p class="rounded-lg bg-muted p-4 text-muted-foreground text-sm">
+      {{ "finance.noUnbilledWork" | translate }}
+    </p>
+  }
+
+  @if (hasMore() && !loading()) {
+    <div class="flex justify-center">
+      <button hlmBtn type="button" variant="outline" (click)="loadMore()">
+        {{ "work.loadMore" | translate }}
+      </button>
+    </div>
+  }
+</section>

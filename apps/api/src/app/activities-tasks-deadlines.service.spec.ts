@@ -21,6 +21,7 @@ describe("ActivitiesTasksDeadlinesService validation", () => {
     {
       create: jest.fn().mockResolvedValue({ status: "created" }),
     } as never,
+    { ensureForSource: jest.fn() } as never,
   );
   const run = <T>(callback: () => Promise<T>) =>
     WorkspaceContextService.run(
@@ -100,5 +101,450 @@ describe("ActivitiesTasksDeadlinesService validation", () => {
         }),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+});
+
+describe("ActivitiesTasksDeadlinesService work entries from completed work", () => {
+  const performerId = "88888888-8888-4888-a888-888888888888";
+  const otherClientId = "77777777-7777-4777-a777-777777777777";
+  const taskId = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
+  const eventId = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb";
+  const deadlineId = "cccccccc-cccc-4ccc-cccc-cccccccccccc";
+  const user = {
+    id: performerId,
+    firstName: "Ana",
+    lastName: null,
+    email: "a@x.test",
+  };
+  // 22:30 UTC on 4 Oct is already 5 Oct in Belgrade.
+  const now = new Date("2026-10-04T22:30:00.000Z");
+  const completionDate = new Date("2026-10-05T00:00:00.000Z");
+
+  const tx = {
+    task: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
+    event: { findFirst: jest.fn(), update: jest.fn() },
+    deadline: { findFirst: jest.fn(), update: jest.fn() },
+    case: { findFirst: jest.fn() },
+    activityLog: { create: jest.fn() },
+  };
+  const db = {
+    $transaction: jest.fn(),
+    task: { findFirst: jest.fn() },
+    event: { findFirst: jest.fn() },
+    deadline: { findFirst: jest.fn() },
+    case: { findFirst: jest.fn() },
+    client: { findFirst: jest.fn(), count: jest.fn() },
+    workspaceMember: { count: jest.fn() },
+    activityLog: { count: jest.fn(), findMany: jest.fn() },
+  };
+  const ensureForSource = jest.fn();
+  const notifications = { create: jest.fn() };
+  const service = new ActivitiesTasksDeadlinesService(
+    db as never,
+    notifications as never,
+    { ensureForSource } as never,
+  );
+  const run = <T>(callback: () => Promise<T>) =>
+    WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.OWNER } as never,
+      callback,
+    );
+
+  const stamps = { createdAt: now, updatedAt: now };
+  function taskRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: taskId,
+      workspaceId,
+      title: "Pregled ugovora",
+      description: null,
+      status: "TODO",
+      priority: "NORMAL",
+      assigneeUserId: performerId,
+      assignee: user,
+      dueDate: null,
+      dueAt: null,
+      caseId: null,
+      clientId: null,
+      case: null,
+      client: null,
+      deadlineId: null,
+      completedAt: null,
+      completedBy: null,
+      ...stamps,
+      ...overrides,
+    };
+  }
+  function eventRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: eventId,
+      workspaceId,
+      type: "MEETING",
+      title: "Sastanak sa klijentom",
+      description: null,
+      startsAt: new Date("2026-10-04T08:00:00.000Z"),
+      endsAt: new Date("2026-10-04T09:30:00.000Z"),
+      timeZone: "Europe/Belgrade",
+      isAllDay: false,
+      status: "SCHEDULED",
+      organizerUserId: performerId,
+      organizer: user,
+      caseId: null,
+      case: null,
+      clients: [],
+      assignees: [],
+      attendees: [],
+      ...stamps,
+      ...overrides,
+    };
+  }
+  function deadlineRow(overrides: Record<string, unknown> = {}) {
+    return {
+      id: deadlineId,
+      workspaceId,
+      title: "Odgovor na tužbu",
+      description: null,
+      type: "COURT",
+      dueDate: null,
+      dueAt: null,
+      timeZone: "Europe/Belgrade",
+      status: "OPEN",
+      satisfiedAt: null,
+      responsibleUserId: performerId,
+      responsibleUser: user,
+      caseId: null,
+      clientId: null,
+      case: null,
+      client: null,
+      satisfiedBy: null,
+      sourceDescription: null,
+      ...stamps,
+      ...overrides,
+    };
+  }
+
+  beforeAll(() => {
+    jest.useFakeTimers();
+    jest.setSystemTime(now);
+  });
+  afterAll(() => jest.useRealTimers());
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    db.$transaction.mockImplementation((callback) => callback(tx));
+    db.workspaceMember.count.mockResolvedValue(1);
+    db.case.findFirst.mockResolvedValue(null);
+    db.client.findFirst.mockResolvedValue({ id: clientId });
+    tx.activityLog.create.mockResolvedValue({});
+    tx.case.findFirst.mockResolvedValue(null);
+    ensureForSource.mockResolvedValue("entry-1");
+  });
+
+  describe("createTask", () => {
+    const input = {
+      title: "Pregled ugovora",
+      assigneeUserId: performerId,
+      clientId,
+    };
+
+    it("proposes an entry for a task created already DONE", async () => {
+      tx.task.create.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      db.task.findFirst.mockResolvedValue(taskRow({ status: "DONE" }));
+
+      await run(() =>
+        service.createTask({ ...input, status: "DONE" } as never),
+      );
+
+      expect(tx.task.create.mock.calls[0][0].data).toMatchObject({
+        status: "DONE",
+        completedAt: now,
+        completedByUserId: userId,
+      });
+      expect(ensureForSource).toHaveBeenCalledTimes(1);
+      expect(ensureForSource).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          sourceType: "TASK",
+          sourceId: taskId,
+          performerUserId: performerId,
+          clientIds: [clientId],
+          workDate: completionDate,
+          confirm: false,
+        }),
+      );
+    });
+
+    it("creates no entry for an open task", async () => {
+      tx.task.create.mockResolvedValue(taskRow({ clientId }));
+      db.task.findFirst.mockResolvedValue(taskRow());
+
+      await run(() => service.createTask(input as never));
+      await run(() =>
+        service.createTask({ ...input, status: "IN_PROGRESS" } as never),
+      );
+
+      expect(ensureForSource).not.toHaveBeenCalled();
+      expect(tx.task.create.mock.calls[0][0].data.completedAt).toBeUndefined();
+    });
+  });
+
+  describe("listActivity", () => {
+    it("leaves work-entry activity out of the shared feed", async () => {
+      db.$transaction.mockImplementation((queries: Promise<unknown>[]) =>
+        Promise.all(queries),
+      );
+      db.activityLog.count.mockResolvedValue(0);
+      db.activityLog.findMany.mockResolvedValue([]);
+
+      await run(() =>
+        service.listActivity({ page: 1, pageSize: 20, clientId } as never),
+      );
+
+      const where = {
+        workspaceId,
+        clientId,
+        entityType: { not: "WORK_ENTRY" },
+      };
+      expect(db.activityLog.count).toHaveBeenCalledWith({ where });
+      expect(db.activityLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where }),
+      );
+    });
+  });
+
+  describe("transitionTask", () => {
+    it("proposes an entry for the assignee inside the same transaction", async () => {
+      tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));
+      tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      db.task.findFirst.mockResolvedValue(taskRow({ status: "DONE" }));
+
+      await run(() => service.transitionTask(taskId, "DONE"));
+
+      expect(ensureForSource).toHaveBeenCalledTimes(1);
+      expect(ensureForSource).toHaveBeenCalledWith(tx, {
+        workspaceId,
+        actorUserId: userId,
+        sourceType: "TASK",
+        sourceId: taskId,
+        performerUserId: performerId,
+        clientIds: [clientId],
+        caseId: null,
+        workDate: completionDate,
+        description: "Pregled ugovora",
+        minutes: null,
+        confirm: false,
+      });
+    });
+
+    it("takes the client from the case as well as the task", async () => {
+      tx.task.findFirst.mockResolvedValue(taskRow({ caseId }));
+      tx.task.update.mockResolvedValue(taskRow({ caseId, status: "DONE" }));
+      tx.case.findFirst.mockResolvedValue({ clientId });
+      db.task.findFirst.mockResolvedValue(taskRow({ status: "DONE" }));
+
+      await run(() => service.transitionTask(taskId, "DONE"));
+
+      expect(ensureForSource).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ clientIds: [clientId], caseId }),
+      );
+      expect(tx.case.findFirst).toHaveBeenCalledWith({
+        where: { id: caseId, workspaceId },
+        select: { clientId: true },
+      });
+    });
+
+    it("still completes a task without any client", async () => {
+      ensureForSource.mockResolvedValue(null);
+      tx.task.findFirst.mockResolvedValue(taskRow());
+      tx.task.update.mockResolvedValue(taskRow({ status: "DONE" }));
+      db.task.findFirst.mockResolvedValue(taskRow({ status: "DONE" }));
+
+      const result = await run(() => service.transitionTask(taskId, "DONE"));
+
+      expect(result.status).toBe("DONE");
+      expect(ensureForSource).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ clientIds: [] }),
+      );
+    });
+
+    it("does not create entries when reopening or cancelling, and re-completing reuses the source id", async () => {
+      tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));
+      tx.task.update.mockResolvedValue(taskRow({ clientId }));
+      db.task.findFirst.mockResolvedValue(taskRow());
+
+      await run(() => service.transitionTask(taskId, "TODO"));
+      await run(() => service.transitionTask(taskId, "CANCELLED"));
+      expect(ensureForSource).not.toHaveBeenCalled();
+
+      await run(() => service.transitionTask(taskId, "DONE"));
+      await run(() => service.transitionTask(taskId, "DONE"));
+      expect(ensureForSource).toHaveBeenCalledTimes(2);
+      // ensureForSource is idempotent per (sourceType, sourceId).
+      for (const [, input] of ensureForSource.mock.calls) {
+        expect(input).toEqual(
+          expect.objectContaining({ sourceType: "TASK", sourceId: taskId }),
+        );
+      }
+    });
+  });
+
+  describe("updateTask", () => {
+    const update = {
+      title: "Pregled ugovora",
+      assigneeUserId: performerId,
+      status: "DONE" as const,
+      clientId,
+    };
+
+    it("proposes an entry when the status becomes DONE", async () => {
+      tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));
+      tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+
+      await run(() => service.updateTask(taskId, update));
+
+      expect(ensureForSource).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          sourceType: "TASK",
+          sourceId: taskId,
+          performerUserId: performerId,
+          clientIds: [clientId],
+        }),
+      );
+    });
+
+    it("does nothing when the task was already DONE or stays open", async () => {
+      tx.task.findFirst.mockResolvedValue(
+        taskRow({ clientId, status: "DONE" }),
+      );
+      tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      await run(() => service.updateTask(taskId, update));
+
+      tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));
+      tx.task.update.mockResolvedValue(
+        taskRow({ clientId, status: "IN_PROGRESS" }),
+      );
+      await run(() =>
+        service.updateTask(taskId, { ...update, status: "IN_PROGRESS" }),
+      );
+
+      expect(ensureForSource).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("transitionEvent", () => {
+    it("proposes an entry for the organizer with the event duration", async () => {
+      tx.event.findFirst.mockResolvedValue(
+        eventRow({
+          clients: [{ clientId, client: {} }],
+          caseId,
+          case: { id: caseId, clientId: otherClientId },
+        }),
+      );
+      tx.event.update.mockResolvedValue(
+        eventRow({
+          status: "COMPLETED",
+          clients: [{ clientId, client: {} }],
+          caseId,
+          case: { id: caseId, clientId },
+        }),
+      );
+      db.event.findFirst.mockResolvedValue(eventRow({ status: "COMPLETED" }));
+
+      await run(() => service.transitionEvent(eventId, "COMPLETED"));
+
+      expect(ensureForSource).toHaveBeenCalledWith(tx, {
+        workspaceId,
+        actorUserId: userId,
+        sourceType: "EVENT",
+        sourceId: eventId,
+        performerUserId: performerId,
+        clientIds: [clientId, clientId],
+        caseId,
+        workDate: completionDate,
+        description: "Sastanak sa klijentom",
+        minutes: 90,
+        confirm: false,
+      });
+    });
+
+    it("passes both clients through so ensureForSource can refuse an ambiguous event", async () => {
+      tx.event.findFirst.mockResolvedValue(eventRow());
+      tx.event.update.mockResolvedValue(
+        eventRow({
+          status: "COMPLETED",
+          clients: [{ clientId, client: {} }],
+          caseId,
+          case: { id: caseId, clientId: otherClientId },
+        }),
+      );
+      db.event.findFirst.mockResolvedValue(eventRow({ status: "COMPLETED" }));
+
+      await run(() => service.transitionEvent(eventId, "COMPLETED"));
+
+      expect(ensureForSource).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ clientIds: [clientId, otherClientId] }),
+      );
+    });
+
+    it("proposes without minutes for an all-day event and ignores cancellation", async () => {
+      tx.event.findFirst.mockResolvedValue(eventRow());
+      tx.event.update.mockResolvedValue(
+        eventRow({ status: "COMPLETED", isAllDay: true }),
+      );
+      db.event.findFirst.mockResolvedValue(eventRow({ status: "COMPLETED" }));
+      await run(() => service.transitionEvent(eventId, "COMPLETED"));
+      expect(ensureForSource).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ minutes: null }),
+      );
+
+      ensureForSource.mockClear();
+      tx.event.update.mockResolvedValue(eventRow({ status: "CANCELLED" }));
+      db.event.findFirst.mockResolvedValue(eventRow({ status: "CANCELLED" }));
+      await run(() => service.transitionEvent(eventId, "CANCELLED"));
+      expect(ensureForSource).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("transitionDeadline", () => {
+    it("proposes an entry for the responsible user when satisfied", async () => {
+      tx.deadline.findFirst.mockResolvedValue(deadlineRow({ clientId }));
+      tx.deadline.update.mockResolvedValue(
+        deadlineRow({ clientId, status: "SATISFIED" }),
+      );
+      db.deadline.findFirst.mockResolvedValue(
+        deadlineRow({ status: "SATISFIED" }),
+      );
+
+      await run(() => service.transitionDeadline(deadlineId, "SATISFIED"));
+
+      expect(ensureForSource).toHaveBeenCalledWith(tx, {
+        workspaceId,
+        actorUserId: userId,
+        sourceType: "DEADLINE",
+        sourceId: deadlineId,
+        performerUserId: performerId,
+        clientIds: [clientId],
+        caseId: null,
+        workDate: completionDate,
+        description: "Odgovor na tužbu",
+        minutes: null,
+        confirm: false,
+      });
+    });
+
+    it("creates nothing when the deadline is cancelled or reopened", async () => {
+      tx.deadline.findFirst.mockResolvedValue(deadlineRow({ clientId }));
+      tx.deadline.update.mockResolvedValue(deadlineRow({ clientId }));
+      db.deadline.findFirst.mockResolvedValue(deadlineRow());
+
+      await run(() => service.transitionDeadline(deadlineId, "CANCELLED"));
+      await run(() => service.transitionDeadline(deadlineId, "OPEN"));
+
+      expect(ensureForSource).not.toHaveBeenCalled();
+    });
   });
 });

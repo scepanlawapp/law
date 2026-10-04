@@ -32,6 +32,10 @@ const preferenceByType: Record<
   EVENT_UPCOMING: "eventUpcoming",
   EVENT_CHANGED: "eventChanged",
   EVENT_CANCELLED: "eventCancelled",
+  TIMER_RUNNING_LONG: "timerRunningLong",
+  TIME_REVIEW_REMINDER: "timeReviewReminder",
+  RETAINER_USAGE_80: "retainerUsage",
+  RETAINER_USAGE_100: "retainerUsage",
 };
 
 export interface CreateNotificationInput {

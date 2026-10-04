@@ -16,7 +16,19 @@
     <span aria-hidden="true">“</span>
   </div>
 
-  <div class="flex items-center">
+  <div class="flex items-center gap-2">
+    <law-header-timer />
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      aria-keyshortcuts="Alt+W"
+      [title]="'time.capture.shortcutHint' | translate"
+      (click)="openQuickCapture()"
+    >
+      <ng-icon name="lucidePlus" aria-hidden="true" />
+      <span>{{ "time.capture.open" | translate }}</span>
+    </button>
     <button
       hlmBtn
       variant="ghost"

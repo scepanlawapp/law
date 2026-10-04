@@ -1,0 +1,69 @@
+@if (timer.running(); as running) {
+  <div
+    class="border-border flex items-center gap-2 rounded-md border px-2 py-1 text-sm"
+    role="timer"
+  >
+    <span class="max-w-40 truncate" [title]="running.client.displayName">
+      {{ running.client.displayName }}
+    </span>
+    @if (awaitingConfirmation()) {
+      <span class="text-muted-foreground">
+        {{ "time.timer.stopped" | translate }}
+      </span>
+    } @else {
+      <span class="font-mono tabular-nums">{{ elapsed() }}</span>
+    }
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      size="icon-sm"
+      [attr.aria-label]="
+        (awaitingConfirmation() ? 'time.timer.confirm' : 'time.timer.stop')
+          | translate
+      "
+      (click)="timer.stop()"
+    >
+      <ng-icon name="lucideSquare" aria-hidden="true" />
+    </button>
+  </div>
+} @else {
+  <div (pointerenter)="loadClients()" (focusin)="loadClients()">
+    <div
+      hlmCombobox
+      [value]="''"
+      (valueChange)="start($event)"
+      [itemToString]="startItemToString"
+      [filter]="acceptAll"
+      (searchChange)="searchClients($event)"
+    >
+      <hlm-combobox-trigger
+        buttonId="header-timer-client"
+        class="w-auto min-w-0"
+        [attr.aria-label]="'time.timer.start' | translate"
+      >
+        <hlm-combobox-value />
+      </hlm-combobox-trigger>
+      <hlm-combobox-content *hlmComboboxPortal width="content">
+        <hlm-combobox-input
+          [placeholder]="'time.capture.search' | translate"
+          [showTrigger]="false"
+        />
+        <hlm-combobox-empty>
+          @if (loadingClients()) {
+            <hlm-spinner />
+          } @else {
+            {{ "time.capture.noResults" | translate }}
+          }
+        </hlm-combobox-empty>
+        <div hlmComboboxList>
+          @for (client of clients(); track client.id) {
+            <hlm-combobox-item [value]="client.id">
+              {{ client.name }}
+            </hlm-combobox-item>
+          }
+        </div>
+      </hlm-combobox-content>
+    </div>
+  </div>
+}

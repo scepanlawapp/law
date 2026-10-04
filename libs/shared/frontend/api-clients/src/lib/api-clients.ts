@@ -59,7 +59,6 @@ import {
   Invoice,
   InvoiceSummary,
   CreateInvoiceRequest,
-  BillableWorkItem,
   PriceSourceSummary,
   PriceSourceVersion,
   PriceSourceScope,
@@ -67,6 +66,30 @@ import {
   NotificationDto,
   NotificationListResponse,
   NotificationUnreadCountResponse,
+  ClientBillingProfile,
+  ConfirmSourceEntryRequest,
+  ConfirmWorkEntryRequest,
+  CreateServiceCategoryRequest,
+  CreateUserRateRequest,
+  CreateWorkEntryRequest,
+  MonthEndPrecheck,
+  MonthEndRunResult,
+  ProfitabilityReport,
+  RetainerAgreement,
+  RetainerUsage,
+  ServiceCategory,
+  StartTimerRequest,
+  TimeReviewResponse,
+  UpdateServiceCategoryRequest,
+  UpdateWorkEntryRequest,
+  UpsertRetainerAgreementRequest,
+  UserRate,
+  WorkCaptureParseRequest,
+  WorkCaptureParseResponse,
+  WorkEntry,
+  WorkEntryQuery,
+  WorkspaceBillingConfig,
+  WriteOffWorkEntryRequest,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -796,6 +819,8 @@ export interface ActivityRequest {
   description?: string;
   activityDate: string;
   relatedCaseId?: string;
+  /** Create only: minutes spent, which records a billable work entry. */
+  durationMinutes?: number;
 }
 
 export interface ClientAddressRequest {
@@ -1152,7 +1177,7 @@ export class ClientsApiClient {
   updateActivity(
     clientId: string,
     activityId: string,
-    request: Partial<ActivityRequest>,
+    request: Partial<Omit<ActivityRequest, "durationMinutes">>,
   ): Observable<DomainActivity> {
     return this.http.patch<DomainActivity>(
       this.endpoint(`/clients/${clientId}/activities/${activityId}`),
@@ -1481,7 +1506,9 @@ export class CasesApiClient {
   updateActivity(
     caseId: string,
     activityId: string,
-    request: Partial<Omit<ActivityRequest, "relatedCaseId">>,
+    request: Partial<
+      Omit<ActivityRequest, "relatedCaseId" | "durationMinutes">
+    >,
   ): Observable<DomainActivity> {
     return this.http.patch<DomainActivity>(
       this.endpoint(`/cases/${caseId}/activities/${activityId}`),
@@ -1756,15 +1783,6 @@ export class FinancialsApiClient {
     return `${config.apiUrl}${config.apiPrefix}${path}`;
   }
 
-  billableWork(
-    query: Record<string, string | number | string[] | undefined>,
-  ): Observable<PaginatedResponse<BillableWorkItem>> {
-    return this.http.get<PaginatedResponse<BillableWorkItem>>(
-      this.endpoint("/financials/billable-work"),
-      { params: queryParams(query), withCredentials: true },
-    );
-  }
-
   invoices(): Observable<InvoiceSummary[]> {
     return this.http.get<InvoiceSummary[]>(
       this.endpoint("/financials/invoices"),
@@ -1798,6 +1816,15 @@ export class FinancialsApiClient {
     return this.http.delete<void>(this.endpoint(`/financials/invoices/${id}`), {
       withCredentials: true,
     });
+  }
+
+  /** Marks a draft as sent; the API answers 409 while a line still needs a price. */
+  sendInvoice(id: string): Observable<Invoice> {
+    return this.http.post<Invoice>(
+      this.endpoint(`/financials/invoices/${id}/send`),
+      {},
+      { withCredentials: true },
+    );
   }
 
   priceSources(): Observable<PriceSourceSummary[]> {
@@ -1841,5 +1868,284 @@ export class FinancialsApiClient {
       this.endpoint(`/financials/price-sources/${sourceId}/versions`),
       { withCredentials: true },
     );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class WorkEntriesApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  list(
+    query: Partial<WorkEntryQuery> = {},
+  ): Observable<PaginatedResponse<WorkEntry>> {
+    return this.http.get<PaginatedResponse<WorkEntry>>(
+      this.endpoint("/work-entries"),
+      { withCredentials: true, params: queryParams(query) },
+    );
+  }
+
+  get(id: string): Observable<WorkEntry> {
+    return this.http.get<WorkEntry>(this.endpoint(`/work-entries/${id}`), {
+      withCredentials: true,
+    });
+  }
+
+  create(body: CreateWorkEntryRequest): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(this.endpoint("/work-entries"), body, {
+      withCredentials: true,
+    });
+  }
+
+  update(id: string, body: UpdateWorkEntryRequest): Observable<WorkEntry> {
+    return this.http.patch<WorkEntry>(
+      this.endpoint(`/work-entries/${id}`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  remove(id: string): Observable<void> {
+    return this.http.delete<void>(this.endpoint(`/work-entries/${id}`), {
+      withCredentials: true,
+    });
+  }
+
+  confirm(id: string, body: ConfirmWorkEntryRequest): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(
+      this.endpoint(`/work-entries/${id}/confirm`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  writeOff(id: string, body: WriteOffWorkEntryRequest): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(
+      this.endpoint(`/work-entries/${id}/write-off`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  runningTimer(): Observable<WorkEntry | null> {
+    return this.http.get<WorkEntry | null>(
+      this.endpoint("/work-entries/timer"),
+      {
+        withCredentials: true,
+      },
+    );
+  }
+
+  startTimer(body: StartTimerRequest): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(
+      this.endpoint("/work-entries/timer/start"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  stopTimer(): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(
+      this.endpoint("/work-entries/timer/stop"),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  confirmFromSource(body: ConfirmSourceEntryRequest): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(
+      this.endpoint("/work-entries/from-source"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  parse(body: WorkCaptureParseRequest): Observable<WorkCaptureParseResponse> {
+    return this.http.post<WorkCaptureParseResponse>(
+      this.endpoint("/work-entries/parse"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  /** `date` is a YYYY-MM-DD calendar day in the office time zone. */
+  review(date: string): Observable<TimeReviewResponse> {
+    return this.http.get<TimeReviewResponse>(
+      this.endpoint("/work-entries/review"),
+      { withCredentials: true, params: queryParams({ date }) },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class BillingSetupApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}/billing-setup${path}`;
+  }
+
+  listCategories(): Observable<ServiceCategory[]> {
+    return this.http.get<ServiceCategory[]>(this.endpoint("/categories"), {
+      withCredentials: true,
+    });
+  }
+
+  createCategory(
+    body: CreateServiceCategoryRequest,
+  ): Observable<ServiceCategory> {
+    return this.http.post<ServiceCategory>(this.endpoint("/categories"), body, {
+      withCredentials: true,
+    });
+  }
+
+  updateCategory(
+    id: string,
+    body: UpdateServiceCategoryRequest,
+  ): Observable<ServiceCategory> {
+    return this.http.patch<ServiceCategory>(
+      this.endpoint(`/categories/${id}`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  listRetainers(clientId: string): Observable<RetainerAgreement[]> {
+    return this.http.get<RetainerAgreement[]>(
+      this.endpoint(`/clients/${clientId}/retainers`),
+      { withCredentials: true },
+    );
+  }
+
+  createRetainer(
+    clientId: string,
+    body: UpsertRetainerAgreementRequest,
+  ): Observable<RetainerAgreement> {
+    return this.http.post<RetainerAgreement>(
+      this.endpoint(`/clients/${clientId}/retainers`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  updateRetainer(
+    id: string,
+    body: UpsertRetainerAgreementRequest,
+  ): Observable<RetainerAgreement> {
+    return this.http.patch<RetainerAgreement>(
+      this.endpoint(`/retainers/${id}`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  deactivateRetainer(id: string): Observable<RetainerAgreement> {
+    return this.http.post<RetainerAgreement>(
+      this.endpoint(`/retainers/${id}/deactivate`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  getProfile(clientId: string): Observable<ClientBillingProfile> {
+    return this.http.get<ClientBillingProfile>(
+      this.endpoint(`/clients/${clientId}/profile`),
+      { withCredentials: true },
+    );
+  }
+
+  upsertProfile(
+    clientId: string,
+    body: Omit<ClientBillingProfile, "clientId">,
+  ): Observable<ClientBillingProfile> {
+    return this.http.put<ClientBillingProfile>(
+      this.endpoint(`/clients/${clientId}/profile`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  listRates(query: { userId?: string } = {}): Observable<UserRate[]> {
+    return this.http.get<UserRate[]>(this.endpoint("/rates"), {
+      withCredentials: true,
+      params: queryParams(query),
+    });
+  }
+
+  createRate(body: CreateUserRateRequest): Observable<UserRate> {
+    return this.http.post<UserRate>(this.endpoint("/rates"), body, {
+      withCredentials: true,
+    });
+  }
+
+  getWorkspaceConfig(): Observable<WorkspaceBillingConfig> {
+    return this.http.get<WorkspaceBillingConfig>(this.endpoint("/workspace"), {
+      withCredentials: true,
+    });
+  }
+
+  updateWorkspaceConfig(
+    body: WorkspaceBillingConfig,
+  ): Observable<WorkspaceBillingConfig> {
+    return this.http.put<WorkspaceBillingConfig>(
+      this.endpoint("/workspace"),
+      body,
+      { withCredentials: true },
+    );
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class BillingReportsApiClient {
+  private readonly http = inject(HttpClient);
+
+  private endpoint(path: string): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}/billing${path}`;
+  }
+
+  /** `month` is YYYY-MM. */
+  usage(month: string): Observable<RetainerUsage[]> {
+    return this.http.get<RetainerUsage[]>(this.endpoint("/retainers/usage"), {
+      withCredentials: true,
+      params: queryParams({ month }),
+    });
+  }
+
+  clientUsage(
+    clientId: string,
+    month: string,
+  ): Observable<RetainerUsage | null> {
+    return this.http.get<RetainerUsage | null>(
+      this.endpoint(`/clients/${clientId}/usage`),
+      { withCredentials: true, params: queryParams({ month }) },
+    );
+  }
+
+  precheck(month: string): Observable<MonthEndPrecheck> {
+    return this.http.get<MonthEndPrecheck>(
+      this.endpoint(`/month-end/${month}/precheck`),
+      { withCredentials: true },
+    );
+  }
+
+  runMonthEnd(month: string): Observable<MonthEndRunResult> {
+    return this.http.post<MonthEndRunResult>(
+      this.endpoint(`/month-end/${month}/run`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  profitability(from: string, to: string): Observable<ProfitabilityReport> {
+    return this.http.get<ProfitabilityReport>(this.endpoint("/profitability"), {
+      withCredentials: true,
+      params: queryParams({ from, to }),
+    });
   }
 }

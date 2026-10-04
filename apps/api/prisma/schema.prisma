@@ -227,6 +227,10 @@ enum NotificationType {
   EVENT_UPCOMING
   EVENT_CHANGED
   EVENT_CANCELLED
+  TIMER_RUNNING_LONG
+  TIME_REVIEW_REMINDER
+  RETAINER_USAGE_80
+  RETAINER_USAGE_100
 }
 
 enum CaseStatus {
@@ -322,21 +326,27 @@ model User {
   voidedInvoices        Invoice[]            @relation("InvoiceVoider")
   createdInvoices       Invoice[]            @relation("InvoiceCreator")
   updatedInvoices       Invoice[]            @relation("InvoiceUpdater")
+  workEntries           WorkEntry[]          @relation("WorkEntryPerformer")
+  createdWorkEntries    WorkEntry[]          @relation("WorkEntryCreator")
+  updatedWorkEntries    WorkEntry[]          @relation("WorkEntryUpdater")
+  rates                 UserRate[]
 }
 
 model UserSettings {
-  userId                  String                   @id
-  theme                   ThemePreference          @default(CHARCOAL)
-  language                LanguagePreference       @default(SR)
-  accentColor             String                   @default("GOLD")
-  finish                  String                   @default("METALLIC")
-  workspaceNotifications  Boolean                  @default(true)
-  notificationPreferences Json?
-  dateTimeFormat          DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
-  timeZone                String                   @default("Europe/Belgrade")
-  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
-  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                    String                   @id
+  theme                     ThemePreference          @default(CHARCOAL)
+  language                  LanguagePreference       @default(SR)
+  accentColor               String                   @default("GOLD")
+  finish                    String                   @default("METALLIC")
+  workspaceNotifications    Boolean                  @default(true)
+  notificationPreferences   Json?
+  dateTimeFormat            DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
+  timeZone                  String                   @default("Europe/Belgrade")
+  timeReviewReminderEnabled Boolean                  @default(false)
+  timeReviewReminderTime    String                   @default("17:30")
+  createdAt                 DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime                 @updatedAt @db.Timestamptz(3)
+  user                      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Workspace {
@@ -387,6 +397,12 @@ model Workspace {
   invoices               Invoice[]
   financeMutations       FinanceMutationRequest[]
   notifications          Notification[]
+  workEntries                 WorkEntry[]
+  serviceCategories           ServiceCategory[]
+  retainerAgreements          RetainerAgreement[]
+  retainerAgreementCategories RetainerAgreementCategory[]
+  clientBillingProfiles       ClientBillingProfile[]
+  userRates                   UserRate[]
 }
 
 model WorkspaceConfig {
@@ -395,6 +411,10 @@ model WorkspaceConfig {
   dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
   workspaceNotifications Boolean                  @default(true)
   officeHours            Json?
+  targetHourlyRate       Decimal?                 @db.Decimal(18, 2)
+  internalCurrency       String                   @default("RSD")
+  defaultVatRate         Decimal                  @default(20) @db.Decimal(5, 2)
+  paymentTermDays        Int                      @default(15)
   createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
   workspace              Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -523,6 +543,9 @@ model Client {
   deadlines               Deadline[]
   activityLogs            ActivityLog[]
   invoiceLines            InvoiceLine[]
+  workEntries             WorkEntry[]
+  retainerAgreements      RetainerAgreement[]
+  billingProfile          ClientBillingProfile?
   priceSources            PriceSource[]
   invoices                Invoice[]
 
@@ -651,6 +674,7 @@ model Case {
   appliedBriefs        BriefExtractionResult[] @relation("BriefAppliedCase")
   invoiceLineCases     InvoiceLineCase[]
   priceSources         PriceSource[]
+  workEntries          WorkEntry[]
 
   @@unique([workspaceId, caseNumber])
   @@index([workspaceId, clientId, status, updatedAt])
@@ -696,7 +720,6 @@ model Event {
   courtroom       String?
   organizerUserId String
   caseId          String?
-  invoiceId       String?
   createdByUserId String
   createdAt       DateTime        @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
@@ -704,7 +727,6 @@ model Event {
   organizer       User            @relation("EventOrganizer", fields: [organizerUserId], references: [id], onDelete: Restrict)
   createdBy       User            @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   case            Case?           @relation("EventCase", fields: [caseId], references: [id], onDelete: SetNull)
-  invoice         Invoice?        @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
   assignees       EventAssignee[]
   clients         EventClient[]
   attendees       EventAttendee[]
@@ -712,7 +734,6 @@ model Event {
   @@index([workspaceId, startsAt, endsAt])
   @@index([workspaceId, status, startsAt])
   @@index([caseId])
-  @@index([workspaceId, invoiceId])
   @@index([organizerUserId, startsAt])
 }
 
@@ -768,7 +789,6 @@ model Task {
   caseId            String?
   clientId          String?
   deadlineId        String?
-  invoiceId         String?
   completedAt       DateTime?    @db.Timestamptz(3)
   completedByUserId String?
   createdByUserId   String
@@ -781,7 +801,6 @@ model Task {
   case              Case?        @relation("TaskCase", fields: [caseId], references: [id], onDelete: SetNull)
   client            Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
   deadline          Deadline?    @relation("DeadlineTasks", fields: [deadlineId], references: [id], onDelete: SetNull)
-  invoice           Invoice?     @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status, dueDate])
   @@index([workspaceId, assigneeUserId, status])
@@ -789,7 +808,6 @@ model Task {
   @@index([caseId])
   @@index([clientId])
   @@index([deadlineId])
-  @@index([workspaceId, invoiceId])
 }
 
 model Deadline {
@@ -806,7 +824,6 @@ model Deadline {
   caseId            String?
   clientId          String?
   sourceDescription String?
-  invoiceId         String?
   satisfiedAt       DateTime?      @db.Timestamptz(3)
   satisfiedByUserId String?
   createdByUserId   String
@@ -819,14 +836,12 @@ model Deadline {
   case              Case?          @relation("DeadlineCase", fields: [caseId], references: [id], onDelete: SetNull)
   client            Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
   tasks             Task[]         @relation("DeadlineTasks")
-  invoice           Invoice?       @relation(fields: [invoiceId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status, dueDate])
   @@index([workspaceId, responsibleUserId, status])
   @@index([workspaceId, dueAt])
   @@index([caseId])
   @@index([clientId])
-  @@index([workspaceId, invoiceId])
 }
 
 model ActivityLog {
@@ -934,9 +949,8 @@ model Invoice {
   replacementFor        Invoice?      @relation("InvoiceReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
   replacement           Invoice[]     @relation("InvoiceReplacement")
   lines                 InvoiceLine[]
-  events                Event[]
-  tasks                 Task[]
-  deadlines             Deadline[]
+  printWorkSpecification Boolean       @default(true)
+  billingMonth           String?
 
   @@unique([workspaceId, invoiceNumber])
   @@index([workspaceId, clientId, status, dateOfMaturity])
@@ -960,6 +974,8 @@ model InvoiceLine {
   status             InvoiceLineStatus @default(RESERVED)
   sourceType         String?
   sourceId           String?
+  pricingRequired    Boolean           @default(false)
+  minutes            Int?
   billedAt           DateTime?         @db.Timestamptz(3)
   cancelledAt        DateTime?         @db.Timestamptz(3)
   cancellationReason String?           @db.Text
@@ -976,6 +992,7 @@ model InvoiceLine {
   createdBy          User              @relation("InvoiceLineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   updatedBy          User              @relation("InvoiceLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
   caseLinks          InvoiceLineCase[]
+  workEntries        WorkEntry[]
 
   @@unique([invoiceId, lineOrder])
   @@index([workspaceId, clientId, status, serviceDate])
@@ -1596,4 +1613,158 @@ model UploadOperation {
   @@unique([workspaceId, idempotencyKey])
   @@index([workspaceId, status, lastHeartbeatAt])
   @@index([storedFileId])
+}
+
+enum WorkEntryStatus {
+  RUNNING
+  PROPOSED
+  CONFIRMED
+  BILLED
+  WRITTEN_OFF
+}
+
+enum WorkEntryTreatment {
+  RETAINER
+  AT
+  HOURLY
+  NON_BILLABLE
+  UNDECIDED
+}
+
+enum WorkEntrySource {
+  MANUAL
+  TIMER
+  QUICK_CAPTURE
+  TASK
+  EVENT
+  DEADLINE
+  ACTIVITY
+  EMAIL
+}
+
+enum RetainerRule {
+  HOURLY
+  AT
+  ABSORBED
+}
+
+model ServiceCategory {
+  id          String                      @id @default(uuid())
+  workspaceId String
+  name        String
+  active      Boolean                     @default(true)
+  order       Int                         @default(0)
+  createdAt   DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                    @updatedAt @db.Timestamptz(3)
+  workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workEntries WorkEntry[]
+  retainers   RetainerAgreementCategory[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, active, order])
+}
+
+model WorkEntry {
+  id                String                @id @default(uuid())
+  workspaceId       String
+  userId            String
+  clientId          String
+  caseId            String?
+  workDate          DateTime              @db.Date
+  minutes           Int?
+  timerStartedAt    DateTime?             @db.Timestamptz(3)
+  description       String                @default("") @db.Text
+  serviceCategoryId String?
+  treatment         WorkEntryTreatment    @default(UNDECIDED)
+  status            WorkEntryStatus       @default(PROPOSED)
+  writeOffReason    String?               @db.Text
+  source            WorkEntrySource       @default(MANUAL)
+  sourceType        String?
+  sourceId          String?
+  invoiceLineId     String?
+  aiParsed          Boolean               @default(false)
+  createdByUserId   String
+  updatedByUserId   String
+  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime              @updatedAt @db.Timestamptz(3)
+  workspace         Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user              User                  @relation("WorkEntryPerformer", fields: [userId], references: [id], onDelete: Restrict)
+  client            Client                @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case              Case?                 @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  serviceCategory   ServiceCategory?      @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
+  invoiceLine       InvoiceLine?          @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
+  createdBy         User                  @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy         User                  @relation("WorkEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, sourceType, sourceId])
+  @@index([workspaceId, clientId, workDate])
+  @@index([workspaceId, userId, workDate])
+  @@index([workspaceId, status])
+  @@index([invoiceLineId])
+  @@index([caseId])
+}
+
+model RetainerAgreement {
+  id                   String                      @id @default(uuid())
+  workspaceId          String
+  clientId             String
+  title                String
+  monthlyFee           Decimal                     @db.Decimal(18, 2)
+  currency             String
+  validFrom            DateTime                    @db.Date
+  validTo              DateTime?                   @db.Date
+  includedMinutes      Int?
+  overageRule          RetainerRule
+  overageHourlyRate    Decimal?                    @db.Decimal(18, 2)
+  outOfScopeRule       RetainerRule
+  outOfScopeHourlyRate Decimal?                    @db.Decimal(18, 2)
+  active               Boolean                     @default(true)
+  createdAt            DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                    @updatedAt @db.Timestamptz(3)
+  workspace            Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client               Client                      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  categories           RetainerAgreementCategory[]
+
+  @@index([workspaceId, clientId, validFrom])
+}
+
+model RetainerAgreementCategory {
+  workspaceId         String
+  retainerAgreementId String
+  serviceCategoryId   String
+  workspace           Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  retainerAgreement   RetainerAgreement @relation(fields: [retainerAgreementId], references: [id], onDelete: Cascade)
+  serviceCategory     ServiceCategory   @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
+
+  @@id([retainerAgreementId, serviceCategoryId])
+  @@index([workspaceId, serviceCategoryId])
+}
+
+model ClientBillingProfile {
+  id          String    @id @default(uuid())
+  workspaceId String
+  clientId    String    @unique
+  hourlyRate  Decimal?  @db.Decimal(18, 2)
+  currency    String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model UserRate {
+  id            String    @id @default(uuid())
+  workspaceId   String
+  userId        String
+  hourlyValue   Decimal   @db.Decimal(18, 2)
+  currency      String
+  effectiveFrom DateTime  @db.Date
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, effectiveFrom])
 }

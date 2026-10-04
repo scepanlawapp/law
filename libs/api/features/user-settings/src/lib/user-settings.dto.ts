@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   ValidateNested,
 } from "class-validator";
@@ -67,6 +68,9 @@ export class NotificationPreferencesDto
   @IsOptional() @IsBoolean() eventUpcoming?: boolean;
   @IsOptional() @IsBoolean() eventChanged?: boolean;
   @IsOptional() @IsBoolean() eventCancelled?: boolean;
+  @IsOptional() @IsBoolean() timerRunningLong?: boolean;
+  @IsOptional() @IsBoolean() timeReviewReminder?: boolean;
+  @IsOptional() @IsBoolean() retainerUsage?: boolean;
 }
 
 export class UpdatePreferencesDto {
@@ -83,6 +87,10 @@ export class UpdatePreferencesDto {
   @IsIn(dateTimeFormats)
   dateTimeFormat?: (typeof dateTimeFormats)[number];
   @IsOptional() @IsString() @MaxLength(80) timeZone?: string;
+  @IsOptional() @IsBoolean() timeReviewReminderEnabled?: boolean;
+  @IsOptional()
+  @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
+  timeReviewReminderTime?: string;
 }
 
 export class UpdateUserSettingsDto {

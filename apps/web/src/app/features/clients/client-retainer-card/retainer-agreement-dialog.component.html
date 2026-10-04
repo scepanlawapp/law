@@ -1,0 +1,296 @@
+<form
+  class="flex max-h-[calc(100dvh-2rem)] flex-col overflow-hidden"
+  [formGroup]="form"
+  (submit)="$event.preventDefault(); submit()"
+  novalidate
+>
+  <hlm-dialog-header>
+    <h2 hlmDialogTitle>
+      {{
+        (isEdit ? "retainers.form.titleEdit" : "retainers.form.titleCreate")
+          | translate
+      }}
+    </h2>
+    <p hlmDialogDescription>{{ "retainers.form.description" | translate }}</p>
+  </hlm-dialog-header>
+
+  <div class="min-h-0 flex-1 overflow-y-auto py-4 text-sm">
+    <div class="grid gap-4 sm:grid-cols-2">
+      <div hlmField class="sm:col-span-2">
+        <label hlmFieldLabel for="retainer-title">
+          {{ "retainers.form.name" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="retainer-title"
+          maxlength="200"
+          formControlName="title"
+          [attr.aria-invalid]="hasError('title')"
+        />
+        @if (hasError("title")) {
+          <p class="text-destructive text-sm" role="alert">
+            {{ "retainers.form.nameRequired" | translate }}
+          </p>
+        }
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="retainer-fee">
+          {{ "retainers.form.monthlyFee" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="retainer-fee"
+          inputmode="decimal"
+          formControlName="monthlyFee"
+          [attr.aria-invalid]="hasError('monthlyFee')"
+        />
+        @if (hasError("monthlyFee")) {
+          <p class="text-destructive text-sm" role="alert">
+            {{ "billing.invalidAmount" | translate }}
+          </p>
+        }
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="retainer-currency">
+          {{ "retainers.form.currency" | translate }}
+        </label>
+        <hlm-select
+          formControlName="currency"
+          [itemToString]="currencyItemToString"
+        >
+          <hlm-select-trigger buttonId="retainer-currency" class="w-full">
+            <hlm-select-value />
+          </hlm-select-trigger>
+          <hlm-select-content *hlmSelectPortal width="content">
+            <hlm-select-group>
+              @for (option of currencyOptions; track option.value) {
+                <hlm-select-item [value]="option.value">
+                  {{ option.label | translate }}
+                </hlm-select-item>
+              }
+            </hlm-select-group>
+          </hlm-select-content>
+        </hlm-select>
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="retainer-valid-from">
+          {{ "retainers.form.validFrom" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="retainer-valid-from"
+          type="date"
+          formControlName="validFrom"
+          [attr.aria-invalid]="hasError('validFrom')"
+        />
+        @if (hasError("validFrom")) {
+          <p class="text-destructive text-sm" role="alert">
+            {{ "retainers.form.validFromRequired" | translate }}
+          </p>
+        }
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="retainer-valid-to">
+          {{ "retainers.form.validTo" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="retainer-valid-to"
+          type="date"
+          formControlName="validTo"
+          [attr.aria-invalid]="form.touched && form.hasError('range')"
+        />
+        @if (form.touched && form.hasError("range")) {
+          <p class="text-destructive text-sm" role="alert">
+            {{ "retainers.form.rangeInvalid" | translate }}
+          </p>
+        }
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="retainer-hours">
+          {{ "retainers.form.includedHours" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="retainer-hours"
+          type="number"
+          min="0"
+          step="0.25"
+          formControlName="includedHours"
+          [attr.aria-invalid]="hasError('includedHours')"
+        />
+        <p class="text-muted-foreground text-sm">
+          {{ "retainers.form.includedHoursHint" | translate }}
+        </p>
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="retainer-categories">
+          {{ "retainers.form.categories" | translate }}
+        </label>
+        <div
+          hlmComboboxMultiple
+          [value]="coveredIds()"
+          (valueChange)="setCovered($event ?? [])"
+          [itemToString]="categoryItemToString"
+        >
+          <hlm-combobox-trigger buttonId="retainer-categories" class="w-full">
+            <span data-slot="combobox-value" class="truncate">
+              @if (coveredLabel(); as label) {
+                {{ label }}
+              } @else {
+                <span class="text-muted-foreground">
+                  {{ "retainers.form.categoriesAll" | translate }}
+                </span>
+              }
+            </span>
+          </hlm-combobox-trigger>
+          <hlm-combobox-content *hlmComboboxPortal width="content">
+            <hlm-combobox-input
+              [placeholder]="'work.filters.searchPlaceholder' | translate"
+              [showTrigger]="false"
+            />
+            <hlm-combobox-empty>
+              {{ "work.filters.noResults" | translate }}
+            </hlm-combobox-empty>
+            <div hlmComboboxList>
+              @for (category of categoryOptions(); track category.id) {
+                <hlm-combobox-item [value]="category.id">
+                  {{ category.name }}
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </div>
+        @if (categoriesFailed()) {
+          <p class="text-destructive text-sm" role="alert">
+            {{ "retainers.form.categoriesLoadError" | translate }}
+          </p>
+        } @else {
+          <p class="text-muted-foreground text-sm">
+            {{ "retainers.form.categoriesHint" | translate }}
+          </p>
+        }
+      </div>
+
+      <fieldset class="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+        <legend class="mb-1 font-medium">
+          {{ "retainers.form.overage" | translate }}
+        </legend>
+        <div hlmField>
+          <label hlmFieldLabel for="retainer-overage-rule">
+            {{ "retainers.form.rule" | translate }}
+          </label>
+          <hlm-select
+            formControlName="overageRule"
+            [itemToString]="ruleItemToString"
+          >
+            <hlm-select-trigger buttonId="retainer-overage-rule" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal width="content">
+              <hlm-select-group>
+                @for (option of ruleOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="retainer-overage-rate">
+            {{ "retainers.form.hourlyRate" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="retainer-overage-rate"
+            inputmode="decimal"
+            formControlName="overageHourlyRate"
+            [attr.aria-invalid]="hasError('overageHourlyRate')"
+          />
+          @if (hasError("overageHourlyRate")) {
+            <p class="text-destructive text-sm" role="alert">
+              {{ "retainers.form.rateRequired" | translate }}
+            </p>
+          }
+        </div>
+      </fieldset>
+
+      <fieldset class="grid gap-3 sm:col-span-2 sm:grid-cols-2">
+        <legend class="mb-1 font-medium">
+          {{ "retainers.form.outOfScope" | translate }}
+        </legend>
+        <div hlmField>
+          <label hlmFieldLabel for="retainer-scope-rule">
+            {{ "retainers.form.rule" | translate }}
+          </label>
+          <hlm-select
+            formControlName="outOfScopeRule"
+            [itemToString]="ruleItemToString"
+          >
+            <hlm-select-trigger buttonId="retainer-scope-rule" class="w-full">
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal width="content">
+              <hlm-select-group>
+                @for (option of ruleOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="retainer-scope-rate">
+            {{ "retainers.form.hourlyRate" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="retainer-scope-rate"
+            inputmode="decimal"
+            formControlName="outOfScopeHourlyRate"
+            [attr.aria-invalid]="hasError('outOfScopeHourlyRate')"
+          />
+          @if (hasError("outOfScopeHourlyRate")) {
+            <p class="text-destructive text-sm" role="alert">
+              {{ "retainers.form.rateRequired" | translate }}
+            </p>
+          }
+        </div>
+      </fieldset>
+    </div>
+
+    @if (overlap()) {
+      <p class="text-destructive mt-4 text-sm" role="alert">
+        {{ "retainers.form.overlap" | translate }}
+      </p>
+    }
+  </div>
+
+  <hlm-dialog-footer>
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      [disabled]="saving()"
+      (click)="cancel()"
+    >
+      {{ "common.cancel" | translate }}
+    </button>
+    <button hlmBtn type="submit" [disabled]="saving()">
+      @if (saving()) {
+        <hlm-spinner />
+      }
+      {{ "common.save" | translate }}
+    </button>
+  </hlm-dialog-footer>
+</form>

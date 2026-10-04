@@ -1,0 +1,594 @@
+import { signal } from "@angular/core";
+import { TestBed } from "@angular/core/testing";
+import {
+  BillingSetupApiClient,
+  CasesApiClient,
+  ClientsApiClient,
+  WorkEntriesApiClient,
+} from "@law/api-clients";
+import {
+  RetainerAgreement,
+  WorkCaptureParseResponse,
+  WorkEntry,
+} from "@law/api-interfaces";
+import { AuthState } from "@law/security";
+import { BrnDialogRef } from "@spartan-ng/brain/dialog";
+import { NEVER, of, Subject, throwError } from "rxjs";
+import { LocalizationService } from "../../../core/localization/localization.service";
+import { ToastService } from "../../../shared/ui/toast/toast.service";
+import { QuickCaptureDialogComponent } from "./quick-capture-dialog.component";
+import { QuickCaptureInput } from "./quick-capture.models";
+
+let context: QuickCaptureInput = { mode: "create" };
+
+jest.mock("@spartan-ng/brain/dialog", () => ({
+  ...jest.requireActual("@spartan-ng/brain/dialog"),
+  injectBrnDialogContext: () => context,
+}));
+
+const clientRef = (id: string, displayName: string) => ({
+  id,
+  clientNumber: id,
+  type: "COMPANY" as const,
+  displayName,
+  status: "ACTIVE" as const,
+});
+
+const savedEntry = { id: "entry-1" } as WorkEntry;
+
+function parseResult(
+  overrides: Partial<WorkCaptureParseResponse> = {},
+): WorkCaptureParseResponse {
+  return {
+    ok: true,
+    clientId: null,
+    clientCandidates: [],
+    caseId: null,
+    caseCandidates: [],
+    minutes: null,
+    serviceCategoryId: null,
+    description: null,
+    ...overrides,
+  };
+}
+
+describe("QuickCaptureDialogComponent", () => {
+  beforeAll(() => {
+    // jsdom has no ResizeObserver; Spartan's form-field and select primitives observe size.
+    globalThis.ResizeObserver ??= class {
+      observe(): void {
+        // no layout in jsdom
+      }
+      unobserve(): void {
+        // no layout in jsdom
+      }
+      disconnect(): void {
+        // no layout in jsdom
+      }
+    };
+  });
+
+  const dialogRef = { close: jest.fn() };
+  const entries = {
+    list: jest.fn(),
+    get: jest.fn(),
+    parse: jest.fn(),
+    create: jest.fn(),
+    update: jest.fn(),
+    confirm: jest.fn(),
+    confirmFromSource: jest.fn(),
+  };
+  const billing = { listRetainers: jest.fn(), listCategories: jest.fn() };
+  const clients = { list: jest.fn(), get: jest.fn() };
+  const cases = { list: jest.fn(), get: jest.fn() };
+  const toast = { success: jest.fn(), error: jest.fn() };
+
+  function render() {
+    TestBed.configureTestingModule({
+      imports: [QuickCaptureDialogComponent],
+      providers: [
+        { provide: BrnDialogRef, useValue: dialogRef },
+        { provide: WorkEntriesApiClient, useValue: entries },
+        { provide: BillingSetupApiClient, useValue: billing },
+        { provide: ClientsApiClient, useValue: clients },
+        { provide: CasesApiClient, useValue: cases },
+        { provide: ToastService, useValue: toast },
+        {
+          provide: AuthState,
+          useValue: { session: signal({ user: { id: "user-1" } }) },
+        },
+        {
+          provide: LocalizationService,
+          useValue: {
+            translate: jest.fn((key: string) => key),
+            language: signal("SR"),
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(QuickCaptureDialogComponent);
+    fixture.detectChanges();
+    return fixture;
+  }
+
+  const buttons = (root: HTMLElement) => [
+    ...root.querySelectorAll<HTMLButtonElement>("button"),
+  ];
+  const buttonWithText = (root: HTMLElement, text: string) =>
+    buttons(root).find((button) => button.textContent?.includes(text));
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    context = { mode: "create" };
+    entries.list.mockReturnValue(
+      of({
+        items: [
+          { client: clientRef("client-2", "Beta d.o.o.") },
+          { client: clientRef("client-2", "Beta d.o.o.") },
+          { client: clientRef("client-1", "Alfa d.o.o.") },
+        ],
+        meta: {},
+      }),
+    );
+    entries.get.mockReturnValue(NEVER);
+    entries.create.mockReturnValue(of(savedEntry));
+    entries.update.mockReturnValue(of(savedEntry));
+    entries.confirm.mockReturnValue(of(savedEntry));
+    entries.confirmFromSource.mockReturnValue(of(savedEntry));
+    billing.listRetainers.mockReturnValue(of([]));
+    billing.listCategories.mockReturnValue(of([]));
+    clients.list.mockReturnValue(
+      of({
+        items: [
+          { id: "client-1", displayName: "Alfa d.o.o." },
+          { id: "client-2", displayName: "Beta d.o.o." },
+          { id: "client-3", displayName: "Gama d.o.o." },
+        ],
+      }),
+    );
+    clients.get.mockReturnValue(NEVER);
+    cases.list.mockReturnValue(of({ items: [] }));
+    cases.get.mockReturnValue(NEVER);
+  });
+
+  function fillValid(
+    component: QuickCaptureDialogComponent,
+    values: Partial<Record<string, unknown>> = {},
+  ) {
+    component.form.patchValue({
+      clientId: "client-1",
+      minutes: 30,
+      description: "Pregled ugovora",
+      workDate: "2026-10-04",
+      ...values,
+    });
+  }
+
+  it("is invalid without a client", () => {
+    const { componentInstance: component } = render();
+    component.form.patchValue({ minutes: 30, description: "Rad" });
+    expect(component.form.controls.clientId.hasError("required")).toBe(true);
+    expect(component.form.invalid).toBe(true);
+
+    component.form.controls.clientId.setValue("client-1");
+    expect(component.form.valid).toBe(true);
+  });
+
+  it("lists recent clients first, without duplicates", () => {
+    const { componentInstance: component } = render();
+    expect(component.clientOptions().map((client) => client.id)).toEqual([
+      "client-2",
+      "client-1",
+      "client-3",
+    ]);
+    expect(entries.list).toHaveBeenCalledWith({
+      userIds: ["user-1"],
+      page: 1,
+      pageSize: 20,
+    });
+  });
+
+  it("searches clients on the server with a debounce while typing", () => {
+    jest.useFakeTimers();
+    try {
+      const { componentInstance: component } = render();
+      clients.list.mockClear();
+      clients.list.mockReturnValue(
+        of({ items: [{ id: "client-9", displayName: "Alfa Omega" }] }),
+      );
+
+      component.searchClients("al");
+      component.searchClients("alfa");
+      jest.advanceTimersByTime(249);
+      expect(clients.list).not.toHaveBeenCalled();
+      jest.advanceTimersByTime(1);
+
+      expect(clients.list).toHaveBeenCalledTimes(1);
+      expect(clients.list).toHaveBeenCalledWith({
+        page: 1,
+        pageSize: 100,
+        status: "ACTIVE",
+        search: "alfa",
+      });
+      // A search shows only the server's matches, not the recent clients.
+      expect(component.clientOptions().map((client) => client.id)).toEqual([
+        "client-9",
+      ]);
+      component.setClientId("client-9");
+      expect(component.clientItemToString("client-9")).toBe("Alfa Omega");
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it("sets 30 minutes from the 30 chip", () => {
+    const fixture = render();
+    const chip = buttonWithText(
+      fixture.nativeElement,
+      "30 time.capture.minuteUnit",
+    );
+    chip?.click();
+    expect(fixture.componentInstance.form.controls.minutes.value).toBe(30);
+  });
+
+  it("rejects durations outside 1..1440 minutes", () => {
+    const { componentInstance: component } = render();
+    component.form.controls.minutes.setValue(0);
+    expect(component.form.controls.minutes.invalid).toBe(true);
+    component.form.controls.minutes.setValue(1441);
+    expect(component.form.controls.minutes.invalid).toBe(true);
+    component.form.controls.minutes.setValue(1440);
+    expect(component.form.controls.minutes.valid).toBe(true);
+  });
+
+  it("rejects fractional durations", () => {
+    const { componentInstance: component } = render();
+    component.form.controls.minutes.setValue(30.5);
+    expect(component.form.controls.minutes.hasError("integer")).toBe(true);
+    component.form.controls.minutes.setValue(30);
+    expect(component.form.controls.minutes.valid).toBe(true);
+  });
+
+  describe("AI fill", () => {
+    it("keeps the form and shows the hint when parse fails", () => {
+      entries.parse.mockReturnValue(of(parseResult({ ok: false })));
+      const fixture = render();
+      const component = fixture.componentInstance;
+      component.form.patchValue({ description: "Ručno", minutes: 15 });
+      component.freeText.setValue("nešto nejasno");
+      fixture.detectChanges();
+
+      buttonWithText(fixture.nativeElement, "time.capture.fill")?.click();
+      fixture.detectChanges();
+
+      expect(entries.parse).toHaveBeenCalledWith({ text: "nešto nejasno" });
+      expect(component.form.getRawValue()).toMatchObject({
+        clientId: "",
+        description: "Ručno",
+        minutes: 15,
+      });
+      expect(component.aiParsed()).toBe(false);
+      expect(fixture.nativeElement.textContent).toContain(
+        "time.capture.parseFailed",
+      );
+    });
+
+    it("shows the hint when the request itself fails", () => {
+      entries.parse.mockReturnValue(throwError(() => new Error("timeout")));
+      const fixture = render();
+      fixture.componentInstance.freeText.setValue("Alfa 30 min");
+      fixture.componentInstance.fillFromText();
+      expect(fixture.componentInstance.parseFailed()).toBe(true);
+      expect(fixture.componentInstance.aiParsed()).toBe(false);
+    });
+
+    it("fills the form and flags aiParsed for a single client match", () => {
+      entries.parse.mockReturnValue(
+        of(
+          parseResult({
+            clientId: "client-2",
+            minutes: 45,
+            description: "Telefonski razgovor",
+          }),
+        ),
+      );
+      const fixture = render();
+      const component = fixture.componentInstance;
+      component.freeText.setValue("Beta 45 minuta telefonski razgovor");
+      component.fillFromText();
+
+      expect(component.form.controls.clientId.value).toBe("client-2");
+      expect(component.form.controls.minutes.value).toBe(45);
+      expect(component.form.controls.description.value).toBe(
+        "Telefonski razgovor",
+      );
+      expect(component.aiParsed()).toBe(true);
+      expect(component.parseFailed()).toBe(false);
+    });
+
+    it("derives the client from the case when only the case matched", () => {
+      cases.get.mockReturnValue(
+        of({
+          id: "case-9",
+          caseNumber: "P-9/2026",
+          name: "Spor",
+          client: clientRef("client-3", "Gama d.o.o."),
+        }),
+      );
+      entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
+      const component = render().componentInstance;
+      component.freeText.setValue("spor P-9");
+      component.fillFromText();
+
+      expect(cases.get).toHaveBeenCalledWith("case-9");
+      expect(component.form.controls.clientId.value).toBe("client-3");
+      expect(component.form.controls.caseId.value).toBe("case-9");
+      expect(component.aiParsed()).toBe(true);
+    });
+
+    it("only flags aiParsed once the matched case has been loaded", () => {
+      const lookup = new Subject<unknown>();
+      cases.get.mockReturnValue(lookup);
+      entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
+      const component = render().componentInstance;
+      component.freeText.setValue("spor P-9");
+      component.fillFromText();
+
+      expect(component.aiParsed()).toBe(false);
+      expect(component.parseFailed()).toBe(false);
+      lookup.next({
+        id: "case-9",
+        caseNumber: "P-9/2026",
+        name: "Spor",
+        client: clientRef("client-3", "Gama d.o.o."),
+      });
+      expect(component.aiParsed()).toBe(true);
+    });
+
+    it("shows the hint when the matched case cannot be loaded", () => {
+      cases.get.mockReturnValue(throwError(() => new Error("404")));
+      entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
+      const component = render().componentInstance;
+      component.freeText.setValue("spor P-9");
+      component.fillFromText();
+
+      expect(component.aiParsed()).toBe(false);
+      expect(component.parseFailed()).toBe(true);
+    });
+
+    it("offers ambiguous candidates and leaves the field empty", () => {
+      entries.parse.mockReturnValue(
+        of(
+          parseResult({
+            clientCandidates: [
+              clientRef("client-1", "Alfa d.o.o."),
+              clientRef("client-3", "Gama d.o.o."),
+            ],
+            minutes: 20,
+          }),
+        ),
+      );
+      const fixture = render();
+      const component = fixture.componentInstance;
+      component.freeText.setValue("a 20 minuta");
+      component.fillFromText();
+      fixture.detectChanges();
+
+      expect(component.form.controls.clientId.value).toBe("");
+      expect(component.aiParsed()).toBe(true);
+      const chip = buttonWithText(fixture.nativeElement, "Gama d.o.o.");
+      chip?.click();
+      expect(component.form.controls.clientId.value).toBe("client-3");
+    });
+
+    it("does not flag aiParsed when parse filled nothing", () => {
+      entries.parse.mockReturnValue(of(parseResult()));
+      const component = render().componentInstance;
+      component.freeText.setValue("???");
+      component.fillFromText();
+      expect(component.aiParsed()).toBe(false);
+      expect(component.parseFailed()).toBe(true);
+    });
+  });
+
+  it("hides the date and the AI box when confirming from a source", () => {
+    context = {
+      mode: "confirm-source",
+      minutes: 45,
+      description: "Ročište",
+      source: { sourceType: "EVENT", sourceId: "event-1" },
+    };
+    const fixture = render();
+    const root: HTMLElement = fixture.nativeElement;
+    expect(root.querySelector("#capture-date")).toBeNull();
+    expect(root.querySelector("#capture-free-text")).toBeNull();
+    expect(root.querySelector("#capture-minutes")).not.toBeNull();
+  });
+
+  it("shows the date and the AI box when creating", () => {
+    const root: HTMLElement = render().nativeElement;
+    expect(root.querySelector("#capture-date")).not.toBeNull();
+    expect(root.querySelector("#capture-free-text")).not.toBeNull();
+  });
+
+  it("clears the case when the client changes", () => {
+    const { componentInstance: component } = render();
+    component.form.controls.clientId.setValue("client-1");
+    component.form.controls.caseId.setValue("case-1");
+    component.form.controls.clientId.setValue("client-2");
+    expect(component.form.controls.caseId.value).toBe("");
+  });
+
+  it("selects the client of a chosen case", () => {
+    cases.list.mockReturnValue(
+      of({
+        items: [
+          {
+            id: "case-5",
+            caseNumber: "P-5/2026",
+            name: "Naknada",
+            client: clientRef("client-2", "Beta d.o.o."),
+          },
+        ],
+      }),
+    );
+    const { componentInstance: component } = render();
+    component.setCaseId("case-5");
+    expect(component.form.controls.clientId.value).toBe("client-2");
+    expect(component.form.controls.caseId.value).toBe("case-5");
+  });
+
+  describe("treatment", () => {
+    const agreement: RetainerAgreement = {
+      id: "a1",
+      clientId: "client-1",
+      title: "Paušal",
+      monthlyFee: "1000.00",
+      currency: "EUR",
+      validFrom: "2026-01-01",
+      validTo: null,
+      includedMinutes: null,
+      coveredCategoryIds: ["cat-1"],
+      overageRule: "HOURLY",
+      overageHourlyRate: "100.00",
+      outOfScopeRule: "HOURLY",
+      outOfScopeHourlyRate: "100.00",
+      active: true,
+    };
+
+    it("pre-fills the treatment from the client's retainers and category", () => {
+      billing.listRetainers.mockReturnValue(of([agreement]));
+      const { componentInstance: component } = render();
+      component.form.controls.clientId.setValue("client-1");
+      component.form.controls.serviceCategoryId.setValue("cat-1");
+      expect(billing.listRetainers).toHaveBeenCalledWith("client-1");
+      expect(component.form.controls.treatment.value).toBe("RETAINER");
+
+      component.form.controls.serviceCategoryId.setValue("cat-2");
+      expect(component.form.controls.treatment.value).toBe("HOURLY");
+    });
+
+    it("keeps a treatment the user picked", () => {
+      billing.listRetainers.mockReturnValue(of([agreement]));
+      const { componentInstance: component } = render();
+      component.form.controls.treatment.setValue("AT");
+      component.form.controls.treatment.markAsDirty();
+      component.form.controls.clientId.setValue("client-1");
+      expect(component.form.controls.treatment.value).toBe("AT");
+    });
+
+    it("leaves the treatment to the API when retainers cannot be read", () => {
+      billing.listRetainers.mockReturnValue(throwError(() => new Error("403")));
+      const { componentInstance: component } = render();
+      fillValid(component);
+      component.submit();
+      expect(entries.create.mock.calls[0][0].treatment).toBeUndefined();
+    });
+  });
+
+  describe("save", () => {
+    it("creates a MANUAL entry when nothing was parsed", () => {
+      const { componentInstance: component } = render();
+      fillValid(component);
+      component.submit();
+      expect(entries.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          clientId: "client-1",
+          minutes: 30,
+          description: "Pregled ugovora",
+          workDate: "2026-10-04",
+          source: "MANUAL",
+          aiParsed: false,
+        }),
+      );
+      expect(dialogRef.close).toHaveBeenCalledWith(savedEntry);
+    });
+
+    it("creates a QUICK_CAPTURE entry after a successful parse", () => {
+      entries.parse.mockReturnValue(of(parseResult({ clientId: "client-1" })));
+      const { componentInstance: component } = render();
+      component.freeText.setValue("Alfa");
+      component.fillFromText();
+      fillValid(component);
+      component.submit();
+      expect(entries.create).toHaveBeenCalledWith(
+        expect.objectContaining({ source: "QUICK_CAPTURE", aiParsed: true }),
+      );
+    });
+
+    it("does not save an invalid form", () => {
+      const { componentInstance: component } = render();
+      component.submit();
+      expect(entries.create).not.toHaveBeenCalled();
+      expect(component.form.controls.clientId.touched).toBe(true);
+    });
+
+    it("stays open and reports a failed save", () => {
+      entries.create.mockReturnValue(throwError(() => new Error("500")));
+      const { componentInstance: component } = render();
+      fillValid(component);
+      component.submit();
+      expect(dialogRef.close).not.toHaveBeenCalled();
+      expect(toast.error).toHaveBeenCalledWith("time.capture.saveError");
+      expect(component.saving()).toBe(false);
+    });
+
+    it("updates then confirms the timer entry", () => {
+      context = {
+        mode: "confirm-timer",
+        entryId: "entry-1",
+        clientId: "client-1",
+        minutes: 12,
+        description: "Rad",
+        workDate: "2026-10-04",
+      };
+      const { componentInstance: component } = render();
+      expect(entries.get).toHaveBeenCalledWith("entry-1");
+      component.submit();
+      expect(entries.update).toHaveBeenCalledWith(
+        "entry-1",
+        expect.objectContaining({ clientId: "client-1", minutes: 12 }),
+      );
+      expect(entries.confirm).toHaveBeenCalledWith("entry-1", {
+        minutes: 12,
+        description: "Rad",
+      });
+      expect(entries.create).not.toHaveBeenCalled();
+      expect(dialogRef.close).toHaveBeenCalledWith(savedEntry);
+    });
+
+    it("confirms from a source without needing a client", () => {
+      context = {
+        mode: "confirm-source",
+        minutes: 45,
+        description: "Ročište",
+        source: { sourceType: "EVENT", sourceId: "event-1" },
+      };
+      const { componentInstance: component } = render();
+      component.submit();
+      expect(entries.confirmFromSource).toHaveBeenCalledWith({
+        sourceType: "EVENT",
+        sourceId: "event-1",
+        minutes: 45,
+        description: "Ročište",
+      });
+    });
+
+    it("updates an existing entry in edit mode", () => {
+      context = {
+        mode: "edit",
+        entryId: "entry-7",
+        clientId: "client-1",
+        minutes: 60,
+        description: "Izmena",
+      };
+      const { componentInstance: component } = render();
+      component.submit();
+      expect(entries.update).toHaveBeenCalledWith(
+        "entry-7",
+        expect.objectContaining({ minutes: 60, description: "Izmena" }),
+      );
+      expect(entries.confirm).not.toHaveBeenCalled();
+    });
+  });
+});

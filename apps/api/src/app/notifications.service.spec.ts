@@ -26,7 +26,9 @@ function createDb() {
     },
     workspaceMember: {
       findUnique: jest.fn().mockResolvedValue({ status: "ACTIVE" }),
+      findMany: jest.fn().mockResolvedValue([]),
     },
+    workEntry: { findMany: jest.fn().mockResolvedValue([]) },
     userSettings: {
       findUnique: jest.fn().mockResolvedValue({
         workspaceNotifications: true,
@@ -336,5 +338,90 @@ describe("NotificationReminderService", () => {
     await service.run(new Date("2026-10-05T10:00:00.000Z"));
     const secondKey = create.mock.calls[1][0].dedupeKey;
     expect(secondKey).not.toBe(firstKey);
+  });
+  describe("time tracking reminders", () => {
+    const reminderMember = (time = "17:30", timeZone = "Europe/Belgrade") => ({
+      userId,
+      workspaceId,
+      user: { settings: { timeZone, timeReviewReminderTime: time } },
+      workspace: { config: null },
+    });
+    const run = async (db: ReturnType<typeof createDb>, at: Date) => {
+      const create = jest.fn().mockResolvedValue({ status: "created" });
+      await new NotificationReminderService(
+        db as never,
+        { create } as never,
+      ).run(at);
+      return create.mock.calls.map(([input]) => input);
+    };
+
+    it("notifies a timer that has run for 4 hours or more", async () => {
+      const db = createDb();
+      const startedAt = new Date("2026-09-30T06:00:00.000Z");
+      db.workEntry.findMany.mockResolvedValue([
+        {
+          id: "entry-1",
+          workspaceId,
+          userId,
+          description: "Priprema tužbe",
+          timerStartedAt: startedAt,
+          client: { id: "client-1", displayName: "Alfa doo" },
+          workspace: { config: { timeZone: "Europe/Belgrade" } },
+        },
+      ]);
+      const calls = await run(db, new Date("2026-09-30T10:10:00.000Z"));
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatchObject({
+        type: "TIMER_RUNNING_LONG",
+        userId,
+        title: "Tajmer je i dalje uključen",
+        dedupeKey: `timer:entry-1:${startedAt.toISOString()}`,
+      });
+    });
+
+    it("leaves a young same-day timer alone but flags one past local midnight", async () => {
+      const db = createDb();
+      const entry = (startedAt: string) => ({
+        id: "entry-1",
+        workspaceId,
+        userId,
+        description: "",
+        timerStartedAt: new Date(startedAt),
+        client: { id: "client-1", displayName: "Alfa doo" },
+        workspace: { config: null },
+      });
+      db.workEntry.findMany.mockResolvedValue([
+        entry("2026-09-30T07:00:00.000Z"),
+      ]);
+      expect(await run(db, new Date("2026-09-30T09:00:00.000Z"))).toEqual([]);
+      // 22:30 Belgrade the evening before; 00:30 Belgrade now: only 2 h old.
+      db.workEntry.findMany.mockResolvedValue([
+        entry("2026-09-29T20:30:00.000Z"),
+      ]);
+      const calls = await run(db, new Date("2026-09-29T22:30:00.000Z"));
+      expect(calls.map((input) => input.type)).toEqual(["TIMER_RUNNING_LONG"]);
+    });
+
+    it("sends the review reminder on a weekday after the configured time", async () => {
+      const db = createDb();
+      db.workspaceMember.findMany.mockResolvedValue([reminderMember()]);
+      // Wednesday 2026-09-30, 18:05 Belgrade (CEST, UTC+2).
+      const calls = await run(db, new Date("2026-09-30T16:05:00.000Z"));
+      expect(calls).toHaveLength(1);
+      expect(calls[0]).toMatchObject({
+        type: "TIME_REVIEW_REMINDER",
+        userId,
+        dedupeKey: "time-review:2026-09-30",
+      });
+    });
+
+    it("waits until the configured time and skips weekends", async () => {
+      const db = createDb();
+      db.workspaceMember.findMany.mockResolvedValue([reminderMember()]);
+      // Wednesday 17:00 Belgrade: too early.
+      expect(await run(db, new Date("2026-09-30T15:00:00.000Z"))).toEqual([]);
+      // Saturday 2026-10-03, 18:05 Belgrade.
+      expect(await run(db, new Date("2026-10-03T16:05:00.000Z"))).toEqual([]);
+    });
   });
 });

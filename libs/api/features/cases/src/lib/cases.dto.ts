@@ -5,13 +5,16 @@ import {
   IsDateString,
   IsEnum,
   IsIn,
+  IsInt,
   IsNotEmpty,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
   Matches,
+  Max,
   MaxLength,
+  Min,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
 import { CASE_NUMBER_FORMATS, CaseNumberFormat } from "@law/api-interfaces";
@@ -104,6 +107,7 @@ export class CaseActivityDto {
   @IsString() @MaxLength(320) title!: string;
   @IsOptional() @IsString() @MaxLength(10000) description?: string;
   @IsDateString() activityDate!: string;
+  @IsOptional() @IsInt() @Min(1) @Max(1440) durationMinutes?: number;
 }
 
 export class CaseActivityListQueryDto extends PaginationQueryDto {

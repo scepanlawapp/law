@@ -44,6 +44,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
+import { CompletionPromptService } from "../../time/completion-prompt/completion-prompt.service";
 import { TaskDialogComponent } from "../task-dialog/task-dialog.component";
 import { TaskDialogContext } from "../task-dialog/task-dialog.models";
 import { TaskDialogService } from "../task-dialog/task-dialog.service";
@@ -155,6 +156,7 @@ export class WorkViewComponent {
   private readonly taskDialog = inject(TaskDialogService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly completionPrompt = inject(CompletionPromptService);
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
 
@@ -523,6 +525,13 @@ export class WorkViewComponent {
     call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.updateTaskStatusLocally(item.id, target as TaskStatus);
+        if (action === "task-complete") {
+          this.completionPrompt.prompt({
+            sourceType: "TASK",
+            sourceId: item.id,
+            title: item.title,
+          });
+        }
       },
       error: () => {
         this.toast.error(this.localization.translate("work.saveError"));
