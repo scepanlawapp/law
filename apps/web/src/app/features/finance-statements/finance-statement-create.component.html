@@ -356,11 +356,19 @@
                       >
                         {{
                           (line.controls.workEntryIds.value.length
-                            ? "finance.billableWorkSource"
+                            ? "finance.workEntrySource"
                             : "finance.manualLineSource"
                           ) | translate
                         }}
                       </span>
+                      @if (line.errors?.["priceRequired"]) {
+                        <span
+                          data-testid="price-required-hint"
+                          class="mt-1 block text-destructive"
+                        >
+                          {{ "finance.priceRequiredHint" | translate }}
+                        </span>
+                      }
                       @if (line.controls.pricingRequired.value) {
                         <span
                           data-testid="pricing-required-badge"

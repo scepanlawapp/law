@@ -5,8 +5,9 @@ import {
   provideRouter,
 } from "@angular/router";
 import { FinancialsApiClient } from "@law/api-clients";
-import { BillingStatement } from "@law/api-interfaces";
-import { of } from "rxjs";
+import { BillingStatement, WorkspaceRole } from "@law/api-interfaces";
+import { AuthState } from "@law/security";
+import { of, throwError } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
@@ -87,6 +88,7 @@ describe("FinanceStatementDetailComponent send", () => {
   const api = { statement: jest.fn(), sendStatement: jest.fn() };
   const confirmDialog = { confirm: jest.fn() };
   const toast = { success: jest.fn(), error: jest.fn() };
+  let role: WorkspaceRole = WorkspaceRole.OWNER;
 
   function create(
     pricingRequired: boolean,
@@ -104,12 +106,17 @@ describe("FinanceStatementDetailComponent send", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    role = WorkspaceRole.OWNER;
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
         { provide: FinancialsApiClient, useValue: api },
         { provide: ConfirmDialogService, useValue: confirmDialog },
         { provide: ToastService, useValue: toast },
+        {
+          provide: AuthState,
+          useValue: { activeWorkspace: () => ({ role }) },
+        },
         {
           provide: LocalizationService,
           useValue: {
@@ -159,5 +166,28 @@ describe("FinanceStatementDetailComponent send", () => {
     expect(api.sendStatement).toHaveBeenCalledWith("statement-1");
     expect(toast.success).toHaveBeenCalled();
     expect(sendButton(fixture)).toBeNull();
+  });
+
+  it("hides send from roles that cannot manage billing", () => {
+    role = WorkspaceRole.LAWYER;
+    const fixture = create(false);
+
+    expect(sendButton(fixture)).toBeNull();
+  });
+
+  it.each([
+    ["Price every line before sending", "finance.statementSendPricingError"],
+    ["Only draft statements can be sent", "finance.statementSendNotDraftError"],
+  ])("explains a 409 (%s) and reloads the statement", (message, key) => {
+    const fixture = create(false);
+    confirmDialog.confirm.mockReturnValue(of(true));
+    api.sendStatement.mockReturnValue(
+      throwError(() => ({ status: 409, error: { message } })),
+    );
+
+    sendButton(fixture).click();
+
+    expect(toast.error).toHaveBeenCalledWith(key);
+    expect(api.statement).toHaveBeenCalledTimes(2);
   });
 });

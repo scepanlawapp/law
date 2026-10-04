@@ -419,9 +419,10 @@ dd {
 }
 
 @media print {
+  /* Real margins, so continuation pages (the work specification) are not edge-to-edge. */
   @page {
     size: A4;
-    margin: 0;
+    margin: 11mm 10mm 8mm;
   }
 
   :host,
@@ -441,7 +442,24 @@ dd {
   }
 
   .invoice-paper {
+    width: auto;
+    min-height: 278mm;
     margin: 0;
+    padding: 0;
     box-shadow: none;
+  }
+
+  .spec-section {
+    break-before: page;
+    page-break-before: always;
+    margin-top: 0;
+  }
+
+  .spec-table thead {
+    display: table-header-group;
+  }
+
+  .spec-table tfoot {
+    display: table-row-group;
   }
 }

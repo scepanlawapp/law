@@ -215,17 +215,21 @@ export class MonthEndComponent {
 
   private run(month: string): void {
     this.running.set(true);
+    // The month must not change under a run in flight.
+    this.month.disable({ emitEvent: false });
     this.reports
       .runMonthEnd(month)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (result) => {
           this.running.set(false);
+          this.month.enable({ emitEvent: false });
           // The month may have been changed while the run was in flight.
           if (this.month.value === month) this.result.set(result);
         },
         error: () => {
           this.running.set(false);
+          this.month.enable({ emitEvent: false });
           this.toast.error(
             this.localization.translate("finance.monthEnd.runError"),
           );

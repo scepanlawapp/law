@@ -593,7 +593,7 @@
   "finance.currencyCodeError": "Enter a three-letter currency code.",
   "finance.statementLinesDescription": "Import completed work or add a line manually.",
   "finance.importBillableWork": "Import billable work",
-  "finance.billableWorkSource": "Work item",
+  "finance.workEntrySource": "Work item",
   "finance.someWorkUnavailable": "Some selected work is no longer available for billing. The remaining items were imported.",
   "finance.workImportError": "The selected work could not be imported.",
   "finance.importOpenLines": "Import open lines",
@@ -1898,5 +1898,9 @@
   "finance.monthEnd.noChanges": "No changes",
   "finance.monthEnd.addedLines": "Lines added",
   "finance.monthEnd.pricingLines": "Lines to price",
-  "finance.monthEnd.runError": "Draft generation failed. Try again."
+  "finance.monthEnd.runError": "Draft generation failed. Try again.",
+  "finance.priceRequiredHint": "Enter a price greater than 0.",
+  "finance.monthEnd.resultEmpty": "Nothing to bill for the selected month.",
+  "finance.statementSendPricingError": "The statement cannot be sent until every line has a price.",
+  "finance.statementSendNotDraftError": "Only a draft statement can be sent."
 }

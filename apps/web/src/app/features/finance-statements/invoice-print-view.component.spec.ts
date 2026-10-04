@@ -180,6 +180,25 @@ describe("InvoicePrintViewComponent work specification", () => {
     ).toContain("3 h 0 min");
   });
 
+  it("appends the specification after the totals and the closing row", () => {
+    const element = create(true).nativeElement as HTMLElement;
+    const spec = element.querySelector(
+      '[data-testid="work-specification"]',
+    ) as Element;
+
+    for (const selector of [
+      ".line-table",
+      ".summary-grid",
+      ".payment-card",
+      ".closing-row",
+    ]) {
+      const before = element.querySelector(selector) as Element;
+      expect(
+        before.compareDocumentPosition(spec) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy();
+    }
+  });
+
   it("prints no specification when the flag is off", () => {
     const fixture = create(false);
     const element = fixture.nativeElement as HTMLElement;

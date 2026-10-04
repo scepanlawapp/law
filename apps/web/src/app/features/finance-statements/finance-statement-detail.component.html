@@ -36,7 +36,7 @@
         }}
       </h1>
       <div class="flex flex-wrap items-center gap-2">
-        @if (item.status === "DRAFT") {
+        @if (item.status === "DRAFT" && canSend()) {
           @if (sendBlocked()) {
             <span
               tabindex="0"
@@ -75,7 +75,7 @@
       </div>
     </header>
 
-    @if (item.status === "DRAFT" && sendBlocked()) {
+    @if (item.status === "DRAFT" && canSend() && sendBlocked()) {
       <p
         id="statement-send-blocked"
         role="status"

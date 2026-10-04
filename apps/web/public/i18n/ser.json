@@ -593,7 +593,7 @@
   "finance.currencyCodeError": "Unesite troslovnu oznaku valute.",
   "finance.statementLinesDescription": "Uvezite završen rad ili ručno dodajte stavku.",
   "finance.importBillableWork": "Uvezi rad za fakturisanje",
-  "finance.billableWorkSource": "Stavka rada",
+  "finance.workEntrySource": "Stavka rada",
   "finance.someWorkUnavailable": "Neki izabrani rad više nije dostupan za fakturisanje. Preostale stavke su uvezene.",
   "finance.workImportError": "Izabrani rad nije moguće uvesti.",
   "finance.importOpenLines": "Uvezi otvorene stavke",
@@ -1898,5 +1898,9 @@
   "finance.monthEnd.noChanges": "Bez promena",
   "finance.monthEnd.addedLines": "Dodato stavki",
   "finance.monthEnd.pricingLines": "Stavke bez cene",
-  "finance.monthEnd.runError": "Generisanje nacrta nije uspelo. Pokušajte ponovo."
+  "finance.monthEnd.runError": "Generisanje nacrta nije uspelo. Pokušajte ponovo.",
+  "finance.priceRequiredHint": "Unesite cenu veću od 0.",
+  "finance.monthEnd.resultEmpty": "Za izabrani mesec nema šta da se obračuna.",
+  "finance.statementSendPricingError": "Obračun nije moguće poslati dok sve stavke nemaju cenu.",
+  "finance.statementSendNotDraftError": "Samo nacrt obračuna može da se pošalje."
 }

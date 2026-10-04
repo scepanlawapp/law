@@ -9,7 +9,7 @@ import {
   MonthEndRunResult,
   WorkEntry,
 } from "@law/api-interfaces";
-import { of, throwError } from "rxjs";
+import { Subject, of, throwError } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { officeMonth, previousMonth } from "../../shared/billing";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
@@ -315,5 +315,32 @@ describe("MonthEndComponent", () => {
 
     expect(byId(fixture, "result-table")).toBeNull();
     expect(reports.precheck).toHaveBeenLastCalledWith("2026-08");
+  });
+
+  it("disables the month while a run is in flight and re-enables it after", () => {
+    const run = new Subject<MonthEndRunResult>();
+    reports.runMonthEnd.mockReturnValue(run);
+    const fixture = create();
+
+    (byId(fixture, "run-month-end") as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.month.disabled).toBe(true);
+
+    run.next(result);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.month.enabled).toBe(true);
+  });
+
+  it("says so when the run returns no statements", () => {
+    reports.runMonthEnd.mockReturnValue(
+      of({ month: "2026-09", statements: [] }),
+    );
+    const fixture = create();
+
+    (byId(fixture, "run-month-end") as HTMLButtonElement).click();
+    fixture.detectChanges();
+
+    expect(byId(fixture, "result-empty")).toBeTruthy();
+    expect(all(fixture, "result-row")).toHaveLength(0);
   });
 });

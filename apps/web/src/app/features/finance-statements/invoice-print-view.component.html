@@ -179,46 +179,6 @@
           </table>
         </div>
 
-        @if (workSpecification().length) {
-          <section
-            class="spec-section"
-            data-testid="work-specification"
-            [attr.aria-label]="'finance.workSpecification' | translate"
-          >
-            <h2>{{ "finance.workSpecification" | translate }}</h2>
-            <table class="spec-table">
-              <thead>
-                <tr>
-                  <th>{{ "finance.specDate" | translate }}</th>
-                  <th>{{ "finance.performer" | translate }}</th>
-                  <th>{{ "finance.specDescription" | translate }}</th>
-                  <th class="number">
-                    {{ "finance.specDuration" | translate }}
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                @for (row of workSpecification(); track row.id) {
-                  <tr data-testid="work-specification-row">
-                    <td>{{ formatWorkDate(row.workDate) }}</td>
-                    <td>{{ row.user.displayName }}</td>
-                    <td>{{ row.description }}</td>
-                    <td class="number">{{ formatDuration(row.minutes) }}</td>
-                  </tr>
-                }
-              </tbody>
-              <tfoot>
-                <tr data-testid="work-specification-total">
-                  <th colspan="3">{{ "finance.specTotal" | translate }}</th>
-                  <td class="number">
-                    {{ formatDuration(workSpecificationMinutes()) }}
-                  </td>
-                </tr>
-              </tfoot>
-            </table>
-          </section>
-        }
-
         <section class="summary-grid">
           <div class="comment-card">
             <h2>{{ "finance.note" | translate }}</h2>
@@ -316,6 +276,46 @@
             </span>
           </div>
         </footer>
+
+        @if (workSpecification().length) {
+          <section
+            class="spec-section"
+            data-testid="work-specification"
+            [attr.aria-label]="'finance.workSpecification' | translate"
+          >
+            <h2>{{ "finance.workSpecification" | translate }}</h2>
+            <table class="spec-table">
+              <thead>
+                <tr>
+                  <th>{{ "finance.specDate" | translate }}</th>
+                  <th>{{ "finance.performer" | translate }}</th>
+                  <th>{{ "finance.specDescription" | translate }}</th>
+                  <th class="number">
+                    {{ "finance.specDuration" | translate }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of workSpecification(); track row.id) {
+                  <tr data-testid="work-specification-row">
+                    <td>{{ formatWorkDate(row.workDate) }}</td>
+                    <td>{{ row.user.displayName }}</td>
+                    <td>{{ row.description }}</td>
+                    <td class="number">{{ formatDuration(row.minutes) }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr data-testid="work-specification-total">
+                  <th colspan="3">{{ "finance.specTotal" | translate }}</th>
+                  <td class="number">
+                    {{ formatDuration(workSpecificationMinutes()) }}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          </section>
+        }
       </article>
     </main>
   }

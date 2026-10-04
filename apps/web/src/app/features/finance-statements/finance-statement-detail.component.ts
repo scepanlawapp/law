@@ -14,6 +14,8 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { AuthState } from "@law/security";
+import { canManageBilling } from "../../shared/billing";
 import { hasPricingRequiredLines } from "./billing-statement-form";
 
 @Component({
@@ -36,12 +38,17 @@ export class FinanceStatementDetailComponent {
   private readonly localization = inject(LocalizationService);
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
+  private readonly authState = inject(AuthState);
 
   readonly statementId = this.route.snapshot.paramMap.get("id") ?? "";
   readonly statement = signal<BillingStatement | null>(null);
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly sending = signal(false);
+  /** Sending is for OWNER/ADMIN, like the API enforces. */
+  readonly canSend = computed(() =>
+    canManageBilling(this.authState.activeWorkspace()?.role),
+  );
 
   /** Lines that still need a price block sending the statement. */
   readonly pricingRequiredCount = computed(
@@ -101,14 +108,30 @@ export class FinanceStatementDetailComponent {
                 this.localization.translate("finance.statementSent"),
               );
             },
-            error: () => {
+            error: (error: unknown) => {
               this.sending.set(false);
+              const conflict =
+                (error as { status?: number } | null)?.status === 409;
               this.toast.error(
-                this.localization.translate("finance.statementSendError"),
+                this.localization.translate(this.sendErrorKey(error)),
               );
+              // The statement changed under us; show its current state.
+              if (conflict) this.load();
             },
           });
       });
+  }
+
+  private sendErrorKey(error: unknown): string {
+    const body = (error as { status?: number; error?: { message?: unknown } })
+      ?.error;
+    const reason = typeof body?.message === "string" ? body.message : "";
+    if ((error as { status?: number })?.status !== 409)
+      return "finance.statementSendError";
+    if (reason.includes("Price every line"))
+      return "finance.statementSendPricingError";
+    if (reason.includes("draft")) return "finance.statementSendNotDraftError";
+    return "finance.statementSendError";
   }
 
   sourceLabel(line: BillingStatementLineSummary): string {

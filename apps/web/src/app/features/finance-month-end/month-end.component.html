@@ -191,6 +191,14 @@
     @if (result(); as run) {
       <div data-testid="result-table" class="space-y-2">
         <h3 class="font-medium">{{ "finance.monthEnd.result" | translate }}</h3>
+        @if (!run.statements.length) {
+          <p
+            class="rounded-lg border border-dashed border-border p-4 text-muted-foreground"
+            data-testid="result-empty"
+          >
+            {{ "finance.monthEnd.resultEmpty" | translate }}
+          </p>
+        }
         <div hlmTableContainer class="rounded-lg border border-border">
           <table hlmTable class="w-full min-w-[640px]">
             <thead hlmTHead>

@@ -498,6 +498,18 @@ export class FinanceStatementCreateComponent {
     entries: readonly WorkEntry[],
     rate: ClientRate | null,
   ): void {
+    // A new statement bills in the client's currency, so the imported
+    // entries can be priced from the client's rate.
+    if (
+      !this.isEditMode &&
+      !this.form.controls.lines.length &&
+      rate &&
+      CURRENCY_OPTIONS.some(
+        (option) => option.value === normalizeCurrency(rate.currency),
+      )
+    ) {
+      this.form.controls.currency.setValue(normalizeCurrency(rate.currency));
+    }
     const firstNewIndex = this.form.controls.lines.length;
     const added = appendUniqueWorkEntries(
       this.form.controls.lines,
