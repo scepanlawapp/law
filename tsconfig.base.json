@@ -35,6 +35,7 @@
         "./libs/api/features/workspace-documents/src/index.ts"
       ],
       "@law/financials": ["./libs/api/features/financials/src/index.ts"],
+      "@law/work-entries": ["./libs/api/features/work-entries/src/index.ts"],
       "@law/core": ["./libs/api/core/src/index.ts"],
       "@law/llm": ["./libs/api/ai/llm/src/index.ts"],
       "@law/mastra": ["./libs/api/ai/mastra/src/index.ts"],
