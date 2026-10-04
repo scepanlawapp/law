@@ -14,6 +14,8 @@ import {
 import { formatHoursMinutes, priceMinutes } from "../../shared/billing";
 
 export type BillingStatementLineForm = FormGroup<{
+  /** Saved line id; null for lines added in the composer. */
+  id: FormControl<string | null>;
   workEntryIds: FormControl<string[]>;
   minutes: FormControl<number | null>;
   pricingRequired: FormControl<boolean>;
@@ -119,6 +121,7 @@ function pricedOrFlaggedValidator(
 }
 
 function buildLineForm(init: {
+  id?: string | null;
   workEntryIds: string[];
   minutes: number | null;
   pricingRequired: boolean;
@@ -132,6 +135,7 @@ function buildLineForm(init: {
 }): BillingStatementLineForm {
   return new FormGroup(
     {
+      id: new FormControl<string | null>(init.id ?? null),
       workEntryIds: new FormControl(init.workEntryIds, { nonNullable: true }),
       minutes: new FormControl<number | null>(init.minutes),
       pricingRequired: new FormControl(init.pricingRequired, {
@@ -176,6 +180,7 @@ export function createBillingStatementLineForm(
   defaultCurrency = "RSD",
 ): BillingStatementLineForm {
   return buildLineForm({
+    id: line?.id ?? null,
     workEntryIds: line?.workEntries.map((entry) => entry.id) ?? [],
     minutes: line?.minutes ?? null,
     pricingRequired: line?.pricingRequired ?? false,
@@ -291,6 +296,8 @@ export function toBillingStatementLineInput(
 ): BillingStatementLineInput {
   const value = line.getRawValue();
   return {
+    // Line identity lets the server keep a fee line's retainer marker.
+    ...(value.id ? { id: value.id } : {}),
     serviceDate: value.serviceDate,
     description: value.description.trim(),
     netAmount: value.netAmount ?? 0,

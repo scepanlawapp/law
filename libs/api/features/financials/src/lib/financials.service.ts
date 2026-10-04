@@ -487,19 +487,23 @@ export class FinancialsService {
         "Statement lines must have a matching currency",
       );
 
-    const feeLines = await tx.billingStatementLine.findMany({
+    // The composer replaces lines wholesale, so the retainer fee marker is
+    // carried by line identity: only an input id that matches a marked line of
+    // THIS statement keeps the marker. Unknown ids are ignored, and a marked
+    // line missing from the input was removed on purpose.
+    const markedLines = await tx.billingStatementLine.findMany({
       where: {
         workspaceId: this.workspaceId,
         statementId: statement.id,
         sourceType: RETAINER_FEE_SOURCE,
       },
-      select: {
-        lineOrder: true,
-        netAmount: true,
-        sourceId: true,
-        workEntries: { select: { id: true } },
-      },
+      select: { id: true, sourceId: true },
     });
+    const markerByLineId = new Map(
+      markedLines.flatMap((line) =>
+        line.sourceId ? [[line.id, line.sourceId] as const] : [],
+      ),
+    );
 
     // Release before deleting: onDelete SetNull alone would not reset status.
     await this.releaseEntries(tx, statement.id);
@@ -507,53 +511,22 @@ export class FinancialsService {
       where: { workspaceId: this.workspaceId, statementId: statement.id },
     });
 
-    const created: string[] = [];
     for (const [index, input] of lines.entries()) {
-      created.push(await this.createLine(tx, statement, input, index));
-    }
-    await this.carryOverFeeMarkers(tx, feeLines, lines, created);
-  }
-
-  /**
-   * The composer sends plain lines, so replacing them would drop the retainer
-   * fee marker and let the next month-end run add the fee a second time. The
-   * marker moves to the replacement line that shares work entries with the old
-   * fee line, else the one at the same position with the same net amount, else
-   * the only line with that net amount.
-   */
-  private async carryOverFeeMarkers(
-    tx: Prisma.TransactionClient,
-    feeLines: {
-      lineOrder: number | null;
-      netAmount: Prisma.Decimal;
-      sourceId: string | null;
-      workEntries: { id: string }[];
-    }[],
-    lines: InternalStatementLineInput[],
-    createdIds: string[],
-  ): Promise<void> {
-    const taken = new Set<number>();
-    for (const fee of feeLines) {
-      if (!fee.sourceId) continue;
-      const free = lines.flatMap((line, index) =>
-        taken.has(index) || line.sourceType ? [] : [index],
+      const feeSourceId = input.id ? markerByLineId.get(input.id) : undefined;
+      // A repeated id must not duplicate the fee marker.
+      if (input.id) markerByLineId.delete(input.id);
+      await this.createLine(
+        tx,
+        statement,
+        feeSourceId
+          ? {
+              ...input,
+              sourceType: RETAINER_FEE_SOURCE,
+              sourceId: feeSourceId,
+            }
+          : input,
+        index,
       );
-      const oldEntries = new Set(fee.workEntries.map((entry) => entry.id));
-      const sameNet = free.filter((index) =>
-        new Prisma.Decimal(lines[index].netAmount).equals(fee.netAmount),
-      );
-      const target =
-        free.find((index) =>
-          (lines[index].workEntryIds ?? []).some((id) => oldEntries.has(id)),
-        ) ??
-        sameNet.find((index) => index === fee.lineOrder) ??
-        (sameNet.length === 1 ? sameNet[0] : undefined);
-      if (target === undefined) continue;
-      taken.add(target);
-      await tx.billingStatementLine.update({
-        where: { id: createdIds[target] },
-        data: { sourceType: RETAINER_FEE_SOURCE, sourceId: fee.sourceId },
-      });
     }
   }
 

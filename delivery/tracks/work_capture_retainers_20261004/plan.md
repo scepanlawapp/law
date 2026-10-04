@@ -807,3 +807,5 @@ Spec §2 says the settings UI defaults the target to the AT hourly tariff item a
 - [x] A task created as `DONE` creates its entry (`CreateDeadlineDto` and `CreateEventDto` have no status, so nothing else to cover).
 - [x] `ensureForSource` inserts with `createMany({ skipDuplicates })` and reads back, so a concurrent completion cannot abort the transaction.
 - [x] Migration backfill keeps billed tasks and deadlines with conflicting task/case clients under the statement's client; the conflict guard only drops unbilled sources.
+- [x] The fee marker now survives composer edits by line identity: `BillingStatementLineInput` carries an optional `id`, `replaceStatementLines` re-applies the `RETAINER_FEE` marker only to input ids that match marked lines of the same statement (unknown ids ignored, removed fee lines drop the marker), and the position/amount guessing (`carryOverFeeMarkers`) is gone. The composer keeps each loaded line's `id` and sends it on save.
+- Product rule (owner-confirmed 2026-10-04): out-of-scope work under an `ABSORBED` out-of-scope rule is treated as retainer work and counts toward the agreement's included hours.

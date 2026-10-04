@@ -160,3 +160,135 @@ describe("FinanceStatementCreateComponent with work entries", () => {
     ).toBeTruthy();
   });
 });
+
+describe("FinanceStatementCreateComponent editing a draft", () => {
+  const feeLineId = "11111111-1111-4111-8111-111111111111";
+  const statementId = "55555555-5555-4555-8555-555555555555";
+  const user = { id: "user-1", displayName: "Ana Anić", email: null };
+  const api = { statement: jest.fn(), updateStatement: jest.fn() };
+
+  beforeAll(() => {
+    globalThis.ResizeObserver ??= class {
+      observe(): void {
+        // no layout in jsdom
+      }
+      unobserve(): void {
+        // no layout in jsdom
+      }
+      disconnect(): void {
+        // no layout in jsdom
+      }
+    };
+  });
+
+  function savedLine(id: string, lineOrder: number) {
+    return {
+      id,
+      statementId,
+      client,
+      cases: [],
+      performedBy: user,
+      lineOrder,
+      description: lineOrder === 0 ? "Paušal za septembar" : "Rad",
+      serviceDate: "2026-09-30",
+      netAmount: "1000.00",
+      vatRate: "0.00",
+      vatAmount: "0.00",
+      grossAmount: "1000.00",
+      currency: "RSD",
+      status: "RESERVED" as const,
+      sourceType: lineOrder === 0 ? "RETAINER_FEE" : null,
+      sourceId: lineOrder === 0 ? "agreement-1" : null,
+      pricingRequired: false,
+      minutes: null,
+      workEntries: [],
+      billedAt: null,
+      cancelledAt: null,
+      cancellationReason: null,
+    };
+  }
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    api.statement.mockReturnValue(
+      of({
+        id: statementId,
+        clientId: client.id,
+        status: "DRAFT",
+        dateOfCreate: "2026-10-01",
+        dateOfMaturity: "2026-10-15",
+        dateOfTurnover: "2026-09-30",
+        placeOfIssue: "Beograd",
+        methodOfPayment: "Prenos",
+        comment: "",
+        vatRate: "0.00",
+        numberOfCashBill: "",
+        country: "Srbija",
+        currency: "RSD",
+        printWorkSpecification: true,
+        lines: [savedLine(feeLineId, 0), savedLine("line-2", 1)],
+      }),
+    );
+    api.updateStatement.mockReturnValue(of({ id: statementId }));
+    TestBed.configureTestingModule({
+      providers: [
+        provideRouter([{ path: "**", children: [] }]),
+        { provide: WorkEntriesApiClient, useValue: {} },
+        { provide: BillingSetupApiClient, useValue: { getProfile: jest.fn() } },
+        { provide: FinancialsApiClient, useValue: api },
+        {
+          provide: ClientsApiClient,
+          useValue: {
+            list: () =>
+              of({
+                items: [client],
+                meta: { page: 1, pageSize: 100, totalItems: 1, totalPages: 1 },
+              }),
+          },
+        },
+        { provide: ClientFormDialogService, useValue: {} },
+        { provide: BillingStatementLineImportDialogService, useValue: {} },
+        {
+          provide: LocalizationService,
+          useValue: { translate: (key: string) => key, language: () => "SR" },
+        },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            snapshot: {
+              paramMap: convertToParamMap({ id: statementId }),
+              queryParamMap: convertToParamMap({}),
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it("keeps saved line ids on load and sends them on save; new lines have none", () => {
+    const fixture = TestBed.createComponent(FinanceStatementCreateComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const lines = component.form.controls.lines;
+
+    expect(lines.controls.map((line) => line.controls.id.value)).toEqual([
+      feeLineId,
+      "line-2",
+    ]);
+
+    lines.at(0).patchValue({ description: "Korigovano", netAmount: 800 });
+    component.addManualLine();
+    lines.at(2).patchValue({ description: "Novi red", netAmount: 50 });
+    component.submit();
+
+    expect(api.updateStatement).toHaveBeenCalledTimes(1);
+    const sent = api.updateStatement.mock.calls[0][1].lines;
+    expect(sent.map((line: { id?: string }) => line.id)).toEqual([
+      feeLineId,
+      "line-2",
+      undefined,
+    ]);
+    expect(sent[2]).not.toHaveProperty("id");
+    expect(sent[0]).toMatchObject({ description: "Korigovano", netAmount: 800 });
+  });
+});

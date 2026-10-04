@@ -754,14 +754,10 @@ describe("FinancialsService", () => {
     });
   });
 
-  describe("fee marker survives composer edits", () => {
-    const oldFee = (extra: Record<string, unknown> = {}) => ({
-      lineOrder: 1,
-      netAmount: new Prisma.Decimal(100),
-      sourceId: "agreement-1",
-      workEntries: [],
-      ...extra,
-    });
+  describe("fee marker survives composer edits by line identity", () => {
+    const feeId = "99999999-9999-4999-a999-999999999999";
+    const otherId = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
+    const foreignId = "bbbbbbbb-bbbb-4bbb-abbb-bbbbbbbbbbbb";
 
     beforeEach(() => {
       db.billingStatement.findFirst.mockResolvedValue(fullStatement());
@@ -771,40 +767,120 @@ describe("FinancialsService", () => {
         .mockResolvedValueOnce({ id: "new-1" });
     });
 
-    it("re-marks the reworded fee line at the same position and amount", async () => {
-      db.billingStatementLine.findMany.mockResolvedValue([oldFee()]);
+    const createdData = (index: number) =>
+      db.billingStatementLine.create.mock.calls[index][0].data;
+
+    it("reads only this statement's marked lines, scoped to the workspace", async () => {
+      db.billingStatementLine.findMany.mockResolvedValue([
+        { id: feeId, sourceId: "agreement-1" },
+      ]);
 
       await asAdmin(() =>
-        service.updateStatement(statementId, {
-          lines: [
-            line({ description: "Opis", netAmount: 50 }),
-            line({ description: "Pausalna naknada za oktobar" }),
-          ],
-        }),
+        service.updateStatement(statementId, { lines: [line()] }),
       );
 
       expect(db.billingStatementLine.findMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          where: expect.objectContaining({ sourceType: "RETAINER_FEE" }),
+          where: {
+            workspaceId,
+            statementId,
+            sourceType: "RETAINER_FEE",
+          },
         }),
       );
-      expect(db.billingStatementLine.update).toHaveBeenCalledTimes(1);
-      expect(db.billingStatementLine.update).toHaveBeenCalledWith({
-        where: { id: "new-1" },
-        data: { sourceType: "RETAINER_FEE", sourceId: "agreement-1" },
-      });
     });
 
-    it("does not re-mark when no replacement line matches the fee", async () => {
-      db.billingStatementLine.findMany.mockResolvedValue([oldFee()]);
+    it("keeps the marker when the entry-less fee line amount and description change", async () => {
+      db.billingStatementLine.findMany.mockResolvedValue([
+        { id: feeId, sourceId: "agreement-1" },
+      ]);
 
       await asAdmin(() =>
         service.updateStatement(statementId, {
-          lines: [line({ netAmount: 10 }), line({ netAmount: 20 })],
+          lines: [
+            line({ description: "Rad", netAmount: 50 }),
+            line({
+              id: feeId,
+              description: "Pausalna naknada, korigovana",
+              netAmount: 80,
+            }),
+          ],
         }),
       );
 
+      expect(createdData(0).sourceType).toBeNull();
+      expect(createdData(0).sourceId).toBeNull();
+      expect(createdData(1)).toMatchObject({
+        description: "Pausalna naknada, korigovana",
+        netAmount: 80,
+        sourceType: "RETAINER_FEE",
+        sourceId: "agreement-1",
+      });
       expect(db.billingStatementLine.update).not.toHaveBeenCalled();
+    });
+
+    it("does not mark another line with the same net when the fee line is removed", async () => {
+      db.billingStatementLine.findMany.mockResolvedValue([
+        { id: feeId, sourceId: "agreement-1" },
+      ]);
+
+      await asAdmin(() =>
+        service.updateStatement(statementId, {
+          lines: [
+            line({ id: otherId, netAmount: 100 }),
+            line({ netAmount: 100 }),
+          ],
+        }),
+      );
+
+      expect(createdData(0).sourceType).toBeNull();
+      expect(createdData(1).sourceType).toBeNull();
+      expect(createdData(0).sourceId).toBeNull();
+      expect(createdData(1).sourceId).toBeNull();
+    });
+
+    it("ignores an id that does not belong to this statement", async () => {
+      db.billingStatementLine.findMany.mockResolvedValue([]);
+
+      await asAdmin(() =>
+        service.updateStatement(statementId, {
+          lines: [line({ id: foreignId }), line()],
+        }),
+      );
+
+      expect(createdData(0).sourceType).toBeNull();
+      expect(createdData(0).sourceId).toBeNull();
+      expect(createdData(1).sourceType).toBeNull();
+    });
+
+    it("never stores the client supplied id as the new line id", async () => {
+      db.billingStatementLine.findMany.mockResolvedValue([
+        { id: feeId, sourceId: "agreement-1" },
+      ]);
+
+      await asAdmin(() =>
+        service.updateStatement(statementId, {
+          lines: [line({ id: feeId })],
+        }),
+      );
+
+      expect(createdData(0)).not.toHaveProperty("id");
+    });
+
+    it("creates a statement with or without line ids", async () => {
+      mockCreate();
+
+      await asAdmin(() =>
+        service.createStatement({
+          ...header,
+          printWorkSpecification: false,
+          lines: [line({ id: foreignId }), line()],
+        }),
+      );
+
+      expect(db.billingStatementLine.create).toHaveBeenCalledTimes(2);
+      expect(createdData(0).sourceType).toBeNull();
+      expect(createdData(1).sourceType).toBeNull();
     });
   });
 });

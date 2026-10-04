@@ -19,6 +19,11 @@ import {
 import { PriceSourceScope } from "@prisma/client";
 
 export class BillingStatementLineInputDto {
+  /** Identity of an existing line of the edited statement; never stored. */
+  @IsOptional()
+  @IsUUID()
+  id?: string;
+
   @IsDateString()
   serviceDate!: string;
 

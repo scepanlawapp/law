@@ -91,6 +91,7 @@ const savedLine: BillingStatementLineSummary = {
 describe("billing statement form helpers", () => {
   it("maps a saved statement line to an editable row", () => {
     expect(createBillingStatementLineForm(savedLine).getRawValue()).toEqual({
+      id: "11111111-1111-4111-8111-111111111111",
       workEntryIds: ["44444444-4444-4444-8444-444444444444"],
       minutes: 90,
       pricingRequired: false,
@@ -108,6 +109,7 @@ describe("billing statement form helpers", () => {
     const form = createWorkEntryLineForm(entry(), "RSD", rate);
 
     expect(form.getRawValue()).toEqual({
+      id: null,
       workEntryIds: ["44444444-4444-4444-8444-444444444444"],
       minutes: 90,
       pricingRequired: false,
@@ -227,6 +229,26 @@ describe("billing statement form helpers", () => {
     expect(toBillingStatementLineInput(manual)).toEqual(
       expect.not.objectContaining({ workEntryIds: expect.anything() }),
     );
+  });
+
+  it("keeps the saved line id through an edit and sends it on save", () => {
+    const form = createBillingStatementLineForm(savedLine);
+    form.patchValue({ description: "Korigovano", netAmount: 10 });
+
+    expect(toBillingStatementLineInput(form)).toMatchObject({
+      id: "11111111-1111-4111-8111-111111111111",
+      description: "Korigovano",
+      netAmount: 10,
+    });
+  });
+
+  it("sends no id for new manual or work-entry lines", () => {
+    const manual = createBillingStatementLineForm(undefined, "RSD");
+    manual.patchValue({ description: "Novi red", netAmount: 10 });
+    const imported = createWorkEntryLineForm(entry(), "RSD", rate);
+
+    expect(toBillingStatementLineInput(manual)).not.toHaveProperty("id");
+    expect(toBillingStatementLineInput(imported)).not.toHaveProperty("id");
   });
 
   it("detaches work entries without clearing entered values", () => {

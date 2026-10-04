@@ -468,6 +468,20 @@ describe("MonthEndRunService", () => {
     expect(financials.appendLinesToDraft).not.toHaveBeenCalled();
   });
 
+  it("a re-run after the composer edited an entry-less fee line does not add a second fee", async () => {
+    state.agreements[clientA] = [agreement()];
+    state.retainerClients = [clientA];
+    state.draft = { id: draftId, currency: "RSD" };
+    // Amount and wording were edited and the line has no work entries; the
+    // marker survives the edit by line identity, so the fee is still found.
+    state.feeLines = [feeLine(draftId)];
+
+    await runAsOwner();
+
+    expect(financials.createDraftFromLines).not.toHaveBeenCalled();
+    expect(financials.appendLinesToDraft).not.toHaveBeenCalled();
+  });
+
   it("a hand-typed 'Paušal za' line does not suppress the real fee", async () => {
     state.agreements[clientA] = [agreement()];
     state.retainerClients = [clientA];

@@ -1145,6 +1145,8 @@ export interface UpdateBillingStatementRequest {
 }
 
 export interface BillingStatementLineInput {
+  /** Existing line id when editing a statement; omit for new lines. */
+  id?: string;
   serviceDate: string;
   description: string;
   netAmount: number;
