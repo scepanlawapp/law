@@ -263,7 +263,11 @@ WHERE w."id" = '11111111-1111-4111-a111-111111111111';
 -- Sources already attached to a statement (statementId set) become BILLED
 -- entries linked to the matching statement line; when their client cannot be
 -- resolved from the source, the statement's client is used so that billing
--- history is never dropped.
+-- history is never dropped. A billed task or deadline whose own client and
+-- case client disagree is kept too, under the statement's client (the case
+-- link is dropped when it belongs to another client). The client-conflict
+-- guard only applies to unbilled sources: those cannot be attributed to
+-- exactly one client, so they stay out of the proposed backlog.
 -- Dates are taken in the office time zone (Europe/Belgrade; events use their
 -- own time zone) so that late-evening work lands on the correct calendar day.
 -- ---------------------------------------------------------------------------
@@ -278,8 +282,8 @@ SELECT
   gen_random_uuid()::text,
   t."workspaceId",
   t."assigneeUserId",
-  COALESCE(t."clientId", c."clientId", st."clientId"),
-  t."caseId",
+  r."clientId",
+  CASE WHEN c."clientId" IS NULL OR c."clientId" = r."clientId" THEN t."caseId" END,
   (COALESCE(t."completedAt", t."updatedAt") AT TIME ZONE 'Europe/Belgrade')::date,
   NULL,
   t."title",
@@ -295,6 +299,14 @@ SELECT
 FROM "Task" t
 LEFT JOIN "Case" c ON c."id" = t."caseId"
 LEFT JOIN "BillingStatement" st ON st."id" = t."statementId"
+CROSS JOIN LATERAL (
+  SELECT CASE
+    WHEN t."statementId" IS NOT NULL AND t."clientId" IS NOT NULL
+      AND c."clientId" IS NOT NULL AND t."clientId" <> c."clientId"
+    THEN st."clientId"
+    ELSE COALESCE(t."clientId", c."clientId", st."clientId")
+  END AS "clientId"
+) r
 LEFT JOIN LATERAL (
   SELECT bl."id" FROM "BillingStatementLine" bl
   WHERE bl."statementId" = t."statementId" AND bl."sourceType" = 'TASK' AND bl."sourceId" = t."id"
@@ -302,8 +314,8 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) l ON t."statementId" IS NOT NULL
 WHERE (t."status" = 'DONE' OR t."statementId" IS NOT NULL)
-  AND (t."clientId" IS NULL OR c."clientId" IS NULL OR t."clientId" = c."clientId")
-  AND COALESCE(t."clientId", c."clientId", st."clientId") IS NOT NULL;
+  AND (t."statementId" IS NOT NULL OR t."clientId" IS NULL OR c."clientId" IS NULL OR t."clientId" = c."clientId")
+  AND r."clientId" IS NOT NULL;
 
 -- Deadlines
 INSERT INTO "WorkEntry" (
@@ -315,8 +327,8 @@ SELECT
   gen_random_uuid()::text,
   d."workspaceId",
   d."responsibleUserId",
-  COALESCE(d."clientId", c."clientId", st."clientId"),
-  d."caseId",
+  r."clientId",
+  CASE WHEN c."clientId" IS NULL OR c."clientId" = r."clientId" THEN d."caseId" END,
   (COALESCE(d."satisfiedAt", d."updatedAt") AT TIME ZONE 'Europe/Belgrade')::date,
   NULL,
   d."title",
@@ -332,6 +344,14 @@ SELECT
 FROM "Deadline" d
 LEFT JOIN "Case" c ON c."id" = d."caseId"
 LEFT JOIN "BillingStatement" st ON st."id" = d."statementId"
+CROSS JOIN LATERAL (
+  SELECT CASE
+    WHEN d."statementId" IS NOT NULL AND d."clientId" IS NOT NULL
+      AND c."clientId" IS NOT NULL AND d."clientId" <> c."clientId"
+    THEN st."clientId"
+    ELSE COALESCE(d."clientId", c."clientId", st."clientId")
+  END AS "clientId"
+) r
 LEFT JOIN LATERAL (
   SELECT bl."id" FROM "BillingStatementLine" bl
   WHERE bl."statementId" = d."statementId" AND bl."sourceType" = 'DEADLINE' AND bl."sourceId" = d."id"
@@ -339,8 +359,8 @@ LEFT JOIN LATERAL (
   LIMIT 1
 ) l ON d."statementId" IS NOT NULL
 WHERE (d."status" = 'SATISFIED' OR d."statementId" IS NOT NULL)
-  AND (d."clientId" IS NULL OR c."clientId" IS NULL OR d."clientId" = c."clientId")
-  AND COALESCE(d."clientId", c."clientId", st."clientId") IS NOT NULL;
+  AND (d."statementId" IS NOT NULL OR d."clientId" IS NULL OR c."clientId" IS NULL OR d."clientId" = c."clientId")
+  AND r."clientId" IS NOT NULL;
 
 -- Events (client set = EventClient clients united with the case client; exactly one required)
 WITH event_clients AS (
