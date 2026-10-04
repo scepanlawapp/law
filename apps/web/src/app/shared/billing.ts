@@ -10,6 +10,13 @@ export function canManageBilling(
   return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
 }
 
+/** The month-end billing run (precheck and draft generation) is OWNER only. */
+export function canRunMonthEnd(
+  role: WorkspaceRole | null | undefined,
+): boolean {
+  return role === WorkspaceRole.OWNER;
+}
+
 /** Retainer agreements and usage may be read by OWNER, ADMIN and LAWYER. */
 export function canViewRetainers(
   role: WorkspaceRole | null | undefined,
@@ -119,4 +126,38 @@ export function formatMonthLabel(month: string, language: "SR" | "EN"): string {
 /** True for a 403 response, which the billing screens treat as "not available". */
 export function isForbidden(error: unknown): boolean {
   return (error as { status?: number } | null)?.status === 403;
+}
+
+/** The month before `month` (`2026-01` -> `2025-12`). */
+export function previousMonth(month: string): string {
+  const [year, number] = month.split("-").map(Number);
+  const date = new Date(Date.UTC(year, number - 2, 1));
+  return date.toISOString().slice(0, 7);
+}
+
+/**
+ * Hourly price of `minutes`, in the currency of `hourlyRate` (a decimal string
+ * such as `"8000.00"`): minutes / 60 x rate, rounded half-up to 2 decimals.
+ * Integer arithmetic only, so no floating-point drift. Mirrors the API's
+ * `priceMinutes`; it only pre-fills the form, the user still owns the amount.
+ * Returns `null` for a rate that is not a non-negative decimal.
+ */
+export function priceMinutes(
+  minutes: number,
+  hourlyRate: string | null | undefined,
+): number | null {
+  const match = /^(\d+)(?:\.(\d+))?$/.exec((hourlyRate ?? "").trim());
+  if (!match || !Number.isInteger(minutes) || minutes < 0) return null;
+  const fraction = match[2] ?? "";
+  const unscaled = BigInt(match[1] + fraction);
+  const numerator = unscaled * BigInt(minutes) * BigInt(100);
+  const denominator = BigInt(60) * BigInt(10) ** BigInt(fraction.length);
+  const cents =
+    (BigInt(2) * numerator + denominator) / (BigInt(2) * denominator);
+  return Number(cents) / 100;
+}
+
+/** `1 h 30 min`: the duration wording used in statement line descriptions. */
+export function formatHoursMinutes(minutes: number): string {
+  return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }

@@ -735,15 +735,15 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   - "Generiši nacrte" (generate drafts) is enabled when the precheck is loaded. It asks for confirmation when open items remain.
   - The result table links each statement (created/updated, lines added, lines to price).
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - Editing the amount on a flagged row clears `pricingRequired`.
   - Send is disabled while flagged.
   - Print renders `"Specifikacija rada"` rows when the flag is on and none when off.
   - The month-end page calls `runMonthEnd("2026-09")` after confirmation and renders the result rows.
-- [ ] **Step 2:** Run the three spec files. Expected: FAIL.
-- [ ] **Step 3: Implement.** Delete the remaining `billableWork` usage.
-- [ ] **Step 4:** Run the three spec files. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): unbilled work, entry-based statements and month-end run`.
+- [x] **Step 2:** Run the three spec files. Expected: FAIL.
+- [x] **Step 3: Implement.** Delete the remaining `billableWork` usage.
+- [x] **Step 4:** Run the three spec files. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): unbilled work, entry-based statements and month-end run`.
 
 ### Task 19: Profitability report page
 

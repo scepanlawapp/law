@@ -228,9 +228,34 @@
           <input hlmInput id="statement-country" formControlName="country" />
         </div>
       </div>
+
+      <label class="flex items-center gap-2" for="statement-print-spec">
+        <input
+          id="statement-print-spec"
+          type="checkbox"
+          class="h-4 w-4 accent-primary"
+          formControlName="printWorkSpecification"
+        />
+        <span>{{ "finance.printWorkSpecification" | translate }}</span>
+      </label>
     </section>
 
     <section class="app-section-surface space-y-3 p-4">
+      @if (pricingRequiredCount()) {
+        <div
+          role="status"
+          data-testid="pricing-required-notice"
+          class="rounded-lg border border-warning/40 bg-warning/10 p-3 text-warning"
+        >
+          <p>
+            {{
+              "finance.pricingRequiredNotice"
+                | translate: { count: pricingRequiredCount() }
+            }}
+          </p>
+        </div>
+      }
+
       @if (mismatchIndexes().length) {
         <div role="alert" class="rounded-lg border border-destructive p-3">
           <p>{{ "finance.currencyMismatchCompact" | translate }}</p>
@@ -270,7 +295,7 @@
                     : null
                 "
               >
-                {{ "finance.importBillableWork" | translate }}
+                {{ "finance.importUnbilledWork" | translate }}
               </button>
             </div>
             <button
@@ -330,12 +355,20 @@
                         class="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-sm"
                       >
                         {{
-                          (line.controls.sourceId.value
+                          (line.controls.workEntryIds.value.length
                             ? "finance.billableWorkSource"
                             : "finance.manualLineSource"
                           ) | translate
                         }}
                       </span>
+                      @if (line.controls.pricingRequired.value) {
+                        <span
+                          data-testid="pricing-required-badge"
+                          class="mt-1 inline-flex rounded-full border border-warning/40 bg-warning/10 px-2 py-0.5 text-sm text-warning"
+                        >
+                          {{ "finance.pricingRequired" | translate }}
+                        </span>
+                      }
                     </td>
                     <td hlmTd>
                       <input
@@ -343,7 +376,7 @@
                         type="date"
                         formControlName="serviceDate"
                         class="w-36"
-                        [readOnly]="!!line.controls.sourceId.value"
+                        [readOnly]="line.controls.workEntryIds.value.length > 0"
                         required
                       />
                     </td>
@@ -359,7 +392,7 @@
                       <input
                         hlmInput
                         type="number"
-                        min="0.01"
+                        min="0"
                         step="0.01"
                         inputmode="decimal"
                         formControlName="netAmount"
@@ -396,7 +429,7 @@
                       <input
                         hlmInput
                         type="number"
-                        min="0.01"
+                        min="0"
                         step="0.01"
                         inputmode="decimal"
                         formControlName="grossAmount"

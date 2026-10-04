@@ -1124,6 +1124,7 @@ export interface CreateBillingStatementRequest {
   currency: string;
   lines: BillingStatementLineInput[];
   idempotencyKey?: string;
+  printWorkSpecification?: boolean;
 }
 
 export interface UpdateBillingStatementRequest {
@@ -1140,6 +1141,7 @@ export interface UpdateBillingStatementRequest {
   numberOfCashBill?: string;
   country?: string;
   lines?: BillingStatementLineInput[];
+  printWorkSpecification?: boolean;
 }
 
 export interface BillingStatementLineInput {
@@ -1152,6 +1154,7 @@ export interface BillingStatementLineInput {
   currency: string;
   workEntryIds?: string[];
   pricingRequired?: boolean;
+  minutes?: number;
 }
 
 export type PriceEvidence = {

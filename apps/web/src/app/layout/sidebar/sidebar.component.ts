@@ -18,6 +18,7 @@ import {
   lucideClipboardCheck,
   lucideChevronRight,
   lucideGauge,
+  lucideCalendarCheck,
   lucideSettings,
 } from "@ng-icons/lucide";
 import { RouterLink, RouterLinkActive } from "@angular/router";
@@ -45,7 +46,7 @@ import {
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
-import { canViewRetainers } from "../../shared/billing";
+import { canRunMonthEnd, canViewRetainers } from "../../shared/billing";
 import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
 interface SidebarNavigationItem {
@@ -108,6 +109,7 @@ interface SidebarNavigationGroup {
       lucideClipboardCheck,
       lucideChevronRight,
       lucideGauge,
+      lucideCalendarCheck,
       lucideSettings,
     }),
   ],
@@ -129,6 +131,10 @@ export class SidebarComponent {
 
   private readonly showRetainers = computed(() =>
     canViewRetainers(this.authState.activeWorkspace()?.role),
+  );
+
+  private readonly showMonthEnd = computed(() =>
+    canRunMonthEnd(this.authState.activeWorkspace()?.role),
   );
 
   readonly navigationGroups = computed<SidebarNavigationGroup[]>(() => [
@@ -196,6 +202,15 @@ export class SidebarComponent {
                     route: "/finance/retainers",
                     label: "nav.financeRetainers",
                     icon: "lucideGauge",
+                  },
+                ]
+              : []),
+            ...(this.showMonthEnd()
+              ? [
+                  {
+                    route: "/finance/month-end",
+                    label: "nav.financeMonthEnd",
+                    icon: "lucideCalendarCheck",
                   },
                 ]
               : []),

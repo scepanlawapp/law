@@ -264,6 +264,67 @@ dd {
   font-variant-numeric: tabular-nums;
 }
 
+.spec-section {
+  margin-top: 5mm;
+}
+
+.spec-section h2 {
+  margin: 0 0 2mm;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.spec-table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--invoice-line);
+  font-size: 9px;
+}
+
+.spec-table th,
+.spec-table td {
+  padding: 2mm;
+  text-align: left;
+  vertical-align: top;
+}
+
+.spec-table thead th {
+  background: var(--invoice-soft);
+  font-size: 8px;
+  font-weight: 700;
+}
+
+.spec-table tbody td,
+.spec-table tfoot th,
+.spec-table tfoot td {
+  border-top: 1px solid #d9e1eb;
+}
+
+.spec-table tfoot th,
+.spec-table tfoot td {
+  font-weight: 700;
+}
+
+.spec-table thead th:first-child,
+.spec-table tbody td:first-child {
+  width: 24mm;
+}
+
+.spec-table thead th:nth-child(2),
+.spec-table tbody td:nth-child(2) {
+  width: 38mm;
+}
+
+.spec-table .number {
+  width: 24mm;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.spec-table tr {
+  break-inside: avoid;
+}
+
 .summary-grid {
   margin-top: 5mm;
 }

@@ -1825,6 +1825,15 @@ export class FinancialsApiClient {
     );
   }
 
+  /** Marks a draft as sent; the API answers 409 while a line still needs a price. */
+  sendStatement(id: string): Observable<BillingStatement> {
+    return this.http.post<BillingStatement>(
+      this.endpoint(`/financials/statements/${id}/send`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
   priceSources(): Observable<PriceSourceSummary[]> {
     return this.http.get<PriceSourceSummary[]>(
       this.endpoint("/financials/price-sources"),

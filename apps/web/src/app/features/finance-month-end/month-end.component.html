@@ -1,0 +1,242 @@
+<section class="flex flex-col gap-6 p-4 md:p-6">
+  <header class="space-y-1">
+    <h1 class="text-xl font-semibold">
+      {{ "finance.monthEnd.title" | translate }}
+    </h1>
+    <p class="text-muted-foreground text-sm">
+      {{ "finance.monthEnd.description" | translate }}
+    </p>
+  </header>
+
+  <div class="flex max-w-xs flex-col gap-1">
+    <label class="text-sm font-medium" for="month-end-month">
+      {{ "finance.monthEnd.month" | translate }}
+    </label>
+    <input
+      hlmInput
+      id="month-end-month"
+      type="month"
+      [formControl]="month"
+      [attr.aria-invalid]="month.invalid"
+    />
+    @if (month.invalid) {
+      <p role="alert" class="text-destructive text-sm">
+        {{ "finance.monthEnd.monthInvalid" | translate }}
+      </p>
+    } @else {
+      <p class="text-muted-foreground text-sm">{{ monthLabel() }}</p>
+    }
+  </div>
+
+  <section class="space-y-3" aria-labelledby="month-end-step-1">
+    <h2 id="month-end-step-1" class="text-base font-semibold">
+      {{ "finance.monthEnd.step1" | translate }}
+    </h2>
+    <p class="text-muted-foreground text-sm">
+      {{ "finance.monthEnd.step1Description" | translate }}
+    </p>
+
+    @if (loading()) {
+      <div class="flex items-center gap-2" role="status">
+        <hlm-spinner />
+        <span>{{ "finance.monthEnd.loading" | translate }}</span>
+      </div>
+    } @else if (error()) {
+      <div
+        class="flex flex-wrap items-center gap-3"
+        role="alert"
+        data-testid="precheck-error"
+      >
+        <p class="text-destructive text-sm">
+          {{ "finance.monthEnd.precheckError" | translate }}
+        </p>
+        <button hlmBtn type="button" variant="outline" (click)="reload()">
+          {{ "finance.retry" | translate }}
+        </button>
+      </div>
+    } @else if (precheck()) {
+      @if (!clients().length) {
+        <p
+          class="rounded-lg border border-dashed border-border p-4 text-muted-foreground"
+          data-testid="precheck-clear"
+        >
+          {{ "finance.monthEnd.nothingOpen" | translate }}
+        </p>
+      }
+      @for (group of clients(); track group.client.id) {
+        <div class="space-y-2" data-testid="precheck-client">
+          <h3 class="font-medium">
+            {{ group.client.displayName }}
+            <span class="text-muted-foreground text-sm font-normal">
+              ({{ group.open.length }})
+            </span>
+          </h3>
+          <div hlmTableContainer class="rounded-lg border border-border">
+            <table hlmTable class="w-full min-w-[720px]">
+              <thead hlmTHead>
+                <tr hlmTr>
+                  <th hlmTh>{{ "time.capture.date" | translate }}</th>
+                  <th hlmTh>{{ "time.team.person" | translate }}</th>
+                  <th hlmTh>
+                    {{ "time.capture.workDescription" | translate }}
+                  </th>
+                  <th hlmTh>{{ "time.capture.duration" | translate }}</th>
+                  <th hlmTh>{{ "time.team.status" | translate }}</th>
+                  <th hlmTh>{{ "time.capture.treatment" | translate }}</th>
+                  <th hlmTh>
+                    <span class="sr-only">
+                      {{ "finance.actions" | translate }}
+                    </span>
+                  </th>
+                </tr>
+              </thead>
+              <tbody hlmTBody>
+                @for (entry of group.open; track entry.id) {
+                  <tr hlmTr data-testid="precheck-entry">
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ workDateLabel(entry.workDate) }}
+                    </td>
+                    <td hlmTd>{{ entry.user.displayName }}</td>
+                    <td hlmTd class="max-w-xs">
+                      <span class="line-clamp-2">{{ entry.description }}</span>
+                    </td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ formatMinutes(entry.minutes ?? 0) }}
+                    </td>
+                    <td hlmTd>
+                      <span
+                        class="rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
+                        [class]="statusBadgeClasses[entry.status]"
+                      >
+                        {{ statusLabelKeys[entry.status] | translate }}
+                      </span>
+                    </td>
+                    <td hlmTd>
+                      {{ treatmentLabelKeys[entry.treatment] | translate }}
+                    </td>
+                    <td hlmTd class="text-end whitespace-nowrap">
+                      @if (entry.status === "PROPOSED") {
+                        <button
+                          hlmBtn
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          [disabled]="busyEntryId() === entry.id"
+                          (click)="confirm(entry)"
+                        >
+                          {{ "common.confirm" | translate }}
+                        </button>
+                      } @else {
+                        <button
+                          hlmBtn
+                          type="button"
+                          size="sm"
+                          variant="ghost"
+                          [disabled]="busyEntryId() === entry.id"
+                          (click)="confirm(entry)"
+                        >
+                          {{ "common.edit" | translate }}
+                        </button>
+                      }
+                      <button
+                        hlmBtn
+                        type="button"
+                        size="sm"
+                        variant="ghost"
+                        [disabled]="busyEntryId() === entry.id"
+                        (click)="writeOff(entry)"
+                      >
+                        {{ "time.review.writeOff" | translate }}
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </div>
+      }
+    }
+  </section>
+
+  <section class="space-y-3" aria-labelledby="month-end-step-2">
+    <h2 id="month-end-step-2" class="text-base font-semibold">
+      {{ "finance.monthEnd.step2" | translate }}
+    </h2>
+    <p class="text-muted-foreground text-sm">
+      {{ "finance.monthEnd.step2Description" | translate }}
+    </p>
+    <div class="flex flex-wrap items-center gap-3">
+      <button
+        hlmBtn
+        type="button"
+        data-testid="run-month-end"
+        [disabled]="!ready() || running()"
+        (click)="generate()"
+      >
+        @if (running()) {
+          <hlm-spinner />
+        }
+        {{ "finance.monthEnd.generate" | translate }}
+      </button>
+      @if (ready() && openCount() > 0) {
+        <p class="text-warning text-sm" role="status">
+          {{
+            "finance.monthEnd.openRemain" | translate: { count: openCount() }
+          }}
+        </p>
+      }
+    </div>
+
+    @if (result(); as run) {
+      <div data-testid="result-table" class="space-y-2">
+        <h3 class="font-medium">{{ "finance.monthEnd.result" | translate }}</h3>
+        <div hlmTableContainer class="rounded-lg border border-border">
+          <table hlmTable class="w-full min-w-[640px]">
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "finance.client" | translate }}</th>
+                <th hlmTh>{{ "finance.monthEnd.statement" | translate }}</th>
+                <th hlmTh>{{ "finance.currency" | translate }}</th>
+                <th hlmTh>{{ "finance.monthEnd.outcome" | translate }}</th>
+                <th hlmTh class="text-end">
+                  {{ "finance.monthEnd.addedLines" | translate }}
+                </th>
+                <th hlmTh class="text-end">
+                  {{ "finance.monthEnd.pricingLines" | translate }}
+                </th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (row of run.statements; track $index) {
+                <tr hlmTr data-testid="result-row">
+                  <td hlmTd>{{ row.client.displayName }}</td>
+                  <td hlmTd>
+                    @if (row.statementId) {
+                      <a
+                        class="text-primary underline-offset-4 hover:underline"
+                        [routerLink]="['/finance/statements', row.statementId]"
+                      >
+                        {{ "finance.monthEnd.openStatement" | translate }}
+                      </a>
+                    } @else {
+                      <span class="text-muted-foreground">—</span>
+                    }
+                  </td>
+                  <td hlmTd>{{ row.currency }}</td>
+                  <td hlmTd>{{ outcomeKey(row) | translate }}</td>
+                  <td hlmTd class="text-end tabular-nums">
+                    {{ row.addedLines }}
+                  </td>
+                  <td hlmTd class="text-end tabular-nums">
+                    {{ row.pricingRequiredLines }}
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </div>
+    }
+  </section>
+</section>

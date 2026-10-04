@@ -17,6 +17,8 @@ import { WorkspaceSettingsComponent } from "./features/settings/workspace-settin
 import { DataSettingsComponent } from "./features/settings/data-settings.component";
 import { BillingSettingsComponent } from "./features/settings/billing-settings.component";
 import { billingSettingsGuard } from "./features/settings/billing-settings.guard";
+import { MonthEndComponent } from "./features/finance-month-end/month-end.component";
+import { monthEndGuard } from "./features/finance-month-end/month-end.guard";
 import { FinanceRetainersComponent } from "./features/finance-retainers/retainers.component";
 import { ClientsComponent } from "./features/clients/clients.component";
 import { CasesComponent } from "./features/cases/cases.component";
@@ -98,6 +100,11 @@ export const appRoutes: Route[] = [
           },
           { path: "statements", component: FinanceStatementsComponent },
           { path: "retainers", component: FinanceRetainersComponent },
+          {
+            path: "month-end",
+            component: MonthEndComponent,
+            canActivate: [monthEndGuard],
+          },
         ],
       },
       { path: "reports", component: ReportsComponent },
