@@ -60,6 +60,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Work Capture, Retainers, and Month-End Billing (epic)](./tracks/work_capture_retainers_20261004/index.md)
 - [Assistant Mastra Migration (epic)](./tracks/assistant_mastra_migration_20260927/index.md)
 - [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)
 - [Mastra Assistant Slice](./tracks/mastra_assistant_slice_20260927/index.md)
