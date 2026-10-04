@@ -106,6 +106,23 @@ export class WorkspaceSettingsComponent {
         { key: "eventCancelled", label: "settings.notificationEventCancelled" },
       ],
     },
+    {
+      title: "settings.notificationTime",
+      items: [
+        {
+          key: "timerRunningLong",
+          label: "settings.notificationTimerRunningLong",
+        },
+        {
+          key: "timeReviewReminder",
+          label: "settings.notificationTimeReviewReminder",
+        },
+        {
+          key: "retainerUsage",
+          label: "settings.notificationRetainerUsage",
+        },
+      ],
+    },
   ];
   readonly dateTimeFormatItemToString = createSelectItemToString(
     this.dateTimeFormatOptions,
@@ -132,6 +149,9 @@ export class WorkspaceSettingsComponent {
       eventUpcoming: new FormControl(true, { nonNullable: true }),
       eventChanged: new FormControl(true, { nonNullable: true }),
       eventCancelled: new FormControl(true, { nonNullable: true }),
+      timerRunningLong: new FormControl(true, { nonNullable: true }),
+      timeReviewReminder: new FormControl(true, { nonNullable: true }),
+      retainerUsage: new FormControl(true, { nonNullable: true }),
     }),
     dateTimeFormat: new FormControl<UserSettingsDateTimeFormat>(
       "TWENTY_FOUR_HOUR",

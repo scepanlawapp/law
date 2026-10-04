@@ -28,6 +28,10 @@ import { FinanceStatementCreateComponent } from "./features/finance-statements/f
 import { FinanceStatementDetailComponent } from "./features/finance-statements/finance-statement-detail.component";
 import { ReportsComponent } from "./features/reports/reports.component";
 import { WorkViewComponent } from "./features/work-management/work-view/work-view.component";
+import { MyTimeComponent } from "./features/time/my-time.component";
+import { TeamTimeComponent } from "./features/time/team-time.component";
+import { teamTimeGuard } from "./features/time/team-time.guard";
+import { TimeReviewComponent } from "./features/time/time-review.component";
 import { TasksDeadlinesRedirectComponent } from "./features/work-management/tasks-deadlines-redirect.component";
 
 export const appRoutes: Route[] = [
@@ -93,6 +97,13 @@ export const appRoutes: Route[] = [
         ],
       },
       { path: "reports", component: ReportsComponent },
+      { path: "work/time", component: MyTimeComponent },
+      {
+        path: "work/time/team",
+        component: TeamTimeComponent,
+        canActivate: [teamTimeGuard],
+      },
+      { path: "work/time/review", component: TimeReviewComponent },
       { path: "work/:mode", component: WorkViewComponent },
       {
         path: "tasks-deadlines",

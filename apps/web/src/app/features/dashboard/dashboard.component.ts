@@ -53,6 +53,7 @@ import { DashboardStore } from "./dashboard.store";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 import { nameInVocative } from "../../shared/utils";
 import { NotificationsStore } from "../../core/notifications/notifications.store";
+import { notificationTarget } from "../../core/notifications/notification-navigation";
 
 const PROMPT_SUGGESTION_KEYS = [
   "dashboard.suggestSummarizeCase",
@@ -74,6 +75,10 @@ const NOTIFICATION_ICON: Record<NotificationType, string> = {
   EVENT_UPCOMING: "lucideCalendar",
   EVENT_CHANGED: "lucideCalendar",
   EVENT_CANCELLED: "lucideCalendar",
+  TIMER_RUNNING_LONG: "lucideClock",
+  TIME_REVIEW_REMINDER: "lucideCheckCheck",
+  RETAINER_USAGE_80: "lucideTriangleAlert",
+  RETAINER_USAGE_100: "lucideTriangleAlert",
 };
 
 @Component({
@@ -287,19 +292,10 @@ export class DashboardComponent {
 
   protected openNotification(item: NotificationDto): void {
     this.notifications.markRead(item);
-    if (item.entityType === "TASK") {
-      void this.router.navigate(["/work/my"], {
-        queryParams: { search: item.message },
-      });
-      return;
-    }
-    if (item.entityType === "DEADLINE" || item.entityType === "EVENT") {
-      const date =
-        item.metadata?.dueDate ??
-        item.metadata?.dueAt?.slice(0, 10) ??
-        item.metadata?.startsAt?.slice(0, 10);
-      void this.router.navigate(["/calendar"], {
-        queryParams: { view: "list", ...(date ? { date } : {}) },
+    const target = notificationTarget(item);
+    if (target) {
+      void this.router.navigate(target.commands, {
+        queryParams: target.queryParams,
       });
     }
   }

@@ -96,4 +96,43 @@ describe("UpdatePreferencesDto appearance values", () => {
     expect(serialized).toContain("taskAssigned");
     expect(serialized).toContain("arbitraryChannel");
   });
+
+  it("accepts a valid review reminder toggle and HH:mm time", async () => {
+    for (const timeReviewReminderTime of ["00:00", "09:05", "17:30", "23:59"]) {
+      const dto = plainToInstance(UpdatePreferencesDto, {
+        timeReviewReminderEnabled: true,
+        timeReviewReminderTime,
+      });
+      expect(await validate(dto)).toHaveLength(0);
+    }
+  });
+
+  it("rejects malformed review reminder times", async () => {
+    for (const timeReviewReminderTime of [
+      "24:00",
+      "9:30",
+      "17:60",
+      "17:30:00",
+      "abc",
+      "",
+    ]) {
+      const dto = plainToInstance(UpdatePreferencesDto, {
+        timeReviewReminderTime,
+      });
+      const errors = await validate(dto);
+      expect(errors.map((error) => error.property)).toEqual([
+        "timeReviewReminderTime",
+      ]);
+    }
+  });
+
+  it("rejects a non-boolean review reminder toggle", async () => {
+    const dto = plainToInstance(UpdatePreferencesDto, {
+      timeReviewReminderEnabled: "yes",
+    });
+    const errors = await validate(dto);
+    expect(errors.map((error) => error.property)).toEqual([
+      "timeReviewReminderEnabled",
+    ]);
+  });
 });

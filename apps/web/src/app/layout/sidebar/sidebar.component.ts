@@ -1,4 +1,4 @@
-import { Component, DestroyRef, inject } from "@angular/core";
+import { Component, DestroyRef, computed, inject } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
@@ -11,6 +11,7 @@ import {
   lucideSquareCheck,
   lucideUserCheck,
   lucideCalendar,
+  lucideClock,
   lucideLandmark,
   lucideChartBar,
   lucideTags,
@@ -41,6 +42,7 @@ import {
   HlmSidebarTrigger,
 } from "@spartan-ng/helm/sidebar";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { WorkspaceRole } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
@@ -48,6 +50,8 @@ interface SidebarNavigationItem {
   route: string;
   label: string;
   icon: string;
+  /** Highlight only on an exact route match (for routes that are prefixes of others). */
+  exact?: boolean;
   children?: SidebarNavigationItem[];
 }
 
@@ -95,6 +99,7 @@ interface SidebarNavigationGroup {
       lucideSquareCheck,
       lucideUserCheck,
       lucideCalendar,
+      lucideClock,
       lucideLandmark,
       lucideChartBar,
       lucideTags,
@@ -114,7 +119,12 @@ export class SidebarComponent {
     { route: "/assistant", label: "nav.aiAssistant", icon: "lucideBot" },
   ];
 
-  readonly navigationGroups: SidebarNavigationGroup[] = [
+  private readonly canManageTime = computed(() => {
+    const role = this.authState.activeWorkspace()?.role;
+    return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
+  });
+
+  readonly navigationGroups = computed<SidebarNavigationGroup[]>(() => [
     {
       label: "nav.workspace",
       items: [
@@ -132,6 +142,21 @@ export class SidebarComponent {
           icon: "lucideSquareCheck",
         },
         { route: "/work/my", label: "nav.myWork", icon: "lucideUserCheck" },
+        {
+          route: "/work/time",
+          label: "nav.myTime",
+          icon: "lucideClock",
+          exact: true,
+        },
+        ...(this.canManageTime()
+          ? [
+              {
+                route: "/work/time/team",
+                label: "nav.teamTime",
+                icon: "lucideUsers",
+              },
+            ]
+          : []),
         { route: "/calendar", label: "nav.calendar", icon: "lucideCalendar" },
       ],
     },
@@ -163,7 +188,7 @@ export class SidebarComponent {
         { route: "/reports", label: "nav.reports", icon: "lucideChartBar" },
       ],
     },
-  ];
+  ]);
 
   logout(): void {
     this.authState

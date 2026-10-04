@@ -120,6 +120,9 @@ export interface UserSettingsPreferences {
   notificationPreferences: NotificationPreferences;
   dateTimeFormat: UserSettingsDateTimeFormat;
   timeZone: string;
+  timeReviewReminderEnabled: boolean;
+  /** `HH:mm` in the user's time zone. */
+  timeReviewReminderTime: string;
 }
 
 export interface NotificationMetadata {
