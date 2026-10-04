@@ -798,3 +798,12 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
 ## Note on the target hourly rate default
 
 Spec §2 says the settings UI defaults the target to the AT hourly tariff item amount. The tarifa is not in the local corpus snapshot (`tmp/legal-corpus/legal-corpus-2026-09-27.ndjson.gz` has 33 sources and no tarifa), and this plan does not guess the amount. So `targetHourlyRate` starts empty, and the field shows a hint pointing to the AT item. Profitability works without a target and only omits the comparison.
+
+## Final review fixes
+
+- [x] Month-end rows report `conflict` (reason) and `attachedEntries`; the web page shows "Nije obračunato: {razlog}" and "Dodato u postojeći paušal: N" instead of "Bez promena".
+- [x] Retainer fee lines are marked `sourceType` `RETAINER_FEE` / `sourceId` = agreement id (service-only line input, not in the public DTO); detection no longer uses the description, and the composer keeps the marker on save.
+- [x] `GET /activity-log` excludes `WORK_ENTRY` rows (also covers the dashboard feed and the assistant activity tool).
+- [x] A task created as `DONE` creates its entry (`CreateDeadlineDto` and `CreateEventDto` have no status, so nothing else to cover).
+- [x] `ensureForSource` inserts with `createMany({ skipDuplicates })` and reads back, so a concurrent completion cannot abort the transaction.
+- [x] Migration backfill keeps billed tasks and deadlines with conflicting task/case clients under the statement's client; the conflict guard only drops unbilled sources.
