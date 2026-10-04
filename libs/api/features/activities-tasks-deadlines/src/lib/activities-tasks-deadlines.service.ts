@@ -39,6 +39,7 @@ import {
   buildNotificationContent,
   NotificationsService,
 } from "@law/notifications";
+import { WorkEntrySourcesService, workDateFor } from "@law/work-entries";
 
 // CalendarQueryDto.statuses is one combined string[] filter shared across Event/Task/Deadline;
 // each record type only accepts its own enum, so requested values must be narrowed per type.
@@ -61,6 +62,7 @@ export class ActivitiesTasksDeadlinesService {
   constructor(
     private readonly db: PlatformPrismaService,
     private readonly notifications: NotificationsService,
+    private readonly workEntrySources: WorkEntrySourcesService,
   ) {}
 
   private get context() {
@@ -159,6 +161,53 @@ export class ActivitiesTasksDeadlinesService {
         actorUserId: this.context.userId,
         ...input,
       },
+    });
+  }
+
+  /** Client a case belongs to, or null when there is no (visible) case. */
+  private async caseClientId(
+    tx: Prisma.TransactionClient,
+    caseId: string | null,
+  ): Promise<string | null> {
+    if (!caseId) return null;
+    const found = await tx.case.findFirst({
+      where: { id: caseId, workspaceId: this.context.workspaceId },
+      select: { clientId: true },
+    });
+    return found?.clientId ?? null;
+  }
+
+  /** Completed tasks and satisfied deadlines become proposed billing entries. */
+  private async proposeEntryForTaskOrDeadline(
+    tx: Prisma.TransactionClient,
+    input: {
+      sourceType: "TASK" | "DEADLINE";
+      record: {
+        id: string;
+        title: string;
+        caseId: string | null;
+        clientId: string | null;
+      };
+      performerUserId: string;
+    },
+  ): Promise<void> {
+    const { record } = input;
+    const clientIds = [
+      record.clientId,
+      await this.caseClientId(tx, record.caseId),
+    ].filter((id): id is string => id !== null);
+    await this.workEntrySources.ensureForSource(tx, {
+      workspaceId: this.context.workspaceId,
+      actorUserId: this.context.userId,
+      sourceType: input.sourceType,
+      sourceId: record.id,
+      performerUserId: input.performerUserId,
+      clientIds,
+      caseId: record.caseId,
+      workDate: workDateFor(),
+      description: record.title,
+      minutes: null,
+      confirm: false,
     });
   }
 
@@ -586,6 +635,28 @@ export class ActivitiesTasksDeadlinesService {
         entityId: id,
         caseId: event.caseId,
       });
+      if (target === "COMPLETED") {
+        const durationMinutes = Math.round(
+          (updated.endsAt.getTime() - updated.startsAt.getTime()) / 60_000,
+        );
+        await this.workEntrySources.ensureForSource(tx, {
+          workspaceId: this.context.workspaceId,
+          actorUserId: this.context.userId,
+          sourceType: "EVENT",
+          sourceId: updated.id,
+          performerUserId: updated.organizerUserId,
+          clientIds: [
+            ...updated.clients.map((link) => link.clientId),
+            ...(updated.case ? [updated.case.clientId] : []),
+          ],
+          caseId: updated.caseId,
+          workDate: workDateFor(),
+          description: updated.title,
+          // An all-day event has no meaningful duration to propose.
+          minutes: updated.isAllDay ? null : durationMinutes,
+          confirm: false,
+        });
+      }
       if (target === "CANCELLED") {
         const content = buildNotificationContent(
           "EVENT_CANCELLED",
@@ -781,6 +852,13 @@ export class ActivitiesTasksDeadlinesService {
         caseId: task.caseId,
         clientId: task.clientId,
       });
+      if (existing.status !== "DONE" && task.status === "DONE") {
+        await this.proposeEntryForTaskOrDeadline(tx, {
+          sourceType: "TASK",
+          record: task,
+          performerUserId: task.assigneeUserId,
+        });
+      }
       if (
         existing.assigneeUserId !== task.assigneeUserId &&
         task.assigneeUserId !== this.context.userId
@@ -831,6 +909,13 @@ export class ActivitiesTasksDeadlinesService {
         caseId: task.caseId,
         clientId: task.clientId,
       });
+      if (done) {
+        await this.proposeEntryForTaskOrDeadline(tx, {
+          sourceType: "TASK",
+          record: updated,
+          performerUserId: updated.assigneeUserId,
+        });
+      }
       return updated;
     });
     return this.getTask(item.id);
@@ -1078,6 +1163,13 @@ export class ActivitiesTasksDeadlinesService {
         caseId: deadline.caseId,
         clientId: deadline.clientId,
       });
+      if (target === "SATISFIED") {
+        await this.proposeEntryForTaskOrDeadline(tx, {
+          sourceType: "DEADLINE",
+          record: updated,
+          performerUserId: updated.responsibleUserId,
+        });
+      }
       return updated;
     });
     return this.getDeadline(item.id);

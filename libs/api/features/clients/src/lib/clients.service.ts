@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Client, Prisma } from "@prisma/client";
+import { ActivityType, Client, Prisma } from "@prisma/client";
 import {
   PlatformPrismaService,
   paginationMeta,
@@ -16,6 +16,7 @@ import {
   ClientSummary,
   UserReference,
 } from "@law/api-interfaces";
+import { WorkEntrySourcesService, workDateFor } from "@law/work-entries";
 import {
   ClientActivityDto,
   ClientActivityListQueryDto,
@@ -30,9 +31,19 @@ import {
   UpdateClientDto,
 } from "./clients.dto";
 
+/** Logged contact types that represent billable time. */
+const BILLABLE_ACTIVITY_TYPES: ActivityType[] = [
+  "PHONE_CALL",
+  "MEETING",
+  "EMAIL",
+];
+
 @Injectable()
 export class ClientsService {
-  constructor(private readonly platformPrisma: PlatformPrismaService) {}
+  constructor(
+    private readonly platformPrisma: PlatformPrismaService,
+    private readonly workEntrySources: WorkEntrySourcesService,
+  ) {}
 
   private get context() {
     return WorkspaceContextService.required;
@@ -131,7 +142,9 @@ export class ClientsService {
     lastName: string | null;
     email: string;
   }): string {
-    return [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email;
+    return (
+      [user.firstName, user.lastName].filter(Boolean).join(" ") || user.email
+    );
   }
 
   private async userReferenceMap(
@@ -838,19 +851,37 @@ export class ClientsService {
           "Related case does not belong to this client",
         );
     }
-    return this.db.clientActivity.create({
-      data: {
-        workspaceId,
-        clientId,
-        relatedCaseId: input.relatedCaseId,
-        type: input.type,
-        title: input.title.trim(),
-        description: input.description?.trim(),
-        activityDate: new Date(input.activityDate),
-        source: "MANUAL",
-        createdByUserId: userId,
-        updatedByUserId: userId,
-      },
+    return this.db.$transaction(async (tx) => {
+      const activity = await tx.clientActivity.create({
+        data: {
+          workspaceId,
+          clientId,
+          relatedCaseId: input.relatedCaseId,
+          type: input.type,
+          title: input.title.trim(),
+          description: input.description?.trim(),
+          activityDate: new Date(input.activityDate),
+          source: "MANUAL",
+          createdByUserId: userId,
+          updatedByUserId: userId,
+        },
+      });
+      if (BILLABLE_ACTIVITY_TYPES.includes(activity.type)) {
+        await this.workEntrySources.ensureForSource(tx, {
+          workspaceId,
+          actorUserId: userId,
+          sourceType: "CLIENT_ACTIVITY",
+          sourceId: activity.id,
+          performerUserId: userId,
+          clientIds: [clientId],
+          caseId: input.relatedCaseId ?? null,
+          workDate: workDateFor(activity.activityDate),
+          description: activity.title,
+          minutes: input.durationMinutes ?? null,
+          confirm: true,
+        });
+      }
+      return activity;
     });
   }
 

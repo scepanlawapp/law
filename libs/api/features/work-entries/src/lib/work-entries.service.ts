@@ -192,7 +192,7 @@ export class WorkEntriesService {
     await this.assertServiceCategory(input.serviceCategoryId);
     const treatment =
       input.treatment ??
-      (await this.resolveTreatment(
+      (await this.defaultTreatmentFor(
         input.clientId,
         workDate,
         input.serviceCategoryId ?? null,
@@ -267,7 +267,7 @@ export class WorkEntriesService {
     const treatment =
       input.treatment ??
       (clientChanged || dateChanged || categoryChanged
-        ? await this.resolveTreatment(clientId, workDate, serviceCategoryId)
+        ? await this.defaultTreatmentFor(clientId, workDate, serviceCategoryId)
         : current.treatment);
 
     const data: Prisma.WorkEntryUncheckedUpdateManyInput = {
@@ -410,7 +410,7 @@ export class WorkEntriesService {
         timeZone: ENTRY_TIME_ZONE,
       }).format(now),
     );
-    const treatment = await this.resolveTreatment(
+    const treatment = await this.defaultTreatmentFor(
       input.clientId,
       workDate,
       null,
@@ -660,12 +660,17 @@ export class WorkEntriesService {
     if (!category) throw new BadRequestException("Service category not found");
   }
 
-  private async resolveTreatment(
+  /**
+   * Treatment a new entry gets when nobody picked one, from the client's active
+   * retainer agreement on `workDate`. Pass `tx` to read inside a transaction.
+   */
+  async defaultTreatmentFor(
     clientId: string,
     workDate: Date,
     serviceCategoryId: string | null,
+    tx?: Prisma.TransactionClient,
   ): Promise<WorkEntryTreatment> {
-    const agreements = await this.loadAgreementTerms(clientId);
+    const agreements = await this.loadAgreementTerms(clientId, tx);
     return defaultTreatment(
       activeAgreementOn(agreements, workDate),
       serviceCategoryId,
@@ -675,8 +680,9 @@ export class WorkEntriesService {
   // Interim lookup until the billing setup service owns retainer agreements.
   private async loadAgreementTerms(
     clientId: string,
+    tx?: Prisma.TransactionClient,
   ): Promise<AgreementTerms[]> {
-    const agreements = await this.db.retainerAgreement.findMany({
+    const agreements = await (tx ?? this.db).retainerAgreement.findMany({
       where: { workspaceId: this.workspaceId, clientId, active: true },
       include: { categories: true },
     });

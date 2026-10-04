@@ -29,6 +29,10 @@ const titles: Record<NotificationType, string> = {
   EVENT_UPCOMING: "Predstojeći događaj",
   EVENT_CHANGED: "Događaj je izmenjen",
   EVENT_CANCELLED: "Događaj je otkazan",
+  TIMER_RUNNING_LONG: "Tajmer je i dalje uključen",
+  TIME_REVIEW_REMINDER: "Pregled današnjeg rada",
+  RETAINER_USAGE_80: "Paušal je iskorišćen 80%",
+  RETAINER_USAGE_100: "Paušal je u potpunosti iskorišćen",
 };
 
 export function buildNotificationContent(

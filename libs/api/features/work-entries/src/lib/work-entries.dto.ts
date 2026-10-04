@@ -11,13 +11,16 @@ import {
   IsUUID,
   Max,
   Min,
+  ValidateIf,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
 import type {
+  ConfirmSourceEntryRequest,
   CreateWorkEntryRequest,
   StartTimerRequest,
   UpdateWorkEntryRequest,
   WorkEntryQuery,
+  WorkEntrySourceType,
   WorkEntryStatus,
   WorkEntryTreatment,
 } from "@law/api-interfaces";
@@ -35,6 +38,14 @@ export const WORK_ENTRY_TREATMENTS = [
   "HOURLY",
   "NON_BILLABLE",
   "UNDECIDED",
+] as const;
+
+export const WORK_ENTRY_SOURCE_TYPES = [
+  "TASK",
+  "EVENT",
+  "DEADLINE",
+  "CLIENT_ACTIVITY",
+  "CASE_ACTIVITY",
 ] as const;
 
 const toArray = ({ value }: { value: unknown }): string[] | undefined =>
@@ -191,4 +202,22 @@ export class WorkEntryQueryDto
   @Transform(toBoolean)
   @IsBoolean()
   unbilledOnly?: boolean;
+}
+
+export class ConfirmSourceEntryDto implements ConfirmSourceEntryRequest {
+  @IsIn(WORK_ENTRY_SOURCE_TYPES)
+  sourceType!: WorkEntrySourceType;
+
+  @IsUUID()
+  sourceId!: string;
+
+  @ValidateIf((_, value) => value !== null)
+  @IsInt()
+  @Min(1)
+  @Max(1440)
+  minutes!: number | null;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 }

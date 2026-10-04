@@ -13,6 +13,7 @@ import {
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
+  ConfirmSourceEntryDto,
   ConfirmWorkEntryDto,
   CreateWorkEntryDto,
   StartTimerDto,
@@ -21,19 +22,23 @@ import {
   WriteOffWorkEntryDto,
 } from "./work-entries.dto";
 import { WorkEntriesService } from "./work-entries.service";
+import { WorkEntrySourcesService } from "./work-entry-sources.service";
 
 @Controller("work-entries")
 @UseGuards(CsrfOriginGuard, AuthGuard, WorkspaceAccessGuard)
 @WorkspaceAccess()
 export class WorkEntriesController {
-  constructor(private readonly workEntries: WorkEntriesService) {}
+  constructor(
+    private readonly workEntries: WorkEntriesService,
+    private readonly sources: WorkEntrySourcesService,
+  ) {}
 
   @Get()
   list(@Query() query: WorkEntryQueryDto) {
     return this.workEntries.list(query);
   }
 
-  // Timer routes are declared before `:id` so "timer" is never read as an id.
+  // Fixed-path routes are declared before `:id` so they are never read as an id.
   @Get("timer")
   runningTimer() {
     return this.workEntries.runningTimer();
@@ -48,6 +53,12 @@ export class WorkEntriesController {
   @HttpCode(200)
   stopTimer() {
     return this.workEntries.stopTimer();
+  }
+
+  @Post("from-source")
+  @HttpCode(200)
+  confirmFromSource(@Body() body: ConfirmSourceEntryDto) {
+    return this.sources.confirmFromSource(body);
   }
 
   @Get(":id")

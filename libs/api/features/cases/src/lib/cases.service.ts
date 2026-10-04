@@ -3,7 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from "@nestjs/common";
-import { Case, Prisma } from "@prisma/client";
+import { ActivityType, Case, Prisma } from "@prisma/client";
 import {
   PlatformPrismaService,
   paginationMeta,
@@ -18,6 +18,7 @@ import {
   ClientReference,
   UserReference,
 } from "@law/api-interfaces";
+import { WorkEntrySourcesService, workDateFor } from "@law/work-entries";
 import {
   CaseActivityDto,
   CaseActivityListQueryDto,
@@ -31,6 +32,13 @@ import {
   UpdateCaseResponsibilityDto,
 } from "./cases.dto";
 
+/** Logged contact types that represent billable time. */
+const BILLABLE_ACTIVITY_TYPES: ActivityType[] = [
+  "PHONE_CALL",
+  "MEETING",
+  "EMAIL",
+];
+
 type CaseClientRow = {
   id: string;
   clientNumber: string;
@@ -41,7 +49,10 @@ type CaseClientRow = {
 
 @Injectable()
 export class CasesService {
-  constructor(private readonly platformPrisma: PlatformPrismaService) {}
+  constructor(
+    private readonly platformPrisma: PlatformPrismaService,
+    private readonly workEntrySources: WorkEntrySourcesService,
+  ) {}
 
   private get context() {
     return WorkspaceContextService.required;
@@ -639,20 +650,38 @@ export class CasesService {
     };
   }
   async createActivity(caseId: string, input: CaseActivityDto) {
-    await this.requireCase(caseId);
+    const caseRecord = await this.requireCase(caseId);
     const { workspaceId, userId } = this.context;
-    return this.db.caseActivity.create({
-      data: {
-        workspaceId,
-        caseId,
-        type: input.type,
-        title: input.title.trim(),
-        description: input.description?.trim(),
-        activityDate: new Date(input.activityDate),
-        source: "MANUAL",
-        createdByUserId: userId,
-        updatedByUserId: userId,
-      },
+    return this.db.$transaction(async (tx) => {
+      const activity = await tx.caseActivity.create({
+        data: {
+          workspaceId,
+          caseId,
+          type: input.type,
+          title: input.title.trim(),
+          description: input.description?.trim(),
+          activityDate: new Date(input.activityDate),
+          source: "MANUAL",
+          createdByUserId: userId,
+          updatedByUserId: userId,
+        },
+      });
+      if (BILLABLE_ACTIVITY_TYPES.includes(activity.type)) {
+        await this.workEntrySources.ensureForSource(tx, {
+          workspaceId,
+          actorUserId: userId,
+          sourceType: "CASE_ACTIVITY",
+          sourceId: activity.id,
+          performerUserId: userId,
+          clientIds: [caseRecord.clientId],
+          caseId,
+          workDate: workDateFor(activity.activityDate),
+          description: activity.title,
+          minutes: input.durationMinutes ?? null,
+          confirm: true,
+        });
+      }
+      return activity;
     });
   }
   async updateActivity(

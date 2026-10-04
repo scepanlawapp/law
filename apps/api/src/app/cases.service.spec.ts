@@ -64,7 +64,11 @@ describe("CasesService", () => {
     userId,
     role: WorkspaceRole.OWNER,
   };
-  const service = new CasesService(platformPrisma as never);
+  const workEntrySources = { ensureForSource: jest.fn() };
+  const service = new CasesService(
+    platformPrisma as never,
+    workEntrySources as never,
+  );
 
   beforeAll(() => {
     jest.useFakeTimers();
@@ -256,6 +260,82 @@ describe("CasesService", () => {
       page: 2,
       totalItems: 11,
       totalPages: 2,
+    });
+  });
+
+  describe("createActivity", () => {
+    const activity = (type: string) => ({
+      id: "88888888-8888-4888-a888-888888888888",
+      workspaceId,
+      caseId: caseRecord("ACTIVE").id,
+      type,
+      title: "Poziv sa klijentom",
+      activityDate: new Date("2026-09-16T10:00:00.000Z"),
+    });
+
+    it("creates a confirmed entry for a logged call with a duration", async () => {
+      db.case.findFirst.mockResolvedValue(caseRecord("ACTIVE"));
+      db.caseActivity.create.mockResolvedValue(activity("PHONE_CALL"));
+      await WorkspaceContextService.run(context as never, async () => {
+        await service.createActivity(caseRecord("ACTIVE").id, {
+          type: "PHONE_CALL",
+          title: " Poziv sa klijentom ",
+          activityDate: "2026-09-16T10:00:00.000Z",
+          durationMinutes: 30,
+        });
+      });
+      expect(workEntrySources.ensureForSource).toHaveBeenCalledWith(
+        platformPrisma,
+        {
+          workspaceId,
+          actorUserId: userId,
+          sourceType: "CASE_ACTIVITY",
+          sourceId: activity("PHONE_CALL").id,
+          performerUserId: userId,
+          clientIds: [caseRecord("ACTIVE").clientId],
+          caseId: caseRecord("ACTIVE").id,
+          workDate: new Date("2026-09-16T00:00:00.000Z"),
+          description: "Poziv sa klijentom",
+          minutes: 30,
+          confirm: true,
+        },
+      );
+      expect(db.caseActivity.create.mock.calls[0][0].data).not.toHaveProperty(
+        "durationMinutes",
+      );
+    });
+
+    it.each(["MEETING", "EMAIL"])(
+      "proposes an entry for a %s logged without a duration",
+      async (type) => {
+        db.case.findFirst.mockResolvedValue(caseRecord("ACTIVE"));
+        db.caseActivity.create.mockResolvedValue(activity(type));
+        await WorkspaceContextService.run(context as never, async () => {
+          await service.createActivity(caseRecord("ACTIVE").id, {
+            type: type as never,
+            title: "Poziv sa klijentom",
+            activityDate: "2026-09-16T10:00:00.000Z",
+          });
+        });
+        expect(workEntrySources.ensureForSource).toHaveBeenCalledWith(
+          platformPrisma,
+          expect.objectContaining({ minutes: null, confirm: true }),
+        );
+      },
+    );
+
+    it.each(["NOTE", "OTHER"])("creates no entry for a %s", async (type) => {
+      db.case.findFirst.mockResolvedValue(caseRecord("ACTIVE"));
+      db.caseActivity.create.mockResolvedValue(activity(type));
+      await WorkspaceContextService.run(context as never, async () => {
+        await service.createActivity(caseRecord("ACTIVE").id, {
+          type: type as never,
+          title: "Beleška",
+          activityDate: "2026-09-16T10:00:00.000Z",
+          durationMinutes: 20,
+        });
+      });
+      expect(workEntrySources.ensureForSource).not.toHaveBeenCalled();
     });
   });
 });
