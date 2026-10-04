@@ -89,7 +89,7 @@ One per client, optional: `hourlyRate` and `currency`. It prices `HOURLY` entrie
 ### Rates
 
 - `UserRate` (new): `userId`, `hourlyValue`, `currency`, `effectiveFrom`. This is the internal value of an hour of that person's time, used only for profitability. Managed by OWNER/ADMIN.
-- `WorkspaceConfig.targetHourlyRate` + `targetCurrency`: the office target. The settings UI defaults the field to the AT hourly tariff item amount, which the owner can change.
+- `WorkspaceConfig.targetHourlyRate` + `internalCurrency` (default RSD): the office target. It starts empty; the settings field points to the AT hourly tariff item as a suggestion. User rates must use the internal currency.
 
 ### Changes to existing tables
 
@@ -149,7 +149,7 @@ All flows share one quick-capture form component.
 
 1. The owner picks a month. A **pre-check** lists, per client, entries still `PROPOSED` or `UNDECIDED` in that month, with inline confirm/edit/write-off, so nothing silently falls out.
 2. **Generate** creates one draft `BillingStatement` per client that has confirmed unbilled entries in the month or an active retainer. Lines:
-   1. **Retainer fee:** "Paušal za {mesec} {godina}". If the agreement starts or ends mid-month, the fee is prorated by days and the line says so.
+   1. **Retainer fee:** "Paušal za {mesec} {godina}". If the agreement starts or ends mid-month, the fee and the hour cap are prorated by days (cap rounded down to whole minutes) and the line says so.
    2. **Overage:** minutes of covered work above `includedMinutes`, priced by `overageRule`. Overage is allocated in chronological order. `ABSORBED` produces no line, but the entries are still marked `BILLED` against the fee line.
    3. **Out-of-scope work:** grouped by case (or by category when there is no case), priced by `outOfScopeRule`.
    4. **Non-retainer `HOURLY` entries:** grouped by case and priced by `ClientBillingProfile.hourlyRate`.
