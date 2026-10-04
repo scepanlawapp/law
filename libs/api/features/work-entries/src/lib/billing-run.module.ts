@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { FinancialsModule } from "@law/financials";
 import { BillingReportsController } from "./billing-reports.controller";
 import { MonthEndRunService } from "./month-end-run.service";
+import { ProfitabilityService } from "./profitability.service";
 import { WorkEntriesModule } from "./work-entries.module";
 
 /**
@@ -11,7 +12,7 @@ import { WorkEntriesModule } from "./work-entries.module";
 @Module({
   imports: [WorkEntriesModule, FinancialsModule],
   controllers: [BillingReportsController],
-  providers: [MonthEndRunService],
-  exports: [MonthEndRunService],
+  providers: [MonthEndRunService, ProfitabilityService],
+  exports: [MonthEndRunService, ProfitabilityService],
 })
 export class BillingRunModule {}

@@ -1,6 +1,15 @@
-import { BadRequestException, Injectable, OnModuleInit } from "@nestjs/common";
+import {
+  BadRequestException,
+  ForbiddenException,
+  Injectable,
+  OnModuleInit,
+} from "@nestjs/common";
 import { NotificationType, Prisma } from "@prisma/client";
-import { ClientReference, RetainerUsage } from "@law/api-interfaces";
+import {
+  ClientReference,
+  RetainerUsage,
+  WorkspaceRole,
+} from "@law/api-interfaces";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import {
   buildNotificationContent,
@@ -136,6 +145,50 @@ export class RetainerUsageService implements OnModuleInit {
     return usages.sort((a, b) =>
       a.client.displayName.localeCompare(b.client.displayName, "sr-Latn"),
     );
+  }
+
+  /**
+   * Usage as the signed-in user may see it: owners and admins see every
+   * client, a lawyer only the clients they are responsible for.
+   */
+  async usageForViewer(
+    clientId: string,
+    month: string,
+  ): Promise<RetainerUsage | null> {
+    const { role, userId } = WorkspaceContextService.required;
+    if (role === WorkspaceRole.LAWYER) {
+      const owned = await this.db.client.findFirst({
+        where: {
+          id: clientId,
+          workspaceId: this.workspaceId,
+          responsibleUserId: userId,
+        },
+        select: { id: true },
+      });
+      if (!owned) {
+        throw new ForbiddenException("You are not responsible for this client");
+      }
+    } else if (role !== WorkspaceRole.OWNER && role !== WorkspaceRole.ADMIN) {
+      throw new ForbiddenException("Not allowed to view retainer usage");
+    }
+    return this.usage(clientId, month);
+  }
+
+  async listUsageForViewer(month: string): Promise<RetainerUsage[]> {
+    const { role, userId } = WorkspaceContextService.required;
+    if (role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN) {
+      return this.listUsage(month);
+    }
+    if (role !== WorkspaceRole.LAWYER) {
+      throw new ForbiddenException("Not allowed to view retainer usage");
+    }
+    const usages = await this.listUsage(month);
+    const owned = await this.db.client.findMany({
+      where: { workspaceId: this.workspaceId, responsibleUserId: userId },
+      select: { id: true },
+    });
+    const ownedIds = new Set(owned.map((client) => client.id));
+    return usages.filter((usage) => ownedIds.has(usage.client.id));
   }
 
   /**

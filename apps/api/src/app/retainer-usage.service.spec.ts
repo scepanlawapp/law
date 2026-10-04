@@ -1,3 +1,4 @@
+import { ForbiddenException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { WorkspaceContextService } from "@law/core";
@@ -15,6 +16,10 @@ function inContext<T>(fn: () => T): T {
     { workspaceId, userId, role: WorkspaceRole.OWNER },
     fn,
   );
+}
+
+function inRole<T>(role: WorkspaceRole, fn: () => T, user = userId): T {
+  return WorkspaceContextService.run({ workspaceId, userId: user, role }, fn);
 }
 
 function agreement(overrides: Record<string, unknown> = {}) {
@@ -36,7 +41,7 @@ function agreement(overrides: Record<string, unknown> = {}) {
 
 describe("RetainerUsageService", () => {
   const db = {
-    client: { findFirst: jest.fn() },
+    client: { findFirst: jest.fn(), findMany: jest.fn() },
     workEntry: { findMany: jest.fn() },
     workspaceConfig: { findUnique: jest.fn() },
     workspaceMember: { findMany: jest.fn() },
@@ -307,6 +312,90 @@ describe("RetainerUsageService", () => {
           where: expect.objectContaining({ workspaceId, active: true }),
         }),
       );
+    });
+  });
+
+  describe("viewer access", () => {
+    beforeEach(() => {
+      db.retainerAgreement.findMany.mockResolvedValue([{ clientId }]);
+    });
+
+    it("lets owners and admins see every client", async () => {
+      for (const role of [WorkspaceRole.OWNER, WorkspaceRole.ADMIN]) {
+        const list = await inRole(role, () =>
+          service.listUsageForViewer("2026-10"),
+        );
+        expect(list).toHaveLength(1);
+        const one = await inRole(role, () =>
+          service.usageForViewer(clientId, "2026-10"),
+        );
+        expect(one?.client.id).toBe(clientId);
+      }
+      expect(db.client.findMany).not.toHaveBeenCalled();
+    });
+
+    it("limits a lawyer to the clients they are responsible for", async () => {
+      db.client.findMany.mockResolvedValue([{ id: clientId }]);
+      const mine = await inRole(
+        WorkspaceRole.LAWYER,
+        () => service.listUsageForViewer("2026-10"),
+        responsibleId,
+      );
+      expect(mine).toHaveLength(1);
+      expect(db.client.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { workspaceId, responsibleUserId: responsibleId },
+        }),
+      );
+
+      db.client.findMany.mockResolvedValue([]);
+      const none = await inRole(
+        WorkspaceRole.LAWYER,
+        () => service.listUsageForViewer("2026-10"),
+        userId,
+      );
+      expect(none).toEqual([]);
+    });
+
+    it("gives a lawyer one client's usage only when responsible, else 403", async () => {
+      db.client.findFirst.mockImplementation(
+        async ({ where }: { where: { responsibleUserId?: string } }) =>
+          where.responsibleUserId && where.responsibleUserId !== responsibleId
+            ? null
+            : {
+                id: clientId,
+                clientNumber: "K-1",
+                type: "LEGAL_ENTITY",
+                displayName: "Alfa doo",
+                status: "ACTIVE",
+                responsibleUserId: responsibleId,
+              },
+      );
+
+      const own = await inRole(
+        WorkspaceRole.LAWYER,
+        () => service.usageForViewer(clientId, "2026-10"),
+        responsibleId,
+      );
+      expect(own?.client.id).toBe(clientId);
+      await expect(
+        inRole(WorkspaceRole.LAWYER, () =>
+          service.usageForViewer(clientId, "2026-10"),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("refuses members", async () => {
+      await expect(
+        inRole(WorkspaceRole.MEMBER, () =>
+          service.listUsageForViewer("2026-10"),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      await expect(
+        inRole(WorkspaceRole.MEMBER, () =>
+          service.usageForViewer(clientId, "2026-10"),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
     });
   });
 });
