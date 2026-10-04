@@ -31,11 +31,8 @@ import {
   paginationMeta,
 } from "@law/core";
 import { toLatin } from "@law/transliteration";
-import {
-  AgreementTerms,
-  activeAgreementOn,
-  defaultTreatment,
-} from "./treatment";
+import { BillingSetupService } from "./billing-setup.service";
+import { activeAgreementOn, defaultTreatment } from "./treatment";
 
 const MIN_MINUTES = 1;
 const MAX_MINUTES = 1440;
@@ -71,7 +68,10 @@ export class WorkEntriesService {
    */
   afterConfirmed: (entry: WorkEntry) => Promise<void> = async () => undefined;
 
-  constructor(private readonly db: PlatformPrismaService) {}
+  constructor(
+    private readonly db: PlatformPrismaService,
+    private readonly billingSetup: BillingSetupService,
+  ) {}
 
   private get context() {
     return WorkspaceContextService.required;
@@ -670,37 +670,14 @@ export class WorkEntriesService {
     serviceCategoryId: string | null,
     tx?: Prisma.TransactionClient,
   ): Promise<WorkEntryTreatment> {
-    const agreements = await this.loadAgreementTerms(clientId, tx);
+    const agreements = await this.billingSetup.agreementsForClient(
+      clientId,
+      tx,
+    );
     return defaultTreatment(
       activeAgreementOn(agreements, workDate),
       serviceCategoryId,
     );
-  }
-
-  // Interim lookup until the billing setup service owns retainer agreements.
-  private async loadAgreementTerms(
-    clientId: string,
-    tx?: Prisma.TransactionClient,
-  ): Promise<AgreementTerms[]> {
-    const agreements = await (tx ?? this.db).retainerAgreement.findMany({
-      where: { workspaceId: this.workspaceId, clientId, active: true },
-      include: { categories: true },
-    });
-    return agreements.map((agreement) => ({
-      id: agreement.id,
-      validFrom: agreement.validFrom,
-      validTo: agreement.validTo,
-      monthlyFee: agreement.monthlyFee,
-      currency: agreement.currency,
-      includedMinutes: agreement.includedMinutes,
-      coveredCategoryIds: agreement.categories.map(
-        (category) => category.serviceCategoryId,
-      ),
-      overageRule: agreement.overageRule,
-      overageHourlyRate: agreement.overageHourlyRate,
-      outOfScopeRule: agreement.outOfScopeRule,
-      outOfScopeHourlyRate: agreement.outOfScopeHourlyRate,
-    }));
   }
 
   // -------------------------------------------------------------- mapping

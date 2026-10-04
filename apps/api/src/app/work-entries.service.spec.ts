@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { WorkspaceContextService } from "@law/core";
-import { WorkEntriesService } from "@law/work-entries";
+import { BillingSetupService, WorkEntriesService } from "@law/work-entries";
 import { Prisma } from "@prisma/client";
 
 const workspaceId = "11111111-1111-4111-a111-111111111111";
@@ -101,7 +101,10 @@ describe("WorkEntriesService", () => {
       return Promise.all(input as Promise<unknown>[]);
     }),
   };
-  const service = new WorkEntriesService(db as never);
+  const service = new WorkEntriesService(
+    db as never,
+    new BillingSetupService(db as never),
+  );
 
   const as = <R>(
     role: WorkspaceRole,
