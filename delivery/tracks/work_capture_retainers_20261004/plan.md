@@ -127,9 +127,9 @@
 - `ClientBillingProfile`: `clientId` is unique.
 - `UserRate`: `@@unique([workspaceId, userId, effectiveFrom])`.
 
-- [ ] **Step 1: Edit the schema** with the models above. Run `npx prisma format --schema apps/api/prisma/schema.prisma`. Expected: no errors.
-- [ ] **Step 2: Generate the migration without applying it.** Run `npx prisma migrate dev --create-only --name work_entries --schema apps/api/prisma/schema.prisma`. Expected: a new folder containing `CREATE TABLE "WorkEntry"` and `DROP COLUMN "statementId"`.
-- [ ] **Step 3: Hand-edit `migration.sql`.**
+- [x] **Step 1: Edit the schema** with the models above. Run `npx prisma format --schema apps/api/prisma/schema.prisma`. Expected: no errors.
+- [x] **Step 2: Generate the migration without applying it.** Run `npx prisma migrate dev --create-only --name work_entries --schema apps/api/prisma/schema.prisma`. Expected: a new folder containing `CREATE TABLE "WorkEntry"` and `DROP COLUMN "statementId"`.
+- [x] **Step 3: Hand-edit `migration.sql`.**
   - **Partial unique index:** add one for running timers: `CREATE UNIQUE INDEX "WorkEntry_one_running_per_user" ON "WorkEntry"("workspaceId","userId") WHERE "status" = 'RUNNING';`
   - **Backfill, inserted after table creation and before the `DROP COLUMN` statements.** For each source type, insert `WorkEntry` rows, gen_random_uuid ids, `source` = type, `sourceType` = type, `description` = title, `createdByUserId` = `updatedByUserId` = the performer:
     - Tasks: `status='DONE'` with exactly one client from `{task.clientId, case.clientId}`. Performer `assigneeUserId`. `workDate = completedAt::date` (fallback `updatedAt`).
@@ -138,15 +138,15 @@
     - Rows whose source `statementId IS NULL` get `status = 'PROPOSED'`, `treatment = 'UNDECIDED'`.
     - Rows with `statementId` set get `status='BILLED'` and `statementLineId` = the `BillingStatementLine.id` where `sourceType`/`sourceId` match.
   - **Seed categories:** insert the seven `ServiceCategory` rows from spec §2 for the hardcoded workspace id, with `order` 0..6.
-- [ ] **Step 4: Apply the migration.** Run `npm run services:up && npm run db:migrate`. Expected: "All migrations have been successfully applied". Then run `npx nx run api:build`. Expected: TypeScript errors only in financials and activities code (fixed in Tasks 5 and 9). Record that list in the commit message body.
-- [ ] **Step 5: Verify the backfill on demo data.** Run `npm run db:seed:demo` on a fresh DB *before* this branch's migration: `git stash`, reset the DB, seed, `git stash pop`, migrate. Then:
+- [x] **Step 4: Apply the migration.** Run `npm run services:up && npm run db:migrate`. Expected: "All migrations have been successfully applied". Then run `npx nx run api:build`. Expected: TypeScript errors only in financials and activities code (fixed in Tasks 5 and 9). Record that list in the commit message body.
+- [x] **Step 5: Verify the backfill on demo data.** Run `npm run db:seed:demo` on a fresh DB *before* this branch's migration: `git stash`, reset the DB, seed, `git stash pop`, migrate. Then:
 
   ```sql
   SELECT status, source, count(*) FROM "WorkEntry" GROUP BY 1,2;
   ```
 
   Expected: PROPOSED rows for each source type, no rows with a NULL `clientId`, and BILLED rows equal to the old count of non-null `statementId`.
-- [ ] **Step 6: Commit** `feat(work-entries): schema, migration and billing-source backfill`.
+- [x] **Step 6: Commit** `feat(work-entries): schema, migration and billing-source backfill`.
 
 ### Task 2: Shared contracts and lib scaffold
 
@@ -191,9 +191,9 @@ In `api-interfaces.ts`:
 - Add `pricingRequired`, `minutes`, and `workEntries: { id: string; workDate: string; user: UserReference; description: string; minutes: number | null }[]` to the line summary type, and `printWorkSpecification` + `billingMonth` to `BillingStatement`.
 - Add the four notification types plus the preference keys `timerRunningLong`, `timeReviewReminder`, and `retainerUsage`.
 
-- [ ] **Step 1: Write the types above.** Add alias `"@law/work-entries": ["./libs/api/features/work-entries/src/index.ts"]`. Create an empty `WorkEntriesModule` and import it in `AppModule` after `FinancialsModule`.
-- [ ] **Step 2:** Run `npx nx run api-interfaces:test`. Expected: PASS. A failure in `api-interfaces.spec.ts` that references the removed `BillableWork*` types is fixed by deleting those assertions.
-- [ ] **Step 3: Commit** `feat(work-entries): shared contracts and module scaffold`.
+- [x] **Step 1: Write the types above.** Add alias `"@law/work-entries": ["./libs/api/features/work-entries/src/index.ts"]`. Create an empty `WorkEntriesModule` and import it in `AppModule` after `FinancialsModule`.
+- [x] **Step 2:** Run `npx nx run api-interfaces:test`. Expected: PASS. A failure in `api-interfaces.spec.ts` that references the removed `BillableWork*` types is fixed by deleting those assertions.
+- [x] **Step 3: Commit** `feat(work-entries): shared contracts and module scaffold`.
 
 ### Task 3: Pure treatment and retainer allocation
 
@@ -232,7 +232,7 @@ Rules for `allocate`:
   - `includedMinutes = floor(includedMinutes × activeDays / daysInMonth)`
   - active days are the inclusive overlap of `[validFrom, validTo ?? ∞]` with the month
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `defaultTreatment` covers all 4 branches.
   - `prorate`:
     - `validFrom 2026-09-15` for `2026-09`, fee 30000 → `{ activeDays: 16, daysInMonth: 30, fee: "16000.00" }`, cap 1200 → 640
@@ -243,10 +243,10 @@ Rules for `allocate`:
     - with ABSORBED: `overage = null` and all ids in `feeEntryIds`
     - out of scope groups by case, then by category
   - `priceMinutes(90, 6000) = "9000.00"` and `priceMinutes(10, 100) = "16.67"`.
-- [ ] **Step 2:** Run `npx nx test api --testFile=retainer-allocation.spec.ts`. Expected: FAIL (module not found).
-- [ ] **Step 3: Implement** `treatment.ts` and `retainer-allocation.ts` with the signatures above.
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(work-entries): treatment defaults and retainer allocation`.
+- [x] **Step 2:** Run `npx nx test api --testFile=retainer-allocation.spec.ts`. Expected: FAIL (module not found).
+- [x] **Step 3: Implement** `treatment.ts` and `retainer-allocation.ts` with the signatures above.
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(work-entries): treatment defaults and retainer allocation`.
 
 ### Task 4: WorkEntriesService: CRUD, timer, confirm, write-off, permissions
 
@@ -269,7 +269,7 @@ Rules for `allocate`:
   - `POST /:id/confirm`, `POST /:id/write-off`
   - `GET /timer`, `POST /timer/start`, `POST /timer/stop`
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `create` sets `status CONFIRMED` and `treatment = defaultTreatment(...)` when `treatment` is omitted, and writes `WORK_ENTRY_CREATED`.
   - `create` rejects `minutes 0` and `1441` (400). It rejects a case whose `clientId` differs (400) and a client outside the workspace (400).
   - `update` on a `BILLED` entry → 409.
@@ -279,10 +279,10 @@ Rules for `allocate`:
   - `list` as MEMBER always forces `userId = self`.
   - `list` as LAWYER returns own entries OR entries whose case has an active responsibility for the user (assert on the Prisma `where`).
   - With `aiParsed: true`, the activity-log metadata contains `source: "AI_ASSISTED"`.
-- [ ] **Step 2:** Run `npx nx test api --testFile=work-entries.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** the service, DTOs (class-validator, `@IsInt() @Min(1) @Max(1440)` for minutes), and the controller with the guard set copied from `FinancialsController`.
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(work-entries): entry CRUD, timer and permissions`.
+- [x] **Step 2:** Run `npx nx test api --testFile=work-entries.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** the service, DTOs (class-validator, `@IsInt() @Min(1) @Max(1440)` for minutes), and the controller with the guard set copied from `FinancialsController`.
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(work-entries): entry CRUD, timer and permissions`.
 
 ### Task 5: Entries from completed work and logged activities
 
@@ -316,7 +316,7 @@ export class WorkEntrySourcesService {
 - For types `PHONE_CALL`/`MEETING`/`EMAIL`, `createActivity` calls `ensureForSource` with sourceType `CASE_ACTIVITY`/`CLIENT_ACTIVITY` and `confirm: true`. Other activity types create no entry.
 - Event transitions to `COMPLETED` pass `minutes` = event duration, using the same 1–1440 rule as Task 1, with `confirm: false`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - `ensureForSource` with `clientIds []` → `null`, no `create` call.
   - With clientIds `[a, b]` → `null`.
   - With `[a, a]` → creates a `PROPOSED` entry. A second call returns the same id without a second `create`.
@@ -325,10 +325,10 @@ export class WorkEntrySourcesService {
   - Reopening and then completing again does not create a second entry.
   - Case `createActivity` with `type PHONE_CALL, durationMinutes 30` creates a `CONFIRMED` entry with `clientId = case.clientId`. A `NOTE` creates none.
   - `confirmFromSource` with `minutes 45` → `CONFIRMED`.
-- [ ] **Step 2:** Run `npx nx test api --testFile=work-entry-sources.service.spec.ts` (and the two extended spec files). Expected: FAIL.
-- [ ] **Step 3: Implement.** Import `WorkEntriesModule` into `ActivitiesTasksDeadlinesModule`, `CasesModule`, and `ClientsModule`, and inject `WorkEntrySourcesService`.
-- [ ] **Step 4:** Run the three spec files. Expected: PASS. Run `npx nx run api:build`. Expected: the only remaining errors are in `@law/financials`.
-- [ ] **Step 5: Commit** `feat(work-entries): create entries from completed work and logged activities`.
+- [x] **Step 2:** Run `npx nx test api --testFile=work-entry-sources.service.spec.ts` (and the two extended spec files). Expected: FAIL.
+- [x] **Step 3: Implement.** Import `WorkEntriesModule` into `ActivitiesTasksDeadlinesModule`, `CasesModule`, and `ClientsModule`, and inject `WorkEntrySourcesService`.
+- [x] **Step 4:** Run the three spec files. Expected: PASS. Run `npx nx run api:build`. Expected: the only remaining errors are in `@law/financials`.
+- [x] **Step 5: Commit** `feat(work-entries): create entries from completed work and logged activities`.
 
 ### Task 6: Billing setup: categories, retainers, profiles, rates, workspace config
 
@@ -351,16 +351,16 @@ export class WorkEntrySourcesService {
 
 Also exports `BillingSetupService.agreementsForClient(clientId): Promise<AgreementTerms[]>`, used by Tasks 4, 8, and 10.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - Overlapping agreements (`2026-01-01..open` vs `2026-06-01..2026-12-31`) → 409. Adjacent ones (`..2026-05-31` and `2026-06-01..`) → OK.
   - HOURLY without a rate → 400.
   - A rate in EUR when the internal currency is RSD → 400.
   - LAWYER `POST /retainers` → 403.
   - A duplicate category name → 409.
-- [ ] **Step 2:** Run `npx nx test api --testFile=billing-setup.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Wire `WorkEntriesService.create` to use `agreementsForClient` for the default treatment.
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(work-entries): categories, retainers, client profiles and rates`.
+- [x] **Step 2:** Run `npx nx test api --testFile=billing-setup.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.** Wire `WorkEntriesService.create` to use `agreementsForClient` for the default treatment.
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(work-entries): categories, retainers, client profiles and rates`.
 
 ### Task 7: AI free-text capture parser
 
@@ -382,15 +382,15 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
      - `categoryName` is matched to a category id case-insensitively
 - On a missing key, a timeout, or a parse error, the endpoint returns `{ ok: false, ...all null, candidates [] }` with HTTP 200 and never throws.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - A fake output `{ clientName: "Delta Medija", minutes: 30, categoryName: "pregled ugovora", ... }`, with one matching client and the category "Pregled ugovora" → `ok: true`, `clientId` set, `serviceCategoryId` set, `minutes 30`.
   - Two clients matching "Delta" → `clientId null`, two candidates.
   - A provider that throws → `ok: false`.
   - Output with `minutes: 2000` → `ok: false` (schema rejection).
-- [ ] **Step 2:** Run `npx nx test api --testFile=work-capture-parser.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(work-entries): AI free-text capture parse endpoint`.
+- [x] **Step 2:** Run `npx nx test api --testFile=work-capture-parser.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(work-entries): AI free-text capture parse endpoint`.
 
 ### Task 8: Notifications: long timer, review reminder, retainer usage
 
@@ -415,15 +415,15 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
   - Timers: a `RUNNING` entry whose `timerStartedAt` is ≥ 4 h ago, or which started before local midnight on the workspace timezone date, notifies its owner with `dedupeKey "timer:<entryId>:<startedAt ISO>"`.
   - Review reminder: for users with `timeReviewReminderEnabled`, on Mon–Fri, when the local time is ≥ `timeReviewReminderTime`, notify with `dedupeKey "time-review:<YYYY-MM-DD>"`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - A cap of 600 with 480 covered minutes confirmed → one `RETAINER_USAGE_80`. Confirming another 30 → no duplicate (the dedupe key is the same). Reaching 600 → `RETAINER_USAGE_100`.
   - An uncapped agreement → no notification.
   - Runner at 18:05 Belgrade on a Wednesday with time "17:30" → a reminder is created. On a Saturday → none.
   - A timer started 4 h 10 min ago → `TIMER_RUNNING_LONG`.
-- [ ] **Step 2:** Run `npx nx test api --testFile=retainer-usage.service.spec.ts` and `--testFile=notifications.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the same commands. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(work-entries): timer, review and retainer usage notifications`.
+- [x] **Step 2:** Run `npx nx test api --testFile=retainer-usage.service.spec.ts` and `--testFile=notifications.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the same commands. Expected: PASS.
+- [x] **Step 5: Commit** `feat(work-entries): timer, review and retainer usage notifications`.
 
 ### Task 9: Financials bills work entries
 
@@ -449,17 +449,17 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
 - The duplicate check runs across all lines' `workEntryIds`: one entry may appear on only one line (409).
 - New service-only helper for Task 10: `createDraftFromLines(tx, input: { clientId: string; currency: string; billingMonth: string; header: Pick<CreateStatementDto, "dateOfCreate" | "dateOfMaturity" | "dateOfTurnover" | "placeOfIssue" | "methodOfPayment" | "country" | "vatRate">; lines: BillingStatementLineInputDto[] }): Promise<string>`. It reuses the number counter and line creation, and is public on `FinancialsService` with no controller route.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - Create with `workEntryIds [e1, e2]` on one line → one `updateMany` claiming both. A claim count of 1 → 409.
   - The same entry on two lines → 409.
   - `deleteStatement` releases entries.
   - `voidStatement` on SENT releases entries.
   - `sendStatement` with a `pricingRequired` line → 409.
   - The existing number/idempotency tests still pass.
-- [ ] **Step 2:** Run `npx nx test api --testFile=financials.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.** `FinancialsModule` imports `WorkEntriesModule`. `WorkEntriesModule` must not import `FinancialsModule`; Task 10 injects `FinancialsService` through a separate `BillingRunModule` inside the work-entries lib that imports both.
-- [ ] **Step 4:** Run the same command. Expected: PASS. Run `npx nx run api:build`. Expected: success.
-- [ ] **Step 5: Commit** `feat(financials): bill work entries instead of tasks, events and deadlines`.
+- [x] **Step 2:** Run `npx nx test api --testFile=financials.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.** `FinancialsModule` imports `WorkEntriesModule`. `WorkEntriesModule` must not import `FinancialsModule`; Task 10 injects `FinancialsService` through a separate `BillingRunModule` inside the work-entries lib that imports both.
+- [x] **Step 4:** Run the same command. Expected: PASS. Run `npx nx run api:build`. Expected: success.
+- [x] **Step 5: Commit** `feat(financials): bill work entries instead of tasks, events and deadlines`.
 
 ### Task 10: Month-end billing run
 
@@ -486,7 +486,7 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
   4. **Re-runs:** `alreadyCoveredMinutes` is the sum of minutes of `BILLED` entries linked to the fee line of any statement with this `billingMonth` and client.
   5. **Concurrency:** claims use Task 9's `claimEntries`. A conflict rolls back that client only, and the result reports `created: false, addedLines: 0` for it.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - **Capped HOURLY:** a client with a 20 h cap, 6000/h overage, and 21 h covered in September → a fee line plus an overage line `"Prekoračenje paušala: 1 h 0 min"` at `6000.00`.
   - **Re-run:** running again with one new 30-minute covered entry → the same statement, with an added overage line of 30 min. The fee line is not duplicated.
   - **Retainer starting 2026-09-15:** the fee is prorated and the description contains `"16/30 dana"`.
@@ -494,10 +494,10 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
   - **AT entries:** a line with `pricingRequired true`.
   - **Exclusions:** an `UNDECIDED` entry is not billed and appears in the precheck.
   - **Roles:** ADMIN → 403.
-- [ ] **Step 2:** Run `npx nx test api --testFile=month-end-run.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(work-entries): owner month-end billing run`.
+- [x] **Step 2:** Run `npx nx test api --testFile=month-end-run.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(work-entries): owner month-end billing run`.
 
 ### Task 11: Usage list and profitability report
 
@@ -519,23 +519,23 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
   - **Ordering:** rows sorted by `effectiveHourlyRate` ascending, with nulls last.
   - **`byPerson`:** logged minutes vs minutes of `BILLED` entries.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - A client with revenue RSD 60 000 and 600 minutes by a user rated 3000/h → `timeValue "30000.00"`, `effectiveHourlyRate "6000.00"`, `comparable true`.
   - EUR revenue → `comparable false`, `effectiveHourlyRate null`.
   - A user with no rate → `unknownValueMinutes` counted and `timeValue` excluding them.
   - A rate change mid-range applies per `workDate`.
   - Ordering is worst first.
   - LAWYER `GET /billing/profitability` → 403.
-- [ ] **Step 2:** Run `npx nx test api --testFile=profitability.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(work-entries): retainer usage and profitability report`.
+- [x] **Step 2:** Run `npx nx test api --testFile=profitability.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(work-entries): retainer usage and profitability report`.
 
 ### Task 12: Seed data and backend docs
 
 **Files:** modify `apps/api/prisma/seed-demo-data.cjs` and `.github/bussiness-logic-done-so-far.md`.
 
-- [ ] **Step 1: Extend the seed** with what spec §5 lists:
+- [x] **Step 1: Extend the seed** with what spec §5 lists:
   - user rates for every demo user (partner 9000, lawyer 6000, trainee 2500 RSD)
   - `WorkspaceConfig.targetHourlyRate 7000`
   - one client with a capped retainer (20 h, 120 000 RSD, HOURLY overage 6000, out-of-scope AT)
@@ -544,11 +544,11 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
   - ~40 entries over the previous month, covering every source and status, including one `RUNNING`
   
   Remove the seed's `statementId` assignments.
-- [ ] **Step 2:** Run `npx prisma migrate reset --force --schema apps/api/prisma/schema.prisma && npm run db:seed:auth && npm run db:seed:demo`. Expected: completes without errors.
-- [ ] **Step 3: Update the business-logic doc.**
+- [x] **Step 2:** Run `npx prisma migrate reset --force --schema apps/api/prisma/schema.prisma && npm run db:seed:auth && npm run db:seed:demo`. Expected: completes without errors.
+- [x] **Step 3: Update the business-logic doc.**
   - Replace the "Financials backend foundation" source description with work entries.
   - Add a "Work capture and retainers" section: entries, sources, timer, AI parse, review, retainers, month-end run, usage, profitability.
-- [ ] **Step 4: Commit** `chore(work-entries): demo seed and business-logic doc`.
+- [x] **Step 4: Commit** `chore(work-entries): demo seed and business-logic doc`.
 
 ### Task 13: Frontend API clients
 
@@ -569,13 +569,13 @@ Add `GET /work-entries/review?date=` to the backend controller in this task. It 
 
 Add its test to `work-entries.service.spec.ts`: an event with an entry is excluded, and a client with an activity-log row but no entry is listed with reason `ACTIVITY`.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - api-clients: `HttpTestingController` expects `POST /api/work-entries/from-source` and `GET /api/billing/profitability?from=2026-09-01&to=2026-09-30`.
   - backend: the review tests above.
-- [ ] **Step 2:** Run `npx nx test api-clients` and `npx nx test api --testFile=work-entries.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the same commands. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): work entry, billing setup and report API clients`.
+- [x] **Step 2:** Run `npx nx test api-clients` and `npx nx test api --testFile=work-entries.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the same commands. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): work entry, billing setup and report API clients`.
 
 ### Task 14: Quick-capture dialog, AI fill, header timer
 
@@ -643,14 +643,14 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   - For events, `defaultMinutes` = event duration.
 - Activity forms get an optional `durationMinutes` control, shown only for `PHONE_CALL`/`MEETING`/`EMAIL`, with chips.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - The 30 chip posts `{ sourceType: "TASK", sourceId, minutes: 30 }`.
   - Skip posts nothing.
   - "Drugo…" opens the dialog with `mode: "confirm-source"`.
-- [ ] **Step 2:** Run `npx nx test web --testFile=completion-prompt.service.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement** and wire every call site found by the grep.
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): time prompt on completion and activity durations`.
+- [x] **Step 2:** Run `npx nx test web --testFile=completion-prompt.service.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement** and wire every call site found by the grep.
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): time prompt on completion and activity durations`.
 
 ### Task 16: My time, Team time, and end-of-day review
 
@@ -671,15 +671,15 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
 - Sidebar: a "Moje vreme" (my time) entry under work; "Tim — vreme" (team time) for managers.
 - Notification types `TIME_REVIEW_REMINDER` and `TIMER_RUNNING_LONG` navigate to `/work/time/review` and `/work/time`. Add these mappings in the notification store's navigation, and add the three new preference switches to workspace notification settings.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - Review renders three sections from a mocked `TimeReviewResponse`.
   - Dismiss hides an item and survives a component re-create.
   - Confirm on a proposed entry opens the dialog with its values.
   - The My time week total sums minutes.
-- [ ] **Step 2:** Run `npx nx test web --testFile=time-review.component.spec.ts` and `--testFile=my-time.component.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the same commands. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): my time, team time and end-of-day review`.
+- [x] **Step 2:** Run `npx nx test web --testFile=time-review.component.spec.ts` and `--testFile=my-time.component.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the same commands. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): my time, team time and end-of-day review`.
 
 ### Task 17: Billing settings, client retainer card, retainers list
 
@@ -699,14 +699,14 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   - Without an agreement it shows "Bez paušala" (no retainer) plus the create action.
 - Finance → Retainers: a month picker and a `RetainerUsage[]` table sorted by usage %, with each row linking to the client.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - The card shows `16 / 20 h` and the warning class at 80%.
   - The agreement form is invalid with `overageRule HOURLY` and an empty rate.
   - The billing settings rate form posts `{ userId, hourlyValue, currency, effectiveFrom }`.
-- [ ] **Step 2:** Run the two spec files. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the two spec files. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): billing settings, client retainer card and retainers list`.
+- [x] **Step 2:** Run the two spec files. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the two spec files. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): billing settings, client retainer card and retainers list`.
 
 ### Task 18: Unbilled work, statement composer, print specification, month-end page
 
@@ -779,10 +779,10 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
 
 ### Task 20: Full verification and track close-out
 
-- [ ] **Step 1: Lint.** Run `npx nx run-many -t lint -p api web api-interfaces api-clients`. Expected: no errors.
-- [ ] **Step 2: Test.** Run `npx nx run-many -t test -p api web api-interfaces api-clients`. Expected: all pass.
-- [ ] **Step 3: Build.** Run `npx nx run-many -t build -p api web`. Expected: success.
-- [ ] **Step 4: Manual smoke test** (`npm run api:serve`, `npm run web:serve`, demo seed, logged in as owner):
+- [x] **Step 1: Lint.** Run `npx nx run-many -t lint -p api web api-interfaces api-clients`. Expected: no errors. Result: only the pre-existing failures that also fail on `main` (web: 2 errors in `matter-link.component.ts` selector and `sidebar.component.html` empty button; `api-clients` `@nx/dependency-checks`). No lint finding comes from this track's files.
+- [x] **Step 2: Test.** Run `npx nx run-many -t test -p api web api-interfaces api-clients`. Expected: all pass. Result: `api`, `api-interfaces` and `api-clients` pass; the web run's only failure is the pre-existing, date-dependent `documents.component.spec.ts` "addedThisMonth" assertion.
+- [x] **Step 3: Build.** Run `npx nx run-many -t build -p api web`. Expected: success. Result: `api` builds; `web` development build succeeds; the production `web` build only fails the initial-bundle budget (2.02 MB against 1.75 MB), which `main` already exceeds.
+- [x] **Step 4: Manual smoke test** (`npm run api:serve`, `npm run web:serve`, demo seed, logged in as owner):
   1. Alt+W → log 30 min → it appears in My time.
   2. Complete a task → chip 1 h → the entry is CONFIRMED.
   3. Start and stop the timer → confirm.
@@ -791,7 +791,9 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   6. Open the profitability report.
   
   Record the results in the PR description.
-- [ ] **Step 5: Close out the track.** Set `metadata.json` `status` to `completed` and update `updated_at`. Move the `delivery/index.md` link to Completed. Commit `chore(delivery): close work_capture_retainers_20261004`.
+
+  Smoke results (2026-10-04, scratch DB `law_platform_sdd`, owner login, Playwright/Chromium, UI in Serbian; all six passed): (1) Alt+W capture of 30 min for Beogradska tekstilna industrija a.d. appeared in My time as Potvrđeno, week total 30m; (2) completing "Priprema za ročište" and choosing the 60 min chip created a 1h entry, Potvrđeno; (3) header timer start for Grand Nekretnine, stop, confirm dialog saved a Potvrđeno entry (1m, the minimum); (4) month-end for 2026-09 (precheck listed 4 open entries, generation confirmed) created drafts for Alfa Trade, Beogradska tekstilna industrija, Dunav Logistika and Nova Energija (EUR); the capped Alfa Trade draft ST-000001 shows "Paušal za septembar 2026" 120.000,00 and "Prekoračenje paušala: 0 h 15 min" 1.500,00; (5) the print view shows the invoice and, after it, the "Specifikacija rada" table with 16 entries and "Ukupno trajanje 23 h 25 min"; (6) the profitability page lists the four clients with hours, time value, target 7.000 RSD, written-off and unbilled amounts, and revenue shown as unavailable ("—") because the drafts are not sent. AI free-text parse was not exercised; the manual path is what was verified.
+- [x] **Step 5: Close out the track.** Set `metadata.json` `status` to `completed` and update `updated_at`. Move the `delivery/index.md` link to Completed. Commit `chore(delivery): close work_capture_retainers_20261004`.
 
 ## Note on the target hourly rate default
 

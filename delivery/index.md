@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Work Capture, Retainers, and Month-End Billing (epic)](./tracks/work_capture_retainers_20261004/index.md)
 - [Billing Statement Print View](./tracks/billing_statement_print_view_20260930/index.md)
 - [Statement Import Warning](./tracks/statement_import_warning_20260930/index.md)
 - [Billing Statement Reactive Totals](./tracks/billing_statement_reactive_totals_20260930/index.md)
@@ -60,7 +61,6 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
-- [Work Capture, Retainers, and Month-End Billing (epic)](./tracks/work_capture_retainers_20261004/index.md)
 - [Assistant Mastra Migration (epic)](./tracks/assistant_mastra_migration_20260927/index.md)
 - [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)
 - [Mastra Assistant Slice](./tracks/mastra_assistant_slice_20260927/index.md)

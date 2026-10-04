@@ -1,6 +1,6 @@
 # Business Logic Done So Far
 
-**Checked:** 2026-09-23
+**Checked:** 2026-10-04
 **Scope:** `apps/api`, `apps/web`, shared API contracts and API clients.
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
