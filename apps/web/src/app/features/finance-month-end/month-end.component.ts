@@ -205,12 +205,17 @@ export class MonthEndComponent {
       });
   }
 
-  /** `created`, `updated`, or none when nothing was added to the statement. */
+  /**
+   * `created`, `updated`, `attachedToFee` (covered work joined the existing
+   * fee line, no new line) or `noChanges` when nothing happened. A conflict
+   * row is rendered separately.
+   */
   outcomeKey(row: StatementRow): string {
     if (row.created) return "finance.monthEnd.created";
-    return row.addedLines === 0
-      ? "finance.monthEnd.noChanges"
-      : "finance.monthEnd.updated";
+    if (row.addedLines > 0) return "finance.monthEnd.updated";
+    return row.attachedEntries > 0
+      ? "finance.monthEnd.attachedToFee"
+      : "finance.monthEnd.noChanges";
   }
 
   private run(month: string): void {

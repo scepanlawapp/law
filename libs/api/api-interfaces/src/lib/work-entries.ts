@@ -226,7 +226,11 @@ export interface MonthEndRunResult {
     currency: string;
     created: boolean;
     addedLines: number;
+    /** Entries attached to the fee line that is already on the draft. */
+    attachedEntries: number;
     pricingRequiredLines: number;
+    /** Why this client was not billed (lost claim, changed draft); rolled back. */
+    conflict?: string;
   }[];
 }
 

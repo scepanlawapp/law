@@ -74,6 +74,7 @@ const result: MonthEndRunResult = {
       currency: "RSD",
       created: true,
       addedLines: 3,
+      attachedEntries: 0,
       pricingRequiredLines: 2,
     },
     {
@@ -82,6 +83,7 @@ const result: MonthEndRunResult = {
       currency: "RSD",
       created: false,
       addedLines: 1,
+      attachedEntries: 2,
       pricingRequiredLines: 0,
     },
     {
@@ -90,6 +92,7 @@ const result: MonthEndRunResult = {
       currency: "EUR",
       created: false,
       addedLines: 0,
+      attachedEntries: 0,
       pricingRequiredLines: 0,
     },
     {
@@ -98,6 +101,17 @@ const result: MonthEndRunResult = {
       currency: "RSD",
       created: false,
       addedLines: 0,
+      attachedEntries: 0,
+      pricingRequiredLines: 0,
+      conflict: "Work entry is unavailable for the statement client",
+    },
+    {
+      statementId: "statement-5",
+      client: { ...delta, id: "client-5", displayName: "Sigma" },
+      currency: "RSD",
+      created: false,
+      addedLines: 0,
+      attachedEntries: 4,
       pricingRequiredLines: 0,
     },
   ],
@@ -151,7 +165,11 @@ describe("MonthEndComponent", () => {
         { provide: ToastService, useValue: toast },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string, params?: Record<string, unknown>) =>
+              params ? `${key} ${JSON.stringify(params)}` : key,
+            language: () => "SR",
+          },
         },
       ],
     });
@@ -232,7 +250,7 @@ describe("MonthEndComponent", () => {
     expect(reports.runMonthEnd).toHaveBeenCalledWith("2026-09");
 
     const rows = all(fixture, "result-row");
-    expect(rows).toHaveLength(4);
+    expect(rows).toHaveLength(5);
     const text = (index: number) => rows[index].textContent ?? "";
     // Created statement: link, counts.
     expect(text(0)).toContain("Telenor");
@@ -253,10 +271,26 @@ describe("MonthEndComponent", () => {
     expect(rows[2].querySelector("a")?.getAttribute("href")).toBe(
       "/finance/statements/statement-3",
     );
-    // No statement id: still listed, no link.
+    // Lost claim: an error-styled "not billed" row with the reason, never
+    // "no changes". No statement id: still listed, no link.
     expect(text(3)).toContain("Omega");
-    expect(text(3)).toContain("finance.monthEnd.noChanges");
+    expect(text(3)).not.toContain("finance.monthEnd.noChanges");
+    const conflict = rows[3].querySelector('[data-testid="result-conflict"]');
+    expect(conflict?.textContent).toContain("finance.monthEnd.notBilled");
+    expect(conflict?.textContent).toContain(
+      "Work entry is unavailable for the statement client",
+    );
+    expect(conflict?.className).toContain("text-destructive");
     expect(rows[3].querySelector("a")).toBeNull();
+    // Attach-only: covered work joined the existing fee line.
+    expect(text(4)).toContain("Sigma");
+    expect(text(4)).toContain("finance.monthEnd.attachedToFee");
+    expect(text(4)).toContain('"count":4');
+    expect(text(4)).not.toContain("finance.monthEnd.noChanges");
+    // A row that also added lines mentions the attached work separately.
+    expect(
+      rows[1].querySelector('[data-testid="result-attached"]')?.textContent,
+    ).toContain('"count":2');
   });
 
   it("does not run when the confirmation is declined", () => {

@@ -122,6 +122,7 @@ describe("FinancialsService", () => {
       findFirst: jest.fn(),
       aggregate: jest.fn(),
       update: jest.fn(),
+      findMany: jest.fn(),
     },
     billingStatementLineCase: { createMany: jest.fn() },
     billingStatement: {
@@ -152,6 +153,7 @@ describe("FinancialsService", () => {
     db.workEntry.updateMany.mockResolvedValue({ count: 0 });
     db.billingStatementLine.create.mockResolvedValue({ id: lineId });
     db.billingStatementLine.deleteMany.mockResolvedValue({ count: 0 });
+    db.billingStatementLine.findMany.mockResolvedValue([]);
     db.financeMutationRequest.findUnique.mockResolvedValue(null);
   });
 
@@ -707,5 +709,102 @@ describe("FinancialsService", () => {
       asAdmin(() => service.attachEntriesToLine(db as never, lineId, [entryA])),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("stores the service-only source marker on an appended line", async () => {
+    db.billingStatement.findFirst.mockResolvedValue(fullStatement());
+    db.billingStatementLine.aggregate.mockResolvedValue({
+      _max: { lineOrder: 0 },
+    });
+    db.billingStatement.update.mockResolvedValue({});
+
+    await asAdmin(() =>
+      service.appendLinesToDraft(db as never, statementId, [
+        {
+          ...line(),
+          sourceType: "RETAINER_FEE",
+          sourceId: "agreement-1",
+        } as never,
+      ]),
+    );
+
+    expect(db.billingStatementLine.create.mock.calls[0][0].data).toMatchObject({
+      sourceType: "RETAINER_FEE",
+      sourceId: "agreement-1",
+    });
+  });
+
+  it("keeps the fee marker when entries are attached to a fee line", async () => {
+    db.billingStatementLine.findFirst.mockResolvedValue({
+      id: lineId,
+      sourceType: "RETAINER_FEE",
+      statement: fullStatement(),
+    });
+    db.workEntry.updateMany.mockResolvedValue({ count: 1 });
+    db.workEntry.findMany.mockResolvedValue([{ id: entryA, clientId, caseId }]);
+    db.workEntry.aggregate.mockResolvedValue({ _sum: { minutes: 150 } });
+
+    await asAdmin(() =>
+      service.attachEntriesToLine(db as never, lineId, [entryA]),
+    );
+
+    expect(db.billingStatementLine.update).toHaveBeenCalledWith({
+      where: { id: lineId },
+      data: expect.objectContaining({ sourceType: "RETAINER_FEE" }),
+    });
+  });
+
+  describe("fee marker survives composer edits", () => {
+    const oldFee = (extra: Record<string, unknown> = {}) => ({
+      lineOrder: 1,
+      netAmount: new Prisma.Decimal(100),
+      sourceId: "agreement-1",
+      workEntries: [],
+      ...extra,
+    });
+
+    beforeEach(() => {
+      db.billingStatement.findFirst.mockResolvedValue(fullStatement());
+      db.billingStatement.update.mockResolvedValue(fullStatement());
+      db.billingStatementLine.create
+        .mockResolvedValueOnce({ id: "new-0" })
+        .mockResolvedValueOnce({ id: "new-1" });
+    });
+
+    it("re-marks the reworded fee line at the same position and amount", async () => {
+      db.billingStatementLine.findMany.mockResolvedValue([oldFee()]);
+
+      await asAdmin(() =>
+        service.updateStatement(statementId, {
+          lines: [
+            line({ description: "Opis", netAmount: 50 }),
+            line({ description: "Pausalna naknada za oktobar" }),
+          ],
+        }),
+      );
+
+      expect(db.billingStatementLine.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ sourceType: "RETAINER_FEE" }),
+        }),
+      );
+      expect(db.billingStatementLine.update).toHaveBeenCalledTimes(1);
+      expect(db.billingStatementLine.update).toHaveBeenCalledWith({
+        where: { id: "new-1" },
+        data: { sourceType: "RETAINER_FEE", sourceId: "agreement-1" },
+      });
+    });
+
+    it("does not re-mark when no replacement line matches the fee", async () => {
+      db.billingStatementLine.findMany.mockResolvedValue([oldFee()]);
+
+      await asAdmin(() =>
+        service.updateStatement(statementId, {
+          lines: [line({ netAmount: 10 }), line({ netAmount: 20 })],
+        }),
+      );
+
+      expect(db.billingStatementLine.update).not.toHaveBeenCalled();
+    });
   });
 });

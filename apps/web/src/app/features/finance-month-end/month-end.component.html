@@ -232,7 +232,41 @@
                     }
                   </td>
                   <td hlmTd>{{ row.currency }}</td>
-                  <td hlmTd>{{ outcomeKey(row) | translate }}</td>
+                  <td hlmTd>
+                    @if (row.conflict) {
+                      <span
+                        class="text-destructive"
+                        role="alert"
+                        data-testid="result-conflict"
+                      >
+                        {{
+                          "finance.monthEnd.notBilled"
+                            | translate: { reason: row.conflict }
+                        }}
+                      </span>
+                    } @else {
+                      <span data-testid="result-outcome">
+                        {{
+                          outcomeKey(row)
+                            | translate: { count: row.attachedEntries }
+                        }}
+                      </span>
+                      @if (
+                        row.attachedEntries > 0 &&
+                        outcomeKey(row) !== "finance.monthEnd.attachedToFee"
+                      ) {
+                        <span
+                          class="block text-xs text-muted-foreground"
+                          data-testid="result-attached"
+                        >
+                          {{
+                            "finance.monthEnd.attachedToFee"
+                              | translate: { count: row.attachedEntries }
+                          }}
+                        </span>
+                      }
+                    }
+                  </td>
                   <td hlmTd class="text-end tabular-nums">
                     {{ row.addedLines }}
                   </td>

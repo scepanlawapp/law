@@ -86,6 +86,23 @@ function clientRow(id: string, displayName: string) {
   };
 }
 
+function feeLine(
+  statementId: string,
+  overrides: Partial<{
+    id: string;
+    sourceType: string | null;
+    sourceId: string | null;
+  }> = {},
+) {
+  return {
+    id: feeLineId,
+    statementId,
+    sourceType: "RETAINER_FEE",
+    sourceId: agreementId,
+    ...overrides,
+  };
+}
+
 function covered(count: number, clientId = clientA) {
   return Array.from({ length: count }, (_, index) =>
     entry(`2026-09-${String(index + 1).padStart(2, "0")}`, 60, "RETAINER", {
@@ -107,7 +124,12 @@ describe("MonthEndRunService", () => {
       currency: string | null;
     },
     draft: null as null | { id: string; currency: string },
-    feeLines: [] as { id: string; statementId: string }[],
+    feeLines: [] as {
+      id: string;
+      statementId: string;
+      sourceType: string | null;
+      sourceId: string | null;
+    }[],
     latestStatement: null as null | {
       placeOfIssue: string;
       methodOfPayment: string;
@@ -250,7 +272,10 @@ describe("MonthEndRunService", () => {
           : state.latestStatement,
     );
     tx.billingStatementLine.findMany.mockImplementation(
-      async () => state.feeLines,
+      async ({ where }: { where: { sourceType?: string } }) =>
+        state.feeLines.filter(
+          (line) => !where.sourceType || line.sourceType === where.sourceType,
+        ),
     );
     financials.createDraftFromLines.mockResolvedValue(draftId);
   });
@@ -298,6 +323,11 @@ describe("MonthEndRunService", () => {
       minutes: 1200,
     });
     expect(fee.workEntryIds).toHaveLength(20);
+    expect(fee).toMatchObject({
+      sourceType: "RETAINER_FEE",
+      sourceId: agreementId,
+    });
+    expect(overage).not.toHaveProperty("sourceType");
     expect(overage).toMatchObject({
       description: "Prekoračenje paušala: 1 h 0 min",
       netAmount: 6000,
@@ -327,7 +357,7 @@ describe("MonthEndRunService", () => {
   it("re-run adds only the new overage to the same draft", async () => {
     state.agreements[clientA] = [agreement()];
     state.draft = { id: draftId, currency: "RSD" };
-    state.feeLines = [{ id: feeLineId, statementId: draftId }];
+    state.feeLines = [feeLine(draftId)];
     state.billed = covered(21);
     state.entries = [entry("2026-09-25", 30, "RETAINER")];
 
@@ -358,7 +388,7 @@ describe("MonthEndRunService", () => {
     // it was overage. Nothing more fits under the cap.
     state.agreements[clientA] = [agreement()];
     state.draft = { id: draftId, currency: "RSD" };
-    state.feeLines = [{ id: feeLineId, statementId: draftId }];
+    state.feeLines = [feeLine(draftId)];
     state.billed = [
       ...covered(19),
       entry("2026-09-20", 120, "RETAINER", { status: "BILLED" }),
@@ -376,7 +406,7 @@ describe("MonthEndRunService", () => {
   it("attaches covered work within the cap to the existing fee line", async () => {
     state.agreements[clientA] = [agreement()];
     state.draft = { id: draftId, currency: "RSD" };
-    state.feeLines = [{ id: feeLineId, statementId: draftId }];
+    state.feeLines = [feeLine(draftId)];
     state.billed = covered(5);
     const fresh = entry("2026-09-25", 30, "RETAINER");
     state.entries = [fresh];
@@ -391,12 +421,14 @@ describe("MonthEndRunService", () => {
       statementId: draftId,
       created: false,
       addedLines: 0,
+      attachedEntries: 1,
     });
+    expect(result.statements[0].conflict).toBeUndefined();
   });
 
   it("does not charge the fee again when it is already on a sent statement", async () => {
     state.agreements[clientA] = [agreement()];
-    state.feeLines = [{ id: feeLineId, statementId: "sent-statement" }];
+    state.feeLines = [feeLine("sent-statement")];
     state.billed = covered(5);
     const fresh = entry("2026-09-25", 30, "RETAINER");
     state.entries = [fresh];
@@ -408,6 +440,63 @@ describe("MonthEndRunService", () => {
       description: "Paušal za septembar 2026 (dodatni rad u okviru paušala)",
       netAmount: 0,
       workEntryIds: [fresh.id],
+      sourceType: "RETAINER_FEE",
+      sourceId: agreementId,
+    });
+  });
+
+  it("finds the fee by its marker, not its wording: a reworded fee is not charged twice", async () => {
+    state.agreements[clientA] = [agreement()];
+    state.draft = { id: draftId, currency: "RSD" };
+    // The lawyer renamed the line in the composer; the marker is unchanged.
+    state.feeLines = [feeLine(draftId)];
+    state.billed = covered(5);
+    state.entries = [entry("2026-09-25", 30, "RETAINER")];
+
+    await runAsOwner();
+
+    const [where] = tx.billingStatementLine.findMany.mock.calls[0];
+    expect(where.where).toMatchObject({ sourceType: "RETAINER_FEE" });
+    expect(where.where).not.toHaveProperty("description");
+    expect(where.orderBy).toEqual([
+      { createdAt: "asc" },
+      { lineOrder: "asc" },
+      { id: "asc" },
+    ]);
+    expect(financials.createDraftFromLines).not.toHaveBeenCalled();
+    expect(financials.attachEntriesToLine).toHaveBeenCalledTimes(1);
+    expect(financials.appendLinesToDraft).not.toHaveBeenCalled();
+  });
+
+  it("a hand-typed 'Paušal za' line does not suppress the real fee", async () => {
+    state.agreements[clientA] = [agreement()];
+    state.retainerClients = [clientA];
+    state.draft = { id: draftId, currency: "RSD" };
+    state.feeLines = [feeLine(draftId, { sourceType: null, sourceId: null })];
+
+    await runAsOwner();
+
+    const [, statementId, lines] = financials.appendLinesToDraft.mock.calls[0];
+    expect(statementId).toBe(draftId);
+    expect(lines[0]).toMatchObject({
+      description: "Paušal za septembar 2026",
+      netAmount: 100000,
+      sourceType: "RETAINER_FEE",
+      sourceId: agreementId,
+    });
+  });
+
+  it("matches fee lines per agreement", async () => {
+    const other = "88888888-8888-4888-a888-888888888888";
+    state.agreements[clientA] = [agreement()];
+    state.retainerClients = [clientA];
+    state.feeLines = [feeLine("sent-statement", { sourceId: other })];
+
+    await runAsOwner();
+
+    expect(createdLines()[0]).toMatchObject({
+      description: "Paušal za septembar 2026",
+      sourceId: agreementId,
     });
   });
 
@@ -415,7 +504,7 @@ describe("MonthEndRunService", () => {
     state.agreements[clientA] = [agreement()];
     state.retainerClients = [clientA];
     state.draft = { id: draftId, currency: "RSD" };
-    state.feeLines = [{ id: feeLineId, statementId: draftId }];
+    state.feeLines = [feeLine(draftId)];
     state.billed = covered(5);
 
     const result = await runAsOwner();
@@ -649,15 +738,19 @@ describe("MonthEndRunService", () => {
         client: expect.objectContaining({ id: clientA }),
         created: false,
         addedLines: 0,
+        attachedEntries: 0,
         pricingRequiredLines: 0,
+        conflict: "claimed",
       }),
       expect.objectContaining({
         client: expect.objectContaining({ id: clientB }),
         statementId: "draft-b",
         created: true,
         addedLines: 1,
+        attachedEntries: 0,
       }),
     ]);
+    expect(result.statements[1].conflict).toBeUndefined();
     expect(tx.$transaction).toHaveBeenCalledTimes(2);
   });
 

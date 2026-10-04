@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  Logger,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
@@ -12,8 +13,9 @@ import {
   WorkspaceRole,
 } from "@law/api-interfaces";
 import {
-  BillingStatementLineInputDto,
   FinancialsService,
+  InternalStatementLineInput,
+  RETAINER_FEE_SOURCE,
 } from "@law/financials";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { BillingSetupService } from "./billing-setup.service";
@@ -41,7 +43,7 @@ const MONTH_NAMES = [
   "decembar",
 ];
 
-type StatementLineInput = BillingStatementLineInputDto;
+type StatementLineInput = InternalStatementLineInput;
 
 interface BillableEntry {
   id: string;
@@ -56,6 +58,7 @@ interface BillableEntry {
 }
 
 interface FeePlan {
+  agreementId: string;
   description: string;
   fee: Prisma.Decimal;
   entryIds: string[];
@@ -136,6 +139,8 @@ function groupByCase(entries: BillableEntry[]): {
  */
 @Injectable()
 export class MonthEndRunService {
+  private readonly logger = new Logger(MonthEndRunService.name);
+
   constructor(
     private readonly db: PlatformPrismaService,
     private readonly billingSetup: BillingSetupService,
@@ -269,7 +274,11 @@ export class MonthEndRunService {
       );
     } catch (error) {
       if (!(error instanceof ConflictException)) throw error;
-      // Someone else claimed these entries first; only this client rolls back.
+      // Someone else claimed these entries or changed the draft; only this
+      // client rolls back, and the owner is told it was not billed.
+      this.logger.warn(
+        `Month end ${run.month} not billed for client ${client.id}: ${error.message}`,
+      );
       return [
         {
           statementId: progress.statementId,
@@ -277,7 +286,9 @@ export class MonthEndRunService {
           currency: progress.currency,
           created: false,
           addedLines: 0,
+          attachedEntries: 0,
           pricingRequiredLines: 0,
+          conflict: error.message,
         },
       ];
     }
@@ -352,33 +363,43 @@ export class MonthEndRunService {
           workspaceId: this.workspaceId,
           clientId: client.id,
           currency: bucket.currency,
-          description: { startsWith: FEE_PREFIX },
+          // Structural marker, never the wording: the draft is editable.
+          sourceType: RETAINER_FEE_SOURCE,
           statement: {
             billingMonth: run.month,
             status: { not: "VOIDED" },
           },
         },
-        select: { id: true, statementId: true },
+        select: { id: true, statementId: true, sourceId: true },
+        orderBy: [{ createdAt: "asc" }, { lineOrder: "asc" }, { id: "asc" }],
       });
-      const draftFeeLine = feeLines.find(
-        (line) => line.statementId === draft?.id,
-      );
 
       const lines: StatementLineInput[] = [];
-      const attachToFee: string[] = [];
+      const attachToFee: { lineId: string; entryIds: string[] }[] = [];
       for (const plan of bucket.fees) {
-        if (!feeLines.length) {
+        const planFeeLines = feeLines.filter(
+          (line) => line.sourceId === plan.agreementId,
+        );
+        const draftFeeLine = planFeeLines.find(
+          (line) => line.statementId === draft?.id,
+        );
+        if (!planFeeLines.length) {
           lines.push(
             this.line(run, bucket.currency, {
               description: plan.description,
               net: plan.fee,
               entryIds: plan.entryIds,
               minutes: plan.minutes,
+              sourceId: plan.agreementId,
+              feeLine: true,
             }),
           );
         } else if (plan.entryIds.length && draftFeeLine) {
           // Fee already on the draft: covered work logged since joins that line.
-          attachToFee.push(...plan.entryIds);
+          attachToFee.push({
+            lineId: draftFeeLine.id,
+            entryIds: plan.entryIds,
+          });
         } else if (plan.entryIds.length) {
           // Fee already invoiced on a sent statement: keep the work visible on
           // the new draft without charging the fee twice.
@@ -388,6 +409,8 @@ export class MonthEndRunService {
               net: new Prisma.Decimal(0),
               entryIds: plan.entryIds,
               minutes: plan.minutes,
+              sourceId: plan.agreementId,
+              feeLine: true,
             }),
           );
         }
@@ -399,11 +422,11 @@ export class MonthEndRunService {
       let created = false;
       if (draft) {
         statementId = draft.id;
-        if (attachToFee.length && draftFeeLine) {
+        for (const attach of attachToFee) {
           await this.financials.attachEntriesToLine(
             tx,
-            draftFeeLine.id,
-            attachToFee,
+            attach.lineId,
+            attach.entryIds,
           );
         }
         if (lines.length) {
@@ -427,6 +450,10 @@ export class MonthEndRunService {
         currency: bucket.currency,
         created,
         addedLines: lines.length,
+        attachedEntries: attachToFee.reduce(
+          (total, attach) => total + attach.entryIds.length,
+          0,
+        ),
         pricingRequiredLines: lines.filter((line) => line.pricingRequired)
           .length,
       });
@@ -585,6 +612,7 @@ export class MonthEndRunService {
 
       const prorated = proration.activeDays < proration.daysInMonth;
       bucket.fees.push({
+        agreementId: agreement.id,
         description:
           `${FEE_PREFIX} ${monthLabel}` +
           (prorated
@@ -708,6 +736,9 @@ export class MonthEndRunService {
       pricingRequired?: boolean;
       entryIds: string[];
       minutes: number;
+      /** Marks the line as the retainer fee line of this agreement. */
+      sourceId?: string;
+      feeLine?: boolean;
     },
   ): StatementLineInput {
     const net = input.net.toDecimalPlaces(2, Prisma.Decimal.ROUND_HALF_UP);
@@ -726,6 +757,9 @@ export class MonthEndRunService {
       workEntryIds: input.entryIds.length ? input.entryIds : undefined,
       pricingRequired: input.pricingRequired ?? false,
       minutes: input.minutes > 0 ? input.minutes : undefined,
+      ...(input.feeLine
+        ? { sourceType: RETAINER_FEE_SOURCE, sourceId: input.sourceId }
+        : {}),
     };
   }
 }

@@ -1896,6 +1896,8 @@
   "finance.monthEnd.created": "Kreiran",
   "finance.monthEnd.updated": "Ažuriran",
   "finance.monthEnd.noChanges": "Bez promena",
+  "finance.monthEnd.attachedToFee": "Dodato u postojeći paušal: {count}",
+  "finance.monthEnd.notBilled": "Nije obračunato: {reason}",
   "finance.monthEnd.addedLines": "Dodato stavki",
   "finance.monthEnd.pricingLines": "Stavke bez cene",
   "finance.monthEnd.runError": "Generisanje nacrta nije uspelo. Pokušajte ponovo.",

@@ -31,6 +31,19 @@ import {
 
 const WORK_ENTRY_GROUP = "WORK_ENTRY_GROUP";
 
+/** Marks the monthly retainer fee line; `sourceId` is the agreement id. */
+export const RETAINER_FEE_SOURCE = "RETAINER_FEE";
+
+/**
+ * Line input for service-only callers (the month-end run). The source marker
+ * is deliberately absent from the public DTO, so API clients cannot set it.
+ */
+export interface InternalStatementLineInput
+  extends BillingStatementLineInputDto {
+  sourceType?: string;
+  sourceId?: string;
+}
+
 @Injectable()
 export class FinancialsService {
   constructor(private readonly db: PlatformPrismaService) {}
@@ -459,7 +472,7 @@ export class FinancialsService {
   private async replaceStatementLines(
     tx: Prisma.TransactionClient,
     statement: { id: string; clientId: string; currency: string },
-    lines: BillingStatementLineInputDto[],
+    lines: InternalStatementLineInput[],
   ): Promise<void> {
     const entryIds = lines.flatMap((line) => line.workEntryIds ?? []);
     if (entryIds.length !== new Set(entryIds).size)
@@ -474,14 +487,73 @@ export class FinancialsService {
         "Statement lines must have a matching currency",
       );
 
+    const feeLines = await tx.billingStatementLine.findMany({
+      where: {
+        workspaceId: this.workspaceId,
+        statementId: statement.id,
+        sourceType: RETAINER_FEE_SOURCE,
+      },
+      select: {
+        lineOrder: true,
+        netAmount: true,
+        sourceId: true,
+        workEntries: { select: { id: true } },
+      },
+    });
+
     // Release before deleting: onDelete SetNull alone would not reset status.
     await this.releaseEntries(tx, statement.id);
     await tx.billingStatementLine.deleteMany({
       where: { workspaceId: this.workspaceId, statementId: statement.id },
     });
 
+    const created: string[] = [];
     for (const [index, input] of lines.entries()) {
-      await this.createLine(tx, statement, input, index);
+      created.push(await this.createLine(tx, statement, input, index));
+    }
+    await this.carryOverFeeMarkers(tx, feeLines, lines, created);
+  }
+
+  /**
+   * The composer sends plain lines, so replacing them would drop the retainer
+   * fee marker and let the next month-end run add the fee a second time. The
+   * marker moves to the replacement line that shares work entries with the old
+   * fee line, else the one at the same position with the same net amount, else
+   * the only line with that net amount.
+   */
+  private async carryOverFeeMarkers(
+    tx: Prisma.TransactionClient,
+    feeLines: {
+      lineOrder: number | null;
+      netAmount: Prisma.Decimal;
+      sourceId: string | null;
+      workEntries: { id: string }[];
+    }[],
+    lines: InternalStatementLineInput[],
+    createdIds: string[],
+  ): Promise<void> {
+    const taken = new Set<number>();
+    for (const fee of feeLines) {
+      if (!fee.sourceId) continue;
+      const free = lines.flatMap((line, index) =>
+        taken.has(index) || line.sourceType ? [] : [index],
+      );
+      const oldEntries = new Set(fee.workEntries.map((entry) => entry.id));
+      const sameNet = free.filter((index) =>
+        new Prisma.Decimal(lines[index].netAmount).equals(fee.netAmount),
+      );
+      const target =
+        free.find((index) =>
+          (lines[index].workEntryIds ?? []).some((id) => oldEntries.has(id)),
+        ) ??
+        sameNet.find((index) => index === fee.lineOrder) ??
+        (sameNet.length === 1 ? sameNet[0] : undefined);
+      if (target === undefined) continue;
+      taken.add(target);
+      await tx.billingStatementLine.update({
+        where: { id: createdIds[target] },
+        data: { sourceType: RETAINER_FEE_SOURCE, sourceId: fee.sourceId },
+      });
     }
   }
 
@@ -489,9 +561,9 @@ export class FinancialsService {
   private async createLine(
     tx: Prisma.TransactionClient,
     statement: { id: string; clientId: string; currency: string },
-    input: BillingStatementLineInputDto,
+    input: InternalStatementLineInput,
     lineOrder: number,
-  ): Promise<void> {
+  ): Promise<string> {
     const lineEntryIds = input.workEntryIds ?? [];
     const line = await tx.billingStatementLine.create({
       data: {
@@ -508,16 +580,18 @@ export class FinancialsService {
         grossAmount: input.grossAmount,
         currency: statement.currency.toUpperCase(),
         status: BillingStatementLineStatus.RESERVED,
-        sourceType: lineEntryIds.length ? WORK_ENTRY_GROUP : null,
-        sourceId: null,
+        sourceType:
+          input.sourceType ?? (lineEntryIds.length ? WORK_ENTRY_GROUP : null),
+        sourceId: input.sourceId ?? null,
         pricingRequired: input.pricingRequired ?? false,
         minutes: input.minutes ?? null,
         createdByUserId: this.context.userId,
         updatedByUserId: this.context.userId,
       },
     });
-    if (!lineEntryIds.length) return;
-    await this.claimForLine(tx, statement, line.id, lineEntryIds);
+    if (lineEntryIds.length)
+      await this.claimForLine(tx, statement, line.id, lineEntryIds);
+    return line.id;
   }
 
   /** Claims entries for a line and links the line to their cases. */
@@ -644,10 +718,10 @@ export class FinancialsService {
         | "country"
         | "vatRate"
       >;
-      lines: BillingStatementLineInputDto[];
+      lines: InternalStatementLineInput[];
     },
   ): Promise<string> {
-    const sum = (pick: (line: BillingStatementLineInputDto) => number) =>
+    const sum = (pick: (line: InternalStatementLineInput) => number) =>
       Math.round(
         input.lines.reduce((total, line) => total + pick(line) * 100, 0),
       ) / 100;
@@ -688,7 +762,7 @@ export class FinancialsService {
   async appendLinesToDraft(
     tx: Prisma.TransactionClient,
     statementId: string,
-    lines: BillingStatementLineInputDto[],
+    lines: InternalStatementLineInput[],
   ): Promise<void> {
     const statement = await tx.billingStatement.findFirst({
       where: { id: statementId, workspaceId: this.workspaceId },
@@ -719,7 +793,7 @@ export class FinancialsService {
       await this.createLine(tx, statement, input, firstOrder + index);
     }
 
-    const sum = (pick: (line: BillingStatementLineInputDto) => number) =>
+    const sum = (pick: (line: InternalStatementLineInput) => number) =>
       lines.reduce(
         (total, line) => total.plus(new Prisma.Decimal(pick(line))),
         new Prisma.Decimal(0),
@@ -763,7 +837,8 @@ export class FinancialsService {
       where: { id: lineId },
       data: {
         minutes: total._sum.minutes ?? null,
-        sourceType: WORK_ENTRY_GROUP,
+        // The fee marker survives so re-runs still recognise the fee line.
+        sourceType: line.sourceType ?? WORK_ENTRY_GROUP,
         updatedByUserId: this.context.userId,
       },
     });

@@ -1896,6 +1896,8 @@
   "finance.monthEnd.created": "Created",
   "finance.monthEnd.updated": "Updated",
   "finance.monthEnd.noChanges": "No changes",
+  "finance.monthEnd.attachedToFee": "Added to existing retainer fee: {count}",
+  "finance.monthEnd.notBilled": "Not billed: {reason}",
   "finance.monthEnd.addedLines": "Lines added",
   "finance.monthEnd.pricingLines": "Lines to price",
   "finance.monthEnd.runError": "Draft generation failed. Try again.",
