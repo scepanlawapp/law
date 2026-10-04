@@ -47,6 +47,7 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { CompletionPromptService } from "../../time/completion-prompt/completion-prompt.service";
 import {
   dateInputValue,
   dateTimeInputValue,
@@ -90,6 +91,7 @@ export class TaskDialogComponent {
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly auth = inject(AuthState);
+  private readonly completionPrompt = inject(CompletionPromptService);
   private readonly context = injectBrnDialogContext<TaskDialogContext>();
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
@@ -264,11 +266,25 @@ export class TaskDialogComponent {
       return;
     }
     this.saving.set(true);
+    // Only moving an existing task into DONE makes the backend propose an entry.
+    const completing =
+      !!this.context.task &&
+      this.context.task.status !== "DONE" &&
+      request.status === "DONE";
     const operation = this.context.task
       ? this.api.updateTask(this.context.task.id, request)
       : this.api.createTask(request);
     operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (task) => this.dialogRef.close(task),
+      next: (task) => {
+        if (completing) {
+          this.completionPrompt.prompt({
+            sourceType: "TASK",
+            sourceId: task.id,
+            title: task.title,
+          });
+        }
+        this.dialogRef.close(task);
+      },
       error: () => this.saving.set(false),
     });
   }

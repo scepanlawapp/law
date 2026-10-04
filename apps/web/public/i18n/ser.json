@@ -1674,5 +1674,11 @@
   "time.timer.confirm": "Potvrdi zaustavljeno vreme",
   "time.timer.stopped": "Zaustavljeno",
   "time.timer.startError": "Tajmer nije moguće pokrenuti. Možda već jedan radi.",
-  "time.timer.stopError": "Tajmer nije moguće zaustaviti. Pokušajte ponovo."
+  "time.timer.stopError": "Tajmer nije moguće zaustaviti. Pokušajte ponovo.",
+  "time.completion.title": "Koliko vremena?",
+  "time.completion.other": "Drugo…",
+  "time.completion.skip": "Preskoči",
+  "time.completion.saved": "Evidentirano {minutes} min.",
+  "time.completion.saveError": "Vreme nije moguće sačuvati. Predlog ostaje na pregledu.",
+  "time.activity.duration": "Trajanje (opciono)"
 }
