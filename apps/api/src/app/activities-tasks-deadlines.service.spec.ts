@@ -121,7 +121,7 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
   const completionDate = new Date("2026-10-05T00:00:00.000Z");
 
   const tx = {
-    task: { findFirst: jest.fn(), update: jest.fn() },
+    task: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
     event: { findFirst: jest.fn(), update: jest.fn() },
     deadline: { findFirst: jest.fn(), update: jest.fn() },
     case: { findFirst: jest.fn() },
@@ -135,6 +135,7 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
     case: { findFirst: jest.fn() },
     client: { findFirst: jest.fn(), count: jest.fn() },
     workspaceMember: { count: jest.fn() },
+    activityLog: { count: jest.fn(), findMany: jest.fn() },
   };
   const ensureForSource = jest.fn();
   const notifications = { create: jest.fn() };
@@ -236,6 +237,78 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
     tx.activityLog.create.mockResolvedValue({});
     tx.case.findFirst.mockResolvedValue(null);
     ensureForSource.mockResolvedValue("entry-1");
+  });
+
+  describe("createTask", () => {
+    const input = {
+      title: "Pregled ugovora",
+      assigneeUserId: performerId,
+      clientId,
+    };
+
+    it("proposes an entry for a task created already DONE", async () => {
+      tx.task.create.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      db.task.findFirst.mockResolvedValue(taskRow({ status: "DONE" }));
+
+      await run(() =>
+        service.createTask({ ...input, status: "DONE" } as never),
+      );
+
+      expect(tx.task.create.mock.calls[0][0].data).toMatchObject({
+        status: "DONE",
+        completedAt: now,
+        completedByUserId: userId,
+      });
+      expect(ensureForSource).toHaveBeenCalledTimes(1);
+      expect(ensureForSource).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({
+          sourceType: "TASK",
+          sourceId: taskId,
+          performerUserId: performerId,
+          clientIds: [clientId],
+          workDate: completionDate,
+          confirm: false,
+        }),
+      );
+    });
+
+    it("creates no entry for an open task", async () => {
+      tx.task.create.mockResolvedValue(taskRow({ clientId }));
+      db.task.findFirst.mockResolvedValue(taskRow());
+
+      await run(() => service.createTask(input as never));
+      await run(() =>
+        service.createTask({ ...input, status: "IN_PROGRESS" } as never),
+      );
+
+      expect(ensureForSource).not.toHaveBeenCalled();
+      expect(tx.task.create.mock.calls[0][0].data.completedAt).toBeUndefined();
+    });
+  });
+
+  describe("listActivity", () => {
+    it("leaves work-entry activity out of the shared feed", async () => {
+      db.$transaction.mockImplementation((queries: Promise<unknown>[]) =>
+        Promise.all(queries),
+      );
+      db.activityLog.count.mockResolvedValue(0);
+      db.activityLog.findMany.mockResolvedValue([]);
+
+      await run(() =>
+        service.listActivity({ page: 1, pageSize: 20, clientId } as never),
+      );
+
+      const where = {
+        workspaceId,
+        clientId,
+        entityType: { not: "WORK_ENTRY" },
+      };
+      expect(db.activityLog.count).toHaveBeenCalledWith({ where });
+      expect(db.activityLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where }),
+      );
+    });
   });
 
   describe("transitionTask", () => {

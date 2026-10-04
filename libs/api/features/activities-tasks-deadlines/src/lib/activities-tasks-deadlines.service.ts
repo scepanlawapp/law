@@ -772,6 +772,10 @@ export class ActivitiesTasksDeadlinesService {
           title: input.title.trim(),
           description: input.description?.trim(),
           status: input.status ?? "TODO",
+          ...(input.status === "DONE" && {
+            completedAt: new Date(),
+            completedByUserId: this.context.userId,
+          }),
           priority: input.priority ?? "NORMAL",
           assigneeUserId: input.assigneeUserId,
           dueDate: input.dueDate
@@ -792,6 +796,14 @@ export class ActivitiesTasksDeadlinesService {
         caseId: task.caseId,
         clientId: task.clientId,
       });
+      // Logging finished work must not drop it: same path as the transition.
+      if (task.status === "DONE") {
+        await this.proposeEntryForTaskOrDeadline(tx, {
+          sourceType: "TASK",
+          record: task,
+          performerUserId: task.assigneeUserId,
+        });
+      }
       if (task.assigneeUserId !== this.context.userId) {
         const content = buildNotificationContent(
           "TASK_ASSIGNED",
@@ -1333,6 +1345,9 @@ export class ActivitiesTasksDeadlinesService {
     const { workspaceId } = this.context;
     const where: Prisma.ActivityLogWhereInput = {
       workspaceId,
+      // Work-entry activity carries minutes, treatment and write-off reasons;
+      // it stays on the time screens, never in the shared feeds.
+      entityType: { not: "WORK_ENTRY" },
       ...(query.caseId && { caseId: query.caseId }),
       ...(query.clientId && { clientId: query.clientId }),
     };
