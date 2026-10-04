@@ -6,8 +6,8 @@ import {
 } from "@angular/router";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
 import {
-  BillingStatement,
-  BillingStatementLineSummary,
+  Invoice,
+  InvoiceLineSummary,
 } from "@law/api-interfaces";
 import { of } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -25,11 +25,11 @@ const marko = { id: "user-2", displayName: "Marko Marković", email: null };
 
 function line(
   id: string,
-  workEntries: BillingStatementLineSummary["workEntries"],
-): BillingStatementLineSummary {
+  workEntries: InvoiceLineSummary["workEntries"],
+): InvoiceLineSummary {
   return {
     id,
-    statementId: "statement-1",
+    invoiceId: "invoice-1",
     client,
     cases: [],
     performedBy: ana,
@@ -53,12 +53,12 @@ function line(
   };
 }
 
-function statement(printWorkSpecification: boolean): BillingStatement {
+function invoice(printWorkSpecification: boolean): Invoice {
   return {
-    id: "statement-1",
+    id: "invoice-1",
     workspaceId: "workspace-1",
     clientId: client.id,
-    statementNumber: "OBR-2026-001",
+    invoiceNumber: "OBR-2026-001",
     dateOfCreate: "2026-10-01",
     dateOfMaturity: "2026-10-16",
     dateOfTurnover: "2026-09-30",
@@ -117,13 +117,13 @@ function statement(printWorkSpecification: boolean): BillingStatement {
 }
 
 describe("InvoicePrintViewComponent work specification", () => {
-  const statements = { statement: jest.fn() };
+  const statements = { invoice: jest.fn() };
   const clients = { get: jest.fn(), listAddresses: jest.fn() };
 
   function create(
     printWorkSpecification: boolean,
   ): ComponentFixture<InvoicePrintViewComponent> {
-    statements.statement.mockReturnValue(of(statement(printWorkSpecification)));
+    statements.invoice.mockReturnValue(of(invoice(printWorkSpecification)));
     const fixture = TestBed.createComponent(InvoicePrintViewComponent);
     fixture.detectChanges();
     return fixture;
@@ -156,7 +156,7 @@ describe("InvoicePrintViewComponent work specification", () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: { paramMap: convertToParamMap({ id: "statement-1" }) },
+            snapshot: { paramMap: convertToParamMap({ id: "invoice-1" }) },
           },
         },
       ],
@@ -210,10 +210,10 @@ describe("InvoicePrintViewComponent work specification", () => {
     ).toBeNull();
   });
 
-  it("prints no specification for a statement without entry-backed lines", () => {
-    const manual = statement(true);
+  it("prints no specification for a invoice without entry-backed lines", () => {
+    const manual = invoice(true);
     manual.lines = manual.lines.map((item) => ({ ...item, workEntries: [] }));
-    statements.statement.mockReturnValue(of(manual));
+    statements.invoice.mockReturnValue(of(manual));
     const fixture = TestBed.createComponent(InvoicePrintViewComponent);
     fixture.detectChanges();
 

@@ -56,13 +56,13 @@ import {
   DocumentListResponse,
   DocumentUpdateRequest,
   DocumentVersionListResponse,
-  BillingStatement,
-  BillingStatementSummary,
-  CreateBillingStatementRequest,
+  Invoice,
+  InvoiceSummary,
+  CreateInvoiceRequest,
   PriceSourceSummary,
   PriceSourceVersion,
   PriceSourceScope,
-  UpdateBillingStatementRequest,
+  UpdateInvoiceRequest,
   NotificationDto,
   NotificationListResponse,
   NotificationUnreadCountResponse,
@@ -1783,52 +1783,45 @@ export class FinancialsApiClient {
     return `${config.apiUrl}${config.apiPrefix}${path}`;
   }
 
-  statements(): Observable<BillingStatementSummary[]> {
-    return this.http.get<BillingStatementSummary[]>(
-      this.endpoint("/financials/statements"),
+  invoices(): Observable<InvoiceSummary[]> {
+    return this.http.get<InvoiceSummary[]>(
+      this.endpoint("/financials/invoices"),
       { withCredentials: true },
     );
   }
 
-  createStatement(
-    body: CreateBillingStatementRequest,
-  ): Observable<BillingStatement> {
-    return this.http.post<BillingStatement>(
-      this.endpoint("/financials/statements"),
+  createInvoice(body: CreateInvoiceRequest): Observable<Invoice> {
+    return this.http.post<Invoice>(
+      this.endpoint("/financials/invoices"),
       body,
       { withCredentials: true },
     );
   }
 
-  statement(id: string): Observable<BillingStatement> {
-    return this.http.get<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}`),
-      { withCredentials: true },
-    );
+  invoice(id: string): Observable<Invoice> {
+    return this.http.get<Invoice>(this.endpoint(`/financials/invoices/${id}`), {
+      withCredentials: true,
+    });
   }
 
-  updateStatement(
-    id: string,
-    body: UpdateBillingStatementRequest,
-  ): Observable<BillingStatement> {
-    return this.http.patch<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}`),
+  updateInvoice(id: string, body: UpdateInvoiceRequest): Observable<Invoice> {
+    return this.http.patch<Invoice>(
+      this.endpoint(`/financials/invoices/${id}`),
       body,
       { withCredentials: true },
     );
   }
 
-  deleteStatement(id: string): Observable<void> {
-    return this.http.delete<void>(
-      this.endpoint(`/financials/statements/${id}`),
-      { withCredentials: true },
-    );
+  deleteInvoice(id: string): Observable<void> {
+    return this.http.delete<void>(this.endpoint(`/financials/invoices/${id}`), {
+      withCredentials: true,
+    });
   }
 
   /** Marks a draft as sent; the API answers 409 while a line still needs a price. */
-  sendStatement(id: string): Observable<BillingStatement> {
-    return this.http.post<BillingStatement>(
-      this.endpoint(`/financials/statements/${id}/send`),
+  sendInvoice(id: string): Observable<Invoice> {
+    return this.http.post<Invoice>(
+      this.endpoint(`/financials/invoices/${id}/send`),
       {},
       { withCredentials: true },
     );

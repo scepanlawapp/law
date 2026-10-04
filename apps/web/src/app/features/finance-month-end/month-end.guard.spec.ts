@@ -33,7 +33,7 @@ describe("monthEndGuard", () => {
   ])("redirects %s to the statements", (role) => {
     activeWorkspace.set(role ? { role } : null);
     expect(TestBed.inject(Router).serializeUrl(run() as never)).toBe(
-      "/finance/statements",
+      "/finance/invoices",
     );
   });
 });

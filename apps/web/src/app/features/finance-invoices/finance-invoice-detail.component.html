@@ -4,14 +4,14 @@
       <li>
         <a
           class="underline-offset-4 hover:underline"
-          routerLink="/finance/statements"
+          routerLink="/finance/invoices"
         >
-          {{ "finance.clientStatements" | translate }}
+          {{ "finance.clientInvoices" | translate }}
         </a>
       </li>
       <li aria-hidden="true">/</li>
       <li class="text-foreground" aria-current="page">
-        {{ "finance.statementDetail" | translate }}
+        {{ "finance.invoiceDetail" | translate }}
       </li>
     </ol>
   </nav>
@@ -19,21 +19,19 @@
   @if (loading()) {
     <div class="flex items-center gap-2 py-10" role="status">
       <hlm-spinner />
-      <span>{{ "finance.loadingStatement" | translate }}</span>
+      <span>{{ "finance.loadingInvoice" | translate }}</span>
     </div>
   } @else if (error()) {
     <div class="space-y-3 py-10" role="alert">
-      <p>{{ "finance.statementLoadError" | translate }}</p>
+      <p>{{ "finance.invoiceLoadError" | translate }}</p>
       <button hlmBtn type="button" variant="outline" (click)="load()">
         {{ "finance.retry" | translate }}
       </button>
     </div>
-  } @else if (statement(); as item) {
+  } @else if (invoice(); as item) {
     <header class="flex flex-wrap items-center justify-between gap-3">
       <h1 class="text-xl font-semibold">
-        {{
-          "finance.statementTitle" | translate: { number: item.statementNumber }
-        }}
+        {{ "finance.invoiceTitle" | translate: { number: item.invoiceNumber } }}
       </h1>
       <div class="flex flex-wrap items-center gap-2">
         @if (item.status === "DRAFT" && canSend()) {
@@ -41,16 +39,16 @@
             <span
               tabindex="0"
               [hlmTooltip]="'finance.sendBlockedTooltip' | translate"
-              aria-describedby="statement-send-blocked"
+              aria-describedby="invoice-send-blocked"
             >
               <button
                 hlmBtn
                 type="button"
                 variant="outline"
-                data-testid="send-statement"
+                data-testid="send-invoice"
                 disabled
               >
-                {{ "finance.sendStatement" | translate }}
+                {{ "finance.sendInvoice" | translate }}
               </button>
             </span>
           } @else {
@@ -58,18 +56,18 @@
               hlmBtn
               type="button"
               variant="outline"
-              data-testid="send-statement"
+              data-testid="send-invoice"
               [disabled]="sending()"
               (click)="send()"
             >
               @if (sending()) {
                 <hlm-spinner />
               }
-              {{ "finance.sendStatement" | translate }}
+              {{ "finance.sendInvoice" | translate }}
             </button>
           }
         }
-        <a hlmBtn [routerLink]="['/finance/statements', item.id, 'print']">
+        <a hlmBtn [routerLink]="['/finance/invoices', item.id, 'print']">
           {{ "finance.printStatement" | translate }}
         </a>
       </div>
@@ -77,7 +75,7 @@
 
     @if (item.status === "DRAFT" && canSend() && sendBlocked()) {
       <p
-        id="statement-send-blocked"
+        id="invoice-send-blocked"
         role="status"
         data-testid="send-blocked-notice"
         class="rounded-lg border border-warning/40 bg-warning/10 p-3 text-warning"
@@ -91,7 +89,7 @@
 
     <section class="space-y-3 border-b border-border pb-4">
       <h2 class="text-base font-semibold">
-        {{ "finance.statementDetails" | translate }}
+        {{ "finance.invoiceDetails" | translate }}
       </h2>
       <dl
         class="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1.5fr)_minmax(6rem,0.5fr)]"
@@ -166,7 +164,7 @@
 
     <section class="space-y-4">
       <h2 class="text-base font-semibold">
-        {{ "finance.statementLines" | translate }}
+        {{ "finance.invoiceLines" | translate }}
       </h2>
 
       @if (item.lines.length) {
@@ -287,8 +285,8 @@
     </section>
 
     <div class="border-t border-border pt-4">
-      <a hlmBtn variant="outline" routerLink="/finance/statements">
-        {{ "finance.backToStatements" | translate }}
+      <a hlmBtn variant="outline" routerLink="/finance/invoices">
+        {{ "finance.backToInvoices" | translate }}
       </a>
     </div>
   }

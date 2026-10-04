@@ -7,11 +7,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import {
-  BillingStatement,
-  ClientSummary,
-  WorkEntry,
-} from "@law/api-interfaces";
+import { Invoice, ClientSummary, WorkEntry } from "@law/api-interfaces";
 import {
   BillingSetupApiClient,
   ClientsApiClient,
@@ -44,25 +40,25 @@ import {
   createCurrencyItemToString,
 } from "../../shared/currency";
 import {
-  BillingStatementLineForm,
+  InvoiceLineForm,
   ClientRate,
   appendUniqueWorkEntries,
-  calculateBillingStatementTotals,
-  createBillingStatementLineForm,
-  detachBillingStatementLineWorkEntries,
+  calculateInvoiceTotals,
+  createInvoiceLineForm,
+  detachInvoiceLineWorkEntries,
   incompatibleCurrencyIndexes,
   lineWorkEntryIds,
   normalizeCurrency,
-  recalculateBillingStatementLine,
-  toBillingStatementLineInput,
-} from "./billing-statement-form";
-import { BillingStatementLineImportDialogService } from "./billing-statement-line-import-dialog.service";
+  recalculateInvoiceLine,
+  toInvoiceLineInput,
+} from "./invoice-form";
+import { InvoiceLineImportDialogService } from "./invoice-line-import-dialog.service";
 import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
 
 @Component({
-  selector: "law-finance-statement-create",
+  selector: "law-finance-invoice-create",
   standalone: true,
-  templateUrl: "./finance-statement-create.component.html",
+  templateUrl: "./finance-invoice-create.component.html",
   imports: [
     ReactiveFormsModule,
     RouterLink,
@@ -80,14 +76,12 @@ import { ClientFormDialogService } from "../clients/client-create-edit-modal/cli
   ],
   providers: [provideIcons({ lucideTrash2 })],
 })
-export class FinanceStatementCreateComponent {
+export class FinanceInvoiceCreateComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly workEntriesApi = inject(WorkEntriesApiClient);
   private readonly billingSetupApi = inject(BillingSetupApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
-  private readonly importDialog = inject(
-    BillingStatementLineImportDialogService,
-  );
+  private readonly importDialog = inject(InvoiceLineImportDialogService);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -97,15 +91,15 @@ export class FinanceStatementCreateComponent {
   readonly clients = signal<ClientSummary[]>([]);
   readonly clientsLoading = signal(false);
   readonly clientsError = signal(false);
-  readonly statementLoading = signal(false);
-  readonly statementLoadError = signal("");
+  readonly invoiceLoading = signal(false);
+  readonly invoiceLoadError = signal("");
   readonly saving = signal(false);
   readonly saveError = signal("");
   readonly formRevision = signal(0);
   readonly selectedClient = signal<ClientSummary | null>(null);
-  readonly statementIdempotencyKey = crypto.randomUUID();
-  readonly statementId = this.route.snapshot.paramMap.get("id");
-  readonly isEditMode = this.statementId !== null;
+  readonly invoiceIdempotencyKey = crypto.randomUUID();
+  readonly invoiceId = this.route.snapshot.paramMap.get("id");
+  readonly isEditMode = this.invoiceId !== null;
   private readonly requestedClientId =
     this.route.snapshot.queryParamMap.get("clientId");
   /** `?workEntryIds=a&workEntryIds=b` (or comma separated) from Unbilled work. */
@@ -119,7 +113,7 @@ export class FinanceStatementCreateComponent {
     ),
   ];
   private prefillStarted = false;
-  private readonly registeredLines = new WeakSet<BillingStatementLineForm>();
+  private readonly registeredLines = new WeakSet<InvoiceLineForm>();
 
   readonly form = new FormGroup({
     clientId: new FormControl("", {
@@ -167,7 +161,7 @@ export class FinanceStatementCreateComponent {
       validators: Validators.required,
     }),
     printWorkSpecification: new FormControl(true, { nonNullable: true }),
-    lines: new FormArray<BillingStatementLineForm>([]),
+    lines: new FormArray<InvoiceLineForm>([]),
   });
 
   readonly clientItemToString = (value: string | null | undefined): string =>
@@ -190,7 +184,7 @@ export class FinanceStatementCreateComponent {
   );
   readonly invoiceTotals = computed(() => {
     this.formRevision();
-    return calculateBillingStatementTotals(
+    return calculateInvoiceTotals(
       this.form.controls.lines.controls.map((line) => ({
         netAmount: line.controls.netAmount.value,
         vatAmount: line.controls.vatAmount.value,
@@ -217,7 +211,7 @@ export class FinanceStatementCreateComponent {
     if (this.isEditMode) {
       this.form.controls.clientId.disable({ emitEvent: false });
       this.form.controls.currency.disable({ emitEvent: false });
-      this.loadStatement();
+      this.loadInvoice();
     }
     this.loadClients();
     let previousClientId = this.form.controls.clientId.value;
@@ -225,9 +219,7 @@ export class FinanceStatementCreateComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((clientId) => {
         if (previousClientId && previousClientId !== clientId) {
-          detachBillingStatementLineWorkEntries(
-            this.form.controls.lines.controls,
-          );
+          detachInvoiceLineWorkEntries(this.form.controls.lines.controls);
         }
         previousClientId = clientId;
         this.selectedClient.set(
@@ -240,26 +232,26 @@ export class FinanceStatementCreateComponent {
       .subscribe(() => this.bumpRevision());
   }
 
-  loadStatement(): void {
-    if (!this.statementId) return;
-    this.statementLoading.set(true);
-    this.statementLoadError.set("");
+  loadInvoice(): void {
+    if (!this.invoiceId) return;
+    this.invoiceLoading.set(true);
+    this.invoiceLoadError.set("");
     this.api
-      .statement(this.statementId)
+      .invoice(this.invoiceId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (statement) => {
-          if (statement.status !== "DRAFT") {
-            this.statementLoading.set(false);
-            this.statementLoadError.set("finance.statementNotEditable");
+        next: (invoice) => {
+          if (invoice.status !== "DRAFT") {
+            this.invoiceLoading.set(false);
+            this.invoiceLoadError.set("finance.invoiceNotEditable");
             return;
           }
-          this.populateStatement(statement);
-          this.statementLoading.set(false);
+          this.populateInvoice(invoice);
+          this.invoiceLoading.set(false);
         },
         error: () => {
-          this.statementLoading.set(false);
-          this.statementLoadError.set("finance.statementLoadError");
+          this.invoiceLoading.set(false);
+          this.invoiceLoadError.set("finance.invoiceLoadError");
         },
       });
   }
@@ -302,7 +294,7 @@ export class FinanceStatementCreateComponent {
   }
 
   addManualLine(): void {
-    const line = createBillingStatementLineForm(
+    const line = createInvoiceLineForm(
       undefined,
       normalizeCurrency(this.form.controls.currency.value) || "RSD",
     );
@@ -352,18 +344,16 @@ export class FinanceStatementCreateComponent {
     this.saveError.set("");
     if (!this.canSave()) {
       this.form.markAllAsTouched();
-      this.saveError.set("finance.statementValidation");
+      this.saveError.set("finance.invoiceValidation");
       return;
     }
 
     const header = this.form.getRawValue();
     const totals = this.invoiceTotals();
-    const lines = this.form.controls.lines.controls.map(
-      toBillingStatementLineInput,
-    );
+    const lines = this.form.controls.lines.controls.map(toInvoiceLineInput);
     this.saving.set(true);
-    const request = this.statementId
-      ? this.api.updateStatement(this.statementId, {
+    const request = this.invoiceId
+      ? this.api.updateInvoice(this.invoiceId, {
           dateOfCreate: header.dateOfCreate,
           dateOfMaturity: header.dateOfMaturity,
           dateOfTurnover: header.dateOfTurnover,
@@ -379,7 +369,7 @@ export class FinanceStatementCreateComponent {
           printWorkSpecification: header.printWorkSpecification,
           lines,
         })
-      : this.api.createStatement({
+      : this.api.createInvoice({
           clientId: header.clientId,
           dateOfCreate: header.dateOfCreate,
           dateOfMaturity: header.dateOfMaturity,
@@ -396,11 +386,11 @@ export class FinanceStatementCreateComponent {
           currency: normalizeCurrency(header.currency),
           printWorkSpecification: header.printWorkSpecification,
           lines,
-          idempotencyKey: this.statementIdempotencyKey,
+          idempotencyKey: this.invoiceIdempotencyKey,
         });
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (statement) =>
-        void this.router.navigate(["/finance/statements", statement.id]),
+      next: (invoice) =>
+        void this.router.navigate(["/finance/invoices", invoice.id]),
       error: () => {
         this.saving.set(false);
         this.saveError.set("finance.saveError");
@@ -409,34 +399,34 @@ export class FinanceStatementCreateComponent {
     });
   }
 
-  private populateStatement(statement: BillingStatement): void {
+  private populateInvoice(invoice: Invoice): void {
     this.form.patchValue(
       {
-        clientId: statement.clientId,
-        dateOfCreate: statement.dateOfCreate.slice(0, 10),
-        dateOfMaturity: statement.dateOfMaturity.slice(0, 10),
-        dateOfTurnover: statement.dateOfTurnover.slice(0, 10),
-        placeOfIssue: statement.placeOfIssue,
-        methodOfPayment: statement.methodOfPayment,
-        comment: statement.comment,
-        vatRate: Number(statement.vatRate),
-        numberOfCashBill: statement.numberOfCashBill,
-        country: statement.country,
-        currency: statement.currency,
-        printWorkSpecification: statement.printWorkSpecification,
+        clientId: invoice.clientId,
+        dateOfCreate: invoice.dateOfCreate.slice(0, 10),
+        dateOfMaturity: invoice.dateOfMaturity.slice(0, 10),
+        dateOfTurnover: invoice.dateOfTurnover.slice(0, 10),
+        placeOfIssue: invoice.placeOfIssue,
+        methodOfPayment: invoice.methodOfPayment,
+        comment: invoice.comment,
+        vatRate: Number(invoice.vatRate),
+        numberOfCashBill: invoice.numberOfCashBill,
+        country: invoice.country,
+        currency: invoice.currency,
+        printWorkSpecification: invoice.printWorkSpecification,
       },
       { emitEvent: false },
     );
     this.form.controls.lines.clear({ emitEvent: false });
-    for (const line of statement.lines) {
-      const lineForm = createBillingStatementLineForm(line);
+    for (const line of invoice.lines) {
+      const lineForm = createInvoiceLineForm(line);
       this.form.controls.lines.push(lineForm, {
         emitEvent: false,
       });
       this.registerLine(lineForm);
     }
     this.selectedClient.set(
-      this.clients().find((client) => client.id === statement.clientId) ?? null,
+      this.clients().find((client) => client.id === invoice.clientId) ?? null,
     );
     this.form.markAsPristine();
     this.bumpRevision();
@@ -472,7 +462,7 @@ export class FinanceStatementCreateComponent {
               entry !== null &&
               entry.client.id === clientId &&
               entry.status === "CONFIRMED" &&
-              entry.statementId === null,
+              entry.invoiceId === null,
           );
           this.appendEntries(usable, rate);
           if (usable.length !== this.requestedWorkEntryIds.length) {
@@ -498,7 +488,7 @@ export class FinanceStatementCreateComponent {
     entries: readonly WorkEntry[],
     rate: ClientRate | null,
   ): void {
-    // A new statement bills in the client's currency, so the imported
+    // A new invoice bills in the client's currency, so the imported
     // entries can be priced from the client's rate.
     if (
       !this.isEditMode &&
@@ -562,14 +552,14 @@ export class FinanceStatementCreateComponent {
     }
   }
 
-  private registerLine(line: BillingStatementLineForm): void {
+  private registerLine(line: InvoiceLineForm): void {
     if (this.registeredLines.has(line)) return;
     this.registeredLines.add(line);
 
     const recalculate = (
-      source: Parameters<typeof recalculateBillingStatementLine>[1],
+      source: Parameters<typeof recalculateInvoiceLine>[1],
     ): void => {
-      recalculateBillingStatementLine(line, source);
+      recalculateInvoiceLine(line, source);
       this.bumpRevision();
     };
 

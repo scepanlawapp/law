@@ -7,4 +7,4 @@ import { canRunMonthEnd } from "../../shared/billing";
 export const monthEndGuard: CanActivateFn = () =>
   canRunMonthEnd(inject(AuthState).activeWorkspace()?.role)
     ? true
-    : inject(Router).createUrlTree(["/finance/statements"]);
+    : inject(Router).createUrlTree(["/finance/invoices"]);

@@ -49,7 +49,7 @@ export interface WorkEntry {
   source: WorkEntrySource;
   sourceType: WorkEntrySourceType | null;
   sourceId: string | null;
-  statementId: string | null;
+  invoiceId: string | null;
   aiParsed: boolean;
   createdAt: string;
   updatedAt: string;
@@ -221,7 +221,7 @@ export interface MonthEndPrecheck {
 export interface MonthEndRunResult {
   month: string;
   statements: {
-    statementId: string;
+    invoiceId: string;
     client: ClientReference;
     currency: string;
     created: boolean;

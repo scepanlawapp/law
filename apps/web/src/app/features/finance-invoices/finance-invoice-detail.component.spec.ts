@@ -5,13 +5,13 @@ import {
   provideRouter,
 } from "@angular/router";
 import { FinancialsApiClient } from "@law/api-clients";
-import { BillingStatement, WorkspaceRole } from "@law/api-interfaces";
+import { Invoice, WorkspaceRole } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { of, throwError } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
-import { FinanceStatementDetailComponent } from "./finance-statement-detail.component";
+import { FinanceInvoiceDetailComponent } from "./finance-invoice-detail.component";
 
 const client = {
   id: "client-1",
@@ -22,12 +22,12 @@ const client = {
 };
 const user = { id: "user-1", displayName: "Ana Anić", email: null };
 
-function statement(pricingRequired: boolean): BillingStatement {
+function invoice(pricingRequired: boolean): Invoice {
   return {
-    id: "statement-1",
+    id: "invoice-1",
     workspaceId: "workspace-1",
     clientId: client.id,
-    statementNumber: "OBR-2026-001",
+    invoiceNumber: "OBR-2026-001",
     dateOfCreate: "2026-10-01",
     dateOfMaturity: "2026-10-16",
     dateOfTurnover: "2026-09-30",
@@ -57,7 +57,7 @@ function statement(pricingRequired: boolean): BillingStatement {
     lines: [
       {
         id: "line-1",
-        statementId: "statement-1",
+        invoiceId: "invoice-1",
         client,
         cases: [],
         performedBy: user,
@@ -84,24 +84,24 @@ function statement(pricingRequired: boolean): BillingStatement {
   };
 }
 
-describe("FinanceStatementDetailComponent send", () => {
-  const api = { statement: jest.fn(), sendStatement: jest.fn() };
+describe("FinanceInvoiceDetailComponent send", () => {
+  const api = { invoice: jest.fn(), sendInvoice: jest.fn() };
   const confirmDialog = { confirm: jest.fn() };
   const toast = { success: jest.fn(), error: jest.fn() };
   let role: WorkspaceRole = WorkspaceRole.OWNER;
 
   function create(
     pricingRequired: boolean,
-  ): ComponentFixture<FinanceStatementDetailComponent> {
-    api.statement.mockReturnValue(of(statement(pricingRequired)));
-    const fixture = TestBed.createComponent(FinanceStatementDetailComponent);
+  ): ComponentFixture<FinanceInvoiceDetailComponent> {
+    api.invoice.mockReturnValue(of(invoice(pricingRequired)));
+    const fixture = TestBed.createComponent(FinanceInvoiceDetailComponent);
     fixture.detectChanges();
     return fixture;
   }
 
   const sendButton = (fixture: ComponentFixture<unknown>) =>
     (fixture.nativeElement as HTMLElement).querySelector(
-      '[data-testid="send-statement"]',
+      '[data-testid="send-invoice"]',
     ) as HTMLButtonElement;
 
   beforeEach(() => {
@@ -127,7 +127,7 @@ describe("FinanceStatementDetailComponent send", () => {
         {
           provide: ActivatedRoute,
           useValue: {
-            snapshot: { paramMap: convertToParamMap({ id: "statement-1" }) },
+            snapshot: { paramMap: convertToParamMap({ id: "invoice-1" }) },
           },
         },
       ],
@@ -149,21 +149,21 @@ describe("FinanceStatementDetailComponent send", () => {
 
     sendButton(fixture).click();
     expect(confirmDialog.confirm).not.toHaveBeenCalled();
-    expect(api.sendStatement).not.toHaveBeenCalled();
+    expect(api.sendInvoice).not.toHaveBeenCalled();
   });
 
   it("sends a fully priced draft after confirmation", () => {
     const fixture = create(false);
     confirmDialog.confirm.mockReturnValue(of(true));
-    api.sendStatement.mockReturnValue(
-      of({ ...statement(false), status: "SENT" }),
+    api.sendInvoice.mockReturnValue(
+      of({ ...invoice(false), status: "SENT" }),
     );
 
     expect(sendButton(fixture).disabled).toBe(false);
     sendButton(fixture).click();
     fixture.detectChanges();
 
-    expect(api.sendStatement).toHaveBeenCalledWith("statement-1");
+    expect(api.sendInvoice).toHaveBeenCalledWith("invoice-1");
     expect(toast.success).toHaveBeenCalled();
     expect(sendButton(fixture)).toBeNull();
   });
@@ -178,16 +178,16 @@ describe("FinanceStatementDetailComponent send", () => {
   it.each([
     ["Price every line before sending", "finance.statementSendPricingError"],
     ["Only draft statements can be sent", "finance.statementSendNotDraftError"],
-  ])("explains a 409 (%s) and reloads the statement", (message, key) => {
+  ])("explains a 409 (%s) and reloads the invoice", (message, key) => {
     const fixture = create(false);
     confirmDialog.confirm.mockReturnValue(of(true));
-    api.sendStatement.mockReturnValue(
+    api.sendInvoice.mockReturnValue(
       throwError(() => ({ status: 409, error: { message } })),
     );
 
     sendButton(fixture).click();
 
     expect(toast.error).toHaveBeenCalledWith(key);
-    expect(api.statement).toHaveBeenCalledTimes(2);
+    expect(api.invoice).toHaveBeenCalledTimes(2);
   });
 });

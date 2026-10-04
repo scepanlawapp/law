@@ -2,8 +2,8 @@ import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import {
-  BillingStatementStatus,
-  BillingStatementSummary,
+  InvoiceStatus,
+  InvoiceSummary,
   ClientSummary,
 } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
@@ -40,9 +40,9 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 const PAGE_SIZE = 15;
 
 @Component({
-  selector: "law-finance-statements",
+  selector: "law-finance-invoices",
   standalone: true,
-  templateUrl: "./finance-statements.component.html",
+  templateUrl: "./finance-invoices.component.html",
   imports: [
     ReactiveFormsModule,
     RouterLink,
@@ -65,7 +65,7 @@ const PAGE_SIZE = 15;
   ],
   providers: [provideIcons({ lucidePencil, lucideTrash2 })],
 })
-export class FinanceStatementsComponent {
+export class FinanceInvoicesComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly destroyRef = inject(DestroyRef);
@@ -75,13 +75,13 @@ export class FinanceStatementsComponent {
 
   readonly search = new FormControl("", { nonNullable: true });
   readonly clientIds = signal<string[]>([]);
-  readonly status = new FormControl<BillingStatementStatus | "">("", {
+  readonly status = new FormControl<InvoiceStatus | "">("", {
     nonNullable: true,
   });
   readonly currency = new FormControl("", { nonNullable: true });
   readonly from = new FormControl("", { nonNullable: true });
   readonly to = new FormControl("", { nonNullable: true });
-  readonly statements = signal<BillingStatementSummary[]>([]);
+  readonly invoices = signal<InvoiceSummary[]>([]);
   readonly clients = signal<ClientSummary[]>([]);
   readonly loading = signal(false);
   readonly error = signal(false);
@@ -89,11 +89,9 @@ export class FinanceStatementsComponent {
   readonly page = signal(1);
   readonly filterRevision = signal(0);
   readonly advancedFiltersOpen = signal(false);
-  readonly deletingStatementId = signal<string | null>(null);
+  readonly deletingInvoiceId = signal<string | null>(null);
 
-  readonly statusOptions: ReadonlyArray<
-    SelectOption<BillingStatementStatus | "">
-  > = [
+  readonly statusOptions: ReadonlyArray<SelectOption<InvoiceStatus | "">> = [
     { value: "", label: "finance.all" },
     { value: "DRAFT", label: "finance.draft" },
     { value: "SENT", label: "finance.sent" },
@@ -117,38 +115,34 @@ export class FinanceStatementsComponent {
     this.clientIds().map(this.clientItemToString).join(", "),
   );
 
-  readonly filteredStatements = computed(() => {
+  readonly filteredInvoices = computed(() => {
     this.filterRevision();
     const search = this.search.value.trim().toLocaleLowerCase();
     const currency = this.currency.value.trim().toUpperCase();
     const from = this.from.value;
     const to = this.to.value;
-    return this.statements().filter((statement) => {
-      if (
-        search &&
-        !statement.statementNumber.toLocaleLowerCase().includes(search)
-      )
+    return this.invoices().filter((invoice) => {
+      if (search && !invoice.invoiceNumber.toLocaleLowerCase().includes(search))
         return false;
       if (
         this.clientIds().length &&
-        !this.clientIds().includes(statement.client.id)
+        !this.clientIds().includes(invoice.client.id)
       )
         return false;
-      if (this.status.value && statement.status !== this.status.value)
+      if (this.status.value && invoice.status !== this.status.value)
         return false;
-      if (currency && statement.currency.toUpperCase() !== currency)
-        return false;
-      if (from && statement.dateOfMaturity < from) return false;
-      if (to && statement.dateOfCreate > to) return false;
+      if (currency && invoice.currency.toUpperCase() !== currency) return false;
+      if (from && invoice.dateOfMaturity < from) return false;
+      if (to && invoice.dateOfCreate > to) return false;
       return true;
     });
   });
   readonly pageCount = computed(() =>
-    Math.max(1, Math.ceil(this.filteredStatements().length / PAGE_SIZE)),
+    Math.max(1, Math.ceil(this.filteredInvoices().length / PAGE_SIZE)),
   );
-  readonly visibleStatements = computed(() => {
+  readonly visibleInvoices = computed(() => {
     const start = (this.page() - 1) * PAGE_SIZE;
-    return this.filteredStatements().slice(start, start + PAGE_SIZE);
+    return this.filteredInvoices().slice(start, start + PAGE_SIZE);
   });
 
   constructor() {
@@ -178,13 +172,13 @@ export class FinanceStatementsComponent {
     this.loading.set(true);
     this.error.set(false);
     forkJoin({
-      statements: this.api.statements(),
+      invoices: this.api.invoices(),
       clients: this.clientsApi.list({ page: 1, pageSize: 100 }),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ statements, clients }) => {
-          this.statements.set(statements);
+        next: ({ invoices, clients }) => {
+          this.invoices.set(invoices);
           this.clients.set(clients.items);
           this.loaded.set(true);
           this.loading.set(false);
@@ -202,41 +196,41 @@ export class FinanceStatementsComponent {
     this.page.set(page);
   }
 
-  deleteStatement(statement: BillingStatementSummary, event: Event): void {
+  deleteInvoice(invoice: InvoiceSummary, event: Event): void {
     event.stopPropagation();
-    if (statement.status !== "DRAFT" || this.deletingStatementId()) return;
+    if (invoice.status !== "DRAFT" || this.deletingInvoiceId()) return;
     this.confirmDialog
       .confirm({
-        title: this.localization.translate("finance.deleteStatementTitle"),
-        message: this.localization.translate("finance.deleteStatementMessage", {
-          number: statement.statementNumber,
+        title: this.localization.translate("finance.deleteInvoiceTitle"),
+        message: this.localization.translate("finance.deleteInvoiceMessage", {
+          number: invoice.invoiceNumber,
         }),
-        confirmText: this.localization.translate("finance.deleteStatement"),
+        confirmText: this.localization.translate("finance.deleteInvoice"),
         cancelText: this.localization.translate("common.cancel"),
         variant: "danger",
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((confirmed) => {
         if (!confirmed) return;
-        this.deletingStatementId.set(statement.id);
+        this.deletingInvoiceId.set(invoice.id);
         this.api
-          .deleteStatement(statement.id)
+          .deleteInvoice(invoice.id)
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: () => {
-              this.statements.update((items) =>
-                items.filter((item) => item.id !== statement.id),
+              this.invoices.update((items) =>
+                items.filter((item) => item.id !== invoice.id),
               );
               this.page.set(Math.min(this.page(), this.pageCount()));
-              this.deletingStatementId.set(null);
+              this.deletingInvoiceId.set(null);
               this.toast.success(
-                this.localization.translate("finance.statementDeleted"),
+                this.localization.translate("finance.invoiceDeleted"),
               );
             },
             error: () => {
-              this.deletingStatementId.set(null);
+              this.deletingInvoiceId.set(null);
               this.toast.error(
-                this.localization.translate("finance.statementDeleteError"),
+                this.localization.translate("finance.invoiceDeleteError"),
               );
             },
           });
@@ -276,7 +270,7 @@ export class FinanceStatementsComponent {
     this.filterRevision.update((revision) => revision + 1);
   }
 
-  statusLabel(status: BillingStatementStatus): string {
+  statusLabel(status: InvoiceStatus): string {
     return this.localization.translate(
       status === "DRAFT"
         ? "finance.draft"

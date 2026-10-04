@@ -14,7 +14,7 @@ import {
 } from "@law/api-interfaces";
 import {
   FinancialsService,
-  InternalStatementLineInput,
+  InternalInvoiceLineInput,
   RETAINER_FEE_SOURCE,
 } from "@law/financials";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
@@ -43,7 +43,7 @@ const MONTH_NAMES = [
   "decembar",
 ];
 
-type StatementLineInput = InternalStatementLineInput;
+type StatementLineInput = InternalInvoiceLineInput;
 
 interface BillableEntry {
   id: string;
@@ -224,7 +224,7 @@ export class MonthEndRunService {
         where: {
           workspaceId: this.workspaceId,
           status: "CONFIRMED",
-          statementLineId: null,
+          invoiceLineId: null,
           treatment: { in: ["RETAINER", "HOURLY", "AT"] },
           minutes: { not: null },
           workDate: { gte: start, lte: end },
@@ -266,7 +266,7 @@ export class MonthEndRunService {
     client: ClientReference,
   ): Promise<RunRow[]> {
     // Where the transaction got to, so a conflict can still be reported.
-    const progress = { currency: run.internalCurrency, statementId: "" };
+    const progress = { currency: run.internalCurrency, invoiceId: "" };
     try {
       return await this.db.$transaction(
         (tx) => this.billClient(tx, run, client, progress),
@@ -281,7 +281,7 @@ export class MonthEndRunService {
       );
       return [
         {
-          statementId: progress.statementId,
+          invoiceId: progress.invoiceId,
           client,
           currency: progress.currency,
           created: false,
@@ -298,7 +298,7 @@ export class MonthEndRunService {
     tx: Prisma.TransactionClient,
     run: RunContext,
     client: ClientReference,
-    progress: { currency: string; statementId: string },
+    progress: { currency: string; invoiceId: string },
   ): Promise<RunRow[]> {
     // Serialises concurrent runs for this client and month so a second run
     // waits, then sees the first run's draft instead of creating another fee.
@@ -318,8 +318,8 @@ export class MonthEndRunService {
         clientId: client.id,
         status: "BILLED",
         treatment: "RETAINER",
-        statementLine: {
-          statement: {
+        invoiceLine: {
+          invoice: {
             workspaceId: this.workspaceId,
             clientId: client.id,
             billingMonth: run.month,
@@ -344,8 +344,8 @@ export class MonthEndRunService {
     let header: StatementHeader | null = null;
     for (const bucket of buckets) {
       progress.currency = bucket.currency;
-      progress.statementId = "";
-      const draft = await tx.billingStatement.findFirst({
+      progress.invoiceId = "";
+      const draft = await tx.invoice.findFirst({
         where: {
           workspaceId: this.workspaceId,
           clientId: client.id,
@@ -356,21 +356,21 @@ export class MonthEndRunService {
         orderBy: { createdAt: "asc" },
         select: { id: true },
       });
-      progress.statementId = draft?.id ?? "";
+      progress.invoiceId = draft?.id ?? "";
 
-      const feeLines = await tx.billingStatementLine.findMany({
+      const feeLines = await tx.invoiceLine.findMany({
         where: {
           workspaceId: this.workspaceId,
           clientId: client.id,
           currency: bucket.currency,
           // Structural marker, never the wording: the draft is editable.
           sourceType: RETAINER_FEE_SOURCE,
-          statement: {
+          invoice: {
             billingMonth: run.month,
             status: { not: "VOIDED" },
           },
         },
-        select: { id: true, statementId: true, sourceId: true },
+        select: { id: true, invoiceId: true, sourceId: true },
         orderBy: [{ createdAt: "asc" }, { lineOrder: "asc" }, { id: "asc" }],
       });
 
@@ -381,7 +381,7 @@ export class MonthEndRunService {
           (line) => line.sourceId === plan.agreementId,
         );
         const draftFeeLine = planFeeLines.find(
-          (line) => line.statementId === draft?.id,
+          (line) => line.invoiceId === draft?.id,
         );
         if (!planFeeLines.length) {
           lines.push(
@@ -401,7 +401,7 @@ export class MonthEndRunService {
             entryIds: plan.entryIds,
           });
         } else if (plan.entryIds.length) {
-          // Fee already invoiced on a sent statement: keep the work visible on
+          // Fee already invoiced on a sent invoice: keep the work visible on
           // the new draft without charging the fee twice.
           lines.push(
             this.line(run, bucket.currency, {
@@ -418,10 +418,10 @@ export class MonthEndRunService {
       lines.push(...bucket.lines);
       if (!lines.length && !attachToFee.length) continue;
 
-      let statementId: string;
+      let invoiceId: string;
       let created = false;
       if (draft) {
-        statementId = draft.id;
+        invoiceId = draft.id;
         for (const attach of attachToFee) {
           await this.financials.attachEntriesToLine(
             tx,
@@ -434,7 +434,7 @@ export class MonthEndRunService {
         }
       } else {
         header ??= await this.statementHeader(tx, client.id, run);
-        statementId = await this.financials.createDraftFromLines(tx, {
+        invoiceId = await this.financials.createDraftFromLines(tx, {
           clientId: client.id,
           currency: bucket.currency,
           billingMonth: run.month,
@@ -443,9 +443,9 @@ export class MonthEndRunService {
         });
         created = true;
       }
-      progress.statementId = statementId;
+      progress.invoiceId = invoiceId;
       rows.push({
-        statementId,
+        invoiceId,
         client,
         currency: bucket.currency,
         created,
@@ -473,7 +473,7 @@ export class MonthEndRunService {
         workspaceId: this.workspaceId,
         clientId,
         status: "CONFIRMED",
-        statementLineId: null,
+        invoiceLineId: null,
         treatment: { in: ["RETAINER", "HOURLY", "AT"] },
         minutes: { not: null },
         workDate: { gte: run.monthStart, lte: run.monthEnd },
@@ -497,13 +497,13 @@ export class MonthEndRunService {
     }));
   }
 
-  /** Header copied from the client's latest live statement, else defaults. */
+  /** Header copied from the client's latest live invoice, else defaults. */
   private async statementHeader(
     tx: Prisma.TransactionClient,
     clientId: string,
     run: RunContext,
   ): Promise<StatementHeader> {
-    const latest = await tx.billingStatement.findFirst({
+    const latest = await tx.invoice.findFirst({
       where: {
         workspaceId: this.workspaceId,
         clientId,
@@ -575,7 +575,7 @@ export class MonthEndRunService {
       monthAgreements[0]?.agreement.currency ?? profileCurrency;
 
     // Section by section so lines come out as fee, overage, out-of-scope,
-    // hourly, awaiting-price within each statement.
+    // hourly, awaiting-price within each invoice.
     const overage = new Map<string, StatementLineInput[]>();
     const outOfScope = new Map<string, StatementLineInput[]>();
     const hourly: StatementLineInput[] = [];
@@ -726,7 +726,7 @@ export class MonthEndRunService {
     });
   }
 
-  /** One statement line; VAT = net x rate, gross = net + VAT, half-up 2dp. */
+  /** One invoice line; VAT = net x rate, gross = net + VAT, half-up 2dp. */
   private line(
     run: RunContext,
     currency: string,

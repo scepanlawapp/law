@@ -157,7 +157,7 @@ export function priceMinutes(
   return Number(cents) / 100;
 }
 
-/** `1 h 30 min`: the duration wording used in statement line descriptions. */
+/** `1 h 30 min`: the duration wording used in invoice line descriptions. */
 export function formatHoursMinutes(minutes: number): string {
   return `${Math.floor(minutes / 60)} h ${minutes % 60} min`;
 }

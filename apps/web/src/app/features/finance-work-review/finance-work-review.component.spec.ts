@@ -37,7 +37,7 @@ function entry(id: string, clientId: string, name: string): WorkEntry {
     source: "MANUAL",
     sourceType: null,
     sourceId: null,
-    statementId: null,
+    invoiceId: null,
     aiParsed: false,
     createdAt: "2026-09-10T08:00:00.000Z",
     updatedAt: "2026-09-10T08:00:00.000Z",
@@ -127,7 +127,7 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
     );
   });
 
-  it("starts a new statement for the selected entries of one client", () => {
+  it("starts a new invoice for the selected entries of one client", () => {
     const fixture = create();
 
     checkboxes(fixture)[0].click();
@@ -135,11 +135,11 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
     fixture.detectChanges();
     (
       (fixture.nativeElement as HTMLElement).querySelector(
-        '[data-testid="new-statement"]',
+        '[data-testid="new-invoice"]',
       ) as HTMLButtonElement
     ).click();
 
-    expect(router.navigate).toHaveBeenCalledWith(["/finance/statements/new"], {
+    expect(router.navigate).toHaveBeenCalledWith(["/finance/invoices/new"], {
       queryParams: { clientId: "c1", workEntryIds: ["e1", "e2"] },
     });
   });

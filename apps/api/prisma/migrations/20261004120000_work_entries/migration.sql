@@ -24,11 +24,11 @@ ALTER TYPE "NotificationType" ADD VALUE 'RETAINER_USAGE_80';
 ALTER TYPE "NotificationType" ADD VALUE 'RETAINER_USAGE_100';
 
 -- AlterTable
-ALTER TABLE "BillingStatement" ADD COLUMN     "billingMonth" TEXT,
+ALTER TABLE "Invoice" ADD COLUMN     "billingMonth" TEXT,
 ADD COLUMN     "printWorkSpecification" BOOLEAN NOT NULL DEFAULT true;
 
 -- AlterTable
-ALTER TABLE "BillingStatementLine" ADD COLUMN     "minutes" INTEGER,
+ALTER TABLE "InvoiceLine" ADD COLUMN     "minutes" INTEGER,
 ADD COLUMN     "pricingRequired" BOOLEAN NOT NULL DEFAULT false;
 
 -- AlterTable
@@ -72,7 +72,7 @@ CREATE TABLE "WorkEntry" (
     "source" "WorkEntrySource" NOT NULL DEFAULT 'MANUAL',
     "sourceType" TEXT,
     "sourceId" TEXT,
-    "statementLineId" TEXT,
+    "invoiceLineId" TEXT,
     "aiParsed" BOOLEAN NOT NULL DEFAULT false,
     "createdByUserId" TEXT NOT NULL,
     "updatedByUserId" TEXT NOT NULL,
@@ -156,7 +156,7 @@ CREATE INDEX "WorkEntry_workspaceId_userId_workDate_idx" ON "WorkEntry"("workspa
 CREATE INDEX "WorkEntry_workspaceId_status_idx" ON "WorkEntry"("workspaceId", "status");
 
 -- CreateIndex
-CREATE INDEX "WorkEntry_statementLineId_idx" ON "WorkEntry"("statementLineId");
+CREATE INDEX "WorkEntry_invoiceLineId_idx" ON "WorkEntry"("invoiceLineId");
 
 -- CreateIndex
 CREATE INDEX "WorkEntry_caseId_idx" ON "WorkEntry"("caseId");
@@ -198,7 +198,7 @@ ALTER TABLE "WorkEntry" ADD CONSTRAINT "WorkEntry_caseId_fkey" FOREIGN KEY ("cas
 ALTER TABLE "WorkEntry" ADD CONSTRAINT "WorkEntry_serviceCategoryId_fkey" FOREIGN KEY ("serviceCategoryId") REFERENCES "ServiceCategory"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "WorkEntry" ADD CONSTRAINT "WorkEntry_statementLineId_fkey" FOREIGN KEY ("statementLineId") REFERENCES "BillingStatementLine"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE "WorkEntry" ADD CONSTRAINT "WorkEntry_invoiceLineId_fkey" FOREIGN KEY ("invoiceLineId") REFERENCES "InvoiceLine"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "WorkEntry" ADD CONSTRAINT "WorkEntry_createdByUserId_fkey" FOREIGN KEY ("createdByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -260,11 +260,11 @@ WHERE w."id" = '11111111-1111-4111-a111-111111111111';
 -- ---------------------------------------------------------------------------
 -- Hand-written section 3: backfill WorkEntry from billing sources.
 -- Unbilled sources that resolve to exactly one client become PROPOSED entries.
--- Sources already attached to a statement (statementId set) become BILLED
--- entries linked to the matching statement line; when their client cannot be
--- resolved from the source, the statement's client is used so that billing
+-- Sources already attached to a invoice (invoiceId set) become BILLED
+-- entries linked to the matching invoice line; when their client cannot be
+-- resolved from the source, the invoice's client is used so that billing
 -- history is never dropped. A billed task or deadline whose own client and
--- case client disagree is kept too, under the statement's client (the case
+-- case client disagree is kept too, under the invoice's client (the case
 -- link is dropped when it belongs to another client). The client-conflict
 -- guard only applies to unbilled sources: those cannot be attributed to
 -- exactly one client, so they stay out of the proposed backlog.
@@ -276,7 +276,7 @@ WHERE w."id" = '11111111-1111-4111-a111-111111111111';
 INSERT INTO "WorkEntry" (
   "id", "workspaceId", "userId", "clientId", "caseId", "workDate", "minutes",
   "description", "treatment", "status", "source", "sourceType", "sourceId",
-  "statementLineId", "createdByUserId", "updatedByUserId", "updatedAt"
+  "invoiceLineId", "createdByUserId", "updatedByUserId", "updatedAt"
 )
 SELECT
   gen_random_uuid()::text,
@@ -288,7 +288,7 @@ SELECT
   NULL,
   t."title",
   'UNDECIDED'::"WorkEntryTreatment",
-  CASE WHEN t."statementId" IS NULL THEN 'PROPOSED' ELSE 'BILLED' END::"WorkEntryStatus",
+  CASE WHEN t."invoiceId" IS NULL THEN 'PROPOSED' ELSE 'BILLED' END::"WorkEntryStatus",
   'TASK'::"WorkEntrySource",
   'TASK',
   t."id",
@@ -298,30 +298,30 @@ SELECT
   CURRENT_TIMESTAMP
 FROM "Task" t
 LEFT JOIN "Case" c ON c."id" = t."caseId"
-LEFT JOIN "BillingStatement" st ON st."id" = t."statementId"
+LEFT JOIN "Invoice" st ON st."id" = t."invoiceId"
 CROSS JOIN LATERAL (
   SELECT CASE
-    WHEN t."statementId" IS NOT NULL AND t."clientId" IS NOT NULL
+    WHEN t."invoiceId" IS NOT NULL AND t."clientId" IS NOT NULL
       AND c."clientId" IS NOT NULL AND t."clientId" <> c."clientId"
     THEN st."clientId"
     ELSE COALESCE(t."clientId", c."clientId", st."clientId")
   END AS "clientId"
 ) r
 LEFT JOIN LATERAL (
-  SELECT bl."id" FROM "BillingStatementLine" bl
-  WHERE bl."statementId" = t."statementId" AND bl."sourceType" = 'TASK' AND bl."sourceId" = t."id"
+  SELECT bl."id" FROM "InvoiceLine" bl
+  WHERE bl."invoiceId" = t."invoiceId" AND bl."sourceType" = 'TASK' AND bl."sourceId" = t."id"
   ORDER BY (bl."status" = 'CANCELLED'), bl."createdAt"
   LIMIT 1
-) l ON t."statementId" IS NOT NULL
-WHERE (t."status" = 'DONE' OR t."statementId" IS NOT NULL)
-  AND (t."statementId" IS NOT NULL OR t."clientId" IS NULL OR c."clientId" IS NULL OR t."clientId" = c."clientId")
+) l ON t."invoiceId" IS NOT NULL
+WHERE (t."status" = 'DONE' OR t."invoiceId" IS NOT NULL)
+  AND (t."invoiceId" IS NOT NULL OR t."clientId" IS NULL OR c."clientId" IS NULL OR t."clientId" = c."clientId")
   AND r."clientId" IS NOT NULL;
 
 -- Deadlines
 INSERT INTO "WorkEntry" (
   "id", "workspaceId", "userId", "clientId", "caseId", "workDate", "minutes",
   "description", "treatment", "status", "source", "sourceType", "sourceId",
-  "statementLineId", "createdByUserId", "updatedByUserId", "updatedAt"
+  "invoiceLineId", "createdByUserId", "updatedByUserId", "updatedAt"
 )
 SELECT
   gen_random_uuid()::text,
@@ -333,7 +333,7 @@ SELECT
   NULL,
   d."title",
   'UNDECIDED'::"WorkEntryTreatment",
-  CASE WHEN d."statementId" IS NULL THEN 'PROPOSED' ELSE 'BILLED' END::"WorkEntryStatus",
+  CASE WHEN d."invoiceId" IS NULL THEN 'PROPOSED' ELSE 'BILLED' END::"WorkEntryStatus",
   'DEADLINE'::"WorkEntrySource",
   'DEADLINE',
   d."id",
@@ -343,23 +343,23 @@ SELECT
   CURRENT_TIMESTAMP
 FROM "Deadline" d
 LEFT JOIN "Case" c ON c."id" = d."caseId"
-LEFT JOIN "BillingStatement" st ON st."id" = d."statementId"
+LEFT JOIN "Invoice" st ON st."id" = d."invoiceId"
 CROSS JOIN LATERAL (
   SELECT CASE
-    WHEN d."statementId" IS NOT NULL AND d."clientId" IS NOT NULL
+    WHEN d."invoiceId" IS NOT NULL AND d."clientId" IS NOT NULL
       AND c."clientId" IS NOT NULL AND d."clientId" <> c."clientId"
     THEN st."clientId"
     ELSE COALESCE(d."clientId", c."clientId", st."clientId")
   END AS "clientId"
 ) r
 LEFT JOIN LATERAL (
-  SELECT bl."id" FROM "BillingStatementLine" bl
-  WHERE bl."statementId" = d."statementId" AND bl."sourceType" = 'DEADLINE' AND bl."sourceId" = d."id"
+  SELECT bl."id" FROM "InvoiceLine" bl
+  WHERE bl."invoiceId" = d."invoiceId" AND bl."sourceType" = 'DEADLINE' AND bl."sourceId" = d."id"
   ORDER BY (bl."status" = 'CANCELLED'), bl."createdAt"
   LIMIT 1
-) l ON d."statementId" IS NOT NULL
-WHERE (d."status" = 'SATISFIED' OR d."statementId" IS NOT NULL)
-  AND (d."statementId" IS NOT NULL OR d."clientId" IS NULL OR c."clientId" IS NULL OR d."clientId" = c."clientId")
+) l ON d."invoiceId" IS NOT NULL
+WHERE (d."status" = 'SATISFIED' OR d."invoiceId" IS NOT NULL)
+  AND (d."invoiceId" IS NOT NULL OR d."clientId" IS NULL OR c."clientId" IS NULL OR d."clientId" = c."clientId")
   AND r."clientId" IS NOT NULL;
 
 -- Events (client set = EventClient clients united with the case client; exactly one required)
@@ -381,7 +381,7 @@ single_client AS (
 INSERT INTO "WorkEntry" (
   "id", "workspaceId", "userId", "clientId", "caseId", "workDate", "minutes",
   "description", "treatment", "status", "source", "sourceType", "sourceId",
-  "statementLineId", "createdByUserId", "updatedByUserId", "updatedAt"
+  "invoiceLineId", "createdByUserId", "updatedByUserId", "updatedAt"
 )
 SELECT
   gen_random_uuid()::text,
@@ -398,7 +398,7 @@ SELECT
   END,
   e."title",
   'UNDECIDED'::"WorkEntryTreatment",
-  CASE WHEN e."statementId" IS NULL THEN 'PROPOSED' ELSE 'BILLED' END::"WorkEntryStatus",
+  CASE WHEN e."invoiceId" IS NULL THEN 'PROPOSED' ELSE 'BILLED' END::"WorkEntryStatus",
   'EVENT'::"WorkEntrySource",
   'EVENT',
   e."id",
@@ -408,42 +408,42 @@ SELECT
   CURRENT_TIMESTAMP
 FROM "Event" e
 LEFT JOIN single_client sc ON sc."eventId" = e."id"
-LEFT JOIN "BillingStatement" st ON st."id" = e."statementId"
+LEFT JOIN "Invoice" st ON st."id" = e."invoiceId"
 LEFT JOIN LATERAL (
-  SELECT bl."id" FROM "BillingStatementLine" bl
-  WHERE bl."statementId" = e."statementId" AND bl."sourceType" = 'EVENT' AND bl."sourceId" = e."id"
+  SELECT bl."id" FROM "InvoiceLine" bl
+  WHERE bl."invoiceId" = e."invoiceId" AND bl."sourceType" = 'EVENT' AND bl."sourceId" = e."id"
   ORDER BY (bl."status" = 'CANCELLED'), bl."createdAt"
   LIMIT 1
-) l ON e."statementId" IS NOT NULL
-WHERE (e."status" = 'COMPLETED' OR e."statementId" IS NOT NULL)
+) l ON e."invoiceId" IS NOT NULL
+WHERE (e."status" = 'COMPLETED' OR e."invoiceId" IS NOT NULL)
   AND COALESCE(sc."clientId", st."clientId") IS NOT NULL;
 
 -- ---------------------------------------------------------------------------
--- Prisma-generated section: drop the legacy statementId links (after backfill)
+-- Prisma-generated section: drop the legacy invoiceId links (after backfill)
 -- ---------------------------------------------------------------------------
 -- DropForeignKey
-ALTER TABLE "Deadline" DROP CONSTRAINT "Deadline_statementId_fkey";
+ALTER TABLE "Deadline" DROP CONSTRAINT "Deadline_invoiceId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Event" DROP CONSTRAINT "Event_statementId_fkey";
+ALTER TABLE "Event" DROP CONSTRAINT "Event_invoiceId_fkey";
 
 -- DropForeignKey
-ALTER TABLE "Task" DROP CONSTRAINT "Task_statementId_fkey";
+ALTER TABLE "Task" DROP CONSTRAINT "Task_invoiceId_fkey";
 
 -- DropIndex
-DROP INDEX "Deadline_workspaceId_statementId_idx";
+DROP INDEX "Deadline_workspaceId_invoiceId_idx";
 
 -- DropIndex
-DROP INDEX "Event_workspaceId_statementId_idx";
+DROP INDEX "Event_workspaceId_invoiceId_idx";
 
 -- DropIndex
-DROP INDEX "Task_workspaceId_statementId_idx";
+DROP INDEX "Task_workspaceId_invoiceId_idx";
 
 -- AlterTable
-ALTER TABLE "Deadline" DROP COLUMN "statementId";
+ALTER TABLE "Deadline" DROP COLUMN "invoiceId";
 
 -- AlterTable
-ALTER TABLE "Event" DROP COLUMN "statementId";
+ALTER TABLE "Event" DROP COLUMN "invoiceId";
 
 -- AlterTable
-ALTER TABLE "Task" DROP COLUMN "statementId";
+ALTER TABLE "Task" DROP COLUMN "invoiceId";

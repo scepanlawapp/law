@@ -54,7 +54,7 @@ const TREATMENT_VALUES = Object.keys(
   TREATMENT_LABEL_KEYS,
 ) as WorkEntryTreatment[];
 
-/** "Neobračunat rad": confirmed work entries that no statement bills yet. */
+/** "Neobračunat rad": confirmed work entries that no invoice bills yet. */
 @Component({
   selector: "law-finance-work-review",
   standalone: true,
@@ -261,7 +261,7 @@ export class FinanceWorkReviewComponent {
       );
       return;
     }
-    void this.router.navigate(["/finance/statements/new"], {
+    void this.router.navigate(["/finance/invoices/new"], {
       queryParams: {
         clientId: entries[0].client.id,
         workEntryIds: entries.map((entry) => entry.id),

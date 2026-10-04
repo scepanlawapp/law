@@ -1,19 +1,19 @@
 import { FormArray } from "@angular/forms";
-import { BillingStatementLineSummary, WorkEntry } from "@law/api-interfaces";
+import { InvoiceLineSummary, WorkEntry } from "@law/api-interfaces";
 import {
   appendUniqueWorkEntries,
-  BillingStatementLineForm,
-  calculateBillingStatementLineAmounts,
-  calculateBillingStatementTotals,
-  createBillingStatementLineForm,
+  InvoiceLineForm,
+  calculateInvoiceLineAmounts,
+  calculateInvoiceTotals,
+  createInvoiceLineForm,
   createWorkEntryLineForm,
-  detachBillingStatementLineWorkEntries,
+  detachInvoiceLineWorkEntries,
   hasPricingRequiredLines,
   incompatibleCurrencyIndexes,
   normalizeCurrency,
-  recalculateBillingStatementLine,
-  toBillingStatementLineInput,
-} from "./billing-statement-form";
+  recalculateInvoiceLine,
+  toInvoiceLineInput,
+} from "./invoice-form";
 
 const client = {
   id: "22222222-2222-4222-8222-222222222222",
@@ -45,7 +45,7 @@ function entry(overrides: Partial<WorkEntry> = {}): WorkEntry {
     source: "MANUAL",
     sourceType: null,
     sourceId: null,
-    statementId: null,
+    invoiceId: null,
     aiParsed: false,
     createdAt: "2026-09-29T08:00:00.000Z",
     updatedAt: "2026-09-29T08:00:00.000Z",
@@ -55,9 +55,9 @@ function entry(overrides: Partial<WorkEntry> = {}): WorkEntry {
 
 const rate = { hourlyRate: "8000.00", currency: "RSD" };
 
-const savedLine: BillingStatementLineSummary = {
+const savedLine: InvoiceLineSummary = {
   id: "11111111-1111-4111-8111-111111111111",
-  statementId: "55555555-5555-4555-8555-555555555555",
+  invoiceId: "55555555-5555-4555-8555-555555555555",
   client,
   cases: [],
   performedBy: user,
@@ -88,9 +88,9 @@ const savedLine: BillingStatementLineSummary = {
   cancellationReason: null,
 };
 
-describe("billing statement form helpers", () => {
-  it("maps a saved statement line to an editable row", () => {
-    expect(createBillingStatementLineForm(savedLine).getRawValue()).toEqual({
+describe("billing invoice form helpers", () => {
+  it("maps a saved invoice line to an editable row", () => {
+    expect(createInvoiceLineForm(savedLine).getRawValue()).toEqual({
       id: "11111111-1111-4111-8111-111111111111",
       workEntryIds: ["44444444-4444-4444-8444-444444444444"],
       minutes: 90,
@@ -105,7 +105,7 @@ describe("billing statement form helpers", () => {
     });
   });
 
-  it("prices an HOURLY entry at the client rate in the statement currency", () => {
+  it("prices an HOURLY entry at the client rate in the invoice currency", () => {
     const form = createWorkEntryLineForm(entry(), "RSD", rate);
 
     expect(form.getRawValue()).toEqual({
@@ -168,7 +168,7 @@ describe("billing statement form helpers", () => {
     expect(hasPricingRequiredLines([form.getRawValue()])).toBe(true);
 
     form.controls.netAmount.setValue(5000);
-    recalculateBillingStatementLine(form, "netAmount");
+    recalculateInvoiceLine(form, "netAmount");
 
     expect(form.controls.pricingRequired.value).toBe(false);
     expect(form.controls.grossAmount.value).toBe(5000);
@@ -182,13 +182,13 @@ describe("billing statement form helpers", () => {
       rate,
     );
     form.controls.netAmount.setValue(0);
-    recalculateBillingStatementLine(form, "netAmount");
+    recalculateInvoiceLine(form, "netAmount");
 
     expect(form.controls.pricingRequired.value).toBe(true);
   });
 
   it("requires a positive amount on a line that is not flagged", () => {
-    const form = createBillingStatementLineForm(undefined, "RSD");
+    const form = createInvoiceLineForm(undefined, "RSD");
     form.patchValue({ description: "Ručni red", netAmount: 0, grossAmount: 0 });
     expect(form.valid).toBe(false);
 
@@ -211,7 +211,7 @@ describe("billing statement form helpers", () => {
       "rsd",
       rate,
     );
-    expect(toBillingStatementLineInput(flagged)).toEqual({
+    expect(toInvoiceLineInput(flagged)).toEqual({
       serviceDate: "2026-09-29",
       description: "Zastupanje na ročištu (1 h 30 min)",
       netAmount: 0,
@@ -224,18 +224,18 @@ describe("billing statement form helpers", () => {
       pricingRequired: true,
     });
 
-    const manual = createBillingStatementLineForm(undefined, "RSD");
+    const manual = createInvoiceLineForm(undefined, "RSD");
     manual.patchValue({ description: " Ručni red ", netAmount: 10 });
-    expect(toBillingStatementLineInput(manual)).toEqual(
+    expect(toInvoiceLineInput(manual)).toEqual(
       expect.not.objectContaining({ workEntryIds: expect.anything() }),
     );
   });
 
   it("keeps the saved line id through an edit and sends it on save", () => {
-    const form = createBillingStatementLineForm(savedLine);
+    const form = createInvoiceLineForm(savedLine);
     form.patchValue({ description: "Korigovano", netAmount: 10 });
 
-    expect(toBillingStatementLineInput(form)).toMatchObject({
+    expect(toInvoiceLineInput(form)).toMatchObject({
       id: "11111111-1111-4111-8111-111111111111",
       description: "Korigovano",
       netAmount: 10,
@@ -243,18 +243,18 @@ describe("billing statement form helpers", () => {
   });
 
   it("sends no id for new manual or work-entry lines", () => {
-    const manual = createBillingStatementLineForm(undefined, "RSD");
+    const manual = createInvoiceLineForm(undefined, "RSD");
     manual.patchValue({ description: "Novi red", netAmount: 10 });
     const imported = createWorkEntryLineForm(entry(), "RSD", rate);
 
-    expect(toBillingStatementLineInput(manual)).not.toHaveProperty("id");
-    expect(toBillingStatementLineInput(imported)).not.toHaveProperty("id");
+    expect(toInvoiceLineInput(manual)).not.toHaveProperty("id");
+    expect(toInvoiceLineInput(imported)).not.toHaveProperty("id");
   });
 
   it("detaches work entries without clearing entered values", () => {
     const form = createWorkEntryLineForm(entry(), "RSD", rate);
     form.controls.netAmount.setValue(9000);
-    detachBillingStatementLineWorkEntries([form]);
+    detachInvoiceLineWorkEntries([form]);
 
     expect(form.controls.workEntryIds.value).toEqual([]);
     expect(form.controls.minutes.value).toBeNull();
@@ -264,7 +264,7 @@ describe("billing statement form helpers", () => {
     expect(form.controls.netAmount.value).toBe(9000);
   });
 
-  it("identifies only rows whose currency differs from the statement", () => {
+  it("identifies only rows whose currency differs from the invoice", () => {
     const matching = createWorkEntryLineForm(entry(), "RSD", rate);
     const mismatching = createWorkEntryLineForm(
       entry({ id: "other" }),
@@ -279,7 +279,7 @@ describe("billing statement form helpers", () => {
   });
 
   it("does not append the same work entry twice", () => {
-    const lines = new FormArray<BillingStatementLineForm>([]);
+    const lines = new FormArray<InvoiceLineForm>([]);
 
     expect(appendUniqueWorkEntries(lines, [entry()], "RSD", rate)).toBe(1);
     expect(appendUniqueWorkEntries(lines, [entry()], "RSD", rate)).toBe(0);
@@ -288,7 +288,7 @@ describe("billing statement form helpers", () => {
 
   it("recalculates VAT and gross when net or VAT rate changes", () => {
     expect(
-      calculateBillingStatementLineAmounts("netAmount", {
+      calculateInvoiceLineAmounts("netAmount", {
         netAmount: 2323,
         vatRate: 22,
       }),
@@ -300,7 +300,7 @@ describe("billing statement form helpers", () => {
     });
 
     expect(
-      calculateBillingStatementLineAmounts("vatRate", {
+      calculateInvoiceLineAmounts("vatRate", {
         netAmount: 100,
         vatRate: 20,
       }),
@@ -314,7 +314,7 @@ describe("billing statement form helpers", () => {
 
   it("derives VAT rate from a manually changed VAT amount", () => {
     expect(
-      calculateBillingStatementLineAmounts("vatAmount", {
+      calculateInvoiceLineAmounts("vatAmount", {
         netAmount: 200,
         vatAmount: 35,
       }),
@@ -328,7 +328,7 @@ describe("billing statement form helpers", () => {
 
   it("derives net and VAT from a manually changed gross amount", () => {
     expect(
-      calculateBillingStatementLineAmounts("grossAmount", {
+      calculateInvoiceLineAmounts("grossAmount", {
         vatRate: 22,
         grossAmount: 2834.06,
       }),
@@ -342,7 +342,7 @@ describe("billing statement form helpers", () => {
 
   it("normalizes invalid values and handles VAT derivation from zero net", () => {
     expect(
-      calculateBillingStatementLineAmounts("vatAmount", {
+      calculateInvoiceLineAmounts("vatAmount", {
         netAmount: 0,
         vatAmount: 100,
       }),
@@ -353,7 +353,7 @@ describe("billing statement form helpers", () => {
       grossAmount: 0,
     });
     expect(
-      calculateBillingStatementLineAmounts("netAmount", {
+      calculateInvoiceLineAmounts("netAmount", {
         netAmount: Number.NaN,
         vatRate: Number.POSITIVE_INFINITY,
       }),
@@ -365,9 +365,9 @@ describe("billing statement form helpers", () => {
     });
   });
 
-  it("derives rounded statement totals from row net and VAT amounts", () => {
+  it("derives rounded invoice totals from row net and VAT amounts", () => {
     expect(
-      calculateBillingStatementTotals([
+      calculateInvoiceTotals([
         { netAmount: 2323, vatAmount: 511.06 },
         { netAmount: 1000.1, vatAmount: 200.02 },
         { netAmount: Number.NaN, vatAmount: -5 },

@@ -7,13 +7,13 @@ import {
   Validators,
 } from "@angular/forms";
 import {
-  BillingStatementLineInput,
-  BillingStatementLineSummary,
+  InvoiceLineInput,
+  InvoiceLineSummary,
   WorkEntry,
 } from "@law/api-interfaces";
 import { formatHoursMinutes, priceMinutes } from "../../shared/billing";
 
-export type BillingStatementLineForm = FormGroup<{
+export type InvoiceLineForm = FormGroup<{
   /** Saved line id; null for lines added in the composer. */
   id: FormControl<string | null>;
   workEntryIds: FormControl<string[]>;
@@ -34,29 +34,29 @@ export interface ClientRate {
   currency: string;
 }
 
-export type BillingStatementLineAmountSource =
+export type InvoiceLineAmountSource =
   | "netAmount"
   | "vatRate"
   | "vatAmount"
   | "grossAmount";
 
-export interface BillingStatementLineAmounts {
+export interface InvoiceLineAmounts {
   netAmount: number;
   vatRate: number;
   vatAmount: number;
   grossAmount: number;
 }
 
-export interface BillingStatementTotals {
+export interface InvoiceTotals {
   netAmount: number;
   vatAmount: number;
   grossAmount: number;
 }
 
-export function calculateBillingStatementLineAmounts(
-  source: BillingStatementLineAmountSource,
-  values: Partial<Record<BillingStatementLineAmountSource, number | null>>,
-): BillingStatementLineAmounts {
+export function calculateInvoiceLineAmounts(
+  source: InvoiceLineAmountSource,
+  values: Partial<Record<InvoiceLineAmountSource, number | null>>,
+): InvoiceLineAmounts {
   const currentNet = normalizedNumber(values.netAmount);
   const currentRate = normalizedNumber(values.vatRate);
   const currentVat = normalizedNumber(values.vatAmount);
@@ -87,12 +87,12 @@ export function calculateBillingStatementLineAmounts(
   return amountsFromNetAndRate(currentNet, currentRate);
 }
 
-export function calculateBillingStatementTotals(
+export function calculateInvoiceTotals(
   rows: ReadonlyArray<{
     netAmount: number | null | undefined;
     vatAmount: number | null | undefined;
   }>,
-): BillingStatementTotals {
+): InvoiceTotals {
   const netAmount = roundDecimal(
     rows.reduce((sum, row) => sum + normalizedNumber(row.netAmount), 0),
   );
@@ -113,7 +113,7 @@ export function calculateBillingStatementTotals(
 function pricedOrFlaggedValidator(
   control: AbstractControl,
 ): ValidationErrors | null {
-  const group = control as BillingStatementLineForm;
+  const group = control as InvoiceLineForm;
   const net = group.controls.netAmount.value;
   return group.controls.pricingRequired.value || (net !== null && net > 0)
     ? null
@@ -132,7 +132,7 @@ function buildLineForm(init: {
   vatAmount: number;
   grossAmount: number | null;
   currency: string;
-}): BillingStatementLineForm {
+}): InvoiceLineForm {
   return new FormGroup(
     {
       id: new FormControl<string | null>(init.id ?? null),
@@ -175,10 +175,10 @@ function buildLineForm(init: {
   );
 }
 
-export function createBillingStatementLineForm(
-  line?: BillingStatementLineSummary,
+export function createInvoiceLineForm(
+  line?: InvoiceLineSummary,
   defaultCurrency = "RSD",
-): BillingStatementLineForm {
+): InvoiceLineForm {
   return buildLineForm({
     id: line?.id ?? null,
     workEntryIds: line?.workEntries.map((entry) => entry.id) ?? [],
@@ -196,14 +196,14 @@ export function createBillingStatementLineForm(
 
 /**
  * One line per imported work entry. An HOURLY entry is priced at the client's
- * hourly rate when that rate is in the statement currency; anything else gets
+ * hourly rate when that rate is in the invoice currency; anything else gets
  * a zero amount flagged `pricingRequired` so the user must price it.
  */
 export function createWorkEntryLineForm(
   entry: WorkEntry,
   currency: string,
   rate: ClientRate | null,
-): BillingStatementLineForm {
+): InvoiceLineForm {
   const minutes = entry.minutes;
   const sameCurrency =
     !!rate && normalizeCurrency(rate.currency) === normalizeCurrency(currency);
@@ -229,16 +229,16 @@ export function createWorkEntryLineForm(
   });
 }
 
-/** Work entry ids that already back a line of the statement. */
+/** Work entry ids that already back a line of the invoice. */
 export function lineWorkEntryIds(
-  lines: readonly BillingStatementLineForm[],
+  lines: readonly InvoiceLineForm[],
 ): string[] {
   return lines.flatMap((line) => line.controls.workEntryIds.value);
 }
 
 /** Entry-backed lines of another client are no longer valid; they become manual. */
-export function detachBillingStatementLineWorkEntries(
-  lines: readonly BillingStatementLineForm[],
+export function detachInvoiceLineWorkEntries(
+  lines: readonly InvoiceLineForm[],
 ): void {
   for (const line of lines) {
     if (!line.controls.workEntryIds.value.length) continue;
@@ -249,7 +249,7 @@ export function detachBillingStatementLineWorkEntries(
 }
 
 export function appendUniqueWorkEntries(
-  target: FormArray<BillingStatementLineForm>,
+  target: FormArray<InvoiceLineForm>,
   entries: readonly WorkEntry[],
   currency: string,
   rate: ClientRate | null,
@@ -269,11 +269,11 @@ export function appendUniqueWorkEntries(
  * Recomputes the dependent amounts of a line after `source` changed. A line
  * flagged `pricingRequired` stops being flagged once it has a positive amount.
  */
-export function recalculateBillingStatementLine(
-  line: BillingStatementLineForm,
-  source: BillingStatementLineAmountSource,
+export function recalculateInvoiceLine(
+  line: InvoiceLineForm,
+  source: InvoiceLineAmountSource,
 ): void {
-  const amounts = calculateBillingStatementLineAmounts(
+  const amounts = calculateInvoiceLineAmounts(
     source,
     line.getRawValue(),
   );
@@ -291,9 +291,9 @@ export function hasPricingRequiredLines(
   return lines.some((line) => line.pricingRequired);
 }
 
-export function toBillingStatementLineInput(
-  line: BillingStatementLineForm,
-): BillingStatementLineInput {
+export function toInvoiceLineInput(
+  line: InvoiceLineForm,
+): InvoiceLineInput {
   const value = line.getRawValue();
   return {
     // Line identity lets the server keep a fee line's retainer marker.
@@ -312,10 +312,10 @@ export function toBillingStatementLineInput(
 }
 
 export function incompatibleCurrencyIndexes(
-  lines: readonly BillingStatementLineForm[],
-  statementCurrency: string,
+  lines: readonly InvoiceLineForm[],
+  invoiceCurrency: string,
 ): number[] {
-  const expected = normalizeCurrency(statementCurrency);
+  const expected = normalizeCurrency(invoiceCurrency);
   if (!expected) return [];
   return lines.flatMap((line, index) => {
     const actual = normalizeCurrency(line.controls.currency.value);
@@ -330,7 +330,7 @@ export function normalizeCurrency(value: string): string {
 function amountsFromNetAndRate(
   netAmountValue: number,
   vatRateValue: number,
-): BillingStatementLineAmounts {
+): InvoiceLineAmounts {
   const netAmount = roundDecimal(netAmountValue);
   const vatRate = roundDecimal(vatRateValue);
   const vatAmount = roundDecimal((netAmount * vatRate) / 100);
@@ -353,7 +353,7 @@ function roundDecimal(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function zeroAmounts(): BillingStatementLineAmounts {
+function zeroAmounts(): InvoiceLineAmounts {
   return { netAmount: 0, vatRate: 0, vatAmount: 0, grossAmount: 0 };
 }
 

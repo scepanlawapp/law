@@ -18,8 +18,8 @@ import {
 } from "class-validator";
 import { PriceSourceScope } from "@prisma/client";
 
-export class BillingStatementLineInputDto {
-  /** Identity of an existing line of the edited statement; never stored. */
+export class InvoiceLineInputDto {
+  /** Identity of an existing line being edited; never stored. */
   @IsOptional()
   @IsUUID()
   id?: string;
@@ -129,7 +129,7 @@ export class AppendPriceSourceVersionDto {
   publishedAt?: string;
 }
 
-export class CreateStatementDto {
+export class CreateInvoiceDto {
   @IsUUID()
   clientId!: string;
 
@@ -184,8 +184,8 @@ export class CreateStatementDto {
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => BillingStatementLineInputDto)
-  lines!: BillingStatementLineInputDto[];
+  @Type(() => InvoiceLineInputDto)
+  lines!: InvoiceLineInputDto[];
 
   @IsOptional()
   @IsString()
@@ -196,7 +196,7 @@ export class CreateStatementDto {
   printWorkSpecification?: boolean;
 }
 
-export class UpdateStatementDto {
+export class UpdateInvoiceDto {
   @IsOptional()
   @IsDateString()
   dateOfCreate?: string;
@@ -258,15 +258,15 @@ export class UpdateStatementDto {
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => BillingStatementLineInputDto)
-  lines?: BillingStatementLineInputDto[];
+  @Type(() => InvoiceLineInputDto)
+  lines?: InvoiceLineInputDto[];
 
   @IsOptional()
   @IsBoolean()
   printWorkSpecification?: boolean;
 }
 
-export class SendStatementDto {
+export class SendInvoiceDto {
   @IsOptional()
   @IsString()
   sharedMethod?: string;

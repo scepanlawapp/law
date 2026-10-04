@@ -124,7 +124,7 @@ enum DraftApprovalStatus {
   CHANGES_REQUESTED
 }
 
-enum BillingStatementLineStatus {
+enum InvoiceLineStatus {
   UNBILLED
   RESERVED
   BILLED
@@ -138,15 +138,15 @@ enum PriceSourceScope {
   CASE_OVERRIDE
 }
 
-enum BillingStatementStatus {
+enum InvoiceStatus {
   DRAFT
   SENT
   VOIDED
 }
 
 enum FinanceMutationOperation {
-  CREATE_STATEMENT
-  SEND_STATEMENT
+  CREATE_INVOICE
+  SEND_INVOICE
 }
 
 enum ClientType {
@@ -280,56 +280,56 @@ enum UploadOperationPurpose {
 }
 
 model User {
-  id                       String                 @id @default(uuid())
-  email                    String                 @unique
-  passwordHash             String?
-  firstName                String?
-  lastName                 String?
-  username                 String?                @unique
-  phone                    String?
-  jobTitle                 String?
-  gender                   UserGender?
-  avatarUrl                String?
-  status                   UserStatus             @default(INVITED)
-  passwordChangedAt        DateTime?              @db.Timestamptz(3)
-  createdAt                DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt                DateTime               @updatedAt @db.Timestamptz(3)
-  memberships              WorkspaceMember[]
-  sessions                 AuthSession[]
-  tokens                   AuthToken[]
-  auditEvents              AuditEvent[]
-  organizedEvents          Event[]                @relation("EventOrganizer")
-  createdEvents            Event[]                @relation("EventCreator")
-  eventAssignees           EventAssignee[]
-  assignedTasks            Task[]                 @relation("TaskAssignee")
-  createdTasks             Task[]                 @relation("TaskCreator")
-  responsibleDeadlines     Deadline[]             @relation("DeadlineResponsible")
-  createdDeadlines         Deadline[]             @relation("DeadlineCreator")
-  completedTasks           Task[]                 @relation("TaskCompleter")
-  satisfiedDeadlines       Deadline[]             @relation("DeadlineSatisfier")
-  activityLogs             ActivityLog[]          @relation("ActivityActor")
-  chatSessions             ChatSession[]          @relation("ChatSessionCreator")
-  createdDocuments         Document[]             @relation("DocumentCreator")
-  updatedDocuments         Document[]             @relation("DocumentUpdater")
-  archivedDocuments        Document[]             @relation("DocumentArchiver")
-  uploadedVersions         DocumentVersion[]      @relation("DocumentVersionUploader")
-  uploadOperations         UploadOperation[]      @relation("UploadOperationActor")
-  settings                 UserSettings?
-  performedStatementLines  BillingStatementLine[] @relation("BillingStatementLinePerformer")
-  createdStatementLines    BillingStatementLine[] @relation("BillingStatementLineCreator")
-  updatedStatementLines    BillingStatementLine[] @relation("BillingStatementLineUpdater")
-  cancelledStatementLines  BillingStatementLine[] @relation("BillingStatementLineCanceller")
-  authoredPriceSources     PriceSource[]          @relation("PriceSourceAuthor")
-  authoredPriceVersions    PriceSourceVersion[]   @relation("PriceSourceVersionAuthor")
-  notifications            Notification[]
-  sharedBillingStatements  BillingStatement[]     @relation("BillingStatementSharer")
-  voidedBillingStatements  BillingStatement[]     @relation("BillingStatementVoider")
-  createdBillingStatements BillingStatement[]     @relation("BillingStatementCreator")
-  updatedBillingStatements BillingStatement[]     @relation("BillingStatementUpdater")
-  workEntries              WorkEntry[]            @relation("WorkEntryPerformer")
-  createdWorkEntries       WorkEntry[]            @relation("WorkEntryCreator")
-  updatedWorkEntries       WorkEntry[]            @relation("WorkEntryUpdater")
-  rates                    UserRate[]
+  id                    String               @id @default(uuid())
+  email                 String               @unique
+  passwordHash          String?
+  firstName             String?
+  lastName              String?
+  username              String?              @unique
+  phone                 String?
+  jobTitle              String?
+  gender                UserGender?
+  avatarUrl             String?
+  status                UserStatus           @default(INVITED)
+  passwordChangedAt     DateTime?            @db.Timestamptz(3)
+  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+  memberships           WorkspaceMember[]
+  sessions              AuthSession[]
+  tokens                AuthToken[]
+  auditEvents           AuditEvent[]
+  organizedEvents       Event[]              @relation("EventOrganizer")
+  createdEvents         Event[]              @relation("EventCreator")
+  eventAssignees        EventAssignee[]
+  assignedTasks         Task[]               @relation("TaskAssignee")
+  createdTasks          Task[]               @relation("TaskCreator")
+  responsibleDeadlines  Deadline[]           @relation("DeadlineResponsible")
+  createdDeadlines      Deadline[]           @relation("DeadlineCreator")
+  completedTasks        Task[]               @relation("TaskCompleter")
+  satisfiedDeadlines    Deadline[]           @relation("DeadlineSatisfier")
+  activityLogs          ActivityLog[]        @relation("ActivityActor")
+  chatSessions          ChatSession[]        @relation("ChatSessionCreator")
+  createdDocuments      Document[]           @relation("DocumentCreator")
+  updatedDocuments      Document[]           @relation("DocumentUpdater")
+  archivedDocuments     Document[]           @relation("DocumentArchiver")
+  uploadedVersions      DocumentVersion[]    @relation("DocumentVersionUploader")
+  uploadOperations      UploadOperation[]    @relation("UploadOperationActor")
+  settings              UserSettings?
+  performedInvoiceLines InvoiceLine[]        @relation("InvoiceLinePerformer")
+  createdInvoiceLines   InvoiceLine[]        @relation("InvoiceLineCreator")
+  updatedInvoiceLines   InvoiceLine[]        @relation("InvoiceLineUpdater")
+  cancelledInvoiceLines InvoiceLine[]        @relation("InvoiceLineCanceller")
+  authoredPriceSources  PriceSource[]        @relation("PriceSourceAuthor")
+  authoredPriceVersions PriceSourceVersion[] @relation("PriceSourceVersionAuthor")
+  notifications         Notification[]
+  sharedInvoices        Invoice[]            @relation("InvoiceSharer")
+  voidedInvoices        Invoice[]            @relation("InvoiceVoider")
+  createdInvoices       Invoice[]            @relation("InvoiceCreator")
+  updatedInvoices       Invoice[]            @relation("InvoiceUpdater")
+  workEntries           WorkEntry[]          @relation("WorkEntryPerformer")
+  createdWorkEntries    WorkEntry[]          @relation("WorkEntryCreator")
+  updatedWorkEntries    WorkEntry[]          @relation("WorkEntryUpdater")
+  rates                 UserRate[]
 }
 
 model UserSettings {
@@ -350,53 +350,53 @@ model UserSettings {
 }
 
 model Workspace {
-  id                          String                      @id @default(uuid())
-  name                        String
-  createdAt                   DateTime                    @default(now()) @db.Timestamptz(3)
-  updatedAt                   DateTime                    @updatedAt @db.Timestamptz(3)
-  memberships                 WorkspaceMember[]
-  auditEvents                 AuditEvent[]
-  chatSessions                ChatSession[]
-  chatAttachments             ChatAttachment[]
-  workflowJobs                WorkflowJob[]
-  agentToolCalls              AgentToolCall[]
-  pendingActions              PendingAction[]
-  briefExtractionResults      BriefExtractionResult[]
-  draftResults                DraftResult[]
-  config                      WorkspaceConfig?
-  domainCounters              DomainCounter[]
-  tags                        Tag[]
-  caseTypes                   CaseType[]
-  practiceAreas               PracticeArea[]
-  clients                     Client[]
-  cases                       Case[]
-  clientActivities            ClientActivity[]
-  caseActivities              CaseActivity[]
-  caseResponsibilities        CaseResponsibility[]
-  events                      Event[]
-  eventAssignees              EventAssignee[]
-  eventClients                EventClient[]
-  eventAttendees              EventAttendee[]
-  tasks                       Task[]
-  deadlines                   Deadline[]
-  activityLogs                ActivityLog[]
-  tenantAuditEvents           TenantAuditEvent[]
-  legalSources                LegalSource[]
-  storageConnections          StorageConnection[]
-  documents                   Document[]
-  documentCases               DocumentCase[]
-  documentClients             DocumentClient[]
-  documentVersions            DocumentVersion[]
-  storedFiles                 StoredFile[]
-  fileLocations               FileLocation[]
-  uploadOperations            UploadOperation[]
-  billingStatementLines       BillingStatementLine[]
-  billingStatementLineCases   BillingStatementLineCase[]
-  priceSources                PriceSource[]
-  priceSourceVersions         PriceSourceVersion[]
-  billingStatements           BillingStatement[]
-  financeMutations            FinanceMutationRequest[]
-  notifications               Notification[]
+  id                     String                   @id @default(uuid())
+  name                   String
+  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
+  memberships            WorkspaceMember[]
+  auditEvents            AuditEvent[]
+  chatSessions           ChatSession[]
+  chatAttachments        ChatAttachment[]
+  workflowJobs           WorkflowJob[]
+  agentToolCalls         AgentToolCall[]
+  pendingActions         PendingAction[]
+  briefExtractionResults BriefExtractionResult[]
+  draftResults           DraftResult[]
+  config                 WorkspaceConfig?
+  domainCounters         DomainCounter[]
+  tags                   Tag[]
+  caseTypes              CaseType[]
+  practiceAreas          PracticeArea[]
+  clients                Client[]
+  cases                  Case[]
+  clientActivities       ClientActivity[]
+  caseActivities         CaseActivity[]
+  caseResponsibilities   CaseResponsibility[]
+  events                 Event[]
+  eventAssignees         EventAssignee[]
+  eventClients           EventClient[]
+  eventAttendees         EventAttendee[]
+  tasks                  Task[]
+  deadlines              Deadline[]
+  activityLogs           ActivityLog[]
+  tenantAuditEvents      TenantAuditEvent[]
+  legalSources           LegalSource[]
+  storageConnections     StorageConnection[]
+  documents              Document[]
+  documentCases          DocumentCase[]
+  documentClients        DocumentClient[]
+  documentVersions       DocumentVersion[]
+  storedFiles            StoredFile[]
+  fileLocations          FileLocation[]
+  uploadOperations       UploadOperation[]
+  invoiceLines           InvoiceLine[]
+  invoiceLineCases       InvoiceLineCase[]
+  priceSources           PriceSource[]
+  priceSourceVersions    PriceSourceVersion[]
+  invoices               Invoice[]
+  financeMutations       FinanceMutationRequest[]
+  notifications          Notification[]
   workEntries                 WorkEntry[]
   serviceCategories           ServiceCategory[]
   retainerAgreements          RetainerAgreement[]
@@ -542,12 +542,12 @@ model Client {
   tasks                   Task[]
   deadlines               Deadline[]
   activityLogs            ActivityLog[]
-  billingStatementLines   BillingStatementLine[]
+  invoiceLines            InvoiceLine[]
   workEntries             WorkEntry[]
   retainerAgreements      RetainerAgreement[]
   billingProfile          ClientBillingProfile?
   priceSources            PriceSource[]
-  billingStatements       BillingStatement[]
+  invoices                Invoice[]
 
   @@unique([workspaceId, clientNumber])
   @@index([workspaceId, status, displayName])
@@ -633,48 +633,48 @@ model ClientActivity {
 }
 
 model Case {
-  id                        String                     @id @default(uuid())
-  workspaceId               String
-  caseNumber                String
-  clientId                  String
-  name                      String
-  description               String?
-  caseTypeId                String?
-  practiceAreaId            String?
-  status                    CaseStatus                 @default(DRAFT)
-  priority                  CasePriority               @default(NORMAL)
-  responsibleUserId         String
-  openedDate                DateTime?                  @db.Timestamptz(3)
-  closedDate                DateTime?                  @db.Timestamptz(3)
-  closingNote               String?
-  externalReference         String?
-  opposingPartyName         String?
-  opposingPartyAddress      String?
-  confidentialityLevel      String?
-  customFields              Json?
-  createdByUserId           String
-  updatedByUserId           String
-  createdAt                 DateTime                   @default(now()) @db.Timestamptz(3)
-  updatedAt                 DateTime                   @updatedAt @db.Timestamptz(3)
-  workspace                 Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  client                    Client                     @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  caseType                  CaseType?                  @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
-  practiceArea              PracticeArea?              @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
-  activities                CaseActivity[]
-  clientActivities          ClientActivity[]           @relation("ClientActivityRelatedCase")
-  responsibilities          CaseResponsibility[]
-  tags                      CaseTag[]
-  events                    Event[]                    @relation("EventCase")
-  tasks                     Task[]                     @relation("TaskCase")
-  deadlines                 Deadline[]                 @relation("DeadlineCase")
-  activityLogs              ActivityLog[]              @relation("ActivityCase")
-  documentCases             DocumentCase[]
-  chatSessions              ChatSession[]
-  draftResults              DraftResult[]
-  appliedBriefs             BriefExtractionResult[]    @relation("BriefAppliedCase")
-  billingStatementLineCases BillingStatementLineCase[]
-  workEntries               WorkEntry[]
-  priceSources              PriceSource[]
+  id                   String                  @id @default(uuid())
+  workspaceId          String
+  caseNumber           String
+  clientId             String
+  name                 String
+  description          String?
+  caseTypeId           String?
+  practiceAreaId       String?
+  status               CaseStatus              @default(DRAFT)
+  priority             CasePriority            @default(NORMAL)
+  responsibleUserId    String
+  openedDate           DateTime?               @db.Timestamptz(3)
+  closedDate           DateTime?               @db.Timestamptz(3)
+  closingNote          String?
+  externalReference    String?
+  opposingPartyName    String?
+  opposingPartyAddress String?
+  confidentialityLevel String?
+  customFields         Json?
+  createdByUserId      String
+  updatedByUserId      String
+  createdAt            DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                @updatedAt @db.Timestamptz(3)
+  workspace            Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client               Client                  @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  caseType             CaseType?               @relation(fields: [caseTypeId], references: [id], onDelete: SetNull)
+  practiceArea         PracticeArea?           @relation(fields: [practiceAreaId], references: [id], onDelete: SetNull)
+  activities           CaseActivity[]
+  clientActivities     ClientActivity[]        @relation("ClientActivityRelatedCase")
+  responsibilities     CaseResponsibility[]
+  tags                 CaseTag[]
+  events               Event[]                 @relation("EventCase")
+  tasks                Task[]                  @relation("TaskCase")
+  deadlines            Deadline[]              @relation("DeadlineCase")
+  activityLogs         ActivityLog[]           @relation("ActivityCase")
+  documentCases        DocumentCase[]
+  chatSessions         ChatSession[]
+  draftResults         DraftResult[]
+  appliedBriefs        BriefExtractionResult[] @relation("BriefAppliedCase")
+  invoiceLineCases     InvoiceLineCase[]
+  priceSources         PriceSource[]
+  workEntries          WorkEntry[]
 
   @@unique([workspaceId, caseNumber])
   @@index([workspaceId, clientId, status, updatedAt])
@@ -907,108 +907,108 @@ model PriceSourceVersion {
   @@index([workspaceId, priceSourceId, createdAt])
 }
 
-model BillingStatement {
-  id                     String                 @id @default(uuid())
-  workspaceId            String
-  clientId               String
-  statementNumber        String
-  dateOfCreate           DateTime               @db.Date
-  dateOfMaturity         DateTime               @db.Date
-  dateOfTurnover         DateTime               @db.Date
-  placeOfIssue           String
-  methodOfPayment        String
-  comment                String                 @db.Text
-  netAmount              Decimal                @db.Decimal(18, 2)
-  vatRate                Decimal                @db.Decimal(5, 2)
-  vatAmount              Decimal                @db.Decimal(18, 2)
-  grossAmount            Decimal                @db.Decimal(18, 2)
-  numberOfCashBill       String
-  country                String
-  currency               String
-  status                 BillingStatementStatus @default(DRAFT)
-  sharedAt               DateTime?              @db.Timestamptz(3)
-  sharedMethod           String?
-  externalInvoiceNumber  String?
-  externalInvoiceDate    DateTime?              @db.Date
-  externalReference      String?
-  printWorkSpecification Boolean                @default(true)
+model Invoice {
+  id                    String        @id @default(uuid())
+  workspaceId           String
+  clientId              String
+  invoiceNumber         String
+  dateOfCreate          DateTime      @db.Date
+  dateOfMaturity        DateTime      @db.Date
+  dateOfTurnover        DateTime      @db.Date
+  placeOfIssue          String
+  methodOfPayment       String
+  comment               String        @db.Text
+  netAmount             Decimal       @db.Decimal(18, 2)
+  vatRate               Decimal       @db.Decimal(5, 2)
+  vatAmount             Decimal       @db.Decimal(18, 2)
+  grossAmount           Decimal       @db.Decimal(18, 2)
+  numberOfCashBill      String
+  country               String
+  currency              String
+  status                InvoiceStatus @default(DRAFT)
+  sharedAt              DateTime?     @db.Timestamptz(3)
+  sharedMethod          String?
+  externalInvoiceNumber String?
+  externalInvoiceDate   DateTime?     @db.Date
+  externalReference     String?
+  voidedAt              DateTime?     @db.Timestamptz(3)
+  voidReason            String?
+  sharedByUserId        String?
+  voidedByUserId        String?
+  replacementForId      String?
+  createdByUserId       String
+  updatedByUserId       String
+  createdAt             DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime      @updatedAt @db.Timestamptz(3)
+  workspace             Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client                Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  sharedBy              User?         @relation("InvoiceSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
+  voidedBy              User?         @relation("InvoiceVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  createdBy             User          @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy             User          @relation("InvoiceUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  replacementFor        Invoice?      @relation("InvoiceReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
+  replacement           Invoice[]     @relation("InvoiceReplacement")
+  lines                 InvoiceLine[]
+  printWorkSpecification Boolean       @default(true)
   billingMonth           String?
-  voidedAt               DateTime?              @db.Timestamptz(3)
-  voidReason             String?
-  sharedByUserId         String?
-  voidedByUserId         String?
-  replacementForId       String?
-  createdByUserId        String
-  updatedByUserId        String
-  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime               @updatedAt @db.Timestamptz(3)
-  workspace              Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  client                 Client                 @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  sharedBy               User?                  @relation("BillingStatementSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
-  voidedBy               User?                  @relation("BillingStatementVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
-  createdBy              User                   @relation("BillingStatementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy              User                   @relation("BillingStatementUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  replacementFor         BillingStatement?      @relation("StatementReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
-  replacement            BillingStatement[]     @relation("StatementReplacement")
-  lines                  BillingStatementLine[]
 
-  @@unique([workspaceId, statementNumber])
+  @@unique([workspaceId, invoiceNumber])
   @@index([workspaceId, clientId, status, dateOfMaturity])
   @@index([workspaceId, status, dateOfMaturity])
 }
 
-model BillingStatementLine {
-  id                 String                     @id @default(uuid())
+model InvoiceLine {
+  id                 String            @id @default(uuid())
   workspaceId        String
-  statementId        String
+  invoiceId          String
   clientId           String
   performedByUserId  String
   lineOrder          Int?
-  description        String                     @db.Text
-  serviceDate        DateTime                   @db.Date
-  netAmount          Decimal                    @db.Decimal(18, 2)
-  vatRate            Decimal                    @db.Decimal(5, 2)
-  vatAmount          Decimal                    @db.Decimal(18, 2)
-  grossAmount        Decimal                    @db.Decimal(18, 2)
+  description        String            @db.Text
+  serviceDate        DateTime          @db.Date
+  netAmount          Decimal           @db.Decimal(18, 2)
+  vatRate            Decimal           @db.Decimal(5, 2)
+  vatAmount          Decimal           @db.Decimal(18, 2)
+  grossAmount        Decimal           @db.Decimal(18, 2)
   currency           String
-  status             BillingStatementLineStatus @default(RESERVED)
+  status             InvoiceLineStatus @default(RESERVED)
   sourceType         String?
   sourceId           String?
-  pricingRequired    Boolean                    @default(false)
+  pricingRequired    Boolean           @default(false)
   minutes            Int?
-  billedAt           DateTime?                  @db.Timestamptz(3)
-  cancelledAt        DateTime?                  @db.Timestamptz(3)
-  cancellationReason String?                    @db.Text
+  billedAt           DateTime?         @db.Timestamptz(3)
+  cancelledAt        DateTime?         @db.Timestamptz(3)
+  cancellationReason String?           @db.Text
   cancelledByUserId  String?
   createdByUserId    String
   updatedByUserId    String
-  createdAt          DateTime                   @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime                   @updatedAt @db.Timestamptz(3)
-  workspace          Workspace                  @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  statement          BillingStatement           @relation(fields: [statementId], references: [id], onDelete: Cascade)
-  client             Client                     @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  performedBy        User                       @relation("BillingStatementLinePerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
-  cancelledBy        User?                      @relation("BillingStatementLineCanceller", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
-  createdBy          User                       @relation("BillingStatementLineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy          User                       @relation("BillingStatementLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  caseLinks          BillingStatementLineCase[]
+  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
+  workspace          Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  invoice            Invoice           @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client             Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  performedBy        User              @relation("InvoiceLinePerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy        User?             @relation("InvoiceLineCanceller", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  createdBy          User              @relation("InvoiceLineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy          User              @relation("InvoiceLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  caseLinks          InvoiceLineCase[]
   workEntries        WorkEntry[]
 
-  @@unique([statementId, lineOrder])
+  @@unique([invoiceId, lineOrder])
   @@index([workspaceId, clientId, status, serviceDate])
   @@index([workspaceId, performedByUserId, serviceDate])
   @@index([sourceType, sourceId])
 }
 
-model BillingStatementLineCase {
-  workspaceId            String
-  billingStatementLineId String
-  caseId                 String
-  workspace              Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  billingStatementLine   BillingStatementLine @relation(fields: [billingStatementLineId], references: [id], onDelete: Cascade)
-  case                   Case                 @relation(fields: [caseId], references: [id], onDelete: Restrict)
+model InvoiceLineCase {
+  workspaceId   String
+  invoiceLineId String
+  caseId        String
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  invoiceLine   InvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  case          Case        @relation(fields: [caseId], references: [id], onDelete: Restrict)
 
-  @@id([billingStatementLineId, caseId])
+  @@id([invoiceLineId, caseId])
   @@index([workspaceId, caseId])
   @@index([caseId])
 }
@@ -1681,7 +1681,7 @@ model WorkEntry {
   source            WorkEntrySource       @default(MANUAL)
   sourceType        String?
   sourceId          String?
-  statementLineId   String?
+  invoiceLineId     String?
   aiParsed          Boolean               @default(false)
   createdByUserId   String
   updatedByUserId   String
@@ -1692,7 +1692,7 @@ model WorkEntry {
   client            Client                @relation(fields: [clientId], references: [id], onDelete: Restrict)
   case              Case?                 @relation(fields: [caseId], references: [id], onDelete: SetNull)
   serviceCategory   ServiceCategory?      @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
-  statementLine     BillingStatementLine? @relation(fields: [statementLineId], references: [id], onDelete: SetNull)
+  invoiceLine       InvoiceLine?          @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
   createdBy         User                  @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   updatedBy         User                  @relation("WorkEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
 
@@ -1700,7 +1700,7 @@ model WorkEntry {
   @@index([workspaceId, clientId, workDate])
   @@index([workspaceId, userId, workDate])
   @@index([workspaceId, status])
-  @@index([statementLineId])
+  @@index([invoiceLineId])
   @@index([caseId])
 }
 

@@ -39,7 +39,7 @@
 
 ## Review Focus
 
-1. **Client with a retainer in EUR and an hourly profile in RSD:** the run must produce one draft per currency, never a mixed-currency statement. Test in Task 10.
+1. **Client with a retainer in EUR and an hourly profile in RSD:** the run must produce one draft per currency, never a mixed-currency invoice. Test in Task 10.
 2. **An entry that crosses the retainer cap:** it is linked to the overage line, and only its over-cap minutes are priced. A re-run in the same month counts minutes already billed under the fee line toward the cap. Test in Task 3.
 3. **Retainer that starts on the 15th:** fee and cap are prorated by active days. A month with no active retainer days produces no fee line. Test in Task 3.
 4. **A completed task with no client** (no `clientId`, no case) or an event with two clients: no entry is created, and no transition fails because of it. Test in Task 5.
@@ -78,7 +78,7 @@
 - `libs/api/features/clients/src/lib/clients.service.ts`, its DTO, and its module
 - `libs/api/features/financials/src/lib/financials.{service,dto,controller,module}.ts`
 - `libs/api/features/notifications/src/lib/{notifications.service,notification-content,notification-reminder.service}.ts`
-- `libs/api/api-interfaces/src/lib/api-interfaces.ts`: remove `BillableWork*`, update `BillingStatementLineInput`, `NotificationType`, `NotificationPreferences`
+- `libs/api/api-interfaces/src/lib/api-interfaces.ts`: remove `BillableWork*`, update `InvoiceLineInput`, `NotificationType`, `NotificationPreferences`
 
 **Frontend new:**
 - `apps/web/src/app/features/time/`:
@@ -115,12 +115,12 @@
 - Produces these changes to existing models:
   - `WorkspaceConfig`: add `targetHourlyRate Decimal(18,2)?`, `internalCurrency String @default("RSD")`, `defaultVatRate Decimal(5,2) @default(20)`, `paymentTermDays Int @default(15)`
   - `UserSettings`: add `timeReviewReminderEnabled Boolean @default(false)`, `timeReviewReminderTime String @default("17:30")`
-  - `BillingStatement`: add `printWorkSpecification Boolean @default(true)` and `billingMonth String?` (`"YYYY-MM"`, set by the month-end run)
-  - `BillingStatementLine`: add `pricingRequired Boolean @default(false)`, `minutes Int?`, and relation `workEntries WorkEntry[]`
-  - `Task`, `Event`, `Deadline`: remove `statementId` and the relation, along with `BillingStatement.events/tasks/deadlines`
+  - `Invoice`: add `printWorkSpecification Boolean @default(true)` and `billingMonth String?` (`"YYYY-MM"`, set by the month-end run)
+  - `InvoiceLine`: add `pricingRequired Boolean @default(false)`, `minutes Int?`, and relation `workEntries WorkEntry[]`
+  - `Task`, `Event`, `Deadline`: remove `invoiceId` and the relation, along with `Invoice.events/tasks/deadlines`
   - `NotificationType`: add `TIMER_RUNNING_LONG`, `TIME_REVIEW_REMINDER`, `RETAINER_USAGE_80`, `RETAINER_USAGE_100`
 - `WorkEntry` columns: as in spec §2, plus:
-  - `statementLineId String?` → `BillingStatementLine` (`onDelete: SetNull`)
+  - `invoiceLineId String?` → `InvoiceLine` (`onDelete: SetNull`)
   - `sourceType String?` (`"TASK" | "EVENT" | "DEADLINE" | "CLIENT_ACTIVITY" | "CASE_ACTIVITY"`)
   - indexes `@@unique([workspaceId, sourceType, sourceId])`, `@@index([workspaceId, clientId, workDate])`, `@@index([workspaceId, userId, workDate])`, `@@index([workspaceId, status])`
 - `RetainerAgreement`: as in spec §2. `includedMinutes Int?`, both hourly rates `Decimal(18,2)?`, `active Boolean @default(true)`.
@@ -128,15 +128,15 @@
 - `UserRate`: `@@unique([workspaceId, userId, effectiveFrom])`.
 
 - [x] **Step 1: Edit the schema** with the models above. Run `npx prisma format --schema apps/api/prisma/schema.prisma`. Expected: no errors.
-- [x] **Step 2: Generate the migration without applying it.** Run `npx prisma migrate dev --create-only --name work_entries --schema apps/api/prisma/schema.prisma`. Expected: a new folder containing `CREATE TABLE "WorkEntry"` and `DROP COLUMN "statementId"`.
+- [x] **Step 2: Generate the migration without applying it.** Run `npx prisma migrate dev --create-only --name work_entries --schema apps/api/prisma/schema.prisma`. Expected: a new folder containing `CREATE TABLE "WorkEntry"` and `DROP COLUMN "invoiceId"`.
 - [x] **Step 3: Hand-edit `migration.sql`.**
   - **Partial unique index:** add one for running timers: `CREATE UNIQUE INDEX "WorkEntry_one_running_per_user" ON "WorkEntry"("workspaceId","userId") WHERE "status" = 'RUNNING';`
   - **Backfill, inserted after table creation and before the `DROP COLUMN` statements.** For each source type, insert `WorkEntry` rows, gen_random_uuid ids, `source` = type, `sourceType` = type, `description` = title, `createdByUserId` = `updatedByUserId` = the performer:
     - Tasks: `status='DONE'` with exactly one client from `{task.clientId, case.clientId}`. Performer `assigneeUserId`. `workDate = completedAt::date` (fallback `updatedAt`).
     - Deadlines: `status='SATISFIED'`, same client rule. Performer `responsibleUserId`. `workDate = satisfiedAt::date`.
     - Events: `status='COMPLETED'`. The client set is `EventClient.clientId ∪ case.clientId` and must have exactly one member (`GROUP BY e.id HAVING COUNT(DISTINCT c) = 1`). Performer `organizerUserId`. `workDate = startsAt::date`. `minutes = ROUND(EXTRACT(EPOCH FROM endsAt-startsAt)/60)` when `NOT isAllDay` and the value is between 1 and 1440, else NULL.
-    - Rows whose source `statementId IS NULL` get `status = 'PROPOSED'`, `treatment = 'UNDECIDED'`.
-    - Rows with `statementId` set get `status='BILLED'` and `statementLineId` = the `BillingStatementLine.id` where `sourceType`/`sourceId` match.
+    - Rows whose source `invoiceId IS NULL` get `status = 'PROPOSED'`, `treatment = 'UNDECIDED'`.
+    - Rows with `invoiceId` set get `status='BILLED'` and `invoiceLineId` = the `InvoiceLine.id` where `sourceType`/`sourceId` match.
   - **Seed categories:** insert the seven `ServiceCategory` rows from spec §2 for the hardcoded workspace id, with `order` 0..6.
 - [x] **Step 4: Apply the migration.** Run `npm run services:up && npm run db:migrate`. Expected: "All migrations have been successfully applied". Then run `npx nx run api:build`. Expected: TypeScript errors only in financials and activities code (fixed in Tasks 5 and 9). Record that list in the commit message body.
 - [x] **Step 5: Verify the backfill on demo data.** Run `npm run db:seed:demo` on a fresh DB *before* this branch's migration: `git stash`, reset the DB, seed, `git stash pop`, migrate. Then:
@@ -145,7 +145,7 @@
   SELECT status, source, count(*) FROM "WorkEntry" GROUP BY 1,2;
   ```
 
-  Expected: PROPOSED rows for each source type, no rows with a NULL `clientId`, and BILLED rows equal to the old count of non-null `statementId`.
+  Expected: PROPOSED rows for each source type, no rows with a NULL `clientId`, and BILLED rows equal to the old count of non-null `invoiceId`.
 - [x] **Step 6: Commit** `feat(work-entries): schema, migration and billing-source backfill`.
 
 ### Task 2: Shared contracts and lib scaffold
@@ -163,7 +163,7 @@ export type WorkEntryTreatment = "RETAINER" | "AT" | "HOURLY" | "NON_BILLABLE" |
 export type WorkEntrySource = "MANUAL" | "TIMER" | "QUICK_CAPTURE" | "TASK" | "EVENT" | "DEADLINE" | "ACTIVITY" | "EMAIL";
 export type WorkEntrySourceType = "TASK" | "EVENT" | "DEADLINE" | "CLIENT_ACTIVITY" | "CASE_ACTIVITY";
 export type RetainerRule = "HOURLY" | "AT" | "ABSORBED";
-export interface WorkEntry { id: string; user: UserReference; client: ClientReference; case: CaseReference | null; workDate: string; minutes: number | null; timerStartedAt: string | null; description: string; serviceCategory: { id: string; name: string } | null; treatment: WorkEntryTreatment; status: WorkEntryStatus; writeOffReason: string | null; source: WorkEntrySource; sourceType: WorkEntrySourceType | null; sourceId: string | null; statementId: string | null; aiParsed: boolean; createdAt: string; updatedAt: string; }
+export interface WorkEntry { id: string; user: UserReference; client: ClientReference; case: CaseReference | null; workDate: string; minutes: number | null; timerStartedAt: string | null; description: string; serviceCategory: { id: string; name: string } | null; treatment: WorkEntryTreatment; status: WorkEntryStatus; writeOffReason: string | null; source: WorkEntrySource; sourceType: WorkEntrySourceType | null; sourceId: string | null; invoiceId: string | null; aiParsed: boolean; createdAt: string; updatedAt: string; }
 export interface CreateWorkEntryRequest { clientId: string; caseId?: string; workDate: string; minutes: number; description: string; serviceCategoryId?: string; treatment?: WorkEntryTreatment; source?: "MANUAL" | "QUICK_CAPTURE"; aiParsed?: boolean; }
 export type UpdateWorkEntryRequest = Partial<CreateWorkEntryRequest>;
 export interface WorkEntryQuery { userIds?: string[]; clientIds?: string[]; caseId?: string; statuses?: WorkEntryStatus[]; treatments?: WorkEntryTreatment[]; from?: string; to?: string; unbilledOnly?: boolean; page: number; pageSize: number; }
@@ -180,15 +180,15 @@ export interface UserRate { id: string; userId: string; hourlyValue: string; cur
 export interface WorkspaceBillingConfig { targetHourlyRate: string | null; internalCurrency: string; defaultVatRate: string; paymentTermDays: number; }
 export interface RetainerUsage { client: ClientReference; agreementId: string; month: string; currency: string; fee: string; includedMinutes: number | null; coveredMinutes: number; outOfScopeMinutes: number; effectiveHourlyRate: string | null; targetHourlyRate: string | null; }
 export interface MonthEndPrecheck { month: string; clients: { client: ClientReference; open: WorkEntry[] }[]; }
-export interface MonthEndRunResult { month: string; statements: { statementId: string; client: ClientReference; currency: string; created: boolean; addedLines: number; pricingRequiredLines: number }[]; }
+export interface MonthEndRunResult { month: string; statements: { invoiceId: string; client: ClientReference; currency: string; created: boolean; addedLines: number; pricingRequiredLines: number }[]; }
 export interface ProfitabilityRow { client: ClientReference; minutes: number; revenue: { currency: string; net: string }[]; timeValue: string | null; unknownValueMinutes: number; effectiveHourlyRate: string | null; comparable: boolean; writtenOffValue: string | null; unbilledValue: string | null; }
 export interface ProfitabilityReport { from: string; to: string; internalCurrency: string; targetHourlyRate: string | null; rows: ProfitabilityRow[]; byPerson: { user: UserReference; loggedMinutes: number; billedMinutes: number }[]; }
 ```
 
 In `api-interfaces.ts`:
 - Delete `BillableWorkSourceType` and `BillableWorkItem`.
-- `BillingStatementLineInput`: drop `sourceType`/`sourceId`; add `workEntryIds?: string[]` and `pricingRequired?: boolean`.
-- Add `pricingRequired`, `minutes`, and `workEntries: { id: string; workDate: string; user: UserReference; description: string; minutes: number | null }[]` to the line summary type, and `printWorkSpecification` + `billingMonth` to `BillingStatement`.
+- `InvoiceLineInput`: drop `sourceType`/`sourceId`; add `workEntryIds?: string[]` and `pricingRequired?: boolean`.
+- Add `pricingRequired`, `minutes`, and `workEntries: { id: string; workDate: string; user: UserReference; description: string; minutes: number | null }[]` to the line summary type, and `printWorkSpecification` + `billingMonth` to `Invoice`.
 - Add the four notification types plus the preference keys `timerRunningLong`, `timeReviewReminder`, and `retainerUsage`.
 
 - [x] **Step 1: Write the types above.** Add alias `"@law/work-entries": ["./libs/api/features/work-entries/src/index.ts"]`. Create an empty `WorkEntriesModule` and import it in `AppModule` after `FinancialsModule`.
@@ -432,29 +432,29 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
 - Test: rewrite the affected cases in `apps/api/src/app/financials.service.spec.ts`
 
 **Interfaces:**
-- Removed: `listBillableWork`, `BillableWorkQueryDto`, `GET /financials/billable-work`, and every `event|task|deadline.statementId` update.
-- `BillingStatementLineInputDto` changes:
+- Removed: `listBillableWork`, `BillableWorkQueryDto`, `GET /financials/billable-work`, and every `event|task|deadline.invoiceId` update.
+- `InvoiceLineInputDto` changes:
   - `sourceType`/`sourceId` are replaced by `@IsOptional() @IsArray() @IsUUID("4", { each: true }) workEntryIds?: string[]` and `@IsOptional() @IsBoolean() pricingRequired?: boolean`
   - add `@IsOptional() @IsInt() minutes?: number`
-- `CreateStatementDto`/`UpdateStatementDto` add `@IsOptional() @IsBoolean() printWorkSpecification?: boolean`.
-- New statement helpers, each taking `tx` and the statement id:
-  - `claimEntries(tx, statement, lineId, entryIds)`: an `updateMany` where `id in entryIds`, `workspaceId`, `clientId = statement.clientId`, `status = CONFIRMED`, `statementLineId = null`. If `count !== entryIds.length` → 409 `"Work entry is unavailable for the statement client"`. Sets `status BILLED`, `statementLineId`, and writes `WORK_ENTRY_BILLED`.
-  - `releaseEntries(tx, statementId)`: for entries linked to the statement's lines, sets `status = CONFIRMED` when `minutes` is non-null, else `PROPOSED`, and clears `statementLineId`. Writes `WORK_ENTRY_UNBILLED`.
+- `CreateInvoiceDto`/`UpdateStatementDto` add `@IsOptional() @IsBoolean() printWorkSpecification?: boolean`.
+- New invoice helpers, each taking `tx` and the invoice id:
+  - `claimEntries(tx, invoice, lineId, entryIds)`: an `updateMany` where `id in entryIds`, `workspaceId`, `clientId = invoice.clientId`, `status = CONFIRMED`, `invoiceLineId = null`. If `count !== entryIds.length` → 409 `"Work entry is unavailable for the invoice client"`. Sets `status BILLED`, `invoiceLineId`, and writes `WORK_ENTRY_BILLED`.
+  - `releaseEntries(tx, invoiceId)`: for entries linked to the invoice's lines, sets `status = CONFIRMED` when `minutes` is non-null, else `PROPOSED`, and clears `invoiceLineId`. Writes `WORK_ENTRY_UNBILLED`.
 - Release runs in:
-  - `replaceStatementLines` (before deleting lines)
+  - `replaceInvoiceLines` (before deleting lines)
   - `deleteStatement`
-  - `voidStatement`, for both DRAFT and SENT statements (per spec: voiding a sent statement returns entries)
-- `sendStatement` rejects with 409 `"Price every line before sending"` when any line has `pricingRequired`.
-- The statement response includes per-line `workEntries` and `minutes`, plus `printWorkSpecification` and `billingMonth`.
+  - `voidInvoice`, for both DRAFT and SENT statements (per spec: voiding a sent invoice returns entries)
+- `sendInvoice` rejects with 409 `"Price every line before sending"` when any line has `pricingRequired`.
+- The invoice response includes per-line `workEntries` and `minutes`, plus `printWorkSpecification` and `billingMonth`.
 - The duplicate check runs across all lines' `workEntryIds`: one entry may appear on only one line (409).
-- New service-only helper for Task 10: `createDraftFromLines(tx, input: { clientId: string; currency: string; billingMonth: string; header: Pick<CreateStatementDto, "dateOfCreate" | "dateOfMaturity" | "dateOfTurnover" | "placeOfIssue" | "methodOfPayment" | "country" | "vatRate">; lines: BillingStatementLineInputDto[] }): Promise<string>`. It reuses the number counter and line creation, and is public on `FinancialsService` with no controller route.
+- New service-only helper for Task 10: `createDraftFromLines(tx, input: { clientId: string; currency: string; billingMonth: string; header: Pick<CreateInvoiceDto, "dateOfCreate" | "dateOfMaturity" | "dateOfTurnover" | "placeOfIssue" | "methodOfPayment" | "country" | "vatRate">; lines: InvoiceLineInputDto[] }): Promise<string>`. It reuses the number counter and line creation, and is public on `FinancialsService` with no controller route.
 
 - [x] **Step 1: Write the failing tests:**
   - Create with `workEntryIds [e1, e2]` on one line → one `updateMany` claiming both. A claim count of 1 → 409.
   - The same entry on two lines → 409.
   - `deleteStatement` releases entries.
-  - `voidStatement` on SENT releases entries.
-  - `sendStatement` with a `pricingRequired` line → 409.
+  - `voidInvoice` on SENT releases entries.
+  - `sendInvoice` with a `pricingRequired` line → 409.
   - The existing number/idempotency tests still pass.
 - [x] **Step 2:** Run `npx nx test api --testFile=financials.service.spec.ts`. Expected: FAIL.
 - [x] **Step 3: Implement.** `FinancialsModule` imports `WorkEntriesModule`. `WorkEntriesModule` must not import `FinancialsModule`; Task 10 injects `FinancialsService` through a separate `BillingRunModule` inside the work-entries lib that imports both.
@@ -473,22 +473,22 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
   - `POST /billing/month-end/:month/run` → `MonthEndRunResult`
 - `run(month)`, per client that has confirmed unbilled non-`UNDECIDED` entries dated in the month, or an agreement active in the month. All of it happens inside one `$transaction` per client:
   1. **Partition** entries by currency target: retainer currency for `RETAINER` + out-of-scope entries; `ClientBillingProfile.currency` for non-retainer `HOURLY`; `AT` follows the retainer currency when an agreement exists, else the profile currency, else `internalCurrency`.
-  2. **Find the draft:** for each currency, find a DRAFT statement with the same `clientId`, `billingMonth`, and `currency`, else create one via `createDraftFromLines`. The header uses:
+  2. **Find the draft:** for each currency, find a DRAFT invoice with the same `clientId`, `billingMonth`, and `currency`, else create one via `createDraftFromLines`. The header uses:
      - `dateOfCreate` = today, `dateOfTurnover` = last day of the month, `dateOfMaturity` = today + `paymentTermDays`
      - `vatRate` = `defaultVatRate`
-     - `placeOfIssue`/`methodOfPayment`/`country` copied from the client's latest non-voided statement, else `""` / `"Prenos na račun"` / `"Srbija"`
+     - `placeOfIssue`/`methodOfPayment`/`country` copied from the client's latest non-voided invoice, else `""` / `"Prenos na račun"` / `"Srbija"`
   3. **Build lines:**
      1. **Fee line:** `"Paušal za {mesec} {godina}"` (Serbian month name in the locative, e.g. "septembar"). When prorated, append ` (srazmerno, {activeDays}/{daysInMonth} dana)` ("prorated, X/Y days"). It is added only when the draft has no fee line yet (a line whose description starts with `"Paušal za"`). `workEntryIds = allocation.feeEntryIds`.
      2. **Overage line:** `"Prekoračenje paušala: {h} h {m} min"` ("retainer overage: H h M min"), priced via `priceMinutes`. With `AT`: amount 0 and `pricingRequired: true`.
      3. **Out-of-scope lines:** one per group. Description: `"{case.caseNumber} {case.name}"`, or the category name, or `"Ostali rad"` (other work). Priced the same way.
      4. **HOURLY lines** (non-retainer): grouped by case and priced at the profile rate. A missing rate gives amount 0 and `pricingRequired: true`.
      5. **AT lines:** grouped by case, amount 0, `pricingRequired: true`.
-  4. **Re-runs:** `alreadyCoveredMinutes` is the sum of minutes of `BILLED` entries linked to the fee line of any statement with this `billingMonth` and client.
+  4. **Re-runs:** `alreadyCoveredMinutes` is the sum of minutes of `BILLED` entries linked to the fee line of any invoice with this `billingMonth` and client.
   5. **Concurrency:** claims use Task 9's `claimEntries`. A conflict rolls back that client only, and the result reports `created: false, addedLines: 0` for it.
 
 - [x] **Step 1: Write the failing tests:**
   - **Capped HOURLY:** a client with a 20 h cap, 6000/h overage, and 21 h covered in September → a fee line plus an overage line `"Prekoračenje paušala: 1 h 0 min"` at `6000.00`.
-  - **Re-run:** running again with one new 30-minute covered entry → the same statement, with an added overage line of 30 min. The fee line is not duplicated.
+  - **Re-run:** running again with one new 30-minute covered entry → the same invoice, with an added overage line of 30 min. The fee line is not duplicated.
   - **Retainer starting 2026-09-15:** the fee is prorated and the description contains `"16/30 dana"`.
   - **EUR retainer + RSD hourly profile + an HOURLY entry with no agreement coverage:** two drafts (EUR and RSD).
   - **AT entries:** a line with `pricingRequired true`.
@@ -542,8 +542,8 @@ Also exports `BillingSetupService.agreementsForClient(clientId): Promise<Agreeme
   - one with an uncapped ABSORBED retainer (60 000 RSD)
   - one client with an hourly profile (EUR 120)
   - ~40 entries over the previous month, covering every source and status, including one `RUNNING`
-  
-  Remove the seed's `statementId` assignments.
+
+  Remove the seed's `invoiceId` assignments.
 - [x] **Step 2:** Run `npx prisma migrate reset --force --schema apps/api/prisma/schema.prisma && npm run db:seed:auth && npm run db:seed:demo`. Expected: completes without errors.
 - [x] **Step 3: Update the business-logic doc.**
   - Replace the "Financials backend foundation" source description with work entries.
@@ -708,18 +708,18 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
 - [x] **Step 4:** Run the two spec files. Expected: PASS.
 - [x] **Step 5: Commit** `feat(web): billing settings, client retainer card and retainers list`.
 
-### Task 18: Unbilled work, statement composer, print specification, month-end page
+### Task 18: Unbilled work, invoice composer, print specification, month-end page
 
 **Files:**
-- Modify: `features/finance-work-review/*` (becomes "Neobračunat rad", unbilled work), `features/finance-statements/billing-statement-line-import-dialog.*`, `billing-statement-form.ts`, `finance-statement-create.component.*`, `finance-statement-detail.component.*`, `invoice-print-view.component.*`
+- Modify: `features/finance-work-review/*` (becomes "Neobračunat rad", unbilled work), `features/finance-statements/billing-invoice-line-import-dialog.*`, `billing-invoice-form.ts`, `finance-invoice-create.component.*`, `finance-invoice-detail.component.*`, `invoice-print-view.component.*`
 - Create: `features/finance-month-end/month-end.component.*`; route `finance/month-end` (OWNER only)
-- Test: `month-end.component.spec.ts`, `billing-statement-form.spec.ts` (create the file if absent), `invoice-print-view.component.spec.ts`
+- Test: `month-end.component.spec.ts`, `billing-invoice-form.spec.ts` (create the file if absent), `invoice-print-view.component.spec.ts`
 
 **Interfaces:**
 - Unbilled work:
   - Lists `WorkEntriesApiClient.list({ statuses: ["CONFIRMED"], unbilledOnly: true, ... })`, filtered by client (multi), case, person, treatment, and date.
-  - Selecting entries of one client → "Novi obračun" (new statement), navigating with `?workEntryIds=` to statement create.
-- Import dialog lists unbilled confirmed entries of the statement's client. Each imported entry becomes one line:
+  - Selecting entries of one client → "Novi obračun" (new invoice), navigating with `?workEntryIds=` to invoice create.
+- Import dialog lists unbilled confirmed entries of the invoice's client. Each imported entry becomes one line:
   - `workEntryIds [id]`, `minutes`
   - description `"{description} ({h} h {m} min)"`
   - `netAmount` = `priceMinutes` at the client profile rate when the treatment is HOURLY, otherwise 0 with `pricingRequired: true`
@@ -727,13 +727,13 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   - Editing `netAmount` to > 0 clears `pricingRequired`.
   - A badge "Cena nije uneta" (price not entered) marks flagged rows.
   - The send button is disabled with a tooltip while any row is flagged.
-- The statement form gets a `printWorkSpecification` checkbox (default on).
+- The invoice form gets a `printWorkSpecification` checkbox (default on).
 - Print view: when `printWorkSpecification` is on, append a table "Specifikacija rada" (work specification) with columns Datum (date), Izvršilac (performer), Opis (description), Trajanje (duration), flattened from all lines' `workEntries` sorted by date, with a total duration row.
 - Month-end page:
   - A month picker (default: previous month).
   - Step 1 is the precheck table per client with inline Potvrdi (confirm, dialog)/Otpiši (write off).
   - "Generiši nacrte" (generate drafts) is enabled when the precheck is loaded. It asks for confirmation when open items remain.
-  - The result table links each statement (created/updated, lines added, lines to price).
+  - The result table links each invoice (created/updated, lines added, lines to price).
 
 - [x] **Step 1: Write the failing tests:**
   - Editing the amount on a flagged row clears `pricingRequired`.
@@ -789,7 +789,7 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   4. Run month-end for last month → open the capped client's draft and check the overage line.
   5. Print the draft and check the specification table.
   6. Open the profitability report.
-  
+
   Record the results in the PR description.
 
   Smoke results (2026-10-04, scratch DB `law_platform_sdd`, owner login, Playwright/Chromium, UI in Serbian; all six passed): (1) Alt+W capture of 30 min for Beogradska tekstilna industrija a.d. appeared in My time as Potvrđeno, week total 30m; (2) completing "Priprema za ročište" and choosing the 60 min chip created a 1h entry, Potvrđeno; (3) header timer start for Grand Nekretnine, stop, confirm dialog saved a Potvrđeno entry (1m, the minimum); (4) month-end for 2026-09 (precheck listed 4 open entries, generation confirmed) created drafts for Alfa Trade, Beogradska tekstilna industrija, Dunav Logistika and Nova Energija (EUR); the capped Alfa Trade draft ST-000001 shows "Paušal za septembar 2026" 120.000,00 and "Prekoračenje paušala: 0 h 15 min" 1.500,00; (5) the print view shows the invoice and, after it, the "Specifikacija rada" table with 16 entries and "Ukupno trajanje 23 h 25 min"; (6) the profitability page lists the four clients with hours, time value, target 7.000 RSD, written-off and unbilled amounts, and revenue shown as unavailable ("—") because the drafts are not sent. AI free-text parse was not exercised; the manual path is what was verified.
@@ -806,6 +806,6 @@ Spec §2 says the settings UI defaults the target to the AT hourly tariff item a
 - [x] `GET /activity-log` excludes `WORK_ENTRY` rows (also covers the dashboard feed and the assistant activity tool).
 - [x] A task created as `DONE` creates its entry (`CreateDeadlineDto` and `CreateEventDto` have no status, so nothing else to cover).
 - [x] `ensureForSource` inserts with `createMany({ skipDuplicates })` and reads back, so a concurrent completion cannot abort the transaction.
-- [x] Migration backfill keeps billed tasks and deadlines with conflicting task/case clients under the statement's client; the conflict guard only drops unbilled sources.
-- [x] The fee marker now survives composer edits by line identity: `BillingStatementLineInput` carries an optional `id`, `replaceStatementLines` re-applies the `RETAINER_FEE` marker only to input ids that match marked lines of the same statement (unknown ids ignored, removed fee lines drop the marker), and the position/amount guessing (`carryOverFeeMarkers`) is gone. The composer keeps each loaded line's `id` and sends it on save.
+- [x] Migration backfill keeps billed tasks and deadlines with conflicting task/case clients under the invoice's client; the conflict guard only drops unbilled sources.
+- [x] The fee marker now survives composer edits by line identity: `InvoiceLineInput` carries an optional `id`, `replaceInvoiceLines` re-applies the `RETAINER_FEE` marker only to input ids that match marked lines of the same invoice (unknown ids ignored, removed fee lines drop the marker), and the position/amount guessing (`carryOverFeeMarkers`) is gone. The composer keeps each loaded line's `id` and sends it on save.
 - Product rule (owner-confirmed 2026-10-04): out-of-scope work under an `ABSORBED` out-of-scope rule is treated as retainer work and counts toward the agreement's included hours.

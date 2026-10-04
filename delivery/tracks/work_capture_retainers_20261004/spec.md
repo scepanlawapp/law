@@ -11,7 +11,7 @@ Revenue is roughly 50% monthly retainers (*paušal*) and 50% per-action Advokats
 
 Today:
 
-- Billing only sees completed tasks, events, and deadlines (`statementId` on each). Calls and emails logged as `ClientActivity`/`CaseActivity` have no duration and never reach billing.
+- Billing only sees completed tasks, events, and deadlines (`invoiceId` on each). Calls and emails logged as `ClientActivity`/`CaseActivity` have no duration and never reach billing.
 - No record holds time or effort, so nobody can tell whether a retainer client is profitable.
 - There is no retainer concept at all.
 
@@ -23,7 +23,7 @@ Record (almost) all work with minimal friction, bill retainer overage and out-of
 
 - Logging a piece of work takes under 10 seconds from anywhere in the app.
 - Completing a task or event, or logging a call/meeting/email activity, can never silently drop billable work: it creates a confirmed or a proposed entry.
-- At month end, the owner gets one draft statement per client with retainer fee, overage, and out-of-scope work already assembled, and no confirmed entry is left out.
+- At month end, the owner gets one draft invoice per client with retainer fee, overage, and out-of-scope work already assembled, and no confirmed entry is left out.
 - Partners see, per client, revenue vs internal value of time and the effective hourly rate vs the office target.
 - No AI is required for any of the above. AI only speeds up free-text capture.
 
@@ -53,7 +53,7 @@ Record (almost) all work with minimal friction, bill retainer overage and out-of
 | `writeOffReason` | required when `WRITTEN_OFF` |
 | `source` | `MANUAL` \| `TIMER` \| `QUICK_CAPTURE` \| `TASK` \| `EVENT` \| `DEADLINE` \| `ACTIVITY` (later `EMAIL`) |
 | `sourceType`, `sourceId` | unique per workspace when set, so one source yields at most one entry |
-| `statementLineId` | set when `BILLED` |
+| `invoiceLineId` | set when `BILLED` |
 | `aiParsed` | true when the form was filled by AI capture |
 | audit columns | `createdByUserId`, `updatedByUserId`, timestamps |
 
@@ -61,7 +61,7 @@ Rules:
 
 - At most one `RUNNING` entry per user (partial unique index).
 - `treatment` defaults from the client's active retainer on `workDate`: a covered category (or no category restriction) → `RETAINER`; otherwise the retainer's out-of-scope rule; no retainer → `UNDECIDED`. The user can override it.
-- `BILLED` entries are immutable. Removing their line from a draft statement, deleting the draft, or voiding a sent statement returns them to `CONFIRMED`.
+- `BILLED` entries are immutable. Removing their line from a draft invoice, deleting the draft, or voiding a sent invoice returns them to `CONFIRMED`.
 
 ### `ServiceCategory` (new)
 
@@ -93,10 +93,10 @@ One per client, optional: `hourlyRate` and `currency`. It prices `HOURLY` entrie
 
 ### Changes to existing tables
 
-- `Task.statementId`, `Event.statementId`, `Deadline.statementId` are removed. Billing goes through `WorkEntry.statementLineId`.
+- `Task.invoiceId`, `Event.invoiceId`, `Deadline.invoiceId` are removed. Billing goes through `WorkEntry.invoiceLineId`.
 - `ClientActivity` / `CaseActivity` stay as the journal. Logging a `PHONE_CALL`, `MEETING`, or `EMAIL` activity with a duration creates a linked entry (`source = ACTIVITY`).
-- `BillingStatementLine` keeps `sourceType`/`sourceId`. New lines generated from entries use `sourceType = "WORK_ENTRY_GROUP"` and are linked through the entries' `statementLineId`.
-- `BillingStatement` gets `printWorkSpecification` (boolean, default true).
+- `InvoiceLine` keeps `sourceType`/`sourceId`. New lines generated from entries use `sourceType = "WORK_ENTRY_GROUP"` and are linked through the entries' `invoiceLineId`.
+- `Invoice` gets `printWorkSpecification` (boolean, default true).
 
 ## 3. Capture flows
 
@@ -108,7 +108,7 @@ All flows share one quick-capture form component.
    - duration chips: 15m / 30m / 1h / 2h / custom
    - description
    - category and treatment, pre-filled from the retainer
-   
+
    Save creates a `CONFIRMED` entry.
 2. **Free-text / voice capture** inside the same form. The user types or dictates one sentence (existing speech input). A synchronous structured `ChatModelProvider` call parses it into client, case, minutes, category, and description, and fills the form. Nothing is saved until the user presses Save. If the model is unavailable, times out, or returns invalid output, the form stays as it was and shows a short "fill in manually" hint. Client/case matching reuses the diacritic-insensitive matching from the assistant tools. An ambiguous match leaves the field empty with candidates shown.
 3. **Header timer.**
@@ -123,7 +123,7 @@ All flows share one quick-capture form component.
    - today's entries
    - all open `PROPOSED` entries
    - "possibly missing" hints: today's events with no entry, and clients the user touched today (activities, document uploads, linked chat sessions) with no entry
-   
+
    Each row can be confirmed, edited, written off, or dismissed in one click. A per-user setting turns on a daily reminder notification (default off, configurable time; new type `TIME_REVIEW_REMINDER`).
 6. **Time views.**
    - **My time** (`/work/time`): a week grid of the user's entries, with totals per day and per client.
@@ -148,17 +148,17 @@ All flows share one quick-capture form component.
 ### Month-end billing run (Finance → "Obračun meseca"; OWNER only)
 
 1. The owner picks a month. A **pre-check** lists, per client, entries still `PROPOSED` or `UNDECIDED` in that month, with inline confirm/edit/write-off, so nothing silently falls out.
-2. **Generate** creates one draft `BillingStatement` per client that has confirmed unbilled entries in the month or an active retainer. Lines:
+2. **Generate** creates one draft `Invoice` per client that has confirmed unbilled entries in the month or an active retainer. Lines:
    1. **Retainer fee:** "Paušal za {mesec} {godina}". If the agreement starts or ends mid-month, the fee and the hour cap are prorated by days (cap rounded down to whole minutes) and the line says so.
    2. **Overage:** minutes of covered work above `includedMinutes`, priced by `overageRule`. Overage is allocated in chronological order. `ABSORBED` produces no line, but the entries are still marked `BILLED` against the fee line.
    3. **Out-of-scope work:** grouped by case (or by category when there is no case), priced by `outOfScopeRule`.
    4. **Non-retainer `HOURLY` entries:** grouped by case and priced by `ClientBillingProfile.hourlyRate`.
-   5. **`AT` entries:** grouped by case with an **empty amount** and a "cenu unesti" flag. Automatic tariff pricing is sub-project #2. The statement cannot be sent while a flagged line has no amount.
-3. Every line keeps its entries (`statementLineId`). With `printWorkSpecification` on (default), the A4 print view appends a *specifikacija rada* table: date, performer, description, duration.
-4. **Idempotent:** re-running a month never touches entries that are already billed and only adds new confirmed entries. If the client already has a draft statement for that month, the new lines are added to it instead of creating a second draft. Entries are claimed inside a transaction with a status check, so concurrent runs cannot double-bill.
-5. Nothing is sent automatically. Drafts open in the existing statement composer and print view.
+   5. **`AT` entries:** grouped by case with an **empty amount** and a "cenu unesti" flag. Automatic tariff pricing is sub-project #2. The invoice cannot be sent while a flagged line has no amount.
+3. Every line keeps its entries (`invoiceLineId`). With `printWorkSpecification` on (default), the A4 print view appends a *specifikacija rada* table: date, performer, description, duration.
+4. **Idempotent:** re-running a month never touches entries that are already billed and only adds new confirmed entries. If the client already has a draft invoice for that month, the new lines are added to it instead of creating a second draft. Entries are claimed inside a transaction with a status check, so concurrent runs cannot double-bill.
+5. Nothing is sent automatically. Drafts open in the existing invoice composer and print view.
 
-The existing Work Review screen becomes **"Neobračunat rad"**. It lists confirmed unbilled entries instead of tasks/events/deadlines and keeps the "select → new statement" path for ad-hoc billing outside the monthly run.
+The existing Work Review screen becomes **"Neobračunat rad"**. It lists confirmed unbilled entries instead of tasks/events/deadlines and keeps the "select → new invoice" path for ad-hoc billing outside the monthly run.
 
 ### Profitability report (Reports → "Profitabilnost"; OWNER/ADMIN)
 
@@ -182,8 +182,8 @@ One Prisma migration plus a data step:
    - performer: the assignee, organizer, or responsible user
    - `minutes`: taken from the event duration, otherwise null
    - `source`: the record type
-2. Every source with `statementId` set becomes a `BILLED` entry linked to the statement line with the matching `sourceType`/`sourceId`.
-3. The `statementId` columns and the eligible-work endpoint are dropped. The API client and UI switch to the entries endpoint.
+2. Every source with `invoiceId` set becomes a `BILLED` entry linked to the invoice line with the matching `sourceType`/`sourceId`.
+3. The `invoiceId` columns and the eligible-work endpoint are dropped. The API client and UI switch to the entries endpoint.
 4. `seed-demo-data.cjs` gets:
    - categories
    - user rates for every demo user
@@ -210,7 +210,7 @@ One Prisma migration plus a data step:
   - default treatment
   - retainer allocation: cap, overage ordering, out of scope, absorbed, mid-month start/end proration, month boundaries, overlapping-agreement rejection
   - billing-run idempotency and concurrency guard
-  - unbill on line delete / statement void
+  - unbill on line delete / invoice void
   - migration mapping
   - role permissions
   - profitability math with missing rates

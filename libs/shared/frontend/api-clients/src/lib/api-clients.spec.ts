@@ -145,9 +145,9 @@ describe("work entry and billing clients", () => {
     ).toBe("POST");
   });
 
-  it("posts a statement send to /financials/statements/:id/send", () => {
-    TestBed.inject(FinancialsApiClient).sendStatement("s1").subscribe();
-    const req = http.expectOne(`${api}/financials/statements/s1/send`);
+  it("posts an invoice send to /financials/invoices/:id/send", () => {
+    TestBed.inject(FinancialsApiClient).sendInvoice("s1").subscribe();
+    const req = http.expectOne(`${api}/financials/invoices/s1/send`);
     expect(req.request.method).toBe("POST");
     expect(req.request.withCredentials).toBe(true);
     req.flush({});

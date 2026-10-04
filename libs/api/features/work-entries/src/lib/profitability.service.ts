@@ -119,13 +119,13 @@ export class ProfitabilityService {
           minutes: true,
           workDate: true,
           status: true,
-          statementLineId: true,
+          invoiceLineId: true,
           user: {
             select: { id: true, firstName: true, lastName: true, email: true },
           },
         },
       }),
-      this.db.billingStatement.findMany({
+      this.db.invoice.findMany({
         where: {
           workspaceId: this.workspaceId,
           status: "SENT",
@@ -175,7 +175,7 @@ export class ProfitabilityService {
         continue;
       }
       accumulator.time.add(minutes, hourlyValue);
-      if (entry.status === "CONFIRMED" && entry.statementLineId === null) {
+      if (entry.status === "CONFIRMED" && entry.invoiceLineId === null) {
         accumulator.unbilled.add(minutes, hourlyValue);
       }
       let person = people.get(entry.userId);
@@ -198,15 +198,15 @@ export class ProfitabilityService {
       if (entry.status === "BILLED") person.billedMinutes += minutes;
     }
 
-    for (const statement of statements) {
-      const net = statement.lines.reduce(
+    for (const invoice of statements) {
+      const net = invoice.lines.reduce(
         (sum, line) => sum.add(line.netAmount),
         ZERO,
       );
-      const accumulator = accumulatorFor(statement.clientId);
+      const accumulator = accumulatorFor(invoice.clientId);
       accumulator.revenue.set(
-        statement.currency,
-        (accumulator.revenue.get(statement.currency) ?? ZERO).add(net),
+        invoice.currency,
+        (accumulator.revenue.get(invoice.currency) ?? ZERO).add(net),
       );
     }
 

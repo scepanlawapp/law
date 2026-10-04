@@ -23,16 +23,16 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { formatDate } from "../../shared/billing";
 import { TREATMENT_LABEL_KEYS, formatMinutes } from "../time/time-utils";
-import { BillingStatementLineImportDialogContext } from "./billing-statement-line-import-dialog.models";
+import { InvoiceLineImportDialogContext } from "./invoice-line-import-dialog.models";
 
 const PAGE_SIZE = 10;
 
-/** Lists the confirmed, unbilled work entries of one client for a statement. */
+/** Lists the confirmed, unbilled work entries of one client for a invoice. */
 @Component({
-  selector: "law-billing-statement-line-import-dialog",
+  selector: "law-invoice-line-import-dialog",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  templateUrl: "./billing-statement-line-import-dialog.component.html",
+  templateUrl: "./invoice-line-import-dialog.component.html",
   imports: [
     HlmButton,
     HlmDialogDescription,
@@ -45,13 +45,13 @@ const PAGE_SIZE = 10;
     TranslatePipe,
   ],
 })
-export class BillingStatementLineImportDialogComponent {
+export class InvoiceLineImportDialogComponent {
   private readonly api = inject(WorkEntriesApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
   private readonly context =
-    injectBrnDialogContext<BillingStatementLineImportDialogContext>();
+    injectBrnDialogContext<InvoiceLineImportDialogContext>();
   readonly dialogRef = inject<BrnDialogRef<WorkEntry[]>>(BrnDialogRef);
 
   readonly client = this.context.client;

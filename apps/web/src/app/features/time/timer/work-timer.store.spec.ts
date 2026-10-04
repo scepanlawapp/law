@@ -30,7 +30,7 @@ function entry(overrides: Partial<WorkEntry> = {}): WorkEntry {
     source: "TIMER",
     sourceType: null,
     sourceId: null,
-    statementId: null,
+    invoiceId: null,
     aiParsed: false,
     createdAt: "2026-10-04T09:59:00.000Z",
     updatedAt: "2026-10-04T09:59:00.000Z",

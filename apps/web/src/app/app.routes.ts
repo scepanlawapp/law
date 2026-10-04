@@ -28,9 +28,9 @@ import { CaseDetailComponent } from "./features/cases/case-detail.component";
 import { DocumentsComponent } from "./features/documents/documents.component";
 import { FinancePriceSourcesComponent } from "./features/finance-price-sources/finance-price-sources.component";
 import { FinanceWorkReviewComponent } from "./features/finance-work-review/finance-work-review.component";
-import { FinanceStatementsComponent } from "./features/finance-statements/finance-statements.component";
-import { FinanceStatementCreateComponent } from "./features/finance-statements/finance-statement-create.component";
-import { FinanceStatementDetailComponent } from "./features/finance-statements/finance-statement-detail.component";
+import { FinanceInvoicesComponent } from "./features/finance-invoices/finance-invoices.component";
+import { FinanceInvoiceCreateComponent } from "./features/finance-invoices/finance-invoice-create.component";
+import { FinanceInvoiceDetailComponent } from "./features/finance-invoices/finance-invoice-detail.component";
 import { ProfitabilityComponent } from "./features/reports/profitability/profitability.component";
 import { profitabilityGuard } from "./features/reports/profitability/profitability.guard";
 import { ReportsComponent } from "./features/reports/reports.component";
@@ -59,10 +59,10 @@ export const appRoutes: Route[] = [
   },
   { path: "accept-invitation", component: AcceptInvitationComponent },
   {
-    path: "finance/statements/:id/print",
+    path: "finance/invoices/:id/print",
     canActivate: [authGuard],
     loadComponent: () =>
-      import("./features/finance-statements/invoice-print-view.component").then(
+      import("./features/finance-invoices/invoice-print-view.component").then(
         (module) => module.InvoicePrintViewComponent,
       ),
   },
@@ -89,18 +89,18 @@ export const appRoutes: Route[] = [
           { path: "price-sources", component: FinancePriceSourcesComponent },
           { path: "work-review", component: FinanceWorkReviewComponent },
           {
-            path: "statements/new",
-            component: FinanceStatementCreateComponent,
+            path: "invoices/new",
+            component: FinanceInvoiceCreateComponent,
           },
           {
-            path: "statements/:id/edit",
-            component: FinanceStatementCreateComponent,
+            path: "invoices/:id/edit",
+            component: FinanceInvoiceCreateComponent,
           },
           {
-            path: "statements/:id",
-            component: FinanceStatementDetailComponent,
+            path: "invoices/:id",
+            component: FinanceInvoiceDetailComponent,
           },
-          { path: "statements", component: FinanceStatementsComponent },
+          { path: "invoices", component: FinanceInvoicesComponent },
           { path: "retainers", component: FinanceRetainersComponent },
           {
             path: "month-end",

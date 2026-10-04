@@ -35,7 +35,7 @@ function entryRecord(overrides: Record<string, unknown> = {}) {
     source: "MANUAL",
     sourceType: null,
     sourceId: null,
-    statementLineId: null,
+    invoiceLineId: null,
     aiParsed: false,
     createdByUserId: userId,
     updatedByUserId: userId,
@@ -56,7 +56,7 @@ function entryRecord(overrides: Record<string, unknown> = {}) {
     },
     case: null,
     serviceCategory: null,
-    statementLine: null,
+    invoiceLine: null,
     ...overrides,
   };
 }

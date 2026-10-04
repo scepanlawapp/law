@@ -37,14 +37,14 @@ interface EntryFixture {
   minutes: number | null;
   workDate?: string;
   status?: "CONFIRMED" | "BILLED" | "WRITTEN_OFF";
-  statementLineId?: string | null;
+  invoiceLineId?: string | null;
 }
 
 describe("ProfitabilityService", () => {
   const db = {
     workspaceConfig: { findUnique: jest.fn() },
     workEntry: { findMany: jest.fn() },
-    billingStatement: { findMany: jest.fn() },
+    invoice: { findMany: jest.fn() },
     userRate: { findMany: jest.fn() },
     client: { findMany: jest.fn() },
   };
@@ -60,10 +60,10 @@ describe("ProfitabilityService", () => {
           minutes: entry.minutes,
           workDate: new Date(entry.workDate ?? "2026-10-05"),
           status: entry.status ?? "BILLED",
-          statementLineId:
-            entry.statementLineId === undefined
+          invoiceLineId:
+            entry.invoiceLineId === undefined
               ? "line"
-              : entry.statementLineId,
+              : entry.invoiceLineId,
           user: person(userId, userId === userA ? "Ana" : "Bojan"),
         };
       }),
@@ -73,11 +73,11 @@ describe("ProfitabilityService", () => {
   function setStatements(
     statements: { clientId: string; currency: string; nets: string[] }[],
   ) {
-    db.billingStatement.findMany.mockResolvedValue(
-      statements.map((statement) => ({
-        clientId: statement.clientId,
-        currency: statement.currency,
-        lines: statement.nets.map((net) => ({ netAmount: D(net) })),
+    db.invoice.findMany.mockResolvedValue(
+      statements.map((invoice) => ({
+        clientId: invoice.clientId,
+        currency: invoice.currency,
+        lines: invoice.nets.map((net) => ({ netAmount: D(net) })),
       })),
     );
   }
@@ -143,7 +143,7 @@ describe("ProfitabilityService", () => {
   it("scopes the queries to SENT statements and the date range", async () => {
     await report("2026-10-01", "2026-10-31");
 
-    expect(db.billingStatement.findMany.mock.calls[0][0].where).toEqual({
+    expect(db.invoice.findMany.mock.calls[0][0].where).toEqual({
       workspaceId,
       status: "SENT",
       dateOfTurnover: {
@@ -242,9 +242,9 @@ describe("ProfitabilityService", () => {
   it("prices written-off and unbilled time separately and keeps them out of time value", async () => {
     setEntries([
       { minutes: 60, status: "BILLED" },
-      { minutes: 120, status: "WRITTEN_OFF", statementLineId: null },
-      { minutes: 30, status: "CONFIRMED", statementLineId: null },
-      { minutes: 30, status: "CONFIRMED", statementLineId: "line" },
+      { minutes: 120, status: "WRITTEN_OFF", invoiceLineId: null },
+      { minutes: 30, status: "CONFIRMED", invoiceLineId: null },
+      { minutes: 30, status: "CONFIRMED", invoiceLineId: "line" },
     ]);
 
     const [row] = (await report()).rows;
@@ -334,13 +334,13 @@ describe("ProfitabilityService", () => {
   it("reports logged against billed minutes per person, without written-off time", async () => {
     setEntries([
       { minutes: 120, status: "BILLED" },
-      { minutes: 60, status: "CONFIRMED", statementLineId: null },
-      { minutes: 500, status: "WRITTEN_OFF", statementLineId: null },
+      { minutes: 60, status: "CONFIRMED", invoiceLineId: null },
+      { minutes: 500, status: "WRITTEN_OFF", invoiceLineId: null },
       {
         userId: userB,
         minutes: 30,
         status: "CONFIRMED",
-        statementLineId: null,
+        invoiceLineId: null,
       },
       { userId: userB, minutes: null, status: "BILLED" },
     ]);

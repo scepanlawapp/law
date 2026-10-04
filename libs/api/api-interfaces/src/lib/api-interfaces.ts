@@ -985,12 +985,12 @@ export interface DocumentUpdateRequest {
   clientIds?: string[];
 }
 
-export type BillingStatementLineStatus =
+export type InvoiceLineStatus =
   | "UNBILLED"
   | "RESERVED"
   | "BILLED"
   | "CANCELLED";
-export type BillingStatementStatus = "DRAFT" | "SENT" | "VOIDED";
+export type InvoiceStatus = "DRAFT" | "SENT" | "VOIDED";
 export type PriceSourceScope =
   | "CLIENT_AGREEMENT"
   | "WORKSPACE_PUBLIC_REFERENCE"
@@ -1025,11 +1025,11 @@ export interface PriceSourceSummary {
   versions: PriceSourceVersion[];
 }
 
-export interface BillingStatement {
+export interface Invoice {
   id: string;
   workspaceId: string;
   clientId: string;
-  statementNumber: string;
+  invoiceNumber: string;
   dateOfCreate: string;
   dateOfMaturity: string;
   dateOfTurnover: string;
@@ -1043,7 +1043,7 @@ export interface BillingStatement {
   numberOfCashBill: string;
   country: string;
   currency: string;
-  status: BillingStatementStatus;
+  status: InvoiceStatus;
   sharedAt: string | null;
   sharedMethod: string | null;
   externalInvoiceNumber: string | null;
@@ -1056,7 +1056,7 @@ export interface BillingStatement {
   createdAt: string;
   updatedAt: string;
   client: FinancialClientReference;
-  lines: BillingStatementLineSummary[];
+  lines: InvoiceLineSummary[];
   total: string;
 }
 
@@ -1064,9 +1064,9 @@ export type FinancialClientReference = ClientReference;
 
 export type FinancialCaseReference = CaseReference;
 
-export interface BillingStatementLineSummary {
+export interface InvoiceLineSummary {
   id: string;
-  statementId: string;
+  invoiceId: string;
   client: FinancialClientReference;
   cases: FinancialCaseReference[];
   performedBy: UserReference;
@@ -1078,8 +1078,8 @@ export interface BillingStatementLineSummary {
   vatAmount: string;
   grossAmount: string;
   currency: string;
-  status: BillingStatementLineStatus;
   sourceType: string | null;
+  status: InvoiceLineStatus;
   sourceId: string | null;
   pricingRequired: boolean;
   minutes: number | null;
@@ -1095,19 +1095,19 @@ export interface BillingStatementLineSummary {
   cancellationReason: string | null;
 }
 
-export interface BillingStatementSummary {
+export interface InvoiceSummary {
   id: string;
-  statementNumber: string;
+  invoiceNumber: string;
   client: FinancialClientReference;
   dateOfCreate: string;
   dateOfMaturity: string;
   currency: string;
-  status: BillingStatementStatus;
+  status: InvoiceStatus;
   total: string;
-  lines: BillingStatementLineSummary[];
+  lines: InvoiceLineSummary[];
 }
 
-export interface CreateBillingStatementRequest {
+export interface CreateInvoiceRequest {
   clientId: string;
   dateOfCreate: string;
   dateOfMaturity: string;
@@ -1122,12 +1122,12 @@ export interface CreateBillingStatementRequest {
   numberOfCashBill: string;
   country: string;
   currency: string;
-  lines: BillingStatementLineInput[];
+  lines: InvoiceLineInput[];
   idempotencyKey?: string;
   printWorkSpecification?: boolean;
 }
 
-export interface UpdateBillingStatementRequest {
+export interface UpdateInvoiceRequest {
   dateOfCreate?: string;
   dateOfMaturity?: string;
   dateOfTurnover?: string;
@@ -1140,12 +1140,12 @@ export interface UpdateBillingStatementRequest {
   grossAmount?: number;
   numberOfCashBill?: string;
   country?: string;
-  lines?: BillingStatementLineInput[];
+  lines?: InvoiceLineInput[];
   printWorkSpecification?: boolean;
 }
 
-export interface BillingStatementLineInput {
-  /** Existing line id when editing a statement; omit for new lines. */
+export interface InvoiceLineInput {
+  /** Existing line id when editing; omit for new lines. */
   id?: string;
   serviceDate: string;
   description: string;
@@ -1170,14 +1170,14 @@ export type PriceEvidence = {
   calculation?: string;
 };
 
-export type StatementProposalRequest = {
+export type InvoiceProposalRequest = {
   clientId: string;
   periodStart: string;
   periodEnd: string;
   currency: string;
   caseIds?: string[];
   eligibleLineIds?: string[];
-  draftStatementId?: string;
+  draftInvoiceId?: string;
   userInstruction: string;
   currentLines?: Array<{
     lineId: string;
@@ -1188,7 +1188,7 @@ export type StatementProposalRequest = {
   revisionInstruction?: string;
 };
 
-export type StatementProposalResponse = {
+export type InvoiceProposalResponse = {
   proposalId: string;
   revision: number;
   inputFingerprint: string;

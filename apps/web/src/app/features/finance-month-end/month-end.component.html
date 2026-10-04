@@ -204,7 +204,7 @@
             <thead hlmTHead>
               <tr hlmTr>
                 <th hlmTh>{{ "finance.client" | translate }}</th>
-                <th hlmTh>{{ "finance.monthEnd.statement" | translate }}</th>
+                <th hlmTh>{{ "finance.monthEnd.invoice" | translate }}</th>
                 <th hlmTh>{{ "finance.currency" | translate }}</th>
                 <th hlmTh>{{ "finance.monthEnd.outcome" | translate }}</th>
                 <th hlmTh class="text-end">
@@ -220,10 +220,10 @@
                 <tr hlmTr data-testid="result-row">
                   <td hlmTd>{{ row.client.displayName }}</td>
                   <td hlmTd>
-                    @if (row.statementId) {
+                    @if (row.invoiceId) {
                       <a
                         class="text-primary underline-offset-4 hover:underline"
-                        [routerLink]="['/finance/statements', row.statementId]"
+                        [routerLink]="['/finance/invoices', row.invoiceId]"
                       >
                         {{ "finance.monthEnd.openStatement" | translate }}
                       </a>

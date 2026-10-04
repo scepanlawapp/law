@@ -88,7 +88,7 @@ const entryInclude = {
   client: true,
   case: true,
   serviceCategory: true,
-  statementLine: { select: { statementId: true } },
+  invoiceLine: { select: { invoiceId: true } },
 } satisfies Prisma.WorkEntryInclude;
 
 type EntryRecord = Prisma.WorkEntryGetPayload<{
@@ -170,7 +170,7 @@ export class WorkEntriesService {
     if (query.to) and.push({ workDate: { lte: this.toWorkDate(query.to) } });
     if (query.unbilledOnly) {
       and.push({
-        statementLineId: null,
+        invoiceLineId: null,
         status: { notIn: ["BILLED", "WRITTEN_OFF"] },
       });
     }
@@ -912,7 +912,7 @@ export class WorkEntriesService {
       source: row.source as WorkEntrySource,
       sourceType: row.sourceType as WorkEntrySourceType | null,
       sourceId: row.sourceId,
-      statementId: row.statementLine?.statementId ?? null,
+      invoiceId: row.invoiceLine?.invoiceId ?? null,
       aiParsed: row.aiParsed,
       createdAt: row.createdAt.toISOString(),
       updatedAt: row.updatedAt.toISOString(),

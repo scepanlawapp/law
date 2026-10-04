@@ -38,7 +38,7 @@ function entry(overrides: Partial<WorkEntry>): WorkEntry {
     source: "MANUAL",
     sourceType: null,
     sourceId: null,
-    statementId: null,
+    invoiceId: null,
     aiParsed: false,
     createdAt: "2026-10-04T08:00:00.000Z",
     updatedAt: "2026-10-04T08:00:00.000Z",

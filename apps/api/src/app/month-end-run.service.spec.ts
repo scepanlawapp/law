@@ -87,7 +87,7 @@ function clientRow(id: string, displayName: string) {
 }
 
 function feeLine(
-  statementId: string,
+  invoiceId: string,
   overrides: Partial<{
     id: string;
     sourceType: string | null;
@@ -96,7 +96,7 @@ function feeLine(
 ) {
   return {
     id: feeLineId,
-    statementId,
+    invoiceId,
     sourceType: "RETAINER_FEE",
     sourceId: agreementId,
     ...overrides,
@@ -126,7 +126,7 @@ describe("MonthEndRunService", () => {
     draft: null as null | { id: string; currency: string },
     feeLines: [] as {
       id: string;
-      statementId: string;
+      invoiceId: string;
       sourceType: string | null;
       sourceId: string | null;
     }[],
@@ -143,8 +143,8 @@ describe("MonthEndRunService", () => {
     retainerAgreement: { findMany: jest.fn() },
     client: { findMany: jest.fn() },
     clientBillingProfile: { findFirst: jest.fn() },
-    billingStatement: { findFirst: jest.fn() },
-    billingStatementLine: { findMany: jest.fn() },
+    invoice: { findFirst: jest.fn() },
+    invoiceLine: { findMany: jest.fn() },
     $transaction: jest.fn(),
   };
   const billingSetup = {
@@ -263,7 +263,7 @@ describe("MonthEndRunService", () => {
     tx.clientBillingProfile.findFirst.mockImplementation(
       async () => state.profile,
     );
-    tx.billingStatement.findFirst.mockImplementation(
+    tx.invoice.findFirst.mockImplementation(
       async ({ where }: { where: { status: unknown; currency?: string } }) =>
         where.status === "DRAFT"
           ? state.draft && state.draft.currency === where.currency
@@ -271,7 +271,7 @@ describe("MonthEndRunService", () => {
             : null
           : state.latestStatement,
     );
-    tx.billingStatementLine.findMany.mockImplementation(
+    tx.invoiceLine.findMany.mockImplementation(
       async ({ where }: { where: { sourceType?: string } }) =>
         state.feeLines.filter(
           (line) => !where.sourceType || line.sourceType === where.sourceType,
@@ -290,7 +290,7 @@ describe("MonthEndRunService", () => {
 
     expect(result.statements).toEqual([
       expect.objectContaining({
-        statementId: draftId,
+        invoiceId: draftId,
         currency: "RSD",
         created: true,
         addedLines: 2,
@@ -338,7 +338,7 @@ describe("MonthEndRunService", () => {
     expect(overage.workEntryIds).toEqual([state.entries[20].id]);
   });
 
-  it("copies the header from the client's latest statement", async () => {
+  it("copies the header from the client's latest invoice", async () => {
     state.agreements[clientA] = [agreement()];
     state.retainerClients = [clientA];
     state.latestStatement = {
@@ -366,8 +366,8 @@ describe("MonthEndRunService", () => {
     expect(financials.createDraftFromLines).not.toHaveBeenCalled();
     expect(financials.attachEntriesToLine).not.toHaveBeenCalled();
     expect(financials.appendLinesToDraft).toHaveBeenCalledTimes(1);
-    const [, statementId, lines] = financials.appendLinesToDraft.mock.calls[0];
-    expect(statementId).toBe(draftId);
+    const [, invoiceId, lines] = financials.appendLinesToDraft.mock.calls[0];
+    expect(invoiceId).toBe(draftId);
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatchObject({
       description: "Prekoračenje paušala: 0 h 30 min",
@@ -376,7 +376,7 @@ describe("MonthEndRunService", () => {
     });
     expect(result.statements).toEqual([
       expect.objectContaining({
-        statementId: draftId,
+        invoiceId: draftId,
         created: false,
         addedLines: 1,
       }),
@@ -418,7 +418,7 @@ describe("MonthEndRunService", () => {
     ]);
     expect(financials.appendLinesToDraft).not.toHaveBeenCalled();
     expect(result.statements[0]).toMatchObject({
-      statementId: draftId,
+      invoiceId: draftId,
       created: false,
       addedLines: 0,
       attachedEntries: 1,
@@ -426,9 +426,9 @@ describe("MonthEndRunService", () => {
     expect(result.statements[0].conflict).toBeUndefined();
   });
 
-  it("does not charge the fee again when it is already on a sent statement", async () => {
+  it("does not charge the fee again when it is already on a sent invoice", async () => {
     state.agreements[clientA] = [agreement()];
-    state.feeLines = [feeLine("sent-statement")];
+    state.feeLines = [feeLine("sent-invoice")];
     state.billed = covered(5);
     const fresh = entry("2026-09-25", 30, "RETAINER");
     state.entries = [fresh];
@@ -455,7 +455,7 @@ describe("MonthEndRunService", () => {
 
     await runAsOwner();
 
-    const [where] = tx.billingStatementLine.findMany.mock.calls[0];
+    const [where] = tx.invoiceLine.findMany.mock.calls[0];
     expect(where.where).toMatchObject({ sourceType: "RETAINER_FEE" });
     expect(where.where).not.toHaveProperty("description");
     expect(where.orderBy).toEqual([
@@ -490,8 +490,8 @@ describe("MonthEndRunService", () => {
 
     await runAsOwner();
 
-    const [, statementId, lines] = financials.appendLinesToDraft.mock.calls[0];
-    expect(statementId).toBe(draftId);
+    const [, invoiceId, lines] = financials.appendLinesToDraft.mock.calls[0];
+    expect(invoiceId).toBe(draftId);
     expect(lines[0]).toMatchObject({
       description: "Paušal za septembar 2026",
       netAmount: 100000,
@@ -504,7 +504,7 @@ describe("MonthEndRunService", () => {
     const other = "88888888-8888-4888-a888-888888888888";
     state.agreements[clientA] = [agreement()];
     state.retainerClients = [clientA];
-    state.feeLines = [feeLine("sent-statement", { sourceId: other })];
+    state.feeLines = [feeLine("sent-invoice", { sourceId: other })];
 
     await runAsOwner();
 
@@ -758,7 +758,7 @@ describe("MonthEndRunService", () => {
       }),
       expect.objectContaining({
         client: expect.objectContaining({ id: clientB }),
-        statementId: "draft-b",
+        invoiceId: "draft-b",
         created: true,
         addedLines: 1,
         attachedEntries: 0,

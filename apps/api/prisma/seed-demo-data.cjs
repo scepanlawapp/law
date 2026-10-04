@@ -1047,22 +1047,22 @@ async function ensureDeadlines(
   return activityLogRows;
 }
 
-async function ensureBillingStatement(prisma, workspaceId, actorUserId, cases) {
+async function ensureInvoice(prisma, workspaceId, actorUserId, cases) {
   const primaryCase = cases[0];
   if (!primaryCase) return;
   const relatedCases = cases
     .filter((caseItem) => caseItem.clientId === primaryCase.clientId)
     .slice(0, 2);
   const id = "eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee";
-  const statementId = "dddddddd-dddd-4ddd-addd-dddddddddddd";
-  await prisma.billingStatement.upsert({
-    where: { id: statementId },
+  const invoiceId = "dddddddd-dddd-4ddd-addd-dddddddddddd";
+  await prisma.invoice.upsert({
+    where: { id: invoiceId },
     update: {},
     create: {
-      id: statementId,
+      id: invoiceId,
       workspaceId,
       clientId: primaryCase.clientId,
-      statementNumber: "ST-DEMO-000001",
+      invoiceNumber: "INV-DEMO-000001",
       dateOfCreate: new Date("2026-09-01"),
       dateOfMaturity: new Date("2026-09-30"),
       dateOfTurnover: new Date("2026-09-15"),
@@ -1081,17 +1081,17 @@ async function ensureBillingStatement(prisma, workspaceId, actorUserId, cases) {
       updatedByUserId: actorUserId,
     },
   });
-  await prisma.billingStatementLine.upsert({
+  await prisma.invoiceLine.upsert({
     where: { id },
     update: {
-      statementId,
+      invoiceId,
       lineOrder: 0,
       status: "RESERVED",
     },
     create: {
       id,
       workspaceId,
-      statementId,
+      invoiceId,
       clientId: primaryCase.clientId,
       performedByUserId: actorUserId,
       lineOrder: 0,
@@ -1446,7 +1446,7 @@ async function ensureWorkEntrySources(
 
 // A month of work entries (September 2026) across every source and status.
 // Client keys: A capped retainer, B uncapped ABSORBED retainer, C hourly
-// profile (EUR), D no retainer or profile, E has a draft statement (BILLED).
+// profile (EUR), D no retainer or profile, E has a draft invoice (BILLED).
 async function ensureWorkEntries(
   prisma,
   workspaceId,
@@ -1463,7 +1463,7 @@ async function ensureWorkEntries(
     E: clients[0],
   };
   // The organization clients 8..13 have exactly one case each; client 0 has
-  // two, so E uses cases[0], which the demo statement line already references.
+  // two, so E uses cases[0], which the demo invoice line already references.
   const caseFor = (key) => {
     if (key === "E") return cases[0];
     return cases.find((item) => item.clientId === clientByKey[key].id);
@@ -1475,7 +1475,7 @@ async function ensureWorkEntries(
     users,
     caseFor,
   );
-  const statementLine = await prisma.billingStatementLine.findUnique({
+  const invoiceLine = await prisma.invoiceLine.findUnique({
     where: { id: DEMO_STATEMENT_LINE_ID },
   });
   const now = Date.now();
@@ -1536,12 +1536,12 @@ async function ensureWorkEntries(
     [38, 2, "D", true, null, null, "Priprema za ročište", LIT, "UNDECIDED", "RUNNING", "TIMER", { timerStartedAt: new Date(now - 25 * 60000) }],
   ];
 
-  if (statementLine) {
-    // Billed history, linked to the demo draft statement line (client E).
+  if (invoiceLine) {
+    // Billed history, linked to the demo draft invoice line (client E).
     // prettier-ignore
     specs.push(
-      [39, 1, "E", true, "08-27", 120, "Pravno mišljenje o ugovoru o zakupu", DRAFT, "AT", "BILLED", "MANUAL", { statementLineId: statementLine.id }],
-      [40, 2, "E", true, "08-28", 90, "Pravno mišljenje o ugovoru o kreditu", DRAFT, "AT", "BILLED", "MANUAL", { statementLineId: statementLine.id }],
+      [39, 1, "E", true, "08-27", 120, "Pravno mišljenje o ugovoru o zakupu", DRAFT, "AT", "BILLED", "MANUAL", { invoiceLineId: invoiceLine.id }],
+      [40, 2, "E", true, "08-28", 90, "Pravno mišljenje o ugovoru o kreditu", DRAFT, "AT", "BILLED", "MANUAL", { invoiceLineId: invoiceLine.id }],
     );
   }
 
@@ -1592,7 +1592,7 @@ async function ensureWorkEntries(
         source,
         sourceType: extra.sourceType ?? null,
         sourceId: extra.sourceId ?? null,
-        statementLineId: extra.statementLineId ?? null,
+        invoiceLineId: extra.invoiceLineId ?? null,
         aiParsed: extra.aiParsed ?? false,
         createdByUserId: user.id,
         updatedByUserId: user.id,
@@ -1680,7 +1680,7 @@ async function main() {
       lawyers,
       refData,
     );
-    await ensureBillingStatement(prisma, workspaceId, adminUser.id, cases);
+    await ensureInvoice(prisma, workspaceId, adminUser.id, cases);
     await ensureCompanyPriceCatalog(prisma, workspaceId, adminUser.id);
     await ensureClientActivities(prisma, workspaceId, adminUser.id, clients);
     await ensureWorkCapture(prisma, workspaceId, users, clients, cases);

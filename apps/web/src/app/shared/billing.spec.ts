@@ -57,7 +57,7 @@ describe("priceMinutes", () => {
   });
 });
 
-describe("statement month helpers", () => {
+describe("invoice month helpers", () => {
   it("steps back one month across a year boundary", () => {
     expect(previousMonth("2026-10")).toBe("2026-09");
     expect(previousMonth("2026-01")).toBe("2025-12");

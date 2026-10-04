@@ -44,7 +44,7 @@ function entry(overrides: Partial<WorkEntry>): WorkEntry {
     source: "MANUAL",
     sourceType: null,
     sourceId: null,
-    statementId: null,
+    invoiceId: null,
     aiParsed: false,
     createdAt: "2026-09-10T08:00:00.000Z",
     updatedAt: "2026-09-10T08:00:00.000Z",
@@ -69,7 +69,7 @@ const result: MonthEndRunResult = {
   month: "2026-09",
   statements: [
     {
-      statementId: "statement-1",
+      invoiceId: "invoice-1",
       client: telenor,
       currency: "RSD",
       created: true,
@@ -78,7 +78,7 @@ const result: MonthEndRunResult = {
       pricingRequiredLines: 2,
     },
     {
-      statementId: "statement-2",
+      invoiceId: "invoice-2",
       client: delta,
       currency: "RSD",
       created: false,
@@ -87,7 +87,7 @@ const result: MonthEndRunResult = {
       pricingRequiredLines: 0,
     },
     {
-      statementId: "statement-3",
+      invoiceId: "invoice-3",
       client: { ...delta, id: "client-3", displayName: "Gama" },
       currency: "EUR",
       created: false,
@@ -96,17 +96,17 @@ const result: MonthEndRunResult = {
       pricingRequiredLines: 0,
     },
     {
-      statementId: "",
+      invoiceId: "",
       client: { ...delta, id: "client-4", displayName: "Omega" },
       currency: "RSD",
       created: false,
       addedLines: 0,
       attachedEntries: 0,
       pricingRequiredLines: 0,
-      conflict: "Work entry is unavailable for the statement client",
+      conflict: "Work entry is unavailable for the invoice client",
     },
     {
-      statementId: "statement-5",
+      invoiceId: "invoice-5",
       client: { ...delta, id: "client-5", displayName: "Sigma" },
       currency: "RSD",
       created: false,
@@ -252,33 +252,33 @@ describe("MonthEndComponent", () => {
     const rows = all(fixture, "result-row");
     expect(rows).toHaveLength(5);
     const text = (index: number) => rows[index].textContent ?? "";
-    // Created statement: link, counts.
+    // Created invoice: link, counts.
     expect(text(0)).toContain("Telenor");
     expect(text(0)).toContain("finance.monthEnd.created");
     expect(rows[0].querySelector("a")?.getAttribute("href")).toBe(
-      "/finance/statements/statement-1",
+      "/finance/invoices/invoice-1",
     );
     expect(text(0)).toContain("3");
     expect(text(0)).toContain("2");
-    // Updated statement.
+    // Updated invoice.
     expect(text(1)).toContain("finance.monthEnd.updated");
     expect(rows[1].querySelector("a")?.getAttribute("href")).toBe(
-      "/finance/statements/statement-2",
+      "/finance/invoices/invoice-2",
     );
     // Nothing changed, but the row is still listed and linked.
     expect(text(2)).toContain("Gama");
     expect(text(2)).toContain("finance.monthEnd.noChanges");
     expect(rows[2].querySelector("a")?.getAttribute("href")).toBe(
-      "/finance/statements/statement-3",
+      "/finance/invoices/invoice-3",
     );
     // Lost claim: an error-styled "not billed" row with the reason, never
-    // "no changes". No statement id: still listed, no link.
+    // "no changes". No invoice id: still listed, no link.
     expect(text(3)).toContain("Omega");
     expect(text(3)).not.toContain("finance.monthEnd.noChanges");
     const conflict = rows[3].querySelector('[data-testid="result-conflict"]');
     expect(conflict?.textContent).toContain("finance.monthEnd.notBilled");
     expect(conflict?.textContent).toContain(
-      "Work entry is unavailable for the statement client",
+      "Work entry is unavailable for the invoice client",
     );
     expect(conflict?.className).toContain("text-destructive");
     expect(rows[3].querySelector("a")).toBeNull();

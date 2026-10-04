@@ -14,8 +14,8 @@ import { WorkEntry } from "@law/api-interfaces";
 import { of } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
-import { BillingStatementLineImportDialogService } from "./billing-statement-line-import-dialog.service";
-import { FinanceStatementCreateComponent } from "./finance-statement-create.component";
+import { InvoiceLineImportDialogService } from "./invoice-line-import-dialog.service";
+import { FinanceInvoiceCreateComponent } from "./finance-invoice-create.component";
 
 const client = {
   id: "client-1",
@@ -42,14 +42,14 @@ function entry(id: string, treatment: WorkEntry["treatment"]): WorkEntry {
     source: "MANUAL",
     sourceType: null,
     sourceId: null,
-    statementId: null,
+    invoiceId: null,
     aiParsed: false,
     createdAt: "2026-09-10T08:00:00.000Z",
     updatedAt: "2026-09-10T08:00:00.000Z",
   };
 }
 
-describe("FinanceStatementCreateComponent with work entries", () => {
+describe("FinanceInvoiceCreateComponent with work entries", () => {
   const workEntries = { get: jest.fn() };
   const setup = { getProfile: jest.fn() };
 
@@ -68,8 +68,8 @@ describe("FinanceStatementCreateComponent with work entries", () => {
     };
   });
 
-  function create(): ComponentFixture<FinanceStatementCreateComponent> {
-    const fixture = TestBed.createComponent(FinanceStatementCreateComponent);
+  function create(): ComponentFixture<FinanceInvoiceCreateComponent> {
+    const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
     fixture.detectChanges();
     return fixture;
   }
@@ -99,7 +99,7 @@ describe("FinanceStatementCreateComponent with work entries", () => {
           },
         },
         { provide: ClientFormDialogService, useValue: {} },
-        { provide: BillingStatementLineImportDialogService, useValue: {} },
+        { provide: InvoiceLineImportDialogService, useValue: {} },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -161,11 +161,11 @@ describe("FinanceStatementCreateComponent with work entries", () => {
   });
 });
 
-describe("FinanceStatementCreateComponent editing a draft", () => {
+describe("FinanceInvoiceCreateComponent editing a draft", () => {
   const feeLineId = "11111111-1111-4111-8111-111111111111";
-  const statementId = "55555555-5555-4555-8555-555555555555";
+  const invoiceId = "55555555-5555-4555-8555-555555555555";
   const user = { id: "user-1", displayName: "Ana Anić", email: null };
-  const api = { statement: jest.fn(), updateStatement: jest.fn() };
+  const api = { invoice: jest.fn(), updateInvoice: jest.fn() };
 
   beforeAll(() => {
     globalThis.ResizeObserver ??= class {
@@ -184,7 +184,7 @@ describe("FinanceStatementCreateComponent editing a draft", () => {
   function savedLine(id: string, lineOrder: number) {
     return {
       id,
-      statementId,
+      invoiceId,
       client,
       cases: [],
       performedBy: user,
@@ -210,9 +210,9 @@ describe("FinanceStatementCreateComponent editing a draft", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
-    api.statement.mockReturnValue(
+    api.invoice.mockReturnValue(
       of({
-        id: statementId,
+        id: invoiceId,
         clientId: client.id,
         status: "DRAFT",
         dateOfCreate: "2026-10-01",
@@ -229,7 +229,7 @@ describe("FinanceStatementCreateComponent editing a draft", () => {
         lines: [savedLine(feeLineId, 0), savedLine("line-2", 1)],
       }),
     );
-    api.updateStatement.mockReturnValue(of({ id: statementId }));
+    api.updateInvoice.mockReturnValue(of({ id: invoiceId }));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([{ path: "**", children: [] }]),
@@ -247,7 +247,7 @@ describe("FinanceStatementCreateComponent editing a draft", () => {
           },
         },
         { provide: ClientFormDialogService, useValue: {} },
-        { provide: BillingStatementLineImportDialogService, useValue: {} },
+        { provide: InvoiceLineImportDialogService, useValue: {} },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -256,7 +256,7 @@ describe("FinanceStatementCreateComponent editing a draft", () => {
           provide: ActivatedRoute,
           useValue: {
             snapshot: {
-              paramMap: convertToParamMap({ id: statementId }),
+              paramMap: convertToParamMap({ id: invoiceId }),
               queryParamMap: convertToParamMap({}),
             },
           },
@@ -266,7 +266,7 @@ describe("FinanceStatementCreateComponent editing a draft", () => {
   });
 
   it("keeps saved line ids on load and sends them on save; new lines have none", () => {
-    const fixture = TestBed.createComponent(FinanceStatementCreateComponent);
+    const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
     const lines = component.form.controls.lines;
@@ -281,8 +281,8 @@ describe("FinanceStatementCreateComponent editing a draft", () => {
     lines.at(2).patchValue({ description: "Novi red", netAmount: 50 });
     component.submit();
 
-    expect(api.updateStatement).toHaveBeenCalledTimes(1);
-    const sent = api.updateStatement.mock.calls[0][1].lines;
+    expect(api.updateInvoice).toHaveBeenCalledTimes(1);
+    const sent = api.updateInvoice.mock.calls[0][1].lines;
     expect(sent.map((line: { id?: string }) => line.id)).toEqual([
       feeLineId,
       "line-2",
