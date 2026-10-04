@@ -1,4 +1,4 @@
-<form (ngSubmit)="submit()" novalidate>
+<form (submit)="$event.preventDefault(); submit()" novalidate>
   <hlm-dialog-header>
     <h2 hlmDialogTitle>{{ "time.writeOff.title" | translate }}</h2>
     <p hlmDialogDescription>{{ "time.writeOff.description" | translate }}</p>

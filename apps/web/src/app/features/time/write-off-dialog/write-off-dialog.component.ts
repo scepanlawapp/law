@@ -1,5 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
-import { FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
+import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -38,7 +38,6 @@ export class WriteOffDialogComponent {
   readonly reason = new FormControl("", {
     nonNullable: true,
     validators: [
-      Validators.required,
       (control) => (control.value.trim() ? null : { required: true }),
     ],
   });

@@ -25,6 +25,9 @@ describe("teamTimeGuard", () => {
     expect(run()).toBe(true);
   });
 
+  // The session is loaded by an app initializer (AuthState.bootstrap) before the
+  // first navigation, exactly as authGuard relies on, so a missing role here
+  // means "no workspace membership", not "still loading".
   it.each([WorkspaceRole.LAWYER, WorkspaceRole.MEMBER, null])(
     "redirects %s to my time",
     (role) => {

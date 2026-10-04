@@ -54,6 +54,7 @@ import {
   STATUS_LABEL_KEYS,
   TREATMENT_LABEL_KEYS,
   formatMinutes,
+  formatWorkDate,
   isEditable,
   isIsoDate,
 } from "./time-utils";
@@ -245,6 +246,10 @@ export class TeamTimeComponent {
 
   loadMore(): void {
     if (this.hasMore() && !this.loading()) this.load(false);
+  }
+
+  workDateLabel(date: string): string {
+    return formatWorkDate(date, this.localization.language());
   }
 
   edit(entry: WorkEntry): void {

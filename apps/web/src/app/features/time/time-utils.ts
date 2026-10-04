@@ -86,3 +86,18 @@ export function minutesBetween(startsAt: string, endsAt: string): number {
   );
   return Math.min(1440, Math.max(1, minutes));
 }
+
+/** Locale tag for the UI language used by the time screens. */
+export function timeLocale(language: "SR" | "EN"): string {
+  return language === "EN" ? "en-GB" : "sr-Latn";
+}
+
+/** A YYYY-MM-DD calendar day as a short localized date, e.g. `4. 10. 2026.`. */
+export function formatWorkDate(date: string, language: "SR" | "EN"): string {
+  return new Intl.DateTimeFormat(timeLocale(language), {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).format(new Date(`${date}T00:00:00Z`));
+}

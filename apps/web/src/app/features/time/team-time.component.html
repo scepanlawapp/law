@@ -230,7 +230,9 @@
       <tbody hlmTBody>
         @for (entry of entries(); track entry.id) {
           <tr hlmTr data-testid="team-entry">
-            <td hlmTd class="whitespace-nowrap">{{ entry.workDate }}</td>
+            <td hlmTd class="whitespace-nowrap">
+              {{ workDateLabel(entry.workDate) }}
+            </td>
             <td hlmTd>{{ entry.user.displayName }}</td>
             <td hlmTd>
               {{ entry.client.displayName }}

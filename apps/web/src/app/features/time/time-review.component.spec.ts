@@ -2,7 +2,7 @@ import { TestBed, ComponentFixture } from "@angular/core/testing";
 import { ActivatedRoute, convertToParamMap } from "@angular/router";
 import { WorkEntriesApiClient } from "@law/api-clients";
 import { TimeReviewResponse, WorkEntry } from "@law/api-interfaces";
-import { of } from "rxjs";
+import { of, throwError } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
@@ -314,5 +314,18 @@ describe("TimeReviewComponent", () => {
     button(all(fixture, "proposed-entry")[0], "time.review.delete").click();
 
     expect(api.remove).not.toHaveBeenCalled();
+  });
+
+  it("drops stale review data when a reload fails", () => {
+    const fixture = create();
+    expect(fixture.componentInstance.review()).not.toBeNull();
+
+    api.review.mockReturnValue(throwError(() => new Error("down")));
+    fixture.componentInstance.reload();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.review()).toBeNull();
+    expect(fixture.componentInstance.error()).toBe(true);
+    expect(all(fixture, "today-entry")).toHaveLength(0);
   });
 });

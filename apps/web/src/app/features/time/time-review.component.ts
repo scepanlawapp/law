@@ -28,6 +28,8 @@ import {
   minutesBetween,
   officeToday,
   sumMinutes,
+  formatWorkDate,
+  timeLocale,
 } from "./time-utils";
 import { WriteOffDialogService } from "./write-off-dialog/write-off-dialog.service";
 
@@ -114,6 +116,7 @@ export class TimeReviewComponent {
       .subscribe((params) => {
         const requested = params.get("date");
         const date = isIsoDate(requested) ? requested : officeToday();
+        if (date !== this.date()) this.review.set(null);
         this.date.set(date);
         this.dismissed.set(readDismissed(date));
         this.load();
@@ -125,20 +128,25 @@ export class TimeReviewComponent {
   }
 
   dateLabel(): string {
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "EN" ? "en-GB" : "sr-Latn",
-      {
-        timeZone: "UTC",
-        weekday: "long",
-        day: "numeric",
-        month: "long",
-        year: "numeric",
-      },
-    ).format(new Date(`${this.date()}T00:00:00Z`));
+    return new Intl.DateTimeFormat(this.locale(), {
+      timeZone: "UTC",
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+      year: "numeric",
+    }).format(new Date(`${this.date()}T00:00:00Z`));
+  }
+
+  workDateLabel(date: string): string {
+    return formatWorkDate(date, this.localization.language());
+  }
+
+  private locale(): string {
+    return timeLocale(this.localization.language());
   }
 
   timeRange(item: MissingEvent): string {
-    const format = new Intl.DateTimeFormat("sr-Latn", {
+    const format = new Intl.DateTimeFormat(this.locale(), {
       timeZone: OFFICE_TIME_ZONE,
       hour: "2-digit",
       minute: "2-digit",
@@ -294,6 +302,7 @@ export class TimeReviewComponent {
         },
         error: () => {
           if (requestId !== this.requestId) return;
+          this.review.set(null);
           this.error.set(true);
           this.loading.set(false);
         },

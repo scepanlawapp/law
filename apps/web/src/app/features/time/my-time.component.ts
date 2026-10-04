@@ -37,6 +37,7 @@ import {
   mondayOf,
   officeToday,
   sumMinutes,
+  timeLocale,
   weekDays,
 } from "./time-utils";
 
@@ -194,7 +195,7 @@ export class MyTimeComponent {
   }
 
   private locale(): string {
-    return this.localization.language() === "EN" ? "en-GB" : "sr-Latn";
+    return timeLocale(this.localization.language());
   }
 
   private load(userId: string, from: string): void {
