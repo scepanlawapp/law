@@ -24,7 +24,12 @@ import {
   ClientListQueryDto,
   ClientsService,
 } from "@law/clients";
-import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
+import {
+  normalize,
+  PlatformPrismaService,
+  tokens,
+  WorkspaceContextService,
+} from "@law/core";
 import type {
   ActivityQuery,
   AssistantActivityEntry,
@@ -903,21 +908,6 @@ function clipText(value: string | null | undefined): string | null {
   return latin.length > TEXT_MAX_CHARS
     ? `${latin.slice(0, TEXT_MAX_CHARS - 1)}…`
     : latin;
-}
-
-/** Lowercase Latin without diacritics, for name matching. */
-function normalize(value: string): string {
-  return toLatin(value)
-    .trim()
-    .toLowerCase()
-    .replace(/đ/g, "dj")
-    .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
-    .replace(/\s+/g, " ");
-}
-
-function tokens(value: string): string[] {
-  return value.split(/[^a-z0-9]+/).filter(Boolean);
 }
 
 /** YYYY-MM-DD HH:mm in Europe/Belgrade. */

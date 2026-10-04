@@ -18,9 +18,11 @@ import {
   CreateWorkEntryDto,
   StartTimerDto,
   UpdateWorkEntryDto,
+  WorkCaptureParseDto,
   WorkEntryQueryDto,
   WriteOffWorkEntryDto,
 } from "./work-entries.dto";
+import { WorkCaptureService } from "./work-capture.service";
 import { WorkEntriesService } from "./work-entries.service";
 import { WorkEntrySourcesService } from "./work-entry-sources.service";
 
@@ -31,6 +33,7 @@ export class WorkEntriesController {
   constructor(
     private readonly workEntries: WorkEntriesService,
     private readonly sources: WorkEntrySourcesService,
+    private readonly capture: WorkCaptureService,
   ) {}
 
   @Get()
@@ -59,6 +62,12 @@ export class WorkEntriesController {
   @HttpCode(200)
   confirmFromSource(@Body() body: ConfirmSourceEntryDto) {
     return this.sources.confirmFromSource(body);
+  }
+
+  @Post("parse")
+  @HttpCode(200)
+  parseCapture(@Body() body: WorkCaptureParseDto) {
+    return this.capture.parse(body.text);
   }
 
   @Get(":id")

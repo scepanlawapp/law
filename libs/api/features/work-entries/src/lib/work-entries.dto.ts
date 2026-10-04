@@ -10,6 +10,7 @@ import {
   IsString,
   IsUUID,
   Max,
+  MaxLength,
   Min,
   ValidateIf,
 } from "class-validator";
@@ -19,6 +20,7 @@ import type {
   CreateWorkEntryRequest,
   StartTimerRequest,
   UpdateWorkEntryRequest,
+  WorkCaptureParseRequest,
   WorkEntryQuery,
   WorkEntrySourceType,
   WorkEntryStatus,
@@ -220,4 +222,12 @@ export class ConfirmSourceEntryDto implements ConfirmSourceEntryRequest {
   @IsOptional()
   @IsString()
   description?: string;
+}
+
+export class WorkCaptureParseDto implements WorkCaptureParseRequest {
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(1000)
+  text!: string;
 }
