@@ -15,6 +15,9 @@ import { ProfileSettingsComponent } from "./features/settings/profile-settings.c
 import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
 import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
 import { DataSettingsComponent } from "./features/settings/data-settings.component";
+import { BillingSettingsComponent } from "./features/settings/billing-settings.component";
+import { billingSettingsGuard } from "./features/settings/billing-settings.guard";
+import { FinanceRetainersComponent } from "./features/finance-retainers/retainers.component";
 import { ClientsComponent } from "./features/clients/clients.component";
 import { CasesComponent } from "./features/cases/cases.component";
 import { ClientDetailComponent } from "./features/clients/client-detail.component";
@@ -94,6 +97,7 @@ export const appRoutes: Route[] = [
             component: FinanceStatementDetailComponent,
           },
           { path: "statements", component: FinanceStatementsComponent },
+          { path: "retainers", component: FinanceRetainersComponent },
         ],
       },
       { path: "reports", component: ReportsComponent },
@@ -117,6 +121,11 @@ export const appRoutes: Route[] = [
           { path: "profile", component: ProfileSettingsComponent },
           { path: "appearance", component: AppearanceSettingsComponent },
           { path: "workspace", component: WorkspaceSettingsComponent },
+          {
+            path: "billing",
+            component: BillingSettingsComponent,
+            canActivate: [billingSettingsGuard],
+          },
           { path: "data", component: DataSettingsComponent },
         ],
       },

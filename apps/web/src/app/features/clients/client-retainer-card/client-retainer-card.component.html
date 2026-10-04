@@ -1,0 +1,234 @@
+@if (visible()) {
+  <section
+    class="border-border space-y-4 rounded-lg border p-4"
+    aria-labelledby="retainer-card-title"
+    data-testid="retainer-card"
+  >
+    <div class="flex flex-wrap items-center justify-between gap-3">
+      <h3 id="retainer-card-title" class="text-lg font-semibold">
+        {{ "retainers.card.title" | translate }}
+      </h3>
+      <div class="flex items-center gap-2">
+        <label class="sr-only" for="retainer-card-month">
+          {{ "retainers.month" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="retainer-card-month"
+          type="month"
+          class="w-40"
+          [formControl]="month"
+        />
+      </div>
+    </div>
+
+    @if (loading()) {
+      <div class="flex items-center gap-2" role="status">
+        <hlm-spinner [attr.aria-label]="'retainers.loading' | translate" />
+      </div>
+    } @else if (error()) {
+      <p class="text-destructive text-sm" role="alert">
+        {{ "retainers.loadError" | translate }}
+      </p>
+    } @else {
+      @if (agreement(); as item) {
+        <dl class="grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
+          <div>
+            <dt class="font-medium">
+              {{ "retainers.card.agreement" | translate }}
+            </dt>
+            <dd class="text-muted-foreground" data-testid="retainer-title">
+              {{ item.title }}
+            </dd>
+          </div>
+          <div>
+            <dt class="font-medium">{{ "retainers.card.fee" | translate }}</dt>
+            <dd class="text-muted-foreground">
+              @if (usage(); as current) {
+                {{ money(current.fee, current.currency) }}
+              } @else {
+                {{ money(item.monthlyFee, item.currency) }}
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="font-medium">
+              {{ "retainers.card.period" | translate }}
+            </dt>
+            <dd class="text-muted-foreground">
+              {{ date(item.validFrom) }} –
+              @if (item.validTo) {
+                {{ date(item.validTo) }}
+              } @else {
+                {{ "retainers.card.openEnded" | translate }}
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="font-medium">
+              {{ "retainers.card.scope" | translate }}
+            </dt>
+            <dd class="text-muted-foreground">
+              @if (item.coveredCategoryIds.length) {
+                {{
+                  "retainers.card.scopeCategories"
+                    | translate: { count: item.coveredCategoryIds.length }
+                }}
+              } @else {
+                {{ "retainers.card.scopeAll" | translate }}
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="font-medium">
+              {{ "retainers.card.overage" | translate }}
+            </dt>
+            <dd class="text-muted-foreground">
+              {{ "retainers.rule." + item.overageRule | translate }}
+              @if (item.overageRule === "HOURLY" && item.overageHourlyRate) {
+                ({{ money(item.overageHourlyRate, item.currency) }})
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="font-medium">
+              {{ "retainers.card.outOfScope" | translate }}
+            </dt>
+            <dd class="text-muted-foreground">
+              {{ "retainers.rule." + item.outOfScopeRule | translate }}
+              @if (
+                item.outOfScopeRule === "HOURLY" && item.outOfScopeHourlyRate
+              ) {
+                ({{ money(item.outOfScopeHourlyRate, item.currency) }})
+              }
+            </dd>
+          </div>
+        </dl>
+
+        @if (usage(); as current) {
+          <div
+            class="space-y-2"
+            data-testid="retainer-usage"
+            [attr.data-usage-state]="state()"
+            [class]="
+              state() === 'ok'
+                ? '[&_[data-slot=progress-indicator]]:bg-primary'
+                : state() === 'warning'
+                  ? '[&_[data-slot=progress-indicator]]:bg-warning'
+                  : '[&_[data-slot=progress-indicator]]:bg-destructive'
+            "
+          >
+            <div class="flex flex-wrap items-baseline justify-between gap-2">
+              <span class="font-medium">
+                {{ "retainers.card.coveredHours" | translate }}:
+                <span data-testid="retainer-hours">{{ hoursLabel() }}</span>
+              </span>
+              @if (percent() !== null) {
+                <span
+                  class="rounded-full px-2 py-0.5 text-xs font-medium"
+                  data-testid="retainer-percent"
+                  [class]="
+                    state() === 'ok'
+                      ? 'bg-muted text-muted-foreground'
+                      : state() === 'warning'
+                        ? 'bg-warning text-warning-foreground'
+                        : 'bg-destructive/10 text-destructive'
+                  "
+                >
+                  {{ percentLabel() }}%
+                </span>
+              }
+            </div>
+            @if (percent() !== null) {
+              <hlm-progress
+                class="h-2"
+                [value]="progressValue()"
+                [attr.aria-label]="'retainers.card.coveredHours' | translate"
+              >
+                <hlm-progress-indicator />
+              </hlm-progress>
+            } @else {
+              <p class="text-muted-foreground text-sm">
+                {{ "retainers.card.noCap" | translate }}
+              </p>
+            }
+            <p class="text-sm">
+              <span class="font-medium">
+                {{ "retainers.card.outOfScopeHours" | translate }}:
+              </span>
+              <span data-testid="retainer-out-of-scope">
+                {{ outOfScopeLabel() }}
+              </span>
+            </p>
+            @if (canManage()) {
+              <p class="text-sm" data-testid="retainer-rates">
+                <span class="font-medium">
+                  {{ "retainers.card.effectiveRate" | translate }}:
+                </span>
+                @if (current.effectiveHourlyRate; as effective) {
+                  {{ money(effective, current.currency) }}
+                } @else {
+                  {{ "retainers.card.rateUnavailable" | translate }}
+                }
+                <span class="text-muted-foreground">
+                  ·
+                  {{ "retainers.card.targetRate" | translate }}:
+                  @if (current.targetHourlyRate; as target) {
+                    {{ money(target, current.currency) }}
+                  } @else {
+                    {{ "retainers.card.rateUnavailable" | translate }}
+                  }
+                </span>
+              </p>
+            }
+          </div>
+        } @else {
+          <p class="text-muted-foreground text-sm">
+            {{ "retainers.card.noUsage" | translate }}
+          </p>
+        }
+      } @else {
+        <p class="text-muted-foreground text-sm" data-testid="retainer-none">
+          {{ "retainers.card.none" | translate }}
+        </p>
+      }
+
+      @if (profile()?.hourlyRate; as hourlyRate) {
+        <p class="text-sm" data-testid="client-rate">
+          <span class="font-medium">
+            {{ "retainers.clientRate.label" | translate }}:
+          </span>
+          {{ money(hourlyRate, profile()?.currency ?? "RSD") }}
+        </p>
+      }
+
+      @if (canManage()) {
+        <div class="flex flex-wrap gap-2">
+          <button
+            hlmBtn
+            type="button"
+            size="sm"
+            variant="outline"
+            data-testid="retainer-edit"
+            (click)="editAgreement()"
+          >
+            {{
+              (agreement() ? "retainers.card.edit" : "retainers.card.create")
+                | translate
+            }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            size="sm"
+            variant="ghost"
+            data-testid="client-rate-edit"
+            (click)="editClientRate()"
+          >
+            {{ "retainers.clientRate.action" | translate }}
+          </button>
+        </div>
+      }
+    }
+  </section>
+}

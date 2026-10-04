@@ -1,0 +1,135 @@
+<div class="space-y-6 p-4 md:p-6">
+  <header class="flex flex-wrap items-end justify-between gap-4">
+    <div>
+      <h1 class="text-xl font-semibold">
+        {{ "retainers.list.title" | translate }}
+      </h1>
+      <p class="text-muted-foreground mt-1 text-sm">
+        {{ "retainers.list.description" | translate }}
+      </p>
+    </div>
+    <div class="flex w-44 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="retainers-month">
+        {{ "retainers.month" | translate }}
+      </label>
+      <input hlmInput id="retainers-month" type="month" [formControl]="month" />
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="flex items-center gap-2" role="status">
+      <hlm-spinner [attr.aria-label]="'retainers.loading' | translate" />
+    </div>
+  } @else if (forbidden()) {
+    <p class="text-muted-foreground text-sm" role="status">
+      {{ "retainers.list.unavailable" | translate }}
+    </p>
+  } @else if (error()) {
+    <p class="text-destructive text-sm" role="alert">
+      {{ "retainers.loadError" | translate }}
+    </p>
+  } @else if (!rows().length) {
+    <p class="text-muted-foreground text-sm" role="status">
+      {{ "retainers.list.empty" | translate }}
+    </p>
+  } @else {
+    <div hlmTableContainer>
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th hlmTh>{{ "retainers.list.client" | translate }}</th>
+            <th hlmTh>{{ "retainers.card.fee" | translate }}</th>
+            <th hlmTh>{{ "retainers.card.coveredHours" | translate }}</th>
+            <th hlmTh class="min-w-40">
+              {{ "retainers.list.usage" | translate }}
+            </th>
+            <th hlmTh>{{ "retainers.card.outOfScopeHours" | translate }}</th>
+            @if (canManage()) {
+              <th hlmTh>{{ "retainers.card.effectiveRate" | translate }}</th>
+              <th hlmTh>{{ "retainers.card.targetRate" | translate }}</th>
+            }
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (row of rows(); track row.usage.agreementId) {
+            <tr
+              hlmTr
+              data-testid="retainer-row"
+              [attr.data-usage-state]="row.state"
+            >
+              <td hlmTd>
+                <a
+                  class="text-primary font-medium underline-offset-4 hover:underline"
+                  [routerLink]="['/clients', row.usage.client.id]"
+                >
+                  {{ row.usage.client.displayName }}
+                </a>
+              </td>
+              <td hlmTd class="whitespace-nowrap">
+                {{ money(row.usage.fee, row.usage.currency) }}
+              </td>
+              <td hlmTd class="whitespace-nowrap">
+                {{ hours(row.usage.coveredMinutes) }}
+                @if (row.usage.includedMinutes) {
+                  / {{ hours(row.usage.includedMinutes) }}
+                }
+              </td>
+              <td hlmTd>
+                @if (row.percent !== null) {
+                  <div
+                    class="flex items-center gap-2"
+                    [class]="
+                      row.state === 'ok'
+                        ? '[&_[data-slot=progress-indicator]]:bg-primary'
+                        : row.state === 'warning'
+                          ? '[&_[data-slot=progress-indicator]]:bg-warning'
+                          : '[&_[data-slot=progress-indicator]]:bg-destructive'
+                    "
+                  >
+                    <hlm-progress
+                      class="h-2 min-w-24 flex-1"
+                      [value]="barValue(row.percent)"
+                      [attr.aria-label]="'retainers.list.usage' | translate"
+                    >
+                      <hlm-progress-indicator />
+                    </hlm-progress>
+                    <span class="w-12 text-end text-sm tabular-nums">
+                      {{ percentLabel(row.percent) }}%
+                    </span>
+                  </div>
+                } @else {
+                  <span class="text-muted-foreground text-sm">
+                    {{ "retainers.card.noCap" | translate }}
+                  </span>
+                }
+              </td>
+              <td hlmTd class="whitespace-nowrap">
+                {{ hours(row.usage.outOfScopeMinutes) }}
+              </td>
+              @if (canManage()) {
+                <td hlmTd class="whitespace-nowrap">
+                  @if (row.usage.effectiveHourlyRate; as effective) {
+                    {{ money(effective, row.usage.currency) }}
+                  } @else {
+                    <span class="text-muted-foreground">
+                      {{ "retainers.card.rateUnavailable" | translate }}
+                    </span>
+                  }
+                </td>
+                <td hlmTd class="whitespace-nowrap">
+                  @if (row.usage.targetHourlyRate; as target) {
+                    {{ money(target, row.usage.currency) }}
+                  } @else {
+                    <span class="text-muted-foreground">
+                      {{ "retainers.card.rateUnavailable" | translate }}
+                    </span>
+                  }
+                </td>
+              }
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

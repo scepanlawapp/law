@@ -17,6 +17,7 @@ import {
   lucideTags,
   lucideClipboardCheck,
   lucideChevronRight,
+  lucideGauge,
   lucideSettings,
 } from "@ng-icons/lucide";
 import { RouterLink, RouterLinkActive } from "@angular/router";
@@ -44,6 +45,7 @@ import {
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
+import { canViewRetainers } from "../../shared/billing";
 import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
 interface SidebarNavigationItem {
@@ -105,6 +107,7 @@ interface SidebarNavigationGroup {
       lucideTags,
       lucideClipboardCheck,
       lucideChevronRight,
+      lucideGauge,
       lucideSettings,
     }),
   ],
@@ -123,6 +126,10 @@ export class SidebarComponent {
     const role = this.authState.activeWorkspace()?.role;
     return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
   });
+
+  private readonly showRetainers = computed(() =>
+    canViewRetainers(this.authState.activeWorkspace()?.role),
+  );
 
   readonly navigationGroups = computed<SidebarNavigationGroup[]>(() => [
     {
@@ -183,6 +190,15 @@ export class SidebarComponent {
               label: "nav.financePriceSources",
               icon: "lucideTags",
             },
+            ...(this.showRetainers()
+              ? [
+                  {
+                    route: "/finance/retainers",
+                    label: "nav.financeRetainers",
+                    icon: "lucideGauge",
+                  },
+                ]
+              : []),
           ],
         },
         { route: "/reports", label: "nav.reports", icon: "lucideChartBar" },

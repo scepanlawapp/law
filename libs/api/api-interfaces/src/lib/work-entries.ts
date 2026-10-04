@@ -171,9 +171,10 @@ export interface RetainerAgreement {
   active: boolean;
 }
 
+/** The client comes from the route (create) or the record (update). */
 export type UpsertRetainerAgreementRequest = Omit<
   RetainerAgreement,
-  "id" | "active"
+  "id" | "active" | "clientId"
 >;
 
 export interface ClientBillingProfile {
