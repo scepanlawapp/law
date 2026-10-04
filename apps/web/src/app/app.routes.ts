@@ -31,6 +31,8 @@ import { FinanceWorkReviewComponent } from "./features/finance-work-review/finan
 import { FinanceStatementsComponent } from "./features/finance-statements/finance-statements.component";
 import { FinanceStatementCreateComponent } from "./features/finance-statements/finance-statement-create.component";
 import { FinanceStatementDetailComponent } from "./features/finance-statements/finance-statement-detail.component";
+import { ProfitabilityComponent } from "./features/reports/profitability/profitability.component";
+import { profitabilityGuard } from "./features/reports/profitability/profitability.guard";
 import { ReportsComponent } from "./features/reports/reports.component";
 import { WorkViewComponent } from "./features/work-management/work-view/work-view.component";
 import { MyTimeComponent } from "./features/time/my-time.component";
@@ -108,6 +110,11 @@ export const appRoutes: Route[] = [
         ],
       },
       { path: "reports", component: ReportsComponent },
+      {
+        path: "reports/profitability",
+        component: ProfitabilityComponent,
+        canActivate: [profitabilityGuard],
+      },
       { path: "work/time", component: MyTimeComponent },
       {
         path: "work/time/team",

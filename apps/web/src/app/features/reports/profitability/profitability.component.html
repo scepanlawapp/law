@@ -1,0 +1,282 @@
+<section class="flex flex-col gap-4 p-4 md:p-6">
+  <header>
+    <a
+      routerLink="/reports"
+      class="text-muted-foreground hover:text-foreground text-sm"
+    >
+      {{ "reports.profitability.back" | translate }}
+    </a>
+    <h1 class="text-xl font-semibold">
+      {{ "reports.profitability.title" | translate }}
+    </h1>
+    <p class="text-muted-foreground text-sm">
+      {{ "reports.profitability.description" | translate }}
+    </p>
+  </header>
+
+  <div class="flex flex-wrap items-end gap-3">
+    <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="profitability-range">
+        {{ "reports.profitability.range" | translate }}
+      </label>
+      <hlm-select
+        [value]="preset()"
+        (valueChange)="setPreset($event)"
+        [itemToString]="presetItemToString"
+      >
+        <hlm-select-trigger buttonId="profitability-range" class="w-full">
+          <hlm-select-value />
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal width="content">
+          <hlm-select-group>
+            @for (option of presetOptions; track option.value) {
+              <hlm-select-item [value]="option.value">
+                {{ option.label | translate }}
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+
+    @if (preset() === "CUSTOM") {
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="profitability-from">
+          {{ "reports.profitability.from" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="profitability-from"
+          type="date"
+          [formControl]="customFrom"
+        />
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-sm font-medium" for="profitability-to">
+          {{ "reports.profitability.to" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="profitability-to"
+          type="date"
+          [formControl]="customTo"
+        />
+      </div>
+      <button
+        hlmBtn
+        type="button"
+        data-testid="apply-custom"
+        (click)="applyCustom()"
+      >
+        {{ "reports.profitability.apply" | translate }}
+      </button>
+    }
+
+    @if (rangeLabel() && !loading()) {
+      <p class="text-muted-foreground pb-2 text-sm">{{ rangeLabel() }}</p>
+    }
+  </div>
+
+  @if (rangeInvalid()) {
+    <p class="text-destructive text-sm" role="alert">
+      {{ "reports.profitability.rangeInvalid" | translate }}
+    </p>
+  }
+
+  @if (loading()) {
+    <div class="flex items-center gap-2" role="status">
+      <hlm-spinner
+        [attr.aria-label]="'reports.profitability.loading' | translate"
+      />
+    </div>
+  } @else if (error()) {
+    <div class="flex items-center gap-3" role="alert">
+      <p class="text-destructive text-sm">
+        {{ "reports.profitability.loadError" | translate }}
+      </p>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        data-testid="retry"
+        (click)="reload()"
+      >
+        {{ "time.retry" | translate }}
+      </button>
+    </div>
+  } @else if (report(); as data) {
+    <div hlmTabs [tab]="tab()" (tabActivated)="tab.set($event)">
+      <div hlmTabsList>
+        <button hlmTabsTrigger="clients">
+          {{ "reports.profitability.tabClients" | translate }}
+        </button>
+        <button hlmTabsTrigger="people">
+          {{ "reports.profitability.tabPeople" | translate }}
+        </button>
+      </div>
+
+      <section hlmTabsContent="clients" class="flex flex-col gap-3 pt-4">
+        @if (data.rows.length) {
+          <div hlmTableContainer>
+            <table hlmTable>
+              <thead hlmTHead>
+                <tr hlmTr>
+                  <th hlmTh>
+                    {{ "reports.profitability.client" | translate }}
+                  </th>
+                  <th hlmTh>{{ "reports.profitability.hours" | translate }}</th>
+                  <th hlmTh>
+                    {{ "reports.profitability.revenue" | translate }}
+                  </th>
+                  <th hlmTh>
+                    {{ "reports.profitability.timeValue" | translate }}
+                  </th>
+                  <th hlmTh>
+                    {{ "reports.profitability.effectiveRate" | translate }}
+                  </th>
+                  <th hlmTh>
+                    {{ "reports.profitability.writtenOff" | translate }}
+                  </th>
+                  <th hlmTh>
+                    {{ "reports.profitability.unbilled" | translate }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody hlmTBody>
+                @for (row of data.rows; track row.client.id) {
+                  <tr hlmTr data-testid="profitability-row">
+                    <td hlmTd>{{ row.client.displayName }}</td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ hours(row.minutes) }} h
+                    </td>
+                    <td hlmTd class="whitespace-nowrap">
+                      @for (item of row.revenue; track item.currency) {
+                        <span class="block">
+                          {{ money(item.net, item.currency) }}
+                        </span>
+                      } @empty {
+                        —
+                      }
+                    </td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ money(row.timeValue, data.internalCurrency) }}
+                      @if (row.unknownValueMinutes > 0) {
+                        <span
+                          class="text-muted-foreground block text-xs"
+                          data-testid="unknown-value"
+                        >
+                          {{
+                            "reports.profitability.unknownValue"
+                              | translate
+                                : { hours: hours(row.unknownValueMinutes) }
+                          }}
+                        </span>
+                      }
+                    </td>
+                    <td
+                      hlmTd
+                      class="whitespace-nowrap"
+                      data-testid="effective-rate"
+                      [class.text-destructive]="
+                        isBelowTarget(
+                          row.effectiveHourlyRate,
+                          data.targetHourlyRate
+                        )
+                      "
+                    >
+                      {{ rate(data, row) }}
+                      @if (data.targetHourlyRate !== null) {
+                        <span class="text-muted-foreground block text-xs">
+                          {{
+                            "reports.profitability.target"
+                              | translate
+                                : {
+                                    rate: money(
+                                      data.targetHourlyRate,
+                                      data.internalCurrency
+                                    ),
+                                  }
+                          }}
+                        </span>
+                      }
+                      @if (!row.comparable) {
+                        <span
+                          class="text-muted-foreground block text-xs"
+                          data-testid="not-comparable"
+                        >
+                          {{
+                            "reports.profitability.notComparable" | translate
+                          }}
+                        </span>
+                      }
+                    </td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ money(row.writtenOffValue, data.internalCurrency) }}
+                    </td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ money(row.unbilledValue, data.internalCurrency) }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-muted-foreground text-sm">
+            {{ "reports.profitability.empty" | translate }}
+          </p>
+        }
+        <p class="text-muted-foreground text-xs">
+          {{ "reports.profitability.footer" | translate }}
+        </p>
+      </section>
+
+      <section hlmTabsContent="people" class="flex flex-col gap-3 pt-4">
+        @if (data.byPerson.length) {
+          <div hlmTableContainer>
+            <table hlmTable>
+              <thead hlmTHead>
+                <tr hlmTr>
+                  <th hlmTh>
+                    {{ "reports.profitability.person" | translate }}
+                  </th>
+                  <th hlmTh>
+                    {{ "reports.profitability.logged" | translate }}
+                  </th>
+                  <th hlmTh>
+                    {{ "reports.profitability.billed" | translate }}
+                  </th>
+                  <th hlmTh>
+                    {{ "reports.profitability.utilization" | translate }}
+                  </th>
+                </tr>
+              </thead>
+              <tbody hlmTBody>
+                @for (person of data.byPerson; track person.user.id) {
+                  <tr hlmTr data-testid="profitability-person">
+                    <td hlmTd>{{ person.user.displayName }}</td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ hours(person.loggedMinutes) }} h
+                    </td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{ hours(person.billedMinutes) }} h
+                    </td>
+                    <td hlmTd class="whitespace-nowrap">
+                      {{
+                        utilization(person.loggedMinutes, person.billedMinutes)
+                      }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        } @else {
+          <p class="text-muted-foreground text-sm">
+            {{ "reports.profitability.empty" | translate }}
+          </p>
+        }
+      </section>
+    </div>
+  }
+</section>

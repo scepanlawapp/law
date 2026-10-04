@@ -272,7 +272,7 @@ documents,
 
 ## Work capture and retainers
 
-The Angular screens for quick capture, the header timer, review, My/Team time, billing settings, Retainers, Unbilled work, entry-based statements, and the month-end run are implemented; the Profitability page is still pending in the `work_capture_retainers_20261004` track. AI is optional: every flow below works without it.
+The Angular screens for quick capture, the header timer, review, My/Team time, billing settings, Retainers, Unbilled work, entry-based statements, and the month-end run, and the Profitability page are implemented. AI is optional: every flow below works without it.
 
 ### Work entries and statuses
 
@@ -320,6 +320,7 @@ The Angular screens for quick capture, the header timer, review, My/Team time, b
 ### Profitability report (owner and admin)
 
 - `billing/profitability?from=&to=` returns, per client, revenue (net of `SENT` statements by turnover date; payments are not tracked), internal value of time (minutes times the performer's `UserRate` effective on `workDate`), hours, effective hourly rate against the office target, written-off value, and confirmed-but-unbilled value, sorted by effective rate ascending. Entries whose performer has no rate count their hours but contribute no value and are reported as unknown rather than guessed. The report also carries a per-person breakdown of logged versus billed minutes; other roles get a forbidden error.
+- The Angular page `reports/profitability` (card on Reports, `OWNER`/`ADMIN` route guard) shows last month by default, this month, last 3 months (Europe/Belgrade calendar) or a custom range, a worst-first client table and a person tab (logged versus billed hours, utilization). A rate below the office target is shown in the destructive color (exact decimal comparison); rows note "nije uporedivo" and the hours whose value is unknown.
 
 ### Demo data
 

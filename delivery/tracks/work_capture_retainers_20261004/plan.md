@@ -768,14 +768,14 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   - a footer note: "Prihod = poslati obračuni; uplate se još ne prate." (revenue = sent statements; payments are not tracked yet)
 - The person tab: logged vs billed hours and utilization %.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - Rows render in API order.
   - A row below target has `text-destructive`.
   - `comparable false` shows "nije uporedivo".
-- [ ] **Step 2:** Run `npx nx test web --testFile=profitability.component.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): profitability report`.
+- [x] **Step 2:** Run `npx nx test web --testFile=profitability.component.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): profitability report`.
 
 ### Task 20: Full verification and track close-out
 
