@@ -56,7 +56,11 @@ function usage(coveredMinutes: number): RetainerUsage {
 
 describe("ClientRetainerCardComponent", () => {
   const role = signal<WorkspaceRole | null>(WorkspaceRole.OWNER);
-  const setup = { listRetainers: jest.fn(), getProfile: jest.fn() };
+  const setup = {
+    listRetainers: jest.fn(),
+    getProfile: jest.fn(),
+    getWorkspaceConfig: jest.fn(),
+  };
   const reports = { clientUsage: jest.fn() };
   const agreementDialog = { open: jest.fn() };
   const rateDialog = { open: jest.fn() };
@@ -67,6 +71,14 @@ describe("ClientRetainerCardComponent", () => {
     setup.listRetainers.mockReturnValue(of([agreement]));
     setup.getProfile.mockReturnValue(
       of({ clientId: "client-1", hourlyRate: "12000.00", currency: "RSD" }),
+    );
+    setup.getWorkspaceConfig.mockReturnValue(
+      of({
+        targetHourlyRate: "8000.00",
+        internalCurrency: "RSD",
+        defaultVatRate: "20",
+        paymentTermDays: 15,
+      }),
     );
     reports.clientUsage.mockReturnValue(of(usage(960)));
     agreementDialog.open.mockReturnValue(of(null));
@@ -150,6 +162,52 @@ describe("ClientRetainerCardComponent", () => {
     expect(query(fixture, "retainer-rates")?.textContent).toContain("8.000");
     expect(query(fixture, "retainer-edit")).not.toBeNull();
     expect(query(fixture, "client-rate-edit")).not.toBeNull();
+  });
+
+  it("says the target is not comparable when the retainer currency differs", async () => {
+    setup.getWorkspaceConfig.mockReturnValue(
+      of({
+        targetHourlyRate: "8000.00",
+        internalCurrency: "EUR",
+        defaultVatRate: "20",
+        paymentTermDays: 15,
+      }),
+    );
+    const fixture = await create();
+
+    const rates = query(fixture, "retainer-rates")?.textContent ?? "";
+    expect(rates).toContain("6.250");
+    expect(rates).not.toContain("8.000");
+    expect(query(fixture, "retainer-not-comparable")?.textContent).toContain(
+      "retainers.card.notComparable",
+    );
+    expect(query(fixture, "retainer-usage")?.dataset["usageState"]).toBe(
+      "warning",
+    );
+  });
+
+  it("does not load the workspace config for a lawyer", async () => {
+    role.set(WorkspaceRole.LAWYER);
+    await create();
+
+    expect(setup.getWorkspaceConfig).not.toHaveBeenCalled();
+  });
+
+  it("clears a transient error when the month is changed", async () => {
+    reports.clientUsage.mockReturnValueOnce(
+      throwError(() => ({ status: 500 })),
+    );
+    const fixture = await create();
+    expect(fixture.componentInstance.error()).toBe(true);
+
+    reports.clientUsage.mockReturnValue(of(usage(960)));
+    fixture.componentInstance.month.setValue("2026-09");
+    fixture.detectChanges();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.error()).toBe(false);
+    expect(query(fixture, "retainer-hours")).not.toBeNull();
   });
 
   it("hides rates and write actions from a lawyer", async () => {

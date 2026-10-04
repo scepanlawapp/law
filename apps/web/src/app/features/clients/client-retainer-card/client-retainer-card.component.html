@@ -174,7 +174,15 @@
                   ·
                   {{ "retainers.card.targetRate" | translate }}:
                   @if (current.targetHourlyRate; as target) {
-                    {{ money(target, current.currency) }}
+                    @if (comparableTarget()) {
+                      {{ money(target, current.currency) }}
+                    } @else if (internalCurrency() !== null) {
+                      <span data-testid="retainer-not-comparable">
+                        {{ "retainers.card.notComparable" | translate }}
+                      </span>
+                    } @else {
+                      {{ "retainers.card.rateUnavailable" | translate }}
+                    }
                   } @else {
                     {{ "retainers.card.rateUnavailable" | translate }}
                   }

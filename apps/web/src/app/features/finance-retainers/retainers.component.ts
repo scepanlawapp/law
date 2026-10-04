@@ -9,7 +9,10 @@ import {
 import { takeUntilDestroyed, toObservable } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { RouterLink } from "@angular/router";
-import { BillingReportsApiClient } from "@law/api-clients";
+import {
+  BillingReportsApiClient,
+  BillingSetupApiClient,
+} from "@law/api-clients";
 import type { RetainerUsage } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -50,7 +53,7 @@ export function sortByUsage(items: readonly RetainerUsage[]): UsageRow[] {
   return items
     .map((usage) => {
       const percent = usagePercent(usage);
-      return { usage, percent, state: usageState(percent) };
+      return { usage, percent, state: usageState(usage) };
     })
     .sort((a, b) => {
       if (a.percent === null && b.percent === null) {
@@ -88,6 +91,7 @@ export function sortByUsage(items: readonly RetainerUsage[]): UsageRow[] {
 })
 export class FinanceRetainersComponent {
   private readonly api = inject(BillingReportsApiClient);
+  private readonly setupApi = inject(BillingSetupApiClient);
   private readonly auth = inject(AuthState);
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
@@ -100,12 +104,26 @@ export class FinanceRetainersComponent {
   readonly error = signal(false);
   readonly forbidden = signal(false);
 
+  /** The currency `targetHourlyRate` is expressed in; known to managers only. */
+  readonly internalCurrency = signal<string | null>(null);
+
   readonly rows = computed(() => sortByUsage(this.items()));
   readonly canManage = computed(() =>
     canManageBilling(this.auth.activeWorkspace()?.role),
   );
 
   constructor() {
+    if (this.canManage()) {
+      this.setupApi
+        .getWorkspaceConfig()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (config) => this.internalCurrency.set(config.internalCurrency),
+          // Without the config the target is shown as unavailable, never mislabelled.
+          error: () => this.internalCurrency.set(null),
+        });
+    }
+
     this.month.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => this.monthValue.set(value));

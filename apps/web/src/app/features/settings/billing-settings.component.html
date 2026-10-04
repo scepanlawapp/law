@@ -343,7 +343,11 @@
                       </span>
                     }
                   </td>
-                  <td hlmTd>{{ row.rate?.effectiveFrom ?? "" }}</td>
+                  <td hlmTd>
+                    @if (row.rate; as rate) {
+                      {{ dateLabel(rate.effectiveFrom) }}
+                    }
+                  </td>
                   <td hlmTd class="text-end whitespace-nowrap">
                     <button
                       hlmBtn
@@ -396,29 +400,19 @@
                 }
               </div>
               <div hlmField>
-                <label hlmFieldLabel for="billing-rate-currency">
+                <span hlmFieldLabel id="billing-rate-currency-label">
                   {{ "billing.rates.currency" | translate }}
-                </label>
-                <hlm-select
-                  formControlName="currency"
-                  [itemToString]="currencyItemToString"
+                </span>
+                <p
+                  class="flex h-9 items-center text-sm"
+                  aria-labelledby="billing-rate-currency-label"
+                  data-testid="rate-currency"
                 >
-                  <hlm-select-trigger
-                    buttonId="billing-rate-currency"
-                    class="w-full"
-                  >
-                    <hlm-select-value />
-                  </hlm-select-trigger>
-                  <hlm-select-content *hlmSelectPortal width="content">
-                    <hlm-select-group>
-                      @for (option of currencyOptions; track option.value) {
-                        <hlm-select-item [value]="option.value">
-                          {{ option.label | translate }}
-                        </hlm-select-item>
-                      }
-                    </hlm-select-group>
-                  </hlm-select-content>
-                </hlm-select>
+                  {{ savedCurrency() }}
+                </p>
+                <p class="text-muted-foreground text-sm">
+                  {{ "billing.rates.currencyHint" | translate }}
+                </p>
               </div>
               <div hlmField>
                 <label hlmFieldLabel for="billing-rate-from">

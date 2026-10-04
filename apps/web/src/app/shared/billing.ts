@@ -55,11 +55,28 @@ export function usagePercent(
 
 export type UsageState = "ok" | "warning" | "exceeded";
 
-/** Warning from 80 % of the included hours, exceeded above 100 %. */
-export function usageState(percent: number | null): UsageState {
-  if (percent === null) return "ok";
-  if (percent > 100) return "exceeded";
-  return percent >= 80 ? "warning" : "ok";
+/**
+ * Warning from 80 % of the included hours, exceeded above 100 %. Compared in
+ * integer minutes so the thresholds are exact (no floating-point percent).
+ */
+export function usageState(
+  usage: Pick<RetainerUsage, "coveredMinutes" | "includedMinutes">,
+): UsageState {
+  if (!usage.includedMinutes || usage.includedMinutes <= 0) return "ok";
+  if (usage.coveredMinutes > usage.includedMinutes) return "exceeded";
+  return usage.coveredMinutes * 100 >= usage.includedMinutes * 80
+    ? "warning"
+    : "ok";
+}
+
+/** A stored YYYY-MM-DD date as a short localized date, e.g. `1. 10. 2026.`. */
+export function formatDate(value: string, language: "SR" | "EN"): string {
+  return new Intl.DateTimeFormat(numberLocale(language), {
+    timeZone: "UTC",
+    day: "numeric",
+    month: "numeric",
+    year: "numeric",
+  }).format(new Date(`${value}T00:00:00Z`));
 }
 
 export function numberLocale(language: "SR" | "EN"): string {

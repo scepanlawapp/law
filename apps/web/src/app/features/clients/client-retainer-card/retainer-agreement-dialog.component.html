@@ -167,9 +167,15 @@
             </div>
           </hlm-combobox-content>
         </div>
-        <p class="text-muted-foreground text-sm">
-          {{ "retainers.form.categoriesHint" | translate }}
-        </p>
+        @if (categoriesFailed()) {
+          <p class="text-destructive text-sm" role="alert">
+            {{ "retainers.form.categoriesLoadError" | translate }}
+          </p>
+        } @else {
+          <p class="text-muted-foreground text-sm">
+            {{ "retainers.form.categoriesHint" | translate }}
+          </p>
+        }
       </div>
 
       <fieldset class="grid gap-3 sm:col-span-2 sm:grid-cols-2">

@@ -179,6 +179,16 @@ describe("RetainerAgreementDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(existing);
   });
 
+  it("shows a hint when the categories fail to load", () => {
+    api.listCategories.mockReturnValue(throwError(() => ({ status: 500 })));
+    const fixture = create();
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain(
+      "retainers.form.categoriesLoadError",
+    );
+  });
+
   it("does not submit an invalid form", () => {
     const component = create().componentInstance;
     fillValid(component.form, { overageRule: "HOURLY", overageHourlyRate: "" });

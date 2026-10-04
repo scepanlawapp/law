@@ -1848,5 +1848,8 @@
   "retainers.list.client": "Client",
   "retainers.list.usage": "Usage",
   "retainers.list.empty": "There are no active retainers for the selected month.",
-  "retainers.list.unavailable": "The retainers overview is not available for your role."
+  "retainers.list.unavailable": "The retainers overview is not available for your role.",
+  "retainers.card.notComparable": "not comparable (different currency)",
+  "retainers.form.categoriesLoadError": "Categories could not be loaded; selecting categories is unavailable right now.",
+  "billing.rates.currencyHint": "Rates are always entered in the workspace's internal currency."
 }

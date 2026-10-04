@@ -31,6 +31,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import {
   canManageBilling,
   canViewRetainers,
+  formatDate,
   formatHours,
   formatMoney,
   isForbidden,
@@ -80,6 +81,17 @@ export class ClientRetainerCardComponent {
   readonly agreements = signal<RetainerAgreement[]>([]);
   readonly profile = signal<ClientBillingProfile | null>(null);
   readonly usage = signal<RetainerUsage | null>(null);
+  /** The currency `targetHourlyRate` is expressed in; known to managers only. */
+  readonly internalCurrency = signal<string | null>(null);
+  /** The target rate can be set against the effective rate only in one currency. */
+  readonly comparableTarget = computed(() => {
+    const usage = this.usage();
+    return (
+      !!usage &&
+      this.internalCurrency() !== null &&
+      this.internalCurrency() === usage.currency
+    );
+  });
   readonly agreementsLoading = signal(true);
   readonly usageLoading = signal(true);
   readonly error = signal(false);
@@ -118,7 +130,10 @@ export class ClientRetainerCardComponent {
     const usage = this.usage();
     return usage ? usagePercent(usage) : null;
   });
-  readonly state = computed(() => usageState(this.percent()));
+  readonly state = computed(() => {
+    const usage = this.usage();
+    return usage ? usageState(usage) : "ok";
+  });
   readonly percentLabel = computed(() => Math.round(this.percent() ?? 0));
   /** The bar stops at 100 %; the label keeps showing the real overrun. */
   readonly progressValue = computed(() => Math.min(100, this.percentLabel()));
@@ -150,6 +165,7 @@ export class ClientRetainerCardComponent {
       untracked(() => {
         this.loadAgreements(id);
         this.loadProfile(id);
+        if (this.canManage()) this.loadWorkspaceConfig();
       });
     });
 
@@ -162,7 +178,10 @@ export class ClientRetainerCardComponent {
     )
       .pipe(
         filter((query) => this.canView() && isMonth(query.month)),
-        tap(() => this.usageLoading.set(true)),
+        tap(() => {
+          this.usageLoading.set(true);
+          this.error.set(false);
+        }),
         // switchMap drops a slow response for a month the user already left.
         switchMap((query) =>
           this.reportsApi.clientUsage(query.clientId, query.month).pipe(
@@ -184,6 +203,7 @@ export class ClientRetainerCardComponent {
 
   private loadAgreements(clientId: string): void {
     this.agreementsLoading.set(true);
+    this.error.set(false);
     this.setupApi
       .listRetainers(clientId)
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -196,6 +216,17 @@ export class ClientRetainerCardComponent {
           this.agreementsLoading.set(false);
           this.failed(error);
         },
+      });
+  }
+
+  private loadWorkspaceConfig(): void {
+    this.setupApi
+      .getWorkspaceConfig()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (config) => this.internalCurrency.set(config.internalCurrency),
+        // Without the config the target is shown as unavailable, never mislabelled.
+        error: () => this.internalCurrency.set(null),
       });
   }
 
@@ -242,11 +273,7 @@ export class ClientRetainerCardComponent {
     return formatMoney(amount, currency, this.localization.language());
   }
 
-  /** `1. 10. 2026.` for a stored YYYY-MM-DD date. */
   date(value: string): string {
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "EN" ? "en-GB" : "sr-Latn",
-      { timeZone: "UTC", day: "numeric", month: "numeric", year: "numeric" },
-    ).format(new Date(`${value}T00:00:00Z`));
+    return formatDate(value, this.localization.language());
   }
 }

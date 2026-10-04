@@ -110,12 +110,12 @@ describe("BillingSettingsComponent", () => {
     return fixture;
   }
 
-  it("posts { userId, hourlyValue, currency, effectiveFrom } from the rate form", () => {
+  it("posts { userId, hourlyValue, currency, effectiveFrom } in the internal currency", () => {
     const created = {
       id: "r4",
       userId: "u2",
       hourlyValue: "8500.50",
-      currency: "EUR",
+      currency: "RSD",
       effectiveFrom: "2026-11-01",
     };
     api.createRate.mockReturnValue(of(created));
@@ -124,7 +124,6 @@ describe("BillingSettingsComponent", () => {
     component.openRateForm("u2");
     component.rateForm.setValue({
       hourlyValue: "8500,50",
-      currency: "EUR",
       effectiveFrom: "2026-11-01",
     });
     component.submitRate();
@@ -132,11 +131,49 @@ describe("BillingSettingsComponent", () => {
     expect(api.createRate).toHaveBeenCalledWith({
       userId: "u2",
       hourlyValue: "8500.50",
-      currency: "EUR",
+      currency: "RSD",
       effectiveFrom: "2026-11-01",
     });
     expect(component.rateUserId()).toBeNull();
     expect(component.rates()).toContainEqual(created);
+  });
+
+  it("shows the saved internal currency read-only and ignores unsaved config edits", () => {
+    api.createRate.mockReturnValue(of({}));
+    const fixture = create();
+    const component = fixture.componentInstance;
+
+    component.openRateForm("u1");
+    // Editing the config form without saving must not change the rate currency.
+    component.configForm.controls.internalCurrency.setValue("EUR");
+    component.rateForm.patchValue({ hourlyValue: "100" });
+    fixture.detectChanges();
+    component.submitRate();
+
+    expect(
+      (fixture.nativeElement as HTMLElement)
+        .querySelector('[data-testid="rate-currency"]')
+        ?.textContent?.trim(),
+    ).toBe("RSD");
+    expect(api.createRate).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: "RSD" }),
+    );
+  });
+
+  it("uses the new internal currency after the config is saved", () => {
+    api.updateWorkspaceConfig.mockImplementation((body) => of(body));
+    api.createRate.mockReturnValue(of({}));
+    const component = create().componentInstance;
+
+    component.configForm.controls.internalCurrency.setValue("EUR");
+    component.saveConfig();
+    component.openRateForm("u1");
+    component.rateForm.patchValue({ hourlyValue: "100" });
+    component.submitRate();
+
+    expect(api.createRate).toHaveBeenCalledWith(
+      expect.objectContaining({ currency: "EUR" }),
+    );
   });
 
   it("does not post an empty or non-positive rate", () => {

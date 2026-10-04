@@ -35,6 +35,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import {
   MONEY_INPUT_PATTERN,
+  formatDate,
   formatMoney,
   isForbidden,
   normalizeMoney,
@@ -120,6 +121,11 @@ export class BillingSettingsComponent {
       ],
     }),
   });
+  /**
+   * The saved internal currency. Rates must use it (the API rejects any other),
+   * so it is never read from the unsaved config form.
+   */
+  readonly savedCurrency = signal("RSD");
   readonly configLoading = signal(true);
   readonly configError = signal(false);
   readonly configSaving = signal(false);
@@ -154,10 +160,6 @@ export class BillingSettingsComponent {
         Validators.pattern(MONEY_INPUT_PATTERN),
         positiveMoneyValidator,
       ],
-    }),
-    currency: new FormControl("RSD", {
-      nonNullable: true,
-      validators: [Validators.required],
     }),
     effectiveFrom: new FormControl(officeToday(), {
       nonNullable: true,
@@ -203,7 +205,7 @@ export class BillingSettingsComponent {
             defaultVatRate: config.defaultVatRate,
             paymentTermDays: config.paymentTermDays,
           });
-          this.rateForm.controls.currency.setValue(config.internalCurrency);
+          this.savedCurrency.set(config.internalCurrency);
           this.configLoading.set(false);
         },
         error: () => {
@@ -236,6 +238,7 @@ export class BillingSettingsComponent {
             defaultVatRate: config.defaultVatRate,
             paymentTermDays: config.paymentTermDays,
           });
+          this.savedCurrency.set(config.internalCurrency);
           this.configSaving.set(false);
           this.toast.success(this.localization.translate("billing.saved"));
         },
@@ -430,11 +433,14 @@ export class BillingSettingsComponent {
     );
   }
 
+  dateLabel(value: string): string {
+    return formatDate(value, this.localization.language());
+  }
+
   openRateForm(userId: string): void {
     this.rateUserId.set(userId);
     this.rateForm.reset({
       hourlyValue: "",
-      currency: this.configForm.controls.internalCurrency.value,
       effectiveFrom: officeToday(),
     });
   }
@@ -456,7 +462,7 @@ export class BillingSettingsComponent {
       .createRate({
         userId,
         hourlyValue: normalizeMoney(value.hourlyValue) ?? "0",
-        currency: value.currency,
+        currency: this.savedCurrency(),
         effectiveFrom: value.effectiveFrom,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))

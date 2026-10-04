@@ -118,7 +118,20 @@
                 </td>
                 <td hlmTd class="whitespace-nowrap">
                   @if (row.usage.targetHourlyRate; as target) {
-                    {{ money(target, row.usage.currency) }}
+                    @if (internalCurrency() === row.usage.currency) {
+                      {{ money(target, row.usage.currency) }}
+                    } @else if (internalCurrency() !== null) {
+                      <span
+                        class="text-muted-foreground"
+                        data-testid="retainer-not-comparable"
+                      >
+                        {{ "retainers.card.notComparable" | translate }}
+                      </span>
+                    } @else {
+                      <span class="text-muted-foreground">
+                        {{ "retainers.card.rateUnavailable" | translate }}
+                      </span>
+                    }
                   } @else {
                     <span class="text-muted-foreground">
                       {{ "retainers.card.rateUnavailable" | translate }}

@@ -1848,5 +1848,8 @@
   "retainers.list.client": "Klijent",
   "retainers.list.usage": "Iskorišćenost",
   "retainers.list.empty": "Nema aktivnih paušala za izabrani mesec.",
-  "retainers.list.unavailable": "Pregled paušala nije dostupan za vašu ulogu."
+  "retainers.list.unavailable": "Pregled paušala nije dostupan za vašu ulogu.",
+  "retainers.card.notComparable": "nije uporedivo (različita valuta)",
+  "retainers.form.categoriesLoadError": "Kategorije nisu učitane; izbor kategorija trenutno nije dostupan.",
+  "billing.rates.currencyHint": "Satnice se uvek unose u internoj valuti radnog prostora."
 }

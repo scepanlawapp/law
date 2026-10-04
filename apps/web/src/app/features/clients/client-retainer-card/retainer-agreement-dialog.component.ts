@@ -48,7 +48,6 @@ import { LocalizationService } from "../../../core/localization/localization.ser
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import {
   MONEY_INPUT_PATTERN,
-  isForbidden,
   normalizeMoney,
   positiveMoneyValidator,
 } from "../../../shared/billing";
@@ -185,7 +184,7 @@ export class RetainerAgreementDialogComponent {
   );
 
   readonly categories = signal<ServiceCategory[]>([]);
-  readonly categoriesForbidden = signal(false);
+  readonly categoriesFailed = signal(false);
   readonly coveredIds = signal<string[]>(
     this.existing?.coveredCategoryIds ?? [],
   );
@@ -217,9 +216,7 @@ export class RetainerAgreementDialogComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (items) => this.categories.set(items),
-        error: (error) => {
-          if (isForbidden(error)) this.categoriesForbidden.set(true);
-        },
+        error: () => this.categoriesFailed.set(true),
       });
   }
 
