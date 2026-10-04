@@ -3,12 +3,8 @@
     class="print-toolbar"
     [attr.aria-label]="'finance.printControls' | translate"
   >
-    <a
-      hlmBtn
-      variant="outline"
-      [routerLink]="['/finance/statements', statementId]"
-    >
-      {{ "finance.backToStatement" | translate }}
+    <a hlmBtn variant="outline" [routerLink]="['/finance/invoices', invoiceId]">
+      {{ "finance.backToInvoice" | translate }}
     </a>
     <button hlmBtn type="button" (click)="print()">
       {{ "finance.printNow" | translate }}
@@ -18,16 +14,16 @@
   @if (loading()) {
     <div class="print-state" role="status">
       <hlm-spinner />
-      <span>{{ "finance.loadingStatement" | translate }}</span>
+      <span>{{ "finance.loadingInvoice" | translate }}</span>
     </div>
   } @else if (error()) {
     <div class="print-state" role="alert">
-      <p>{{ "finance.statementLoadError" | translate }}</p>
+      <p>{{ "finance.invoiceLoadError" | translate }}</p>
       <button hlmBtn type="button" variant="outline" (click)="load()">
         {{ "finance.retry" | translate }}
       </button>
     </div>
-  } @else if (statement(); as item) {
+  } @else if (invoice(); as item) {
     <main class="paper-wrap">
       <article
         class="invoice-paper"
@@ -67,7 +63,7 @@
         <section class="invoice-hero">
           <div>
             <h1>{{ "finance.invoice" | translate }}</h1>
-            <p>{{ item.statementNumber }}</p>
+            <p>{{ item.invoiceNumber }}</p>
           </div>
           <dl class="date-panel">
             <div>
@@ -126,7 +122,7 @@
               </div>
               @if (item.externalInvoiceNumber) {
                 <div>
-                  <dt>{{ "finance.invoiceNumber" | translate }}:</dt>
+                  <dt>{{ "finance.externalInvoiceNumber" | translate }}:</dt>
                   <dd>{{ item.externalInvoiceNumber }}</dd>
                 </div>
               }
@@ -225,14 +221,14 @@
             </div>
             <div>
               <dt>{{ "finance.paymentReference" | translate }}:</dt>
-              <dd>{{ item.statementNumber }}</dd>
+              <dd>{{ item.invoiceNumber }}</dd>
             </div>
             <div>
               <dt>{{ "finance.paymentPurpose" | translate }}:</dt>
               <dd>
                 {{
                   "finance.invoicePaymentPurpose"
-                    | translate: { number: item.statementNumber }
+                    | translate: { number: item.invoiceNumber }
                 }}
               </dd>
             </div>

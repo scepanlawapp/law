@@ -2,7 +2,7 @@ import { DOCUMENT } from "@angular/common";
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute, RouterLink } from "@angular/router";
-import { BillingStatement, ClientDetail } from "@law/api-interfaces";
+import { Invoice, ClientDetail } from "@law/api-interfaces";
 import {
   ClientAddress,
   ClientsApiClient,
@@ -22,15 +22,15 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
   imports: [RouterLink, HlmButton, HlmSpinner, TranslatePipe],
 })
 export class InvoicePrintViewComponent {
-  private readonly statementsApi = inject(FinancialsApiClient);
+  private readonly invoicesApi = inject(FinancialsApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
   private readonly document = inject(DOCUMENT);
 
-  readonly statementId = this.route.snapshot.paramMap.get("id") ?? "";
-  readonly statement = signal<BillingStatement | null>(null);
+  readonly invoiceId = this.route.snapshot.paramMap.get("id") ?? "";
+  readonly invoice = signal<Invoice | null>(null);
   readonly client = signal<ClientDetail | null>(null);
   readonly addresses = signal<ClientAddress[]>([]);
   readonly loading = signal(true);
@@ -63,31 +63,31 @@ export class InvoicePrintViewComponent {
   load(): void {
     this.loading.set(true);
     this.error.set(false);
-    this.statementsApi
-      .statement(this.statementId)
+    this.invoicesApi
+      .invoice(this.invoiceId)
       .pipe(
-        switchMap((statement) =>
+        switchMap((invoice) =>
           forkJoin({
-            statement: of(statement),
+            invoice: of(invoice),
             client: this.clientsApi
-              .get(statement.clientId)
+              .get(invoice.clientId)
               .pipe(catchError(() => of(null))),
             addresses: this.clientsApi
-              .listAddresses(statement.clientId)
+              .listAddresses(invoice.clientId)
               .pipe(catchError(() => of([] as ClientAddress[]))),
           }),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ statement, client, addresses }) => {
-          this.statement.set(statement);
+        next: ({ invoice, client, addresses }) => {
+          this.invoice.set(invoice);
           this.client.set(client);
           this.addresses.set(addresses);
           this.loading.set(false);
         },
         error: () => {
-          this.statement.set(null);
+          this.invoice.set(null);
           this.loading.set(false);
           this.error.set(true);
         },
@@ -130,8 +130,8 @@ export class InvoicePrintViewComponent {
   }
 
   lineQuantity(): number {
-    // TODO(invoice-print): Read quantity from statement lines when the domain
-    // model supports quantities; current statement lines represent one service.
+    // TODO(invoice-print): Read quantity from invoice lines when the domain
+    // model supports quantities; current invoice lines represent one service.
     return 1;
   }
 }

@@ -1,10 +1,7 @@
 import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute, RouterLink } from "@angular/router";
-import {
-  BillingStatement,
-  BillingStatementLineSummary,
-} from "@law/api-interfaces";
+import { Invoice, InvoiceLineSummary } from "@law/api-interfaces";
 import { FinancialsApiClient } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
@@ -13,19 +10,19 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
-  selector: "law-finance-statement-detail",
+  selector: "law-finance-invoice-detail",
   standalone: true,
-  templateUrl: "./finance-statement-detail.component.html",
+  templateUrl: "./finance-invoice-detail.component.html",
   imports: [RouterLink, HlmButton, HlmSpinner, HlmTableImports, TranslatePipe],
 })
-export class FinanceStatementDetailComponent {
+export class FinanceInvoiceDetailComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
 
-  readonly statementId = this.route.snapshot.paramMap.get("id") ?? "";
-  readonly statement = signal<BillingStatement | null>(null);
+  readonly invoiceId = this.route.snapshot.paramMap.get("id") ?? "";
+  readonly invoice = signal<Invoice | null>(null);
   readonly loading = signal(true);
   readonly error = signal(false);
 
@@ -37,22 +34,22 @@ export class FinanceStatementDetailComponent {
     this.loading.set(true);
     this.error.set(false);
     this.api
-      .statement(this.statementId)
+      .invoice(this.invoiceId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (statement) => {
-          this.statement.set(statement);
+        next: (invoice) => {
+          this.invoice.set(invoice);
           this.loading.set(false);
         },
         error: () => {
-          this.statement.set(null);
+          this.invoice.set(null);
           this.loading.set(false);
           this.error.set(true);
         },
       });
   }
 
-  sourceLabel(line: BillingStatementLineSummary): string {
+  sourceLabel(line: InvoiceLineSummary): string {
     return this.localization.translate(
       line.sourceType
         ? "finance.importedLineSource"

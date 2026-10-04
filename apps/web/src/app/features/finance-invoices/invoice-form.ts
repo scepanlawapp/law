@@ -2,10 +2,10 @@ import { FormArray, FormControl, FormGroup, Validators } from "@angular/forms";
 import {
   BillableWorkItem,
   BillableWorkSourceType,
-  BillingStatementLineSummary,
+  InvoiceLineSummary,
 } from "@law/api-interfaces";
 
-export type BillingStatementLineForm = FormGroup<{
+export type InvoiceLineForm = FormGroup<{
   sourceType: FormControl<BillableWorkSourceType | null>;
   sourceId: FormControl<string | null>;
   serviceDate: FormControl<string>;
@@ -17,29 +17,29 @@ export type BillingStatementLineForm = FormGroup<{
   currency: FormControl<string>;
 }>;
 
-export type BillingStatementLineAmountSource =
+export type InvoiceLineAmountSource =
   | "netAmount"
   | "vatRate"
   | "vatAmount"
   | "grossAmount";
 
-export interface BillingStatementLineAmounts {
+export interface InvoiceLineAmounts {
   netAmount: number;
   vatRate: number;
   vatAmount: number;
   grossAmount: number;
 }
 
-export interface BillingStatementTotals {
+export interface InvoiceTotals {
   netAmount: number;
   vatAmount: number;
   grossAmount: number;
 }
 
-export function calculateBillingStatementLineAmounts(
-  source: BillingStatementLineAmountSource,
-  values: Partial<Record<BillingStatementLineAmountSource, number | null>>,
-): BillingStatementLineAmounts {
+export function calculateInvoiceLineAmounts(
+  source: InvoiceLineAmountSource,
+  values: Partial<Record<InvoiceLineAmountSource, number | null>>,
+): InvoiceLineAmounts {
   const currentNet = normalizedNumber(values.netAmount);
   const currentRate = normalizedNumber(values.vatRate);
   const currentVat = normalizedNumber(values.vatAmount);
@@ -70,12 +70,12 @@ export function calculateBillingStatementLineAmounts(
   return amountsFromNetAndRate(currentNet, currentRate);
 }
 
-export function calculateBillingStatementTotals(
+export function calculateInvoiceTotals(
   rows: ReadonlyArray<{
     netAmount: number | null | undefined;
     vatAmount: number | null | undefined;
   }>,
-): BillingStatementTotals {
+): InvoiceTotals {
   const netAmount = roundDecimal(
     rows.reduce((sum, row) => sum + normalizedNumber(row.netAmount), 0),
   );
@@ -89,10 +89,10 @@ export function calculateBillingStatementTotals(
   };
 }
 
-export function createBillingStatementLineForm(
-  line?: BillingStatementLineSummary,
+export function createInvoiceLineForm(
+  line?: InvoiceLineSummary,
   defaultCurrency = "RSD",
-): BillingStatementLineForm {
+): InvoiceLineForm {
   return new FormGroup({
     sourceType: new FormControl<BillableWorkSourceType | null>(
       isBillableWorkSourceType(line?.sourceType) ? line.sourceType : null,
@@ -136,7 +136,7 @@ export function createBillingStatementLineForm(
 export function createBillableWorkLineForm(
   item: BillableWorkItem,
   currency: string,
-): BillingStatementLineForm {
+): InvoiceLineForm {
   return new FormGroup({
     sourceType: new FormControl<BillableWorkSourceType | null>(item.sourceType),
     sourceId: new FormControl(item.sourceId),
@@ -172,8 +172,8 @@ export function createBillableWorkLineForm(
   });
 }
 
-export function detachBillingStatementLineSources(
-  lines: readonly BillingStatementLineForm[],
+export function detachInvoiceLineSources(
+  lines: readonly InvoiceLineForm[],
 ): void {
   for (const line of lines) {
     if (!line.controls.sourceId.value) continue;
@@ -184,7 +184,7 @@ export function detachBillingStatementLineSources(
 }
 
 export function appendUniqueBillableWork(
-  target: FormArray<BillingStatementLineForm>,
+  target: FormArray<InvoiceLineForm>,
   items: readonly BillableWorkItem[],
   currency: string,
 ): number {
@@ -206,10 +206,10 @@ export function appendUniqueBillableWork(
 }
 
 export function incompatibleCurrencyIndexes(
-  lines: readonly BillingStatementLineForm[],
-  statementCurrency: string,
+  lines: readonly InvoiceLineForm[],
+  invoiceCurrency: string,
 ): number[] {
-  const expected = normalizeCurrency(statementCurrency);
+  const expected = normalizeCurrency(invoiceCurrency);
   if (!expected) return [];
   return lines.flatMap((line, index) => {
     const actual = normalizeCurrency(line.controls.currency.value);
@@ -224,7 +224,7 @@ export function normalizeCurrency(value: string): string {
 function amountsFromNetAndRate(
   netAmountValue: number,
   vatRateValue: number,
-): BillingStatementLineAmounts {
+): InvoiceLineAmounts {
   const netAmount = roundDecimal(netAmountValue);
   const vatRate = roundDecimal(vatRateValue);
   const vatAmount = roundDecimal((netAmount * vatRate) / 100);
@@ -247,7 +247,7 @@ function roundDecimal(value: number): number {
   return Math.round((value + Number.EPSILON) * 100) / 100;
 }
 
-function zeroAmounts(): BillingStatementLineAmounts {
+function zeroAmounts(): InvoiceLineAmounts {
   return { netAmount: 0, vatRate: 0, vatAmount: 0, grossAmount: 0 };
 }
 

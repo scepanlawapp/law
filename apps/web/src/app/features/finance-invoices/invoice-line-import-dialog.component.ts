@@ -27,14 +27,14 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-import { BillingStatementLineImportDialogContext } from "./billing-statement-line-import-dialog.models";
+import { InvoiceLineImportDialogContext } from "./invoice-line-import-dialog.models";
 
 const PAGE_SIZE = 10;
 
 @Component({
-  selector: "law-billing-statement-line-import-dialog",
+  selector: "law-invoice-line-import-dialog",
   standalone: true,
-  templateUrl: "./billing-statement-line-import-dialog.component.html",
+  templateUrl: "./invoice-line-import-dialog.component.html",
   imports: [
     HlmButton,
     HlmComboboxContent,
@@ -53,13 +53,13 @@ const PAGE_SIZE = 10;
     TranslatePipe,
   ],
 })
-export class BillingStatementLineImportDialogComponent {
+export class InvoiceLineImportDialogComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
   private readonly context =
-    injectBrnDialogContext<BillingStatementLineImportDialogContext>();
+    injectBrnDialogContext<InvoiceLineImportDialogContext>();
   readonly dialogRef = inject<BrnDialogRef<BillableWorkItem[]>>(BrnDialogRef);
 
   readonly client = this.context.client;

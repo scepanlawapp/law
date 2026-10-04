@@ -4,15 +4,15 @@
       <li>
         <a
           class="underline-offset-4 hover:underline"
-          routerLink="/finance/statements"
+          routerLink="/finance/invoices"
         >
-          {{ "finance.clientStatements" | translate }}
+          {{ "finance.clientInvoices" | translate }}
         </a>
       </li>
       <li aria-hidden="true">/</li>
       <li class="text-foreground" aria-current="page">
         {{
-          (isEditMode ? "finance.editStatement" : "finance.newStatement")
+          (isEditMode ? "finance.editInvoice" : "finance.newInvoice")
             | translate
         }}
       </li>
@@ -22,30 +22,30 @@
   <header class="space-y-1">
     <h1 class="text-xl font-semibold">
       {{
-        (isEditMode ? "finance.editStatement" : "finance.statementComposer")
+        (isEditMode ? "finance.editInvoice" : "finance.invoiceComposer")
           | translate
       }}
     </h1>
     <p class="text-muted-foreground">
-      {{ "finance.statementInfo" | translate }}
+      {{ "finance.invoiceInfo" | translate }}
     </p>
   </header>
 
-  @if (statementLoading()) {
+  @if (invoiceLoading()) {
     <div
       class="flex min-h-40 items-center justify-center rounded-lg border border-border"
       aria-live="polite"
     >
       <hlm-spinner />
-      <span class="sr-only">{{ "finance.loadingStatement" | translate }}</span>
+      <span class="sr-only">{{ "finance.loadingInvoice" | translate }}</span>
     </div>
-  } @else if (statementLoadError()) {
+  } @else if (invoiceLoadError()) {
     <div
       role="alert"
       class="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-destructive p-4"
     >
-      <p>{{ statementLoadError() | translate }}</p>
-      <button hlmBtn type="button" variant="outline" (click)="loadStatement()">
+      <p>{{ invoiceLoadError() | translate }}</p>
+      <button hlmBtn type="button" variant="outline" (click)="loadInvoice()">
         {{ "finance.retry" | translate }}
       </button>
     </div>
@@ -54,12 +54,12 @@
     [formGroup]="form"
     (ngSubmit)="submit()"
     class="space-y-4"
-    [class.hidden]="statementLoading() || statementLoadError()"
+    [class.hidden]="invoiceLoading() || invoiceLoadError()"
     novalidate
   >
     <section class="app-section-surface space-y-3 p-4">
       <h2 class="text-base font-semibold">
-        {{ "finance.statementDetails" | translate }}
+        {{ "finance.invoiceDetails" | translate }}
       </h2>
 
       @if (clientsError()) {
@@ -82,7 +82,7 @@
       <div class="flex items-end gap-3 md:grid-cols-2 xl:grid-cols-12">
         <div hlmField class="xl:col-span-4">
           <div class="flex items-center justify-between gap-2">
-            <label hlmFieldLabel for="statement-client">
+            <label hlmFieldLabel for="invoice-client">
               {{ "finance.client" | translate }}
             </label>
             @if (!isEditMode) {
@@ -96,7 +96,7 @@
             [itemToString]="clientItemToString"
           >
             <hlm-select-trigger
-              buttonId="statement-client"
+              buttonId="invoice-client"
               class="w-full min-w-0"
             >
               <hlm-select-value />
@@ -116,12 +116,12 @@
           </hlm-field-error>
         </div>
         <div hlmField class="xl:col-span-2">
-          <label hlmFieldLabel for="statement-date-of-create">
+          <label hlmFieldLabel for="invoice-date-of-create">
             {{ "finance.dateOfCreate" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-date-of-create"
+            id="invoice-date-of-create"
             type="date"
             formControlName="dateOfCreate"
             required
@@ -131,12 +131,12 @@
           </hlm-field-error>
         </div>
         <div hlmField class="xl:col-span-2">
-          <label hlmFieldLabel for="statement-date-of-maturity">
+          <label hlmFieldLabel for="invoice-date-of-maturity">
             {{ "finance.dateOfMaturity" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-date-of-maturity"
+            id="invoice-date-of-maturity"
             type="date"
             formControlName="dateOfMaturity"
             required
@@ -146,12 +146,12 @@
           </hlm-field-error>
         </div>
         <div hlmField class="xl:col-span-2">
-          <label hlmFieldLabel for="statement-date-of-turnover">
+          <label hlmFieldLabel for="invoice-date-of-turnover">
             {{ "finance.dateOfTurnover" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-date-of-turnover"
+            id="invoice-date-of-turnover"
             type="date"
             formControlName="dateOfTurnover"
             required
@@ -161,7 +161,7 @@
           </hlm-field-error>
         </div>
         <div hlmField class="xl:col-span-2">
-          <label hlmFieldLabel for="statement-currency">
+          <label hlmFieldLabel for="invoice-currency">
             {{ "finance.currency" | translate }}
           </label>
           <hlm-select
@@ -169,7 +169,7 @@
             [itemToString]="currencyItemToString"
           >
             <hlm-select-trigger
-              buttonId="statement-currency"
+              buttonId="invoice-currency"
               class="w-full min-w-0 max-w-full"
             >
               <hlm-select-value />
@@ -192,40 +192,40 @@
 
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <div hlmField>
-          <label hlmFieldLabel for="statement-place-of-issue">
+          <label hlmFieldLabel for="invoice-place-of-issue">
             {{ "finance.placeOfIssue" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-place-of-issue"
+            id="invoice-place-of-issue"
             formControlName="placeOfIssue"
           />
         </div>
         <div hlmField>
-          <label hlmFieldLabel for="statement-method-of-payment">
+          <label hlmFieldLabel for="invoice-method-of-payment">
             {{ "finance.methodOfPayment" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-method-of-payment"
+            id="invoice-method-of-payment"
             formControlName="methodOfPayment"
           />
         </div>
         <div hlmField>
-          <label hlmFieldLabel for="statement-number-of-cash-bill">
+          <label hlmFieldLabel for="invoice-number-of-cash-bill">
             {{ "finance.numberOfCashBill" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-number-of-cash-bill"
+            id="invoice-number-of-cash-bill"
             formControlName="numberOfCashBill"
           />
         </div>
         <div hlmField>
-          <label hlmFieldLabel for="statement-country">
+          <label hlmFieldLabel for="invoice-country">
             {{ "finance.country" | translate }}
           </label>
-          <input hlmInput id="statement-country" formControlName="country" />
+          <input hlmInput id="invoice-country" formControlName="country" />
         </div>
       </div>
     </section>
@@ -242,13 +242,13 @@
           class="flex flex-wrap items-center justify-between gap-2 border-b border-border-subtle px-3 py-2"
         >
           <h2 class="text-base font-semibold">
-            {{ "finance.statementLines" | translate }}
+            {{ "finance.invoiceLines" | translate }}
           </h2>
           <div class="flex flex-wrap items-center justify-end gap-2">
             <div class="flex items-center gap-2">
               @if (!selectedClient()) {
                 <span
-                  id="statement-import-helper"
+                  id="invoice-import-helper"
                   role="status"
                   class="inline-flex max-w-40 items-center rounded-md border border-warning/40 bg-warning/10 px-2 py-1 text-left text-sm font-medium leading-tight text-warning"
                 >
@@ -261,7 +261,7 @@
                 variant="outline"
                 [disabled]="!selectedClient() || saving()"
                 [attr.aria-describedby]="
-                  !selectedClient() ? 'statement-import-helper' : null
+                  !selectedClient() ? 'invoice-import-helper' : null
                 "
                 (click)="openImportDialog()"
                 [attr.title]="
@@ -410,7 +410,7 @@
                         [itemToString]="currencyItemToString"
                       >
                         <hlm-select-trigger
-                          [buttonId]="'statement-line-currency-' + index"
+                          [buttonId]="'invoice-line-currency-' + index"
                           class="w-full min-w-0 max-w-full"
                           [forceInvalid]="isCurrencyMismatch(index)"
                         >
@@ -483,14 +483,14 @@
           </div>
           <div class="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4">
             <dt>
-              <label hlmFieldLabel for="statement-vat-rate">
+              <label hlmFieldLabel for="invoice-vat-rate">
                 {{ "finance.vatRate" | translate }}
               </label>
             </dt>
             <dd class="flex items-center justify-end gap-2">
               <input
                 hlmInput
-                id="statement-vat-rate"
+                id="invoice-vat-rate"
                 type="number"
                 min="0"
                 max="100"
@@ -533,12 +533,12 @@
       </div>
 
       <div hlmField class="pt-2">
-        <label hlmFieldLabel for="statement-comment">
+        <label hlmFieldLabel for="invoice-comment">
           {{ "finance.comment" | translate }}
         </label>
         <textarea
           hlmTextarea
-          id="statement-comment"
+          id="invoice-comment"
           formControlName="comment"
           rows="3"
         ></textarea>
@@ -552,7 +552,7 @@
     }
 
     <div class="flex justify-end gap-2 border-t border-border-subtle pt-4">
-      <a hlmBtn variant="outline" routerLink="/finance/statements">
+      <a hlmBtn variant="outline" routerLink="/finance/invoices">
         {{ "common.cancel" | translate }}
       </a>
       <button hlmBtn type="submit" [disabled]="!canSave()">
@@ -560,7 +560,7 @@
           <hlm-spinner />
         }
         {{
-          (isEditMode ? "finance.saveStatementChanges" : "finance.createDraft")
+          (isEditMode ? "finance.saveInvoiceChanges" : "finance.createDraft")
             | translate
         }}
       </button>

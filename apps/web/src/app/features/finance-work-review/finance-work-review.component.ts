@@ -197,11 +197,11 @@ export class FinanceWorkReviewComponent {
   }
 
   recordSelectedCandidates(): void {
-    this.navigateToStatement(this.selectedItems());
+    this.navigateToInvoice(this.selectedItems());
   }
 
   recordItem(item: BillableWorkItem): void {
-    this.navigateToStatement([item]);
+    this.navigateToInvoice([item]);
   }
 
   openSource(item: BillableWorkItem): void {
@@ -262,14 +262,14 @@ export class FinanceWorkReviewComponent {
     this.load();
   }
 
-  private navigateToStatement(items: BillableWorkItem[]): void {
+  private navigateToInvoice(items: BillableWorkItem[]): void {
     if (!items.length) return;
     const clientIds = new Set(items.map((item) => item.client.id));
     if (clientIds.size !== 1) {
       this.toast.error("finance.selectionOneClient");
       return;
     }
-    void this.router.navigate(["/finance/statements/new"], {
+    void this.router.navigate(["/finance/invoices/new"], {
       queryParams: {
         clientId: items[0].client.id,
         source: items.map((item) => item.sourceKey),

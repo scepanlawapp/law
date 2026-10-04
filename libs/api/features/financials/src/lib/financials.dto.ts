@@ -75,7 +75,7 @@ export class BillableWorkQueryDto extends FinancialDateQueryDto {
   sourceKeys?: string[];
 }
 
-export class BillingStatementLineInputDto {
+export class InvoiceLineInputDto {
   @IsDateString()
   serviceDate!: string;
 
@@ -176,7 +176,7 @@ export class AppendPriceSourceVersionDto {
   publishedAt?: string;
 }
 
-export class CreateStatementDto {
+export class CreateInvoiceDto {
   @IsUUID()
   clientId!: string;
 
@@ -231,15 +231,15 @@ export class CreateStatementDto {
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => BillingStatementLineInputDto)
-  lines!: BillingStatementLineInputDto[];
+  @Type(() => InvoiceLineInputDto)
+  lines!: InvoiceLineInputDto[];
 
   @IsOptional()
   @IsString()
   idempotencyKey?: string;
 }
 
-export class UpdateStatementDto {
+export class UpdateInvoiceDto {
   @IsOptional()
   @IsDateString()
   dateOfCreate?: string;
@@ -301,11 +301,11 @@ export class UpdateStatementDto {
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
-  @Type(() => BillingStatementLineInputDto)
-  lines?: BillingStatementLineInputDto[];
+  @Type(() => InvoiceLineInputDto)
+  lines?: InvoiceLineInputDto[];
 }
 
-export class SendStatementDto {
+export class SendInvoiceDto {
   @IsOptional()
   @IsString()
   sharedMethod?: string;

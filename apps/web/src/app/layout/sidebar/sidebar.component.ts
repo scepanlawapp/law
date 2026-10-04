@@ -149,8 +149,8 @@ export class SidebarComponent {
               icon: "lucideClipboardCheck",
             },
             {
-              route: "/finance/statements",
-              label: "nav.financeStatements",
+              route: "/finance/invoices",
+              label: "nav.financeInvoices",
               icon: "lucideFileText",
             },
             {

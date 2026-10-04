@@ -10,7 +10,7 @@ const clientId = "33333333-3333-4333-a333-333333333333";
 const caseId = "44444444-4444-4444-a444-444444444444";
 const taskId = "55555555-5555-4555-a555-555555555555";
 const eventId = "66666666-6666-4666-a666-666666666666";
-const statementId = "77777777-7777-4777-a777-777777777777";
+const invoiceId = "77777777-7777-4777-a777-777777777777";
 
 function client() {
   return {
@@ -44,10 +44,10 @@ function caseRecord() {
   };
 }
 
-function statementLine() {
+function invoiceLine() {
   return {
     id: "88888888-8888-4888-a888-888888888888",
-    statementId,
+    invoiceId,
     client: client(),
     caseLinks: [{ case: caseRecord() }],
     performedBy: user(),
@@ -68,13 +68,13 @@ function statementLine() {
   };
 }
 
-function fullStatement() {
+function fullInvoice() {
   return {
-    id: statementId,
+    id: invoiceId,
     workspaceId,
     clientId,
     client: client(),
-    statementNumber: "ST-000001",
+    invoiceNumber: "INV-000001",
     dateOfCreate: new Date("2026-09-01"),
     dateOfMaturity: new Date("2026-09-30"),
     dateOfTurnover: new Date("2026-09-15"),
@@ -89,7 +89,7 @@ function fullStatement() {
     country: "Srbija",
     currency: "RSD",
     status: "DRAFT",
-    lines: [statementLine()],
+    lines: [invoiceLine()],
   };
 }
 
@@ -115,12 +115,12 @@ describe("FinancialsService", () => {
       update: jest.fn(),
       updateMany: jest.fn(),
     },
-    billingStatementLine: {
+    invoiceLine: {
       create: jest.fn(),
       deleteMany: jest.fn(),
       updateMany: jest.fn(),
     },
-    billingStatement: {
+    invoice: {
       create: jest.fn(),
       findFirst: jest.fn(),
       findMany: jest.fn(),
@@ -150,7 +150,7 @@ describe("FinancialsService", () => {
     db.event.updateMany.mockResolvedValue({ count: 0 });
     db.task.updateMany.mockResolvedValue({ count: 0 });
     db.deadline.updateMany.mockResolvedValue({ count: 0 });
-    db.billingStatementLine.deleteMany.mockResolvedValue({ count: 0 });
+    db.invoiceLine.deleteMany.mockResolvedValue({ count: 0 });
     db.financeMutationRequest.findUnique.mockResolvedValue(null);
   });
 
@@ -213,34 +213,34 @@ describe("FinancialsService", () => {
       expect.objectContaining({
         where: expect.objectContaining({
           status: "COMPLETED",
-          statementId: null,
+          invoiceId: null,
         }),
       }),
     );
     expect(db.task.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ status: "DONE", statementId: null }),
+        where: expect.objectContaining({ status: "DONE", invoiceId: null }),
       }),
     );
     expect(db.deadline.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           status: "SATISFIED",
-          statementId: null,
+          invoiceId: null,
         }),
       }),
     );
   });
 
-  it("creates statement lines with the current user and links each source", async () => {
-    const createdStatement = {
-      id: statementId,
+  it("creates invoice lines with the current user and links each source", async () => {
+    const createdInvoice = {
+      id: invoiceId,
       clientId,
       currency: "RSD",
     };
     db.domainCounter.upsert.mockResolvedValue({ value: 1 });
-    db.billingStatement.create.mockResolvedValue(createdStatement);
-    db.billingStatement.findUniqueOrThrow.mockResolvedValue(fullStatement());
+    db.invoice.create.mockResolvedValue(createdInvoice);
+    db.invoice.findUniqueOrThrow.mockResolvedValue(fullInvoice());
     db.task.findFirst.mockResolvedValue({
       id: taskId,
       clientId: null,
@@ -251,7 +251,7 @@ describe("FinancialsService", () => {
     await WorkspaceContextService.run(
       { workspaceId, userId, role: WorkspaceRole.ADMIN },
       () =>
-        service.createStatement({
+        service.createInvoice({
           clientId,
           dateOfCreate: "2026-09-01",
           dateOfMaturity: "2026-09-30",
@@ -282,7 +282,7 @@ describe("FinancialsService", () => {
         }),
     );
 
-    expect(db.billingStatement.create).toHaveBeenCalledWith({
+    expect(db.invoice.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
         dateOfCreate: new Date("2026-09-01"),
         dateOfMaturity: new Date("2026-09-30"),
@@ -296,9 +296,9 @@ describe("FinancialsService", () => {
         country: "Srbija",
       }),
     });
-    expect(db.billingStatementLine.create).toHaveBeenCalledWith({
+    expect(db.invoiceLine.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
-        statementId,
+        invoiceId,
         clientId,
         performedByUserId: userId,
         netAmount: 100,
@@ -312,14 +312,14 @@ describe("FinancialsService", () => {
     });
     expect(db.task.update).toHaveBeenCalledWith({
       where: { id: taskId },
-      data: { statementId },
+      data: { invoiceId },
     });
   });
 
-  it("rejects a source already connected to another statement", async () => {
+  it("rejects a source already connected to another invoice", async () => {
     db.domainCounter.upsert.mockResolvedValue({ value: 1 });
-    db.billingStatement.create.mockResolvedValue({
-      id: statementId,
+    db.invoice.create.mockResolvedValue({
+      id: invoiceId,
       clientId,
       currency: "RSD",
     });
@@ -329,7 +329,7 @@ describe("FinancialsService", () => {
       WorkspaceContextService.run(
         { workspaceId, userId, role: WorkspaceRole.ADMIN },
         () =>
-          service.createStatement({
+          service.createInvoice({
             clientId,
             dateOfCreate: "2026-09-01",
             dateOfMaturity: "2026-09-30",
@@ -363,14 +363,14 @@ describe("FinancialsService", () => {
     expect(db.task.update).not.toHaveBeenCalled();
   });
 
-  it("updates invoice dates, metadata, and totals on a draft statement", async () => {
-    db.billingStatement.findFirst.mockResolvedValue(fullStatement());
-    db.billingStatement.update.mockResolvedValue(fullStatement());
+  it("updates invoice dates, metadata, and totals on a draft invoice", async () => {
+    db.invoice.findFirst.mockResolvedValue(fullInvoice());
+    db.invoice.update.mockResolvedValue(fullInvoice());
 
     await WorkspaceContextService.run(
       { workspaceId, userId, role: WorkspaceRole.ADMIN },
       () =>
-        service.updateStatement(statementId, {
+        service.updateInvoice(invoiceId, {
           dateOfCreate: "2026-09-02",
           dateOfMaturity: "2026-10-02",
           dateOfTurnover: "2026-09-16",
@@ -386,8 +386,8 @@ describe("FinancialsService", () => {
         }),
     );
 
-    expect(db.billingStatement.update).toHaveBeenCalledWith({
-      where: { id: statementId },
+    expect(db.invoice.update).toHaveBeenCalledWith({
+      where: { id: invoiceId },
       data: expect.objectContaining({
         dateOfCreate: new Date("2026-09-02"),
         dateOfMaturity: new Date("2026-10-02"),
@@ -405,41 +405,41 @@ describe("FinancialsService", () => {
     });
   });
 
-  it("deletes a draft statement and relies on database cascades to release sources", async () => {
-    db.billingStatement.findFirst.mockResolvedValue({
-      id: statementId,
+  it("deletes a draft invoice and relies on database cascades to release sources", async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: invoiceId,
       status: "DRAFT",
     });
 
     await WorkspaceContextService.run(
       { workspaceId, userId, role: WorkspaceRole.ADMIN },
-      () => service.deleteStatement(statementId),
+      () => service.deleteInvoice(invoiceId),
     );
 
-    expect(db.billingStatement.delete).toHaveBeenCalledWith({
-      where: { id: statementId },
+    expect(db.invoice.delete).toHaveBeenCalledWith({
+      where: { id: invoiceId },
     });
     expect(db.financeMutationRequest.deleteMany).toHaveBeenCalledWith({
       where: {
         workspaceId,
-        operation: "CREATE_STATEMENT",
-        resultEntityId: statementId,
+        operation: "CREATE_INVOICE",
+        resultEntityId: invoiceId,
       },
     });
   });
 
-  it("refuses to delete a sent statement", async () => {
-    db.billingStatement.findFirst.mockResolvedValue({
-      id: statementId,
+  it("refuses to delete a sent invoice", async () => {
+    db.invoice.findFirst.mockResolvedValue({
+      id: invoiceId,
       status: "SENT",
     });
 
     await expect(
       WorkspaceContextService.run(
         { workspaceId, userId, role: WorkspaceRole.ADMIN },
-        () => service.deleteStatement(statementId),
+        () => service.deleteInvoice(invoiceId),
       ),
     ).rejects.toBeInstanceOf(ConflictException);
-    expect(db.billingStatement.delete).not.toHaveBeenCalled();
+    expect(db.invoice.delete).not.toHaveBeenCalled();
   });
 });

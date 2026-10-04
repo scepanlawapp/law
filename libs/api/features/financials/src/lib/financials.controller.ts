@@ -14,11 +14,11 @@ import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   BillableWorkQueryDto,
   CreatePriceSourceDto,
-  CreateStatementDto,
+  CreateInvoiceDto,
   ExternalInvoiceDto,
   AppendPriceSourceVersionDto,
-  SendStatementDto,
-  UpdateStatementDto,
+  SendInvoiceDto,
+  UpdateInvoiceDto,
 } from "./financials.dto";
 import { FinancialsService } from "./financials.service";
 
@@ -64,42 +64,42 @@ export class FinancialsController {
     return this.financials.listPriceSourceVersions(id);
   }
 
-  @Get("statements")
-  statements() {
-    return this.financials.listStatements();
+  @Get("invoices")
+  invoices() {
+    return this.financials.listInvoices();
   }
 
-  @Post("statements")
-  createStatement(@Body() body: CreateStatementDto) {
-    return this.financials.createStatement(body);
+  @Post("invoices")
+  createInvoice(@Body() body: CreateInvoiceDto) {
+    return this.financials.createInvoice(body);
   }
 
-  @Get("statements/:id")
-  statement(@Param("id") id: string) {
-    return this.financials.getStatement(id);
+  @Get("invoices/:id")
+  invoice(@Param("id") id: string) {
+    return this.financials.getInvoice(id);
   }
 
-  @Patch("statements/:id")
-  updateStatement(@Param("id") id: string, @Body() body: UpdateStatementDto) {
-    return this.financials.updateStatement(id, body);
+  @Patch("invoices/:id")
+  updateInvoice(@Param("id") id: string, @Body() body: UpdateInvoiceDto) {
+    return this.financials.updateInvoice(id, body);
   }
 
-  @Delete("statements/:id")
-  deleteStatement(@Param("id") id: string) {
-    return this.financials.deleteStatement(id);
+  @Delete("invoices/:id")
+  deleteInvoice(@Param("id") id: string) {
+    return this.financials.deleteInvoice(id);
   }
 
-  @Post("statements/:id/send")
-  sendStatement(@Param("id") id: string, @Body() body: SendStatementDto) {
-    return this.financials.sendStatement(id, body);
+  @Post("invoices/:id/send")
+  sendInvoice(@Param("id") id: string, @Body() body: SendInvoiceDto) {
+    return this.financials.sendInvoice(id, body);
   }
 
-  @Post("statements/:id/void")
-  voidStatement(@Param("id") id: string) {
-    return this.financials.voidStatement(id);
+  @Post("invoices/:id/void")
+  voidInvoice(@Param("id") id: string) {
+    return this.financials.voidInvoice(id);
   }
 
-  @Patch("statements/:id/external-invoice")
+  @Patch("invoices/:id/external-invoice")
   linkExternalInvoice(
     @Param("id") id: string,
     @Body() body: ExternalInvoiceDto,

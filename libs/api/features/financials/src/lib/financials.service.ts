@@ -5,14 +5,14 @@ import {
   NotFoundException,
 } from "@nestjs/common";
 import {
-  BillingStatementLineStatus,
-  BillingStatementStatus,
+  InvoiceLineStatus,
+  InvoiceStatus,
   Prisma,
   PriceSourceScope,
 } from "@prisma/client";
 import {
   BillableWorkItem,
-  BillingStatementLineSummary,
+  InvoiceLineSummary,
   CaseReference,
   ClientReference,
   PaginatedResponse,
@@ -25,10 +25,10 @@ import {
   AppendPriceSourceVersionDto,
   BillableWorkQueryDto,
   CreatePriceSourceDto,
-  CreateStatementDto,
+  CreateInvoiceDto,
   ExternalInvoiceDto,
-  SendStatementDto,
-  UpdateStatementDto,
+  SendInvoiceDto,
+  UpdateInvoiceDto,
 } from "./financials.dto";
 
 const isPresent = <T>(value: T | null | undefined): value is T =>
@@ -133,10 +133,10 @@ export class FinancialsService {
     };
   }
 
-  private lineSummary(line: any): BillingStatementLineSummary {
+  private lineSummary(line: any): InvoiceLineSummary {
     return {
       id: line.id,
-      statementId: line.statementId,
+      invoiceId: line.invoiceId,
       client: this.clientReference(line.client),
       cases: line.caseLinks
         .map(
@@ -178,7 +178,7 @@ export class FinancialsService {
     performedBy: true,
   } as const;
 
-  private statementInclude = {
+  private invoiceInclude = {
     client: true,
     lines: {
       include: this.lineInclude,
@@ -186,18 +186,18 @@ export class FinancialsService {
     },
   } as const;
 
-  private statementResponse(statement: any) {
+  private invoiceResponse(invoice: any) {
     return {
-      ...statement,
-      dateOfCreate: statement.dateOfCreate.toISOString().slice(0, 10),
-      dateOfMaturity: statement.dateOfMaturity.toISOString().slice(0, 10),
-      dateOfTurnover: statement.dateOfTurnover.toISOString().slice(0, 10),
-      netAmount: statement.netAmount.toString(),
-      vatRate: statement.vatRate.toString(),
-      vatAmount: statement.vatAmount.toString(),
-      grossAmount: statement.grossAmount.toString(),
-      lines: statement.lines.map((line: any) => this.lineSummary(line)),
-      total: statement.grossAmount.toFixed(2),
+      ...invoice,
+      dateOfCreate: invoice.dateOfCreate.toISOString().slice(0, 10),
+      dateOfMaturity: invoice.dateOfMaturity.toISOString().slice(0, 10),
+      dateOfTurnover: invoice.dateOfTurnover.toISOString().slice(0, 10),
+      netAmount: invoice.netAmount.toString(),
+      vatRate: invoice.vatRate.toString(),
+      vatAmount: invoice.vatAmount.toString(),
+      grossAmount: invoice.grossAmount.toString(),
+      lines: invoice.lines.map((line: any) => this.lineSummary(line)),
+      total: invoice.grossAmount.toFixed(2),
     };
   }
 
@@ -211,7 +211,7 @@ export class FinancialsService {
         where: {
           workspaceId: this.workspaceId,
           status: "COMPLETED",
-          statementId: null,
+          invoiceId: null,
           ...(manager
             ? {}
             : {
@@ -235,7 +235,7 @@ export class FinancialsService {
         where: {
           workspaceId: this.workspaceId,
           status: "DONE",
-          statementId: null,
+          invoiceId: null,
           ...(manager ? {} : { assigneeUserId: this.context.userId }),
         },
         include: {
@@ -248,7 +248,7 @@ export class FinancialsService {
         where: {
           workspaceId: this.workspaceId,
           status: "SATISFIED",
-          statementId: null,
+          invoiceId: null,
           ...(manager ? {} : { responsibleUserId: this.context.userId }),
         },
         include: {
@@ -516,20 +516,20 @@ export class FinancialsService {
     });
   }
 
-  async listStatements() {
+  async listInvoices() {
     this.assertManager();
-    const statements = await this.db.billingStatement.findMany({
+    const invoices = await this.db.invoice.findMany({
       where: { workspaceId: this.workspaceId },
-      include: this.statementInclude,
+      include: this.invoiceInclude,
       orderBy: { createdAt: "desc" },
     });
-    return statements.map((statement) => this.statementResponse(statement));
+    return invoices.map((invoice) => this.invoiceResponse(invoice));
   }
 
-  private async replaceStatementLines(
+  private async replaceInvoiceLines(
     tx: Prisma.TransactionClient,
-    statement: { id: string; clientId: string; currency: string },
-    lines: CreateStatementDto["lines"],
+    invoice: { id: string; clientId: string; currency: string },
+    lines: CreateInvoiceDto["lines"],
   ): Promise<void> {
     const sourceKeys = lines.flatMap((line) =>
       line.sourceType && line.sourceId
@@ -537,34 +537,34 @@ export class FinancialsService {
         : [],
     );
     if (sourceKeys.length !== new Set(sourceKeys).size)
-      throw new ConflictException("Statement work sources must be unique");
+      throw new ConflictException("Invoice work sources must be unique");
     if (
       lines.some(
         (line) =>
           Boolean(line.sourceType) !== Boolean(line.sourceId) ||
-          line.currency.toUpperCase() !== statement.currency.toUpperCase(),
+          line.currency.toUpperCase() !== invoice.currency.toUpperCase(),
       )
     )
       throw new ConflictException(
-        "Statement lines must have a complete source and matching currency",
+        "Invoice lines must have a complete source and matching currency",
       );
 
     await Promise.all([
       tx.event.updateMany({
-        where: { workspaceId: this.workspaceId, statementId: statement.id },
-        data: { statementId: null },
+        where: { workspaceId: this.workspaceId, invoiceId: invoice.id },
+        data: { invoiceId: null },
       }),
       tx.task.updateMany({
-        where: { workspaceId: this.workspaceId, statementId: statement.id },
-        data: { statementId: null },
+        where: { workspaceId: this.workspaceId, invoiceId: invoice.id },
+        data: { invoiceId: null },
       }),
       tx.deadline.updateMany({
-        where: { workspaceId: this.workspaceId, statementId: statement.id },
-        data: { statementId: null },
+        where: { workspaceId: this.workspaceId, invoiceId: invoice.id },
+        data: { invoiceId: null },
       }),
     ]);
-    await tx.billingStatementLine.deleteMany({
-      where: { workspaceId: this.workspaceId, statementId: statement.id },
+    await tx.invoiceLine.deleteMany({
+      where: { workspaceId: this.workspaceId, invoiceId: invoice.id },
     });
 
     for (const [index, input] of lines.entries()) {
@@ -577,7 +577,7 @@ export class FinancialsService {
                 id: input.sourceId,
                 workspaceId: this.workspaceId,
                 status: "COMPLETED",
-                statementId: null,
+                invoiceId: null,
               },
               include: {
                 case: true,
@@ -589,9 +589,9 @@ export class FinancialsService {
               ...(event?.case?.clientId ? [event.case.clientId] : []),
             ]);
             const clientId = clientIds.size === 1 ? [...clientIds][0] : null;
-            if (!event || clientId !== statement.clientId)
+            if (!event || clientId !== invoice.clientId)
               throw new ConflictException(
-                "Event is unavailable for the statement client",
+                "Event is unavailable for the invoice client",
               );
             caseId = event.caseId;
             break;
@@ -602,7 +602,7 @@ export class FinancialsService {
                 id: input.sourceId,
                 workspaceId: this.workspaceId,
                 status: "DONE",
-                statementId: null,
+                invoiceId: null,
               },
               include: { case: true },
             });
@@ -614,10 +614,10 @@ export class FinancialsService {
             if (
               !task ||
               clientIds.size !== 1 ||
-              !clientIds.has(statement.clientId)
+              !clientIds.has(invoice.clientId)
             )
               throw new ConflictException(
-                "Task is unavailable for the statement client",
+                "Task is unavailable for the invoice client",
               );
             caseId = task.caseId;
             break;
@@ -628,7 +628,7 @@ export class FinancialsService {
                 id: input.sourceId,
                 workspaceId: this.workspaceId,
                 status: "SATISFIED",
-                statementId: null,
+                invoiceId: null,
               },
               include: { case: true },
             });
@@ -640,10 +640,10 @@ export class FinancialsService {
             if (
               !deadline ||
               clientIds.size !== 1 ||
-              !clientIds.has(statement.clientId)
+              !clientIds.has(invoice.clientId)
             )
               throw new ConflictException(
-                "Deadline is unavailable for the statement client",
+                "Deadline is unavailable for the invoice client",
               );
             caseId = deadline.caseId;
             break;
@@ -651,11 +651,11 @@ export class FinancialsService {
         }
       }
 
-      await tx.billingStatementLine.create({
+      await tx.invoiceLine.create({
         data: {
           workspaceId: this.workspaceId,
-          statementId: statement.id,
-          clientId: statement.clientId,
+          invoiceId: invoice.id,
+          clientId: invoice.clientId,
           performedByUserId: this.context.userId,
           lineOrder: index,
           serviceDate: new Date(input.serviceDate),
@@ -664,8 +664,8 @@ export class FinancialsService {
           vatRate: input.vatRate,
           vatAmount: input.vatAmount,
           grossAmount: input.grossAmount,
-          currency: statement.currency.toUpperCase(),
-          status: BillingStatementLineStatus.RESERVED,
+          currency: invoice.currency.toUpperCase(),
+          status: InvoiceLineStatus.RESERVED,
           sourceType: input.sourceType,
           sourceId: input.sourceId,
           createdByUserId: this.context.userId,
@@ -684,42 +684,42 @@ export class FinancialsService {
       if (input.sourceType === "EVENT" && input.sourceId)
         await tx.event.update({
           where: { id: input.sourceId },
-          data: { statementId: statement.id },
+          data: { invoiceId: invoice.id },
         });
       if (input.sourceType === "TASK" && input.sourceId)
         await tx.task.update({
           where: { id: input.sourceId },
-          data: { statementId: statement.id },
+          data: { invoiceId: invoice.id },
         });
       if (input.sourceType === "DEADLINE" && input.sourceId)
         await tx.deadline.update({
           where: { id: input.sourceId },
-          data: { statementId: statement.id },
+          data: { invoiceId: invoice.id },
         });
     }
   }
 
-  private async nextStatementNumber(
+  private async nextInvoiceNumber(
     tx: Prisma.TransactionClient,
   ): Promise<string> {
     const counter = await tx.domainCounter.upsert({
       where: {
         workspaceId_name: {
           workspaceId: this.workspaceId,
-          name: "BILLING_STATEMENT",
+          name: "BILLING_INVOICE",
         },
       },
       create: {
         workspaceId: this.workspaceId,
-        name: "BILLING_STATEMENT",
+        name: "BILLING_INVOICE",
         value: 1,
       },
       update: { value: { increment: 1 } },
     });
-    return `ST-${String(counter.value).padStart(6, "0")}`;
+    return `INV-${String(counter.value).padStart(6, "0")}`;
   }
 
-  async createStatement(input: CreateStatementDto) {
+  async createInvoice(input: CreateInvoiceDto) {
     this.assertManager();
     await this.assertClient(input.clientId);
     if (input.idempotencyKey) {
@@ -727,20 +727,20 @@ export class FinancialsService {
         where: {
           workspaceId_operation_idempotencyKey: {
             workspaceId: this.workspaceId,
-            operation: "CREATE_STATEMENT",
+            operation: "CREATE_INVOICE",
             idempotencyKey: input.idempotencyKey,
           },
         },
       });
-      if (existing) return this.getStatement(existing.resultEntityId);
+      if (existing) return this.getInvoice(existing.resultEntityId);
     }
     return this.db.$transaction(async (tx) => {
-      const number = await this.nextStatementNumber(tx);
-      const statement = await tx.billingStatement.create({
+      const number = await this.nextInvoiceNumber(tx);
+      const invoice = await tx.invoice.create({
         data: {
           workspaceId: this.workspaceId,
           clientId: input.clientId,
-          statementNumber: number,
+          invoiceNumber: number,
           dateOfCreate: new Date(input.dateOfCreate),
           dateOfMaturity: new Date(input.dateOfMaturity),
           dateOfTurnover: new Date(input.dateOfTurnover),
@@ -758,42 +758,42 @@ export class FinancialsService {
           updatedByUserId: this.context.userId,
         },
       });
-      await this.replaceStatementLines(tx, statement, input.lines);
+      await this.replaceInvoiceLines(tx, invoice, input.lines);
       if (input.idempotencyKey)
         await tx.financeMutationRequest.create({
           data: {
             workspaceId: this.workspaceId,
-            operation: "CREATE_STATEMENT",
+            operation: "CREATE_INVOICE",
             idempotencyKey: input.idempotencyKey,
-            resultEntityId: statement.id,
-            result: { statementId: statement.id },
+            resultEntityId: invoice.id,
+            result: { invoiceId: invoice.id },
           },
         });
-      const complete = await tx.billingStatement.findUniqueOrThrow({
-        where: { id: statement.id },
-        include: this.statementInclude,
+      const complete = await tx.invoice.findUniqueOrThrow({
+        where: { id: invoice.id },
+        include: this.invoiceInclude,
       });
-      return this.statementResponse(complete);
+      return this.invoiceResponse(complete);
     });
   }
 
-  async getStatement(id: string) {
+  async getInvoice(id: string) {
     this.assertManager();
-    const statement = await this.db.billingStatement.findFirst({
+    const invoice = await this.db.invoice.findFirst({
       where: { id, workspaceId: this.workspaceId },
-      include: this.statementInclude,
+      include: this.invoiceInclude,
     });
-    if (!statement) throw new NotFoundException("Statement not found");
-    return this.statementResponse(statement);
+    if (!invoice) throw new NotFoundException("Invoice not found");
+    return this.invoiceResponse(invoice);
   }
 
-  async updateStatement(id: string, input: UpdateStatementDto) {
+  async updateInvoice(id: string, input: UpdateInvoiceDto) {
     this.assertManager();
-    const statement = await this.getStatement(id);
-    if (statement.status !== BillingStatementStatus.DRAFT)
-      throw new ConflictException("Only draft statements can be edited");
+    const invoice = await this.getInvoice(id);
+    if (invoice.status !== InvoiceStatus.DRAFT)
+      throw new ConflictException("Only draft invoices can be edited");
     await this.db.$transaction(async (tx) => {
-      await tx.billingStatement.update({
+      await tx.invoice.update({
         where: { id },
         data: {
           dateOfCreate: input.dateOfCreate
@@ -817,69 +817,68 @@ export class FinancialsService {
           updatedByUserId: this.context.userId,
         },
       });
-      if (input.lines)
-        await this.replaceStatementLines(tx, statement, input.lines);
+      if (input.lines) await this.replaceInvoiceLines(tx, invoice, input.lines);
     });
-    return this.getStatement(id);
+    return this.getInvoice(id);
   }
 
-  async deleteStatement(id: string): Promise<void> {
+  async deleteInvoice(id: string): Promise<void> {
     this.assertManager();
-    const statement = await this.db.billingStatement.findFirst({
+    const invoice = await this.db.invoice.findFirst({
       where: { id, workspaceId: this.workspaceId },
       select: { id: true, status: true },
     });
-    if (!statement) throw new NotFoundException("Statement not found");
-    if (statement.status !== BillingStatementStatus.DRAFT)
-      throw new ConflictException("Only draft statements can be deleted");
+    if (!invoice) throw new NotFoundException("Invoice not found");
+    if (invoice.status !== InvoiceStatus.DRAFT)
+      throw new ConflictException("Only draft invoices can be deleted");
 
     await this.db.$transaction(async (tx) => {
       await tx.financeMutationRequest.deleteMany({
         where: {
           workspaceId: this.workspaceId,
-          operation: "CREATE_STATEMENT",
+          operation: "CREATE_INVOICE",
           resultEntityId: id,
         },
       });
-      await tx.billingStatement.delete({ where: { id } });
+      await tx.invoice.delete({ where: { id } });
     });
   }
 
-  async sendStatement(id: string, input: SendStatementDto) {
+  async sendInvoice(id: string, input: SendInvoiceDto) {
     this.assertManager();
     if (input.idempotencyKey) {
       const existing = await this.db.financeMutationRequest.findUnique({
         where: {
           workspaceId_operation_idempotencyKey: {
             workspaceId: this.workspaceId,
-            operation: "SEND_STATEMENT",
+            operation: "SEND_INVOICE",
             idempotencyKey: input.idempotencyKey,
           },
         },
       });
-      if (existing) return this.getStatement(existing.resultEntityId);
+      if (existing) return this.getInvoice(existing.resultEntityId);
     }
-    const statement = await this.getStatement(id);
-    if (statement.status !== BillingStatementStatus.DRAFT)
-      throw new ConflictException("Only draft statements can be sent");
+    const invoice = await this.getInvoice(id);
+    if (invoice.status !== InvoiceStatus.DRAFT)
+      throw new ConflictException("Only draft invoices can be sent");
     return this.db.$transaction(async (tx) => {
-      const sent = await tx.billingStatement.update({
+      const sent = await tx.invoice.update({
         where: { id },
         data: {
-          status: BillingStatementStatus.SENT,
+          status: InvoiceStatus.SENT,
           sharedAt: new Date(),
           sharedMethod: input.sharedMethod ?? "EXTERNAL",
           sharedByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
         },
       });
-      await tx.billingStatementLine.updateMany({
+      await tx.invoiceLine.updateMany({
         where: {
           workspaceId: this.workspaceId,
-          statementId: id,
+          invoiceId: id,
         },
         data: {
-          status: BillingStatementLineStatus.BILLED,
+          status: InvoiceLineStatus.BILLED,
           billedAt: new Date(),
           updatedByUserId: this.context.userId,
         },
@@ -888,65 +887,65 @@ export class FinancialsService {
         await tx.financeMutationRequest.create({
           data: {
             workspaceId: this.workspaceId,
-            operation: "SEND_STATEMENT",
+            operation: "SEND_INVOICE",
             idempotencyKey: input.idempotencyKey,
             resultEntityId: sent.id,
-            result: { statementId: sent.id },
+            result: { invoiceId: sent.id },
           },
         });
-      const complete = await tx.billingStatement.findUniqueOrThrow({
+      const complete = await tx.invoice.findUniqueOrThrow({
         where: { id: sent.id },
-        include: this.statementInclude,
+        include: this.invoiceInclude,
       });
-      return this.statementResponse(complete);
+      return this.invoiceResponse(complete);
     });
   }
 
-  async voidStatement(id: string) {
+  async voidInvoice(id: string) {
     this.assertManager();
-    const statement = await this.getStatement(id);
-    if (statement.status === BillingStatementStatus.VOIDED) return statement;
+    const invoice = await this.getInvoice(id);
+    if (invoice.status === InvoiceStatus.VOIDED) return invoice;
     return this.db.$transaction(async (tx) => {
-      await tx.billingStatement.update({
+      await tx.invoice.update({
         where: { id },
         data: {
-          status: BillingStatementStatus.VOIDED,
+          status: InvoiceStatus.VOIDED,
           voidedAt: new Date(),
           voidedByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
         },
       });
-      if (statement.status === BillingStatementStatus.DRAFT) {
+      if (invoice.status === InvoiceStatus.DRAFT) {
         await Promise.all([
           tx.event.updateMany({
-            where: { workspaceId: this.workspaceId, statementId: id },
-            data: { statementId: null },
+            where: { workspaceId: this.workspaceId, invoiceId: id },
+            data: { invoiceId: null },
           }),
           tx.task.updateMany({
-            where: { workspaceId: this.workspaceId, statementId: id },
-            data: { statementId: null },
+            where: { workspaceId: this.workspaceId, invoiceId: id },
+            data: { invoiceId: null },
           }),
           tx.deadline.updateMany({
-            where: { workspaceId: this.workspaceId, statementId: id },
-            data: { statementId: null },
+            where: { workspaceId: this.workspaceId, invoiceId: id },
+            data: { invoiceId: null },
           }),
         ]);
-        await tx.billingStatementLine.deleteMany({
-          where: { workspaceId: this.workspaceId, statementId: id },
+        await tx.invoiceLine.deleteMany({
+          where: { workspaceId: this.workspaceId, invoiceId: id },
         });
       }
-      const full = await tx.billingStatement.findUniqueOrThrow({
+      const full = await tx.invoice.findUniqueOrThrow({
         where: { id },
-        include: this.statementInclude,
+        include: this.invoiceInclude,
       });
-      return this.statementResponse(full);
+      return this.invoiceResponse(full);
     });
   }
 
   async linkExternalInvoice(id: string, input: ExternalInvoiceDto) {
     this.assertManager();
-    await this.getStatement(id);
-    const updated = await this.db.billingStatement.update({
+    await this.getInvoice(id);
+    const updated = await this.db.invoice.update({
       where: { id },
       data: {
         externalInvoiceNumber: input.invoiceNumber,
@@ -956,8 +955,8 @@ export class FinancialsService {
         externalReference: input.reference,
         updatedByUserId: this.context.userId,
       },
-      include: this.statementInclude,
+      include: this.invoiceInclude,
     });
-    return this.statementResponse(updated);
+    return this.invoiceResponse(updated);
   }
 }

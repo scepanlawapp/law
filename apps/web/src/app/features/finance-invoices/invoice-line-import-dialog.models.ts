@@ -1,6 +1,6 @@
 import { ClientSummary } from "@law/api-interfaces";
 
-export interface BillingStatementLineImportDialogContext {
+export interface InvoiceLineImportDialogContext {
   client: ClientSummary;
   excludedSourceKeys: string[];
 }

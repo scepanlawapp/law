@@ -2,27 +2,27 @@
   <header class="flex flex-wrap items-start justify-between gap-4">
     <div class="space-y-1">
       <h1 class="text-xl font-semibold">
-        {{ "finance.clientStatements" | translate }}
+        {{ "finance.clientInvoices" | translate }}
       </h1>
       <p class="text-muted-foreground">
-        {{ "finance.statementsDescription" | translate }}
+        {{ "finance.invoicesDescription" | translate }}
       </p>
     </div>
-    <a hlmBtn routerLink="/finance/statements/new">
-      {{ "finance.newStatement" | translate }}
+    <a hlmBtn routerLink="/finance/invoices/new">
+      {{ "finance.newInvoice" | translate }}
     </a>
   </header>
 
   <section class="app-section-surface space-y-3 p-3">
     <div class="app-filter-toolbar border-0 bg-transparent p-0">
       <div class="flex w-72 max-w-full flex-col gap-1">
-        <label class="font-medium" for="statement-search">
-          {{ "finance.statementNumber" | translate }}
+        <label class="font-medium" for="invoice-search">
+          {{ "finance.invoiceNumber" | translate }}
         </label>
-        <input hlmInput id="statement-search" [formControl]="search" />
+        <input hlmInput id="invoice-search" [formControl]="search" />
       </div>
       <div class="flex w-60 max-w-full flex-col gap-1">
-        <label class="font-medium" for="statement-client-filter">
+        <label class="font-medium" for="invoice-client-filter">
           {{ "finance.client" | translate }}
         </label>
         <div
@@ -32,7 +32,7 @@
           [itemToString]="clientItemToString"
         >
           <hlm-combobox-trigger
-            buttonId="statement-client-filter"
+            buttonId="invoice-client-filter"
             class="w-full min-w-0"
           >
             <span data-slot="combobox-value" class="truncate">
@@ -64,12 +64,12 @@
         </div>
       </div>
       <div class="flex w-44 max-w-full flex-col gap-1">
-        <label class="font-medium" for="statement-status-filter">
+        <label class="font-medium" for="invoice-status-filter">
           {{ "finance.status" | translate }}
         </label>
         <hlm-select [formControl]="status" [itemToString]="statusItemToString">
           <hlm-select-trigger
-            buttonId="statement-status-filter"
+            buttonId="invoice-status-filter"
             class="w-full min-w-0"
             width="content"
           >
@@ -107,14 +107,14 @@
         class="flex flex-wrap items-end gap-3 border-t border-border-subtle pt-3"
       >
         <div class="flex w-28 max-w-full flex-col gap-1">
-          <label class="font-medium" for="statement-currency-filter">
+          <label class="font-medium" for="invoice-currency-filter">
             {{ "finance.currency" | translate }}
           </label>
           <hlm-select
             [formControl]="currency"
             [itemToString]="currencyItemToString"
           >
-            <hlm-select-trigger buttonId="statement-currency-filter" size="sm">
+            <hlm-select-trigger buttonId="invoice-currency-filter" size="sm">
               <hlm-select-value />
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal>
@@ -129,23 +129,23 @@
           </hlm-select>
         </div>
         <div class="flex w-44 max-w-full flex-col gap-1">
-          <label class="font-medium" for="statement-from-filter">
+          <label class="font-medium" for="invoice-from-filter">
             {{ "finance.effectiveFrom" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-from-filter"
+            id="invoice-from-filter"
             type="date"
             [formControl]="from"
           />
         </div>
         <div class="flex w-44 max-w-full flex-col gap-1">
-          <label class="font-medium" for="statement-to-filter">
+          <label class="font-medium" for="invoice-to-filter">
             {{ "finance.effectiveTo" | translate }}
           </label>
           <input
             hlmInput
-            id="statement-to-filter"
+            id="invoice-to-filter"
             type="date"
             [formControl]="to"
           />
@@ -168,11 +168,11 @@
           {{ "finance.retry" | translate }}
         </button>
       </div>
-    } @else if (!filteredStatements().length) {
+    } @else if (!filteredInvoices().length) {
       <div hlmEmpty>
         <div hlmEmptyHeader>
-          <h2 hlmEmptyTitle>{{ "finance.noStatementsTitle" | translate }}</h2>
-          <p hlmEmptyDescription>{{ "finance.noStatements" | translate }}</p>
+          <h2 hlmEmptyTitle>{{ "finance.noInvoicesTitle" | translate }}</h2>
+          <p hlmEmptyDescription>{{ "finance.noInvoices" | translate }}</p>
         </div>
         <div hlmEmptyContent>
           @if (hasFilters()) {
@@ -185,8 +185,8 @@
               {{ "finance.clearFilters" | translate }}
             </button>
           } @else {
-            <a hlmBtn routerLink="/finance/statements/new">
-              {{ "finance.newStatement" | translate }}
+            <a hlmBtn routerLink="/finance/invoices/new">
+              {{ "finance.newInvoice" | translate }}
             </a>
           }
         </div>
@@ -200,7 +200,7 @@
         <table hlmTable class="w-full min-w-[780px]">
           <thead hlmTHead>
             <tr hlmTr>
-              <th hlmTh>{{ "finance.statementNumber" | translate }}</th>
+              <th hlmTh>{{ "finance.invoiceNumber" | translate }}</th>
               <th hlmTh>{{ "finance.client" | translate }}</th>
               <th hlmTh>{{ "finance.invoiceDates" | translate }}</th>
               <th hlmTh>{{ "finance.currency" | translate }}</th>
@@ -214,45 +214,41 @@
             </tr>
           </thead>
           <tbody hlmTBody>
-            @for (statement of visibleStatements(); track statement.id) {
+            @for (invoice of visibleInvoices(); track invoice.id) {
               <tr
                 hlmTr
-                [routerLink]="['/finance/statements', statement.id]"
+                [routerLink]="['/finance/invoices', invoice.id]"
                 class="cursor-pointer"
               >
                 <td hlmTd class="font-medium">
-                  {{ statement.statementNumber }}
+                  {{ invoice.invoiceNumber }}
                 </td>
-                <td hlmTd>{{ statement.client.displayName }}</td>
+                <td hlmTd>{{ invoice.client.displayName }}</td>
                 <td hlmTd>
-                  {{ formatDate(statement.dateOfCreate) }} –
-                  {{ formatDate(statement.dateOfMaturity) }}
+                  {{ formatDate(invoice.dateOfCreate) }} –
+                  {{ formatDate(invoice.dateOfMaturity) }}
                 </td>
-                <td hlmTd>{{ statement.currency }}</td>
+                <td hlmTd>{{ invoice.currency }}</td>
                 <td hlmTd>
                   <span
                     class="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-sm"
                   >
-                    {{ statusLabel(statement.status) }}
+                    {{ statusLabel(invoice.status) }}
                   </span>
                 </td>
                 <td hlmTd class="text-right tabular-nums">
-                  {{ formatCurrency(statement.total, statement.currency) }}
+                  {{ formatCurrency(invoice.total, invoice.currency) }}
                 </td>
                 <td hlmTd>
-                  @if (statement.status === "DRAFT") {
+                  @if (invoice.status === "DRAFT") {
                     <div class="flex items-center justify-end gap-1">
                       <a
                         hlmBtn
                         size="icon-sm"
-                        [routerLink]="[
-                          '/finance/statements',
-                          statement.id,
-                          'edit',
-                        ]"
+                        [routerLink]="['/finance/invoices', invoice.id, 'edit']"
                         [attr.aria-label]="
-                          'finance.editStatementNumber'
-                            | translate: { number: statement.statementNumber }
+                          'finance.editInvoiceNumber'
+                            | translate: { number: invoice.invoiceNumber }
                         "
                         [attr.title]="'common.edit' | translate"
                         (click)="$event.stopPropagation()"
@@ -263,15 +259,15 @@
                         hlmBtn
                         type="button"
                         size="icon-sm"
-                        [disabled]="deletingStatementId() !== null"
+                        [disabled]="deletingInvoiceId() !== null"
                         [attr.aria-label]="
-                          'finance.deleteStatementNumber'
-                            | translate: { number: statement.statementNumber }
+                          'finance.deleteInvoiceNumber'
+                            | translate: { number: invoice.invoiceNumber }
                         "
-                        [attr.title]="'finance.deleteStatement' | translate"
-                        (click)="deleteStatement(statement, $event)"
+                        [attr.title]="'finance.deleteInvoice' | translate"
+                        (click)="deleteInvoice(invoice, $event)"
                       >
-                        @if (deletingStatementId() === statement.id) {
+                        @if (deletingInvoiceId() === invoice.id) {
                           <hlm-spinner />
                         } @else {
                           <ng-icon name="lucideTrash2" aria-hidden="true" />
