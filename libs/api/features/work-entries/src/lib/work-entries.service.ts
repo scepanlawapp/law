@@ -363,12 +363,19 @@ export class WorkEntriesService {
   async remove(id: string): Promise<void> {
     const current = await this.loadForMutation(id);
     this.assertNotBilled(current);
+    // A write-off is a manager decision; only managers may erase it.
+    const removable: WorkEntryStatus[] = this.isManager()
+      ? [...MUTABLE_STATUSES, "WRITTEN_OFF"]
+      : MUTABLE_STATUSES;
+    if (!removable.includes(current.status)) {
+      throw new ConflictException("Work entry can no longer be removed");
+    }
     await this.db.$transaction(async (tx) => {
       const deleted = await tx.workEntry.deleteMany({
         where: {
           id,
           workspaceId: this.workspaceId,
-          status: { in: ["RUNNING", "PROPOSED", "CONFIRMED", "WRITTEN_OFF"] },
+          status: { in: removable },
         },
       });
       if (deleted.count === 0) {
@@ -408,33 +415,45 @@ export class WorkEntriesService {
       workDate,
       null,
     );
-    const row = await this.db.$transaction(async (tx) => {
-      const created = await tx.workEntry.create({
-        data: {
-          workspaceId: this.workspaceId,
-          userId: this.userId,
-          clientId: input.clientId,
-          caseId: input.caseId ?? null,
-          workDate,
-          minutes: null,
-          timerStartedAt: now,
-          description: input.description
-            ? toLatin(input.description.trim())
-            : "",
-          treatment,
-          status: "RUNNING",
+    let row: EntryRecord;
+    try {
+      row = await this.db.$transaction(async (tx) => {
+        const created = await tx.workEntry.create({
+          data: {
+            workspaceId: this.workspaceId,
+            userId: this.userId,
+            clientId: input.clientId,
+            caseId: input.caseId ?? null,
+            workDate,
+            minutes: null,
+            timerStartedAt: now,
+            description: input.description
+              ? toLatin(input.description.trim())
+              : "",
+            treatment,
+            status: "RUNNING",
+            source: "TIMER",
+            createdByUserId: this.userId,
+            updatedByUserId: this.userId,
+          },
+          include: entryInclude,
+        });
+        await this.log(tx, "WORK_ENTRY_CREATED", created, {
           source: "TIMER",
-          createdByUserId: this.userId,
-          updatedByUserId: this.userId,
-        },
-        include: entryInclude,
+          timerStartedAt: now.toISOString(),
+        });
+        return created;
       });
-      await this.log(tx, "WORK_ENTRY_CREATED", created, {
-        source: "TIMER",
-        timerStartedAt: now.toISOString(),
-      });
-      return created;
-    });
+    } catch (error) {
+      // Partial unique index WorkEntry_one_running_per_user: lost a start race.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        throw new ConflictException("A timer is already running");
+      }
+      throw error;
+    }
     return this.toEntry(row);
   }
 

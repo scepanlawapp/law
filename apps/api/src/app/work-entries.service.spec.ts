@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  NotFoundException,
 } from "@nestjs/common";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { WorkspaceContextService } from "@law/core";
@@ -221,6 +222,19 @@ describe("WorkEntriesService", () => {
       expect(db.workEntry.create).not.toHaveBeenCalled();
     });
 
+    it("rejects a case outside the workspace", async () => {
+      db.case.findFirst.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, caseId }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.case.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: caseId, workspaceId } }),
+      );
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+
     it("rejects a client outside the workspace", async () => {
       db.client.findFirst.mockResolvedValue(null);
       await expect(
@@ -250,13 +264,16 @@ describe("WorkEntriesService", () => {
         )
         .mockImplementation(() => undefined);
 
-      await expect(
-        as(WorkspaceRole.LAWYER, () => service.create(validCreate)),
-      ).resolves.toEqual(expect.objectContaining({ id: entryId }));
-      expect(hook).toHaveBeenCalledWith(
-        expect.objectContaining({ id: entryId, status: "CONFIRMED" }),
-      );
-      logSpy.mockRestore();
+      try {
+        await expect(
+          as(WorkspaceRole.LAWYER, () => service.create(validCreate)),
+        ).resolves.toEqual(expect.objectContaining({ id: entryId }));
+        expect(hook).toHaveBeenCalledWith(
+          expect.objectContaining({ id: entryId, status: "CONFIRMED" }),
+        );
+      } finally {
+        logSpy.mockRestore();
+      }
     });
   });
 
@@ -296,6 +313,21 @@ describe("WorkEntriesService", () => {
       );
     });
 
+    it("clears the case when the entry moves to another client", async () => {
+      const newClientId = "77777777-7777-4777-a777-777777777777";
+      db.client.findFirst.mockResolvedValue({ id: newClientId });
+      db.workEntry.findFirst.mockResolvedValue(entryRecord({ caseId }));
+      db.workEntry.findUniqueOrThrow.mockResolvedValue(entryRecord());
+
+      await as(WorkspaceRole.LAWYER, () =>
+        service.update(entryId, { clientId: newClientId }),
+      );
+
+      expect(db.workEntry.updateMany.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({ clientId: newClientId, caseId: null }),
+      );
+    });
+
     it("refreshes the default treatment when the category changes", async () => {
       db.retainerAgreement.findMany.mockResolvedValue([
         agreement([categoryId]),
@@ -317,6 +349,26 @@ describe("WorkEntriesService", () => {
   });
 
   describe("timer", () => {
+    it("maps a unique-index race on start to 409", async () => {
+      db.workEntry.findFirst.mockResolvedValue(null);
+      db.workEntry.create.mockRejectedValue(
+        new Prisma.PrismaClientKnownRequestError("dup", {
+          code: "P2002",
+          clientVersion: "test",
+        }),
+      );
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.startTimer({ clientId })),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+
+    it("returns 404 when stopping without a running timer", async () => {
+      db.workEntry.findFirst.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.stopTimer()),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+
     it("refuses to start a second timer", async () => {
       db.workEntry.findFirst.mockResolvedValue({ id: "running" });
       await expect(
@@ -464,6 +516,29 @@ describe("WorkEntriesService", () => {
       expect(db.activityLog.create.mock.calls[0][0].data.action).toBe(
         "WORK_ENTRY_DELETED",
       );
+    });
+
+    it("forbids removing someone else's entry", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ userId: otherUserId }),
+      );
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.remove(entryId)),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(db.workEntry.deleteMany).not.toHaveBeenCalled();
+    });
+
+    it("keeps a written-off entry from non-managers but not managers", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "WRITTEN_OFF" }),
+      );
+      await expect(
+        as(WorkspaceRole.MEMBER, () => service.remove(entryId)),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(db.workEntry.deleteMany).not.toHaveBeenCalled();
+
+      await as(WorkspaceRole.OWNER, () => service.remove(entryId));
+      expect(db.workEntry.deleteMany).toHaveBeenCalledTimes(1);
     });
 
     it("refuses to delete a BILLED entry", async () => {
