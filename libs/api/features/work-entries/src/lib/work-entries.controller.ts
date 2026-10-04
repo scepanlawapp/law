@@ -1,0 +1,85 @@
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from "@nestjs/common";
+import { AuthGuard, CsrfOriginGuard } from "@law/auth";
+import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
+import {
+  ConfirmWorkEntryDto,
+  CreateWorkEntryDto,
+  StartTimerDto,
+  UpdateWorkEntryDto,
+  WorkEntryQueryDto,
+  WriteOffWorkEntryDto,
+} from "./work-entries.dto";
+import { WorkEntriesService } from "./work-entries.service";
+
+@Controller("work-entries")
+@UseGuards(CsrfOriginGuard, AuthGuard, WorkspaceAccessGuard)
+@WorkspaceAccess()
+export class WorkEntriesController {
+  constructor(private readonly workEntries: WorkEntriesService) {}
+
+  @Get()
+  list(@Query() query: WorkEntryQueryDto) {
+    return this.workEntries.list(query);
+  }
+
+  // Timer routes are declared before `:id` so "timer" is never read as an id.
+  @Get("timer")
+  runningTimer() {
+    return this.workEntries.runningTimer();
+  }
+
+  @Post("timer/start")
+  startTimer(@Body() body: StartTimerDto) {
+    return this.workEntries.startTimer(body);
+  }
+
+  @Post("timer/stop")
+  @HttpCode(200)
+  stopTimer() {
+    return this.workEntries.stopTimer();
+  }
+
+  @Get(":id")
+  get(@Param("id") id: string) {
+    return this.workEntries.get(id);
+  }
+
+  @Post()
+  create(@Body() body: CreateWorkEntryDto) {
+    return this.workEntries.create(body);
+  }
+
+  @Patch(":id")
+  update(@Param("id") id: string, @Body() body: UpdateWorkEntryDto) {
+    return this.workEntries.update(id, body);
+  }
+
+  @Post(":id/confirm")
+  @HttpCode(200)
+  confirm(@Param("id") id: string, @Body() body: ConfirmWorkEntryDto) {
+    return this.workEntries.confirm(id, body);
+  }
+
+  @Post(":id/write-off")
+  @HttpCode(200)
+  writeOff(@Param("id") id: string, @Body() body: WriteOffWorkEntryDto) {
+    return this.workEntries.writeOff(id, body.reason);
+  }
+
+  @Delete(":id")
+  @HttpCode(204)
+  async remove(@Param("id") id: string): Promise<void> {
+    await this.workEntries.remove(id);
+  }
+}
