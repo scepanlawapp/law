@@ -13,6 +13,7 @@ import {
   CreateWorkEntryRequest,
   PaginatedResponse,
   StartTimerRequest,
+  TimeReviewResponse,
   UpdateWorkEntryRequest,
   UserReference,
   WorkEntry,
@@ -37,6 +38,43 @@ import { activeAgreementOn, defaultTreatment } from "./treatment";
 const MIN_MINUTES = 1;
 const MAX_MINUTES = 1440;
 const ENTRY_TIME_ZONE = "Europe/Belgrade";
+
+const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** Milliseconds the office time zone is ahead of UTC at `instant`. */
+function zoneOffsetMs(instant: Date): number {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat("en-US", {
+      timeZone: ENTRY_TIME_ZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+    })
+      .formatToParts(instant)
+      .map((part) => [part.type, Number(part.value)]),
+  );
+  const local = Date.UTC(
+    parts["year"],
+    parts["month"] - 1,
+    parts["day"],
+    parts["hour"],
+    parts["minute"],
+    parts["second"],
+  );
+  return local - Math.floor(instant.getTime() / 1000) * 1000;
+}
+
+/** The instant the calendar day `year-month-day` starts in the office time zone. */
+function startOfZoneDay(year: number, month: number, day: number): Date {
+  const utcMidnight = Date.UTC(year, month - 1, day);
+  // Twice, so the offset is read on the right side of a DST change.
+  const first = utcMidnight - zoneOffsetMs(new Date(utcMidnight));
+  return new Date(utcMidnight - zoneOffsetMs(new Date(first)));
+}
 
 /** Statuses a user may still change, confirm, write off or remove. */
 const MUTABLE_STATUSES: WorkEntryStatus[] = [
@@ -180,6 +218,158 @@ export class WorkEntriesService {
       include: entryInclude,
     });
     return row ? this.toEntry(row) : null;
+  }
+
+  /**
+   * End-of-day review for the current user (always their own data): the day's
+   * entries, every open PROPOSED entry, and hints at work that may be missing.
+   * `date` is a calendar date in the office time zone and defaults to today.
+   */
+  async review(date?: string): Promise<TimeReviewResponse> {
+    const day =
+      date ??
+      new Intl.DateTimeFormat("en-CA", { timeZone: ENTRY_TIME_ZONE }).format(
+        new Date(),
+      );
+    const match = ISO_DATE.exec(day);
+    const parsed = match ? new Date(`${day}T00:00:00Z`) : null;
+    if (
+      !match ||
+      !parsed ||
+      Number.isNaN(parsed.getTime()) ||
+      parsed.toISOString().slice(0, 10) !== day
+    ) {
+      throw new BadRequestException("Date must be a valid YYYY-MM-DD date");
+    }
+    const [year, month, dayOfMonth] = [match[1], match[2], match[3]].map(
+      Number,
+    );
+    const workDate = new Date(Date.UTC(year, month - 1, dayOfMonth));
+    const range = {
+      gte: startOfZoneDay(year, month, dayOfMonth),
+      lt: startOfZoneDay(year, month, dayOfMonth + 1),
+    };
+    const workspaceId = this.workspaceId;
+    const userId = this.userId;
+
+    const [entries, proposed, events, activity, documents, chats] =
+      await Promise.all([
+        this.db.workEntry.findMany({
+          where: { workspaceId, userId, workDate },
+          include: entryInclude,
+          orderBy: [{ createdAt: "asc" }],
+        }),
+        this.db.workEntry.findMany({
+          where: { workspaceId, userId, status: "PROPOSED" },
+          include: entryInclude,
+          orderBy: [{ workDate: "asc" }, { createdAt: "asc" }],
+        }),
+        this.db.event.findMany({
+          where: {
+            workspaceId,
+            status: { not: "CANCELLED" },
+            startsAt: range,
+            OR: [
+              { organizerUserId: userId },
+              { assignees: { some: { userId } } },
+            ],
+          },
+          include: { clients: { include: { client: true } }, case: true },
+          orderBy: [{ startsAt: "asc" }],
+        }),
+        // Entry activity is skipped: it only exists where an entry already does.
+        this.db.activityLog.findMany({
+          where: {
+            workspaceId,
+            actorUserId: userId,
+            occurredAt: range,
+            clientId: { not: null },
+            entityType: { not: "WORK_ENTRY" },
+          },
+          select: { clientId: true },
+        }),
+        this.db.document.findMany({
+          where: { workspaceId, createdByUserId: userId, createdAt: range },
+          select: {
+            clients: { select: { clientId: true } },
+            cases: { select: { case: { select: { clientId: true } } } },
+          },
+        }),
+        this.db.chatSession.findMany({
+          where: {
+            workspaceId,
+            createdByUserId: userId,
+            isDeleted: false,
+            caseId: { not: null },
+            updatedAt: range,
+          },
+          select: { case: { select: { clientId: true } } },
+        }),
+      ]);
+
+    const sourced = events.length
+      ? await this.db.workEntry.findMany({
+          where: {
+            workspaceId,
+            sourceType: "EVENT",
+            sourceId: { in: events.map((event) => event.id) },
+          },
+          select: { sourceId: true },
+        })
+      : [];
+    const loggedEventIds = new Set(sourced.map((row) => row.sourceId));
+    const missingEvents = events
+      .filter((event) => !loggedEventIds.has(event.id))
+      .map((event) => ({
+        eventId: event.id,
+        title: event.title,
+        startsAt: event.startsAt.toISOString(),
+        endsAt: event.endsAt.toISOString(),
+        client: event.clients[0]
+          ? this.clientReference(event.clients[0].client)
+          : null,
+        case: this.caseReference(event.case),
+      }));
+
+    const reasonsByClient = new Map<
+      string,
+      Set<"ACTIVITY" | "DOCUMENT" | "CHAT">
+    >();
+    const touch = (
+      clientId: string | null | undefined,
+      reason: "ACTIVITY" | "DOCUMENT" | "CHAT",
+    ) => {
+      if (!clientId) return;
+      const reasons = reasonsByClient.get(clientId) ?? new Set();
+      reasons.add(reason);
+      reasonsByClient.set(clientId, reasons);
+    };
+    for (const row of activity) touch(row.clientId, "ACTIVITY");
+    for (const doc of documents) {
+      for (const link of doc.clients) touch(link.clientId, "DOCUMENT");
+      for (const link of doc.cases) touch(link.case.clientId, "DOCUMENT");
+    }
+    for (const chat of chats) touch(chat.case?.clientId, "CHAT");
+    for (const entry of entries) reasonsByClient.delete(entry.clientId);
+
+    const clients = reasonsByClient.size
+      ? await this.db.client.findMany({
+          where: { workspaceId, id: { in: [...reasonsByClient.keys()] } },
+          orderBy: [{ displayName: "asc" }],
+        })
+      : [];
+    const order = ["ACTIVITY", "DOCUMENT", "CHAT"] as const;
+    return {
+      entries: entries.map((row) => this.toEntry(row)),
+      proposed: proposed.map((row) => this.toEntry(row)),
+      missingEvents,
+      untouchedClients: clients.map((client) => ({
+        client: this.clientReference(client),
+        reasons: order.filter((reason) =>
+          reasonsByClient.get(client.id)?.has(reason),
+        ),
+      })),
+    };
   }
 
   /**

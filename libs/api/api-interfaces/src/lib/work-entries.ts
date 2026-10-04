@@ -88,6 +88,15 @@ export interface StartTimerRequest {
   description?: string;
 }
 
+export interface ConfirmWorkEntryRequest {
+  minutes: number;
+  description?: string;
+}
+
+export interface WriteOffWorkEntryRequest {
+  reason: string;
+}
+
 export interface ConfirmSourceEntryRequest {
   sourceType: WorkEntrySourceType;
   sourceId: string;
@@ -134,6 +143,17 @@ export interface ServiceCategory {
   order: number;
 }
 
+export interface CreateServiceCategoryRequest {
+  name: string;
+  order?: number;
+}
+
+export interface UpdateServiceCategoryRequest {
+  name?: string;
+  active?: boolean;
+  order?: number;
+}
+
 export interface RetainerAgreement {
   id: string;
   clientId: string;
@@ -169,6 +189,8 @@ export interface UserRate {
   currency: string;
   effectiveFrom: string;
 }
+
+export type CreateUserRateRequest = Omit<UserRate, "id">;
 
 export interface WorkspaceBillingConfig {
   targetHourlyRate: string | null;

@@ -81,7 +81,10 @@ function agreement(coveredCategoryIds: string[]) {
 
 describe("WorkEntriesService", () => {
   const db = {
-    client: { findFirst: jest.fn() },
+    client: { findFirst: jest.fn(), findMany: jest.fn() },
+    event: { findMany: jest.fn() },
+    document: { findMany: jest.fn() },
+    chatSession: { findMany: jest.fn() },
     case: { findFirst: jest.fn() },
     caseResponsibility: { findFirst: jest.fn() },
     serviceCategory: { findFirst: jest.fn() },
@@ -95,7 +98,7 @@ describe("WorkEntriesService", () => {
       findUniqueOrThrow: jest.fn(),
       updateMany: jest.fn(),
     },
-    activityLog: { create: jest.fn() },
+    activityLog: { create: jest.fn(), findMany: jest.fn() },
     $transaction: jest.fn(async (input: unknown) => {
       if (typeof input === "function") return input(db);
       return Promise.all(input as Promise<unknown>[]);
@@ -632,6 +635,176 @@ describe("WorkEntriesService", () => {
           where: expect.objectContaining({ userId, caseId, endedAt: null }),
         }),
       );
+    });
+  });
+
+  describe("review", () => {
+    const eventA = "aaaaaaaa-aaaa-4aaa-aaaa-aaaaaaaaaaaa";
+    const eventB = "bbbbbbbb-bbbb-4bbb-bbbb-bbbbbbbbbbbb";
+    const otherClientId = "77777777-7777-4777-a777-777777777777";
+    const clientRecord = (id: string, displayName: string) => ({
+      id,
+      clientNumber: "CL-000002",
+      type: "ORGANIZATION",
+      displayName,
+      status: "ACTIVE",
+    });
+    const eventRecord = (id: string, title: string) => ({
+      id,
+      title,
+      startsAt: new Date("2026-10-01T08:00:00Z"),
+      endsAt: new Date("2026-10-01T09:00:00Z"),
+      clients: [],
+      case: null,
+    });
+
+    beforeEach(() => {
+      db.event.findMany.mockResolvedValue([]);
+      db.activityLog.findMany.mockResolvedValue([]);
+      db.document.findMany.mockResolvedValue([]);
+      db.chatSession.findMany.mockResolvedValue([]);
+      db.client.findMany.mockResolvedValue([]);
+    });
+
+    it("omits an event that already has an entry", async () => {
+      db.event.findMany.mockResolvedValue([
+        eventRecord(eventA, "Sastanak"),
+        eventRecord(eventB, "Ročište"),
+      ]);
+      // First call: the day's entries, second: proposed, third: event sources.
+      db.workEntry.findMany
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ sourceId: eventA }]);
+
+      const result = await as(WorkspaceRole.LAWYER, () =>
+        service.review("2026-10-01"),
+      );
+
+      expect(result.missingEvents.map((event) => event.eventId)).toEqual([
+        eventB,
+      ]);
+      expect(db.event.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId,
+            status: { not: "CANCELLED" },
+            // Belgrade is UTC+2 on 2026-10-01.
+            startsAt: {
+              gte: new Date("2026-09-30T22:00:00.000Z"),
+              lt: new Date("2026-10-01T22:00:00.000Z"),
+            },
+            OR: [
+              { organizerUserId: userId },
+              { assignees: { some: { userId } } },
+            ],
+          }),
+        }),
+      );
+      expect(db.workEntry.findMany).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            sourceType: "EVENT",
+            sourceId: { in: [eventA, eventB] },
+          }),
+        }),
+      );
+    });
+
+    it("lists a client with activity but no entry, and skips one with an entry", async () => {
+      db.workEntry.findMany
+        .mockResolvedValueOnce([entryRecord({ clientId: otherClientId })])
+        .mockResolvedValueOnce([]);
+      db.activityLog.findMany.mockResolvedValue([
+        { clientId },
+        { clientId: otherClientId },
+      ]);
+      db.chatSession.findMany.mockResolvedValue([{ case: { clientId } }]);
+      db.client.findMany.mockResolvedValue([
+        clientRecord(clientId, "Client One"),
+      ]);
+
+      const result = await as(WorkspaceRole.LAWYER, () =>
+        service.review("2026-10-01"),
+      );
+
+      expect(result.entries).toHaveLength(1);
+      expect(result.untouchedClients).toEqual([
+        {
+          client: expect.objectContaining({ id: clientId }),
+          reasons: ["ACTIVITY", "CHAT"],
+        },
+      ]);
+      expect(db.client.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { workspaceId, id: { in: [clientId] } },
+        }),
+      );
+      expect(db.activityLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId,
+            actorUserId: userId,
+            clientId: { not: null },
+          }),
+        }),
+      );
+    });
+
+    it("rolls document client and case links up to their client", async () => {
+      db.document.findMany.mockResolvedValue([
+        {
+          clients: [{ clientId }],
+          cases: [{ case: { clientId: otherClientId } }],
+        },
+      ]);
+      db.client.findMany.mockResolvedValue([
+        clientRecord(clientId, "Client One"),
+        clientRecord(otherClientId, "Client Two"),
+      ]);
+
+      const result = await as(WorkspaceRole.MEMBER, () =>
+        service.review("2026-10-01"),
+      );
+
+      expect(result.untouchedClients.map((row) => row.reasons)).toEqual([
+        ["DOCUMENT"],
+        ["DOCUMENT"],
+      ]);
+    });
+
+    it("returns the user's own entries and open proposals", async () => {
+      db.workEntry.findMany
+        .mockResolvedValueOnce([entryRecord()])
+        .mockResolvedValueOnce([entryRecord({ status: "PROPOSED" })]);
+
+      const result = await as(WorkspaceRole.OWNER, () =>
+        service.review("2026-10-01"),
+      );
+
+      expect(result.entries[0].status).toBe("CONFIRMED");
+      expect(result.proposed[0].status).toBe("PROPOSED");
+      expect(db.workEntry.findMany.mock.calls[0][0].where).toEqual({
+        workspaceId,
+        userId,
+        workDate: new Date("2026-10-01T00:00:00Z"),
+      });
+      expect(db.workEntry.findMany.mock.calls[1][0].where).toEqual({
+        workspaceId,
+        userId,
+        status: "PROPOSED",
+      });
+    });
+
+    it("defaults to today and rejects a malformed date", async () => {
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.review()),
+      ).resolves.toMatchObject({ missingEvents: [], untouchedClients: [] });
+      for (const bad of ["2026-13-01", "2026-02-30", "yesterday", "2026-1-1"]) {
+        await expect(
+          as(WorkspaceRole.LAWYER, () => service.review(bad)),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      }
     });
   });
 });

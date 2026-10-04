@@ -47,6 +47,11 @@ export class WorkEntriesController {
     return this.workEntries.runningTimer();
   }
 
+  @Get("review")
+  review(@Query("date") date?: string) {
+    return this.workEntries.review(date);
+  }
+
   @Post("timer/start")
   startTimer(@Body() body: StartTimerDto) {
     return this.workEntries.startTimer(body);
