@@ -182,6 +182,27 @@ export class WorkEntriesService {
     return row ? this.toEntry(row) : null;
   }
 
+  /**
+   * Entries dated within [from, to] that block a clean month-end: still
+   * PROPOSED, or CONFIRMED without a treatment decision. Not role-filtered;
+   * the month-end run enforces owner access.
+   */
+  async listOpenInRange(from: Date, to: Date): Promise<WorkEntry[]> {
+    const rows = await this.db.workEntry.findMany({
+      where: {
+        workspaceId: this.workspaceId,
+        workDate: { gte: from, lte: to },
+        OR: [
+          { status: "PROPOSED" },
+          { status: "CONFIRMED", treatment: "UNDECIDED" },
+        ],
+      },
+      include: entryInclude,
+      orderBy: [{ workDate: "asc" }, { createdAt: "asc" }],
+    });
+    return rows.map((row) => this.toEntry(row));
+  }
+
   // --------------------------------------------------------------- writes
 
   async create(input: CreateWorkEntryRequest): Promise<WorkEntry> {

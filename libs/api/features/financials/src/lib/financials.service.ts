@@ -481,47 +481,67 @@ export class FinancialsService {
     });
 
     for (const [index, input] of lines.entries()) {
-      const lineEntryIds = input.workEntryIds ?? [];
-      const line = await tx.billingStatementLine.create({
-        data: {
-          workspaceId: this.workspaceId,
-          statementId: statement.id,
-          clientId: statement.clientId,
-          performedByUserId: this.context.userId,
-          lineOrder: index,
-          serviceDate: new Date(input.serviceDate),
-          description: input.description.trim(),
-          netAmount: input.netAmount,
-          vatRate: input.vatRate,
-          vatAmount: input.vatAmount,
-          grossAmount: input.grossAmount,
-          currency: statement.currency.toUpperCase(),
-          status: BillingStatementLineStatus.RESERVED,
-          sourceType: lineEntryIds.length ? WORK_ENTRY_GROUP : null,
-          sourceId: null,
-          pricingRequired: input.pricingRequired ?? false,
-          minutes: input.minutes ?? null,
-          createdByUserId: this.context.userId,
-          updatedByUserId: this.context.userId,
-        },
-      });
-      if (!lineEntryIds.length) continue;
-      const { caseIds } = await this.claimEntries(
-        tx,
-        statement,
-        line.id,
-        lineEntryIds,
-      );
-      if (caseIds.length)
-        await tx.billingStatementLineCase.createMany({
-          data: caseIds.map((caseId) => ({
-            workspaceId: this.workspaceId,
-            billingStatementLineId: line.id,
-            caseId,
-          })),
-          skipDuplicates: true,
-        });
+      await this.createLine(tx, statement, input, index);
     }
+  }
+
+  /** Creates one RESERVED line and claims its work entries. */
+  private async createLine(
+    tx: Prisma.TransactionClient,
+    statement: { id: string; clientId: string; currency: string },
+    input: BillingStatementLineInputDto,
+    lineOrder: number,
+  ): Promise<void> {
+    const lineEntryIds = input.workEntryIds ?? [];
+    const line = await tx.billingStatementLine.create({
+      data: {
+        workspaceId: this.workspaceId,
+        statementId: statement.id,
+        clientId: statement.clientId,
+        performedByUserId: this.context.userId,
+        lineOrder,
+        serviceDate: new Date(input.serviceDate),
+        description: input.description.trim(),
+        netAmount: input.netAmount,
+        vatRate: input.vatRate,
+        vatAmount: input.vatAmount,
+        grossAmount: input.grossAmount,
+        currency: statement.currency.toUpperCase(),
+        status: BillingStatementLineStatus.RESERVED,
+        sourceType: lineEntryIds.length ? WORK_ENTRY_GROUP : null,
+        sourceId: null,
+        pricingRequired: input.pricingRequired ?? false,
+        minutes: input.minutes ?? null,
+        createdByUserId: this.context.userId,
+        updatedByUserId: this.context.userId,
+      },
+    });
+    if (!lineEntryIds.length) return;
+    await this.claimForLine(tx, statement, line.id, lineEntryIds);
+  }
+
+  /** Claims entries for a line and links the line to their cases. */
+  private async claimForLine(
+    tx: Prisma.TransactionClient,
+    statement: { id: string; clientId: string },
+    lineId: string,
+    entryIds: string[],
+  ): Promise<void> {
+    const { caseIds } = await this.claimEntries(
+      tx,
+      statement,
+      lineId,
+      entryIds,
+    );
+    if (caseIds.length)
+      await tx.billingStatementLineCase.createMany({
+        data: caseIds.map((caseId) => ({
+          workspaceId: this.workspaceId,
+          billingStatementLineId: lineId,
+          caseId,
+        })),
+        skipDuplicates: true,
+      });
   }
 
   private async nextStatementNumber(
@@ -657,6 +677,96 @@ export class FinancialsService {
     });
     await this.replaceStatementLines(tx, statement, input.lines);
     return statement.id;
+  }
+
+  /**
+   * Service-only: appends prepared lines to an existing DRAFT statement inside
+   * the caller's transaction and adds their amounts to the statement totals.
+   * Existing lines and their entries are left untouched. Not exposed through
+   * the controller; the caller enforces access.
+   */
+  async appendLinesToDraft(
+    tx: Prisma.TransactionClient,
+    statementId: string,
+    lines: BillingStatementLineInputDto[],
+  ): Promise<void> {
+    const statement = await tx.billingStatement.findFirst({
+      where: { id: statementId, workspaceId: this.workspaceId },
+    });
+    if (!statement) throw new NotFoundException("Statement not found");
+    if (statement.status !== BillingStatementStatus.DRAFT)
+      throw new ConflictException("Only draft statements can be changed");
+    if (!lines.length) return;
+    const entryIds = lines.flatMap((line) => line.workEntryIds ?? []);
+    if (entryIds.length !== new Set(entryIds).size)
+      throw new ConflictException("Statement work entries must be unique");
+    if (
+      lines.some(
+        (line) =>
+          line.currency.toUpperCase() !== statement.currency.toUpperCase(),
+      )
+    )
+      throw new ConflictException(
+        "Statement lines must have a matching currency",
+      );
+
+    const last = await tx.billingStatementLine.aggregate({
+      where: { workspaceId: this.workspaceId, statementId },
+      _max: { lineOrder: true },
+    });
+    const firstOrder = (last._max.lineOrder ?? -1) + 1;
+    for (const [index, input] of lines.entries()) {
+      await this.createLine(tx, statement, input, firstOrder + index);
+    }
+
+    const sum = (pick: (line: BillingStatementLineInputDto) => number) =>
+      lines.reduce(
+        (total, line) => total.plus(new Prisma.Decimal(pick(line))),
+        new Prisma.Decimal(0),
+      );
+    await tx.billingStatement.update({
+      where: { id: statementId },
+      data: {
+        netAmount: { increment: sum((line) => line.netAmount) },
+        vatAmount: { increment: sum((line) => line.vatAmount) },
+        grossAmount: { increment: sum((line) => line.grossAmount) },
+        updatedByUserId: this.context.userId,
+      },
+    });
+  }
+
+  /**
+   * Service-only: claims more work entries onto an existing line of a DRAFT
+   * statement (the month-end run uses it for covered work logged after the
+   * fee line was created) and refreshes the line's minutes. Amounts are not
+   * changed. Not exposed through the controller; the caller enforces access.
+   */
+  async attachEntriesToLine(
+    tx: Prisma.TransactionClient,
+    lineId: string,
+    entryIds: string[],
+  ): Promise<void> {
+    const line = await tx.billingStatementLine.findFirst({
+      where: { id: lineId, workspaceId: this.workspaceId },
+      include: { statement: true },
+    });
+    if (!line) throw new NotFoundException("Statement line not found");
+    if (line.statement.status !== BillingStatementStatus.DRAFT)
+      throw new ConflictException("Only draft statements can be changed");
+    if (!entryIds.length) return;
+    await this.claimForLine(tx, line.statement, lineId, entryIds);
+    const total = await tx.workEntry.aggregate({
+      where: { workspaceId: this.workspaceId, statementLineId: lineId },
+      _sum: { minutes: true },
+    });
+    await tx.billingStatementLine.update({
+      where: { id: lineId },
+      data: {
+        minutes: total._sum.minutes ?? null,
+        sourceType: WORK_ENTRY_GROUP,
+        updatedByUserId: this.context.userId,
+      },
+    });
   }
 
   async getStatement(id: string) {

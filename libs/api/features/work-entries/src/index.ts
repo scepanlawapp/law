@@ -7,3 +7,5 @@ export * from "./lib/billing-setup.service";
 export * from "./lib/work-capture-parser";
 export * from "./lib/work-capture.service";
 export * from "./lib/retainer-usage.service";
+export * from "./lib/billing-run.module";
+export * from "./lib/month-end-run.service";

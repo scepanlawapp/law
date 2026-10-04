@@ -112,12 +112,16 @@ describe("FinancialsService", () => {
     workEntry: {
       findMany: jest.fn(),
       updateMany: jest.fn(),
+      aggregate: jest.fn(),
     },
     activityLog: { createMany: jest.fn() },
     billingStatementLine: {
       create: jest.fn(),
       deleteMany: jest.fn(),
       updateMany: jest.fn(),
+      findFirst: jest.fn(),
+      aggregate: jest.fn(),
+      update: jest.fn(),
     },
     billingStatementLineCase: { createMany: jest.fn() },
     billingStatement: {
@@ -597,5 +601,111 @@ describe("FinancialsService", () => {
         ],
       }),
     );
+  });
+
+  it("appends lines to a draft after the last line and adds to its totals", async () => {
+    db.billingStatement.findFirst.mockResolvedValue(fullStatement());
+    db.billingStatementLine.aggregate.mockResolvedValue({
+      _max: { lineOrder: 2 },
+    });
+    db.workEntry.updateMany.mockResolvedValue({ count: 1 });
+    db.workEntry.findMany.mockResolvedValue([{ id: entryA, clientId, caseId }]);
+
+    await asAdmin(() =>
+      service.appendLinesToDraft(db as never, statementId, [
+        line({ workEntryIds: [entryA], minutes: 60 }),
+        line({ netAmount: 50.5, vatAmount: 10.1, grossAmount: 60.6 }),
+      ]),
+    );
+
+    expect(db.billingStatementLine.create).toHaveBeenCalledTimes(2);
+    expect(db.billingStatementLine.create.mock.calls[0][0].data).toMatchObject({
+      statementId,
+      lineOrder: 3,
+      sourceType: "WORK_ENTRY_GROUP",
+    });
+    expect(db.billingStatementLine.create.mock.calls[1][0].data).toMatchObject({
+      lineOrder: 4,
+      sourceType: null,
+    });
+    expect(db.workEntry.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.billingStatementLineCase.createMany).toHaveBeenCalled();
+    const { data } = db.billingStatement.update.mock.calls[0][0];
+    expect(data.netAmount.increment.toString()).toBe("150.5");
+    expect(data.vatAmount.increment.toString()).toBe("30.1");
+    expect(data.grossAmount.increment.toString()).toBe("180.6");
+  });
+
+  it("refuses to append lines to a statement that is not a draft", async () => {
+    db.billingStatement.findFirst.mockResolvedValue({
+      ...fullStatement(),
+      status: "SENT",
+    });
+
+    await expect(
+      asAdmin(() =>
+        service.appendLinesToDraft(db as never, statementId, [line()]),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.billingStatementLine.create).not.toHaveBeenCalled();
+  });
+
+  it("refuses appended lines in another currency", async () => {
+    db.billingStatement.findFirst.mockResolvedValue(fullStatement());
+
+    await expect(
+      asAdmin(() =>
+        service.appendLinesToDraft(db as never, statementId, [
+          line({ currency: "EUR" }),
+        ]),
+      ),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.billingStatementLine.create).not.toHaveBeenCalled();
+  });
+
+  it("attaches entries to an existing draft line and refreshes its minutes", async () => {
+    db.billingStatementLine.findFirst.mockResolvedValue({
+      id: lineId,
+      statement: fullStatement(),
+    });
+    db.workEntry.updateMany.mockResolvedValue({ count: 1 });
+    db.workEntry.findMany.mockResolvedValue([{ id: entryA, clientId, caseId }]);
+    db.workEntry.aggregate.mockResolvedValue({ _sum: { minutes: 150 } });
+
+    await asAdmin(() =>
+      service.attachEntriesToLine(db as never, lineId, [entryA]),
+    );
+
+    expect(db.workEntry.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({
+        id: { in: [entryA] },
+        clientId,
+        status: "CONFIRMED",
+        statementLineId: null,
+      }),
+      data: expect.objectContaining({
+        status: "BILLED",
+        statementLineId: lineId,
+      }),
+    });
+    expect(db.billingStatementLine.update).toHaveBeenCalledWith({
+      where: { id: lineId },
+      data: expect.objectContaining({
+        minutes: 150,
+        sourceType: "WORK_ENTRY_GROUP",
+      }),
+    });
+  });
+
+  it("refuses to attach entries to a line of a sent statement", async () => {
+    db.billingStatementLine.findFirst.mockResolvedValue({
+      id: lineId,
+      statement: { ...fullStatement(), status: "SENT" },
+    });
+
+    await expect(
+      asAdmin(() => service.attachEntriesToLine(db as never, lineId, [entryA])),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(db.workEntry.updateMany).not.toHaveBeenCalled();
   });
 });
