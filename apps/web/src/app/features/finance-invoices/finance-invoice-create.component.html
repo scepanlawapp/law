@@ -62,6 +62,30 @@
         {{ "finance.invoiceDetails" | translate }}
       </h2>
 
+      <div hlmField class="max-w-md">
+        <label hlmFieldLabel for="invoice-number">
+          {{ "finance.invoiceNumber" | translate }}
+        </label>
+        <div class="flex gap-2">
+          <input
+            hlmInput
+            id="invoice-number"
+            class="min-w-0 flex-1"
+            formControlName="invoiceNumber"
+            [readOnly]="!allowManualOverride()"
+          />
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="suggestingNumber() || !allowManualOverride()"
+            (click)="suggestInvoiceNumber()"
+          >
+            {{ "finance.suggestInvoiceNumber" | translate }}
+          </button>
+        </div>
+      </div>
+
       @if (clientsError()) {
         <div
           role="alert"

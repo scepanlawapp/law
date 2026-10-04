@@ -41,6 +41,14 @@ export function validateEnvironment(
   if (nodeEnv === "production" && !environment.OPENROUTER_API_KEY) {
     throw new Error("OPENROUTER_API_KEY is required in production");
   }
+  const organizationSecretsKey = String(
+    environment.ORGANIZATION_SECRETS_KEY ?? "",
+  ).trim();
+  if (nodeEnv === "production" && organizationSecretsKey.length < 32) {
+    throw new Error(
+      "ORGANIZATION_SECRETS_KEY must contain at least 32 characters in production",
+    );
+  }
   const openRouterBaseUrl = String(
     environment.OPENROUTER_BASE_URL ?? "https://openrouter.ai/api/v1",
   );
@@ -97,6 +105,7 @@ export function validateEnvironment(
     OPENROUTER_MODEL: String(
       environment.OPENROUTER_MODEL ?? "openai/gpt-4o-mini",
     ),
+    ORGANIZATION_SECRETS_KEY: organizationSecretsKey || undefined,
     CHAT_UPLOAD_DIR: String(
       environment.CHAT_UPLOAD_DIR ?? "./tmp/chat-uploads",
     ),

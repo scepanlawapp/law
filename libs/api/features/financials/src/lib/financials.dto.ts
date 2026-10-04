@@ -130,6 +130,10 @@ export class AppendPriceSourceVersionDto {
 }
 
 export class CreateInvoiceDto {
+  @IsOptional()
+  @IsString()
+  invoiceNumber?: string;
+
   @IsUUID()
   clientId!: string;
 
@@ -197,6 +201,10 @@ export class CreateInvoiceDto {
 }
 
 export class UpdateInvoiceDto {
+  @IsOptional()
+  @IsString()
+  invoiceNumber?: string;
+
   @IsOptional()
   @IsDateString()
   dateOfCreate?: string;

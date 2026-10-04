@@ -144,7 +144,12 @@ describe("FinancialsService", () => {
       return Promise.all(input as Promise<unknown>[]);
     }),
   };
-  const service = new FinancialsService(db as never);
+  const numbering = {
+    allocateInvoiceNumber: jest.fn(async () => "INV-000001"),
+    updateSequenceFromSavedInvoice: jest.fn(),
+    suggestInvoiceNumber: jest.fn(async () => "INV-000001"),
+  };
+  const service = new FinancialsService(db as never, numbering as never);
 
   beforeEach(() => {
     jest.clearAllMocks();

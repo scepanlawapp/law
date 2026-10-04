@@ -14,6 +14,16 @@ import { SettingsComponent } from "./features/settings/settings.component";
 import { ProfileSettingsComponent } from "./features/settings/profile-settings.component";
 import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
 import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
+import { WorkspaceSettingsLayoutComponent } from "./features/settings/workspace-settings-layout.component";
+import {
+  CompanySettingsComponent,
+  CurrencySettingsComponent,
+  InvoiceDefaultsSettingsComponent,
+  InvoiceNumberingSettingsComponent,
+  PaymentSettingsComponent,
+  SefSettingsComponent,
+  TaxSettingsComponent,
+} from "./features/settings/organization-settings-sections.component";
 import { DataSettingsComponent } from "./features/settings/data-settings.component";
 import { BillingSettingsComponent } from "./features/settings/billing-settings.component";
 import { billingSettingsGuard } from "./features/settings/billing-settings.guard";
@@ -134,7 +144,27 @@ export const appRoutes: Route[] = [
           { path: "", pathMatch: "full", redirectTo: "profile" },
           { path: "profile", component: ProfileSettingsComponent },
           { path: "appearance", component: AppearanceSettingsComponent },
-          { path: "workspace", component: WorkspaceSettingsComponent },
+          {
+            path: "workspace",
+            component: WorkspaceSettingsLayoutComponent,
+            children: [
+              { path: "", pathMatch: "full", redirectTo: "general" },
+              { path: "general", component: WorkspaceSettingsComponent },
+              { path: "company", component: CompanySettingsComponent },
+              { path: "tax", component: TaxSettingsComponent },
+              { path: "sef", component: SefSettingsComponent },
+              {
+                path: "numbering",
+                component: InvoiceNumberingSettingsComponent,
+              },
+              { path: "payments", component: PaymentSettingsComponent },
+              { path: "currencies", component: CurrencySettingsComponent },
+              {
+                path: "invoice-defaults",
+                component: InvoiceDefaultsSettingsComponent,
+              },
+            ],
+          },
           {
             path: "billing",
             component: BillingSettingsComponent,

@@ -8,6 +8,7 @@ import {
   BillingSetupApiClient,
   ClientsApiClient,
   FinancialsApiClient,
+  OrganizationSettingsApiClient,
   WorkEntriesApiClient,
 } from "@law/api-clients";
 import { WorkEntry } from "@law/api-interfaces";
@@ -88,6 +89,12 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
         { provide: WorkEntriesApiClient, useValue: workEntries },
         { provide: BillingSetupApiClient, useValue: setup },
         { provide: FinancialsApiClient, useValue: {} },
+        {
+          provide: OrganizationSettingsApiClient,
+          useValue: {
+            get: () => of({ invoiceNumbering: { allowManualOverride: true } }),
+          },
+        },
         {
           provide: ClientsApiClient,
           useValue: {
@@ -237,6 +244,12 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
         { provide: BillingSetupApiClient, useValue: { getProfile: jest.fn() } },
         { provide: FinancialsApiClient, useValue: api },
         {
+          provide: OrganizationSettingsApiClient,
+          useValue: {
+            get: () => of({ invoiceNumbering: { allowManualOverride: true } }),
+          },
+        },
+        {
           provide: ClientsApiClient,
           useValue: {
             list: () =>
@@ -289,6 +302,9 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
       undefined,
     ]);
     expect(sent[2]).not.toHaveProperty("id");
-    expect(sent[0]).toMatchObject({ description: "Korigovano", netAmount: 800 });
+    expect(sent[0]).toMatchObject({
+      description: "Korigovano",
+      netAmount: 800,
+    });
   });
 });

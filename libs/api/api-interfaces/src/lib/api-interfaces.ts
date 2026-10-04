@@ -1107,7 +1107,124 @@ export interface InvoiceSummary {
   lines: InvoiceLineSummary[];
 }
 
+export type SefEnvironment = "DEMO" | "PRODUCTION";
+export type InvoiceNumberResetPolicy = "NEVER" | "YEARLY" | "MONTHLY";
+export type PaymentMethodPreference =
+  | "BANK_TRANSFER"
+  | "CASH"
+  | "CARD"
+  | "OTHER";
+export type ExchangeRateSource =
+  | "NBS_MIDDLE"
+  | "NBS_BUY"
+  | "NBS_SELL"
+  | "MANUAL";
+
+export interface CompanySettings {
+  legalName: string | null;
+  displayName: string | null;
+  taxId: string | null;
+  registrationNumber: string | null;
+  addressLine1: string | null;
+  addressLine2: string | null;
+  city: string | null;
+  postalCode: string | null;
+  countryCode: string;
+  email: string | null;
+  phone: string | null;
+  website: string | null;
+  jbkjs: string | null;
+}
+
+export interface TaxSettings {
+  vatRegistered: boolean;
+  defaultVatRate: number | null;
+  availableVatRates: number[];
+  defaultTaxCategoryCode: string | null;
+  defaultTaxExemptionReasonCode: string | null;
+  defaultTaxExemptionReasonText: string | null;
+  cashAccountingEnabled: boolean;
+}
+
+export interface SefSettings {
+  enabled: boolean;
+  environment: SefEnvironment;
+  hasApiKey: boolean;
+  maskedApiKey: string | null;
+}
+
+export interface InvoiceNumberingSettings {
+  pattern: string;
+  startingSequence: number;
+  incrementBy: number;
+  resetPolicy: InvoiceNumberResetPolicy;
+  allowManualOverride: boolean;
+}
+
+export interface PaymentSettings {
+  defaultPaymentTermDays: number;
+  defaultPaymentMethod: PaymentMethodPreference;
+  defaultPaymentModel: string | null;
+  paymentReferencePattern: string | null;
+}
+
+export interface CurrencySettings {
+  defaultCurrencyCode: string;
+  allowedCurrencyCodes: string[];
+  exchangeRateSource: ExchangeRateSource;
+  allowManualExchangeRate: boolean;
+  exchangeRatePrecision: number;
+  amountPrecision: number;
+}
+
+export interface InvoiceDefaultsSettings {
+  defaultIssuePlace: string | null;
+  defaultLanguage: string;
+  defaultUnitOfMeasure: string | null;
+  defaultNote: string | null;
+  defaultFooterText: string | null;
+}
+
+export interface SefAttachmentSettings {
+  includeGeneratedInvoicePdf: boolean;
+  includeUserAttachments: boolean;
+  allowedFileExtensions: string[];
+  maxAttachmentCount: number | null;
+  maxSingleFileSizeMb: number | null;
+}
+
+export interface BankAccount {
+  id: string;
+  name: string;
+  bankName: string | null;
+  accountNumber: string | null;
+  iban: string | null;
+  swiftBic: string | null;
+  currencyCode: string;
+  isDefault: boolean;
+  active: boolean;
+}
+
+export type BankAccountRequest = Omit<BankAccount, "id">;
+
+export interface OrganizationSettings {
+  company: CompanySettings;
+  tax: TaxSettings;
+  sef: SefSettings;
+  invoiceNumbering: InvoiceNumberingSettings;
+  payment: PaymentSettings;
+  currency: CurrencySettings;
+  invoiceDefaults: InvoiceDefaultsSettings;
+  sefAttachments: SefAttachmentSettings;
+  bankAccounts: BankAccount[];
+}
+
+export interface InvoiceNumberSuggestion {
+  invoiceNumber: string;
+}
+
 export interface CreateInvoiceRequest {
+  invoiceNumber?: string;
   clientId: string;
   dateOfCreate: string;
   dateOfMaturity: string;
@@ -1128,6 +1245,7 @@ export interface CreateInvoiceRequest {
 }
 
 export interface UpdateInvoiceRequest {
+  invoiceNumber?: string;
   dateOfCreate?: string;
   dateOfMaturity?: string;
   dateOfTurnover?: string;

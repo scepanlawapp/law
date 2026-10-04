@@ -89,6 +89,18 @@ import {
   WorkEntry,
   WorkEntryQuery,
   WorkspaceBillingConfig,
+  OrganizationSettings,
+  CompanySettings,
+  TaxSettings,
+  SefSettings,
+  InvoiceNumberingSettings,
+  PaymentSettings,
+  CurrencySettings,
+  InvoiceDefaultsSettings,
+  SefAttachmentSettings,
+  BankAccount,
+  BankAccountRequest,
+  InvoiceNumberSuggestion,
   WriteOffWorkEntryRequest,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
@@ -746,6 +758,82 @@ export class WorkspacesApiClient {
         role?: string;
       }>
     >(this.endpoint("/workspaces"), { withCredentials: true });
+  }
+}
+
+@Injectable({ providedIn: "root" })
+export class OrganizationSettingsApiClient {
+  private readonly http = inject(HttpClient);
+  private endpoint(path = ""): string {
+    const config = getRuntimeConfig();
+    return `${config.apiUrl}${config.apiPrefix}/organization-settings${path}`;
+  }
+  get(): Observable<OrganizationSettings> {
+    return this.http.get<OrganizationSettings>(this.endpoint(), {
+      withCredentials: true,
+    });
+  }
+  updateCompany(body: CompanySettings): Observable<CompanySettings> {
+    return this.put("/company", body);
+  }
+  updateTax(body: TaxSettings): Observable<TaxSettings> {
+    return this.put("/tax", body);
+  }
+  updateSef(
+    body: Pick<SefSettings, "enabled" | "environment">,
+  ): Observable<SefSettings> {
+    return this.put("/sef", body);
+  }
+  replaceSefApiKey(apiKey: string): Observable<SefSettings> {
+    return this.put("/sef/api-key", { apiKey });
+  }
+  removeSefApiKey(): Observable<SefSettings> {
+    return this.http.delete<SefSettings>(this.endpoint("/sef/api-key"), {
+      withCredentials: true,
+    });
+  }
+  updateInvoiceNumbering(
+    body: InvoiceNumberingSettings,
+  ): Observable<InvoiceNumberingSettings> {
+    return this.put("/invoice-numbering", body);
+  }
+  updatePayment(body: PaymentSettings): Observable<PaymentSettings> {
+    return this.put("/payment", body);
+  }
+  updateCurrency(body: CurrencySettings): Observable<CurrencySettings> {
+    return this.put("/currency", body);
+  }
+  updateInvoiceDefaults(
+    body: InvoiceDefaultsSettings,
+  ): Observable<InvoiceDefaultsSettings> {
+    return this.put("/invoice-defaults", body);
+  }
+  updateSefAttachments(
+    body: SefAttachmentSettings,
+  ): Observable<SefAttachmentSettings> {
+    return this.put("/sef-attachments", body);
+  }
+  createBankAccount(body: BankAccountRequest): Observable<BankAccount> {
+    return this.http.post<BankAccount>(this.endpoint("/bank-accounts"), body, {
+      withCredentials: true,
+    });
+  }
+  updateBankAccount(
+    id: string,
+    body: BankAccountRequest,
+  ): Observable<BankAccount> {
+    return this.put(`/bank-accounts/${id}`, body);
+  }
+  archiveBankAccount(id: string): Observable<{ archived: true }> {
+    return this.http.delete<{ archived: true }>(
+      this.endpoint(`/bank-accounts/${id}`),
+      { withCredentials: true },
+    );
+  }
+  private put<T>(path: string, body: unknown): Observable<T> {
+    return this.http.put<T>(this.endpoint(path), body, {
+      withCredentials: true,
+    });
   }
 }
 
@@ -1787,6 +1875,16 @@ export class FinancialsApiClient {
     return this.http.get<InvoiceSummary[]>(
       this.endpoint("/financials/invoices"),
       { withCredentials: true },
+    );
+  }
+
+  suggestInvoiceNumber(date?: string): Observable<InvoiceNumberSuggestion> {
+    return this.http.get<InvoiceNumberSuggestion>(
+      this.endpoint("/financials/invoices/number-suggestion"),
+      {
+        withCredentials: true,
+        params: date ? new HttpParams().set("date", date) : undefined,
+      },
     );
   }
 

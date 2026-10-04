@@ -28,6 +28,7 @@ import {
   SendInvoiceDto,
   UpdateInvoiceDto,
 } from "./financials.dto";
+import { InvoiceNumberingService } from "./invoice-numbering.service";
 
 const WORK_ENTRY_GROUP = "WORK_ENTRY_GROUP";
 
@@ -38,15 +39,17 @@ export const RETAINER_FEE_SOURCE = "RETAINER_FEE";
  * Line input for service-only callers (the month-end run). The source marker
  * is deliberately absent from the public DTO, so API clients cannot set it.
  */
-export interface InternalInvoiceLineInput
-  extends InvoiceLineInputDto {
+export interface InternalInvoiceLineInput extends InvoiceLineInputDto {
   sourceType?: string;
   sourceId?: string;
 }
 
 @Injectable()
 export class FinancialsService {
-  constructor(private readonly db: PlatformPrismaService) {}
+  constructor(
+    private readonly db: PlatformPrismaService,
+    private readonly invoiceNumbering: InvoiceNumberingService,
+  ) {}
 
   private get context() {
     return WorkspaceContextService.required;
@@ -574,12 +577,7 @@ export class FinancialsService {
     lineId: string,
     entryIds: string[],
   ): Promise<void> {
-    const { caseIds } = await this.claimEntries(
-      tx,
-      invoice,
-      lineId,
-      entryIds,
-    );
+    const { caseIds } = await this.claimEntries(tx, invoice, lineId, entryIds);
     if (caseIds.length)
       await tx.invoiceLineCase.createMany({
         data: caseIds.map((caseId) => ({
@@ -593,22 +591,21 @@ export class FinancialsService {
 
   private async nextInvoiceNumber(
     tx: Prisma.TransactionClient,
+    date = new Date(),
   ): Promise<string> {
-    const counter = await tx.domainCounter.upsert({
-      where: {
-        workspaceId_name: {
-          workspaceId: this.workspaceId,
-          name: "BILLING_INVOICE",
-        },
-      },
-      create: {
-        workspaceId: this.workspaceId,
-        name: "BILLING_INVOICE",
-        value: 1,
-      },
-      update: { value: { increment: 1 } },
-    });
-    return `INV-${String(counter.value).padStart(6, "0")}`;
+    return this.invoiceNumbering.allocateInvoiceNumber(tx, date);
+  }
+
+  async suggestInvoiceNumber(
+    date?: string,
+  ): Promise<{ invoiceNumber: string }> {
+    this.assertManager();
+    const parsed = date ? new Date(`${date}T00:00:00.000Z`) : new Date();
+    if (Number.isNaN(parsed.getTime()))
+      throw new ConflictException("Invalid invoice date");
+    return {
+      invoiceNumber: await this.invoiceNumbering.suggestInvoiceNumber(parsed),
+    };
   }
 
   async createInvoice(input: CreateInvoiceDto) {
@@ -627,7 +624,21 @@ export class FinancialsService {
       if (existing) return this.getInvoice(existing.resultEntityId);
     }
     return this.db.$transaction(async (tx) => {
-      const number = await this.nextInvoiceNumber(tx);
+      const invoiceDate = new Date(input.dateOfCreate);
+      const settings = input.invoiceNumber
+        ? await tx.organizationSettings.findUnique({
+            where: { workspaceId: this.workspaceId },
+          })
+        : null;
+      if (
+        input.invoiceNumber &&
+        settings &&
+        !settings.invoiceNumberAllowManualOverride
+      )
+        throw new ConflictException("Manual invoice numbers are disabled");
+      const number =
+        input.invoiceNumber?.trim() ||
+        (await this.nextInvoiceNumber(tx, invoiceDate));
       const invoice = await tx.invoice.create({
         data: {
           workspaceId: this.workspaceId,
@@ -652,6 +663,12 @@ export class FinancialsService {
         },
       });
       await this.replaceInvoiceLines(tx, invoice, input.lines);
+      if (input.invoiceNumber)
+        await this.invoiceNumbering.updateSequenceFromSavedInvoice(
+          tx,
+          number,
+          invoiceDate,
+        );
       if (input.idempotencyKey)
         await tx.financeMutationRequest.create({
           data: {
@@ -698,7 +715,10 @@ export class FinancialsService {
       Math.round(
         input.lines.reduce((total, line) => total + pick(line) * 100, 0),
       ) / 100;
-    const number = await this.nextInvoiceNumber(tx);
+    const number = await this.nextInvoiceNumber(
+      tx,
+      new Date(input.header.dateOfCreate),
+    );
     const invoice = await tx.invoice.create({
       data: {
         workspaceId: this.workspaceId,
@@ -832,10 +852,21 @@ export class FinancialsService {
     const invoice = await this.getInvoice(id);
     if (invoice.status !== InvoiceStatus.DRAFT)
       throw new ConflictException("Only draft invoices can be edited");
+    if (
+      input.invoiceNumber &&
+      input.invoiceNumber.trim() !== invoice.invoiceNumber
+    ) {
+      const settings = await this.db.organizationSettings.findUnique({
+        where: { workspaceId: this.workspaceId },
+      });
+      if (settings && !settings.invoiceNumberAllowManualOverride)
+        throw new ConflictException("Manual invoice numbers are disabled");
+    }
     await this.db.$transaction(async (tx) => {
       await tx.invoice.update({
         where: { id },
         data: {
+          invoiceNumber: input.invoiceNumber?.trim(),
           dateOfCreate: input.dateOfCreate
             ? new Date(input.dateOfCreate)
             : undefined,
@@ -858,6 +889,14 @@ export class FinancialsService {
           updatedByUserId: this.context.userId,
         },
       });
+      if (input.invoiceNumber)
+        await this.invoiceNumbering.updateSequenceFromSavedInvoice(
+          tx,
+          input.invoiceNumber.trim(),
+          input.dateOfCreate
+            ? new Date(input.dateOfCreate)
+            : new Date(invoice.dateOfCreate),
+        );
       if (input.lines) await this.replaceInvoiceLines(tx, invoice, input.lines);
     });
     return this.getInvoice(id);

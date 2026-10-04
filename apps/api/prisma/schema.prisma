@@ -149,6 +149,31 @@ enum FinanceMutationOperation {
   SEND_INVOICE
 }
 
+enum SefEnvironment {
+  DEMO
+  PRODUCTION
+}
+
+enum InvoiceNumberResetPolicy {
+  NEVER
+  YEARLY
+  MONTHLY
+}
+
+enum PaymentMethodPreference {
+  BANK_TRANSFER
+  CASH
+  CARD
+  OTHER
+}
+
+enum ExchangeRateSource {
+  NBS_MIDDLE
+  NBS_BUY
+  NBS_SELL
+  MANUAL
+}
+
 enum ClientType {
   INDIVIDUAL
   ORGANIZATION
@@ -350,59 +375,150 @@ model UserSettings {
 }
 
 model Workspace {
-  id                     String                   @id @default(uuid())
-  name                   String
-  createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
-  memberships            WorkspaceMember[]
-  auditEvents            AuditEvent[]
-  chatSessions           ChatSession[]
-  chatAttachments        ChatAttachment[]
-  workflowJobs           WorkflowJob[]
-  agentToolCalls         AgentToolCall[]
-  pendingActions         PendingAction[]
-  briefExtractionResults BriefExtractionResult[]
-  draftResults           DraftResult[]
-  config                 WorkspaceConfig?
-  domainCounters         DomainCounter[]
-  tags                   Tag[]
-  caseTypes              CaseType[]
-  practiceAreas          PracticeArea[]
-  clients                Client[]
-  cases                  Case[]
-  clientActivities       ClientActivity[]
-  caseActivities         CaseActivity[]
-  caseResponsibilities   CaseResponsibility[]
-  events                 Event[]
-  eventAssignees         EventAssignee[]
-  eventClients           EventClient[]
-  eventAttendees         EventAttendee[]
-  tasks                  Task[]
-  deadlines              Deadline[]
-  activityLogs           ActivityLog[]
-  tenantAuditEvents      TenantAuditEvent[]
-  legalSources           LegalSource[]
-  storageConnections     StorageConnection[]
-  documents              Document[]
-  documentCases          DocumentCase[]
-  documentClients        DocumentClient[]
-  documentVersions       DocumentVersion[]
-  storedFiles            StoredFile[]
-  fileLocations          FileLocation[]
-  uploadOperations       UploadOperation[]
-  invoiceLines           InvoiceLine[]
-  invoiceLineCases       InvoiceLineCase[]
-  priceSources           PriceSource[]
-  priceSourceVersions    PriceSourceVersion[]
-  invoices               Invoice[]
-  financeMutations       FinanceMutationRequest[]
-  notifications          Notification[]
+  id                          String                       @id @default(uuid())
+  name                        String
+  createdAt                   DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt                   DateTime                     @updatedAt @db.Timestamptz(3)
+  memberships                 WorkspaceMember[]
+  auditEvents                 AuditEvent[]
+  chatSessions                ChatSession[]
+  chatAttachments             ChatAttachment[]
+  workflowJobs                WorkflowJob[]
+  agentToolCalls              AgentToolCall[]
+  pendingActions              PendingAction[]
+  briefExtractionResults      BriefExtractionResult[]
+  draftResults                DraftResult[]
+  config                      WorkspaceConfig?
+  organizationSettings        OrganizationSettings?
+  bankAccounts                BankAccount[]
+  invoiceNumberSequences      InvoiceNumberSequenceState[]
+  domainCounters              DomainCounter[]
+  tags                        Tag[]
+  caseTypes                   CaseType[]
+  practiceAreas               PracticeArea[]
+  clients                     Client[]
+  cases                       Case[]
+  clientActivities            ClientActivity[]
+  caseActivities              CaseActivity[]
+  caseResponsibilities        CaseResponsibility[]
+  events                      Event[]
+  eventAssignees              EventAssignee[]
+  eventClients                EventClient[]
+  eventAttendees              EventAttendee[]
+  tasks                       Task[]
+  deadlines                   Deadline[]
+  activityLogs                ActivityLog[]
+  tenantAuditEvents           TenantAuditEvent[]
+  legalSources                LegalSource[]
+  storageConnections          StorageConnection[]
+  documents                   Document[]
+  documentCases               DocumentCase[]
+  documentClients             DocumentClient[]
+  documentVersions            DocumentVersion[]
+  storedFiles                 StoredFile[]
+  fileLocations               FileLocation[]
+  uploadOperations            UploadOperation[]
+  invoiceLines                InvoiceLine[]
+  invoiceLineCases            InvoiceLineCase[]
+  priceSources                PriceSource[]
+  priceSourceVersions         PriceSourceVersion[]
+  invoices                    Invoice[]
+  financeMutations            FinanceMutationRequest[]
+  notifications               Notification[]
   workEntries                 WorkEntry[]
   serviceCategories           ServiceCategory[]
   retainerAgreements          RetainerAgreement[]
   retainerAgreementCategories RetainerAgreementCategory[]
   clientBillingProfiles       ClientBillingProfile[]
   userRates                   UserRate[]
+}
+
+model OrganizationSettings {
+  workspaceId                        String                   @id
+  legalName                          String?
+  displayName                        String?
+  taxId                              String?
+  registrationNumber                 String?
+  addressLine1                       String?
+  addressLine2                       String?
+  city                               String?
+  postalCode                         String?
+  countryCode                        String                   @default("RS")
+  email                              String?
+  phone                              String?
+  website                            String?
+  jbkjs                              String?
+  vatRegistered                      Boolean                  @default(false)
+  defaultVatRate                     Decimal?                 @db.Decimal(5, 2)
+  availableVatRates                  Json
+  defaultTaxCategoryCode             String?
+  defaultTaxExemptionReasonCode      String?
+  defaultTaxExemptionReasonText      String?
+  cashAccountingEnabled              Boolean                  @default(false)
+  sefEnabled                         Boolean                  @default(false)
+  sefEnvironment                     SefEnvironment           @default(DEMO)
+  sefApiKeyCiphertext                String?
+  sefApiKeyIv                        String?
+  sefApiKeyAuthTag                   String?
+  invoiceNumberPattern               String                   @default("{YYYY}-{SEQ:6}")
+  invoiceNumberStartingSequence      Int                      @default(1)
+  invoiceNumberIncrementBy           Int                      @default(1)
+  invoiceNumberResetPolicy           InvoiceNumberResetPolicy @default(YEARLY)
+  invoiceNumberAllowManualOverride   Boolean                  @default(true)
+  defaultPaymentTermDays             Int                      @default(15)
+  defaultPaymentMethod               PaymentMethodPreference  @default(BANK_TRANSFER)
+  defaultPaymentModel                String?
+  paymentReferencePattern            String?
+  defaultCurrencyCode                String                   @default("RSD")
+  allowedCurrencyCodes               Json
+  exchangeRateSource                 ExchangeRateSource       @default(NBS_MIDDLE)
+  allowManualExchangeRate            Boolean                  @default(true)
+  exchangeRatePrecision              Int                      @default(4)
+  amountPrecision                    Int                      @default(2)
+  defaultIssuePlace                  String?
+  defaultLanguage                    String                   @default("sr-Latn")
+  defaultUnitOfMeasure               String?
+  defaultNote                        String?                  @db.Text
+  defaultFooterText                  String?                  @db.Text
+  includeGeneratedInvoicePdf         Boolean                  @default(false)
+  includeUserAttachments             Boolean                  @default(true)
+  allowedSefAttachmentFileExtensions Json
+  maxSefAttachmentCount              Int?
+  maxSefSingleFileSizeMb             Int?
+  createdAt                          DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt                          DateTime                 @updatedAt @db.Timestamptz(3)
+  workspace                          Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+}
+
+model BankAccount {
+  id            String    @id @default(uuid())
+  workspaceId   String
+  name          String
+  bankName      String?
+  accountNumber String?
+  iban          String?
+  swiftBic      String?
+  currencyCode  String
+  isDefault     Boolean   @default(false)
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, active])
+  @@index([workspaceId, isDefault])
+}
+
+model InvoiceNumberSequenceState {
+  id                String    @id @default(uuid())
+  workspaceId       String
+  periodKey         String
+  lastSequenceValue Int
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime  @updatedAt @db.Timestamptz(3)
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, periodKey])
 }
 
 model WorkspaceConfig {
@@ -908,47 +1024,47 @@ model PriceSourceVersion {
 }
 
 model Invoice {
-  id                    String        @id @default(uuid())
-  workspaceId           String
-  clientId              String
-  invoiceNumber         String
-  dateOfCreate          DateTime      @db.Date
-  dateOfMaturity        DateTime      @db.Date
-  dateOfTurnover        DateTime      @db.Date
-  placeOfIssue          String
-  methodOfPayment       String
-  comment               String        @db.Text
-  netAmount             Decimal       @db.Decimal(18, 2)
-  vatRate               Decimal       @db.Decimal(5, 2)
-  vatAmount             Decimal       @db.Decimal(18, 2)
-  grossAmount           Decimal       @db.Decimal(18, 2)
-  numberOfCashBill      String
-  country               String
-  currency              String
-  status                InvoiceStatus @default(DRAFT)
-  sharedAt              DateTime?     @db.Timestamptz(3)
-  sharedMethod          String?
-  externalInvoiceNumber String?
-  externalInvoiceDate   DateTime?     @db.Date
-  externalReference     String?
-  voidedAt              DateTime?     @db.Timestamptz(3)
-  voidReason            String?
-  sharedByUserId        String?
-  voidedByUserId        String?
-  replacementForId      String?
-  createdByUserId       String
-  updatedByUserId       String
-  createdAt             DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt             DateTime      @updatedAt @db.Timestamptz(3)
-  workspace             Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  client                Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  sharedBy              User?         @relation("InvoiceSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
-  voidedBy              User?         @relation("InvoiceVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
-  createdBy             User          @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy             User          @relation("InvoiceUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  replacementFor        Invoice?      @relation("InvoiceReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
-  replacement           Invoice[]     @relation("InvoiceReplacement")
-  lines                 InvoiceLine[]
+  id                     String        @id @default(uuid())
+  workspaceId            String
+  clientId               String
+  invoiceNumber          String
+  dateOfCreate           DateTime      @db.Date
+  dateOfMaturity         DateTime      @db.Date
+  dateOfTurnover         DateTime      @db.Date
+  placeOfIssue           String
+  methodOfPayment        String
+  comment                String        @db.Text
+  netAmount              Decimal       @db.Decimal(18, 2)
+  vatRate                Decimal       @db.Decimal(5, 2)
+  vatAmount              Decimal       @db.Decimal(18, 2)
+  grossAmount            Decimal       @db.Decimal(18, 2)
+  numberOfCashBill       String
+  country                String
+  currency               String
+  status                 InvoiceStatus @default(DRAFT)
+  sharedAt               DateTime?     @db.Timestamptz(3)
+  sharedMethod           String?
+  externalInvoiceNumber  String?
+  externalInvoiceDate    DateTime?     @db.Date
+  externalReference      String?
+  voidedAt               DateTime?     @db.Timestamptz(3)
+  voidReason             String?
+  sharedByUserId         String?
+  voidedByUserId         String?
+  replacementForId       String?
+  createdByUserId        String
+  updatedByUserId        String
+  createdAt              DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime      @updatedAt @db.Timestamptz(3)
+  workspace              Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client                 Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  sharedBy               User?         @relation("InvoiceSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
+  voidedBy               User?         @relation("InvoiceVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  createdBy              User          @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy              User          @relation("InvoiceUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  replacementFor         Invoice?      @relation("InvoiceReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
+  replacement            Invoice[]     @relation("InvoiceReplacement")
+  lines                  InvoiceLine[]
   printWorkSpecification Boolean       @default(true)
   billingMonth           String?
 
@@ -1665,36 +1781,36 @@ model ServiceCategory {
 }
 
 model WorkEntry {
-  id                String                @id @default(uuid())
+  id                String             @id @default(uuid())
   workspaceId       String
   userId            String
   clientId          String
   caseId            String?
-  workDate          DateTime              @db.Date
+  workDate          DateTime           @db.Date
   minutes           Int?
-  timerStartedAt    DateTime?             @db.Timestamptz(3)
-  description       String                @default("") @db.Text
+  timerStartedAt    DateTime?          @db.Timestamptz(3)
+  description       String             @default("") @db.Text
   serviceCategoryId String?
-  treatment         WorkEntryTreatment    @default(UNDECIDED)
-  status            WorkEntryStatus       @default(PROPOSED)
-  writeOffReason    String?               @db.Text
-  source            WorkEntrySource       @default(MANUAL)
+  treatment         WorkEntryTreatment @default(UNDECIDED)
+  status            WorkEntryStatus    @default(PROPOSED)
+  writeOffReason    String?            @db.Text
+  source            WorkEntrySource    @default(MANUAL)
   sourceType        String?
   sourceId          String?
   invoiceLineId     String?
-  aiParsed          Boolean               @default(false)
+  aiParsed          Boolean            @default(false)
   createdByUserId   String
   updatedByUserId   String
-  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime              @updatedAt @db.Timestamptz(3)
-  workspace         Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  user              User                  @relation("WorkEntryPerformer", fields: [userId], references: [id], onDelete: Restrict)
-  client            Client                @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  case              Case?                 @relation(fields: [caseId], references: [id], onDelete: SetNull)
-  serviceCategory   ServiceCategory?      @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
-  invoiceLine       InvoiceLine?          @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
-  createdBy         User                  @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy         User                  @relation("WorkEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  createdAt         DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
+  workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user              User               @relation("WorkEntryPerformer", fields: [userId], references: [id], onDelete: Restrict)
+  client            Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case              Case?              @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  serviceCategory   ServiceCategory?   @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
+  invoiceLine       InvoiceLine?       @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
+  createdBy         User               @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy         User               @relation("WorkEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([workspaceId, sourceType, sourceId])
   @@index([workspaceId, clientId, workDate])
