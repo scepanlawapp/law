@@ -1,11 +1,11 @@
-import { Transform, Type } from "class-transformer";
+import { Type } from "class-transformer";
 import {
   ArrayMinSize,
   IsArray,
   IsDateString,
+  IsBoolean,
   IsEnum,
-  IsIn,
-  IsISO8601,
+  IsInt,
   Length,
   IsNumber,
   IsOptional,
@@ -16,64 +16,7 @@ import {
   MinLength,
   ValidateNested,
 } from "class-validator";
-import { PaginationQueryDto } from "@law/core";
-import { BillableWorkSourceType } from "@law/api-interfaces";
 import { PriceSourceScope } from "@prisma/client";
-
-const toArray = ({ value }: { value: unknown }): string[] | undefined =>
-  value === undefined
-    ? undefined
-    : Array.isArray(value)
-      ? value
-      : [value as string];
-
-export class FinancialDateQueryDto extends PaginationQueryDto {
-  @IsOptional()
-  @IsUUID()
-  clientId?: string;
-
-  @IsOptional()
-  @Transform(toArray)
-  @IsArray()
-  @IsUUID("4", { each: true })
-  clientIds?: string[];
-
-  @IsOptional()
-  @IsUUID()
-  caseId?: string;
-
-  @IsOptional()
-  @Transform(toArray)
-  @IsArray()
-  @IsUUID("4", { each: true })
-  caseIds?: string[];
-
-  @IsOptional()
-  @IsUUID()
-  performerId?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  from?: string;
-
-  @IsOptional()
-  @IsISO8601()
-  to?: string;
-}
-
-export class BillableWorkQueryDto extends FinancialDateQueryDto {
-  @IsOptional()
-  @Transform(toArray)
-  @IsArray()
-  @IsIn(["EVENT", "TASK", "DEADLINE"], { each: true })
-  sourceTypes?: BillableWorkSourceType[];
-
-  @IsOptional()
-  @Transform(toArray)
-  @IsArray()
-  @IsString({ each: true })
-  sourceKeys?: string[];
-}
 
 export class BillingStatementLineInputDto {
   @IsDateString()
@@ -85,7 +28,7 @@ export class BillingStatementLineInputDto {
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
+  @Min(0)
   netAmount!: number;
 
   @Type(() => Number)
@@ -101,7 +44,7 @@ export class BillingStatementLineInputDto {
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
-  @Min(0.01)
+  @Min(0)
   grossAmount!: number;
 
   @IsString()
@@ -109,12 +52,17 @@ export class BillingStatementLineInputDto {
   currency!: string;
 
   @IsOptional()
-  @IsIn(["EVENT", "TASK", "DEADLINE"])
-  sourceType?: BillableWorkSourceType;
+  @IsArray()
+  @IsUUID("4", { each: true })
+  workEntryIds?: string[];
 
   @IsOptional()
-  @IsUUID()
-  sourceId?: string;
+  @IsBoolean()
+  pricingRequired?: boolean;
+
+  @IsOptional()
+  @IsInt()
+  minutes?: number;
 }
 
 export class CreatePriceSourceDto {
@@ -237,6 +185,10 @@ export class CreateStatementDto {
   @IsOptional()
   @IsString()
   idempotencyKey?: string;
+
+  @IsOptional()
+  @IsBoolean()
+  printWorkSpecification?: boolean;
 }
 
 export class UpdateStatementDto {
@@ -303,6 +255,10 @@ export class UpdateStatementDto {
   @ValidateNested({ each: true })
   @Type(() => BillingStatementLineInputDto)
   lines?: BillingStatementLineInputDto[];
+
+  @IsOptional()
+  @IsBoolean()
+  printWorkSpecification?: boolean;
 }
 
 export class SendStatementDto {
