@@ -1,0 +1,333 @@
+<hlm-dialog-header>
+  <h2 hlmDialogTitle>{{ titleKey | translate }}</h2>
+  <p hlmDialogDescription>{{ "time.capture.description" | translate }}</p>
+</hlm-dialog-header>
+
+<div class="min-h-0 flex-1 overflow-y-auto text-sm">
+  <div class="grid gap-4">
+    <div hlmField>
+      <label hlmFieldLabel for="capture-free-text">
+        {{ "time.capture.freeText" | translate }}
+      </label>
+      <div class="flex items-center gap-2">
+        <input
+          hlmInput
+          id="capture-free-text"
+          class="min-w-0 flex-1"
+          [formControl]="freeText"
+          [placeholder]="'time.capture.freeTextPlaceholder' | translate"
+          (keydown.enter)="fillFromText(); $event.preventDefault()"
+        />
+        @if (speech.isSupported()) {
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            size="icon"
+            [attr.aria-label]="
+              (speech.isListening() ? 'speech.stop' : 'speech.start')
+                | translate
+            "
+            (click)="toggleMic()"
+          >
+            <ng-icon
+              [name]="speech.isListening() ? 'lucideMicOff' : 'lucideMic'"
+              aria-hidden="true"
+            />
+          </button>
+        }
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          [disabled]="parsing() || !freeText.value.trim()"
+          (click)="fillFromText()"
+        >
+          @if (parsing()) {
+            <hlm-spinner />
+          }
+          {{ "time.capture.fill" | translate }}
+        </button>
+      </div>
+      @if (parseFailed()) {
+        <p class="text-muted-foreground" role="status">
+          {{ "time.capture.parseFailed" | translate }}
+        </p>
+      }
+      @if (clientCandidates().length > 0) {
+        <div class="flex flex-wrap items-center gap-2" role="group">
+          <span class="text-muted-foreground">
+            {{ "time.capture.pickClient" | translate }}
+          </span>
+          @for (candidate of clientCandidates(); track candidate.id) {
+            <button
+              hlmBtn
+              type="button"
+              size="sm"
+              variant="secondary"
+              (click)="pickClientCandidate(candidate)"
+            >
+              {{ candidate.displayName }}
+            </button>
+          }
+        </div>
+      }
+      @if (caseCandidates().length > 0) {
+        <div class="flex flex-wrap items-center gap-2" role="group">
+          <span class="text-muted-foreground">
+            {{ "time.capture.pickCase" | translate }}
+          </span>
+          @for (candidate of caseCandidates(); track candidate.id) {
+            <button
+              hlmBtn
+              type="button"
+              size="sm"
+              variant="secondary"
+              (click)="pickCaseCandidate(candidate)"
+            >
+              {{ candidate.caseNumber }} — {{ candidate.name }}
+            </button>
+          }
+        </div>
+      }
+    </div>
+
+    <form
+      id="quick-capture-form"
+      [formGroup]="form"
+      (ngSubmit)="submit()"
+      class="grid gap-4"
+      novalidate
+    >
+      @if (loadingEntry()) {
+        <div class="text-muted-foreground flex items-center gap-2">
+          <hlm-spinner />
+          <span>{{ "time.capture.loading" | translate }}</span>
+        </div>
+      }
+      @if (!fromSource) {
+        <div class="grid gap-4 md:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="capture-client">
+              {{ "time.capture.client" | translate }}
+            </label>
+            <div
+              hlmCombobox
+              [value]="form.controls.clientId.value"
+              (valueChange)="setClientId($event)"
+              [itemToString]="clientItemToString"
+            >
+              <hlm-combobox-trigger
+                buttonId="capture-client"
+                class="w-full min-w-0 max-w-full"
+              >
+                <hlm-combobox-value />
+              </hlm-combobox-trigger>
+              <hlm-combobox-content *hlmComboboxPortal width="content">
+                <hlm-combobox-input
+                  [placeholder]="'time.capture.search' | translate"
+                  [showTrigger]="false"
+                />
+                <hlm-combobox-empty>
+                  {{ "time.capture.noResults" | translate }}
+                </hlm-combobox-empty>
+                <div hlmComboboxList>
+                  @for (client of clientOptions(); track client.id) {
+                    <hlm-combobox-item [value]="client.id">
+                      {{ client.name }}
+                    </hlm-combobox-item>
+                  }
+                </div>
+              </hlm-combobox-content>
+            </div>
+            @if (
+              form.controls.clientId.touched && form.controls.clientId.invalid
+            ) {
+              <p class="text-destructive" role="alert">
+                {{ "time.capture.clientRequired" | translate }}
+              </p>
+            }
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="capture-case">
+              {{ "time.capture.case" | translate }}
+            </label>
+            <div
+              hlmCombobox
+              [value]="form.controls.caseId.value"
+              (valueChange)="setCaseId($event)"
+              [itemToString]="caseItemToString"
+            >
+              <hlm-combobox-trigger
+                buttonId="capture-case"
+                class="w-full min-w-0 max-w-full"
+              >
+                <hlm-combobox-value />
+              </hlm-combobox-trigger>
+              <hlm-combobox-content *hlmComboboxPortal width="content">
+                <hlm-combobox-input
+                  [placeholder]="'time.capture.search' | translate"
+                  [showTrigger]="false"
+                />
+                <hlm-combobox-empty>
+                  {{ "time.capture.noResults" | translate }}
+                </hlm-combobox-empty>
+                <div hlmComboboxList>
+                  <hlm-combobox-item value="">
+                    {{ "time.capture.noCase" | translate }}
+                  </hlm-combobox-item>
+                  @for (caseItem of caseOptions(); track caseItem.id) {
+                    <hlm-combobox-item [value]="caseItem.id">
+                      {{ caseItem.caseNumber }} — {{ caseItem.name }}
+                    </hlm-combobox-item>
+                  }
+                </div>
+              </hlm-combobox-content>
+            </div>
+          </div>
+        </div>
+      }
+
+      <div hlmField>
+        <label hlmFieldLabel for="capture-minutes">
+          {{ "time.capture.duration" | translate }}
+        </label>
+        <div class="flex flex-wrap items-center gap-2">
+          @for (chip of minuteChips; track chip) {
+            <button
+              hlmBtn
+              type="button"
+              size="sm"
+              [variant]="
+                form.controls.minutes.value === chip ? 'default' : 'outline'
+              "
+              [attr.aria-pressed]="form.controls.minutes.value === chip"
+              (click)="setMinutes(chip)"
+            >
+              {{ chip }} {{ "time.capture.minuteUnit" | translate }}
+            </button>
+          }
+          <input
+            hlmInput
+            id="capture-minutes"
+            type="number"
+            inputmode="numeric"
+            min="1"
+            max="1440"
+            class="w-28"
+            formControlName="minutes"
+            [placeholder]="'time.capture.customMinutes' | translate"
+          />
+        </div>
+        @if (form.controls.minutes.touched && form.controls.minutes.invalid) {
+          <p class="text-destructive" role="alert">
+            {{ "time.capture.minutesInvalid" | translate }}
+          </p>
+        }
+      </div>
+
+      <div hlmField>
+        <label hlmFieldLabel for="capture-description">
+          {{ "time.capture.workDescription" | translate }}
+        </label>
+        <textarea
+          hlmTextarea
+          id="capture-description"
+          formControlName="description"
+        ></textarea>
+        @if (
+          form.controls.description.touched && form.controls.description.invalid
+        ) {
+          <p class="text-destructive" role="alert">
+            {{ "time.capture.descriptionRequired" | translate }}
+          </p>
+        }
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-3">
+        <div hlmField>
+          <label hlmFieldLabel for="capture-date">
+            {{ "time.capture.date" | translate }}
+          </label>
+          <input
+            hlmInput
+            id="capture-date"
+            type="date"
+            formControlName="workDate"
+          />
+        </div>
+        @if (!fromSource) {
+          <div hlmField>
+            <label hlmFieldLabel for="capture-category">
+              {{ "time.capture.category" | translate }}
+            </label>
+            <hlm-select
+              formControlName="serviceCategoryId"
+              [itemToString]="categoryItemToString"
+            >
+              <hlm-select-trigger buttonId="capture-category" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal width="content">
+                <hlm-select-group>
+                  @for (option of categoryOptions(); track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{
+                        option.value ? option.label : (option.label | translate)
+                      }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="capture-treatment">
+              {{ "time.capture.treatment" | translate }}
+            </label>
+            <hlm-select
+              formControlName="treatment"
+              [itemToString]="treatmentItemToString"
+            >
+              <hlm-select-trigger buttonId="capture-treatment" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal width="content">
+                <hlm-select-group>
+                  @for (option of treatmentOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ option.label | translate }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        }
+      </div>
+    </form>
+  </div>
+</div>
+
+<hlm-dialog-footer class="flex justify-end gap-2">
+  <button
+    hlmBtn
+    type="button"
+    variant="outline"
+    [disabled]="saving()"
+    (click)="dialogRef.close()"
+  >
+    {{ "common.cancel" | translate }}
+  </button>
+  <button
+    hlmBtn
+    type="submit"
+    form="quick-capture-form"
+    [disabled]="saving() || loadingEntry()"
+  >
+    @if (saving()) {
+      <hlm-spinner />
+    }
+    {{ "common.save" | translate }}
+  </button>
+</hlm-dialog-footer>

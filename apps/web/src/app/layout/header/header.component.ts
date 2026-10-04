@@ -6,6 +6,7 @@ import {
   lucideCalendar,
   lucideCheckCheck,
   lucideClock3,
+  lucidePlus,
   lucideTriangleAlert,
 } from "@ng-icons/lucide";
 import { Router } from "@angular/router";
@@ -17,6 +18,8 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { NotificationsStore } from "../../core/notifications/notifications.store";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { QuickCaptureDialogService } from "../../features/time/quick-capture/quick-capture-dialog.service";
+import { HeaderTimerComponent } from "../../features/time/timer/header-timer.component";
 
 const LEGAL_QUOTE_KEYS = Array.from(
   { length: 120 },
@@ -48,6 +51,7 @@ const notificationIcon: Record<NotificationType, string> = {
     HlmButton,
     HlmInputGroupImports,
     HlmSpinner,
+    HeaderTimerComponent,
     TranslatePipe,
   ],
   providers: [
@@ -57,6 +61,7 @@ const notificationIcon: Record<NotificationType, string> = {
       lucideCalendar,
       lucideCheckCheck,
       lucideClock3,
+      lucidePlus,
       lucideTriangleAlert,
     }),
   ],
@@ -64,6 +69,7 @@ const notificationIcon: Record<NotificationType, string> = {
 export class HeaderComponent {
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
+  private readonly quickCapture = inject(QuickCaptureDialogService);
   readonly notifications = inject(NotificationsStore);
   readonly quoteKey = signal(
     LEGAL_QUOTE_KEYS[Math.floor(Math.random() * LEGAL_QUOTE_KEYS.length)],
@@ -73,6 +79,10 @@ export class HeaderComponent {
       count: this.notifications.unreadCount(),
     }),
   );
+
+  openQuickCapture(): void {
+    this.quickCapture.open({ mode: "create" }).subscribe();
+  }
 
   iconFor(type: NotificationType): string {
     return notificationIcon[type];

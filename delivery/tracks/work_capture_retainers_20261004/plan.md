@@ -612,17 +612,17 @@ export interface QuickCaptureInput { clientId?: string; caseId?: string; minutes
   - `edit`: `update`
 - Header: a "Zabeleži rad" (log work) button opens the dialog. Shortcut `Alt+W` is registered in `MainLayoutComponent` via `host: { "(document:keydown.alt.w)": ... }`. `HeaderTimerComponent` shows the client name + `hh:mm:ss` with a stop button, or a start button that opens a small client picker.
 
-- [ ] **Step 1: Write the failing tests:**
+- [x] **Step 1: Write the failing tests:**
   - The dialog is invalid without a client.
   - The 30 chip sets `minutes 30`.
   - A parse `ok:false` leaves the values and shows the hint.
   - A parse with a single client sets `clientId` and `aiParsed`.
   - Changing the client clears the case.
   - Timer store: `elapsedSeconds` ticks from `timerStartedAt` with fake timers, and `stop()` opens the dialog in `confirm-timer` mode.
-- [ ] **Step 2:** Run `npx nx test web --testFile=quick-capture-dialog.component.spec.ts`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4:** Run both spec files. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): quick work capture, AI fill and header timer`.
+- [x] **Step 2:** Run `npx nx test web --testFile=quick-capture-dialog.component.spec.ts`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4:** Run both spec files. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): quick work capture, AI fill and header timer`.
 
 ### Task 15: Completion prompt and activity durations
 
