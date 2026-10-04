@@ -14,7 +14,7 @@ const entryId = "77777777-7777-4777-a777-777777777777";
 
 describe("WorkEntrySourcesService", () => {
   const tx = {
-    workEntry: { findFirst: jest.fn(), create: jest.fn() },
+    workEntry: { findFirst: jest.fn(), createMany: jest.fn() },
     activityLog: { create: jest.fn() },
   };
   const db = { workEntry: { findFirst: jest.fn() } };
@@ -48,8 +48,11 @@ describe("WorkEntrySourcesService", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
-    tx.workEntry.findFirst.mockResolvedValue(null);
-    tx.workEntry.create.mockResolvedValue({ id: entryId });
+    // First lookup: nothing yet. Read-back after the insert: the entry.
+    tx.workEntry.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValue({ id: entryId });
+    tx.workEntry.createMany.mockResolvedValue({ count: 1 });
     tx.activityLog.create.mockResolvedValue({});
     workEntries.defaultTreatmentFor.mockResolvedValue("UNDECIDED");
   });
@@ -59,7 +62,7 @@ describe("WorkEntrySourcesService", () => {
       await expect(
         service.ensureForSource(tx as never, input({ clientIds: [] })),
       ).resolves.toBeNull();
-      expect(tx.workEntry.create).not.toHaveBeenCalled();
+      expect(tx.workEntry.createMany).not.toHaveBeenCalled();
       expect(tx.activityLog.create).not.toHaveBeenCalled();
     });
 
@@ -70,7 +73,7 @@ describe("WorkEntrySourcesService", () => {
           input({ clientIds: [clientA, clientB] }),
         ),
       ).resolves.toBeNull();
-      expect(tx.workEntry.create).not.toHaveBeenCalled();
+      expect(tx.workEntry.createMany).not.toHaveBeenCalled();
     });
 
     it("creates a PROPOSED entry for a repeated single client and stays idempotent", async () => {
@@ -79,10 +82,11 @@ describe("WorkEntrySourcesService", () => {
         input({ clientIds: [clientA, clientA], caseId }),
       );
       expect(first).toBe(entryId);
-      expect(tx.workEntry.create).toHaveBeenCalledTimes(1);
-      expect(tx.workEntry.create).toHaveBeenCalledWith(
-        expect.objectContaining({
-          data: expect.objectContaining({
+      expect(tx.workEntry.createMany).toHaveBeenCalledTimes(1);
+      expect(tx.workEntry.createMany).toHaveBeenCalledWith({
+        skipDuplicates: true,
+        data: [
+          expect.objectContaining({
             workspaceId,
             userId: performerId,
             clientId: clientA,
@@ -97,8 +101,8 @@ describe("WorkEntrySourcesService", () => {
             createdByUserId: userId,
             updatedByUserId: userId,
           }),
-        }),
-      );
+        ],
+      });
       expect(workEntries.defaultTreatmentFor).toHaveBeenCalledWith(
         clientA,
         workDate,
@@ -116,17 +120,35 @@ describe("WorkEntrySourcesService", () => {
         }),
       });
 
-      tx.workEntry.findFirst.mockResolvedValue({ id: entryId });
+      tx.workEntry.findFirst.mockReset().mockResolvedValue({ id: entryId });
       const second = await service.ensureForSource(
         tx as never,
         input({ clientIds: [clientA] }),
       );
       expect(second).toBe(entryId);
-      expect(tx.workEntry.create).toHaveBeenCalledTimes(1);
+      expect(tx.workEntry.createMany).toHaveBeenCalledTimes(1);
       expect(tx.workEntry.findFirst).toHaveBeenLastCalledWith({
         where: { workspaceId, sourceType: "TASK", sourceId },
         select: { id: true },
       });
+    });
+
+    it("returns the winner's entry without logging when a concurrent insert wins", async () => {
+      // The unique index swallowed our insert (skipDuplicates): nothing was
+      // created, so the existing entry is read back and no activity is logged.
+      tx.workEntry.createMany.mockResolvedValue({ count: 0 });
+      tx.workEntry.findFirst
+        .mockReset()
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({ id: "winner-entry" });
+
+      const id = await service.ensureForSource(tx as never, input());
+
+      expect(id).toBe("winner-entry");
+      expect(tx.workEntry.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({ skipDuplicates: true }),
+      );
+      expect(tx.activityLog.create).not.toHaveBeenCalled();
     });
 
     it("creates a CONFIRMED entry when asked to confirm with minutes", async () => {
@@ -138,14 +160,16 @@ describe("WorkEntrySourcesService", () => {
           confirm: true,
         }),
       );
-      expect(tx.workEntry.create).toHaveBeenCalledWith(
+      expect(tx.workEntry.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({
-            status: "CONFIRMED",
-            minutes: 30,
-            source: "ACTIVITY",
-            sourceType: "CASE_ACTIVITY",
-          }),
+          data: [
+            expect.objectContaining({
+              status: "CONFIRMED",
+              minutes: 30,
+              source: "ACTIVITY",
+              sourceType: "CASE_ACTIVITY",
+            }),
+          ],
         }),
       );
     });
@@ -155,9 +179,11 @@ describe("WorkEntrySourcesService", () => {
         tx as never,
         input({ sourceType: "CLIENT_ACTIVITY", confirm: true }),
       );
-      expect(tx.workEntry.create).toHaveBeenCalledWith(
+      expect(tx.workEntry.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ status: "PROPOSED", minutes: null }),
+          data: [
+            expect.objectContaining({ status: "PROPOSED", minutes: null }),
+          ],
         }),
       );
     });
@@ -171,8 +197,8 @@ describe("WorkEntrySourcesService", () => {
         tx as never,
         input({ sourceType: "EVENT", minutes: 0, sourceId: entryId }),
       );
-      for (const [args] of tx.workEntry.create.mock.calls) {
-        expect(args.data).toEqual(
+      for (const [args] of tx.workEntry.createMany.mock.calls) {
+        expect(args.data[0]).toEqual(
           expect.objectContaining({ status: "PROPOSED", minutes: null }),
         );
       }
@@ -183,9 +209,9 @@ describe("WorkEntrySourcesService", () => {
         tx as never,
         input({ description: "  Позив клијенту " }),
       );
-      expect(tx.workEntry.create).toHaveBeenCalledWith(
+      expect(tx.workEntry.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: expect.objectContaining({ description: "Poziv klijentu" }),
+          data: [expect.objectContaining({ description: "Poziv klijentu" })],
         }),
       );
     });

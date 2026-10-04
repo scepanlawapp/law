@@ -118,32 +118,48 @@ export class WorkEntrySourcesService {
       tx,
     );
     const status = input.confirm && minutes !== null ? "CONFIRMED" : "PROPOSED";
-    const created = await tx.workEntry.create({
-      data: {
+    // A concurrent completion of the same source can win the unique index. A
+    // failed INSERT would poison the surrounding Postgres transaction, so the
+    // duplicate is skipped in SQL rather than caught afterwards.
+    const { count } = await tx.workEntry.createMany({
+      data: [
+        {
+          workspaceId: input.workspaceId,
+          userId: input.performerUserId,
+          clientId,
+          caseId: input.caseId,
+          workDate: input.workDate,
+          minutes,
+          description: toLatin(input.description.trim()),
+          treatment,
+          status,
+          source: SOURCE_BY_TYPE[input.sourceType],
+          sourceType: input.sourceType,
+          sourceId: input.sourceId,
+          createdByUserId: input.actorUserId,
+          updatedByUserId: input.actorUserId,
+        },
+      ],
+      skipDuplicates: true,
+    });
+    const entry = await tx.workEntry.findFirst({
+      where: {
         workspaceId: input.workspaceId,
-        userId: input.performerUserId,
-        clientId,
-        caseId: input.caseId,
-        workDate: input.workDate,
-        minutes,
-        description: toLatin(input.description.trim()),
-        treatment,
-        status,
-        source: SOURCE_BY_TYPE[input.sourceType],
         sourceType: input.sourceType,
         sourceId: input.sourceId,
-        createdByUserId: input.actorUserId,
-        updatedByUserId: input.actorUserId,
       },
       select: { id: true },
     });
+    if (!entry) throw new Error("Work entry vanished after creation");
+    // Only the winner of the race logs the creation.
+    if (count === 0) return entry.id;
     await tx.activityLog.create({
       data: {
         workspaceId: input.workspaceId,
         actorUserId: input.actorUserId,
         action: "WORK_ENTRY_CREATED",
         entityType: "WORK_ENTRY",
-        entityId: created.id,
+        entityId: entry.id,
         clientId,
         caseId: input.caseId,
         metadata: {
@@ -154,7 +170,7 @@ export class WorkEntrySourcesService {
         },
       },
     });
-    return created.id;
+    return entry.id;
   }
 
   /**
