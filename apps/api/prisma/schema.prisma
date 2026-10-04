@@ -227,6 +227,10 @@ enum NotificationType {
   EVENT_UPCOMING
   EVENT_CHANGED
   EVENT_CANCELLED
+  TIMER_RUNNING_LONG
+  TIME_REVIEW_REMINDER
+  RETAINER_USAGE_80
+  RETAINER_USAGE_100
 }
 
 enum CaseStatus {
@@ -322,71 +326,83 @@ model User {
   voidedBillingStatements  BillingStatement[]     @relation("BillingStatementVoider")
   createdBillingStatements BillingStatement[]     @relation("BillingStatementCreator")
   updatedBillingStatements BillingStatement[]     @relation("BillingStatementUpdater")
+  workEntries              WorkEntry[]            @relation("WorkEntryPerformer")
+  createdWorkEntries       WorkEntry[]            @relation("WorkEntryCreator")
+  updatedWorkEntries       WorkEntry[]            @relation("WorkEntryUpdater")
+  rates                    UserRate[]
 }
 
 model UserSettings {
-  userId                  String                   @id
-  theme                   ThemePreference          @default(CHARCOAL)
-  language                LanguagePreference       @default(SR)
-  accentColor             String                   @default("GOLD")
-  finish                  String                   @default("METALLIC")
-  workspaceNotifications  Boolean                  @default(true)
-  notificationPreferences Json?
-  dateTimeFormat          DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
-  timeZone                String                   @default("Europe/Belgrade")
-  createdAt               DateTime                 @default(now()) @db.Timestamptz(3)
-  updatedAt               DateTime                 @updatedAt @db.Timestamptz(3)
-  user                    User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId                    String                   @id
+  theme                     ThemePreference          @default(CHARCOAL)
+  language                  LanguagePreference       @default(SR)
+  accentColor               String                   @default("GOLD")
+  finish                    String                   @default("METALLIC")
+  workspaceNotifications    Boolean                  @default(true)
+  notificationPreferences   Json?
+  dateTimeFormat            DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
+  timeZone                  String                   @default("Europe/Belgrade")
+  timeReviewReminderEnabled Boolean                  @default(false)
+  timeReviewReminderTime    String                   @default("17:30")
+  createdAt                 DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime                 @updatedAt @db.Timestamptz(3)
+  user                      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model Workspace {
-  id                        String                     @id @default(uuid())
-  name                      String
-  createdAt                 DateTime                   @default(now()) @db.Timestamptz(3)
-  updatedAt                 DateTime                   @updatedAt @db.Timestamptz(3)
-  memberships               WorkspaceMember[]
-  auditEvents               AuditEvent[]
-  chatSessions              ChatSession[]
-  chatAttachments           ChatAttachment[]
-  workflowJobs              WorkflowJob[]
-  agentToolCalls            AgentToolCall[]
-  pendingActions            PendingAction[]
-  briefExtractionResults    BriefExtractionResult[]
-  draftResults              DraftResult[]
-  config                    WorkspaceConfig?
-  domainCounters            DomainCounter[]
-  tags                      Tag[]
-  caseTypes                 CaseType[]
-  practiceAreas             PracticeArea[]
-  clients                   Client[]
-  cases                     Case[]
-  clientActivities          ClientActivity[]
-  caseActivities            CaseActivity[]
-  caseResponsibilities      CaseResponsibility[]
-  events                    Event[]
-  eventAssignees            EventAssignee[]
-  eventClients              EventClient[]
-  eventAttendees            EventAttendee[]
-  tasks                     Task[]
-  deadlines                 Deadline[]
-  activityLogs              ActivityLog[]
-  tenantAuditEvents         TenantAuditEvent[]
-  legalSources              LegalSource[]
-  storageConnections        StorageConnection[]
-  documents                 Document[]
-  documentCases             DocumentCase[]
-  documentClients           DocumentClient[]
-  documentVersions          DocumentVersion[]
-  storedFiles               StoredFile[]
-  fileLocations             FileLocation[]
-  uploadOperations          UploadOperation[]
-  billingStatementLines     BillingStatementLine[]
-  billingStatementLineCases BillingStatementLineCase[]
-  priceSources              PriceSource[]
-  priceSourceVersions       PriceSourceVersion[]
-  billingStatements         BillingStatement[]
-  financeMutations          FinanceMutationRequest[]
-  notifications             Notification[]
+  id                          String                      @id @default(uuid())
+  name                        String
+  createdAt                   DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt                   DateTime                    @updatedAt @db.Timestamptz(3)
+  memberships                 WorkspaceMember[]
+  auditEvents                 AuditEvent[]
+  chatSessions                ChatSession[]
+  chatAttachments             ChatAttachment[]
+  workflowJobs                WorkflowJob[]
+  agentToolCalls              AgentToolCall[]
+  pendingActions              PendingAction[]
+  briefExtractionResults      BriefExtractionResult[]
+  draftResults                DraftResult[]
+  config                      WorkspaceConfig?
+  domainCounters              DomainCounter[]
+  tags                        Tag[]
+  caseTypes                   CaseType[]
+  practiceAreas               PracticeArea[]
+  clients                     Client[]
+  cases                       Case[]
+  clientActivities            ClientActivity[]
+  caseActivities              CaseActivity[]
+  caseResponsibilities        CaseResponsibility[]
+  events                      Event[]
+  eventAssignees              EventAssignee[]
+  eventClients                EventClient[]
+  eventAttendees              EventAttendee[]
+  tasks                       Task[]
+  deadlines                   Deadline[]
+  activityLogs                ActivityLog[]
+  tenantAuditEvents           TenantAuditEvent[]
+  legalSources                LegalSource[]
+  storageConnections          StorageConnection[]
+  documents                   Document[]
+  documentCases               DocumentCase[]
+  documentClients             DocumentClient[]
+  documentVersions            DocumentVersion[]
+  storedFiles                 StoredFile[]
+  fileLocations               FileLocation[]
+  uploadOperations            UploadOperation[]
+  billingStatementLines       BillingStatementLine[]
+  billingStatementLineCases   BillingStatementLineCase[]
+  priceSources                PriceSource[]
+  priceSourceVersions         PriceSourceVersion[]
+  billingStatements           BillingStatement[]
+  financeMutations            FinanceMutationRequest[]
+  notifications               Notification[]
+  workEntries                 WorkEntry[]
+  serviceCategories           ServiceCategory[]
+  retainerAgreements          RetainerAgreement[]
+  retainerAgreementCategories RetainerAgreementCategory[]
+  clientBillingProfiles       ClientBillingProfile[]
+  userRates                   UserRate[]
 }
 
 model WorkspaceConfig {
@@ -395,6 +411,10 @@ model WorkspaceConfig {
   dateTimeFormat         DateTimeFormatPreference @default(TWENTY_FOUR_HOUR)
   workspaceNotifications Boolean                  @default(true)
   officeHours            Json?
+  targetHourlyRate       Decimal?                 @db.Decimal(18, 2)
+  internalCurrency       String                   @default("RSD")
+  defaultVatRate         Decimal                  @default(20) @db.Decimal(5, 2)
+  paymentTermDays        Int                      @default(15)
   createdAt              DateTime                 @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                 @updatedAt @db.Timestamptz(3)
   workspace              Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -523,6 +543,9 @@ model Client {
   deadlines               Deadline[]
   activityLogs            ActivityLog[]
   billingStatementLines   BillingStatementLine[]
+  workEntries             WorkEntry[]
+  retainerAgreements      RetainerAgreement[]
+  billingProfile          ClientBillingProfile?
   priceSources            PriceSource[]
   billingStatements       BillingStatement[]
 
@@ -650,6 +673,7 @@ model Case {
   draftResults              DraftResult[]
   appliedBriefs             BriefExtractionResult[]    @relation("BriefAppliedCase")
   billingStatementLineCases BillingStatementLineCase[]
+  workEntries               WorkEntry[]
   priceSources              PriceSource[]
 
   @@unique([workspaceId, caseNumber])
@@ -680,31 +704,29 @@ model CaseActivity {
 }
 
 model Event {
-  id              String            @id @default(uuid())
+  id              String          @id @default(uuid())
   workspaceId     String
   type            EventType
   title           String
   description     String?
-  startsAt        DateTime          @db.Timestamptz(3)
-  endsAt          DateTime          @db.Timestamptz(3)
+  startsAt        DateTime        @db.Timestamptz(3)
+  endsAt          DateTime        @db.Timestamptz(3)
   timeZone        String
-  isAllDay        Boolean           @default(false)
-  status          EventStatus       @default(SCHEDULED)
+  isAllDay        Boolean         @default(false)
+  status          EventStatus     @default(SCHEDULED)
   location        String?
   meetingUrl      String?
   courtName       String?
   courtroom       String?
   organizerUserId String
   caseId          String?
-  statementId     String?
   createdByUserId String
-  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt       DateTime          @updatedAt @db.Timestamptz(3)
-  workspace       Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  organizer       User              @relation("EventOrganizer", fields: [organizerUserId], references: [id], onDelete: Restrict)
-  createdBy       User              @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  case            Case?             @relation("EventCase", fields: [caseId], references: [id], onDelete: SetNull)
-  statement       BillingStatement? @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime        @updatedAt @db.Timestamptz(3)
+  workspace       Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  organizer       User            @relation("EventOrganizer", fields: [organizerUserId], references: [id], onDelete: Restrict)
+  createdBy       User            @relation("EventCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  case            Case?           @relation("EventCase", fields: [caseId], references: [id], onDelete: SetNull)
   assignees       EventAssignee[]
   clients         EventClient[]
   attendees       EventAttendee[]
@@ -712,7 +734,6 @@ model Event {
   @@index([workspaceId, startsAt, endsAt])
   @@index([workspaceId, status, startsAt])
   @@index([caseId])
-  @@index([workspaceId, statementId])
   @@index([organizerUserId, startsAt])
 }
 
@@ -756,32 +777,30 @@ model EventAttendee {
 }
 
 model Task {
-  id                String            @id @default(uuid())
+  id                String       @id @default(uuid())
   workspaceId       String
   title             String
   description       String?
-  status            TaskStatus        @default(TODO)
-  priority          CasePriority      @default(NORMAL)
+  status            TaskStatus   @default(TODO)
+  priority          CasePriority @default(NORMAL)
   assigneeUserId    String
-  dueDate           DateTime?         @db.Date
-  dueAt             DateTime?         @db.Timestamptz(3)
+  dueDate           DateTime?    @db.Date
+  dueAt             DateTime?    @db.Timestamptz(3)
   caseId            String?
   clientId          String?
   deadlineId        String?
-  statementId       String?
-  completedAt       DateTime?         @db.Timestamptz(3)
+  completedAt       DateTime?    @db.Timestamptz(3)
   completedByUserId String?
   createdByUserId   String
-  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime          @updatedAt @db.Timestamptz(3)
-  workspace         Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  assignee          User              @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: Restrict)
-  createdBy         User              @relation("TaskCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  completedBy       User?             @relation("TaskCompleter", fields: [completedByUserId], references: [id], onDelete: SetNull)
-  case              Case?             @relation("TaskCase", fields: [caseId], references: [id], onDelete: SetNull)
-  client            Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  deadline          Deadline?         @relation("DeadlineTasks", fields: [deadlineId], references: [id], onDelete: SetNull)
-  statement         BillingStatement? @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  createdAt         DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime     @updatedAt @db.Timestamptz(3)
+  workspace         Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  assignee          User         @relation("TaskAssignee", fields: [assigneeUserId], references: [id], onDelete: Restrict)
+  createdBy         User         @relation("TaskCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  completedBy       User?        @relation("TaskCompleter", fields: [completedByUserId], references: [id], onDelete: SetNull)
+  case              Case?        @relation("TaskCase", fields: [caseId], references: [id], onDelete: SetNull)
+  client            Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  deadline          Deadline?    @relation("DeadlineTasks", fields: [deadlineId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, status, dueDate])
   @@index([workspaceId, assigneeUserId, status])
@@ -789,44 +808,40 @@ model Task {
   @@index([caseId])
   @@index([clientId])
   @@index([deadlineId])
-  @@index([workspaceId, statementId])
 }
 
 model Deadline {
-  id                String            @id @default(uuid())
+  id                String         @id @default(uuid())
   workspaceId       String
   title             String
   description       String?
   type              DeadlineType
-  dueDate           DateTime?         @db.Date
-  dueAt             DateTime?         @db.Timestamptz(3)
+  dueDate           DateTime?      @db.Date
+  dueAt             DateTime?      @db.Timestamptz(3)
   timeZone          String?
-  status            DeadlineStatus    @default(OPEN)
+  status            DeadlineStatus @default(OPEN)
   responsibleUserId String
   caseId            String?
   clientId          String?
   sourceDescription String?
-  statementId       String?
-  satisfiedAt       DateTime?         @db.Timestamptz(3)
+  satisfiedAt       DateTime?      @db.Timestamptz(3)
   satisfiedByUserId String?
   createdByUserId   String
-  createdAt         DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime          @updatedAt @db.Timestamptz(3)
-  workspace         Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  responsibleUser   User              @relation("DeadlineResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
-  satisfiedBy       User?             @relation("DeadlineSatisfier", fields: [satisfiedByUserId], references: [id], onDelete: SetNull)
-  createdBy         User              @relation("DeadlineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  case              Case?             @relation("DeadlineCase", fields: [caseId], references: [id], onDelete: SetNull)
-  client            Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
-  tasks             Task[]            @relation("DeadlineTasks")
-  statement         BillingStatement? @relation(fields: [statementId], references: [id], onDelete: SetNull)
+  createdAt         DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime       @updatedAt @db.Timestamptz(3)
+  workspace         Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  responsibleUser   User           @relation("DeadlineResponsible", fields: [responsibleUserId], references: [id], onDelete: Restrict)
+  satisfiedBy       User?          @relation("DeadlineSatisfier", fields: [satisfiedByUserId], references: [id], onDelete: SetNull)
+  createdBy         User           @relation("DeadlineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  case              Case?          @relation("DeadlineCase", fields: [caseId], references: [id], onDelete: SetNull)
+  client            Client?        @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  tasks             Task[]         @relation("DeadlineTasks")
 
   @@index([workspaceId, status, dueDate])
   @@index([workspaceId, responsibleUserId, status])
   @@index([workspaceId, dueAt])
   @@index([caseId])
   @@index([clientId])
-  @@index([workspaceId, statementId])
 }
 
 model ActivityLog {
@@ -893,50 +908,49 @@ model PriceSourceVersion {
 }
 
 model BillingStatement {
-  id                    String                 @id @default(uuid())
-  workspaceId           String
-  clientId              String
-  statementNumber       String
-  dateOfCreate          DateTime               @db.Date
-  dateOfMaturity        DateTime               @db.Date
-  dateOfTurnover        DateTime               @db.Date
-  placeOfIssue          String
-  methodOfPayment       String
-  comment               String                 @db.Text
-  netAmount             Decimal                @db.Decimal(18, 2)
-  vatRate               Decimal                @db.Decimal(5, 2)
-  vatAmount             Decimal                @db.Decimal(18, 2)
-  grossAmount           Decimal                @db.Decimal(18, 2)
-  numberOfCashBill      String
-  country               String
-  currency              String
-  status                BillingStatementStatus @default(DRAFT)
-  sharedAt              DateTime?              @db.Timestamptz(3)
-  sharedMethod          String?
-  externalInvoiceNumber String?
-  externalInvoiceDate   DateTime?              @db.Date
-  externalReference     String?
-  voidedAt              DateTime?              @db.Timestamptz(3)
-  voidReason            String?
-  sharedByUserId        String?
-  voidedByUserId        String?
-  replacementForId      String?
-  createdByUserId       String
-  updatedByUserId       String
-  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
-  workspace             Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  client                Client                 @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  sharedBy              User?                  @relation("BillingStatementSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
-  voidedBy              User?                  @relation("BillingStatementVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
-  createdBy             User                   @relation("BillingStatementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy             User                   @relation("BillingStatementUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  replacementFor        BillingStatement?      @relation("StatementReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
-  replacement           BillingStatement[]     @relation("StatementReplacement")
-  lines                 BillingStatementLine[]
-  events                Event[]
-  tasks                 Task[]
-  deadlines             Deadline[]
+  id                     String                 @id @default(uuid())
+  workspaceId            String
+  clientId               String
+  statementNumber        String
+  dateOfCreate           DateTime               @db.Date
+  dateOfMaturity         DateTime               @db.Date
+  dateOfTurnover         DateTime               @db.Date
+  placeOfIssue           String
+  methodOfPayment        String
+  comment                String                 @db.Text
+  netAmount              Decimal                @db.Decimal(18, 2)
+  vatRate                Decimal                @db.Decimal(5, 2)
+  vatAmount              Decimal                @db.Decimal(18, 2)
+  grossAmount            Decimal                @db.Decimal(18, 2)
+  numberOfCashBill       String
+  country                String
+  currency               String
+  status                 BillingStatementStatus @default(DRAFT)
+  sharedAt               DateTime?              @db.Timestamptz(3)
+  sharedMethod           String?
+  externalInvoiceNumber  String?
+  externalInvoiceDate    DateTime?              @db.Date
+  externalReference      String?
+  printWorkSpecification Boolean                @default(true)
+  billingMonth           String?
+  voidedAt               DateTime?              @db.Timestamptz(3)
+  voidReason             String?
+  sharedByUserId         String?
+  voidedByUserId         String?
+  replacementForId       String?
+  createdByUserId        String
+  updatedByUserId        String
+  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime               @updatedAt @db.Timestamptz(3)
+  workspace              Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client                 Client                 @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  sharedBy               User?                  @relation("BillingStatementSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
+  voidedBy               User?                  @relation("BillingStatementVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  createdBy              User                   @relation("BillingStatementCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy              User                   @relation("BillingStatementUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  replacementFor         BillingStatement?      @relation("StatementReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
+  replacement            BillingStatement[]     @relation("StatementReplacement")
+  lines                  BillingStatementLine[]
 
   @@unique([workspaceId, statementNumber])
   @@index([workspaceId, clientId, status, dateOfMaturity])
@@ -960,6 +974,8 @@ model BillingStatementLine {
   status             BillingStatementLineStatus @default(RESERVED)
   sourceType         String?
   sourceId           String?
+  pricingRequired    Boolean                    @default(false)
+  minutes            Int?
   billedAt           DateTime?                  @db.Timestamptz(3)
   cancelledAt        DateTime?                  @db.Timestamptz(3)
   cancellationReason String?                    @db.Text
@@ -976,6 +992,7 @@ model BillingStatementLine {
   createdBy          User                       @relation("BillingStatementLineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   updatedBy          User                       @relation("BillingStatementLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
   caseLinks          BillingStatementLineCase[]
+  workEntries        WorkEntry[]
 
   @@unique([statementId, lineOrder])
   @@index([workspaceId, clientId, status, serviceDate])
@@ -1596,4 +1613,158 @@ model UploadOperation {
   @@unique([workspaceId, idempotencyKey])
   @@index([workspaceId, status, lastHeartbeatAt])
   @@index([storedFileId])
+}
+
+enum WorkEntryStatus {
+  RUNNING
+  PROPOSED
+  CONFIRMED
+  BILLED
+  WRITTEN_OFF
+}
+
+enum WorkEntryTreatment {
+  RETAINER
+  AT
+  HOURLY
+  NON_BILLABLE
+  UNDECIDED
+}
+
+enum WorkEntrySource {
+  MANUAL
+  TIMER
+  QUICK_CAPTURE
+  TASK
+  EVENT
+  DEADLINE
+  ACTIVITY
+  EMAIL
+}
+
+enum RetainerRule {
+  HOURLY
+  AT
+  ABSORBED
+}
+
+model ServiceCategory {
+  id          String                      @id @default(uuid())
+  workspaceId String
+  name        String
+  active      Boolean                     @default(true)
+  order       Int                         @default(0)
+  createdAt   DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                    @updatedAt @db.Timestamptz(3)
+  workspace   Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  workEntries WorkEntry[]
+  retainers   RetainerAgreementCategory[]
+
+  @@unique([workspaceId, name])
+  @@index([workspaceId, active, order])
+}
+
+model WorkEntry {
+  id                String                @id @default(uuid())
+  workspaceId       String
+  userId            String
+  clientId          String
+  caseId            String?
+  workDate          DateTime              @db.Date
+  minutes           Int?
+  timerStartedAt    DateTime?             @db.Timestamptz(3)
+  description       String                @default("") @db.Text
+  serviceCategoryId String?
+  treatment         WorkEntryTreatment    @default(UNDECIDED)
+  status            WorkEntryStatus       @default(PROPOSED)
+  writeOffReason    String?               @db.Text
+  source            WorkEntrySource       @default(MANUAL)
+  sourceType        String?
+  sourceId          String?
+  statementLineId   String?
+  aiParsed          Boolean               @default(false)
+  createdByUserId   String
+  updatedByUserId   String
+  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime              @updatedAt @db.Timestamptz(3)
+  workspace         Workspace             @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  user              User                  @relation("WorkEntryPerformer", fields: [userId], references: [id], onDelete: Restrict)
+  client            Client                @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  case              Case?                 @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  serviceCategory   ServiceCategory?      @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
+  statementLine     BillingStatementLine? @relation(fields: [statementLineId], references: [id], onDelete: SetNull)
+  createdBy         User                  @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy         User                  @relation("WorkEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, sourceType, sourceId])
+  @@index([workspaceId, clientId, workDate])
+  @@index([workspaceId, userId, workDate])
+  @@index([workspaceId, status])
+  @@index([statementLineId])
+  @@index([caseId])
+}
+
+model RetainerAgreement {
+  id                   String                      @id @default(uuid())
+  workspaceId          String
+  clientId             String
+  title                String
+  monthlyFee           Decimal                     @db.Decimal(18, 2)
+  currency             String
+  validFrom            DateTime                    @db.Date
+  validTo              DateTime?                   @db.Date
+  includedMinutes      Int?
+  overageRule          RetainerRule
+  overageHourlyRate    Decimal?                    @db.Decimal(18, 2)
+  outOfScopeRule       RetainerRule
+  outOfScopeHourlyRate Decimal?                    @db.Decimal(18, 2)
+  active               Boolean                     @default(true)
+  createdAt            DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime                    @updatedAt @db.Timestamptz(3)
+  workspace            Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client               Client                      @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  categories           RetainerAgreementCategory[]
+
+  @@index([workspaceId, clientId, validFrom])
+}
+
+model RetainerAgreementCategory {
+  workspaceId         String
+  retainerAgreementId String
+  serviceCategoryId   String
+  workspace           Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  retainerAgreement   RetainerAgreement @relation(fields: [retainerAgreementId], references: [id], onDelete: Cascade)
+  serviceCategory     ServiceCategory   @relation(fields: [serviceCategoryId], references: [id], onDelete: Cascade)
+
+  @@id([retainerAgreementId, serviceCategoryId])
+  @@index([workspaceId, serviceCategoryId])
+}
+
+model ClientBillingProfile {
+  id          String    @id @default(uuid())
+  workspaceId String
+  clientId    String    @unique
+  hourlyRate  Decimal?  @db.Decimal(18, 2)
+  currency    String?
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  workspace   Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  client      Client    @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+model UserRate {
+  id            String    @id @default(uuid())
+  workspaceId   String
+  userId        String
+  hourlyValue   Decimal   @db.Decimal(18, 2)
+  currency      String
+  effectiveFrom DateTime  @db.Date
+  createdAt     DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime  @updatedAt @db.Timestamptz(3)
+  workspace     Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId, effectiveFrom])
 }

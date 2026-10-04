@@ -6,6 +6,7 @@ import {
   lucideCalendar,
   lucideCheckCheck,
   lucideClock3,
+  lucidePlus,
   lucideTriangleAlert,
 } from "@ng-icons/lucide";
 import { Router } from "@angular/router";
@@ -16,7 +17,10 @@ import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { NotificationsStore } from "../../core/notifications/notifications.store";
+import { notificationTarget } from "../../core/notifications/notification-navigation";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { QuickCaptureDialogService } from "../../features/time/quick-capture/quick-capture-dialog.service";
+import { HeaderTimerComponent } from "../../features/time/timer/header-timer.component";
 
 const LEGAL_QUOTE_KEYS = Array.from(
   { length: 120 },
@@ -36,6 +40,10 @@ const notificationIcon: Record<NotificationType, string> = {
   EVENT_UPCOMING: "lucideCalendar",
   EVENT_CHANGED: "lucideCalendar",
   EVENT_CANCELLED: "lucideCalendar",
+  TIMER_RUNNING_LONG: "lucideClock3",
+  TIME_REVIEW_REMINDER: "lucideCheckCheck",
+  RETAINER_USAGE_80: "lucideTriangleAlert",
+  RETAINER_USAGE_100: "lucideTriangleAlert",
 };
 
 @Component({
@@ -48,6 +56,7 @@ const notificationIcon: Record<NotificationType, string> = {
     HlmButton,
     HlmInputGroupImports,
     HlmSpinner,
+    HeaderTimerComponent,
     TranslatePipe,
   ],
   providers: [
@@ -57,6 +66,7 @@ const notificationIcon: Record<NotificationType, string> = {
       lucideCalendar,
       lucideCheckCheck,
       lucideClock3,
+      lucidePlus,
       lucideTriangleAlert,
     }),
   ],
@@ -64,6 +74,7 @@ const notificationIcon: Record<NotificationType, string> = {
 export class HeaderComponent {
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
+  private readonly quickCapture = inject(QuickCaptureDialogService);
   readonly notifications = inject(NotificationsStore);
   readonly quoteKey = signal(
     LEGAL_QUOTE_KEYS[Math.floor(Math.random() * LEGAL_QUOTE_KEYS.length)],
@@ -73,6 +84,10 @@ export class HeaderComponent {
       count: this.notifications.unreadCount(),
     }),
   );
+
+  openQuickCapture(): void {
+    this.quickCapture.open({ mode: "create" }).subscribe();
+  }
 
   iconFor(type: NotificationType): string {
     return notificationIcon[type];
@@ -106,19 +121,10 @@ export class HeaderComponent {
 
   openNotification(item: NotificationDto): void {
     this.notifications.markRead(item);
-    if (item.entityType === "TASK") {
-      void this.router.navigate(["/work/my"], {
-        queryParams: { search: item.message },
-      });
-      return;
-    }
-    if (item.entityType === "DEADLINE" || item.entityType === "EVENT") {
-      const date =
-        item.metadata?.dueDate ??
-        item.metadata?.dueAt?.slice(0, 10) ??
-        item.metadata?.startsAt?.slice(0, 10);
-      void this.router.navigate(["/calendar"], {
-        queryParams: { view: "list", ...(date ? { date } : {}) },
+    const target = notificationTarget(item);
+    if (target) {
+      void this.router.navigate(target.commands, {
+        queryParams: target.queryParams,
       });
     }
   }

@@ -86,6 +86,7 @@ describe("immediate domain notifications", () => {
     const service = new ActivitiesTasksDeadlinesService(
       baseDb(tx) as never,
       { create } as never,
+      { ensureForSource: jest.fn() } as never,
     );
 
     await run(() =>
@@ -162,6 +163,7 @@ describe("immediate domain notifications", () => {
     const service = new ActivitiesTasksDeadlinesService(
       baseDb(tx) as never,
       { create } as never,
+      { ensureForSource: jest.fn() } as never,
     );
 
     await run(() =>
@@ -247,6 +249,7 @@ describe("immediate domain notifications", () => {
     const service = new ActivitiesTasksDeadlinesService(
       db as never,
       { create } as never,
+      { ensureForSource: jest.fn() } as never,
     );
 
     await run(() =>

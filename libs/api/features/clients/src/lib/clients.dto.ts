@@ -4,11 +4,14 @@ import {
   IsBoolean,
   IsDateString,
   IsEnum,
+  IsInt,
   IsObject,
   IsOptional,
   IsString,
   IsUUID,
+  Max,
   MaxLength,
+  Min,
 } from "class-validator";
 import { PaginationQueryDto } from "@law/core";
 import {
@@ -194,6 +197,7 @@ export class ClientActivityDto {
   @IsOptional() @IsString() @MaxLength(10000) description?: string;
   @IsDateString() activityDate!: string;
   @IsOptional() @IsUUID() relatedCaseId?: string;
+  @IsOptional() @IsInt() @Min(1) @Max(1440) durationMinutes?: number;
 }
 
 export class UpdateClientActivityDto {

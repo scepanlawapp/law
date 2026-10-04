@@ -15,6 +15,11 @@ import { ProfileSettingsComponent } from "./features/settings/profile-settings.c
 import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
 import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
 import { DataSettingsComponent } from "./features/settings/data-settings.component";
+import { BillingSettingsComponent } from "./features/settings/billing-settings.component";
+import { billingSettingsGuard } from "./features/settings/billing-settings.guard";
+import { MonthEndComponent } from "./features/finance-month-end/month-end.component";
+import { monthEndGuard } from "./features/finance-month-end/month-end.guard";
+import { FinanceRetainersComponent } from "./features/finance-retainers/retainers.component";
 import { ClientsComponent } from "./features/clients/clients.component";
 import { CasesComponent } from "./features/cases/cases.component";
 import { ClientDetailComponent } from "./features/clients/client-detail.component";
@@ -26,8 +31,14 @@ import { FinanceWorkReviewComponent } from "./features/finance-work-review/finan
 import { FinanceStatementsComponent } from "./features/finance-statements/finance-statements.component";
 import { FinanceStatementCreateComponent } from "./features/finance-statements/finance-statement-create.component";
 import { FinanceStatementDetailComponent } from "./features/finance-statements/finance-statement-detail.component";
+import { ProfitabilityComponent } from "./features/reports/profitability/profitability.component";
+import { profitabilityGuard } from "./features/reports/profitability/profitability.guard";
 import { ReportsComponent } from "./features/reports/reports.component";
 import { WorkViewComponent } from "./features/work-management/work-view/work-view.component";
+import { MyTimeComponent } from "./features/time/my-time.component";
+import { TeamTimeComponent } from "./features/time/team-time.component";
+import { teamTimeGuard } from "./features/time/team-time.guard";
+import { TimeReviewComponent } from "./features/time/time-review.component";
 import { TasksDeadlinesRedirectComponent } from "./features/work-management/tasks-deadlines-redirect.component";
 
 export const appRoutes: Route[] = [
@@ -90,9 +101,27 @@ export const appRoutes: Route[] = [
             component: FinanceStatementDetailComponent,
           },
           { path: "statements", component: FinanceStatementsComponent },
+          { path: "retainers", component: FinanceRetainersComponent },
+          {
+            path: "month-end",
+            component: MonthEndComponent,
+            canActivate: [monthEndGuard],
+          },
         ],
       },
       { path: "reports", component: ReportsComponent },
+      {
+        path: "reports/profitability",
+        component: ProfitabilityComponent,
+        canActivate: [profitabilityGuard],
+      },
+      { path: "work/time", component: MyTimeComponent },
+      {
+        path: "work/time/team",
+        component: TeamTimeComponent,
+        canActivate: [teamTimeGuard],
+      },
+      { path: "work/time/review", component: TimeReviewComponent },
       { path: "work/:mode", component: WorkViewComponent },
       {
         path: "tasks-deadlines",
@@ -106,6 +135,11 @@ export const appRoutes: Route[] = [
           { path: "profile", component: ProfileSettingsComponent },
           { path: "appearance", component: AppearanceSettingsComponent },
           { path: "workspace", component: WorkspaceSettingsComponent },
+          {
+            path: "billing",
+            component: BillingSettingsComponent,
+            canActivate: [billingSettingsGuard],
+          },
           { path: "data", component: DataSettingsComponent },
         ],
       },

@@ -123,6 +123,7 @@
         <h2 class="sr-only">{{ "clients.overview" | translate }}</h2>
         <div class="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
           <div class="space-y-8">
+            <law-client-retainer-card [clientId]="item.id" />
             <section class="space-y-4">
               <h3 class="text-lg font-semibold">
                 {{ "clients.basicInfo" | translate }}

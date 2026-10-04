@@ -1,11 +1,26 @@
 <div class="space-y-6">
   <h1>{{ "nav.reports" | translate }}</h1>
-  <hlm-empty>
-    <hlm-empty-header>
-      <h2 hlmEmptyTitle>{{ "reports.emptyTitle" | translate }}</h2>
-      <p hlmEmptyDescription>
-        {{ "reports.emptyDescription" | translate }}
+  @if (canViewProfitability()) {
+    <a
+      routerLink="/reports/profitability"
+      data-testid="profitability-card"
+      class="border-border bg-card hover:bg-accent block max-w-md rounded-xl border p-5 shadow-sm"
+    >
+      <h2 class="text-lg font-semibold">
+        {{ "reports.profitability.title" | translate }}
+      </h2>
+      <p class="text-muted-foreground mt-1 text-sm">
+        {{ "reports.profitability.description" | translate }}
       </p>
-    </hlm-empty-header>
-  </hlm-empty>
+    </a>
+  } @else {
+    <hlm-empty>
+      <hlm-empty-header>
+        <h2 hlmEmptyTitle>{{ "reports.emptyTitle" | translate }}</h2>
+        <p hlmEmptyDescription>
+          {{ "reports.emptyDescription" | translate }}
+        </p>
+      </hlm-empty-header>
+    </hlm-empty>
+  }
 </div>

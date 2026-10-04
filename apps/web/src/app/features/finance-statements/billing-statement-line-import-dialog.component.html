@@ -1,5 +1,5 @@
 <hlm-dialog-header>
-  <h2 hlmDialogTitle>{{ "finance.importBillableWork" | translate }}</h2>
+  <h2 hlmDialogTitle>{{ "finance.importUnbilledWork" | translate }}</h2>
   <p hlmDialogDescription>
     {{
       "finance.importClientContext" | translate: { client: client.displayName }
@@ -8,87 +8,32 @@
 </hlm-dialog-header>
 
 <div class="flex min-h-0 flex-1 flex-col gap-3 text-sm">
-  <div class="grid gap-3 sm:grid-cols-2">
-    <div class="flex min-w-0 flex-col gap-1">
-      <label class="font-medium" for="line-import-case">
-        {{ "finance.case" | translate }}
-      </label>
-      <div
-        hlmComboboxMultiple
-        [value]="caseIds()"
-        (valueChange)="setCaseIds($event ?? [])"
-        [itemToString]="caseItemToString"
-      >
-        <hlm-combobox-trigger buttonId="line-import-case" class="w-full">
-          <span data-slot="combobox-value" class="truncate">
-            @if (selectedCasesLabel(); as label) {
-              {{ label }}
-            } @else {
-              <span class="text-muted-foreground">
-                {{ "finance.allCases" | translate }}
-              </span>
-            }
-          </span>
-        </hlm-combobox-trigger>
-        <hlm-combobox-content *hlmComboboxPortal width="content">
-          <hlm-combobox-empty>
-            {{ "finance.noFilterOptions" | translate }}
-          </hlm-combobox-empty>
-          <div hlmComboboxList>
-            @for (caseItem of cases(); track caseItem.id) {
-              <hlm-combobox-item [value]="caseItem.id">
-                {{ caseItem.caseNumber }} — {{ caseItem.name }}
-              </hlm-combobox-item>
-            }
-          </div>
-        </hlm-combobox-content>
-      </div>
-    </div>
-
-    <div class="flex min-w-0 flex-col gap-1">
-      <label class="font-medium" for="line-import-source">
-        {{ "finance.source" | translate }}
-      </label>
-      <div
-        hlmComboboxMultiple
-        [value]="sourceTypes()"
-        (valueChange)="setSourceTypes($event ?? [])"
-        [itemToString]="sourceItemToString"
-      >
-        <hlm-combobox-trigger buttonId="line-import-source" class="w-full">
-          <span data-slot="combobox-value" class="truncate">
-            @if (selectedSourcesLabel(); as label) {
-              {{ label }}
-            } @else {
-              <span class="text-muted-foreground">
-                {{ "finance.allSources" | translate }}
-              </span>
-            }
-          </span>
-        </hlm-combobox-trigger>
-        <hlm-combobox-content *hlmComboboxPortal width="content">
-          <hlm-combobox-empty>
-            {{ "finance.noFilterOptions" | translate }}
-          </hlm-combobox-empty>
-          <div hlmComboboxList>
-            @for (option of sourceOptions; track option.value) {
-              <hlm-combobox-item [value]="option.value">
-                {{ option.label | translate }}
-              </hlm-combobox-item>
-            }
-          </div>
-        </hlm-combobox-content>
-      </div>
-    </div>
+  <div class="flex min-w-0 max-w-sm flex-col gap-1">
+    <label class="font-medium" for="line-import-case">
+      {{ "finance.case" | translate }}
+    </label>
+    <hlm-select
+      [value]="caseId()"
+      (valueChange)="setCaseId($event ?? '')"
+      [itemToString]="caseItemToString"
+    >
+      <hlm-select-trigger buttonId="line-import-case" class="w-full">
+        <hlm-select-value />
+      </hlm-select-trigger>
+      <hlm-select-content *hlmSelectPortal width="content">
+        <hlm-select-group>
+          <hlm-select-item value="">
+            {{ "finance.allCases" | translate }}
+          </hlm-select-item>
+          @for (caseItem of cases(); track caseItem.id) {
+            <hlm-select-item [value]="caseItem.id">
+              {{ caseItem.caseNumber }} — {{ caseItem.name }}
+            </hlm-select-item>
+          }
+        </hlm-select-group>
+      </hlm-select-content>
+    </hlm-select>
   </div>
-
-  @if (caseIds().length || sourceTypes().length) {
-    <div>
-      <button hlmBtn type="button" variant="ghost" (click)="clearFilters()">
-        {{ "finance.clearFilters" | translate }}
-      </button>
-    </div>
-  }
 
   <div class="min-h-0 flex-1 overflow-y-auto">
     @if (loading()) {
@@ -106,54 +51,71 @@
           {{ "finance.retry" | translate }}
         </button>
       </div>
-    } @else if (!items().length) {
+    } @else if (!entries().length) {
       <p
         class="rounded-lg border border-dashed border-border p-4 text-muted-foreground"
       >
-        {{ "finance.noBillableWork" | translate }}
+        {{ "finance.noUnbilledWork" | translate }}
       </p>
     } @else {
       <div hlmTableContainer class="rounded-lg border border-border">
-        <table hlmTable class="w-full min-w-[640px]">
+        <table hlmTable class="w-full min-w-[720px]">
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh class="w-24">
                 <span class="sr-only">{{ "finance.select" | translate }}</span>
               </th>
-              <th hlmTh class="w-36">{{ "finance.workDate" | translate }}</th>
+              <th hlmTh class="w-32">{{ "finance.workDate" | translate }}</th>
               <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
-              <th hlmTh class="w-32">{{ "finance.source" | translate }}</th>
-              <th hlmTh class="w-44">{{ "finance.case" | translate }}</th>
+              <th hlmTh class="w-32">{{ "finance.performer" | translate }}</th>
+              <th hlmTh class="w-24">
+                {{ "time.capture.duration" | translate }}
+              </th>
+              <th hlmTh class="w-32">
+                {{ "time.capture.treatment" | translate }}
+              </th>
             </tr>
           </thead>
           <tbody hlmTBody>
-            @for (item of items(); track item.sourceKey) {
-              <tr hlmTr>
+            @for (entry of entries(); track entry.id) {
+              <tr hlmTr data-testid="import-entry">
                 <td hlmTd>
                   <div class="flex items-center gap-2">
                     <input
                       type="checkbox"
                       class="h-4 w-4 accent-primary"
                       [checked]="
-                        selected().has(item.sourceKey) ||
-                        excludedSourceKeys.has(item.sourceKey)
+                        selected().has(entry.id) ||
+                        excludedEntryIds.has(entry.id)
                       "
-                      [disabled]="excludedSourceKeys.has(item.sourceKey)"
-                      (change)="toggle(item)"
-                      [attr.aria-label]="item.title"
+                      [disabled]="excludedEntryIds.has(entry.id)"
+                      (change)="toggle(entry)"
+                      [attr.aria-label]="entry.description"
                     />
-                    @if (excludedSourceKeys.has(item.sourceKey)) {
+                    @if (excludedEntryIds.has(entry.id)) {
                       <span class="text-muted-foreground">
                         ✓ {{ "finance.added" | translate }}
                       </span>
                     }
                   </div>
                 </td>
-                <td hlmTd>{{ formatDate(item.date) }}</td>
-                <td hlmTd class="whitespace-normal">{{ item.title }}</td>
-                <td hlmTd>{{ sourceLabel(item.sourceType) }}</td>
+                <td hlmTd class="whitespace-nowrap">
+                  {{ formatDate(entry.workDate) }}
+                </td>
                 <td hlmTd class="whitespace-normal">
-                  {{ item.case?.caseNumber ?? ("finance.noCase" | translate) }}
+                  {{ entry.description }}
+                  <span class="block text-muted-foreground">
+                    {{
+                      entry.case?.caseNumber ?? ("finance.noCase" | translate)
+                    }}
+                  </span>
+                </td>
+                <td hlmTd>{{ entry.user.displayName }}</td>
+                <td hlmTd class="whitespace-nowrap">
+                  {{ formatMinutes(entry.minutes ?? 0) }}
+                </td>
+                <td hlmTd>
+                  {{ treatmentLabelKeys[entry.treatment] | translate }}
                 </td>
               </tr>
             }

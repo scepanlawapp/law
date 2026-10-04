@@ -23,7 +23,7 @@
       class="flex flex-wrap gap-1 md:flex-col md:flex-nowrap"
       [attr.aria-label]="'settings.navigation' | translate"
     >
-      @for (item of menu; track item.path) {
+      @for (item of menu(); track item.path) {
         <a
           class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
           [routerLink]="item.path"

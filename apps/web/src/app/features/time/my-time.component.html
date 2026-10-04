@@ -1,0 +1,165 @@
+<section class="flex flex-col gap-6 p-4 md:p-6">
+  <header class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-xl font-semibold">{{ "time.my.title" | translate }}</h1>
+      <p class="text-muted-foreground text-sm">{{ rangeLabel() }}</p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        size="icon"
+        [attr.aria-label]="'time.my.previousWeek' | translate"
+        (click)="previousWeek()"
+      >
+        <ng-icon name="lucideChevronLeft" aria-hidden="true" />
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        [disabled]="isCurrentWeek()"
+        (click)="goToToday()"
+      >
+        {{ "time.my.today" | translate }}
+      </button>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        size="icon"
+        [attr.aria-label]="'time.my.nextWeek' | translate"
+        (click)="nextWeek()"
+      >
+        <ng-icon name="lucideChevronRight" aria-hidden="true" />
+      </button>
+      <a hlmBtn variant="outline" routerLink="/work/time/review">
+        {{ "time.review.title" | translate }}
+      </a>
+      <button hlmBtn type="button" (click)="logTime()">
+        {{ "time.capture.open" | translate }}
+      </button>
+    </div>
+  </header>
+
+  @if (loading()) {
+    <div class="flex items-center gap-2" role="status">
+      <hlm-spinner [attr.aria-label]="'time.my.loading' | translate" />
+      <span class="text-muted-foreground text-sm">
+        {{ "time.my.loading" | translate }}
+      </span>
+    </div>
+  } @else if (error()) {
+    <div class="flex items-center gap-3" role="alert">
+      <p class="text-destructive text-sm">
+        {{ "time.my.loadError" | translate }}
+      </p>
+      <button hlmBtn type="button" variant="outline" (click)="reload()">
+        {{ "time.retry" | translate }}
+      </button>
+    </div>
+  } @else {
+    <p class="text-sm" data-testid="week-total">
+      <span class="text-muted-foreground">
+        {{ "time.my.weekTotal" | translate }}
+      </span>
+      <strong class="ms-2 text-base">{{ formatMinutes(weekMinutes()) }}</strong>
+    </p>
+
+    <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
+      @for (day of days(); track day.date) {
+        <section
+          class="bg-card flex min-w-0 flex-col gap-2 rounded-xl border p-3"
+          [class]="day.isToday ? 'border-primary' : 'border-border'"
+          [attr.aria-label]="dayLabel(day.date)"
+          [attr.data-date]="day.date"
+        >
+          <header class="flex items-baseline justify-between gap-2">
+            <h2 class="text-sm font-semibold capitalize">
+              {{ dayLabel(day.date) }}
+            </h2>
+            <span class="text-muted-foreground text-xs" data-testid="day-total">
+              {{ formatMinutes(day.minutes) }}
+            </span>
+          </header>
+
+          @for (entry of day.entries; track entry.id) {
+            @if (isEditable(entry)) {
+              <button
+                type="button"
+                class="border-border hover:bg-accent focus-visible:ring-ring/40 flex min-w-0 flex-col gap-1 rounded-lg border p-2 text-start focus-visible:ring-3 focus-visible:outline-none"
+                data-testid="entry"
+                (click)="edit(entry)"
+              >
+                <ng-container
+                  *ngTemplateOutlet="entryBody; context: { $implicit: entry }"
+                />
+              </button>
+            } @else {
+              <div
+                class="border-border flex min-w-0 flex-col gap-1 rounded-lg border p-2"
+                data-testid="entry"
+              >
+                <ng-container
+                  *ngTemplateOutlet="entryBody; context: { $implicit: entry }"
+                />
+              </div>
+            }
+          } @empty {
+            <p class="text-muted-foreground text-xs">
+              {{ "time.my.emptyDay" | translate }}
+            </p>
+          }
+        </section>
+      }
+    </div>
+
+    <section class="flex flex-col gap-2">
+      <h2 class="text-sm font-semibold">
+        {{ "time.my.byClient" | translate }}
+      </h2>
+      @for (total of clientTotals(); track total.client.id) {
+        <div
+          class="border-border flex items-center justify-between gap-3 border-b pb-2 text-sm"
+          data-testid="client-total"
+        >
+          <span class="truncate">{{ total.client.displayName }}</span>
+          <strong>{{ formatMinutes(total.minutes) }}</strong>
+        </div>
+      } @empty {
+        <p class="text-muted-foreground text-sm">
+          {{ "time.my.emptyWeek" | translate }}
+        </p>
+      }
+    </section>
+  }
+</section>
+
+<ng-template #entryBody let-entry>
+  <div class="flex items-center justify-between gap-2">
+    <span class="truncate text-sm font-medium">
+      {{ entry.client.displayName }}
+    </span>
+    <span class="text-sm font-semibold whitespace-nowrap">
+      {{ formatMinutes(entry.minutes ?? 0) }}
+    </span>
+  </div>
+  @if (entry.case) {
+    <span class="text-muted-foreground truncate text-xs">
+      {{ entry.case.caseNumber }} — {{ entry.case.name }}
+    </span>
+  }
+  <span class="line-clamp-2 text-xs">{{ entry.description }}</span>
+  <div class="flex flex-wrap items-center gap-1">
+    <span
+      class="rounded-full px-2 py-0.5 text-xs font-medium"
+      [class]="statusClass(entry.status)"
+    >
+      {{ statusLabel(entry.status) | translate }}
+    </span>
+    <span class="text-muted-foreground text-xs">
+      {{ treatmentLabel(entry.treatment) | translate }}
+    </span>
+  </div>
+</ng-template>

@@ -9,21 +9,19 @@ import {
   BillingStatementStatus,
   Prisma,
   PriceSourceScope,
+  WorkEntryStatus,
 } from "@prisma/client";
 import {
-  BillableWorkItem,
   BillingStatementLineSummary,
   CaseReference,
   ClientReference,
-  PaginatedResponse,
   UserReference,
   WorkspaceRole,
 } from "@law/api-interfaces";
-import { DEFAULT_PAGE, DEFAULT_PAGE_SIZE, paginationMeta } from "@law/core";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import {
   AppendPriceSourceVersionDto,
-  BillableWorkQueryDto,
+  BillingStatementLineInputDto,
   CreatePriceSourceDto,
   CreateStatementDto,
   ExternalInvoiceDto,
@@ -31,8 +29,20 @@ import {
   UpdateStatementDto,
 } from "./financials.dto";
 
-const isPresent = <T>(value: T | null | undefined): value is T =>
-  value !== null && value !== undefined;
+const WORK_ENTRY_GROUP = "WORK_ENTRY_GROUP";
+
+/** Marks the monthly retainer fee line; `sourceId` is the agreement id. */
+export const RETAINER_FEE_SOURCE = "RETAINER_FEE";
+
+/**
+ * Line input for service-only callers (the month-end run). The source marker
+ * is deliberately absent from the public DTO, so API clients cannot set it.
+ */
+export interface InternalStatementLineInput
+  extends BillingStatementLineInputDto {
+  sourceType?: string;
+  sourceId?: string;
+}
 
 @Injectable()
 export class FinancialsService {
@@ -166,6 +176,28 @@ export class FinancialsService {
       status: line.status,
       sourceType: line.sourceType,
       sourceId: line.sourceId,
+      pricingRequired: line.pricingRequired,
+      minutes: line.minutes,
+      workEntries: (line.workEntries ?? []).map(
+        (entry: {
+          id: string;
+          workDate: Date;
+          user: {
+            id: string;
+            firstName: string | null;
+            lastName: string | null;
+            email: string;
+          };
+          description: string;
+          minutes: number | null;
+        }) => ({
+          id: entry.id,
+          workDate: entry.workDate.toISOString().slice(0, 10),
+          user: this.userReference(entry.user),
+          description: entry.description,
+          minutes: entry.minutes,
+        }),
+      ),
       billedAt: line.billedAt?.toISOString() ?? null,
       cancelledAt: line.cancelledAt?.toISOString() ?? null,
       cancellationReason: line.cancellationReason,
@@ -176,6 +208,13 @@ export class FinancialsService {
     client: true,
     caseLinks: { include: { case: true } },
     performedBy: true,
+    workEntries: {
+      include: { user: true },
+      orderBy: [
+        { workDate: "asc" as const },
+        { createdAt: "asc" as const },
+      ] as Prisma.WorkEntryOrderByWithRelationInput[],
+    },
   } as const;
 
   private statementInclude = {
@@ -198,202 +237,6 @@ export class FinancialsService {
       grossAmount: statement.grossAmount.toString(),
       lines: statement.lines.map((line: any) => this.lineSummary(line)),
       total: statement.grossAmount.toFixed(2),
-    };
-  }
-
-  async listBillableWork(
-    query: BillableWorkQueryDto,
-  ): Promise<PaginatedResponse<BillableWorkItem>> {
-    this.assertFinanceUser();
-    const manager = this.isManager();
-    const [events, tasks, deadlines] = await Promise.all([
-      this.db.event.findMany({
-        where: {
-          workspaceId: this.workspaceId,
-          status: "COMPLETED",
-          statementId: null,
-          ...(manager
-            ? {}
-            : {
-                OR: [
-                  { assignees: { some: { userId: this.context.userId } } },
-                  {
-                    assignees: { none: {} },
-                    organizerUserId: this.context.userId,
-                  },
-                ],
-              }),
-        },
-        include: {
-          case: { include: { client: true } },
-          clients: { include: { client: true } },
-          organizer: true,
-          assignees: { include: { user: true } },
-        },
-      }),
-      this.db.task.findMany({
-        where: {
-          workspaceId: this.workspaceId,
-          status: "DONE",
-          statementId: null,
-          ...(manager ? {} : { assigneeUserId: this.context.userId }),
-        },
-        include: {
-          case: { include: { client: true } },
-          client: true,
-          assignee: true,
-        },
-      }),
-      this.db.deadline.findMany({
-        where: {
-          workspaceId: this.workspaceId,
-          status: "SATISFIED",
-          statementId: null,
-          ...(manager ? {} : { responsibleUserId: this.context.userId }),
-        },
-        include: {
-          case: { include: { client: true } },
-          client: true,
-          responsibleUser: true,
-        },
-      }),
-    ]);
-
-    const raw: Array<
-      BillableWorkItem & {
-        sortDate: Date;
-        clientId: string;
-        caseId: string | null;
-      }
-    > = [];
-
-    for (const event of events) {
-      const relatedClients = [
-        ...event.clients.map((relation) => relation.client),
-        ...(event.case?.client ? [event.case.client] : []),
-      ];
-      const clientsById = new Map(
-        relatedClients.map((client) => [client.id, client]),
-      );
-      const client =
-        clientsById.size === 1 ? [...clientsById.values()][0] : null;
-      if (!client) continue;
-      const responsibleUser =
-        (!manager
-          ? event.assignees.find(
-              (assignment) => assignment.userId === this.context.userId,
-            )?.user
-          : null) ?? event.organizer;
-      raw.push({
-        sourceKey: `EVENT:${event.id}`,
-        sourceType: "EVENT",
-        sourceId: event.id,
-        title: event.title,
-        date: event.startsAt.toISOString(),
-        client: this.clientReference(client),
-        case: this.caseReference(event.case),
-        responsibleUser: this.userReference(responsibleUser),
-        sortDate: event.startsAt,
-        clientId: client.id,
-        caseId: event.caseId,
-      });
-    }
-
-    for (const task of tasks) {
-      const clientsById = new Map(
-        [task.client, task.case?.client]
-          .filter(isPresent)
-          .map((client) => [client.id, client]),
-      );
-      const client =
-        clientsById.size === 1 ? [...clientsById.values()][0] : null;
-      if (!client) continue;
-      const date = task.completedAt ?? task.updatedAt;
-      raw.push({
-        sourceKey: `TASK:${task.id}`,
-        sourceType: "TASK",
-        sourceId: task.id,
-        title: task.title,
-        date: date.toISOString(),
-        client: this.clientReference(client),
-        case: this.caseReference(task.case),
-        responsibleUser: this.userReference(task.assignee),
-        sortDate: date,
-        clientId: client.id,
-        caseId: task.caseId,
-      });
-    }
-
-    for (const deadline of deadlines) {
-      const clientsById = new Map(
-        [deadline.client, deadline.case?.client]
-          .filter(isPresent)
-          .map((client) => [client.id, client]),
-      );
-      const client =
-        clientsById.size === 1 ? [...clientsById.values()][0] : null;
-      if (!client) continue;
-      const date = deadline.satisfiedAt ?? deadline.updatedAt;
-      raw.push({
-        sourceKey: `DEADLINE:${deadline.id}`,
-        sourceType: "DEADLINE",
-        sourceId: deadline.id,
-        title: deadline.title,
-        date: date.toISOString(),
-        client: this.clientReference(client),
-        case: this.caseReference(deadline.case),
-        responsibleUser: this.userReference(deadline.responsibleUser),
-        sortDate: date,
-        clientId: client.id,
-        caseId: deadline.caseId,
-      });
-    }
-
-    const clientIds = query.clientIds?.length
-      ? query.clientIds
-      : query.clientId
-        ? [query.clientId]
-        : [];
-    const caseIds = query.caseIds?.length
-      ? query.caseIds
-      : query.caseId
-        ? [query.caseId]
-        : [];
-    const sourceTypes = new Set(query.sourceTypes ?? []);
-    const sourceKeys = new Set(query.sourceKeys ?? []);
-    const from = query.from ? new Date(query.from) : null;
-    const to = query.to ? new Date(query.to) : null;
-    const filtered = raw
-      .filter((item) => !clientIds.length || clientIds.includes(item.clientId))
-      .filter(
-        (item) =>
-          !caseIds.length ||
-          (item.caseId ? caseIds.includes(item.caseId) : false),
-      )
-      .filter((item) => !sourceTypes.size || sourceTypes.has(item.sourceType))
-      .filter((item) => !sourceKeys.size || sourceKeys.has(item.sourceKey))
-      .filter((item) => !from || item.sortDate >= from)
-      .filter((item) => !to || item.sortDate <= to)
-      .sort((a, b) => b.sortDate.getTime() - a.sortDate.getTime());
-
-    const page = query.page ?? DEFAULT_PAGE;
-    const pageSize = query.pageSize ?? DEFAULT_PAGE_SIZE;
-    return {
-      items: filtered
-        .slice((page - 1) * pageSize, page * pageSize)
-        .map((item) => ({
-          sourceKey: item.sourceKey,
-          sourceType: item.sourceType,
-          sourceId: item.sourceId,
-          title: item.title,
-          date: item.date,
-          client: item.client,
-          case: item.case,
-          responsibleUser: item.responsibleUser,
-        })),
-      meta: paginationMeta(page, pageSize, filtered.length, [
-        { field: "date", direction: "desc" },
-      ]),
     };
   }
 
@@ -526,177 +369,226 @@ export class FinancialsService {
     return statements.map((statement) => this.statementResponse(statement));
   }
 
+  private async logWorkEntries(
+    tx: Prisma.TransactionClient,
+    action: "WORK_ENTRY_BILLED" | "WORK_ENTRY_UNBILLED",
+    entries: { id: string; clientId: string; caseId: string | null }[],
+    statementId: string,
+  ): Promise<void> {
+    if (!entries.length) return;
+    await tx.activityLog.createMany({
+      data: entries.map((entry) => ({
+        workspaceId: this.workspaceId,
+        actorUserId: this.context.userId,
+        action,
+        entityType: "WORK_ENTRY",
+        entityId: entry.id,
+        clientId: entry.clientId,
+        caseId: entry.caseId,
+        metadata: { statementId },
+      })),
+    });
+  }
+
+  /** Claims confirmed, unbilled entries of the statement client for a line. */
+  private async claimEntries(
+    tx: Prisma.TransactionClient,
+    statement: { id: string; clientId: string },
+    lineId: string,
+    entryIds: string[],
+  ): Promise<{ caseIds: string[] }> {
+    const claimed = await tx.workEntry.updateMany({
+      where: {
+        id: { in: entryIds },
+        workspaceId: this.workspaceId,
+        clientId: statement.clientId,
+        status: WorkEntryStatus.CONFIRMED,
+        statementLineId: null,
+      },
+      data: {
+        status: WorkEntryStatus.BILLED,
+        statementLineId: lineId,
+        updatedByUserId: this.context.userId,
+      },
+    });
+    if (claimed.count !== entryIds.length)
+      throw new ConflictException(
+        "Work entry is unavailable for the statement client",
+      );
+    const entries = await tx.workEntry.findMany({
+      where: { id: { in: entryIds }, workspaceId: this.workspaceId },
+      select: { id: true, clientId: true, caseId: true },
+    });
+    await this.logWorkEntries(tx, "WORK_ENTRY_BILLED", entries, statement.id);
+    return {
+      caseIds: [
+        ...new Set(
+          entries.flatMap((entry) => (entry.caseId ? [entry.caseId] : [])),
+        ),
+      ],
+    };
+  }
+
+  /** Returns the entries billed on a statement to the unbilled pool. */
+  private async releaseEntries(
+    tx: Prisma.TransactionClient,
+    statementId: string,
+  ): Promise<void> {
+    const entries = await tx.workEntry.findMany({
+      where: {
+        workspaceId: this.workspaceId,
+        statementLine: { statementId },
+      },
+      select: { id: true, clientId: true, caseId: true, minutes: true },
+    });
+    if (!entries.length) return;
+    const where = (ids: string[]) => ({
+      id: { in: ids },
+      workspaceId: this.workspaceId,
+    });
+    const timed = entries.filter((entry) => entry.minutes !== null);
+    const untimed = entries.filter((entry) => entry.minutes === null);
+    if (timed.length)
+      await tx.workEntry.updateMany({
+        where: where(timed.map((entry) => entry.id)),
+        data: {
+          status: WorkEntryStatus.CONFIRMED,
+          statementLineId: null,
+          updatedByUserId: this.context.userId,
+        },
+      });
+    if (untimed.length)
+      await tx.workEntry.updateMany({
+        where: where(untimed.map((entry) => entry.id)),
+        data: {
+          status: WorkEntryStatus.PROPOSED,
+          statementLineId: null,
+          updatedByUserId: this.context.userId,
+        },
+      });
+    await this.logWorkEntries(tx, "WORK_ENTRY_UNBILLED", entries, statementId);
+  }
+
   private async replaceStatementLines(
     tx: Prisma.TransactionClient,
     statement: { id: string; clientId: string; currency: string },
-    lines: CreateStatementDto["lines"],
+    lines: InternalStatementLineInput[],
   ): Promise<void> {
-    const sourceKeys = lines.flatMap((line) =>
-      line.sourceType && line.sourceId
-        ? [`${line.sourceType}:${line.sourceId}`]
-        : [],
-    );
-    if (sourceKeys.length !== new Set(sourceKeys).size)
-      throw new ConflictException("Statement work sources must be unique");
+    const entryIds = lines.flatMap((line) => line.workEntryIds ?? []);
+    if (entryIds.length !== new Set(entryIds).size)
+      throw new ConflictException("Statement work entries must be unique");
     if (
       lines.some(
         (line) =>
-          Boolean(line.sourceType) !== Boolean(line.sourceId) ||
           line.currency.toUpperCase() !== statement.currency.toUpperCase(),
       )
     )
       throw new ConflictException(
-        "Statement lines must have a complete source and matching currency",
+        "Statement lines must have a matching currency",
       );
 
-    await Promise.all([
-      tx.event.updateMany({
-        where: { workspaceId: this.workspaceId, statementId: statement.id },
-        data: { statementId: null },
-      }),
-      tx.task.updateMany({
-        where: { workspaceId: this.workspaceId, statementId: statement.id },
-        data: { statementId: null },
-      }),
-      tx.deadline.updateMany({
-        where: { workspaceId: this.workspaceId, statementId: statement.id },
-        data: { statementId: null },
-      }),
-    ]);
+    // The composer replaces lines wholesale, so the retainer fee marker is
+    // carried by line identity: only an input id that matches a marked line of
+    // THIS statement keeps the marker. Unknown ids are ignored, and a marked
+    // line missing from the input was removed on purpose.
+    const markedLines = await tx.billingStatementLine.findMany({
+      where: {
+        workspaceId: this.workspaceId,
+        statementId: statement.id,
+        sourceType: RETAINER_FEE_SOURCE,
+      },
+      select: { id: true, sourceId: true },
+    });
+    const markerByLineId = new Map(
+      markedLines.flatMap((line) =>
+        line.sourceId ? [[line.id, line.sourceId] as const] : [],
+      ),
+    );
+
+    // Release before deleting: onDelete SetNull alone would not reset status.
+    await this.releaseEntries(tx, statement.id);
     await tx.billingStatementLine.deleteMany({
       where: { workspaceId: this.workspaceId, statementId: statement.id },
     });
 
     for (const [index, input] of lines.entries()) {
-      let caseId: string | null = null;
-      if (input.sourceType && input.sourceId) {
-        switch (input.sourceType) {
-          case "EVENT": {
-            const event = await tx.event.findFirst({
-              where: {
-                id: input.sourceId,
-                workspaceId: this.workspaceId,
-                status: "COMPLETED",
-                statementId: null,
-              },
-              include: {
-                case: true,
-                clients: true,
-              },
-            });
-            const clientIds = new Set([
-              ...(event?.clients.map((item) => item.clientId) ?? []),
-              ...(event?.case?.clientId ? [event.case.clientId] : []),
-            ]);
-            const clientId = clientIds.size === 1 ? [...clientIds][0] : null;
-            if (!event || clientId !== statement.clientId)
-              throw new ConflictException(
-                "Event is unavailable for the statement client",
-              );
-            caseId = event.caseId;
-            break;
-          }
-          case "TASK": {
-            const task = await tx.task.findFirst({
-              where: {
-                id: input.sourceId,
-                workspaceId: this.workspaceId,
-                status: "DONE",
-                statementId: null,
-              },
-              include: { case: true },
-            });
-            const clientIds = new Set(
-              [task?.clientId, task?.case?.clientId].filter(
-                (clientId): clientId is string => Boolean(clientId),
-              ),
-            );
-            if (
-              !task ||
-              clientIds.size !== 1 ||
-              !clientIds.has(statement.clientId)
-            )
-              throw new ConflictException(
-                "Task is unavailable for the statement client",
-              );
-            caseId = task.caseId;
-            break;
-          }
-          case "DEADLINE": {
-            const deadline = await tx.deadline.findFirst({
-              where: {
-                id: input.sourceId,
-                workspaceId: this.workspaceId,
-                status: "SATISFIED",
-                statementId: null,
-              },
-              include: { case: true },
-            });
-            const clientIds = new Set(
-              [deadline?.clientId, deadline?.case?.clientId].filter(
-                (clientId): clientId is string => Boolean(clientId),
-              ),
-            );
-            if (
-              !deadline ||
-              clientIds.size !== 1 ||
-              !clientIds.has(statement.clientId)
-            )
-              throw new ConflictException(
-                "Deadline is unavailable for the statement client",
-              );
-            caseId = deadline.caseId;
-            break;
-          }
-        }
-      }
-
-      await tx.billingStatementLine.create({
-        data: {
-          workspaceId: this.workspaceId,
-          statementId: statement.id,
-          clientId: statement.clientId,
-          performedByUserId: this.context.userId,
-          lineOrder: index,
-          serviceDate: new Date(input.serviceDate),
-          description: input.description.trim(),
-          netAmount: input.netAmount,
-          vatRate: input.vatRate,
-          vatAmount: input.vatAmount,
-          grossAmount: input.grossAmount,
-          currency: statement.currency.toUpperCase(),
-          status: BillingStatementLineStatus.RESERVED,
-          sourceType: input.sourceType,
-          sourceId: input.sourceId,
-          createdByUserId: this.context.userId,
-          updatedByUserId: this.context.userId,
-          caseLinks: caseId
-            ? {
-                create: {
-                  workspaceId: this.workspaceId,
-                  caseId,
-                },
-              }
-            : undefined,
-        },
-      });
-
-      if (input.sourceType === "EVENT" && input.sourceId)
-        await tx.event.update({
-          where: { id: input.sourceId },
-          data: { statementId: statement.id },
-        });
-      if (input.sourceType === "TASK" && input.sourceId)
-        await tx.task.update({
-          where: { id: input.sourceId },
-          data: { statementId: statement.id },
-        });
-      if (input.sourceType === "DEADLINE" && input.sourceId)
-        await tx.deadline.update({
-          where: { id: input.sourceId },
-          data: { statementId: statement.id },
-        });
+      const feeSourceId = input.id ? markerByLineId.get(input.id) : undefined;
+      // A repeated id must not duplicate the fee marker.
+      if (input.id) markerByLineId.delete(input.id);
+      await this.createLine(
+        tx,
+        statement,
+        feeSourceId
+          ? {
+              ...input,
+              sourceType: RETAINER_FEE_SOURCE,
+              sourceId: feeSourceId,
+            }
+          : input,
+        index,
+      );
     }
+  }
+
+  /** Creates one RESERVED line and claims its work entries. */
+  private async createLine(
+    tx: Prisma.TransactionClient,
+    statement: { id: string; clientId: string; currency: string },
+    input: InternalStatementLineInput,
+    lineOrder: number,
+  ): Promise<string> {
+    const lineEntryIds = input.workEntryIds ?? [];
+    const line = await tx.billingStatementLine.create({
+      data: {
+        workspaceId: this.workspaceId,
+        statementId: statement.id,
+        clientId: statement.clientId,
+        performedByUserId: this.context.userId,
+        lineOrder,
+        serviceDate: new Date(input.serviceDate),
+        description: input.description.trim(),
+        netAmount: input.netAmount,
+        vatRate: input.vatRate,
+        vatAmount: input.vatAmount,
+        grossAmount: input.grossAmount,
+        currency: statement.currency.toUpperCase(),
+        status: BillingStatementLineStatus.RESERVED,
+        sourceType:
+          input.sourceType ?? (lineEntryIds.length ? WORK_ENTRY_GROUP : null),
+        sourceId: input.sourceId ?? null,
+        pricingRequired: input.pricingRequired ?? false,
+        minutes: input.minutes ?? null,
+        createdByUserId: this.context.userId,
+        updatedByUserId: this.context.userId,
+      },
+    });
+    if (lineEntryIds.length)
+      await this.claimForLine(tx, statement, line.id, lineEntryIds);
+    return line.id;
+  }
+
+  /** Claims entries for a line and links the line to their cases. */
+  private async claimForLine(
+    tx: Prisma.TransactionClient,
+    statement: { id: string; clientId: string },
+    lineId: string,
+    entryIds: string[],
+  ): Promise<void> {
+    const { caseIds } = await this.claimEntries(
+      tx,
+      statement,
+      lineId,
+      entryIds,
+    );
+    if (caseIds.length)
+      await tx.billingStatementLineCase.createMany({
+        data: caseIds.map((caseId) => ({
+          workspaceId: this.workspaceId,
+          billingStatementLineId: lineId,
+          caseId,
+        })),
+        skipDuplicates: true,
+      });
   }
 
   private async nextStatementNumber(
@@ -754,6 +646,7 @@ export class FinancialsService {
           numberOfCashBill: input.numberOfCashBill.trim(),
           country: input.country.trim(),
           currency: input.currency.toUpperCase(),
+          printWorkSpecification: input.printWorkSpecification,
           createdByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
         },
@@ -774,6 +667,153 @@ export class FinancialsService {
         include: this.statementInclude,
       });
       return this.statementResponse(complete);
+    });
+  }
+
+  /**
+   * Service-only entry point for the billing run: creates a draft statement
+   * for a client month from prepared lines inside the caller's transaction.
+   * Not exposed through the controller; the caller enforces access.
+   */
+  async createDraftFromLines(
+    tx: Prisma.TransactionClient,
+    input: {
+      clientId: string;
+      currency: string;
+      billingMonth: string;
+      header: Pick<
+        CreateStatementDto,
+        | "dateOfCreate"
+        | "dateOfMaturity"
+        | "dateOfTurnover"
+        | "placeOfIssue"
+        | "methodOfPayment"
+        | "country"
+        | "vatRate"
+      >;
+      lines: InternalStatementLineInput[];
+    },
+  ): Promise<string> {
+    const sum = (pick: (line: InternalStatementLineInput) => number) =>
+      Math.round(
+        input.lines.reduce((total, line) => total + pick(line) * 100, 0),
+      ) / 100;
+    const number = await this.nextStatementNumber(tx);
+    const statement = await tx.billingStatement.create({
+      data: {
+        workspaceId: this.workspaceId,
+        clientId: input.clientId,
+        statementNumber: number,
+        dateOfCreate: new Date(input.header.dateOfCreate),
+        dateOfMaturity: new Date(input.header.dateOfMaturity),
+        dateOfTurnover: new Date(input.header.dateOfTurnover),
+        placeOfIssue: input.header.placeOfIssue.trim(),
+        methodOfPayment: input.header.methodOfPayment.trim(),
+        comment: "",
+        netAmount: sum((line) => line.netAmount),
+        vatRate: input.header.vatRate,
+        vatAmount: sum((line) => line.vatAmount),
+        grossAmount: sum((line) => line.grossAmount),
+        numberOfCashBill: "",
+        country: input.header.country.trim(),
+        currency: input.currency.toUpperCase(),
+        billingMonth: input.billingMonth,
+        createdByUserId: this.context.userId,
+        updatedByUserId: this.context.userId,
+      },
+    });
+    await this.replaceStatementLines(tx, statement, input.lines);
+    return statement.id;
+  }
+
+  /**
+   * Service-only: appends prepared lines to an existing DRAFT statement inside
+   * the caller's transaction and adds their amounts to the statement totals.
+   * Existing lines and their entries are left untouched. Not exposed through
+   * the controller; the caller enforces access.
+   */
+  async appendLinesToDraft(
+    tx: Prisma.TransactionClient,
+    statementId: string,
+    lines: InternalStatementLineInput[],
+  ): Promise<void> {
+    const statement = await tx.billingStatement.findFirst({
+      where: { id: statementId, workspaceId: this.workspaceId },
+    });
+    if (!statement) throw new NotFoundException("Statement not found");
+    if (statement.status !== BillingStatementStatus.DRAFT)
+      throw new ConflictException("Only draft statements can be changed");
+    if (!lines.length) return;
+    const entryIds = lines.flatMap((line) => line.workEntryIds ?? []);
+    if (entryIds.length !== new Set(entryIds).size)
+      throw new ConflictException("Statement work entries must be unique");
+    if (
+      lines.some(
+        (line) =>
+          line.currency.toUpperCase() !== statement.currency.toUpperCase(),
+      )
+    )
+      throw new ConflictException(
+        "Statement lines must have a matching currency",
+      );
+
+    const last = await tx.billingStatementLine.aggregate({
+      where: { workspaceId: this.workspaceId, statementId },
+      _max: { lineOrder: true },
+    });
+    const firstOrder = (last._max.lineOrder ?? -1) + 1;
+    for (const [index, input] of lines.entries()) {
+      await this.createLine(tx, statement, input, firstOrder + index);
+    }
+
+    const sum = (pick: (line: InternalStatementLineInput) => number) =>
+      lines.reduce(
+        (total, line) => total.plus(new Prisma.Decimal(pick(line))),
+        new Prisma.Decimal(0),
+      );
+    await tx.billingStatement.update({
+      where: { id: statementId },
+      data: {
+        netAmount: { increment: sum((line) => line.netAmount) },
+        vatAmount: { increment: sum((line) => line.vatAmount) },
+        grossAmount: { increment: sum((line) => line.grossAmount) },
+        updatedByUserId: this.context.userId,
+      },
+    });
+  }
+
+  /**
+   * Service-only: claims more work entries onto an existing line of a DRAFT
+   * statement (the month-end run uses it for covered work logged after the
+   * fee line was created) and refreshes the line's minutes. Amounts are not
+   * changed. Not exposed through the controller; the caller enforces access.
+   */
+  async attachEntriesToLine(
+    tx: Prisma.TransactionClient,
+    lineId: string,
+    entryIds: string[],
+  ): Promise<void> {
+    const line = await tx.billingStatementLine.findFirst({
+      where: { id: lineId, workspaceId: this.workspaceId },
+      include: { statement: true },
+    });
+    if (!line) throw new NotFoundException("Statement line not found");
+    if (line.statement.status !== BillingStatementStatus.DRAFT)
+      throw new ConflictException("Only draft statements can be changed");
+    if (!entryIds.length) return;
+    await this.claimForLine(tx, line.statement, lineId, entryIds);
+    const total = await tx.workEntry.aggregate({
+      where: { workspaceId: this.workspaceId, statementLineId: lineId },
+      _sum: { minutes: true },
+    });
+    await tx.billingStatementLine.update({
+      where: { id: lineId },
+      data: {
+        minutes: total._sum.minutes ?? null,
+        // The fee marker survives so re-runs still recognise the fee line.
+        sourceType: line.sourceType ?? WORK_ENTRY_GROUP,
+        updatedByUserId: this.context.userId,
+      },
     });
   }
 
@@ -814,6 +854,7 @@ export class FinancialsService {
           grossAmount: input.grossAmount,
           numberOfCashBill: input.numberOfCashBill?.trim(),
           country: input.country?.trim(),
+          printWorkSpecification: input.printWorkSpecification,
           updatedByUserId: this.context.userId,
         },
       });
@@ -841,6 +882,7 @@ export class FinancialsService {
           resultEntityId: id,
         },
       });
+      await this.releaseEntries(tx, id);
       await tx.billingStatement.delete({ where: { id } });
     });
   }
@@ -862,6 +904,12 @@ export class FinancialsService {
     const statement = await this.getStatement(id);
     if (statement.status !== BillingStatementStatus.DRAFT)
       throw new ConflictException("Only draft statements can be sent");
+    if (
+      statement.lines.some(
+        (line: { pricingRequired: boolean }) => line.pricingRequired,
+      )
+    )
+      throw new ConflictException("Price every line before sending");
     return this.db.$transaction(async (tx) => {
       const sent = await tx.billingStatement.update({
         where: { id },
@@ -916,21 +964,8 @@ export class FinancialsService {
           updatedByUserId: this.context.userId,
         },
       });
+      await this.releaseEntries(tx, id);
       if (statement.status === BillingStatementStatus.DRAFT) {
-        await Promise.all([
-          tx.event.updateMany({
-            where: { workspaceId: this.workspaceId, statementId: id },
-            data: { statementId: null },
-          }),
-          tx.task.updateMany({
-            where: { workspaceId: this.workspaceId, statementId: id },
-            data: { statementId: null },
-          }),
-          tx.deadline.updateMany({
-            where: { workspaceId: this.workspaceId, statementId: id },
-            data: { statementId: null },
-          }),
-        ]);
         await tx.billingStatementLine.deleteMany({
           where: { workspaceId: this.workspaceId, statementId: id },
         });

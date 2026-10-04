@@ -18,6 +18,7 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { AuthApiClient, UserSettingsApiClient } from "@law/api-clients";
 import { UserProfileGender } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -46,6 +47,7 @@ import { createSelectItemToString, SelectOption } from "../../shared/utils";
     HlmFieldLabel,
     HlmInput,
     HlmSelectImports,
+    HlmSwitch,
     TranslatePipe,
     HlmSpinner,
     UserAvatarComponent,
@@ -94,6 +96,17 @@ export class ProfileSettingsComponent {
     }),
     avatarUrl: new FormControl(""),
   });
+  readonly reminderForm = new FormGroup({
+    timeReviewReminderEnabled: new FormControl(false, { nonNullable: true }),
+    timeReviewReminderTime: new FormControl("17:30", {
+      nonNullable: true,
+      validators: [
+        Validators.required,
+        Validators.pattern(/^([01]\d|2[0-3]):[0-5]\d$/),
+      ],
+    }),
+  });
+  readonly savingReminder = signal(false);
   readonly passwordForm = new FormGroup({
     currentPassword: new FormControl("", {
       nonNullable: true,
@@ -121,6 +134,15 @@ export class ProfileSettingsComponent {
   });
 
   constructor() {
+    effect(() => {
+      const preferences = this.settingsStore.preferences();
+      if (preferences && this.reminderForm.pristine) {
+        this.reminderForm.patchValue({
+          timeReviewReminderEnabled: preferences.timeReviewReminderEnabled,
+          timeReviewReminderTime: preferences.timeReviewReminderTime,
+        });
+      }
+    });
     effect(() => {
       const profile = this.profile();
       if (profile && this.form.pristine) {
@@ -169,6 +191,35 @@ export class ProfileSettingsComponent {
             this.localization.translate("settings.profileSaveError"),
           );
           this.saving.set(false);
+        },
+      });
+  }
+
+  saveReminder(): void {
+    if (this.savingReminder()) {
+      return;
+    }
+    if (this.reminderForm.invalid) {
+      this.reminderForm.markAllAsTouched();
+      return;
+    }
+    this.savingReminder.set(true);
+    this.settingsStore
+      .update({ preferences: this.reminderForm.getRawValue() })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.reminderForm.markAsPristine();
+          this.toast.success(
+            this.localization.translate("settings.profileSaved"),
+          );
+          this.savingReminder.set(false);
+        },
+        error: () => {
+          this.toast.error(
+            this.localization.translate("settings.profileSaveError"),
+          );
+          this.savingReminder.set(false);
         },
       });
   }

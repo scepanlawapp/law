@@ -1,6 +1,7 @@
 // Populates the bootstrap workspace with realistic Serbian demo/test data:
 // extra lawyer/staff logins, clients, cases, events, tasks, deadlines, notes,
-// and a representative multi-case billing entry.
+// a representative multi-case billing entry, and the work-capture ledger
+// (service categories, rates, retainers, and a month of work entries).
 // Run `npm run db:seed:auth` first, then `npm run db:seed:demo`.
 const { PrismaClient } = require("@prisma/client");
 const { randomBytes, scryptSync } = require("node:crypto");
@@ -1146,6 +1147,483 @@ async function ensureCompanyPriceCatalog(prisma, workspaceId, actorUserId) {
   });
 }
 
+const SERVICE_CATEGORY_NAMES = [
+  "Korporativno savetovanje",
+  "Pregled ugovora",
+  "Izrada ugovora",
+  "Medijsko pravo",
+  "Parnica",
+  "Upravni postupak",
+  "Ostalo",
+];
+
+// Internal hourly value (RSD) per role, used only by the profitability report.
+function internalRateFor(user, index) {
+  if (index <= 1) return 9000; // owner and partner
+  const title = user.jobTitle ?? "";
+  if (title === "Advokat") return 6000;
+  return 2500; // trainees, legal assistant, office manager
+}
+
+const DEMO_STATEMENT_LINE_ID = "eeeeeeee-eeee-4eee-aeee-eeeeeeeeeeee";
+
+function seedId(prefix, n) {
+  return `${prefix}-ffff-4fff-afff-${String(n).padStart(12, "0")}`;
+}
+function workEntryId(n) {
+  return seedId("ffffffff", n);
+}
+function septDate(day) {
+  return new Date(Date.UTC(2026, 8, day));
+}
+
+async function ensureServiceCategories(prisma, workspaceId) {
+  const byName = new Map();
+  for (const [order, name] of SERVICE_CATEGORY_NAMES.entries()) {
+    // The migration only seeds these when the workspace row already existed,
+    // so the demo seed makes sure they are present.
+    const category = await prisma.serviceCategory.upsert({
+      where: { workspaceId_name: { workspaceId, name } },
+      update: {},
+      create: { workspaceId, name, order, active: true },
+    });
+    byName.set(name, category);
+  }
+  return byName;
+}
+
+async function ensureRatesAndRetainers(
+  prisma,
+  workspaceId,
+  users,
+  clients,
+  categories,
+) {
+  await prisma.workspaceConfig.upsert({
+    where: { workspaceId },
+    update: {},
+    create: { workspaceId },
+  });
+  // Only fill the office target when nobody has set one yet.
+  await prisma.workspaceConfig.updateMany({
+    where: { workspaceId, targetHourlyRate: null },
+    data: { targetHourlyRate: 7000 },
+  });
+
+  for (const [index, user] of users.entries()) {
+    await prisma.userRate.upsert({
+      where: {
+        workspaceId_userId_effectiveFrom: {
+          workspaceId,
+          userId: user.id,
+          effectiveFrom: new Date("2026-01-01"),
+        },
+      },
+      update: {},
+      create: {
+        workspaceId,
+        userId: user.id,
+        hourlyValue: internalRateFor(user, index),
+        currency: "RSD",
+        effectiveFrom: new Date("2026-01-01"),
+      },
+    });
+  }
+
+  const cappedClient = clients[8];
+  const uncappedClient = clients[9];
+  const hourlyClient = clients[10];
+
+  const retainers = [
+    {
+      id: seedId("12121212", 1),
+      clientId: cappedClient.id,
+      title: "Paušal 2026 (20 sati)",
+      monthlyFee: 120000,
+      includedMinutes: 1200,
+      overageRule: "HOURLY",
+      overageHourlyRate: 6000,
+      outOfScopeRule: "AT",
+      outOfScopeHourlyRate: null,
+      covered: [
+        "Korporativno savetovanje",
+        "Pregled ugovora",
+        "Izrada ugovora",
+      ],
+    },
+    {
+      id: seedId("12121212", 2),
+      clientId: uncappedClient.id,
+      title: "Paušal 2026 (bez ograničenja sati)",
+      monthlyFee: 60000,
+      includedMinutes: null,
+      overageRule: "ABSORBED",
+      overageHourlyRate: null,
+      outOfScopeRule: "AT",
+      outOfScopeHourlyRate: null,
+      covered: ["Medijsko pravo", "Pregled ugovora"],
+    },
+  ];
+  for (const retainer of retainers) {
+    const { covered, ...fields } = retainer;
+    await prisma.retainerAgreement.upsert({
+      where: { id: retainer.id },
+      update: {},
+      create: {
+        ...fields,
+        workspaceId,
+        currency: "RSD",
+        validFrom: new Date("2026-01-01"),
+        validTo: null,
+        active: true,
+      },
+    });
+    await prisma.retainerAgreementCategory.createMany({
+      data: covered.map((name) => ({
+        workspaceId,
+        retainerAgreementId: retainer.id,
+        serviceCategoryId: categories.get(name).id,
+      })),
+      skipDuplicates: true,
+    });
+  }
+
+  await prisma.clientBillingProfile.upsert({
+    where: { clientId: hourlyClient.id },
+    update: {},
+    create: {
+      workspaceId,
+      clientId: hourlyClient.id,
+      hourlyRate: 120,
+      currency: "EUR",
+    },
+  });
+}
+
+// Source rows (completed task/event, satisfied deadline, logged activities)
+// that back the TASK/EVENT/DEADLINE/ACTIVITY work entries. Deterministic ids
+// keep re-runs from duplicating them.
+async function ensureWorkEntrySources(
+  prisma,
+  workspaceId,
+  actorUserId,
+  users,
+  caseFor,
+) {
+  const ids = {
+    task: seedId("13131313", 1),
+    eventA: seedId("14141414", 1),
+    eventD: seedId("14141414", 2),
+    deadline: seedId("15151515", 1),
+    caseActivity: seedId("16161616", 1),
+    clientActivity: seedId("17171717", 1),
+  };
+  const caseA = caseFor("A");
+  const caseB = caseFor("B");
+  const caseD = caseFor("D");
+
+  await prisma.task.upsert({
+    where: { id: ids.task },
+    update: {},
+    create: {
+      id: ids.task,
+      workspaceId,
+      title: "Pregled aneksa ugovora o zakupu",
+      description: "Zadatak vezan za klijenta sa paušalom.",
+      status: "DONE",
+      priority: "NORMAL",
+      assigneeUserId: users[2].id,
+      dueDate: septDate(11),
+      caseId: caseA.id,
+      completedAt: new Date("2026-09-11T10:30:00.000Z"),
+      completedByUserId: users[2].id,
+      createdByUserId: actorUserId,
+    },
+  });
+
+  const events = [
+    {
+      id: ids.eventA,
+      caseId: caseA.id,
+      clientId: caseA.clientId,
+      organizer: users[1],
+      title: "Sastanak sa klijentom - izmene statuta",
+      startsAt: new Date("2026-09-12T08:00:00.000Z"),
+      endsAt: new Date("2026-09-12T09:00:00.000Z"),
+    },
+    {
+      id: ids.eventD,
+      caseId: caseD.id,
+      clientId: caseD.clientId,
+      organizer: users[5],
+      title: "Dostava dokumentacije sudu",
+      startsAt: new Date("2026-09-18T09:00:00.000Z"),
+      endsAt: new Date("2026-09-18T09:30:00.000Z"),
+    },
+  ];
+  for (const event of events) {
+    await prisma.event.upsert({
+      where: { id: event.id },
+      update: {},
+      create: {
+        id: event.id,
+        workspaceId,
+        type: "MEETING",
+        title: event.title,
+        description: "",
+        startsAt: event.startsAt,
+        endsAt: event.endsAt,
+        timeZone: "Europe/Belgrade",
+        isAllDay: false,
+        status: "COMPLETED",
+        location: "Kancelarija",
+        organizerUserId: event.organizer.id,
+        caseId: event.caseId,
+        createdByUserId: actorUserId,
+        assignees: {
+          create: [{ userId: event.organizer.id, workspaceId }],
+        },
+        clients: { create: [{ clientId: event.clientId, workspaceId }] },
+      },
+    });
+  }
+
+  await prisma.deadline.upsert({
+    where: { id: ids.deadline },
+    update: {},
+    create: {
+      id: ids.deadline,
+      workspaceId,
+      title: "Rok za odgovor na tužbu",
+      description: "",
+      type: "COURT",
+      dueDate: new Date("2026-09-21T00:00:00.000Z"),
+      timeZone: "Europe/Belgrade",
+      status: "SATISFIED",
+      responsibleUserId: users[3].id,
+      caseId: caseB.id,
+      sourceDescription: "Uneto ručno na osnovu procene predmeta.",
+      satisfiedAt: new Date("2026-09-21T11:00:00.000Z"),
+      satisfiedByUserId: users[3].id,
+      createdByUserId: actorUserId,
+    },
+  });
+
+  await prisma.caseActivity.upsert({
+    where: { id: ids.caseActivity },
+    update: {},
+    create: {
+      id: ids.caseActivity,
+      workspaceId,
+      caseId: caseB.id,
+      type: "PHONE_CALL",
+      title: "Telefonski poziv - pitanje o objavi teksta",
+      description: "Klijent pitao o rokovima za odgovor i ispravku.",
+      activityDate: new Date("2026-09-10T12:00:00.000Z"),
+      source: "MANUAL",
+      createdByUserId: users[3].id,
+      updatedByUserId: users[3].id,
+    },
+  });
+  await prisma.clientActivity.upsert({
+    where: { id: ids.clientActivity },
+    update: {},
+    create: {
+      id: ids.clientActivity,
+      workspaceId,
+      clientId: caseB.clientId,
+      type: "EMAIL",
+      title: "Odgovor klijentu o ugovoru sa izdavačem",
+      description: "",
+      activityDate: new Date("2026-09-23T13:00:00.000Z"),
+      source: "MANUAL",
+      createdByUserId: users[5].id,
+      updatedByUserId: users[5].id,
+    },
+  });
+  return ids;
+}
+
+// A month of work entries (September 2026) across every source and status.
+// Client keys: A capped retainer, B uncapped ABSORBED retainer, C hourly
+// profile (EUR), D no retainer or profile, E has a draft statement (BILLED).
+async function ensureWorkEntries(
+  prisma,
+  workspaceId,
+  users,
+  clients,
+  cases,
+  categories,
+) {
+  const clientByKey = {
+    A: clients[8],
+    B: clients[9],
+    C: clients[10],
+    D: clients[11],
+    E: clients[0],
+  };
+  // The organization clients 8..13 have exactly one case each; client 0 has
+  // two, so E uses cases[0], which the demo statement line already references.
+  const caseFor = (key) => {
+    if (key === "E") return cases[0];
+    return cases.find((item) => item.clientId === clientByKey[key].id);
+  };
+  const sources = await ensureWorkEntrySources(
+    prisma,
+    workspaceId,
+    users[0].id,
+    users,
+    caseFor,
+  );
+  const statementLine = await prisma.billingStatementLine.findUnique({
+    where: { id: DEMO_STATEMENT_LINE_ID },
+  });
+  const now = Date.now();
+
+  const COR = "Korporativno savetovanje";
+  const REV = "Pregled ugovora";
+  const DRAFT = "Izrada ugovora";
+  const MEDIA = "Medijsko pravo";
+  const LIT = "Parnica";
+  const OTHER = "Ostalo";
+
+  // Fields: n, u (user index), c (client key), withCase, day, min, desc, cat,
+  // t (treatment), s (status), src (source), extra.
+  // prettier-ignore
+  const specs = [
+    // Client A: capped retainer (20 h). Covered work totals 20 h 15 min.
+    [1, 1, "A", false, 2, 90, "Savetovanje o izmenama statuta društva", COR, "RETAINER", "CONFIRMED", "MANUAL"],
+    [2, 2, "A", false, 3, 60, "Pregled ugovora o zakupu poslovnog prostora", REV, "RETAINER", "CONFIRMED", "MANUAL"],
+    [3, 5, "A", false, 3, 120, "Analiza ugovora o distribuciji (pripravnik)", REV, "RETAINER", "CONFIRMED", "MANUAL"],
+    [4, 2, "A", false, 4, 45, "Poziv klijenta - pitanje o sednici skupštine", COR, "RETAINER", "CONFIRMED", "QUICK_CAPTURE", { aiParsed: true }],
+    [5, 1, "A", false, 7, 150, "Nacrt ugovora o poslovnoj saradnji", DRAFT, "RETAINER", "CONFIRMED", "MANUAL"],
+    [6, 3, "A", false, 8, 180, "Nacrt ugovora o kreditu sa bankom", DRAFT, "RETAINER", "CONFIRMED", "MANUAL"],
+    [7, 6, "A", false, 9, 240, "Pregled ugovora sa dobavljačima (pripravnik)", REV, "RETAINER", "CONFIRMED", "MANUAL"],
+    [8, 2, "A", false, 10, 30, "Brza konsultacija o rokovima za registraciju", COR, "RETAINER", "CONFIRMED", "QUICK_CAPTURE"],
+    [9, 1, "A", false, 14, 60, "Priprema odluke skupštine", COR, "RETAINER", "CONFIRMED", "TIMER"],
+    [10, 3, "A", false, 15, 105, "Izrada aneksa ugovora o zakupu", DRAFT, "RETAINER", "CONFIRMED", "TIMER"],
+    [11, 4, "A", true, 16, 120, "Priprema odgovora na tužbu", LIT, "AT", "CONFIRMED", "MANUAL"],
+    [12, 2, "A", false, 17, 45, "Prepiska sa registrom privrednih subjekata", OTHER, "AT", "CONFIRMED", "QUICK_CAPTURE"],
+    [13, 2, "A", true, 11, 75, "Pregled aneksa ugovora o zakupu", REV, "RETAINER", "CONFIRMED", "TASK", { sourceType: "TASK", sourceId: sources.task }],
+    [14, 1, "A", true, 12, 60, "Sastanak sa klijentom - izmene statuta", COR, "RETAINER", "CONFIRMED", "EVENT", { sourceType: "EVENT", sourceId: sources.eventA }],
+    [15, 7, "A", false, 15, 25, "Overa dokumentacije kod javnog beležnika", OTHER, "AT", "CONFIRMED", "MANUAL"],
+    // Client B: uncapped retainer, overage absorbed, out-of-scope at AT.
+    [16, 1, "B", false, 2, 90, "Mišljenje o objavi članka o javnoj ličnosti", MEDIA, "RETAINER", "CONFIRMED", "MANUAL"],
+    [17, 3, "B", false, 3, 60, "Odgovor na zahtev za ispravku", MEDIA, "RETAINER", "CONFIRMED", "MANUAL"],
+    [18, 5, "B", false, 7, 120, "Pregled uređivačke politike (pripravnik)", MEDIA, "RETAINER", "CONFIRMED", "MANUAL"],
+    [19, 2, "B", false, 8, 30, "Pregled ugovora sa novim saradnikom", REV, "RETAINER", "CONFIRMED", "QUICK_CAPTURE"],
+    [20, 3, "B", true, 10, 20, "Telefonski poziv - pitanje o objavi teksta", MEDIA, "RETAINER", "CONFIRMED", "ACTIVITY", { sourceType: "CASE_ACTIVITY", sourceId: sources.caseActivity }],
+    [21, 1, "B", true, 15, 180, "Zastupanje u parnici za naknadu štete", LIT, "AT", "CONFIRMED", "MANUAL"],
+    [22, 4, "B", false, 18, 75, "Savetovanje o osnivanju zavisnog društva", COR, "AT", "CONFIRMED", "MANUAL"],
+    [23, 3, "B", true, 21, null, "Rok za odgovor na tužbu", null, "UNDECIDED", "PROPOSED", "DEADLINE", { sourceType: "DEADLINE", sourceId: sources.deadline }],
+    [24, 5, "B", false, 23, null, "Odgovor klijentu o ugovoru sa izdavačem", null, "UNDECIDED", "PROPOSED", "ACTIVITY", { sourceType: "CLIENT_ACTIVITY", sourceId: sources.clientActivity }],
+    [25, 2, "B", false, 25, 40, "Dopisivanje o internom pitanju bez naknade", MEDIA, "NON_BILLABLE", "WRITTEN_OFF", "MANUAL", { writeOffReason: "Dogovoreno sa klijentom, ne naplaćuje se." }],
+    [26, 0, "B", false, 1, 45, "Konsultacije o medijskoj strategiji", MEDIA, "RETAINER", "CONFIRMED", "MANUAL"],
+    // Client C: hourly profile (EUR 120/h), no retainer.
+    [27, 1, "C", true, 3, 60, "Izrada ugovora o licenci", DRAFT, "HOURLY", "CONFIRMED", "MANUAL"],
+    [28, 2, "C", true, 9, 90, "Pregled ugovora o zajedničkom ulaganju", REV, "HOURLY", "CONFIRMED", "MANUAL"],
+    [29, 5, "C", true, 10, 120, "Due diligence dokumentacije (pripravnik)", REV, "HOURLY", "CONFIRMED", "MANUAL"],
+    [30, 3, "C", true, 16, 45, "Savetovanje o promeni sedišta", COR, "HOURLY", "CONFIRMED", "TIMER"],
+    [31, 4, "C", false, 22, 30, "Poziv sa direktorom klijenta", OTHER, "HOURLY", "CONFIRMED", "QUICK_CAPTURE", { aiParsed: true }],
+    [32, 2, "C", true, 24, 150, "Priprema za pripremno ročište", LIT, "HOURLY", "CONFIRMED", "MANUAL"],
+    // Client D: no retainer or profile (AT, undecided, non-billable).
+    [33, 1, "D", true, 4, 100, "Savetovanje o sticanju udela", COR, "AT", "CONFIRMED", "MANUAL"],
+    [34, 3, "D", true, 11, 60, "Nacrt ugovora o prodaji udela", DRAFT, "AT", "CONFIRMED", "MANUAL"],
+    [35, 4, "D", false, 14, 45, "Poziv klijenta oko tužbe", OTHER, "UNDECIDED", "CONFIRMED", "QUICK_CAPTURE"],
+    [36, 6, "D", false, 17, 30, "Prva konsultacija sa klijentom", COR, "NON_BILLABLE", "CONFIRMED", "MANUAL"],
+    [37, 5, "D", true, 18, null, "Dostava dokumentacije sudu", null, "UNDECIDED", "PROPOSED", "EVENT", { sourceType: "EVENT", sourceId: sources.eventD }],
+    // Running timer (one per user at most).
+    [38, 2, "D", true, null, null, "Priprema za ročište", LIT, "UNDECIDED", "RUNNING", "TIMER", { timerStartedAt: new Date(now - 25 * 60000) }],
+  ];
+
+  if (statementLine) {
+    // Billed history, linked to the demo draft statement line (client E).
+    // prettier-ignore
+    specs.push(
+      [39, 1, "E", true, "08-27", 120, "Pravno mišljenje o ugovoru o zakupu", DRAFT, "AT", "BILLED", "MANUAL", { statementLineId: statementLine.id }],
+      [40, 2, "E", true, "08-28", 90, "Pravno mišljenje o ugovoru o kreditu", DRAFT, "AT", "BILLED", "MANUAL", { statementLineId: statementLine.id }],
+    );
+  }
+
+  for (const [
+    n,
+    u,
+    key,
+    withCase,
+    day,
+    minutes,
+    description,
+    categoryName,
+    treatment,
+    status,
+    source,
+    extra = {},
+  ] of specs) {
+    const user = users[u];
+    const client = clientByKey[key];
+    const caseItem = withCase ? caseFor(key) : null;
+    const workDate =
+      typeof day === "string"
+        ? new Date(`2026-${day}T00:00:00.000Z`)
+        : day === null
+          ? new Date(
+              new Date(now).toISOString().slice(0, 10) + "T00:00:00.000Z",
+            )
+          : septDate(day);
+    await prisma.workEntry.upsert({
+      where: { id: workEntryId(n) },
+      update: {},
+      create: {
+        id: workEntryId(n),
+        workspaceId,
+        userId: user.id,
+        clientId: client.id,
+        caseId: caseItem ? caseItem.id : null,
+        workDate,
+        minutes,
+        timerStartedAt: extra.timerStartedAt ?? null,
+        description,
+        serviceCategoryId: categoryName
+          ? categories.get(categoryName).id
+          : null,
+        treatment,
+        status,
+        writeOffReason: extra.writeOffReason ?? null,
+        source,
+        sourceType: extra.sourceType ?? null,
+        sourceId: extra.sourceId ?? null,
+        statementLineId: extra.statementLineId ?? null,
+        aiParsed: extra.aiParsed ?? false,
+        createdByUserId: user.id,
+        updatedByUserId: user.id,
+      },
+    });
+  }
+  return specs.length;
+}
+
+async function ensureWorkCapture(prisma, workspaceId, users, clients, cases) {
+  const categories = await ensureServiceCategories(prisma, workspaceId);
+  await ensureRatesAndRetainers(
+    prisma,
+    workspaceId,
+    users,
+    clients,
+    categories,
+  );
+  const entryCount = await ensureWorkEntries(
+    prisma,
+    workspaceId,
+    users,
+    clients,
+    cases,
+    categories,
+  );
+  console.log(
+    `Work capture ready: ${categories.size} categories, ${users.length} user rates, 2 retainers, 1 hourly profile, ${entryCount} work entries.`,
+  );
+}
+
 async function main() {
   const prisma = new PrismaClient();
   try {
@@ -1205,6 +1683,7 @@ async function main() {
     await ensureBillingStatement(prisma, workspaceId, adminUser.id, cases);
     await ensureCompanyPriceCatalog(prisma, workspaceId, adminUser.id);
     await ensureClientActivities(prisma, workspaceId, adminUser.id, clients);
+    await ensureWorkCapture(prisma, workspaceId, users, clients, cases);
 
     const marker = await prisma.activityLog.findFirst({
       where: { workspaceId, action: "DEMO_SEED_COMPLETED" },

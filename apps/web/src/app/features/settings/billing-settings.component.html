@@ -1,0 +1,450 @@
+<div class="px-4 py-6 md:px-8">
+  <header class="max-w-4xl border-b border-border pb-4">
+    <h2 class="text-base font-semibold">
+      {{ "settings.billing" | translate }}
+    </h2>
+    <p class="text-muted-foreground mt-1 text-sm leading-snug">
+      {{ "billing.description" | translate }}
+    </p>
+  </header>
+
+  <div class="mt-8 flex max-w-4xl flex-col gap-12">
+    <!-- Workspace billing config -->
+    <section class="flex flex-col gap-4" aria-labelledby="billing-config-title">
+      <h3 id="billing-config-title" class="text-sm font-semibold">
+        {{ "billing.config.title" | translate }}
+      </h3>
+      @if (configLoading()) {
+        <hlm-spinner [attr.aria-label]="'settings.loading' | translate" />
+      } @else if (configError()) {
+        <p class="text-destructive text-sm" role="alert">
+          {{ "billing.loadError" | translate }}
+        </p>
+      } @else {
+        <form
+          class="flex flex-col gap-4"
+          [formGroup]="configForm"
+          (ngSubmit)="saveConfig()"
+          novalidate
+        >
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div hlmField>
+              <label hlmFieldLabel for="billing-target-rate">
+                {{ "billing.config.targetRate" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="billing-target-rate"
+                inputmode="decimal"
+                formControlName="targetHourlyRate"
+                [attr.aria-invalid]="
+                  configForm.controls.targetHourlyRate.touched &&
+                  configForm.controls.targetHourlyRate.invalid
+                "
+              />
+              <p class="text-muted-foreground text-sm">
+                {{ "billing.config.targetRateHint" | translate }}
+              </p>
+              @if (
+                configForm.controls.targetHourlyRate.touched &&
+                configForm.controls.targetHourlyRate.invalid
+              ) {
+                <p class="text-destructive text-sm" role="alert">
+                  {{ "billing.invalidAmount" | translate }}
+                </p>
+              }
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="billing-internal-currency">
+                {{ "billing.config.internalCurrency" | translate }}
+              </label>
+              <hlm-select
+                formControlName="internalCurrency"
+                [itemToString]="currencyItemToString"
+              >
+                <hlm-select-trigger
+                  buttonId="billing-internal-currency"
+                  class="w-full"
+                >
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal width="content">
+                  <hlm-select-group>
+                    @for (option of currencyOptions; track option.value) {
+                      <hlm-select-item [value]="option.value">
+                        {{ option.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="billing-vat-rate">
+                {{ "billing.config.vatRate" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="billing-vat-rate"
+                inputmode="decimal"
+                formControlName="defaultVatRate"
+                [attr.aria-invalid]="
+                  configForm.controls.defaultVatRate.touched &&
+                  configForm.controls.defaultVatRate.invalid
+                "
+              />
+              @if (
+                configForm.controls.defaultVatRate.touched &&
+                configForm.controls.defaultVatRate.invalid
+              ) {
+                <p class="text-destructive text-sm" role="alert">
+                  {{ "billing.invalidVat" | translate }}
+                </p>
+              }
+            </div>
+
+            <div hlmField>
+              <label hlmFieldLabel for="billing-payment-term">
+                {{ "billing.config.paymentTermDays" | translate }}
+              </label>
+              <input
+                hlmInput
+                id="billing-payment-term"
+                type="number"
+                min="0"
+                max="365"
+                step="1"
+                formControlName="paymentTermDays"
+                [attr.aria-invalid]="
+                  configForm.controls.paymentTermDays.touched &&
+                  configForm.controls.paymentTermDays.invalid
+                "
+              />
+              @if (
+                configForm.controls.paymentTermDays.touched &&
+                configForm.controls.paymentTermDays.invalid
+              ) {
+                <p class="text-destructive text-sm" role="alert">
+                  {{ "billing.invalidPaymentTerm" | translate }}
+                </p>
+              }
+            </div>
+          </div>
+          <div>
+            <button hlmBtn type="submit" [disabled]="configSaving()">
+              @if (configSaving()) {
+                <hlm-spinner />
+              }
+              {{ "common.save" | translate }}
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+
+    <!-- Service categories -->
+    <section
+      class="flex flex-col gap-4"
+      aria-labelledby="billing-categories-title"
+    >
+      <div>
+        <h3 id="billing-categories-title" class="text-sm font-semibold">
+          {{ "billing.categories.title" | translate }}
+        </h3>
+        <p class="text-muted-foreground mt-1 text-sm leading-snug">
+          {{ "billing.categories.hint" | translate }}
+        </p>
+      </div>
+
+      @if (categoriesLoading()) {
+        <hlm-spinner [attr.aria-label]="'settings.loading' | translate" />
+      } @else if (categoriesError()) {
+        <p class="text-destructive text-sm" role="alert">
+          {{ "billing.loadError" | translate }}
+        </p>
+      } @else {
+        <ul class="divide-border border-border divide-y rounded-md border">
+          @for (
+            category of categories();
+            track category.id;
+            let i = $index;
+            let last = $last
+          ) {
+            <li class="flex flex-wrap items-center gap-2 px-3 py-2">
+              @if (editingCategoryId() === category.id) {
+                <form
+                  class="flex min-w-0 flex-1 flex-wrap items-center gap-2"
+                  (submit)="$event.preventDefault(); saveRename(category)"
+                  novalidate
+                >
+                  <input
+                    hlmInput
+                    class="min-w-0 flex-1"
+                    maxlength="120"
+                    [formControl]="editCategoryName"
+                    [attr.aria-label]="'billing.categories.name' | translate"
+                  />
+                  <button
+                    hlmBtn
+                    type="submit"
+                    size="sm"
+                    [disabled]="categoryBusy()"
+                  >
+                    {{ "common.save" | translate }}
+                  </button>
+                  <button
+                    hlmBtn
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    (click)="cancelRename()"
+                  >
+                    {{ "common.cancel" | translate }}
+                  </button>
+                </form>
+              } @else {
+                <span
+                  class="min-w-0 flex-1 truncate text-sm"
+                  [class.text-muted-foreground]="!category.active"
+                >
+                  {{ category.name }}
+                </span>
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  [disabled]="categoryBusy()"
+                  (click)="startRename(category)"
+                >
+                  {{ "billing.categories.rename" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  [disabled]="categoryBusy() || i === 0"
+                  [attr.aria-label]="
+                    'billing.categories.moveUp'
+                      | translate: { name: category.name }
+                  "
+                  (click)="moveCategory(category, -1)"
+                >
+                  &uarr;
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  [disabled]="categoryBusy() || last"
+                  [attr.aria-label]="
+                    'billing.categories.moveDown'
+                      | translate: { name: category.name }
+                  "
+                  (click)="moveCategory(category, 1)"
+                >
+                  &darr;
+                </button>
+                <div class="flex items-center gap-2 text-sm">
+                  <hlm-switch
+                    [checked]="category.active"
+                    [disabled]="categoryBusy()"
+                    (checkedChange)="setCategoryActive(category, $event)"
+                    [attr.aria-label]="
+                      'billing.categories.active'
+                        | translate: { name: category.name }
+                    "
+                  />
+                  {{
+                    (category.active
+                      ? "billing.categories.activeState"
+                      : "billing.categories.inactiveState"
+                    ) | translate
+                  }}
+                </div>
+              }
+            </li>
+          } @empty {
+            <li class="text-muted-foreground px-3 py-3 text-sm">
+              {{ "billing.categories.empty" | translate }}
+            </li>
+          }
+        </ul>
+
+        <form
+          class="flex flex-wrap items-end gap-2"
+          (submit)="$event.preventDefault(); addCategory()"
+          novalidate
+        >
+          <div hlmField class="w-72 max-w-full">
+            <label hlmFieldLabel for="billing-new-category">
+              {{ "billing.categories.new" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="billing-new-category"
+              maxlength="120"
+              [formControl]="newCategoryName"
+            />
+          </div>
+          <button hlmBtn type="submit" [disabled]="categoryBusy()">
+            {{ "billing.categories.add" | translate }}
+          </button>
+        </form>
+      }
+    </section>
+
+    <!-- User rates -->
+    <section class="flex flex-col gap-4" aria-labelledby="billing-rates-title">
+      <div>
+        <h3 id="billing-rates-title" class="text-sm font-semibold">
+          {{ "billing.rates.title" | translate }}
+        </h3>
+        <p class="text-muted-foreground mt-1 text-sm leading-snug">
+          {{ "billing.rates.hint" | translate }}
+        </p>
+      </div>
+
+      @if (ratesLoading()) {
+        <hlm-spinner [attr.aria-label]="'settings.loading' | translate" />
+      } @else if (ratesError()) {
+        <p class="text-destructive text-sm" role="alert">
+          {{ "billing.loadError" | translate }}
+        </p>
+      } @else {
+        <div hlmTableContainer>
+          <table hlmTable>
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "billing.rates.person" | translate }}</th>
+                <th hlmTh>{{ "billing.rates.currentRate" | translate }}</th>
+                <th hlmTh>{{ "billing.rates.effectiveFrom" | translate }}</th>
+                <th hlmTh>
+                  <span class="sr-only">
+                    {{ "billing.rates.actions" | translate }}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (row of userRows(); track row.id) {
+                <tr hlmTr>
+                  <td hlmTd>{{ row.name }}</td>
+                  <td hlmTd>
+                    @if (row.rate; as rate) {
+                      {{ rateLabel(rate) }}
+                    } @else {
+                      <span class="text-muted-foreground">
+                        {{ "billing.rates.none" | translate }}
+                      </span>
+                    }
+                  </td>
+                  <td hlmTd>
+                    @if (row.rate; as rate) {
+                      {{ dateLabel(rate.effectiveFrom) }}
+                    }
+                  </td>
+                  <td hlmTd class="text-end whitespace-nowrap">
+                    <button
+                      hlmBtn
+                      type="button"
+                      size="sm"
+                      variant="ghost"
+                      (click)="openRateForm(row.id)"
+                    >
+                      {{ "billing.rates.new" | translate }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (rateUserId()) {
+          <form
+            class="border-border flex flex-col gap-4 rounded-md border p-4"
+            [formGroup]="rateForm"
+            (ngSubmit)="submitRate()"
+            novalidate
+          >
+            <h4 class="text-sm font-semibold">
+              {{ "billing.rates.newFor" | translate: { name: rateUserName() } }}
+            </h4>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
+              <div hlmField>
+                <label hlmFieldLabel for="billing-rate-value">
+                  {{ "billing.rates.amount" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  id="billing-rate-value"
+                  inputmode="decimal"
+                  formControlName="hourlyValue"
+                  [attr.aria-invalid]="
+                    rateForm.controls.hourlyValue.touched &&
+                    rateForm.controls.hourlyValue.invalid
+                  "
+                />
+                @if (
+                  rateForm.controls.hourlyValue.touched &&
+                  rateForm.controls.hourlyValue.invalid
+                ) {
+                  <p class="text-destructive text-sm" role="alert">
+                    {{ "billing.invalidAmount" | translate }}
+                  </p>
+                }
+              </div>
+              <div hlmField>
+                <span hlmFieldLabel id="billing-rate-currency-label">
+                  {{ "billing.rates.currency" | translate }}
+                </span>
+                <p
+                  class="flex h-9 items-center text-sm"
+                  aria-labelledby="billing-rate-currency-label"
+                  data-testid="rate-currency"
+                >
+                  {{ savedCurrency() }}
+                </p>
+                <p class="text-muted-foreground text-sm">
+                  {{ "billing.rates.currencyHint" | translate }}
+                </p>
+              </div>
+              <div hlmField>
+                <label hlmFieldLabel for="billing-rate-from">
+                  {{ "billing.rates.effectiveFrom" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  id="billing-rate-from"
+                  type="date"
+                  formControlName="effectiveFrom"
+                />
+              </div>
+            </div>
+            <div class="flex gap-2">
+              <button hlmBtn type="submit" [disabled]="rateSaving()">
+                @if (rateSaving()) {
+                  <hlm-spinner />
+                }
+                {{ "common.save" | translate }}
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                (click)="closeRateForm()"
+              >
+                {{ "common.cancel" | translate }}
+              </button>
+            </div>
+          </form>
+        }
+      }
+    </section>
+  </div>
+</div>

@@ -31,6 +31,7 @@ import { loadCountryOptions } from "../../shared/utils/countries";
 import { CasesListComponent } from "../cases/cases-list/cases-list.component";
 import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
+import { ClientRetainerCardComponent } from "./client-retainer-card/client-retainer-card.component";
 
 type ClientTab =
   | "overview"
@@ -52,6 +53,7 @@ type ClientTab =
     HlmTabsList,
     HlmTabsTrigger,
     CasesListComponent,
+    ClientRetainerCardComponent,
     TranslatePipe,
   ],
 })

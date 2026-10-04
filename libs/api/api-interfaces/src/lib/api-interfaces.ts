@@ -52,6 +52,10 @@ export const NOTIFICATION_TYPES = [
   "EVENT_UPCOMING",
   "EVENT_CHANGED",
   "EVENT_CANCELLED",
+  "TIMER_RUNNING_LONG",
+  "TIME_REVIEW_REMINDER",
+  "RETAINER_USAGE_80",
+  "RETAINER_USAGE_100",
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
@@ -69,6 +73,9 @@ export interface NotificationPreferences {
   eventUpcoming: boolean;
   eventChanged: boolean;
   eventCancelled: boolean;
+  timerRunningLong: boolean;
+  timeReviewReminder: boolean;
+  retainerUsage: boolean;
 }
 
 export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
@@ -84,6 +91,9 @@ export const DEFAULT_NOTIFICATION_PREFERENCES: NotificationPreferences = {
   eventUpcoming: true,
   eventChanged: true,
   eventCancelled: true,
+  timerRunningLong: true,
+  timeReviewReminder: true,
+  retainerUsage: true,
 };
 
 export interface UserSettingsProfile {
@@ -110,6 +120,9 @@ export interface UserSettingsPreferences {
   notificationPreferences: NotificationPreferences;
   dateTimeFormat: UserSettingsDateTimeFormat;
   timeZone: string;
+  timeReviewReminderEnabled: boolean;
+  /** `HH:mm` in the user's time zone. */
+  timeReviewReminderTime: string;
 }
 
 export interface NotificationMetadata {
@@ -1038,6 +1051,8 @@ export interface BillingStatement {
   externalReference: string | null;
   voidedAt: string | null;
   voidReason: string | null;
+  printWorkSpecification: boolean;
+  billingMonth: string | null;
   createdAt: string;
   updatedAt: string;
   client: FinancialClientReference;
@@ -1048,19 +1063,6 @@ export interface BillingStatement {
 export type FinancialClientReference = ClientReference;
 
 export type FinancialCaseReference = CaseReference;
-
-export type BillableWorkSourceType = "EVENT" | "TASK" | "DEADLINE";
-
-export interface BillableWorkItem {
-  sourceKey: string;
-  sourceType: BillableWorkSourceType;
-  sourceId: string;
-  title: string;
-  date: string;
-  client: FinancialClientReference;
-  case: FinancialCaseReference | null;
-  responsibleUser: UserReference;
-}
 
 export interface BillingStatementLineSummary {
   id: string;
@@ -1077,8 +1079,17 @@ export interface BillingStatementLineSummary {
   grossAmount: string;
   currency: string;
   status: BillingStatementLineStatus;
-  sourceType: BillableWorkSourceType | null;
+  sourceType: string | null;
   sourceId: string | null;
+  pricingRequired: boolean;
+  minutes: number | null;
+  workEntries: {
+    id: string;
+    workDate: string;
+    user: UserReference;
+    description: string;
+    minutes: number | null;
+  }[];
   billedAt: string | null;
   cancelledAt: string | null;
   cancellationReason: string | null;
@@ -1113,6 +1124,7 @@ export interface CreateBillingStatementRequest {
   currency: string;
   lines: BillingStatementLineInput[];
   idempotencyKey?: string;
+  printWorkSpecification?: boolean;
 }
 
 export interface UpdateBillingStatementRequest {
@@ -1129,9 +1141,12 @@ export interface UpdateBillingStatementRequest {
   numberOfCashBill?: string;
   country?: string;
   lines?: BillingStatementLineInput[];
+  printWorkSpecification?: boolean;
 }
 
 export interface BillingStatementLineInput {
+  /** Existing line id when editing a statement; omit for new lines. */
+  id?: string;
   serviceDate: string;
   description: string;
   netAmount: number;
@@ -1139,8 +1154,9 @@ export interface BillingStatementLineInput {
   vatAmount: number;
   grossAmount: number;
   currency: string;
-  sourceType?: BillableWorkSourceType;
-  sourceId?: string;
+  workEntryIds?: string[];
+  pricingRequired?: boolean;
+  minutes?: number;
 }
 
 export type PriceEvidence = {

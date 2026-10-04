@@ -774,6 +774,49 @@
                     rows="4"
                   ></textarea>
                 </div>
+                @if (activityTakesDuration()) {
+                  <div hlmField>
+                    <label hlmFieldLabel for="activityDuration">
+                      {{ "time.activity.duration" | translate }}
+                    </label>
+                    <div class="flex flex-wrap items-center gap-2">
+                      @for (chip of activityMinuteChips; track chip) {
+                        <button
+                          hlmBtn
+                          type="button"
+                          size="sm"
+                          [variant]="
+                            activityForm.controls.durationMinutes.value === chip
+                              ? 'default'
+                              : 'outline'
+                          "
+                          [attr.aria-pressed]="
+                            activityForm.controls.durationMinutes.value === chip
+                          "
+                          (click)="setActivityMinutes(chip)"
+                        >
+                          {{ chip }} {{ "time.capture.minuteUnit" | translate }}
+                        </button>
+                      }
+                      <input
+                        hlmInput
+                        id="activityDuration"
+                        type="number"
+                        inputmode="numeric"
+                        min="1"
+                        max="1440"
+                        class="w-28"
+                        formControlName="durationMinutes"
+                        [placeholder]="'time.capture.customMinutes' | translate"
+                      />
+                    </div>
+                    @if (activityForm.controls.durationMinutes.invalid) {
+                      <p class="mt-1 text-xs text-destructive" role="alert">
+                        {{ "time.capture.minutesInvalid" | translate }}
+                      </p>
+                    }
+                  </div>
+                }
                 <div class="flex flex-wrap gap-2">
                   <button hlmBtn type="submit">
                     {{ "cases.addActivity" | translate }}

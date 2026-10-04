@@ -41,6 +41,8 @@ const DEFAULT_SETTINGS: UserSettingsRecord = {
   notificationPreferences: DEFAULT_NOTIFICATION_PREFERENCES,
   dateTimeFormat: "TWENTY_FOUR_HOUR",
   timeZone: "Europe/Belgrade",
+  timeReviewReminderEnabled: false,
+  timeReviewReminderTime: "17:30",
 };
 
 @Injectable()
@@ -260,6 +262,8 @@ export class UserSettingsService {
         ),
         dateTimeFormat: settings.dateTimeFormat,
         timeZone: settings.timeZone,
+        timeReviewReminderEnabled: settings.timeReviewReminderEnabled,
+        timeReviewReminderTime: settings.timeReviewReminderTime,
       },
     };
   }
