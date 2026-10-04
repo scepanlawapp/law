@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from "@nestjs/common";
+import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
   ConfirmSourceEntryRequest,
@@ -8,6 +8,7 @@ import {
 } from "@law/api-interfaces";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { toLatin } from "@law/transliteration";
+import { RetainerUsageService } from "./retainer-usage.service";
 import { WorkEntriesService } from "./work-entries.service";
 
 const MIN_MINUTES = 1;
@@ -56,10 +57,29 @@ export function workDateFor(instant: Date = new Date()): Date {
  */
 @Injectable()
 export class WorkEntrySourcesService {
+  private readonly logger = new Logger(WorkEntrySourcesService.name);
+
   constructor(
     private readonly db: PlatformPrismaService,
     private readonly workEntries: WorkEntriesService,
+    private readonly retainerUsage: RetainerUsageService,
   ) {}
+
+  /**
+   * Retainer usage alerts for an entry that `ensureForSource` created
+   * CONFIRMED. Call it after the caller's transaction has committed; a failure
+   * is logged, never thrown, because the user's record is already saved.
+   */
+  async checkRetainerUsage(clientId: string, workDate: Date): Promise<void> {
+    try {
+      await this.retainerUsage.checkThresholds({ clientId, workDate });
+    } catch (error) {
+      this.logger.error(
+        `Retainer usage check failed for client ${clientId}`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
+  }
 
   /**
    * Creates the entry for a source record inside the caller's transaction.

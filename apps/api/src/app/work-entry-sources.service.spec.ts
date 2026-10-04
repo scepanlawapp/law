@@ -23,9 +23,11 @@ describe("WorkEntrySourcesService", () => {
     get: jest.fn(),
     confirm: jest.fn(),
   };
+  const retainerUsage = { checkThresholds: jest.fn() };
   const service = new WorkEntrySourcesService(
     db as never,
     workEntries as never,
+    retainerUsage as never,
   );
   const workDate = new Date("2026-10-04");
 
@@ -246,6 +248,30 @@ describe("WorkEntrySourcesService", () => {
           }),
         ),
       ).rejects.toBeInstanceOf(NotFoundException);
+    });
+  });
+
+  describe("checkRetainerUsage", () => {
+    it("delegates to the retainer usage service", async () => {
+      await service.checkRetainerUsage(clientA, workDate);
+      expect(retainerUsage.checkThresholds).toHaveBeenCalledWith({
+        clientId: clientA,
+        workDate,
+      });
+    });
+
+    it("swallows a failing check", async () => {
+      retainerUsage.checkThresholds.mockRejectedValueOnce(new Error("boom"));
+      const logged = jest
+        .spyOn(
+          (service as unknown as { logger: { error: () => void } }).logger,
+          "error",
+        )
+        .mockImplementation(() => undefined);
+      await expect(
+        service.checkRetainerUsage(clientA, workDate),
+      ).resolves.toBeUndefined();
+      expect(logged).toHaveBeenCalled();
     });
   });
 

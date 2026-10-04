@@ -11,6 +11,7 @@ import { NotificationsService } from "./notifications.service";
 
 const FALLBACK_TIME_ZONE = "Europe/Belgrade";
 const HOUR_MS = 60 * 60 * 1000;
+const LONG_TIMER_MS = 4 * HOUR_MS;
 
 function localDateKey(value: Date, timeZone: string): string {
   let formatter: Intl.DateTimeFormat;
@@ -36,6 +37,41 @@ function localDateKey(value: Date, timeZone: string): string {
       .map((part) => [part.type, part.value]),
   );
   return `${values["year"]}-${values["month"]}-${values["day"]}`;
+}
+
+/** Local weekday (0 = Sunday .. 6 = Saturday) and minutes since local midnight. */
+function localClock(
+  value: Date,
+  timeZone: string,
+): { weekday: number; minutes: number } {
+  const options: Intl.DateTimeFormatOptions = {
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  };
+  let formatter: Intl.DateTimeFormat;
+  try {
+    formatter = new Intl.DateTimeFormat("en-US", { ...options, timeZone });
+  } catch {
+    formatter = new Intl.DateTimeFormat("en-US", {
+      ...options,
+      timeZone: FALLBACK_TIME_ZONE,
+    });
+  }
+  const values = Object.fromEntries(
+    formatter.formatToParts(value).map((part) => [part.type, part.value]),
+  );
+  const weekdays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+  return {
+    weekday: weekdays.indexOf(values["weekday"]),
+    minutes: Number(values["hour"]) * 60 + Number(values["minute"]),
+  };
+}
+
+function parseClockTime(value: string): number | null {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  return match ? Number(match[1]) * 60 + Number(match[2]) : null;
 }
 
 function dateOrdinal(value: string): number {
@@ -95,6 +131,8 @@ export class NotificationReminderService
       this.processTasks(now),
       this.processDeadlines(now),
       this.processEvents(now),
+      this.processTimers(now),
+      this.processTimeReviews(now),
     ]);
   }
 
@@ -250,6 +288,91 @@ export class NotificationReminderService
             }),
           ),
         );
+      }),
+    );
+  }
+
+  /**
+   * A running timer is forgotten work: flag it after 4 hours, or once it has
+   * crossed local midnight (workspace time zone) into a new calendar day.
+   */
+  private async processTimers(now: Date): Promise<void> {
+    const entries = await this.db.workEntry.findMany({
+      where: { status: "RUNNING", timerStartedAt: { not: null } },
+      include: {
+        client: { select: { id: true, displayName: true } },
+        workspace: { select: { config: { select: { timeZone: true } } } },
+      },
+    });
+    await Promise.all(
+      entries.map(async (entry) => {
+        const startedAt = entry.timerStartedAt;
+        if (!startedAt) return;
+        const timeZone = entry.workspace.config?.timeZone ?? FALLBACK_TIME_ZONE;
+        const runningTooLong =
+          now.getTime() - startedAt.getTime() >= LONG_TIMER_MS;
+        const crossedMidnight =
+          localDateKey(startedAt, timeZone) < localDateKey(now, timeZone);
+        if (!runningTooLong && !crossedMidnight) return;
+        const content = buildNotificationContent("TIMER_RUNNING_LONG", {
+          title: entry.description.trim()
+            ? `${entry.client.displayName}: ${entry.description.trim()}`
+            : entry.client.displayName,
+          clientId: entry.client.id,
+          clientName: entry.client.displayName,
+        });
+        await this.notifications.create({
+          workspaceId: entry.workspaceId,
+          userId: entry.userId,
+          type: "TIMER_RUNNING_LONG",
+          ...content,
+          dedupeKey: `timer:${entry.id}:${startedAt.toISOString()}`,
+        });
+      }),
+    );
+  }
+
+  /** Weekday nudge to review the day's time entries, once per local date. */
+  private async processTimeReviews(now: Date): Promise<void> {
+    const members = await this.db.workspaceMember.findMany({
+      where: {
+        status: "ACTIVE",
+        user: { settings: { is: { timeReviewReminderEnabled: true } } },
+      },
+      include: {
+        user: {
+          select: {
+            settings: {
+              select: { timeZone: true, timeReviewReminderTime: true },
+            },
+          },
+        },
+        workspace: { select: { config: { select: { timeZone: true } } } },
+      },
+    });
+    await Promise.all(
+      members.map(async (member) => {
+        const settings = member.user.settings;
+        if (!settings) return;
+        const timeZone =
+          settings.timeZone ??
+          member.workspace.config?.timeZone ??
+          FALLBACK_TIME_ZONE;
+        const reminderMinutes = parseClockTime(settings.timeReviewReminderTime);
+        if (reminderMinutes === null) return;
+        const clock = localClock(now, timeZone);
+        if (clock.weekday < 1 || clock.weekday > 5) return;
+        if (clock.minutes < reminderMinutes) return;
+        const content = buildNotificationContent("TIME_REVIEW_REMINDER", {
+          title: "Pregledajte i potvrdite današnje unose vremena.",
+        });
+        await this.notifications.create({
+          workspaceId: member.workspaceId,
+          userId: member.userId,
+          type: "TIME_REVIEW_REMINDER",
+          ...content,
+          dedupeKey: `time-review:${localDateKey(now, timeZone)}`,
+        });
       }),
     );
   }

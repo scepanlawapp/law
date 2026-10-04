@@ -64,7 +64,10 @@ describe("CasesService", () => {
     userId,
     role: WorkspaceRole.OWNER,
   };
-  const workEntrySources = { ensureForSource: jest.fn() };
+  const workEntrySources = {
+    ensureForSource: jest.fn(),
+    checkRetainerUsage: jest.fn(),
+  };
   const service = new CasesService(
     platformPrisma as never,
     workEntrySources as never,
@@ -323,6 +326,24 @@ describe("CasesService", () => {
         );
       },
     );
+
+    it("checks retainer usage for the case's client after a confirmed entry", async () => {
+      db.case.findFirst.mockResolvedValue(caseRecord("ACTIVE"));
+      db.caseActivity.create.mockResolvedValue(activity("PHONE_CALL"));
+      workEntrySources.ensureForSource.mockResolvedValue("entry-1");
+      await WorkspaceContextService.run(context as never, async () => {
+        await service.createActivity(caseRecord("ACTIVE").id, {
+          type: "PHONE_CALL",
+          title: "Poziv sa klijentom",
+          activityDate: "2026-09-16T10:00:00.000Z",
+          durationMinutes: 30,
+        });
+      });
+      expect(workEntrySources.checkRetainerUsage).toHaveBeenCalledWith(
+        caseRecord("ACTIVE").clientId,
+        new Date("2026-09-16T00:00:00.000Z"),
+      );
+    });
 
     it.each(["NOTE", "OTHER"])("creates no entry for a %s", async (type) => {
       db.case.findFirst.mockResolvedValue(caseRecord("ACTIVE"));

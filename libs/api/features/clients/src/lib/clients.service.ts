@@ -851,38 +851,48 @@ export class ClientsService {
           "Related case does not belong to this client",
         );
     }
-    return this.db.$transaction(async (tx) => {
-      const activity = await tx.clientActivity.create({
-        data: {
-          workspaceId,
-          clientId,
-          relatedCaseId: input.relatedCaseId,
-          type: input.type,
-          title: input.title.trim(),
-          description: input.description?.trim(),
-          activityDate: new Date(input.activityDate),
-          source: "MANUAL",
-          createdByUserId: userId,
-          updatedByUserId: userId,
-        },
-      });
-      if (BILLABLE_ACTIVITY_TYPES.includes(activity.type)) {
-        await this.workEntrySources.ensureForSource(tx, {
-          workspaceId,
-          actorUserId: userId,
-          sourceType: "CLIENT_ACTIVITY",
-          sourceId: activity.id,
-          performerUserId: userId,
-          clientIds: [clientId],
-          caseId: input.relatedCaseId ?? null,
-          workDate: workDateFor(activity.activityDate),
-          description: activity.title,
-          minutes: input.durationMinutes ?? null,
-          confirm: true,
+    const { activity, confirmedEntryId } = await this.db.$transaction(
+      async (tx) => {
+        const activity = await tx.clientActivity.create({
+          data: {
+            workspaceId,
+            clientId,
+            relatedCaseId: input.relatedCaseId,
+            type: input.type,
+            title: input.title.trim(),
+            description: input.description?.trim(),
+            activityDate: new Date(input.activityDate),
+            source: "MANUAL",
+            createdByUserId: userId,
+            updatedByUserId: userId,
+          },
         });
-      }
-      return activity;
-    });
+        let confirmedEntryId: string | null = null;
+        if (BILLABLE_ACTIVITY_TYPES.includes(activity.type)) {
+          confirmedEntryId = await this.workEntrySources.ensureForSource(tx, {
+            workspaceId,
+            actorUserId: userId,
+            sourceType: "CLIENT_ACTIVITY",
+            sourceId: activity.id,
+            performerUserId: userId,
+            clientIds: [clientId],
+            caseId: input.relatedCaseId ?? null,
+            workDate: workDateFor(activity.activityDate),
+            description: activity.title,
+            minutes: input.durationMinutes ?? null,
+            confirm: true,
+          });
+        }
+        return { activity, confirmedEntryId };
+      },
+    );
+    if (confirmedEntryId && input.durationMinutes) {
+      await this.workEntrySources.checkRetainerUsage(
+        clientId,
+        workDateFor(activity.activityDate),
+      );
+    }
+    return activity;
   }
 
   async updateActivity(

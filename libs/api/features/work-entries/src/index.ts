@@ -6,3 +6,4 @@ export * from "./lib/work-entry-sources.service";
 export * from "./lib/billing-setup.service";
 export * from "./lib/work-capture-parser";
 export * from "./lib/work-capture.service";
+export * from "./lib/retainer-usage.service";

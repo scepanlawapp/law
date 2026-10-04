@@ -652,37 +652,47 @@ export class CasesService {
   async createActivity(caseId: string, input: CaseActivityDto) {
     const caseRecord = await this.requireCase(caseId);
     const { workspaceId, userId } = this.context;
-    return this.db.$transaction(async (tx) => {
-      const activity = await tx.caseActivity.create({
-        data: {
-          workspaceId,
-          caseId,
-          type: input.type,
-          title: input.title.trim(),
-          description: input.description?.trim(),
-          activityDate: new Date(input.activityDate),
-          source: "MANUAL",
-          createdByUserId: userId,
-          updatedByUserId: userId,
-        },
-      });
-      if (BILLABLE_ACTIVITY_TYPES.includes(activity.type)) {
-        await this.workEntrySources.ensureForSource(tx, {
-          workspaceId,
-          actorUserId: userId,
-          sourceType: "CASE_ACTIVITY",
-          sourceId: activity.id,
-          performerUserId: userId,
-          clientIds: [caseRecord.clientId],
-          caseId,
-          workDate: workDateFor(activity.activityDate),
-          description: activity.title,
-          minutes: input.durationMinutes ?? null,
-          confirm: true,
+    const { activity, confirmedEntryId } = await this.db.$transaction(
+      async (tx) => {
+        const activity = await tx.caseActivity.create({
+          data: {
+            workspaceId,
+            caseId,
+            type: input.type,
+            title: input.title.trim(),
+            description: input.description?.trim(),
+            activityDate: new Date(input.activityDate),
+            source: "MANUAL",
+            createdByUserId: userId,
+            updatedByUserId: userId,
+          },
         });
-      }
-      return activity;
-    });
+        let confirmedEntryId: string | null = null;
+        if (BILLABLE_ACTIVITY_TYPES.includes(activity.type)) {
+          confirmedEntryId = await this.workEntrySources.ensureForSource(tx, {
+            workspaceId,
+            actorUserId: userId,
+            sourceType: "CASE_ACTIVITY",
+            sourceId: activity.id,
+            performerUserId: userId,
+            clientIds: [caseRecord.clientId],
+            caseId,
+            workDate: workDateFor(activity.activityDate),
+            description: activity.title,
+            minutes: input.durationMinutes ?? null,
+            confirm: true,
+          });
+        }
+        return { activity, confirmedEntryId };
+      },
+    );
+    if (confirmedEntryId && input.durationMinutes) {
+      await this.workEntrySources.checkRetainerUsage(
+        caseRecord.clientId,
+        workDateFor(activity.activityDate),
+      );
+    }
+    return activity;
   }
   async updateActivity(
     caseId: string,

@@ -15,7 +15,10 @@ describe("ClientsService createActivity", () => {
     case: { findFirst: jest.fn() },
     clientActivity: { create: jest.fn() },
   };
-  const workEntrySources = { ensureForSource: jest.fn() };
+  const workEntrySources = {
+    ensureForSource: jest.fn(),
+    checkRetainerUsage: jest.fn(),
+  };
   const service = new ClientsService(db as never, workEntrySources as never);
   const run = <T>(callback: () => Promise<T>) =>
     WorkspaceContextService.run(
@@ -66,6 +69,34 @@ describe("ClientsService createActivity", () => {
     expect(db.clientActivity.create.mock.calls[0][0].data).not.toHaveProperty(
       "durationMinutes",
     );
+  });
+
+  it("checks retainer usage after the transaction for a confirmed entry", async () => {
+    db.clientActivity.create.mockResolvedValue(activity("MEETING"));
+    workEntrySources.ensureForSource.mockResolvedValue("entry-1");
+    let committed = false;
+    db.$transaction.mockImplementation(async (callback) => {
+      const result = await callback(db);
+      committed = true;
+      return result;
+    });
+    workEntrySources.checkRetainerUsage.mockImplementation(async () => {
+      expect(committed).toBe(true);
+    });
+    await run(() =>
+      service.createActivity(clientId, dto({ durationMinutes: 45 })),
+    );
+    expect(workEntrySources.checkRetainerUsage).toHaveBeenCalledWith(
+      clientId,
+      new Date("2026-10-05T00:00:00.000Z"),
+    );
+  });
+
+  it("skips the retainer check for a proposed entry without minutes", async () => {
+    db.clientActivity.create.mockResolvedValue(activity("MEETING"));
+    workEntrySources.ensureForSource.mockResolvedValue("entry-1");
+    await run(() => service.createActivity(clientId, dto()));
+    expect(workEntrySources.checkRetainerUsage).not.toHaveBeenCalled();
   });
 
   it("creates no entry for a note", async () => {
