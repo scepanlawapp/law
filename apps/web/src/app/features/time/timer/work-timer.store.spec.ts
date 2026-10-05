@@ -22,6 +22,7 @@ function entry(overrides: Partial<WorkEntry> = {}): WorkEntry {
     workDate: "2026-10-04",
     minutes: null,
     timerStartedAt: "2026-10-04T09:59:00.000Z",
+    title: "",
     description: "",
     serviceCategory: null,
     treatment: "UNDECIDED",
@@ -118,6 +119,8 @@ describe("WorkTimerStore", () => {
       clientId: "client-1",
       caseId: undefined,
       minutes: 1,
+      requireMinutes: true,
+      title: undefined,
       description: undefined,
       workDate: "2026-10-04",
     });

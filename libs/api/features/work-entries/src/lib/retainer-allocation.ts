@@ -89,7 +89,8 @@ export function allocate(
     if (entry.treatment === "RETAINER") {
       running += entry.minutes;
       const cap = proration.includedMinutes;
-      if (cap === null || running <= cap) {
+      // Untimed work (0 minutes) is always covered by the fee.
+      if (cap === null || running <= cap || entry.minutes === 0) {
         feeEntryIds.push(entry.id);
       } else if (agreement.overageRule === "ABSORBED") {
         feeEntryIds.push(entry.id);

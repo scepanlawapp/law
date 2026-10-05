@@ -1,10 +1,9 @@
 import { Component } from "@angular/core";
 import { RouterModule } from "@angular/router";
 import { HlmToaster } from "@spartan-ng/helm/sonner";
-import { CompletionPromptComponent } from "./features/time/completion-prompt/completion-prompt.component";
 
 @Component({
-  imports: [RouterModule, HlmToaster, CompletionPromptComponent],
+  imports: [RouterModule, HlmToaster],
   selector: "law-root",
   templateUrl: "./app.html",
 })

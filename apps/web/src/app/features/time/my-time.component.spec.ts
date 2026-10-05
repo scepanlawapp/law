@@ -29,7 +29,8 @@ function entry(overrides: Partial<WorkEntry>): WorkEntry {
     workDate: WEEK,
     minutes: 30,
     timerStartedAt: null,
-    description: "Pregled ugovora",
+    title: "Pregled ugovora",
+    description: "",
     serviceCategory: null,
     treatment: "UNDECIDED",
     status: "CONFIRMED",
@@ -64,7 +65,7 @@ describe("MyTimeComponent", () => {
 
   const entries = [
     entry({ id: "a", minutes: 30 }),
-    entry({ id: "b", minutes: 90, description: "Poziv" }),
+    entry({ id: "b", minutes: 90, title: "Poziv" }),
     entry({
       id: "c",
       workDate: addDays(WEEK, 2),

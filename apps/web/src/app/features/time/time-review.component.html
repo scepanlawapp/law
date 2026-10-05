@@ -50,11 +50,20 @@
                   </span>
                 }
               </span>
-              <span class="line-clamp-2 text-xs">{{ entry.description }}</span>
+              <span class="line-clamp-2 text-xs">{{ entry.title }}</span>
+              @if (entry.description) {
+                <span class="text-muted-foreground line-clamp-2 block text-xs">
+                  {{ entry.description }}
+                </span>
+              }
             </div>
             <div class="flex items-center gap-2">
               <span class="text-sm font-semibold whitespace-nowrap">
-                {{ formatMinutes(entry.minutes ?? 0) }}
+                @if (entry.minutes !== null) {
+                  {{ formatMinutes(entry.minutes) }}
+                } @else {
+                  {{ "time.review.noDuration" | translate }}
+                }
               </span>
               <span
                 class="rounded-full px-2 py-0.5 text-xs font-medium"
@@ -106,7 +115,12 @@
                   · {{ workDateLabel(entry.workDate) }}
                 </span>
               </span>
-              <span class="line-clamp-2 text-xs">{{ entry.description }}</span>
+              <span class="line-clamp-2 text-xs">{{ entry.title }}</span>
+              @if (entry.description) {
+                <span class="text-muted-foreground line-clamp-2 block text-xs">
+                  {{ entry.description }}
+                </span>
+              }
               <span class="text-muted-foreground text-xs">
                 @if (entry.minutes !== null) {
                   {{ formatMinutes(entry.minutes) }}

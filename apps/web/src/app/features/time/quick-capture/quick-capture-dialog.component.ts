@@ -86,6 +86,7 @@ const OFFICE_TIME_ZONE = "Europe/Belgrade";
 const RECENT_ENTRY_COUNT = 20;
 const LIST_PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 250;
+const TITLE_MAX_LENGTH = 200;
 
 interface ClientOption {
   id: string;
@@ -179,9 +180,11 @@ export class QuickCaptureDialogComponent {
       validators: this.fromSource ? [] : [Validators.required],
     }),
     caseId: new FormControl(this.context.caseId ?? "", { nonNullable: true }),
+    // Time is optional: untimed work is priced later on the invoice. Only a
+    // stopped timer must keep its minutes.
     minutes: new FormControl<number | null>(this.context.minutes ?? null, {
       validators: [
-        Validators.required,
+        ...(this.context.requireMinutes ? [Validators.required] : []),
         integerValidator,
         Validators.min(1),
         Validators.max(1440),
@@ -191,18 +194,23 @@ export class QuickCaptureDialogComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
+    /** One-sentence summary; also the text the AI fill reads. */
+    title: new FormControl(this.context.title ?? "", {
+      nonNullable: true,
+      validators: [
+        Validators.required,
+        Validators.pattern(/\S/),
+        Validators.maxLength(TITLE_MAX_LENGTH),
+      ],
+    }),
     description: new FormControl(this.context.description ?? "", {
       nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/\S/)],
     }),
     serviceCategoryId: new FormControl("", { nonNullable: true }),
     treatment: new FormControl<WorkEntryTreatment>("UNDECIDED", {
       nonNullable: true,
     }),
   });
-  /** Free text for AI fill; deliberately not part of the saved form. */
-  readonly freeText = new FormControl("", { nonNullable: true });
-
   readonly saving = signal(false);
   readonly loadingEntry = signal(false);
   readonly parsing = signal(false);
@@ -414,7 +422,7 @@ export class QuickCaptureDialogComponent {
         .filter(Boolean)
         .join(" ");
       if (!text) return;
-      this.freeText.setValue(
+      this.form.controls.title.setValue(
         [this.micBaseText, text].filter(Boolean).join(" "),
       );
     });
@@ -452,7 +460,7 @@ export class QuickCaptureDialogComponent {
 
   toggleMic(): void {
     if (!this.speech.isListening()) {
-      this.micBaseText = this.freeText.value.trimEnd();
+      this.micBaseText = this.form.controls.title.value.trimEnd();
       this.speech.setLanguage(
         this.localization.language() === "EN" ? "en-US" : "sr-RS",
       );
@@ -463,7 +471,7 @@ export class QuickCaptureDialogComponent {
   // ------------------------------------------------------------ AI fill
 
   fillFromText(): void {
-    const text = this.freeText.value.trim();
+    const text = this.form.controls.title.value.trim();
     if (!text || this.parsing()) return;
     if (this.speech.isListening()) this.speech.stop();
     this.parsing.set(true);
@@ -498,7 +506,7 @@ export class QuickCaptureDialogComponent {
       this.parseFailed.set(true);
       return;
     }
-    const { minutes, serviceCategoryId, description } = this.form.controls;
+    const { minutes, serviceCategoryId, title } = this.form.controls;
     let filled = false;
     // A matched case only counts once its lookup has filled the form.
     const caseLookup = Boolean(result.caseId);
@@ -526,8 +534,9 @@ export class QuickCaptureDialogComponent {
       serviceCategoryId.setValue(result.serviceCategoryId);
       filled = true;
     }
+    // The parsed summary drops the client and duration the user typed.
     if (result.description) {
-      description.setValue(result.description);
+      title.setValue(result.description.slice(0, TITLE_MAX_LENGTH));
       filled = true;
     }
     if (filled) this.aiParsed.set(true);
@@ -661,6 +670,7 @@ export class QuickCaptureDialogComponent {
     if (this.context.minutes === undefined && entry.minutes !== null) {
       controls.minutes.setValue(entry.minutes);
     }
+    if (!this.context.title) controls.title.setValue(entry.title);
     if (!this.context.description)
       controls.description.setValue(entry.description);
     if (!this.context.workDate) controls.workDate.setValue(entry.workDate);
@@ -697,7 +707,9 @@ export class QuickCaptureDialogComponent {
 
   private save(): Observable<WorkEntry> {
     const value = this.form.getRawValue();
-    const minutes = value.minutes as number;
+    // Empty means untimed; null also clears time on an existing entry.
+    const minutes = value.minutes ?? null;
+    const title = value.title.trim();
     const description = value.description.trim();
     const fields = {
       clientId: value.clientId,
@@ -705,6 +717,7 @@ export class QuickCaptureDialogComponent {
       caseId: value.caseId || undefined,
       workDate: value.workDate,
       minutes,
+      title,
       description,
       serviceCategoryId: value.serviceCategoryId || undefined,
       treatment: this.treatmentToSend(),
@@ -728,6 +741,7 @@ export class QuickCaptureDialogComponent {
             switchMap(() =>
               this.entriesApi.confirm(this.requiredEntryId(), {
                 minutes,
+                title,
                 description,
               }),
             ),
@@ -741,6 +755,7 @@ export class QuickCaptureDialogComponent {
           sourceType: source.sourceType,
           sourceId: source.sourceId,
           minutes,
+          title,
           description,
         });
       }

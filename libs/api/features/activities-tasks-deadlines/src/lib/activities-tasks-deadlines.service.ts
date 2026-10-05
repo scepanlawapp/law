@@ -205,7 +205,7 @@ export class ActivitiesTasksDeadlinesService {
       clientIds,
       caseId: record.caseId,
       workDate: workDateFor(),
-      description: record.title,
+      title: record.title,
       minutes: null,
       confirm: false,
     });
@@ -651,7 +651,7 @@ export class ActivitiesTasksDeadlinesService {
           ],
           caseId: updated.caseId,
           workDate: workDateFor(),
-          description: updated.title,
+          title: updated.title,
           // An all-day event has no meaningful duration to propose.
           minutes: updated.isAllDay ? null : durationMinutes,
           confirm: false,

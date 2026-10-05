@@ -10,6 +10,7 @@ import { Prisma } from "@prisma/client";
 import {
   CaseReference,
   ClientReference,
+  ConfirmWorkEntryRequest,
   CreateWorkEntryRequest,
   PaginatedResponse,
   StartTimerRequest,
@@ -37,6 +38,7 @@ import { activeAgreementOn, defaultTreatment } from "./treatment";
 
 const MIN_MINUTES = 1;
 const MAX_MINUTES = 1440;
+const MAX_TITLE_LENGTH = 200;
 const ENTRY_TIME_ZONE = "Europe/Belgrade";
 
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
@@ -396,8 +398,10 @@ export class WorkEntriesService {
   // --------------------------------------------------------------- writes
 
   async create(input: CreateWorkEntryRequest): Promise<WorkEntry> {
-    this.assertMinutes(input.minutes);
-    const description = this.requiredText(input.description, "Description");
+    const minutes = input.minutes ?? null;
+    this.assertMinutes(minutes);
+    const title = this.titleText(input.title);
+    const description = this.optionalText(input.description);
     const workDate = this.toWorkDate(input.workDate);
     await this.assertClientAndCase(input.clientId, input.caseId);
     await this.assertServiceCategory(input.serviceCategoryId);
@@ -417,7 +421,8 @@ export class WorkEntriesService {
           clientId: input.clientId,
           caseId: input.caseId ?? null,
           workDate,
-          minutes: input.minutes,
+          minutes,
+          title,
           description,
           serviceCategoryId: input.serviceCategoryId ?? null,
           treatment,
@@ -445,6 +450,9 @@ export class WorkEntriesService {
     const current = await this.loadForMutation(id);
     this.assertNotBilled(current);
     if (input.minutes !== undefined) this.assertMinutes(input.minutes);
+    if (input.minutes === null && current.status === "RUNNING") {
+      throw new BadRequestException("A running timer needs its minutes");
+    }
 
     const clientId = input.clientId ?? current.clientId;
     const clientChanged = clientId !== current.clientId;
@@ -490,8 +498,9 @@ export class WorkEntriesService {
       updatedByUserId: this.userId,
     };
     if (input.minutes !== undefined) data.minutes = input.minutes;
+    if (input.title !== undefined) data.title = this.titleText(input.title);
     if (input.description !== undefined) {
-      data.description = this.requiredText(input.description, "Description");
+      data.description = this.optionalText(input.description);
     }
     if (input.source !== undefined) data.source = input.source;
     if (input.aiParsed !== undefined) data.aiParsed = input.aiParsed;
@@ -509,26 +518,37 @@ export class WorkEntriesService {
     return this.toEntry(row);
   }
 
+  /**
+   * Confirms a running or proposed entry. Minutes are optional: untimed work is
+   * priced later on the invoice. Omitted minutes keep what the entry has.
+   */
   async confirm(
     id: string,
-    input: { minutes: number; description?: string },
+    input: ConfirmWorkEntryRequest,
   ): Promise<WorkEntry> {
     const current = await this.loadForMutation(id);
     this.assertNotBilled(current);
     if (current.status !== "RUNNING" && current.status !== "PROPOSED") {
       throw new ConflictException("Work entry is already confirmed or closed");
     }
-    this.assertMinutes(input.minutes);
-    const description = this.requiredText(
-      input.description ?? current.description,
-      "Description",
-    );
+    const minutes =
+      input.minutes === undefined ? current.minutes : input.minutes;
+    this.assertMinutes(minutes);
+    if (minutes === null && current.status === "RUNNING") {
+      throw new BadRequestException("Stop the timer before confirming it");
+    }
+    const title = this.titleText(input.title ?? current.title);
+    const description =
+      input.description !== undefined
+        ? this.optionalText(input.description)
+        : current.description;
 
     const row = await this.applyChange(
       current,
       {
         status: "CONFIRMED",
-        minutes: input.minutes,
+        minutes,
+        title,
         description,
         timerStartedAt: null,
         updatedByUserId: this.userId,
@@ -638,9 +658,8 @@ export class WorkEntriesService {
             workDate,
             minutes: null,
             timerStartedAt: now,
-            description: input.description
-              ? toLatin(input.description.trim())
-              : "",
+            title: input.title ? toLatin(input.title.trim()).slice(0, 200) : "",
+            description: this.optionalText(input.description),
             treatment,
             status: "RUNNING",
             source: "TIMER",
@@ -807,7 +826,9 @@ export class WorkEntriesService {
     });
   }
 
-  private assertMinutes(minutes: number): void {
+  /** Minutes are optional (null); a given value must be 1..1440 whole minutes. */
+  private assertMinutes(minutes: number | null): void {
+    if (minutes === null) return;
     if (
       !Number.isInteger(minutes) ||
       minutes < MIN_MINUTES ||
@@ -823,6 +844,20 @@ export class WorkEntriesService {
     const text = toLatin((value ?? "").trim());
     if (!text) throw new BadRequestException(`${label} is required`);
     return text;
+  }
+
+  private titleText(value: string | undefined): string {
+    const title = this.requiredText(value, "Title");
+    if (title.length > MAX_TITLE_LENGTH) {
+      throw new BadRequestException(
+        `Title must be at most ${MAX_TITLE_LENGTH} characters`,
+      );
+    }
+    return title;
+  }
+
+  private optionalText(value: string | undefined): string {
+    return toLatin((value ?? "").trim());
   }
 
   /** Calendar date (UTC midnight) of an ISO date or date-time string. */
@@ -902,6 +937,7 @@ export class WorkEntriesService {
       workDate: row.workDate.toISOString().slice(0, 10),
       minutes: row.minutes,
       timerStartedAt: row.timerStartedAt?.toISOString() ?? null,
+      title: row.title,
       description: row.description,
       serviceCategory: row.serviceCategory
         ? { id: row.serviceCategory.id, name: row.serviceCategory.name }

@@ -298,7 +298,7 @@ describe("CasesService", () => {
           clientIds: [caseRecord("ACTIVE").clientId],
           caseId: caseRecord("ACTIVE").id,
           workDate: new Date("2026-09-16T00:00:00.000Z"),
-          description: "Poziv sa klijentom",
+          title: "Poziv sa klijentom",
           minutes: 30,
           confirm: true,
         },

@@ -40,7 +40,7 @@ describe("WorkEntrySourcesService", () => {
     clientIds: [clientA],
     caseId: null,
     workDate,
-    description: "Pregled ugovora",
+    title: "Pregled ugovora",
     minutes: null,
     confirm: false,
     ...overrides,
@@ -204,14 +204,19 @@ describe("WorkEntrySourcesService", () => {
       }
     });
 
-    it("stores the description in Serbian Latin", async () => {
+    it("stores the source title as the entry title in Serbian Latin", async () => {
       await service.ensureForSource(
         tx as never,
-        input({ description: "  Позив клијенту " }),
+        input({ title: "  Позив клијенту " }),
       );
       expect(tx.workEntry.createMany).toHaveBeenCalledWith(
         expect.objectContaining({
-          data: [expect.objectContaining({ description: "Poziv klijentu" })],
+          data: [
+            expect.objectContaining({
+              title: "Poziv klijentu",
+              description: "",
+            }),
+          ],
         }),
       );
     });
@@ -244,14 +249,19 @@ describe("WorkEntrySourcesService", () => {
       });
       expect(workEntries.confirm).toHaveBeenCalledWith(entryId, {
         minutes: 45,
+        title: undefined,
         description: "Završen pregled",
       });
       expect(result).toEqual({ id: entryId, status: "CONFIRMED" });
     });
 
-    it("leaves the entry PROPOSED when minutes is null", async () => {
+    it("confirms the entry as untimed work when minutes is null", async () => {
       db.workEntry.findFirst.mockResolvedValue({ id: entryId });
-      workEntries.get.mockResolvedValue({ id: entryId, status: "PROPOSED" });
+      workEntries.confirm.mockResolvedValue({
+        id: entryId,
+        status: "CONFIRMED",
+        minutes: null,
+      });
       const result = await run(() =>
         service.confirmFromSource({
           sourceType: "EVENT",
@@ -259,8 +269,16 @@ describe("WorkEntrySourcesService", () => {
           minutes: null,
         }),
       );
-      expect(workEntries.confirm).not.toHaveBeenCalled();
-      expect(result).toEqual({ id: entryId, status: "PROPOSED" });
+      expect(workEntries.confirm).toHaveBeenCalledWith(entryId, {
+        minutes: null,
+        title: undefined,
+        description: undefined,
+      });
+      expect(result).toEqual({
+        id: entryId,
+        status: "CONFIRMED",
+        minutes: null,
+      });
     });
 
     it("answers 404 when the source produced no entry", async () => {

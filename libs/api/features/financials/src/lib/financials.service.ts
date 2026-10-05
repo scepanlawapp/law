@@ -191,12 +191,14 @@ export class FinancialsService {
             lastName: string | null;
             email: string;
           };
+          title: string;
           description: string;
           minutes: number | null;
         }) => ({
           id: entry.id,
           workDate: entry.workDate.toISOString().slice(0, 10),
           user: this.userReference(entry.user),
+          title: entry.title,
           description: entry.description,
           minutes: entry.minutes,
         }),
@@ -442,33 +444,22 @@ export class FinancialsService {
         workspaceId: this.workspaceId,
         invoiceLine: { invoiceId },
       },
-      select: { id: true, clientId: true, caseId: true, minutes: true },
+      select: { id: true, clientId: true, caseId: true },
     });
     if (!entries.length) return;
-    const where = (ids: string[]) => ({
-      id: { in: ids },
-      workspaceId: this.workspaceId,
+    // Only confirmed entries can be billed, so they all go back to CONFIRMED,
+    // timed or not.
+    await tx.workEntry.updateMany({
+      where: {
+        id: { in: entries.map((entry) => entry.id) },
+        workspaceId: this.workspaceId,
+      },
+      data: {
+        status: WorkEntryStatus.CONFIRMED,
+        invoiceLineId: null,
+        updatedByUserId: this.context.userId,
+      },
     });
-    const timed = entries.filter((entry) => entry.minutes !== null);
-    const untimed = entries.filter((entry) => entry.minutes === null);
-    if (timed.length)
-      await tx.workEntry.updateMany({
-        where: where(timed.map((entry) => entry.id)),
-        data: {
-          status: WorkEntryStatus.CONFIRMED,
-          invoiceLineId: null,
-          updatedByUserId: this.context.userId,
-        },
-      });
-    if (untimed.length)
-      await tx.workEntry.updateMany({
-        where: where(untimed.map((entry) => entry.id)),
-        data: {
-          status: WorkEntryStatus.PROPOSED,
-          invoiceLineId: null,
-          updatedByUserId: this.context.userId,
-        },
-      });
     await this.logWorkEntries(tx, "WORK_ENTRY_UNBILLED", entries, invoiceId);
   }
 

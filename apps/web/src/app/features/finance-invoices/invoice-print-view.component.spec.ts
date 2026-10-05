@@ -5,10 +5,7 @@ import {
   provideRouter,
 } from "@angular/router";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
-import {
-  Invoice,
-  InvoiceLineSummary,
-} from "@law/api-interfaces";
+import { Invoice, InvoiceLineSummary } from "@law/api-interfaces";
 import { of } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { InvoicePrintViewComponent } from "./invoice-print-view.component";
@@ -91,14 +88,16 @@ function invoice(printWorkSpecification: boolean): Invoice {
           id: "e2",
           workDate: "2026-09-20",
           user: marko,
-          description: "Poziv sa klijentom",
+          title: "Poziv sa klijentom",
+          description: "",
           minutes: 30,
         },
         {
           id: "e1",
           workDate: "2026-09-05",
           user: ana,
-          description: "Izrada ugovora",
+          title: "Izrada ugovora",
+          description: "",
           minutes: 90,
         },
       ]),
@@ -107,7 +106,8 @@ function invoice(printWorkSpecification: boolean): Invoice {
           id: "e3",
           workDate: "2026-09-12",
           user: ana,
-          description: "Ročište",
+          title: "Ročište",
+          description: "",
           minutes: 60,
         },
       ]),

@@ -1087,6 +1087,7 @@ export interface InvoiceLineSummary {
     id: string;
     workDate: string;
     user: UserReference;
+    title: string;
     description: string;
     minutes: number | null;
   }[];

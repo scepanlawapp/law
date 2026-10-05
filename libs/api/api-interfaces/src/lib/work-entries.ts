@@ -41,6 +41,9 @@ export interface WorkEntry {
   workDate: string;
   minutes: number | null;
   timerStartedAt: string | null;
+  /** One-sentence summary shown in lists and on invoice lines. */
+  title: string;
+  /** Optional longer notes. */
   description: string;
   serviceCategory: { id: string; name: string } | null;
   treatment: WorkEntryTreatment;
@@ -59,8 +62,10 @@ export interface CreateWorkEntryRequest {
   clientId: string;
   caseId?: string;
   workDate: string;
-  minutes: number;
-  description: string;
+  /** Omit or null for work that is priced later on the invoice. */
+  minutes?: number | null;
+  title: string;
+  description?: string;
   serviceCategoryId?: string;
   treatment?: WorkEntryTreatment;
   source?: "MANUAL" | "QUICK_CAPTURE";
@@ -85,11 +90,13 @@ export interface WorkEntryQuery {
 export interface StartTimerRequest {
   clientId: string;
   caseId?: string;
+  title?: string;
   description?: string;
 }
 
 export interface ConfirmWorkEntryRequest {
-  minutes: number;
+  minutes?: number | null;
+  title?: string;
   description?: string;
 }
 
@@ -101,6 +108,7 @@ export interface ConfirmSourceEntryRequest {
   sourceType: WorkEntrySourceType;
   sourceId: string;
   minutes: number | null;
+  title?: string;
   description?: string;
 }
 

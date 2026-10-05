@@ -1789,6 +1789,8 @@ model WorkEntry {
   workDate          DateTime           @db.Date
   minutes           Int?
   timerStartedAt    DateTime?          @db.Timestamptz(3)
+  /// One-sentence summary; required once the entry is created or confirmed (a running timer may still be blank).
+  title             String             @default("") @db.VarChar(200)
   description       String             @default("") @db.Text
   serviceCategoryId String?
   treatment         WorkEntryTreatment @default(UNDECIDED)

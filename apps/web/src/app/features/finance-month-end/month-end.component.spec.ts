@@ -36,7 +36,8 @@ function entry(overrides: Partial<WorkEntry>): WorkEntry {
     workDate: "2026-09-10",
     minutes: 30,
     timerStartedAt: null,
-    description: "Pregled ugovora",
+    title: "Pregled ugovora",
+    description: "",
     serviceCategory: null,
     treatment: "UNDECIDED",
     status: "PROPOSED",
@@ -56,7 +57,7 @@ const proposed = entry({});
 const undecided = entry({
   id: "entry-2",
   status: "CONFIRMED",
-  description: "Poziv sa klijentom",
+  title: "Poziv sa klijentom",
 });
 
 const precheck: MonthEndPrecheck = {

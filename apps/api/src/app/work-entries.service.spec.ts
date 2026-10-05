@@ -27,7 +27,8 @@ function entryRecord(overrides: Record<string, unknown> = {}) {
     workDate: new Date("2026-10-01"),
     minutes: 30,
     timerStartedAt: null,
-    description: "Pregled ugovora",
+    title: "Pregled ugovora",
+    description: "",
     serviceCategoryId: null,
     treatment: "UNDECIDED",
     status: "CONFIRMED",
@@ -119,7 +120,7 @@ describe("WorkEntriesService", () => {
     clientId,
     workDate: "2026-10-01",
     minutes: 45,
-    description: "Pregled ugovora",
+    title: "Pregled ugovora",
   };
 
   beforeEach(() => {
@@ -197,14 +198,45 @@ describe("WorkEntriesService", () => {
       );
     });
 
-    it("transliterates the description to Serbian Latin", async () => {
+    it("transliterates the title and description to Serbian Latin", async () => {
       await as(WorkspaceRole.LAWYER, () =>
-        service.create({ ...validCreate, description: "Преглед уговора" }),
+        service.create({
+          ...validCreate,
+          title: "Преглед уговора",
+          description: "Белешка",
+        }),
       );
-      expect(db.workEntry.create.mock.calls[0][0].data.description).toBe(
-        "Pregled ugovora",
+      const data = db.workEntry.create.mock.calls[0][0].data;
+      expect(data.title).toBe("Pregled ugovora");
+      expect(data.description).toBe("Beleška");
+    });
+
+    it("creates a confirmed untimed entry without a description", async () => {
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ clientId, workDate: "2026-10-01", title: "Overa" }),
+      );
+      const data = db.workEntry.create.mock.calls[0][0].data;
+      expect(data).toEqual(
+        expect.objectContaining({
+          minutes: null,
+          title: "Overa",
+          description: "",
+          status: "CONFIRMED",
+        }),
       );
     });
+
+    it.each(["", "   ", "x".repeat(201)])(
+      "rejects the title %j",
+      async (title) => {
+        await expect(
+          as(WorkspaceRole.LAWYER, () =>
+            service.create({ ...validCreate, title }),
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException);
+        expect(db.workEntry.create).not.toHaveBeenCalled();
+      },
+    );
 
     it.each([0, 1441])("rejects %d minutes", async (minutes) => {
       await expect(
@@ -449,6 +481,37 @@ describe("WorkEntriesService", () => {
       );
       expect(result.status).toBe("CONFIRMED");
       expect(hook).toHaveBeenCalledTimes(1);
+    });
+
+    it("confirms a proposed entry without minutes as untimed work", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "PROPOSED", minutes: null }),
+      );
+      db.workEntry.findUniqueOrThrow.mockResolvedValue(
+        entryRecord({ status: "CONFIRMED", minutes: null }),
+      );
+
+      await as(WorkspaceRole.LAWYER, () =>
+        service.confirm(entryId, { minutes: null, title: "Završen pregled" }),
+      );
+
+      expect(db.workEntry.updateMany.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({
+          status: "CONFIRMED",
+          minutes: null,
+          title: "Završen pregled",
+        }),
+      );
+    });
+
+    it("refuses to confirm a running timer without minutes", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "RUNNING", minutes: null }),
+      );
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.confirm(entryId, {})),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.workEntry.updateMany).not.toHaveBeenCalled();
     });
 
     it("rejects an already confirmed entry with 409", async () => {

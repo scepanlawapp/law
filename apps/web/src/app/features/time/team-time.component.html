@@ -243,7 +243,12 @@
               }
             </td>
             <td hlmTd class="max-w-xs">
-              <span class="line-clamp-2">{{ entry.description }}</span>
+              <span class="line-clamp-2">{{ entry.title }}</span>
+              @if (entry.description) {
+                <span class="text-muted-foreground line-clamp-2 block text-xs">
+                  {{ entry.description }}
+                </span>
+              }
               @if (entry.writeOffReason) {
                 <span class="text-muted-foreground block text-xs">
                   {{ entry.writeOffReason }}
@@ -251,7 +256,11 @@
               }
             </td>
             <td hlmTd class="whitespace-nowrap">
-              {{ formatMinutes(entry.minutes ?? 0) }}
+              @if (entry.minutes !== null) {
+                {{ formatMinutes(entry.minutes) }}
+              } @else {
+                {{ "time.review.noDuration" | translate }}
+              }
             </td>
             <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
             <td hlmTd>

@@ -90,7 +90,7 @@
                       "
                       [disabled]="excludedEntryIds.has(entry.id)"
                       (change)="toggle(entry)"
-                      [attr.aria-label]="entry.description"
+                      [attr.aria-label]="entry.title"
                     />
                     @if (excludedEntryIds.has(entry.id)) {
                       <span class="text-muted-foreground">
@@ -103,7 +103,7 @@
                   {{ formatDate(entry.workDate) }}
                 </td>
                 <td hlmTd class="whitespace-normal">
-                  {{ entry.description }}
+                  {{ entry.title }}
                   <span class="block text-muted-foreground">
                     {{
                       entry.case?.caseNumber ?? ("finance.noCase" | translate)
@@ -112,7 +112,11 @@
                 </td>
                 <td hlmTd>{{ entry.user.displayName }}</td>
                 <td hlmTd class="whitespace-nowrap">
-                  {{ formatMinutes(entry.minutes ?? 0) }}
+                  @if (entry.minutes !== null) {
+                    {{ formatMinutes(entry.minutes) }}
+                  } @else {
+                    {{ "time.review.noDuration" | translate }}
+                  }
                 </td>
                 <td hlmTd>
                   {{ treatmentLabelKeys[entry.treatment] | translate }}

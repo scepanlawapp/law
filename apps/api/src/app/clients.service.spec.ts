@@ -62,7 +62,7 @@ describe("ClientsService createActivity", () => {
       clientIds: [clientId],
       caseId,
       workDate: new Date("2026-10-05T00:00:00.000Z"),
-      description: "Sastanak",
+      title: "Sastanak",
       minutes: 45,
       confirm: true,
     });

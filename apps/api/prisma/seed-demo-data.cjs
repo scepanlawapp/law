@@ -1546,6 +1546,9 @@ async function ensureWorkEntries(
     [37, 5, "D", true, 18, null, "Dostava dokumentacije sudu", null, "UNDECIDED", "PROPOSED", "EVENT", { sourceType: "EVENT", sourceId: sources.eventD }],
     // Running timer (one per user at most).
     [38, 2, "D", true, null, null, "Priprema za ročište", LIT, "UNDECIDED", "RUNNING", "TIMER", { timerStartedAt: new Date(now - 25 * 60000) }],
+    // Untimed work, priced by hand on the invoice.
+    [41, 1, "D", true, 19, null, "Podnošenje predloga za izvršenje", LIT, "AT", "CONFIRMED", "MANUAL", { notes: "Predlog predat preko e-Sud portala, taksa plaćena." }],
+    [42, 3, "C", false, 23, null, "Overa punomoćja za direktora", OTHER, "HOURLY", "CONFIRMED", "MANUAL"],
   ];
 
   if (invoiceLine) {
@@ -1564,7 +1567,7 @@ async function ensureWorkEntries(
     withCase,
     day,
     minutes,
-    description,
+    title,
     categoryName,
     treatment,
     status,
@@ -1594,7 +1597,8 @@ async function ensureWorkEntries(
         workDate,
         minutes,
         timerStartedAt: extra.timerStartedAt ?? null,
-        description,
+        title,
+        description: extra.notes ?? "",
         serviceCategoryId: categoryName
           ? categories.get(categoryName).id
           : null,

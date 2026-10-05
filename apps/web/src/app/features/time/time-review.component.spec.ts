@@ -30,7 +30,8 @@ function entry(overrides: Partial<WorkEntry>): WorkEntry {
     workDate: DATE,
     minutes: 30,
     timerStartedAt: null,
-    description: "Pregled ugovora",
+    title: "Pregled ugovora",
+    description: "",
     serviceCategory: null,
     treatment: "UNDECIDED",
     status: "CONFIRMED",
@@ -50,7 +51,7 @@ const proposedEntry = entry({
   id: "proposed-1",
   status: "PROPOSED",
   minutes: 45,
-  description: "Poziv sa klijentom",
+  title: "Poziv sa klijentom",
   client: client("client-2", "Delta"),
   case: {
     id: "case-9",
@@ -230,7 +231,8 @@ describe("TimeReviewComponent", () => {
       clientId: "client-2",
       caseId: "case-9",
       minutes: 45,
-      description: "Poziv sa klijentom",
+      title: "Poziv sa klijentom",
+      description: "",
       workDate: DATE,
     });
   });
@@ -254,7 +256,7 @@ describe("TimeReviewComponent", () => {
       source: { sourceType: "EVENT", sourceId: "event-1" },
       clientId: "client-3",
       caseId: undefined,
-      description: "Sastanak u sudu",
+      title: "Sastanak u sudu",
       minutes: 90,
       workDate: DATE,
     });

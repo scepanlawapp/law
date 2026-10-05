@@ -158,7 +158,7 @@ describe("QuickCaptureDialogComponent", () => {
     component.form.patchValue({
       clientId: "client-1",
       minutes: 30,
-      description: "Pregled ugovora",
+      title: "Pregled ugovora",
       workDate: "2026-10-04",
       ...values,
     });
@@ -166,12 +166,41 @@ describe("QuickCaptureDialogComponent", () => {
 
   it("is invalid without a client", () => {
     const { componentInstance: component } = render();
-    component.form.patchValue({ minutes: 30, description: "Rad" });
+    component.form.patchValue({ minutes: 30, title: "Rad" });
     expect(component.form.controls.clientId.hasError("required")).toBe(true);
     expect(component.form.invalid).toBe(true);
 
     component.form.controls.clientId.setValue("client-1");
     expect(component.form.valid).toBe(true);
+  });
+
+  it("requires a one-sentence title of at most 200 characters", () => {
+    const { componentInstance: component } = render();
+    fillValid(component, { title: "   " });
+    expect(component.form.controls.title.invalid).toBe(true);
+    component.form.controls.title.setValue("x".repeat(201));
+    expect(component.form.controls.title.hasError("maxlength")).toBe(true);
+    component.form.controls.title.setValue("Poziv sa klijentom");
+    expect(component.form.valid).toBe(true);
+  });
+
+  it("makes the duration and the description optional", () => {
+    const { componentInstance: component } = render();
+    fillValid(component, { minutes: null, description: "" });
+    expect(component.form.valid).toBe(true);
+  });
+
+  it("requires minutes when confirming a stopped timer", () => {
+    context = {
+      mode: "confirm-timer",
+      entryId: "entry-1",
+      clientId: "client-1",
+      requireMinutes: true,
+      title: "Rad",
+    };
+    const { componentInstance: component } = render();
+    component.form.controls.minutes.setValue(null);
+    expect(component.form.controls.minutes.hasError("required")).toBe(true);
   });
 
   it("lists recent clients first, without duplicates", () => {
@@ -255,7 +284,7 @@ describe("QuickCaptureDialogComponent", () => {
       const fixture = render();
       const component = fixture.componentInstance;
       component.form.patchValue({ description: "Ručno", minutes: 15 });
-      component.freeText.setValue("nešto nejasno");
+      component.form.controls.title.setValue("nešto nejasno");
       fixture.detectChanges();
 
       buttonWithText(fixture.nativeElement, "time.capture.fill")?.click();
@@ -276,7 +305,7 @@ describe("QuickCaptureDialogComponent", () => {
     it("shows the hint when the request itself fails", () => {
       entries.parse.mockReturnValue(throwError(() => new Error("timeout")));
       const fixture = render();
-      fixture.componentInstance.freeText.setValue("Alfa 30 min");
+      fixture.componentInstance.form.controls.title.setValue("Alfa 30 min");
       fixture.componentInstance.fillFromText();
       expect(fixture.componentInstance.parseFailed()).toBe(true);
       expect(fixture.componentInstance.aiParsed()).toBe(false);
@@ -294,14 +323,15 @@ describe("QuickCaptureDialogComponent", () => {
       );
       const fixture = render();
       const component = fixture.componentInstance;
-      component.freeText.setValue("Beta 45 minuta telefonski razgovor");
+      component.form.controls.title.setValue(
+        "Beta 45 minuta telefonski razgovor",
+      );
       component.fillFromText();
 
       expect(component.form.controls.clientId.value).toBe("client-2");
       expect(component.form.controls.minutes.value).toBe(45);
-      expect(component.form.controls.description.value).toBe(
-        "Telefonski razgovor",
-      );
+      // The parsed summary replaces the sentence the user typed.
+      expect(component.form.controls.title.value).toBe("Telefonski razgovor");
       expect(component.aiParsed()).toBe(true);
       expect(component.parseFailed()).toBe(false);
     });
@@ -317,7 +347,7 @@ describe("QuickCaptureDialogComponent", () => {
       );
       entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
       const component = render().componentInstance;
-      component.freeText.setValue("spor P-9");
+      component.form.controls.title.setValue("spor P-9");
       component.fillFromText();
 
       expect(cases.get).toHaveBeenCalledWith("case-9");
@@ -331,7 +361,7 @@ describe("QuickCaptureDialogComponent", () => {
       cases.get.mockReturnValue(lookup);
       entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
       const component = render().componentInstance;
-      component.freeText.setValue("spor P-9");
+      component.form.controls.title.setValue("spor P-9");
       component.fillFromText();
 
       expect(component.aiParsed()).toBe(false);
@@ -349,7 +379,7 @@ describe("QuickCaptureDialogComponent", () => {
       cases.get.mockReturnValue(throwError(() => new Error("404")));
       entries.parse.mockReturnValue(of(parseResult({ caseId: "case-9" })));
       const component = render().componentInstance;
-      component.freeText.setValue("spor P-9");
+      component.form.controls.title.setValue("spor P-9");
       component.fillFromText();
 
       expect(component.aiParsed()).toBe(false);
@@ -370,7 +400,7 @@ describe("QuickCaptureDialogComponent", () => {
       );
       const fixture = render();
       const component = fixture.componentInstance;
-      component.freeText.setValue("a 20 minuta");
+      component.form.controls.title.setValue("a 20 minuta");
       component.fillFromText();
       fixture.detectChanges();
 
@@ -384,7 +414,7 @@ describe("QuickCaptureDialogComponent", () => {
     it("does not flag aiParsed when parse filled nothing", () => {
       entries.parse.mockReturnValue(of(parseResult()));
       const component = render().componentInstance;
-      component.freeText.setValue("???");
+      component.form.controls.title.setValue("???");
       component.fillFromText();
       expect(component.aiParsed()).toBe(false);
       expect(component.parseFailed()).toBe(true);
@@ -395,20 +425,22 @@ describe("QuickCaptureDialogComponent", () => {
     context = {
       mode: "confirm-source",
       minutes: 45,
-      description: "Ročište",
+      title: "Ročište",
       source: { sourceType: "EVENT", sourceId: "event-1" },
     };
     const fixture = render();
     const root: HTMLElement = fixture.nativeElement;
     expect(root.querySelector("#capture-date")).toBeNull();
-    expect(root.querySelector("#capture-free-text")).toBeNull();
+    expect(root.querySelector("#capture-title")).not.toBeNull();
+    expect(buttonWithText(root, "time.capture.fill")).toBeFalsy();
     expect(root.querySelector("#capture-minutes")).not.toBeNull();
   });
 
   it("shows the date and the AI box when creating", () => {
     const root: HTMLElement = render().nativeElement;
     expect(root.querySelector("#capture-date")).not.toBeNull();
-    expect(root.querySelector("#capture-free-text")).not.toBeNull();
+    expect(root.querySelector("#capture-title")).not.toBeNull();
+    expect(buttonWithText(root, "time.capture.fill")).toBeTruthy();
   });
 
   it("clears the case when the client changes", () => {
@@ -495,7 +527,8 @@ describe("QuickCaptureDialogComponent", () => {
         expect.objectContaining({
           clientId: "client-1",
           minutes: 30,
-          description: "Pregled ugovora",
+          title: "Pregled ugovora",
+          description: "",
           workDate: "2026-10-04",
           source: "MANUAL",
           aiParsed: false,
@@ -504,10 +537,19 @@ describe("QuickCaptureDialogComponent", () => {
       expect(dialogRef.close).toHaveBeenCalledWith(savedEntry);
     });
 
+    it("creates an untimed entry when no duration is given", () => {
+      const { componentInstance: component } = render();
+      fillValid(component, { minutes: null });
+      component.submit();
+      expect(entries.create).toHaveBeenCalledWith(
+        expect.objectContaining({ minutes: null, title: "Pregled ugovora" }),
+      );
+    });
+
     it("creates a QUICK_CAPTURE entry after a successful parse", () => {
       entries.parse.mockReturnValue(of(parseResult({ clientId: "client-1" })));
       const { componentInstance: component } = render();
-      component.freeText.setValue("Alfa");
+      component.form.controls.title.setValue("Alfa");
       component.fillFromText();
       fillValid(component);
       component.submit();
@@ -539,7 +581,7 @@ describe("QuickCaptureDialogComponent", () => {
         entryId: "entry-1",
         clientId: "client-1",
         minutes: 12,
-        description: "Rad",
+        title: "Rad",
         workDate: "2026-10-04",
       };
       const { componentInstance: component } = render();
@@ -551,7 +593,8 @@ describe("QuickCaptureDialogComponent", () => {
       );
       expect(entries.confirm).toHaveBeenCalledWith("entry-1", {
         minutes: 12,
-        description: "Rad",
+        title: "Rad",
+        description: "",
       });
       expect(entries.create).not.toHaveBeenCalled();
       expect(dialogRef.close).toHaveBeenCalledWith(savedEntry);
@@ -561,7 +604,7 @@ describe("QuickCaptureDialogComponent", () => {
       context = {
         mode: "confirm-source",
         minutes: 45,
-        description: "Ročište",
+        title: "Ročište",
         source: { sourceType: "EVENT", sourceId: "event-1" },
       };
       const { componentInstance: component } = render();
@@ -570,7 +613,8 @@ describe("QuickCaptureDialogComponent", () => {
         sourceType: "EVENT",
         sourceId: "event-1",
         minutes: 45,
-        description: "Ročište",
+        title: "Ročište",
+        description: "",
       });
     });
 
@@ -580,13 +624,13 @@ describe("QuickCaptureDialogComponent", () => {
         entryId: "entry-7",
         clientId: "client-1",
         minutes: 60,
-        description: "Izmena",
+        title: "Izmena",
       };
       const { componentInstance: component } = render();
       component.submit();
       expect(entries.update).toHaveBeenCalledWith(
         "entry-7",
-        expect.objectContaining({ minutes: 60, description: "Izmena" }),
+        expect.objectContaining({ minutes: 60, title: "Izmena" }),
       );
       expect(entries.confirm).not.toHaveBeenCalled();
     });

@@ -49,6 +49,9 @@ interface BillableEntry {
   id: string;
   workDate: Date;
   createdAt: Date;
+  title: string;
+  /** False for untimed work: `minutes` is then 0 and the price is set by hand. */
+  timed: boolean;
   minutes: number;
   serviceCategoryId: string | null;
   caseId: string | null;
@@ -112,6 +115,20 @@ function sumMinutes(entries: { minutes: number }[]): number {
 function groupDescription(entry: BillableEntry): string {
   if (entry.case) return `${entry.case.caseNumber} ${entry.case.name}`;
   return entry.serviceCategory?.name ?? "Ostali rad";
+}
+
+/** A single untimed entry as its own line group, described by its title. */
+function untimedGroup(entry: BillableEntry): {
+  description: string;
+  entryIds: string[];
+  minutes: number;
+} {
+  const prefix = entry.case ? `${entry.case.caseNumber} ` : "";
+  return {
+    description: `${prefix}${entry.title}`,
+    entryIds: [entry.id],
+    minutes: 0,
+  };
 }
 
 /** Entries of one case, or of one category when they have no case. */
@@ -226,7 +243,6 @@ export class MonthEndRunService {
           status: "CONFIRMED",
           invoiceLineId: null,
           treatment: { in: ["RETAINER", "HOURLY", "AT"] },
-          minutes: { not: null },
           workDate: { gte: start, lte: end },
         },
         select: { clientId: true },
@@ -475,7 +491,6 @@ export class MonthEndRunService {
         status: "CONFIRMED",
         invoiceLineId: null,
         treatment: { in: ["RETAINER", "HOURLY", "AT"] },
-        minutes: { not: null },
         workDate: { gte: run.monthStart, lte: run.monthEnd },
       },
       include: {
@@ -488,6 +503,8 @@ export class MonthEndRunService {
       id: row.id,
       workDate: row.workDate,
       createdAt: row.createdAt,
+      title: row.title,
+      timed: row.minutes !== null,
       minutes: row.minutes ?? 0,
       serviceCategoryId: row.serviceCategoryId,
       caseId: row.caseId,
@@ -648,7 +665,7 @@ export class MonthEndRunService {
           ? agreement.outOfScopeHourlyRate
           : null;
       for (const group of groupByCase(
-        mine.filter((entry) => entry.treatment === "HOURLY"),
+        mine.filter((entry) => entry.treatment === "HOURLY" && entry.timed),
       )) {
         push(
           outOfScope,
@@ -671,6 +688,17 @@ export class MonthEndRunService {
           this.pricingRequiredLine(run, agreement.currency, group),
         );
       }
+      for (const entry of mine.filter(
+        (entry) => entry.treatment === "HOURLY" && !entry.timed,
+      )) {
+        awaitingPrice.push(
+          this.pricingRequiredLine(
+            run,
+            agreement.currency,
+            untimedGroup(entry),
+          ),
+        );
+      }
     }
 
     // Work no agreement covers on its date.
@@ -679,7 +707,7 @@ export class MonthEndRunService {
     );
     const hourlyRate = profile?.hourlyRate ?? null;
     for (const group of groupByCase(
-      uncovered.filter((entry) => entry.treatment === "HOURLY"),
+      uncovered.filter((entry) => entry.treatment === "HOURLY" && entry.timed),
     )) {
       hourly.push(
         this.line(run, profileCurrency, {
@@ -700,6 +728,15 @@ export class MonthEndRunService {
     )) {
       awaitingPrice.push(
         this.pricingRequiredLine(run, fallbackCurrency, group),
+      );
+    }
+    // Untimed hourly work cannot be priced by the rate: one line per entry,
+    // titled after it, for the lawyer to price.
+    for (const entry of uncovered.filter(
+      (entry) => entry.treatment === "HOURLY" && !entry.timed,
+    )) {
+      awaitingPrice.push(
+        this.pricingRequiredLine(run, profileCurrency, untimedGroup(entry)),
       );
     }
 
