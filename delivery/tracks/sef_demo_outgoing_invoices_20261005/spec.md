@@ -14,6 +14,7 @@ Add a complete first-version workflow from an existing ordinary outgoing invoice
 - Keep DEMO submission separate from the local send/billing workflow and prevent mutation while a submission is active, uncertain, or confirmed remotely.
 - Add Serbian and English invoice-detail controls, shared contracts, focused tests, developer documentation, and business-logic documentation.
 - Prefill new invoice headers and lines from organization invoice, payment, currency, tax, and company defaults. When editing a draft, fill only values that are still missing and never replace persisted invoice data.
+- Keep SEF tax-category and exemption assignment out of the invoice composer; the frontend sends ordinary monetary line data and backend policy owns those SEF fields.
 
 ## Reliability and security decisions
 

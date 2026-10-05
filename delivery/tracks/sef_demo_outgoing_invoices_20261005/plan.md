@@ -19,3 +19,6 @@
 - [x] Fill only missing values when an existing draft is opened for editing.
 - [x] Cover default application and edit preservation with focused Angular tests.
 - [x] Re-run targeted tests, lint, build, and complete the delivery-track metadata.
+- [x] Remove tax-category and exemption controls from the invoice composer.
+- [x] Remove their frontend form/default/payload logic while retaining ordinary VAT calculations.
+- [x] Update focused tests and documentation, then rerun lint, tests, and build.
