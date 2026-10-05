@@ -21,12 +21,19 @@ import {
   HlmFieldLabel,
 } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { Observable, finalize } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  CURRENCY_OPTIONS,
+  CurrencyCode,
+  createCurrencyItemToString,
+} from "../../shared/currency";
+import { SelectOption, createSelectItemToString } from "../../shared/utils";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { OrganizationSettingsStore } from "./organization-settings.store";
 
@@ -403,21 +410,34 @@ export class TaxSettingsComponent extends SectionBase {
               {{ "settings.organization.numbering.patternHint" | translate }}
             </p>
           </div>
-          <div>
-            <p class="mb-2 text-sm font-medium">
-              {{ "settings.organization.numbering.tokens" | translate }}
-            </p>
-            <div class="flex flex-wrap gap-2">
-              @for (token of tokens; track token) {
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  (click)="append(token)"
+          <div class="flex flex-col gap-3">
+            <div>
+              <p class="text-sm font-medium">
+                {{ "settings.organization.numbering.tokens" | translate }}
+              </p>
+              <p class="mt-1 text-sm text-muted-foreground">
+                {{ "settings.organization.numbering.tokensHint" | translate }}
+              </p>
+            </div>
+            <div class="flex flex-col gap-2">
+              @for (item of tokens; track item.token) {
+                <div
+                  class="flex items-start gap-3 rounded-lg border border-border p-3"
                 >
-                  {{ token }}
-                </button>
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="shrink-0 font-mono"
+                    (click)="append(item.token)"
+                  >
+                    {{ item.token }}
+                  </button>
+                  <p class="pt-1 text-sm leading-snug text-muted-foreground">
+                    {{ item.description | translate }}
+                  </p>
+                </div>
               }
             </div>
           </div>
@@ -504,14 +524,38 @@ export class TaxSettingsComponent extends SectionBase {
 })
 export class InvoiceNumberingSettingsComponent extends SectionBase {
   readonly tokens = [
-    "{YYYY}",
-    "{YY}",
-    "{MM}",
-    "{M}",
-    "{DD}",
-    "{D}",
-    "{SEQ}",
-    "{SEQ:6}",
+    {
+      token: "{YYYY}",
+      description: "settings.organization.numbering.tokenDescriptions.YYYY",
+    },
+    {
+      token: "{YY}",
+      description: "settings.organization.numbering.tokenDescriptions.YY",
+    },
+    {
+      token: "{MM}",
+      description: "settings.organization.numbering.tokenDescriptions.MM",
+    },
+    {
+      token: "{M}",
+      description: "settings.organization.numbering.tokenDescriptions.M",
+    },
+    {
+      token: "{DD}",
+      description: "settings.organization.numbering.tokenDescriptions.DD",
+    },
+    {
+      token: "{D}",
+      description: "settings.organization.numbering.tokenDescriptions.D",
+    },
+    {
+      token: "{SEQ}",
+      description: "settings.organization.numbering.tokenDescriptions.SEQ",
+    },
+    {
+      token: "{SEQ:6}",
+      description: "settings.organization.numbering.tokenDescriptions.SEQ6",
+    },
   ];
   readonly revision = signal(0);
   readonly form = new FormGroup({
@@ -1184,7 +1228,7 @@ export class PaymentSettingsComponent extends SectionBase {
 @Component({
   selector: "law-currency-settings",
   standalone: true,
-  imports: [...baseImports, HlmFieldDescription, HlmSwitch],
+  imports: [...baseImports, HlmFieldDescription, HlmSelectImports, HlmSwitch],
   template: `
     <section class="py-6">
       <h3 class="text-base font-semibold">
@@ -1198,26 +1242,71 @@ export class PaymentSettingsComponent extends SectionBase {
           [formGroup]="form"
           (ngSubmit)="save()"
         >
-          <div ${field}>
+          <div class="flex flex-col gap-4">
             <div hlmField>
               <label hlmFieldLabel for="default-currency">
                 {{ "settings.organization.currency.default" | translate }}
               </label>
-              <input
-                hlmInput
-                id="default-currency"
+              <hlm-select
                 formControlName="defaultCurrencyCode"
-              />
+                [itemToString]="currencyItemToString"
+              >
+                <hlm-select-trigger buttonId="default-currency" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (currency of currencies; track currency.value) {
+                      <hlm-select-item [value]="currency.value">
+                        {{ currency.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
             </div>
             <div hlmField>
               <label hlmFieldLabel for="allowed-currencies">
                 {{ "settings.organization.currency.allowed" | translate }}
               </label>
-              <input
-                hlmInput
-                id="allowed-currencies"
+              <hlm-select-multiple
                 formControlName="allowedCurrencyCodes"
-              />
+                [itemToString]="currencyItemToString"
+              >
+                <hlm-select-trigger
+                  buttonId="allowed-currencies"
+                  class="w-full"
+                >
+                  <hlm-select-placeholder>
+                    {{
+                      "settings.organization.currency.allowedPlaceholder"
+                        | translate
+                    }}
+                  </hlm-select-placeholder>
+                  <ng-template hlmSelectValues let-values>
+                    <hlm-select-values-content>
+                      {{ currencyItemToString(values[0]) }}
+                      @if (values.length > 1) {
+                        <span>
+                          {{
+                            "settings.organization.currency.moreSelected"
+                              | translate: { count: values.length - 1 }
+                          }}
+                        </span>
+                      }
+                    </hlm-select-values-content>
+                  </ng-template>
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (currency of currencies; track currency.value) {
+                      <hlm-select-item [value]="currency.value">
+                        {{ currency.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select-multiple>
               <p hlmFieldDescription>
                 {{ "settings.organization.currency.allowedHint" | translate }}
               </p>
@@ -1226,16 +1315,26 @@ export class PaymentSettingsComponent extends SectionBase {
               <label hlmFieldLabel for="rate-source">
                 {{ "settings.organization.currency.source" | translate }}
               </label>
-              <select
-                id="rate-source"
+              <hlm-select
                 formControlName="exchangeRateSource"
-                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                [itemToString]="sourceItemToString"
               >
-                @for (source of sources; track source) {
-                  <option [value]="source">{{ source }}</option>
-                }
-              </select>
+                <hlm-select-trigger buttonId="rate-source" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (source of sources; track source.value) {
+                      <hlm-select-item [value]="source.value">
+                        {{ source.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
             </div>
+          </div>
+          <div class="flex flex-col gap-4">
             <div hlmField>
               <label hlmFieldLabel for="rate-precision">
                 {{ "settings.organization.currency.ratePrecision" | translate }}
@@ -1246,6 +1345,11 @@ export class PaymentSettingsComponent extends SectionBase {
                 type="number"
                 formControlName="exchangeRatePrecision"
               />
+              <p hlmFieldDescription>
+                {{
+                  "settings.organization.currency.ratePrecisionHint" | translate
+                }}
+              </p>
             </div>
             <div hlmField>
               <label hlmFieldLabel for="amount-precision">
@@ -1259,6 +1363,12 @@ export class PaymentSettingsComponent extends SectionBase {
                 type="number"
                 formControlName="amountPrecision"
               />
+              <p hlmFieldDescription>
+                {{
+                  "settings.organization.currency.amountPrecisionHint"
+                    | translate
+                }}
+              </p>
             </div>
           </div>
           <div class="flex items-center justify-between gap-4">
@@ -1285,17 +1395,43 @@ export class PaymentSettingsComponent extends SectionBase {
   `,
 })
 export class CurrencySettingsComponent extends SectionBase {
-  readonly sources = ["NBS_MIDDLE", "NBS_BUY", "NBS_SELL", "MANUAL"] as const;
+  readonly currencies = CURRENCY_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString((key) =>
+    this.localization.translate(key),
+  );
+  readonly sources = [
+    {
+      value: "NBS_MIDDLE",
+      label: "settings.organization.currency.sources.NBS_MIDDLE",
+    },
+    {
+      value: "NBS_BUY",
+      label: "settings.organization.currency.sources.NBS_BUY",
+    },
+    {
+      value: "NBS_SELL",
+      label: "settings.organization.currency.sources.NBS_SELL",
+    },
+    {
+      value: "MANUAL",
+      label: "settings.organization.currency.sources.MANUAL",
+    },
+  ] as const satisfies ReadonlyArray<
+    SelectOption<"NBS_MIDDLE" | "NBS_BUY" | "NBS_SELL" | "MANUAL">
+  >;
+  readonly sourceItemToString = createSelectItemToString(this.sources, (key) =>
+    this.localization.translate(key),
+  );
   readonly form = new FormGroup({
-    defaultCurrencyCode: new FormControl("RSD", {
-      nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^[A-Z]{3}$/)],
-    }),
-    allowedCurrencyCodes: new FormControl("RSD", {
+    defaultCurrencyCode: new FormControl<CurrencyCode>("RSD", {
       nonNullable: true,
       validators: Validators.required,
     }),
-    exchangeRateSource: new FormControl<(typeof this.sources)[number]>(
+    allowedCurrencyCodes: new FormControl<CurrencyCode[]>(["RSD"], {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    exchangeRateSource: new FormControl<(typeof this.sources)[number]["value"]>(
       "NBS_MIDDLE",
       { nonNullable: true },
     ),
@@ -1313,11 +1449,18 @@ export class CurrencySettingsComponent extends SectionBase {
     super();
     effect(() => {
       const v = this.store.settings()?.currency;
-      if (v && this.form.pristine)
+      if (v && this.form.pristine) {
+        const allowedCurrencyCodes =
+          v.allowedCurrencyCodes.filter(isCurrencyCode);
         this.form.patchValue({
           ...v,
-          allowedCurrencyCodes: v.allowedCurrencyCodes.join(", "),
+          defaultCurrencyCode: isCurrencyCode(v.defaultCurrencyCode)
+            ? v.defaultCurrencyCode
+            : "RSD",
+          allowedCurrencyCodes:
+            allowedCurrencyCodes.length > 0 ? allowedCurrencyCodes : ["RSD"],
         });
+      }
     });
   }
   save() {
@@ -1328,16 +1471,16 @@ export class CurrencySettingsComponent extends SectionBase {
           "currency",
           this.api.updateCurrency({
             ...v,
-            defaultCurrencyCode: v.defaultCurrencyCode.toUpperCase(),
-            allowedCurrencyCodes: v.allowedCurrencyCodes
-              .split(",")
-              .map((x) => x.trim().toUpperCase())
-              .filter(Boolean),
+            allowedCurrencyCodes: v.allowedCurrencyCodes,
           }),
         )
         .pipe(finalize(() => this.form.markAsPristine())),
     );
   }
+}
+
+function isCurrencyCode(value: string): value is CurrencyCode {
+  return CURRENCY_OPTIONS.some((option) => option.value === value);
 }
 
 @Component({
