@@ -93,6 +93,15 @@ export class CreateClientDto {
   isDomestic?: boolean;
 
   @IsOptional()
+  @IsBoolean()
+  isPublicSector?: boolean;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(20)
+  jbkjs?: string;
+
+  @IsOptional()
   @IsString()
   @MaxLength(32)
   jmbg?: string;

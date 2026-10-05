@@ -1,0 +1,9 @@
+{
+  "track_id": "sef_demo_outgoing_invoices_20261005",
+  "parent_track_id": "financials_backend_20260923",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-10-05T00:00:00Z",
+  "updated_at": "2026-10-05T00:00:00Z",
+  "keywords": ["financials", "invoice", "sef", "ubl", "demo", "prisma"]
+}

@@ -214,7 +214,7 @@
         </div>
       </div>
 
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-4">
+      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-5">
         <div hlmField>
           <label hlmFieldLabel for="invoice-place-of-issue">
             {{ "finance.placeOfIssue" | translate }}
@@ -250,6 +250,31 @@
             {{ "finance.country" | translate }}
           </label>
           <input hlmInput id="invoice-country" formControlName="country" />
+        </div>
+        <div hlmField>
+          <label hlmFieldLabel for="invoice-vat-timing">
+            {{ "finance.sef.vatTiming" | translate }}
+          </label>
+          <hlm-select
+            formControlName="vatLiabilityTimingCode"
+            [itemToString]="vatTimingItemToString"
+          >
+            <hlm-select-trigger
+              buttonId="invoice-vat-timing"
+              class="w-full min-w-0 max-w-full"
+            >
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                @for (option of vatTimingOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
         </div>
       </div>
 
@@ -335,7 +360,7 @@
 
         @if (form.controls.lines.length) {
           <div class="overflow-x-auto">
-            <table hlmTable class="w-full min-w-[1180px]">
+            <table hlmTable class="w-full min-w-[1640px]">
               <thead hlmTHead>
                 <tr hlmTr>
                   <th hlmTh class="w-24">
@@ -345,6 +370,12 @@
                     {{ "finance.serviceDate" | translate }}
                   </th>
                   <th hlmTh>{{ "finance.lineDescription" | translate }}</th>
+                  <th hlmTh class="w-48">
+                    {{ "finance.sef.taxCategory" | translate }}
+                  </th>
+                  <th hlmTh class="w-64">
+                    {{ "finance.sef.exemptionBasis" | translate }}
+                  </th>
                   <th hlmTh class="w-36">
                     {{ "finance.lineNetAmount" | translate }}
                   </th>
@@ -419,6 +450,55 @@
                         class="min-w-56"
                         required
                       />
+                    </td>
+                    <td hlmTd>
+                      <hlm-select
+                        formControlName="taxCategoryCode"
+                        [itemToString]="taxCategoryItemToString"
+                      >
+                        <hlm-select-trigger
+                          [buttonId]="'invoice-line-tax-category-' + index"
+                          class="w-full min-w-0 max-w-full"
+                        >
+                          <hlm-select-value />
+                        </hlm-select-trigger>
+                        <hlm-select-content *hlmSelectPortal width="content">
+                          <hlm-select-group>
+                            @for (
+                              option of taxCategoryOptions;
+                              track option.value
+                            ) {
+                              <hlm-select-item [value]="option.value">
+                                {{ option.label | translate }}
+                              </hlm-select-item>
+                            }
+                          </hlm-select-group>
+                        </hlm-select-content>
+                      </hlm-select>
+                    </td>
+                    <td hlmTd>
+                      <div class="space-y-2">
+                        <input
+                          hlmInput
+                          formControlName="taxExemptionReasonCode"
+                          [attr.aria-label]="
+                            'finance.sef.exemptionCode' | translate
+                          "
+                          [placeholder]="
+                            'finance.sef.exemptionCode' | translate
+                          "
+                        />
+                        <input
+                          hlmInput
+                          formControlName="taxExemptionReasonText"
+                          [attr.aria-label]="
+                            'finance.sef.exemptionText' | translate
+                          "
+                          [placeholder]="
+                            'finance.sef.exemptionText' | translate
+                          "
+                        />
+                      </div>
                     </td>
                     <td hlmTd>
                       <input

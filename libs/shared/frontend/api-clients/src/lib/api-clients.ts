@@ -102,6 +102,10 @@ import {
   BankAccount,
   BankAccountRequest,
   InvoiceNumberSuggestion,
+  InvoiceSefRequest,
+  InvoiceSefStateResponse,
+  InvoiceSefSubmission,
+  SefValidationResult,
   WriteOffWorkEntryRequest,
 } from "@law/api-interfaces";
 import { getRuntimeConfig } from "./runtime-config";
@@ -877,6 +881,8 @@ export interface ClientRequest {
   displayName?: string;
   organizationName?: string;
   isDomestic?: boolean;
+  isPublicSector?: boolean;
+  jbkjs?: string;
   jmbg?: string;
   taxNumber?: string;
   registrationNumber?: string;
@@ -1926,6 +1932,54 @@ export class FinancialsApiClient {
   sendInvoice(id: string): Observable<Invoice> {
     return this.http.post<Invoice>(
       this.endpoint(`/financials/invoices/${id}/send`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  sefState(id: string): Observable<InvoiceSefStateResponse> {
+    return this.http.get<InvoiceSefStateResponse>(
+      this.endpoint(`/financials/invoices/${id}/sef`),
+      { withCredentials: true },
+    );
+  }
+
+  validateSefInvoice(
+    id: string,
+    body: InvoiceSefRequest = {},
+  ): Observable<SefValidationResult> {
+    return this.http.post<SefValidationResult>(
+      this.endpoint(`/financials/invoices/${id}/sef/validate`),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  downloadSefUbl(id: string, bankAccountId?: string): Observable<Blob> {
+    let params = new HttpParams();
+    if (bankAccountId) params = params.set("bankAccountId", bankAccountId);
+    return this.http.get(this.endpoint(`/financials/invoices/${id}/sef/ubl`), {
+      withCredentials: true,
+      params,
+      responseType: "blob",
+    });
+  }
+
+  sendToDemoSef(
+    id: string,
+    idempotencyKey: string,
+    body: InvoiceSefRequest = {},
+  ): Observable<InvoiceSefSubmission> {
+    return this.http.post<InvoiceSefSubmission>(
+      this.endpoint(`/financials/invoices/${id}/sef/send`),
+      body,
+      { withCredentials: true, headers: { "Idempotency-Key": idempotencyKey } },
+    );
+  }
+
+  refreshSefStatus(id: string): Observable<InvoiceSefSubmission> {
+    return this.http.post<InvoiceSefSubmission>(
+      this.endpoint(`/financials/invoices/${id}/sef/refresh`),
       {},
       { withCredentials: true },
     );

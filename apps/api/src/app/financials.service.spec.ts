@@ -1,4 +1,4 @@
-import { ConflictException, ForbiddenException } from "@nestjs/common";
+import { ConflictException } from "@nestjs/common";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { WorkspaceContextService } from "@law/core";
 import { FinancialsService } from "@law/financials";
@@ -138,6 +138,7 @@ describe("FinancialsService", () => {
       create: jest.fn(),
       deleteMany: jest.fn(),
     },
+    organizationSettings: { findUnique: jest.fn() },
     domainCounter: { upsert: jest.fn() },
     $transaction: jest.fn(async (input: unknown) => {
       if (typeof input === "function") return input(db);
@@ -160,6 +161,7 @@ describe("FinancialsService", () => {
     db.invoiceLine.deleteMany.mockResolvedValue({ count: 0 });
     db.invoiceLine.findMany.mockResolvedValue([]);
     db.financeMutationRequest.findUnique.mockResolvedValue(null);
+    db.organizationSettings.findUnique.mockResolvedValue(null);
   });
 
   const header = {
@@ -178,16 +180,27 @@ describe("FinancialsService", () => {
     country: "Srbija",
     currency: "RSD",
   };
-  const line = (extra: Record<string, unknown> = {}) => ({
-    serviceDate: "2026-09-23",
-    description: "Legal services",
-    netAmount: 100,
-    vatRate: 20,
-    vatAmount: 20,
-    grossAmount: 120,
-    currency: "RSD",
-    ...extra,
-  });
+  const line = (extra: Record<string, unknown> = {}) => {
+    const value = {
+      serviceDate: "2026-09-23",
+      description: "Legal services",
+      netAmount: 100,
+      vatRate: 20,
+      vatAmount: 20,
+      grossAmount: 120,
+      currency: "RSD",
+      ...extra,
+    };
+    if ("netAmount" in extra && !("vatAmount" in extra)) {
+      value.vatAmount = Number(
+        ((Number(value.netAmount) * Number(value.vatRate)) / 100).toFixed(2),
+      );
+      value.grossAmount = Number(
+        (Number(value.netAmount) + value.vatAmount).toFixed(2),
+      );
+    }
+    return value;
+  };
   const asAdmin = <T>(fn: () => Promise<T>) =>
     WorkspaceContextService.run(
       { workspaceId, userId, role: WorkspaceRole.ADMIN },
@@ -281,6 +294,9 @@ describe("FinancialsService", () => {
     await asAdmin(() =>
       service.createInvoice({
         ...header,
+        netAmount: 0,
+        vatAmount: 0,
+        grossAmount: 0,
         lines: [line({ pricingRequired: true, netAmount: 0 })],
       }),
     );
@@ -404,11 +420,12 @@ describe("FinancialsService", () => {
       data: expect.objectContaining({
         billingMonth: "2026-09",
         invoiceNumber: "INV-000001",
-        netAmount: 150,
-        vatAmount: 30,
-        grossAmount: 180,
       }),
     });
+    const createdInvoice = db.invoice.create.mock.calls[0][0].data;
+    expect(createdInvoice.netAmount.toString()).toBe("150");
+    expect(createdInvoice.vatAmount.toString()).toBe("30");
+    expect(createdInvoice.grossAmount.toString()).toBe("180");
     expect(db.workEntry.updateMany).toHaveBeenCalledTimes(1);
   });
 
@@ -869,6 +886,9 @@ describe("FinancialsService", () => {
       await asAdmin(() =>
         service.createInvoice({
           ...header,
+          netAmount: 200,
+          vatAmount: 40,
+          grossAmount: 240,
           printWorkSpecification: false,
           lines: [line({ id: foreignId }), line()],
         }),

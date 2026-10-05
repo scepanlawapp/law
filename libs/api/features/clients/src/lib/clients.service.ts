@@ -275,6 +275,8 @@ export class ClientsService {
       lastName: client.lastName,
       organizationName: client.organizationName,
       isDomestic: client.isDomestic,
+      isPublicSector: client.isPublicSector,
+      jbkjs: client.jbkjs,
       jmbg: client.jmbg,
       taxNumber: client.taxNumber,
       registrationNumber: client.registrationNumber,
@@ -302,6 +304,8 @@ export class ClientsService {
           clientNumber: await this.nextNumber(tx, "CLIENT"),
           status: input.status ?? "ACTIVE",
           isDomestic: input.isDomestic ?? true,
+          isPublicSector: input.isPublicSector ?? false,
+          jbkjs: input.jbkjs?.trim(),
           jmbg: input.jmbg?.trim(),
           taxNumber: input.taxNumber?.trim(),
           registrationNumber: input.registrationNumber?.trim(),
@@ -368,6 +372,12 @@ export class ClientsService {
           ...(input.status !== undefined && { status: input.status }),
           ...(input.isDomestic !== undefined && {
             isDomestic: input.isDomestic,
+          }),
+          ...(input.isPublicSector !== undefined && {
+            isPublicSector: input.isPublicSector,
+          }),
+          ...(input.jbkjs !== undefined && {
+            jbkjs: input.jbkjs.trim() || null,
           }),
           ...(input.jmbg !== undefined && {
             jmbg: input.jmbg.trim() || null,

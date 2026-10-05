@@ -7,6 +7,8 @@ import {
   Patch,
   Post,
   Query,
+  Header,
+  Headers,
   UseGuards,
 } from "@nestjs/common";
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
@@ -18,14 +20,19 @@ import {
   AppendPriceSourceVersionDto,
   SendInvoiceDto,
   UpdateInvoiceDto,
+  SefInvoiceRequestDto,
 } from "./financials.dto";
 import { FinancialsService } from "./financials.service";
+import { SefSubmissionService } from "./sef-submission.service";
 
 @Controller("financials")
 @UseGuards(CsrfOriginGuard, AuthGuard, WorkspaceAccessGuard)
 @WorkspaceAccess()
 export class FinancialsController {
-  constructor(private readonly financials: FinancialsService) {}
+  constructor(
+    private readonly financials: FinancialsService,
+    private readonly sef: SefSubmissionService,
+  ) {}
 
   @Get("price-sources")
   priceSources() {
@@ -104,5 +111,42 @@ export class FinancialsController {
     @Body() body: ExternalInvoiceDto,
   ) {
     return this.financials.linkExternalInvoice(id, body);
+  }
+
+  @Post("invoices/:id/sef/validate")
+  validateSefInvoice(
+    @Param("id") id: string,
+    @Body() body: SefInvoiceRequestDto,
+  ) {
+    return this.sef.validate(id, body.bankAccountId);
+  }
+
+  @Get("invoices/:id/sef/ubl")
+  @Header("Content-Type", "application/xml; charset=utf-8")
+  @Header("Content-Disposition", 'attachment; filename="invoice-ubl.xml"')
+  ubl(
+    @Param("id") id: string,
+    @Query("bankAccountId") bankAccountId?: string,
+  ) {
+    return this.sef.xml(id, bankAccountId);
+  }
+
+  @Post("invoices/:id/sef/send")
+  sendToSef(
+    @Param("id") id: string,
+    @Headers("idempotency-key") idempotencyKey: string | undefined,
+    @Body() body: SefInvoiceRequestDto,
+  ) {
+    return this.sef.send(id, idempotencyKey ?? "", body.bankAccountId);
+  }
+
+  @Get("invoices/:id/sef")
+  sefState(@Param("id") id: string) {
+    return this.sef.state(id);
+  }
+
+  @Post("invoices/:id/sef/refresh")
+  refreshSef(@Param("id") id: string) {
+    return this.sef.refresh(id);
   }
 }

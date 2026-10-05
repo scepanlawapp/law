@@ -1,7 +1,12 @@
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute, RouterLink } from "@angular/router";
-import { Invoice, InvoiceLineSummary } from "@law/api-interfaces";
+import {
+  Invoice,
+  InvoiceLineSummary,
+  InvoiceSefStateResponse,
+  SefValidationResult,
+} from "@law/api-interfaces";
 import { FinancialsApiClient } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
@@ -42,6 +47,10 @@ export class FinanceInvoiceDetailComponent {
   readonly loading = signal(true);
   readonly error = signal(false);
   readonly sending = signal(false);
+  readonly sefState = signal<InvoiceSefStateResponse | null>(null);
+  readonly sefLoading = signal(false);
+  readonly sefAction = signal<"validate" | "download" | "send" | "refresh" | null>(null);
+  readonly sefValidation = signal<SefValidationResult | null>(null);
   /** Sending is for OWNER/ADMIN, like the API enforces. */
   readonly canSend = computed(() =>
     canManageBilling(this.authState.activeWorkspace()?.role),
@@ -53,9 +62,22 @@ export class FinanceInvoiceDetailComponent {
       this.invoice()?.lines.filter((line) => line.pricingRequired).length ??
       0,
   );
-  readonly sendBlocked = computed(() =>
-    hasPricingRequiredLines(this.invoice()?.lines ?? []),
+  readonly sendBlocked = computed(
+    () =>
+      hasPricingRequiredLines(this.invoice()?.lines ?? []) ||
+      Boolean(this.sefState()?.immutable),
   );
+  readonly sefSendBlocked = computed(() => {
+    const state = this.sefState();
+    return (
+      !state ||
+      !state.enabled ||
+      !state.configured ||
+      state.environment !== "DEMO" ||
+      state.immutable ||
+      this.sefAction() !== null
+    );
+  });
 
   constructor() {
     this.load();
@@ -71,6 +93,7 @@ export class FinanceInvoiceDetailComponent {
         next: (invoice) => {
           this.invoice.set(invoice);
           this.loading.set(false);
+          this.loadSefState();
         },
         error: () => {
           this.invoice.set(null);
@@ -78,6 +101,143 @@ export class FinanceInvoiceDetailComponent {
           this.error.set(true);
         },
       });
+  }
+
+  loadSefState(): void {
+    this.sefLoading.set(true);
+    this.api
+      .sefState(this.invoiceId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (state) => {
+          this.sefState.set(state);
+          this.sefLoading.set(false);
+        },
+        error: () => {
+          this.sefState.set(null);
+          this.sefLoading.set(false);
+        },
+      });
+  }
+
+  validateForSef(): void {
+    if (this.sefAction()) return;
+    this.sefAction.set("validate");
+    this.api
+      .validateSefInvoice(this.invoiceId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (result) => {
+          this.sefValidation.set(result);
+          this.sefAction.set(null);
+          const message = this.localization.translate(
+            result.valid
+              ? "finance.sef.validationPassed"
+              : "finance.sef.validationFailed",
+          );
+          if (result.valid) this.toast.success(message);
+          else this.toast.error(message);
+        },
+        error: () => {
+          this.sefAction.set(null);
+          this.toast.error(this.localization.translate("finance.sef.actionError"));
+        },
+      });
+  }
+
+  downloadUbl(): void {
+    if (this.sefAction()) return;
+    this.sefAction.set("download");
+    this.api
+      .downloadSefUbl(this.invoiceId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (blob) => {
+          const url = URL.createObjectURL(blob);
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = `${this.invoice()?.invoiceNumber ?? "invoice"}.xml`.replace(/[^a-zA-Z0-9._-]+/g, "_");
+          anchor.click();
+          URL.revokeObjectURL(url);
+          this.sefAction.set(null);
+        },
+        error: () => {
+          this.sefAction.set(null);
+          this.toast.error(this.localization.translate("finance.sef.actionError"));
+        },
+      });
+  }
+
+  sendToDemoSef(): void {
+    if (this.sefSendBlocked()) return;
+    this.confirmDialog
+      .confirm({
+        title: "finance.sef.sendTitle",
+        message: "finance.sef.sendMessage",
+        confirmText: "finance.sef.send",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        if (!confirmed) return;
+        const storageKey = `sef-idempotency:${this.invoiceId}`;
+        const idempotencyKey = sessionStorage.getItem(storageKey) ?? crypto.randomUUID();
+        sessionStorage.setItem(storageKey, idempotencyKey);
+        this.sefAction.set("send");
+        this.api
+          .sendToDemoSef(this.invoiceId, idempotencyKey)
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: (submission) => {
+              if (submission.state === "FAILED") sessionStorage.removeItem(storageKey);
+              this.sefAction.set(null);
+              this.loadSefState();
+            },
+            error: () => {
+              this.sefAction.set(null);
+              this.loadSefState();
+              this.toast.error(this.localization.translate("finance.sef.actionError"));
+            },
+          });
+      });
+  }
+
+  refreshSef(): void {
+    if (this.sefAction()) return;
+    this.sefAction.set("refresh");
+    this.api
+      .refreshSefStatus(this.invoiceId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => {
+          this.sefAction.set(null);
+          this.loadSefState();
+        },
+        error: () => {
+          this.sefAction.set(null);
+          this.loadSefState();
+          this.toast.error(this.localization.translate("finance.sef.actionError"));
+        },
+      });
+  }
+
+  sefStateKey(state: string): string {
+    return `finance.sef.state.${state}`;
+  }
+
+  sefFieldLabel(fieldPath: string): string {
+    const line = /^invoice\.lines\.(\d+)/.exec(fieldPath);
+    if (line)
+      return `${this.localization.translate("finance.sef.fieldLine")} ${Number(line[1]) + 1}`;
+    const key = fieldPath.startsWith("supplier")
+      ? "finance.sef.fieldIssuer"
+      : fieldPath.startsWith("customer")
+        ? "finance.sef.fieldRecipient"
+        : fieldPath.startsWith("payment")
+          ? "finance.sef.fieldPayment"
+          : fieldPath.startsWith("invoice")
+            ? "finance.sef.fieldInvoice"
+            : "finance.sef.fieldConfiguration";
+    return this.localization.translate(key);
   }
 
   send(): void {

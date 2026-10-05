@@ -23,6 +23,9 @@ export type InvoiceLineForm = FormGroup<{
   description: FormControl<string>;
   netAmount: FormControl<number | null>;
   vatRate: FormControl<number | null>;
+  taxCategoryCode: FormControl<string>;
+  taxExemptionReasonCode: FormControl<string>;
+  taxExemptionReasonText: FormControl<string>;
   vatAmount: FormControl<number | null>;
   grossAmount: FormControl<number | null>;
   currency: FormControl<string>;
@@ -32,6 +35,14 @@ export type InvoiceLineForm = FormGroup<{
 export interface ClientRate {
   hourlyRate: string | null;
   currency: string;
+}
+
+/** Organization-level tax values copied into newly composed invoice lines. */
+export interface InvoiceLineDefaults {
+  vatRate: number;
+  taxCategoryCode: string;
+  taxExemptionReasonCode: string;
+  taxExemptionReasonText: string;
 }
 
 export type InvoiceLineAmountSource =
@@ -129,6 +140,9 @@ function buildLineForm(init: {
   description: string;
   netAmount: number | null;
   vatRate: number;
+  taxCategoryCode?: string | null;
+  taxExemptionReasonCode?: string | null;
+  taxExemptionReasonText?: string | null;
   vatAmount: number;
   grossAmount: number | null;
   currency: string;
@@ -158,6 +172,17 @@ function buildLineForm(init: {
         Validators.min(0),
         Validators.max(100),
       ]),
+      taxCategoryCode: new FormControl(init.taxCategoryCode ?? "", {
+        nonNullable: true,
+      }),
+      taxExemptionReasonCode: new FormControl(
+        init.taxExemptionReasonCode ?? "",
+        { nonNullable: true },
+      ),
+      taxExemptionReasonText: new FormControl(
+        init.taxExemptionReasonText ?? "",
+        { nonNullable: true },
+      ),
       vatAmount: new FormControl<number | null>(init.vatAmount, [
         Validators.required,
         Validators.min(0),
@@ -178,7 +203,9 @@ function buildLineForm(init: {
 export function createInvoiceLineForm(
   line?: InvoiceLineSummary,
   defaultCurrency = "RSD",
+  defaults?: InvoiceLineDefaults,
 ): InvoiceLineForm {
+  const useDefaults = !line || !line.taxCategoryCode?.trim();
   return buildLineForm({
     id: line?.id ?? null,
     workEntryIds: line?.workEntries.map((entry) => entry.id) ?? [],
@@ -187,7 +214,18 @@ export function createInvoiceLineForm(
     serviceDate: line?.serviceDate.slice(0, 10) ?? localDate(),
     description: line?.description ?? "",
     netAmount: line ? Number(line.netAmount) : null,
-    vatRate: line ? Number(line.vatRate) : 0,
+    vatRate: useDefaults
+      ? (defaults?.vatRate ?? Number(line?.vatRate ?? 0))
+      : Number(line?.vatRate ?? 0),
+    taxCategoryCode: useDefaults
+      ? defaults?.taxCategoryCode
+      : line?.taxCategoryCode,
+    taxExemptionReasonCode: useDefaults
+      ? defaults?.taxExemptionReasonCode
+      : line?.taxExemptionReasonCode,
+    taxExemptionReasonText: useDefaults
+      ? defaults?.taxExemptionReasonText
+      : line?.taxExemptionReasonText,
     vatAmount: line ? Number(line.vatAmount) : 0,
     grossAmount: line ? Number(line.grossAmount) : null,
     currency: line?.currency ?? defaultCurrency,
@@ -203,6 +241,7 @@ export function createWorkEntryLineForm(
   entry: WorkEntry,
   currency: string,
   rate: ClientRate | null,
+  defaults?: InvoiceLineDefaults,
 ): InvoiceLineForm {
   const minutes = entry.minutes;
   const sameCurrency =
@@ -223,17 +262,19 @@ export function createWorkEntryLineForm(
         ? entry.title
         : `${entry.title} (${formatHoursMinutes(minutes)})`,
     netAmount: price,
-    vatRate: 0,
-    vatAmount: 0,
-    grossAmount: price,
+    vatRate: defaults?.vatRate ?? 0,
+    taxCategoryCode: defaults?.taxCategoryCode,
+    taxExemptionReasonCode: defaults?.taxExemptionReasonCode,
+    taxExemptionReasonText: defaults?.taxExemptionReasonText,
+    vatAmount: amountsFromNetAndRate(price, defaults?.vatRate ?? 0).vatAmount,
+    grossAmount: amountsFromNetAndRate(price, defaults?.vatRate ?? 0)
+      .grossAmount,
     currency,
   });
 }
 
 /** Work entry ids that already back a line of the invoice. */
-export function lineWorkEntryIds(
-  lines: readonly InvoiceLineForm[],
-): string[] {
+export function lineWorkEntryIds(lines: readonly InvoiceLineForm[]): string[] {
   return lines.flatMap((line) => line.controls.workEntryIds.value);
 }
 
@@ -254,12 +295,13 @@ export function appendUniqueWorkEntries(
   entries: readonly WorkEntry[],
   currency: string,
   rate: ClientRate | null,
+  defaults?: InvoiceLineDefaults,
 ): number {
   const existing = new Set(lineWorkEntryIds(target.controls));
   let added = 0;
   for (const entry of entries) {
     if (existing.has(entry.id)) continue;
-    target.push(createWorkEntryLineForm(entry, currency, rate));
+    target.push(createWorkEntryLineForm(entry, currency, rate, defaults));
     existing.add(entry.id);
     added += 1;
   }
@@ -274,10 +316,7 @@ export function recalculateInvoiceLine(
   line: InvoiceLineForm,
   source: InvoiceLineAmountSource,
 ): void {
-  const amounts = calculateInvoiceLineAmounts(
-    source,
-    line.getRawValue(),
-  );
+  const amounts = calculateInvoiceLineAmounts(source, line.getRawValue());
   line.patchValue(amounts, { emitEvent: false });
   if (amounts.netAmount > 0 && line.controls.pricingRequired.value) {
     line.controls.pricingRequired.setValue(false, { emitEvent: false });
@@ -292,9 +331,7 @@ export function hasPricingRequiredLines(
   return lines.some((line) => line.pricingRequired);
 }
 
-export function toInvoiceLineInput(
-  line: InvoiceLineForm,
-): InvoiceLineInput {
+export function toInvoiceLineInput(line: InvoiceLineForm): InvoiceLineInput {
   const value = line.getRawValue();
   return {
     // Line identity lets the server keep a fee line's retainer marker.
@@ -303,6 +340,9 @@ export function toInvoiceLineInput(
     description: value.description.trim(),
     netAmount: value.netAmount ?? 0,
     vatRate: value.vatRate ?? 0,
+    taxCategoryCode: value.taxCategoryCode.trim() || null,
+    taxExemptionReasonCode: value.taxExemptionReasonCode.trim() || null,
+    taxExemptionReasonText: value.taxExemptionReasonText.trim() || null,
     vatAmount: value.vatAmount ?? 0,
     grossAmount: value.grossAmount ?? 0,
     currency: normalizeCurrency(value.currency),

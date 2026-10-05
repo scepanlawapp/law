@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  Optional,
 } from "@nestjs/common";
 import {
   InvoiceLineStatus,
@@ -29,6 +30,11 @@ import {
   UpdateInvoiceDto,
 } from "./financials.dto";
 import { InvoiceNumberingService } from "./invoice-numbering.service";
+import {
+  calculateInvoiceMoney,
+  verifyInvoiceMoney,
+} from "./invoice-monetary-calculator";
+import { SefSubmissionService } from "./sef-submission.service";
 
 const WORK_ENTRY_GROUP = "WORK_ENTRY_GROUP";
 
@@ -49,6 +55,7 @@ export class FinancialsService {
   constructor(
     private readonly db: PlatformPrismaService,
     private readonly invoiceNumbering: InvoiceNumberingService,
+    @Optional() private readonly sefSubmissions?: SefSubmissionService,
   ) {}
 
   private get context() {
@@ -173,6 +180,9 @@ export class FinancialsService {
       serviceDate: line.serviceDate.toISOString().slice(0, 10),
       netAmount: line.netAmount.toString(),
       vatRate: line.vatRate.toString(),
+      taxCategoryCode: line.taxCategoryCode,
+      taxExemptionReasonCode: line.taxExemptionReasonCode,
+      taxExemptionReasonText: line.taxExemptionReasonText,
       vatAmount: line.vatAmount.toString(),
       grossAmount: line.grossAmount.toString(),
       currency: line.currency,
@@ -240,6 +250,7 @@ export class FinancialsService {
       vatRate: invoice.vatRate.toString(),
       vatAmount: invoice.vatAmount.toString(),
       grossAmount: invoice.grossAmount.toString(),
+      vatLiabilityTimingCode: invoice.vatLiabilityTimingCode,
       lines: invoice.lines.map((line: any) => this.lineSummary(line)),
       total: invoice.grossAmount.toFixed(2),
     };
@@ -505,6 +516,14 @@ export class FinancialsService {
       where: { workspaceId: this.workspaceId, invoiceId: invoice.id },
     });
 
+    const taxDefaults = await tx.organizationSettings.findUnique({
+      where: { workspaceId: this.workspaceId },
+      select: {
+        defaultTaxCategoryCode: true,
+        defaultTaxExemptionReasonCode: true,
+        defaultTaxExemptionReasonText: true,
+      },
+    });
     for (const [index, input] of lines.entries()) {
       const feeSourceId = input.id ? markerByLineId.get(input.id) : undefined;
       // A repeated id must not duplicate the fee marker.
@@ -518,7 +537,17 @@ export class FinancialsService {
               sourceType: RETAINER_FEE_SOURCE,
               sourceId: feeSourceId,
             }
-          : input,
+          : {
+              ...input,
+              taxCategoryCode:
+                input.taxCategoryCode ?? taxDefaults?.defaultTaxCategoryCode,
+              taxExemptionReasonCode:
+                input.taxExemptionReasonCode ??
+                taxDefaults?.defaultTaxExemptionReasonCode,
+              taxExemptionReasonText:
+                input.taxExemptionReasonText ??
+                taxDefaults?.defaultTaxExemptionReasonText,
+            },
         index,
       );
     }
@@ -543,6 +572,11 @@ export class FinancialsService {
         description: input.description.trim(),
         netAmount: input.netAmount,
         vatRate: input.vatRate,
+        taxCategoryCode: input.taxCategoryCode?.trim() || null,
+        taxExemptionReasonCode:
+          input.taxExemptionReasonCode?.trim() || null,
+        taxExemptionReasonText:
+          input.taxExemptionReasonText?.trim() || null,
         vatAmount: input.vatAmount,
         grossAmount: input.grossAmount,
         currency: invoice.currency.toUpperCase(),
@@ -602,6 +636,7 @@ export class FinancialsService {
   async createInvoice(input: CreateInvoiceDto) {
     this.assertManager();
     await this.assertClient(input.clientId);
+    verifyInvoiceMoney(input, input.lines);
     if (input.idempotencyKey) {
       const existing = await this.db.financeMutationRequest.findUnique({
         where: {
@@ -616,11 +651,9 @@ export class FinancialsService {
     }
     return this.db.$transaction(async (tx) => {
       const invoiceDate = new Date(input.dateOfCreate);
-      const settings = input.invoiceNumber
-        ? await tx.organizationSettings.findUnique({
-            where: { workspaceId: this.workspaceId },
-          })
-        : null;
+      const settings = await tx.organizationSettings.findUnique({
+        where: { workspaceId: this.workspaceId },
+      });
       if (
         input.invoiceNumber &&
         settings &&
@@ -648,6 +681,17 @@ export class FinancialsService {
           numberOfCashBill: input.numberOfCashBill.trim(),
           country: input.country.trim(),
           currency: input.currency.toUpperCase(),
+          vatLiabilityTimingCode:
+            input.vatLiabilityTimingCode ??
+            (input.lines.some((line) =>
+              ["S10", "S20"].includes(
+                line.taxCategoryCode ?? settings?.defaultTaxCategoryCode ?? "",
+              ),
+            )
+              ? settings?.cashAccountingEnabled
+                ? "432"
+                : "35"
+              : null),
           printWorkSpecification: input.printWorkSpecification,
           createdByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
@@ -703,9 +747,13 @@ export class FinancialsService {
     },
   ): Promise<string> {
     const sum = (pick: (line: InternalInvoiceLineInput) => number) =>
-      Math.round(
-        input.lines.reduce((total, line) => total + pick(line) * 100, 0),
-      ) / 100;
+      input.lines.reduce(
+        (total, line) => total.plus(new Prisma.Decimal(pick(line))),
+        new Prisma.Decimal(0),
+      );
+    const settings = await tx.organizationSettings.findUnique({
+      where: { workspaceId: this.workspaceId },
+    });
     const number = await this.nextInvoiceNumber(
       tx,
       new Date(input.header.dateOfCreate),
@@ -728,6 +776,15 @@ export class FinancialsService {
         numberOfCashBill: "",
         country: input.header.country.trim(),
         currency: input.currency.toUpperCase(),
+        vatLiabilityTimingCode: input.lines.some((line) =>
+          ["S10", "S20"].includes(
+            line.taxCategoryCode ?? settings?.defaultTaxCategoryCode ?? "",
+          ),
+        )
+          ? settings?.cashAccountingEnabled
+            ? "432"
+            : "35"
+          : null,
         billingMonth: input.billingMonth,
         createdByUserId: this.context.userId,
         updatedByUserId: this.context.userId,
@@ -748,6 +805,8 @@ export class FinancialsService {
     invoiceId: string,
     lines: InternalInvoiceLineInput[],
   ): Promise<void> {
+    await this.sefSubmissions?.lockInvoice(tx, invoiceId);
+    await this.sefSubmissions?.assertMutable(tx, invoiceId, "edit");
     const invoice = await tx.invoice.findFirst({
       where: { id: invoiceId, workspaceId: this.workspaceId },
     });
@@ -809,6 +868,8 @@ export class FinancialsService {
       include: { invoice: true },
     });
     if (!line) throw new NotFoundException("Invoice line not found");
+    await this.sefSubmissions?.lockInvoice(tx, line.invoiceId);
+    await this.sefSubmissions?.assertMutable(tx, line.invoiceId, "edit");
     if (line.invoice.status !== InvoiceStatus.DRAFT)
       throw new ConflictException("Only draft statements can be changed");
     if (!entryIds.length) return;
@@ -854,6 +915,21 @@ export class FinancialsService {
         throw new ConflictException("Manual invoice numbers are disabled");
     }
     await this.db.$transaction(async (tx) => {
+      await this.sefSubmissions?.lockInvoice(tx, id);
+      await this.sefSubmissions?.assertMutable(tx, id, "edit");
+      const calculatedTotals = input.lines
+        ? calculateInvoiceMoney(input.lines)
+        : null;
+      if (input.lines) {
+        verifyInvoiceMoney(
+          {
+            netAmount: input.netAmount ?? calculatedTotals!.netAmount,
+            vatAmount: input.vatAmount ?? calculatedTotals!.vatAmount,
+            grossAmount: input.grossAmount ?? calculatedTotals!.grossAmount,
+          },
+          input.lines,
+        );
+      }
       await tx.invoice.update({
         where: { id },
         data: {
@@ -870,12 +946,13 @@ export class FinancialsService {
           placeOfIssue: input.placeOfIssue?.trim(),
           methodOfPayment: input.methodOfPayment?.trim(),
           comment: input.comment?.trim(),
-          netAmount: input.netAmount,
+          netAmount: input.netAmount ?? calculatedTotals?.netAmount,
           vatRate: input.vatRate,
-          vatAmount: input.vatAmount,
-          grossAmount: input.grossAmount,
+          vatAmount: input.vatAmount ?? calculatedTotals?.vatAmount,
+          grossAmount: input.grossAmount ?? calculatedTotals?.grossAmount,
           numberOfCashBill: input.numberOfCashBill?.trim(),
           country: input.country?.trim(),
+          vatLiabilityTimingCode: input.vatLiabilityTimingCode,
           printWorkSpecification: input.printWorkSpecification,
           updatedByUserId: this.context.userId,
         },
@@ -895,15 +972,16 @@ export class FinancialsService {
 
   async deleteInvoice(id: string): Promise<void> {
     this.assertManager();
-    const invoice = await this.db.invoice.findFirst({
-      where: { id, workspaceId: this.workspaceId },
-      select: { id: true, status: true },
-    });
-    if (!invoice) throw new NotFoundException("Invoice not found");
-    if (invoice.status !== InvoiceStatus.DRAFT)
-      throw new ConflictException("Only draft invoices can be deleted");
-
     await this.db.$transaction(async (tx) => {
+      await this.sefSubmissions?.lockInvoice(tx, id);
+      await this.sefSubmissions?.assertMutable(tx, id, "delete");
+      const invoice = await tx.invoice.findFirst({
+        where: { id, workspaceId: this.workspaceId },
+        select: { id: true, status: true },
+      });
+      if (!invoice) throw new NotFoundException("Invoice not found");
+      if (invoice.status !== InvoiceStatus.DRAFT)
+        throw new ConflictException("Only draft invoices can be deleted");
       await tx.financeMutationRequest.deleteMany({
         where: {
           workspaceId: this.workspaceId,
@@ -940,6 +1018,8 @@ export class FinancialsService {
     )
       throw new ConflictException("Price every line before sending");
     return this.db.$transaction(async (tx) => {
+      await this.sefSubmissions?.lockInvoice(tx, id);
+      await this.sefSubmissions?.assertMutable(tx, id, "send");
       const sent = await tx.invoice.update({
         where: { id },
         data: {
@@ -984,6 +1064,8 @@ export class FinancialsService {
     const invoice = await this.getInvoice(id);
     if (invoice.status === InvoiceStatus.VOIDED) return invoice;
     return this.db.$transaction(async (tx) => {
+      await this.sefSubmissions?.lockInvoice(tx, id);
+      await this.sefSubmissions?.assertMutable(tx, id, "void");
       await tx.invoice.update({
         where: { id },
         data: {
@@ -1010,17 +1092,21 @@ export class FinancialsService {
   async linkExternalInvoice(id: string, input: ExternalInvoiceDto) {
     this.assertManager();
     await this.getInvoice(id);
-    const updated = await this.db.invoice.update({
-      where: { id },
-      data: {
-        externalInvoiceNumber: input.invoiceNumber,
-        externalInvoiceDate: input.invoiceDate
-          ? new Date(input.invoiceDate)
-          : undefined,
-        externalReference: input.reference,
-        updatedByUserId: this.context.userId,
-      },
-      include: this.invoiceInclude,
+    const updated = await this.db.$transaction(async (tx) => {
+      await this.sefSubmissions?.lockInvoice(tx, id);
+      await this.sefSubmissions?.assertMutable(tx, id, "edit");
+      return tx.invoice.update({
+        where: { id },
+        data: {
+          externalInvoiceNumber: input.invoiceNumber,
+          externalInvoiceDate: input.invoiceDate
+            ? new Date(input.invoiceDate)
+            : undefined,
+          externalReference: input.reference,
+          updatedByUserId: this.context.userId,
+        },
+        include: this.invoiceInclude,
+      });
     });
     return this.invoiceResponse(updated);
   }
