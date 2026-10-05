@@ -72,6 +72,9 @@ function entry(id: string, treatment: WorkEntry["treatment"]): WorkEntry {
 describe("FinanceInvoiceCreateComponent with work entries", () => {
   const workEntries = { get: jest.fn() };
   const setup = { getProfile: jest.fn() };
+  const financials = {
+    suggestInvoiceNumber: jest.fn(() => of({ invoiceNumber: "2026-000001" })),
+  };
 
   beforeAll(() => {
     // jsdom has no ResizeObserver; Spartan's select primitives observe size.
@@ -107,7 +110,7 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
         provideRouter([]),
         { provide: WorkEntriesApiClient, useValue: workEntries },
         { provide: BillingSetupApiClient, useValue: setup },
-        { provide: FinancialsApiClient, useValue: {} },
+        { provide: FinancialsApiClient, useValue: financials },
         {
           provide: OrganizationSettingsApiClient,
           useValue: {
@@ -177,6 +180,15 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     );
   });
 
+  it("automatically suggests the invoice number for a new invoice", () => {
+    const component = create().componentInstance;
+
+    expect(financials.suggestInvoiceNumber).toHaveBeenCalledWith(
+      component.form.controls.dateOfCreate.value,
+    );
+    expect(component.form.controls.invoiceNumber.value).toBe("2026-000001");
+  });
+
   it("clears the flag when the user prices a flagged row", () => {
     const fixture = create();
     const flagged = fixture.componentInstance.form.controls.lines.at(1);
@@ -193,7 +205,11 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
   const feeLineId = "11111111-1111-4111-8111-111111111111";
   const invoiceId = "55555555-5555-4555-8555-555555555555";
   const user = { id: "user-1", displayName: "Ana Anić", email: null };
-  const api = { invoice: jest.fn(), updateInvoice: jest.fn() };
+  const api = {
+    invoice: jest.fn(),
+    updateInvoice: jest.fn(),
+    suggestInvoiceNumber: jest.fn(),
+  };
 
   beforeAll(() => {
     globalThis.ResizeObserver ??= class {
@@ -241,6 +257,7 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
     api.invoice.mockReturnValue(
       of({
         id: invoiceId,
+        invoiceNumber: "2026-000042",
         clientId: client.id,
         status: "DRAFT",
         dateOfCreate: "2026-10-01",
@@ -345,6 +362,8 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
     expect(firstLine.controls.vatRate.value).toBe(0);
     expect(firstLine.controls.vatAmount.value).toBe(0);
     expect(firstLine.controls.grossAmount.value).toBe(1000);
+    expect(component.form.controls.invoiceNumber.value).toBe("2026-000042");
+    expect(api.suggestInvoiceNumber).not.toHaveBeenCalled();
   });
 });
 

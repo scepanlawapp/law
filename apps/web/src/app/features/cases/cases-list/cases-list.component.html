@@ -160,9 +160,27 @@
               </td>
               <td hlmTd>{{ caseItem.responsibleUser.displayName }}</td>
               <td hlmTd>
-                {{ "cases.priority." + caseItem.priority | translate }}
+                <span
+                  [class]="
+                    statusBadgeBaseClasses +
+                    ' ' +
+                    priorityBadgeClass(caseItem.priority)
+                  "
+                >
+                  {{ "cases.priority." + caseItem.priority | translate }}
+                </span>
               </td>
-              <td hlmTd>{{ "cases.status." + caseItem.status | translate }}</td>
+              <td hlmTd>
+                <span
+                  [class]="
+                    statusBadgeBaseClasses +
+                    ' ' +
+                    statusBadgeClass(caseItem.status)
+                  "
+                >
+                  {{ "cases.status." + caseItem.status | translate }}
+                </span>
+              </td>
               <td hlmTd>
                 {{ formatDate(caseItem.openedDate) }}
               </td>

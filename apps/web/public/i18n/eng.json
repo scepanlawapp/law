@@ -1856,7 +1856,7 @@
   "finance.unbilledWork": "Unbilled work",
   "finance.unbilledWorkDescription": "Confirmed work that is not on any statement yet. Select entries of one client to start a new statement.",
   "finance.noUnbilledWork": "No unbilled confirmed work for the selected filters.",
-  "finance.newStatementFromWork": "New statement",
+  "finance.newStatementFromWork": "Create invoice",
   "finance.importUnbilledWork": "Import unbilled work",
   "finance.pricingRequired": "Price not entered",
   "finance.pricingRequiredNotice": "Price not entered on {count} line(s). Enter the prices before sending.",

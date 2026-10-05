@@ -36,6 +36,10 @@ import {
 import { createSelectItemToString, SelectOption } from "../../shared/utils";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  statusBadgeClass,
+} from "../../shared/status-badge";
 
 const PAGE_SIZE = 15;
 
@@ -90,6 +94,8 @@ export class FinanceInvoicesComponent {
   readonly filterRevision = signal(0);
   readonly advancedFiltersOpen = signal(false);
   readonly deletingInvoiceId = signal<string | null>(null);
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
 
   readonly statusOptions: ReadonlyArray<SelectOption<InvoiceStatus | "">> = [
     { value: "", label: "finance.all" },

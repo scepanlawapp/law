@@ -1856,7 +1856,7 @@
   "finance.unbilledWork": "Neobračunat rad",
   "finance.unbilledWorkDescription": "Potvrđen rad koji još nije ušao ni u jedan obračun. Izaberite unose jednog klijenta da biste napravili novi obračun.",
   "finance.noUnbilledWork": "Nema neobračunatog potvrđenog rada za izabrane filtere.",
-  "finance.newStatementFromWork": "Novi obračun",
+  "finance.newStatementFromWork": "Fakturiši",
   "finance.importUnbilledWork": "Uvezi neobračunat rad",
   "finance.pricingRequired": "Cena nije uneta",
   "finance.pricingRequiredNotice": "Cena nije uneta na stavkama: {count}. Unesite cenu pre slanja.",

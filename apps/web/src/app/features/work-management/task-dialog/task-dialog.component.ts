@@ -54,6 +54,11 @@ import {
   taskDueMode,
 } from "../work-management-utils";
 import { TaskDialogContext } from "./task-dialog.models";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  priorityBadgeClass,
+  statusBadgeClass,
+} from "../../../shared/status-badge";
 
 @Component({
   selector: "law-task-dialog",
@@ -85,6 +90,9 @@ import { TaskDialogContext } from "./task-dialog.models";
   ],
 })
 export class TaskDialogComponent {
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
+  readonly priorityBadgeClass = priorityBadgeClass;
   private readonly api = inject(WorkManagementApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);

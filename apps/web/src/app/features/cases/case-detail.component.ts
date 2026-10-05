@@ -49,6 +49,11 @@ import { DocumentUploadDialogService } from "../documents/document-upload-modal/
 import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 import { debounceTime, distinctUntilChanged } from "rxjs";
 import { integerValidator } from "../time/validators";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  priorityBadgeClass as sharedPriorityBadgeClass,
+  statusBadgeClass as sharedStatusBadgeClass,
+} from "../../shared/status-badge";
 
 const CASE_DETAIL_PAGE_SIZE = 10;
 
@@ -92,6 +97,7 @@ type CaseTab =
   ],
 })
 export class CaseDetailComponent {
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   private readonly api = inject(CasesApiClient);
   private readonly documentsApi = inject(DocumentsApiClient);
   private readonly chat = inject(ChatApiClient);
@@ -353,35 +359,11 @@ export class CaseDetailComponent {
   }
 
   statusBadgeClass(status: string): string {
-    switch (status) {
-      case "DRAFT":
-        return "border-border bg-muted text-foreground";
-      case "ACTIVE":
-        return "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300";
-      case "ON_HOLD":
-        return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-      case "CLOSED":
-        return "border-slate-500/40 bg-slate-500/10 text-slate-700 dark:text-slate-300";
-      case "ARCHIVED":
-        return "border-fuchsia-500/40 bg-fuchsia-500/10 text-fuchsia-700 dark:text-fuchsia-300";
-      default:
-        return "border-border bg-muted text-foreground";
-    }
+    return sharedStatusBadgeClass(status);
   }
 
   priorityBadgeClass(priority: string): string {
-    switch (priority) {
-      case "LOW":
-        return "border-sky-500/40 bg-sky-500/10 text-sky-700 dark:text-sky-300";
-      case "NORMAL":
-        return "border-border bg-muted text-foreground";
-      case "HIGH":
-        return "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300";
-      case "URGENT":
-        return "border-red-500/40 bg-red-500/10 text-red-700 dark:text-red-300";
-      default:
-        return "border-border bg-muted text-foreground";
-    }
+    return sharedPriorityBadgeClass(priority);
   }
 
   openDocumentsUpload(): void {

@@ -125,6 +125,14 @@ describe("work-view.models status mapping", () => {
     ).toBe("CANCELLED");
   });
 
+  it("preserves task priority for board presentation", () => {
+    expect(taskToWorkItem(makeTask({ priority: "URGENT" })).priority).toBe(
+      "URGENT",
+    );
+    expect(deadlineToWorkItem(makeDeadline()).priority).toBeNull();
+    expect(eventToWorkItem(makeEvent()).priority).toBeNull();
+  });
+
   it("maps deadline statuses without inventing an in-progress state", () => {
     expect(
       deadlineToWorkItem(makeDeadline({ status: "OPEN" })).presentationStatus,

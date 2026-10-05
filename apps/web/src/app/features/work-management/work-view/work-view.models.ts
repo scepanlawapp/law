@@ -1,4 +1,5 @@
 import {
+  CasePriority,
   DeadlineDetail,
   DeadlineStatus,
   EventDetail,
@@ -25,6 +26,7 @@ export interface WorkItem {
   caseId: string | null;
   clientId: string | null;
   overdue: boolean;
+  priority: CasePriority | null;
   raw: TaskDetail | DeadlineDetail | EventDetail;
 }
 
@@ -61,6 +63,7 @@ export function taskToWorkItem(task: TaskDetail): WorkItem {
     caseId: task.case?.id ?? null,
     clientId: task.client?.id ?? null,
     overdue: isTaskOverdue(task),
+    priority: task.priority,
     raw: task,
   };
 }
@@ -78,6 +81,7 @@ export function deadlineToWorkItem(deadline: DeadlineDetail): WorkItem {
     caseId: deadline.case?.id ?? null,
     clientId: deadline.client?.id ?? null,
     overdue: deadline.overdue,
+    priority: null,
     raw: deadline,
   };
 }
@@ -100,6 +104,7 @@ export function eventToWorkItem(event: EventDetail): WorkItem {
     caseId: event.case?.id ?? null,
     clientId: event.clients[0]?.id ?? null,
     overdue,
+    priority: null,
     raw: event,
   };
 }

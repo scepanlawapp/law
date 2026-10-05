@@ -43,6 +43,11 @@ import {
   createSelectItemToString,
   type SelectOption,
 } from "../../../shared/utils";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  priorityBadgeClass,
+  statusBadgeClass,
+} from "../../../shared/status-badge";
 
 type CaseSort =
   | "updatedAt:desc"
@@ -104,6 +109,9 @@ export class CasesListComponent implements OnInit {
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly loaded = signal(false);
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
+  readonly priorityBadgeClass = priorityBadgeClass;
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly clients = signal(new Map<string, string>());
   readonly statusOptions: ReadonlyArray<SelectOption<CaseStatus | "">> = [

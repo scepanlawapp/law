@@ -19,6 +19,10 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 import { AuthState } from "@law/security";
 import { canManageBilling } from "../../shared/billing";
 import { hasPricingRequiredLines } from "./invoice-form";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  statusBadgeClass,
+} from "../../shared/status-badge";
 
 @Component({
   selector: "law-finance-invoice-detail",
@@ -34,6 +38,8 @@ import { hasPricingRequiredLines } from "./invoice-form";
   ],
 })
 export class FinanceInvoiceDetailComponent {
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
   private readonly api = inject(FinancialsApiClient);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -49,7 +55,9 @@ export class FinanceInvoiceDetailComponent {
   readonly sending = signal(false);
   readonly sefState = signal<InvoiceSefStateResponse | null>(null);
   readonly sefLoading = signal(false);
-  readonly sefAction = signal<"validate" | "download" | "send" | "refresh" | null>(null);
+  readonly sefAction = signal<
+    "validate" | "download" | "send" | "refresh" | null
+  >(null);
   readonly sefValidation = signal<SefValidationResult | null>(null);
   /** Sending is for OWNER/ADMIN, like the API enforces. */
   readonly canSend = computed(() =>
@@ -59,8 +67,7 @@ export class FinanceInvoiceDetailComponent {
   /** Lines that still need a price block sending the invoice. */
   readonly pricingRequiredCount = computed(
     () =>
-      this.invoice()?.lines.filter((line) => line.pricingRequired).length ??
-      0,
+      this.invoice()?.lines.filter((line) => line.pricingRequired).length ?? 0,
   );
   readonly sendBlocked = computed(
     () =>
@@ -140,7 +147,9 @@ export class FinanceInvoiceDetailComponent {
         },
         error: () => {
           this.sefAction.set(null);
-          this.toast.error(this.localization.translate("finance.sef.actionError"));
+          this.toast.error(
+            this.localization.translate("finance.sef.actionError"),
+          );
         },
       });
   }
@@ -156,14 +165,20 @@ export class FinanceInvoiceDetailComponent {
           const url = URL.createObjectURL(blob);
           const anchor = document.createElement("a");
           anchor.href = url;
-          anchor.download = `${this.invoice()?.invoiceNumber ?? "invoice"}.xml`.replace(/[^a-zA-Z0-9._-]+/g, "_");
+          anchor.download =
+            `${this.invoice()?.invoiceNumber ?? "invoice"}.xml`.replace(
+              /[^a-zA-Z0-9._-]+/g,
+              "_",
+            );
           anchor.click();
           URL.revokeObjectURL(url);
           this.sefAction.set(null);
         },
         error: () => {
           this.sefAction.set(null);
-          this.toast.error(this.localization.translate("finance.sef.actionError"));
+          this.toast.error(
+            this.localization.translate("finance.sef.actionError"),
+          );
         },
       });
   }
@@ -180,7 +195,8 @@ export class FinanceInvoiceDetailComponent {
       .subscribe((confirmed) => {
         if (!confirmed) return;
         const storageKey = `sef-idempotency:${this.invoiceId}`;
-        const idempotencyKey = sessionStorage.getItem(storageKey) ?? crypto.randomUUID();
+        const idempotencyKey =
+          sessionStorage.getItem(storageKey) ?? crypto.randomUUID();
         sessionStorage.setItem(storageKey, idempotencyKey);
         this.sefAction.set("send");
         this.api
@@ -188,14 +204,17 @@ export class FinanceInvoiceDetailComponent {
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: (submission) => {
-              if (submission.state === "FAILED") sessionStorage.removeItem(storageKey);
+              if (submission.state === "FAILED")
+                sessionStorage.removeItem(storageKey);
               this.sefAction.set(null);
               this.loadSefState();
             },
             error: () => {
               this.sefAction.set(null);
               this.loadSefState();
-              this.toast.error(this.localization.translate("finance.sef.actionError"));
+              this.toast.error(
+                this.localization.translate("finance.sef.actionError"),
+              );
             },
           });
       });
@@ -215,7 +234,9 @@ export class FinanceInvoiceDetailComponent {
         error: () => {
           this.sefAction.set(null);
           this.loadSefState();
-          this.toast.error(this.localization.translate("finance.sef.actionError"));
+          this.toast.error(
+            this.localization.translate("finance.sef.actionError"),
+          );
         },
       });
   }
@@ -242,8 +263,7 @@ export class FinanceInvoiceDetailComponent {
 
   send(): void {
     const invoice = this.invoice();
-    if (!invoice || invoice.status !== "DRAFT" || this.sendBlocked())
-      return;
+    if (!invoice || invoice.status !== "DRAFT" || this.sendBlocked()) return;
     this.confirmDialog
       .confirm({
         title: "finance.sendInvoiceTitle",

@@ -97,7 +97,17 @@
               </td>
               <td hlmTd>{{ client.email }}</td>
               <td hlmTd>{{ client.phone }}</td>
-              <td hlmTd>{{ "clients.status." + client.status | translate }}</td>
+              <td hlmTd>
+                <span
+                  [class]="
+                    statusBadgeBaseClasses +
+                    ' ' +
+                    statusBadgeClass(client.status)
+                  "
+                >
+                  {{ "clients.status." + client.status | translate }}
+                </span>
+              </td>
               <td hlmTd>{{ client.activeCaseCount }}</td>
             </tr>
           }

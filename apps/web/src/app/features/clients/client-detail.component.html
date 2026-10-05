@@ -35,7 +35,11 @@
             <span class="rounded-md border border-border px-2 py-1">
               {{ "clients.type." + item.type | translate }}
             </span>
-            <span class="rounded-md border border-border px-2 py-1">
+            <span
+              [class]="
+                statusBadgeBaseClasses + ' ' + statusBadgeClass(item.status)
+              "
+            >
               {{ "clients.status." + item.status | translate }}
             </span>
             <span class="rounded-md border border-border px-2 py-1">
@@ -145,8 +149,16 @@
                   <dt class="font-medium">
                     {{ "clients.status" | translate }}
                   </dt>
-                  <dd class="text-muted-foreground">
-                    {{ "clients.status." + item.status | translate }}
+                  <dd>
+                    <span
+                      [class]="
+                        statusBadgeBaseClasses +
+                        ' ' +
+                        statusBadgeClass(item.status)
+                      "
+                    >
+                      {{ "clients.status." + item.status | translate }}
+                    </span>
                   </dd>
                 </div>
                 @if (item.type === "INDIVIDUAL") {
