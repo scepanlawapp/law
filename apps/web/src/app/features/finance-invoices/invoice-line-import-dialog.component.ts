@@ -128,6 +128,17 @@ export class InvoiceLineImportDialogComponent {
     this.selected.set(selected);
   }
 
+  toggleFromRow(event: MouseEvent, entry: WorkEntry): void {
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("button, input, a, select, textarea")
+    ) {
+      return;
+    }
+    this.toggle(entry);
+  }
+
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
     this.page.set(page);
