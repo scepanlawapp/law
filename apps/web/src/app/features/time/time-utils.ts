@@ -3,6 +3,7 @@ import type {
   WorkEntryStatus,
   WorkEntryTreatment,
 } from "@law/api-interfaces";
+import { statusBadgeClass } from "../../shared/status-badge";
 
 export const OFFICE_TIME_ZONE = "Europe/Belgrade";
 
@@ -67,11 +68,11 @@ export const TREATMENT_LABEL_KEYS: Record<WorkEntryTreatment, string> = {
 
 /** Semantic-token classes for a status badge. */
 export const STATUS_BADGE_CLASSES: Record<WorkEntryStatus, string> = {
-  RUNNING: "bg-primary/15 text-primary",
-  PROPOSED: "bg-accent text-accent-foreground",
-  CONFIRMED: "bg-secondary text-secondary-foreground",
-  BILLED: "bg-muted text-muted-foreground",
-  WRITTEN_OFF: "bg-destructive/10 text-destructive",
+  RUNNING: statusBadgeClass("RUNNING"),
+  PROPOSED: statusBadgeClass("PROPOSED"),
+  CONFIRMED: statusBadgeClass("CONFIRMED"),
+  BILLED: statusBadgeClass("BILLED"),
+  WRITTEN_OFF: statusBadgeClass("WRITTEN_OFF"),
 };
 
 /** Edit, confirm and write-off apply only before an entry is billed or closed. */

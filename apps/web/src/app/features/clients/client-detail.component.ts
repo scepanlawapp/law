@@ -32,6 +32,10 @@ import { CasesListComponent } from "../cases/cases-list/cases-list.component";
 import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 import { ClientRetainerCardComponent } from "./client-retainer-card/client-retainer-card.component";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  statusBadgeClass,
+} from "../../shared/status-badge";
 
 type ClientTab =
   | "overview"
@@ -58,6 +62,8 @@ type ClientTab =
   ],
 })
 export class ClientDetailComponent {
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
   private readonly api = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly destroyRef = inject(DestroyRef);

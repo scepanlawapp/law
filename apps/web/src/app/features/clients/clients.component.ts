@@ -26,6 +26,10 @@ import {
   HlmEmptyHeader,
   HlmEmptyTitle,
 } from "@spartan-ng/helm/empty";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  statusBadgeClass,
+} from "../../shared/status-badge";
 
 @Component({
   selector: "law-clients",
@@ -53,6 +57,8 @@ import {
   ],
 })
 export class ClientsComponent {
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly destroyRef = inject(DestroyRef);

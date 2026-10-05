@@ -46,6 +46,7 @@ import {
   formatWorkDate,
   isIsoDate,
 } from "../time/time-utils";
+import { WriteOffDialogService } from "../time/write-off-dialog/write-off-dialog.service";
 
 const PAGE_SIZE = 25;
 const OPTION_PAGE_SIZE = 100;
@@ -87,6 +88,7 @@ export class FinanceWorkReviewComponent {
   private readonly destroyRef = inject(DestroyRef);
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
+  private readonly writeOffDialog = inject(WriteOffDialogService);
   private requestId = 0;
 
   readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
@@ -110,6 +112,7 @@ export class FinanceWorkReviewComponent {
   readonly hasMore = signal(false);
   readonly loading = signal(false);
   readonly error = signal(false);
+  readonly busyEntryId = signal<string | null>(null);
 
   readonly selectedCount = computed(() => this.selected().size);
 
@@ -246,6 +249,42 @@ export class FinanceWorkReviewComponent {
 
   newStatementFor(entry: WorkEntry): void {
     this.navigateToStatement([entry]);
+  }
+
+  writeOff(entry: WorkEntry): void {
+    if (entry.status !== "CONFIRMED" || this.busyEntryId()) return;
+    this.writeOffDialog
+      .open()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((reason) => {
+        if (!reason) return;
+        this.busyEntryId.set(entry.id);
+        this.api
+          .writeOff(entry.id, { reason })
+          .pipe(takeUntilDestroyed(this.destroyRef))
+          .subscribe({
+            next: () => {
+              this.entries.update((items) =>
+                items.filter((item) => item.id !== entry.id),
+              );
+              this.selected.update((selected) => {
+                const next = new Map(selected);
+                next.delete(entry.id);
+                return next;
+              });
+              this.busyEntryId.set(null);
+              this.toast.success(
+                this.localization.translate("time.writeOff.done"),
+              );
+            },
+            error: () => {
+              this.busyEntryId.set(null);
+              this.toast.error(
+                this.localization.translate("time.writeOff.error"),
+              );
+            },
+          });
+      });
   }
 
   workDateLabel(date: string): string {

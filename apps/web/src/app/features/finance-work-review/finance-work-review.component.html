@@ -256,10 +256,20 @@
                 hlmBtn
                 type="button"
                 size="sm"
-                variant="outline"
+                [disabled]="busyEntryId() === entry.id"
                 (click)="newStatementFor(entry)"
               >
                 {{ "finance.newStatementFromWork" | translate }}
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                size="sm"
+                variant="outline"
+                [disabled]="busyEntryId() !== null"
+                (click)="writeOff(entry)"
+              >
+                {{ "time.review.writeOff" | translate }}
               </button>
             </td>
           </tr>

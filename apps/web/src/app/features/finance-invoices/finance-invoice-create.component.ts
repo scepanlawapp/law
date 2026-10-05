@@ -234,6 +234,7 @@ export class FinanceInvoiceCreateComponent {
   });
 
   constructor() {
+    if (!this.isEditMode) this.suggestInvoiceNumber();
     this.organizationSettingsApi
       .get()
       .pipe(takeUntilDestroyed(this.destroyRef))

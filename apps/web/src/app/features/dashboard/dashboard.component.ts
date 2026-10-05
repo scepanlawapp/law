@@ -54,6 +54,10 @@ import { UserSettingsStore } from "../../core/user-settings/user-settings.store"
 import { nameInVocative } from "../../shared/utils";
 import { NotificationsStore } from "../../core/notifications/notifications.store";
 import { notificationTarget } from "../../core/notifications/notification-navigation";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  statusBadgeClass,
+} from "../../shared/status-badge";
 
 const PROMPT_SUGGESTION_KEYS = [
   "dashboard.suggestSummarizeCase",
@@ -124,6 +128,8 @@ const NOTIFICATION_ICON: Record<NotificationType, string> = {
   ],
 })
 export class DashboardComponent {
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
   protected readonly store = inject(DashboardStore);
   private readonly auth = inject(AuthState);
   private readonly router = inject(Router);

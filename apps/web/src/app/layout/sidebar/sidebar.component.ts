@@ -1,4 +1,4 @@
-import { Component, DestroyRef, computed, inject } from "@angular/core";
+import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
@@ -21,7 +21,13 @@ import {
   lucideCalendarCheck,
   lucideSettings,
 } from "@ng-icons/lucide";
-import { RouterLink, RouterLinkActive } from "@angular/router";
+import {
+  NavigationEnd,
+  Router,
+  RouterLink,
+  RouterLinkActive,
+} from "@angular/router";
+import { filter } from "rxjs";
 import {
   HlmCollapsible,
   HlmCollapsibleContent,
@@ -116,8 +122,10 @@ interface SidebarNavigationGroup {
 })
 export class SidebarComponent {
   private readonly authState = inject(AuthState);
+  private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   readonly session = this.authState.session;
+  readonly financeRouteActive = signal(this.router.url.startsWith("/finance"));
 
   readonly mainNavigation: SidebarNavigationItem[] = [
     { route: "/dashboard", label: "nav.dashboard", icon: "lucideHome" },
@@ -220,6 +228,21 @@ export class SidebarComponent {
       ],
     },
   ]);
+
+  constructor() {
+    this.router.events
+      .pipe(
+        filter(
+          (event): event is NavigationEnd => event instanceof NavigationEnd,
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((event) =>
+        this.financeRouteActive.set(
+          event.urlAfterRedirects.startsWith("/finance"),
+        ),
+      );
+  }
 
   logout(): void {
     this.authState

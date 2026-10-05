@@ -105,12 +105,16 @@
 
       <div class="flex flex-wrap gap-2">
         <span
-          class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium uppercase tracking-wide text-foreground"
+          [class]="
+            statusBadgeBaseClasses + ' ' + statusBadgeClass(caseItem.status)
+          "
         >
           {{ "cases.status." + caseItem.status | translate }}
         </span>
         <span
-          class="rounded-full border border-border bg-muted px-2 py-1 text-xs font-medium uppercase tracking-wide text-foreground"
+          [class]="
+            statusBadgeBaseClasses + ' ' + priorityBadgeClass(caseItem.priority)
+          "
         >
           {{ "cases.priority." + caseItem.priority | translate }}
         </span>
@@ -325,12 +329,7 @@
                 <h2 class="text-lg font-semibold">
                   {{ "cases.detail.workAttention" | translate }}
                 </h2>
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  (click)="selectedTab.set('work')"
-                >
+                <button hlmBtn type="button" (click)="selectedTab.set('work')">
                   {{ "cases.detail.openWork" | translate }}
                 </button>
               </div>
@@ -349,7 +348,6 @@
                 <button
                   hlmBtn
                   type="button"
-                  variant="outline"
                   (click)="selectedTab.set('documents')"
                 >
                   {{ "cases.documents" | translate }}
@@ -400,7 +398,6 @@
                 <button
                   hlmBtn
                   type="button"
-                  variant="outline"
                   (click)="selectedTab.set('activities')"
                 >
                   {{ "cases.detail.viewAll" | translate }}
@@ -505,9 +502,11 @@
                   <dt class="font-medium">{{ "cases.status" | translate }}</dt>
                   <dd>
                     <span
-                      class="rounded-full border px-2 py-1 text-xs font-medium {{
+                      [class]="
+                        statusBadgeBaseClasses +
+                        ' ' +
                         statusBadgeClass(caseItem.status)
-                      }}"
+                      "
                     >
                       {{ "cases.status." + caseItem.status | translate }}
                     </span>
@@ -519,9 +518,11 @@
                   </dt>
                   <dd>
                     <span
-                      class="rounded-full border px-2 py-1 text-xs font-medium {{
+                      [class]="
+                        statusBadgeBaseClasses +
+                        ' ' +
                         priorityBadgeClass(caseItem.priority)
-                      }}"
+                      "
                     >
                       {{ "cases.priority." + caseItem.priority | translate }}
                     </span>

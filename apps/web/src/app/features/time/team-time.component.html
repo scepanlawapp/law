@@ -265,7 +265,7 @@
             <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
             <td hlmTd>
               <span
-                class="rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap"
+                class="rounded-full px-2 py-0.5 text-sm font-medium whitespace-nowrap"
                 [class]="statusBadgeClasses[entry.status]"
               >
                 {{ statusLabelKeys[entry.status] | translate }}
@@ -277,7 +277,7 @@
                   hlmBtn
                   type="button"
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   [disabled]="busyEntryId() === entry.id"
                   (click)="edit(entry)"
                 >
@@ -287,7 +287,7 @@
                   hlmBtn
                   type="button"
                   size="sm"
-                  variant="ghost"
+                  variant="outline"
                   [disabled]="busyEntryId() === entry.id"
                   (click)="writeOff(entry)"
                 >

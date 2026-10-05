@@ -269,7 +269,15 @@
                   </td>
                   <td hlmTd>{{ row.clientName }}</td>
                   <td hlmTd>
-                    {{ "cases.status." + row.status | translate }}
+                    <span
+                      [class]="
+                        statusBadgeBaseClasses +
+                        ' ' +
+                        statusBadgeClass(row.status)
+                      "
+                    >
+                      {{ "cases.status." + row.status | translate }}
+                    </span>
                   </td>
                   <td hlmTd>{{ row.responsibleUserName }}</td>
                 </tr>

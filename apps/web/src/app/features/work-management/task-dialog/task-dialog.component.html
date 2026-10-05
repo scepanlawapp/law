@@ -146,13 +146,32 @@
             [itemToString]="priorityItemToString"
           >
             <hlm-select-trigger buttonId="task-priority" class="w-full">
-              <hlm-select-value />
+              <span
+                data-slot="select-value"
+                [class]="
+                  statusBadgeBaseClasses +
+                  ' ' +
+                  priorityBadgeClass(form.controls.priority.value)
+                "
+              >
+                {{ priorityItemToString(form.controls.priority.value) }}
+              </span>
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
                 @for (priority of priorities; track priority) {
                   <hlm-select-item [value]="priority">
-                    {{ "work.priority." + priority.toLowerCase() | translate }}
+                    <span
+                      [class]="
+                        statusBadgeBaseClasses +
+                        ' ' +
+                        priorityBadgeClass(priority)
+                      "
+                    >
+                      {{
+                        "work.priority." + priority.toLowerCase() | translate
+                      }}
+                    </span>
                   </hlm-select-item>
                 }
               </hlm-select-group>
@@ -170,13 +189,30 @@
             [itemToString]="taskStatusItemToString"
           >
             <hlm-select-trigger buttonId="task-status" class="w-full">
-              <hlm-select-value />
+              <span
+                data-slot="select-value"
+                [class]="
+                  statusBadgeBaseClasses +
+                  ' ' +
+                  statusBadgeClass(form.controls.status.value)
+                "
+              >
+                {{ taskStatusItemToString(form.controls.status.value) }}
+              </span>
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
                 @for (status of statuses; track status) {
                   <hlm-select-item [value]="status">
-                    {{ "work.taskStatus." + status.toLowerCase() | translate }}
+                    <span
+                      [class]="
+                        statusBadgeBaseClasses + ' ' + statusBadgeClass(status)
+                      "
+                    >
+                      {{
+                        "work.taskStatus." + status.toLowerCase() | translate
+                      }}
+                    </span>
                   </hlm-select-item>
                 }
               </hlm-select-group>

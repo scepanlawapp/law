@@ -57,21 +57,42 @@
             @for (item of group.items; track item.route) {
               <li hlmSidebarMenuItem>
                 @if (item.children; as children) {
-                  <hlm-collapsible>
-                    <button
-                      hlmSidebarMenuButton
-                      hlmCollapsibleTrigger
-                      type="button"
-                      [tooltip]="item.label | translate"
-                    >
-                      <ng-icon [name]="item.icon" aria-hidden="true" />
-                      <span>{{ item.label | translate }}</span>
-                      <ng-icon
-                        name="lucideChevronRight"
-                        aria-hidden="true"
-                        class="ms-auto transition-transform group-data-[state=open]/collapsible:rotate-90"
-                      />
-                    </button>
+                  <hlm-collapsible
+                    [expanded]="
+                      item.route === '/finance' && financeRouteActive()
+                    "
+                  >
+                    @if (item.route === "/finance" && financeRouteActive()) {
+                      <a
+                        hlmSidebarMenuButton
+                        routerLink="/finance/work-review"
+                        [tooltip]="item.label | translate"
+                        aria-expanded="true"
+                      >
+                        <ng-icon [name]="item.icon" aria-hidden="true" />
+                        <span>{{ item.label | translate }}</span>
+                        <ng-icon
+                          name="lucideChevronRight"
+                          aria-hidden="true"
+                          class="ms-auto rotate-90"
+                        />
+                      </a>
+                    } @else {
+                      <button
+                        hlmSidebarMenuButton
+                        hlmCollapsibleTrigger
+                        type="button"
+                        [tooltip]="item.label | translate"
+                      >
+                        <ng-icon [name]="item.icon" aria-hidden="true" />
+                        <span>{{ item.label | translate }}</span>
+                        <ng-icon
+                          name="lucideChevronRight"
+                          aria-hidden="true"
+                          class="ms-auto transition-transform group-data-[state=open]/collapsible:rotate-90"
+                        />
+                      </button>
+                    }
                     <div hlmCollapsibleContent>
                       <ul hlmSidebarMenuSub>
                         @for (child of children; track child.route) {

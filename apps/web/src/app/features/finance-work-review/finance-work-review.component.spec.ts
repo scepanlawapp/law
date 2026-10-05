@@ -10,6 +10,7 @@ import { WorkEntry } from "@law/api-interfaces";
 import { of } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { WriteOffDialogService } from "../time/write-off-dialog/write-off-dialog.service";
 import { FinanceWorkReviewComponent } from "./finance-work-review.component";
 
 const client = (id: string, displayName: string) => ({
@@ -51,9 +52,10 @@ const page = (items: WorkEntry[]) => ({
 });
 
 describe("FinanceWorkReviewComponent (unbilled work)", () => {
-  const entries = { list: jest.fn() };
+  const entries = { list: jest.fn(), writeOff: jest.fn() };
   const router = { navigate: jest.fn() };
   const toast = { success: jest.fn(), error: jest.fn() };
+  const writeOffDialog = { open: jest.fn() };
 
   function create(): ComponentFixture<FinanceWorkReviewComponent> {
     const fixture = TestBed.createComponent(FinanceWorkReviewComponent);
@@ -94,6 +96,7 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
         ]),
       ),
     );
+    writeOffDialog.open.mockReturnValue(of(null));
     TestBed.configureTestingModule({
       providers: [
         { provide: WorkEntriesApiClient, useValue: entries },
@@ -108,6 +111,7 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
         },
         { provide: Router, useValue: router },
         { provide: ToastService, useValue: toast },
+        { provide: WriteOffDialogService, useValue: writeOffDialog },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -154,5 +158,28 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
 
     expect(toast.error).toHaveBeenCalledWith("finance.selectionOneClient");
     expect(fixture.componentInstance.selectedCount()).toBe(1);
+  });
+
+  it("writes off an entry and removes it from unbilled work", () => {
+    writeOffDialog.open.mockReturnValue(of("Ne naplaćuje se"));
+    entries.writeOff.mockReturnValue(
+      of({
+        ...entry("e1", "c1", "Telenor"),
+        status: "WRITTEN_OFF",
+        writeOffReason: "Ne naplaćuje se",
+      }),
+    );
+    const fixture = create();
+
+    fixture.componentInstance.writeOff(fixture.componentInstance.entries()[0]);
+
+    expect(entries.writeOff).toHaveBeenCalledWith("e1", {
+      reason: "Ne naplaćuje se",
+    });
+    expect(fixture.componentInstance.entries().map((item) => item.id)).toEqual([
+      "e2",
+      "e3",
+    ]);
+    expect(toast.success).toHaveBeenCalledWith("time.writeOff.done");
   });
 });

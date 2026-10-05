@@ -44,6 +44,11 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  priorityBadgeClass,
+  statusBadgeClass,
+} from "../../../shared/status-badge";
 import { TaskDialogComponent } from "../task-dialog/task-dialog.component";
 import { TaskDialogContext } from "../task-dialog/task-dialog.models";
 import { TaskDialogService } from "../task-dialog/task-dialog.service";
@@ -141,6 +146,9 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
   ],
 })
 export class WorkViewComponent {
+  readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
+  readonly priorityBadgeClass = priorityBadgeClass;
+  readonly statusBadgeClass = statusBadgeClass;
   readonly mode = input<WorkViewMode>();
   readonly fixedUserId = input<string | undefined>(undefined);
   readonly fixedCaseId = input<string | undefined>(undefined);
