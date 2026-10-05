@@ -42,6 +42,7 @@ import { HlmLabel } from "@spartan-ng/helm/label";
 import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { ClientFormDialogContext } from "./client-form-dialog.models";
 import { LocalizationService } from "../../../core/localization/localization.service";
@@ -79,6 +80,7 @@ const DEFAULT_COUNTRY_CODE = "RS";
     HlmRadioGroupImports,
     HlmSelectImports,
     HlmSpinner,
+    HlmSwitch,
     HlmDialogImports,
     HlmTextarea,
     CountrySelectComponent,
@@ -164,6 +166,8 @@ export class ClientFormComponent {
     }),
     organizationName: new FormControl(""),
     isDomestic: new FormControl(true, { nonNullable: true }),
+    isPublicSector: new FormControl(false, { nonNullable: true }),
+    jbkjs: new FormControl(""),
     jmbg: new FormControl(""),
     taxNumber: new FormControl(""),
     registrationNumber: new FormControl(""),
@@ -478,6 +482,8 @@ export class ClientFormComponent {
       this.form.controls.organizationName.clearValidators();
       this.form.controls.firstName.setValidators([Validators.required]);
       this.form.controls.lastName.setValidators([Validators.required]);
+      this.form.controls.isPublicSector.setValue(false, { emitEvent: false });
+      this.form.controls.jbkjs.setValue("", { emitEvent: false });
     }
 
     this.form.controls.organizationName.updateValueAndValidity({
@@ -518,6 +524,8 @@ export class ClientFormComponent {
       displayName: raw.displayName?.trim() || undefined,
       organizationName: raw.organizationName?.trim() || undefined,
       isDomestic: raw.isDomestic,
+      isPublicSector: raw.isPublicSector,
+      jbkjs: raw.jbkjs?.trim() || undefined,
       jmbg: raw.jmbg?.trim() || undefined,
       taxNumber: raw.taxNumber?.trim() || undefined,
       registrationNumber: raw.registrationNumber?.trim() || undefined,

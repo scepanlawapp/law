@@ -871,6 +871,8 @@ export interface ClientDetail extends ClientSummary {
   lastName: string | null;
   organizationName: string | null;
   isDomestic: boolean;
+  isPublicSector: boolean;
+  jbkjs: string | null;
   jmbg: string | null;
   taxNumber: string | null;
   registrationNumber: string | null;
@@ -1043,6 +1045,7 @@ export interface Invoice {
   numberOfCashBill: string;
   country: string;
   currency: string;
+  vatLiabilityTimingCode: "3" | "35" | "432" | null;
   status: InvoiceStatus;
   sharedAt: string | null;
   sharedMethod: string | null;
@@ -1075,6 +1078,9 @@ export interface InvoiceLineSummary {
   serviceDate: string;
   netAmount: string;
   vatRate: string;
+  taxCategoryCode: string | null;
+  taxExemptionReasonCode: string | null;
+  taxExemptionReasonText: string | null;
   vatAmount: string;
   grossAmount: string;
   currency: string;
@@ -1109,6 +1115,61 @@ export interface InvoiceSummary {
 }
 
 export type SefEnvironment = "DEMO" | "PRODUCTION";
+export type SefSubmissionState =
+  | "PREPARED"
+  | "SENDING"
+  | "SUBMITTED"
+  | "FAILED"
+  | "UNKNOWN";
+export type SefValidationSeverity = "ERROR" | "WARNING";
+
+export interface SefValidationIssue {
+  code: string;
+  severity: SefValidationSeverity;
+  fieldPath: string;
+  messageKey: string;
+  params?: Record<string, string | number>;
+}
+
+export interface SefValidationResult {
+  valid: boolean;
+  issues: SefValidationIssue[];
+  validationVersion: string;
+}
+
+export interface InvoiceSefSubmission {
+  id: string;
+  environment: SefEnvironment;
+  revision: number;
+  state: SefSubmissionState;
+  sefInvoiceId: string | null;
+  sefSalesInvoiceId: string | null;
+  sefPurchaseInvoiceId: string | null;
+  remoteStatus: string | null;
+  payloadSha256: string;
+  validationResult: SefValidationResult;
+  lastErrorCode: string | null;
+  lastErrorMessage: string | null;
+  httpStatus: number | null;
+  attemptCount: number;
+  submittedAt: string | null;
+  sendingStartedAt: string | null;
+  lastCheckedAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface InvoiceSefStateResponse {
+  configured: boolean;
+  enabled: boolean;
+  environment: SefEnvironment;
+  immutable: boolean;
+  submission: InvoiceSefSubmission | null;
+}
+
+export interface InvoiceSefRequest {
+  bankAccountId?: string;
+}
 export type InvoiceNumberResetPolicy = "NEVER" | "YEARLY" | "MONTHLY";
 export type PaymentMethodPreference =
   | "BANK_TRANSFER"
@@ -1251,6 +1312,7 @@ export interface CreateInvoiceRequest {
   numberOfCashBill: string;
   country: string;
   currency: string;
+  vatLiabilityTimingCode?: "3" | "35" | "432" | null;
   lines: InvoiceLineInput[];
   idempotencyKey?: string;
   printWorkSpecification?: boolean;
@@ -1270,6 +1332,7 @@ export interface UpdateInvoiceRequest {
   grossAmount?: number;
   numberOfCashBill?: string;
   country?: string;
+  vatLiabilityTimingCode?: "3" | "35" | "432" | null;
   lines?: InvoiceLineInput[];
   printWorkSpecification?: boolean;
 }
@@ -1281,6 +1344,9 @@ export interface InvoiceLineInput {
   description: string;
   netAmount: number;
   vatRate: number;
+  taxCategoryCode?: string | null;
+  taxExemptionReasonCode?: string | null;
+  taxExemptionReasonText?: string | null;
   vatAmount: number;
   grossAmount: number;
   currency: string;

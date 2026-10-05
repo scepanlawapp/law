@@ -154,6 +154,14 @@ enum SefEnvironment {
   PRODUCTION
 }
 
+enum SefSubmissionState {
+  PREPARED
+  SENDING
+  SUBMITTED
+  FAILED
+  UNKNOWN
+}
+
 enum InvoiceNumberResetPolicy {
   NEVER
   YEARLY
@@ -309,55 +317,56 @@ enum UploadOperationPurpose {
 }
 
 model User {
-  id                    String               @id @default(uuid())
-  email                 String               @unique
+  id                    String                 @id @default(uuid())
+  email                 String                 @unique
   passwordHash          String?
   firstName             String?
   lastName              String?
-  username              String?              @unique
+  username              String?                @unique
   phone                 String?
   jobTitle              String?
   gender                UserGender?
   avatarUrl             String?
-  status                UserStatus           @default(INVITED)
-  passwordChangedAt     DateTime?            @db.Timestamptz(3)
-  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
-  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+  status                UserStatus             @default(INVITED)
+  passwordChangedAt     DateTime?              @db.Timestamptz(3)
+  createdAt             DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
   memberships           WorkspaceMember[]
   sessions              AuthSession[]
   tokens                AuthToken[]
   auditEvents           AuditEvent[]
-  organizedEvents       Event[]              @relation("EventOrganizer")
-  createdEvents         Event[]              @relation("EventCreator")
+  organizedEvents       Event[]                @relation("EventOrganizer")
+  createdEvents         Event[]                @relation("EventCreator")
   eventAssignees        EventAssignee[]
-  assignedTasks         Task[]               @relation("TaskAssignee")
-  createdTasks          Task[]               @relation("TaskCreator")
-  responsibleDeadlines  Deadline[]           @relation("DeadlineResponsible")
-  createdDeadlines      Deadline[]           @relation("DeadlineCreator")
-  completedTasks        Task[]               @relation("TaskCompleter")
-  satisfiedDeadlines    Deadline[]           @relation("DeadlineSatisfier")
-  activityLogs          ActivityLog[]        @relation("ActivityActor")
-  chatSessions          ChatSession[]        @relation("ChatSessionCreator")
-  createdDocuments      Document[]           @relation("DocumentCreator")
-  updatedDocuments      Document[]           @relation("DocumentUpdater")
-  archivedDocuments     Document[]           @relation("DocumentArchiver")
-  uploadedVersions      DocumentVersion[]    @relation("DocumentVersionUploader")
-  uploadOperations      UploadOperation[]    @relation("UploadOperationActor")
+  assignedTasks         Task[]                 @relation("TaskAssignee")
+  createdTasks          Task[]                 @relation("TaskCreator")
+  responsibleDeadlines  Deadline[]             @relation("DeadlineResponsible")
+  createdDeadlines      Deadline[]             @relation("DeadlineCreator")
+  completedTasks        Task[]                 @relation("TaskCompleter")
+  satisfiedDeadlines    Deadline[]             @relation("DeadlineSatisfier")
+  activityLogs          ActivityLog[]          @relation("ActivityActor")
+  chatSessions          ChatSession[]          @relation("ChatSessionCreator")
+  createdDocuments      Document[]             @relation("DocumentCreator")
+  updatedDocuments      Document[]             @relation("DocumentUpdater")
+  archivedDocuments     Document[]             @relation("DocumentArchiver")
+  uploadedVersions      DocumentVersion[]      @relation("DocumentVersionUploader")
+  uploadOperations      UploadOperation[]      @relation("UploadOperationActor")
   settings              UserSettings?
-  performedInvoiceLines InvoiceLine[]        @relation("InvoiceLinePerformer")
-  createdInvoiceLines   InvoiceLine[]        @relation("InvoiceLineCreator")
-  updatedInvoiceLines   InvoiceLine[]        @relation("InvoiceLineUpdater")
-  cancelledInvoiceLines InvoiceLine[]        @relation("InvoiceLineCanceller")
-  authoredPriceSources  PriceSource[]        @relation("PriceSourceAuthor")
-  authoredPriceVersions PriceSourceVersion[] @relation("PriceSourceVersionAuthor")
+  performedInvoiceLines InvoiceLine[]          @relation("InvoiceLinePerformer")
+  createdInvoiceLines   InvoiceLine[]          @relation("InvoiceLineCreator")
+  updatedInvoiceLines   InvoiceLine[]          @relation("InvoiceLineUpdater")
+  cancelledInvoiceLines InvoiceLine[]          @relation("InvoiceLineCanceller")
+  authoredPriceSources  PriceSource[]          @relation("PriceSourceAuthor")
+  authoredPriceVersions PriceSourceVersion[]   @relation("PriceSourceVersionAuthor")
   notifications         Notification[]
-  sharedInvoices        Invoice[]            @relation("InvoiceSharer")
-  voidedInvoices        Invoice[]            @relation("InvoiceVoider")
-  createdInvoices       Invoice[]            @relation("InvoiceCreator")
-  updatedInvoices       Invoice[]            @relation("InvoiceUpdater")
-  workEntries           WorkEntry[]          @relation("WorkEntryPerformer")
-  createdWorkEntries    WorkEntry[]          @relation("WorkEntryCreator")
-  updatedWorkEntries    WorkEntry[]          @relation("WorkEntryUpdater")
+  sharedInvoices        Invoice[]              @relation("InvoiceSharer")
+  voidedInvoices        Invoice[]              @relation("InvoiceVoider")
+  createdInvoices       Invoice[]              @relation("InvoiceCreator")
+  updatedInvoices       Invoice[]              @relation("InvoiceUpdater")
+  sefSubmissions        InvoiceSefSubmission[] @relation("InvoiceSefSubmitter")
+  workEntries           WorkEntry[]            @relation("WorkEntryPerformer")
+  createdWorkEntries    WorkEntry[]            @relation("WorkEntryCreator")
+  updatedWorkEntries    WorkEntry[]            @relation("WorkEntryUpdater")
   rates                 UserRate[]
 }
 
@@ -427,6 +436,7 @@ model Workspace {
   priceSources                PriceSource[]
   priceSourceVersions         PriceSourceVersion[]
   invoices                    Invoice[]
+  invoiceSefSubmissions       InvoiceSefSubmission[]
   financeMutations            FinanceMutationRequest[]
   notifications               Notification[]
   workEntries                 WorkEntry[]
@@ -645,6 +655,8 @@ model Client {
   lastName                String?
   organizationName        String?
   isDomestic              Boolean                        @default(true)
+  isPublicSector          Boolean                        @default(false)
+  jbkjs                   String?
   jmbg                    String?
   taxNumber               String?
   registrationNumber      String?
@@ -1038,48 +1050,50 @@ model PriceSourceVersion {
 }
 
 model Invoice {
-  id                     String        @id @default(uuid())
+  id                     String                 @id @default(uuid())
   workspaceId            String
   clientId               String
   invoiceNumber          String
-  dateOfCreate           DateTime      @db.Date
-  dateOfMaturity         DateTime      @db.Date
-  dateOfTurnover         DateTime      @db.Date
+  dateOfCreate           DateTime               @db.Date
+  dateOfMaturity         DateTime               @db.Date
+  dateOfTurnover         DateTime               @db.Date
   placeOfIssue           String
   methodOfPayment        String
-  comment                String        @db.Text
-  netAmount              Decimal       @db.Decimal(18, 2)
-  vatRate                Decimal       @db.Decimal(5, 2)
-  vatAmount              Decimal       @db.Decimal(18, 2)
-  grossAmount            Decimal       @db.Decimal(18, 2)
+  comment                String                 @db.Text
+  netAmount              Decimal                @db.Decimal(18, 2)
+  vatRate                Decimal                @db.Decimal(5, 2)
+  vatAmount              Decimal                @db.Decimal(18, 2)
+  grossAmount            Decimal                @db.Decimal(18, 2)
   numberOfCashBill       String
   country                String
   currency               String
-  status                 InvoiceStatus @default(DRAFT)
-  sharedAt               DateTime?     @db.Timestamptz(3)
+  vatLiabilityTimingCode String?
+  status                 InvoiceStatus          @default(DRAFT)
+  sharedAt               DateTime?              @db.Timestamptz(3)
   sharedMethod           String?
   externalInvoiceNumber  String?
-  externalInvoiceDate    DateTime?     @db.Date
+  externalInvoiceDate    DateTime?              @db.Date
   externalReference      String?
-  voidedAt               DateTime?     @db.Timestamptz(3)
+  voidedAt               DateTime?              @db.Timestamptz(3)
   voidReason             String?
   sharedByUserId         String?
   voidedByUserId         String?
   replacementForId       String?
   createdByUserId        String
   updatedByUserId        String
-  createdAt              DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt              DateTime      @updatedAt @db.Timestamptz(3)
-  workspace              Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  client                 Client        @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  sharedBy               User?         @relation("InvoiceSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
-  voidedBy               User?         @relation("InvoiceVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
-  createdBy              User          @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy              User          @relation("InvoiceUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  replacementFor         Invoice?      @relation("InvoiceReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
-  replacement            Invoice[]     @relation("InvoiceReplacement")
+  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime               @updatedAt @db.Timestamptz(3)
+  workspace              Workspace              @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client                 Client                 @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  sharedBy               User?                  @relation("InvoiceSharer", fields: [sharedByUserId], references: [id], onDelete: SetNull)
+  voidedBy               User?                  @relation("InvoiceVoider", fields: [voidedByUserId], references: [id], onDelete: SetNull)
+  createdBy              User                   @relation("InvoiceCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy              User                   @relation("InvoiceUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  replacementFor         Invoice?               @relation("InvoiceReplacement", fields: [replacementForId], references: [id], onDelete: Restrict)
+  replacement            Invoice[]              @relation("InvoiceReplacement")
   lines                  InvoiceLine[]
-  printWorkSpecification Boolean       @default(true)
+  sefSubmissions         InvoiceSefSubmission[]
+  printWorkSpecification Boolean                @default(true)
   billingMonth           String?
 
   @@unique([workspaceId, invoiceNumber])
@@ -1088,46 +1102,89 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id                 String            @id @default(uuid())
-  workspaceId        String
-  invoiceId          String
-  clientId           String
-  performedByUserId  String
-  lineOrder          Int?
-  description        String            @db.Text
-  serviceDate        DateTime          @db.Date
-  netAmount          Decimal           @db.Decimal(18, 2)
-  vatRate            Decimal           @db.Decimal(5, 2)
-  vatAmount          Decimal           @db.Decimal(18, 2)
-  grossAmount        Decimal           @db.Decimal(18, 2)
-  currency           String
-  status             InvoiceLineStatus @default(RESERVED)
-  sourceType         String?
-  sourceId           String?
-  pricingRequired    Boolean           @default(false)
-  minutes            Int?
-  billedAt           DateTime?         @db.Timestamptz(3)
-  cancelledAt        DateTime?         @db.Timestamptz(3)
-  cancellationReason String?           @db.Text
-  cancelledByUserId  String?
-  createdByUserId    String
-  updatedByUserId    String
-  createdAt          DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime          @updatedAt @db.Timestamptz(3)
-  workspace          Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
-  invoice            Invoice           @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  client             Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
-  performedBy        User              @relation("InvoiceLinePerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
-  cancelledBy        User?             @relation("InvoiceLineCanceller", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
-  createdBy          User              @relation("InvoiceLineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy          User              @relation("InvoiceLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  caseLinks          InvoiceLineCase[]
-  workEntries        WorkEntry[]
+  id                     String            @id @default(uuid())
+  workspaceId            String
+  invoiceId              String
+  clientId               String
+  performedByUserId      String
+  lineOrder              Int?
+  description            String            @db.Text
+  serviceDate            DateTime          @db.Date
+  netAmount              Decimal           @db.Decimal(18, 2)
+  vatRate                Decimal           @db.Decimal(5, 2)
+  taxCategoryCode        String?
+  taxExemptionReasonCode String?
+  taxExemptionReasonText String?           @db.Text
+  vatAmount              Decimal           @db.Decimal(18, 2)
+  grossAmount            Decimal           @db.Decimal(18, 2)
+  currency               String
+  status                 InvoiceLineStatus @default(RESERVED)
+  sourceType             String?
+  sourceId               String?
+  pricingRequired        Boolean           @default(false)
+  minutes                Int?
+  billedAt               DateTime?         @db.Timestamptz(3)
+  cancelledAt            DateTime?         @db.Timestamptz(3)
+  cancellationReason     String?           @db.Text
+  cancelledByUserId      String?
+  createdByUserId        String
+  updatedByUserId        String
+  createdAt              DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime          @updatedAt @db.Timestamptz(3)
+  workspace              Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  invoice                Invoice           @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  client                 Client            @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  performedBy            User              @relation("InvoiceLinePerformer", fields: [performedByUserId], references: [id], onDelete: Restrict)
+  cancelledBy            User?             @relation("InvoiceLineCanceller", fields: [cancelledByUserId], references: [id], onDelete: SetNull)
+  createdBy              User              @relation("InvoiceLineCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy              User              @relation("InvoiceLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  caseLinks              InvoiceLineCase[]
+  workEntries            WorkEntry[]
 
   @@unique([invoiceId, lineOrder])
   @@index([workspaceId, clientId, status, serviceDate])
   @@index([workspaceId, performedByUserId, serviceDate])
   @@index([sourceType, sourceId])
+}
+
+model InvoiceSefSubmission {
+  id                   String             @id @default(uuid())
+  workspaceId          String
+  invoiceId            String
+  environment          SefEnvironment
+  revision             Int
+  idempotencyKey       String
+  requestId            String
+  supplierTaxId        String
+  state                SefSubmissionState @default(PREPARED)
+  sefInvoiceId         String?
+  sefSalesInvoiceId    String?
+  sefPurchaseInvoiceId String?
+  remoteStatus         String?
+  ublXml               String             @db.Text
+  payloadSha256        String
+  sourceSnapshot       Json
+  validationResult     Json
+  apiResponse          Json?
+  lastErrorCode        String?
+  lastErrorMessage     String?            @db.Text
+  httpStatus           Int?
+  attemptCount         Int                @default(0)
+  submittedByUserId    String
+  submittedAt          DateTime?          @db.Timestamptz(3)
+  sendingStartedAt     DateTime?          @db.Timestamptz(3)
+  lastCheckedAt        DateTime?          @db.Timestamptz(3)
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+  invoice              Invoice            @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  workspace            Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  submittedBy          User               @relation("InvoiceSefSubmitter", fields: [submittedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([workspaceId, environment, requestId])
+  @@unique([workspaceId, environment, idempotencyKey])
+  @@unique([invoiceId, environment, revision])
+  @@index([workspaceId, invoiceId, environment, createdAt])
+  @@index([workspaceId, state, updatedAt])
 }
 
 model InvoiceLineCase {

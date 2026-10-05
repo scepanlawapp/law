@@ -6,6 +6,7 @@ import {
   IsBoolean,
   IsEnum,
   IsInt,
+  IsIn,
   Length,
   IsNumber,
   IsOptional,
@@ -15,6 +16,7 @@ import {
   Min,
   MinLength,
   ValidateNested,
+  MaxLength,
 } from "class-validator";
 import { PriceSourceScope } from "@prisma/client";
 
@@ -41,6 +43,21 @@ export class InvoiceLineInputDto {
   @Min(0)
   @Max(100)
   vatRate!: number;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(16)
+  taxCategoryCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  taxExemptionReasonCode?: string | null;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  taxExemptionReasonText?: string | null;
 
   @Type(() => Number)
   @IsNumber({ maxDecimalPlaces: 2 })
@@ -185,6 +202,10 @@ export class CreateInvoiceDto {
   @IsString()
   currency!: string;
 
+  @IsOptional()
+  @IsIn(["3", "35", "432"])
+  vatLiabilityTimingCode?: "3" | "35" | "432" | null;
+
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -263,6 +284,10 @@ export class UpdateInvoiceDto {
   country?: string;
 
   @IsOptional()
+  @IsIn(["3", "35", "432"])
+  vatLiabilityTimingCode?: "3" | "35" | "432" | null;
+
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
@@ -282,6 +307,12 @@ export class SendInvoiceDto {
   @IsOptional()
   @IsString()
   idempotencyKey?: string;
+}
+
+export class SefInvoiceRequestDto {
+  @IsOptional()
+  @IsUUID()
+  bankAccountId?: string;
 }
 
 export class ExternalInvoiceDto {

@@ -7,7 +7,12 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { Invoice, ClientSummary, WorkEntry } from "@law/api-interfaces";
+import {
+  Invoice,
+  ClientSummary,
+  OrganizationSettings,
+  WorkEntry,
+} from "@law/api-interfaces";
 import {
   BillingSetupApiClient,
   ClientsApiClient,
@@ -42,6 +47,7 @@ import {
 } from "../../shared/currency";
 import {
   InvoiceLineForm,
+  InvoiceLineDefaults,
   ClientRate,
   appendUniqueWorkEntries,
   calculateInvoiceTotals,
@@ -55,6 +61,7 @@ import {
 } from "./invoice-form";
 import { InvoiceLineImportDialogService } from "./invoice-line-import-dialog.service";
 import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
+import { createSelectItemToString } from "../../shared/utils";
 
 @Component({
   selector: "law-finance-invoice-create",
@@ -103,6 +110,9 @@ export class FinanceInvoiceCreateComponent {
   readonly saveError = signal("");
   readonly formRevision = signal(0);
   readonly selectedClient = signal<ClientSummary | null>(null);
+  private readonly organizationSettings = signal<OrganizationSettings | null>(
+    null,
+  );
   readonly invoiceIdempotencyKey = crypto.randomUUID();
   readonly invoiceId = this.route.snapshot.paramMap.get("id");
   readonly isEditMode = this.invoiceId !== null;
@@ -155,6 +165,7 @@ export class FinanceInvoiceCreateComponent {
       nonNullable: true,
       validators: [Validators.required, Validators.min(0), Validators.max(100)],
     }),
+    vatLiabilityTimingCode: new FormControl<"3" | "35" | "432" | null>("35"),
     numberOfCashBill: new FormControl("", {
       nonNullable: true,
       validators: Validators.maxLength(255),
@@ -176,6 +187,28 @@ export class FinanceInvoiceCreateComponent {
   readonly currencyOptions = CURRENCY_OPTIONS;
   readonly currencyItemToString = createCurrencyItemToString((key) =>
     this.localization.translate(key),
+  );
+  readonly taxCategoryOptions = [
+    { value: "S20", label: "finance.sef.taxCategoryS20" },
+    { value: "S10", label: "finance.sef.taxCategoryS10" },
+    { value: "Z", label: "finance.sef.taxCategoryZ" },
+    { value: "E", label: "finance.sef.taxCategoryE" },
+    { value: "R", label: "finance.sef.taxCategoryR" },
+    { value: "O", label: "finance.sef.taxCategoryO" },
+    { value: "OE", label: "finance.sef.taxCategoryOE" },
+  ];
+  readonly taxCategoryItemToString = createSelectItemToString(
+    this.taxCategoryOptions,
+    (key) => this.localization.translate(key),
+  );
+  readonly vatTimingOptions = [
+    { value: "35", label: "finance.sef.vatTiming35" },
+    { value: "3", label: "finance.sef.vatTiming3" },
+    { value: "432", label: "finance.sef.vatTiming432" },
+  ];
+  readonly vatTimingItemToString = createSelectItemToString(
+    this.vatTimingOptions,
+    (key) => this.localization.translate(key),
   );
   readonly mismatchIndexes = computed(() => {
     this.formRevision();
@@ -219,10 +252,13 @@ export class FinanceInvoiceCreateComponent {
       .get()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (settings) =>
+        next: (settings) => {
+          this.organizationSettings.set(settings);
           this.allowManualOverride.set(
             settings.invoiceNumbering.allowManualOverride,
-          ),
+          );
+          this.applyOrganizationDefaults(settings);
+        },
       });
     if (this.isEditMode) {
       this.form.controls.clientId.disable({ emitEvent: false });
@@ -313,6 +349,7 @@ export class FinanceInvoiceCreateComponent {
     const line = createInvoiceLineForm(
       undefined,
       normalizeCurrency(this.form.controls.currency.value) || "RSD",
+      this.invoiceLineDefaults(),
     );
     this.form.controls.lines.push(line);
     this.registerLine(line);
@@ -385,6 +422,7 @@ export class FinanceInvoiceCreateComponent {
           grossAmount: totals.grossAmount,
           numberOfCashBill: header.numberOfCashBill.trim(),
           country: header.country.trim(),
+          vatLiabilityTimingCode: header.vatLiabilityTimingCode,
           printWorkSpecification: header.printWorkSpecification,
           lines,
         })
@@ -406,6 +444,7 @@ export class FinanceInvoiceCreateComponent {
           numberOfCashBill: header.numberOfCashBill.trim(),
           country: header.country.trim(),
           currency: normalizeCurrency(header.currency),
+          vatLiabilityTimingCode: header.vatLiabilityTimingCode,
           printWorkSpecification: header.printWorkSpecification,
           lines,
           idempotencyKey: this.invoiceIdempotencyKey,
@@ -433,6 +472,7 @@ export class FinanceInvoiceCreateComponent {
         methodOfPayment: invoice.methodOfPayment,
         comment: invoice.comment,
         vatRate: Number(invoice.vatRate),
+        vatLiabilityTimingCode: invoice.vatLiabilityTimingCode,
         numberOfCashBill: invoice.numberOfCashBill,
         country: invoice.country,
         currency: invoice.currency,
@@ -443,6 +483,7 @@ export class FinanceInvoiceCreateComponent {
     this.form.controls.lines.clear({ emitEvent: false });
     for (const line of invoice.lines) {
       const lineForm = createInvoiceLineForm(line);
+      this.applyMissingLineDefaults(lineForm);
       this.form.controls.lines.push(lineForm, {
         emitEvent: false,
       });
@@ -452,6 +493,8 @@ export class FinanceInvoiceCreateComponent {
       this.clients().find((client) => client.id === invoice.clientId) ?? null,
     );
     this.form.markAsPristine();
+    const settings = this.organizationSettings();
+    if (settings) this.applyOrganizationDefaults(settings);
     this.bumpRevision();
   }
 
@@ -546,6 +589,7 @@ export class FinanceInvoiceCreateComponent {
       entries,
       normalizeCurrency(this.form.controls.currency.value) || "RSD",
       rate,
+      this.invoiceLineDefaults(),
     );
     if (!added) return;
     this.registerLinesFrom(firstNewIndex);
@@ -580,6 +624,99 @@ export class FinanceInvoiceCreateComponent {
         if (!client) return;
         this.form.controls.clientId.setValue(client.id);
       });
+  }
+
+  private applyOrganizationDefaults(settings: OrganizationSettings): void {
+    const setTextDefault = (
+      control:
+        | typeof this.form.controls.placeOfIssue
+        | typeof this.form.controls.methodOfPayment
+        | typeof this.form.controls.comment
+        | typeof this.form.controls.country
+        | typeof this.form.controls.currency,
+      value: string | null | undefined,
+    ): void => {
+      const normalized = value?.trim();
+      if (!normalized || !control.pristine) return;
+      if (this.isEditMode && control.value.trim()) return;
+      control.setValue(normalized);
+    };
+
+    setTextDefault(
+      this.form.controls.placeOfIssue,
+      settings.invoiceDefaults?.defaultIssuePlace || settings.company?.city,
+    );
+    setTextDefault(
+      this.form.controls.methodOfPayment,
+      settings.payment?.defaultPaymentMethod,
+    );
+    setTextDefault(
+      this.form.controls.comment,
+      settings.invoiceDefaults?.defaultNote,
+    );
+    setTextDefault(this.form.controls.country, settings.company?.countryCode);
+    setTextDefault(
+      this.form.controls.currency,
+      settings.currency?.defaultCurrencyCode,
+    );
+
+    if (!this.isEditMode && this.form.controls.dateOfMaturity.pristine) {
+      this.form.controls.dateOfMaturity.setValue(
+        addDays(
+          this.form.controls.dateOfCreate.value,
+          settings.payment?.defaultPaymentTermDays ?? 0,
+        ),
+      );
+    }
+    if (!this.isEditMode && this.form.controls.vatRate.pristine) {
+      this.form.controls.vatRate.setValue(settings.tax?.defaultVatRate ?? 0);
+    }
+    if (
+      this.form.controls.vatLiabilityTimingCode.pristine &&
+      (!this.isEditMode ||
+        this.form.controls.vatLiabilityTimingCode.value == null)
+    ) {
+      const category = settings.tax?.defaultTaxCategoryCode?.trim();
+      if (category) {
+        this.form.controls.vatLiabilityTimingCode.setValue(
+          category === "S10" || category === "S20"
+            ? settings.tax?.cashAccountingEnabled
+              ? "432"
+              : "35"
+            : null,
+        );
+      }
+    }
+
+    for (const line of this.form.controls.lines.controls) {
+      this.applyMissingLineDefaults(line);
+    }
+    this.bumpRevision();
+  }
+
+  private invoiceLineDefaults(): InvoiceLineDefaults | undefined {
+    const tax = this.organizationSettings()?.tax;
+    if (!tax) return undefined;
+    const taxCategoryCode = tax.defaultTaxCategoryCode?.trim() ?? "";
+    const standard = taxCategoryCode === "S10" || taxCategoryCode === "S20";
+    return {
+      vatRate: tax.defaultVatRate ?? 0,
+      taxCategoryCode,
+      taxExemptionReasonCode: standard
+        ? ""
+        : (tax.defaultTaxExemptionReasonCode?.trim() ?? ""),
+      taxExemptionReasonText: standard
+        ? ""
+        : (tax.defaultTaxExemptionReasonText?.trim() ?? ""),
+    };
+  }
+
+  private applyMissingLineDefaults(line: InvoiceLineForm): void {
+    if (line.controls.taxCategoryCode.value.trim()) return;
+    const defaults = this.invoiceLineDefaults();
+    if (!defaults) return;
+    line.patchValue(defaults, { emitEvent: false });
+    recalculateInvoiceLine(line, "vatRate");
   }
 
   private registerLinesFrom(firstIndex: number): void {
@@ -624,4 +761,10 @@ function today(): string {
   const now = new Date();
   const offset = now.getTimezoneOffset() * 60_000;
   return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+}
+
+function addDays(date: string, days: number): string {
+  const parsed = new Date(`${date}T12:00:00`);
+  parsed.setDate(parsed.getDate() + Math.max(0, Math.trunc(days)));
+  return parsed.toISOString().slice(0, 10);
 }

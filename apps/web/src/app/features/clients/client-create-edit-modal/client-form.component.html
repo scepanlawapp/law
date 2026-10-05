@@ -131,6 +131,28 @@
           </hlm-radio-group>
         </fieldset>
 
+        @if (isOrganization()) {
+          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div class="flex items-center gap-2">
+              <hlm-switch
+                id="client-public-sector"
+                formControlName="isPublicSector"
+              />
+              <label hlmLabel for="client-public-sector">
+                {{ "clients.isPublicSector" | translate }}
+              </label>
+            </div>
+            @if (form.controls.isPublicSector.value) {
+              <div hlmField>
+                <label hlmFieldLabel for="jbkjs">
+                  {{ "clients.jbkjs" | translate }}
+                </label>
+                <input hlmInput id="jbkjs" formControlName="jbkjs" />
+              </div>
+            }
+          </div>
+        }
+
         <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
           <div hlmField>
             <label hlmFieldLabel for="email">

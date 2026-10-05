@@ -38,7 +38,12 @@
           @if (sendBlocked()) {
             <span
               tabindex="0"
-              [hlmTooltip]="'finance.sendBlockedTooltip' | translate"
+              [hlmTooltip]="
+                (sefState()?.immutable
+                  ? 'finance.sef.localMutationBlocked'
+                  : 'finance.sendBlockedTooltip'
+                ) | translate
+              "
               aria-describedby="invoice-send-blocked"
             >
               <button
@@ -80,12 +85,140 @@
         data-testid="send-blocked-notice"
         class="rounded-lg border border-warning/40 bg-warning/10 p-3 text-warning"
       >
-        {{
-          "finance.pricingRequiredNotice"
-            | translate: { count: pricingRequiredCount() }
-        }}
+        @if (sefState()?.immutable) {
+          {{ "finance.sef.localMutationBlocked" | translate }}
+        } @else {
+          {{
+            "finance.pricingRequiredNotice"
+              | translate: { count: pricingRequiredCount() }
+          }}
+        }
       </p>
     }
+
+    <section class="app-section-surface space-y-4 p-4" aria-labelledby="sef-panel-title">
+      <div class="flex flex-wrap items-start justify-between gap-3">
+        <div class="space-y-1">
+          <div class="flex flex-wrap items-center gap-2">
+            <h2 id="sef-panel-title" class="text-base font-semibold">
+              {{ "finance.sef.title" | translate }}
+            </h2>
+            <span class="inline-flex rounded-full border border-border bg-muted px-2 py-0.5 text-sm font-medium">
+              {{ "finance.sef.demoBadge" | translate }}
+            </span>
+          </div>
+          <p class="text-muted-foreground">
+            {{ "finance.sef.demoExplanation" | translate }}
+          </p>
+        </div>
+        @if (sefLoading()) {
+          <div class="flex items-center gap-2" role="status">
+            <hlm-spinner />
+            <span>{{ "finance.sef.loading" | translate }}</span>
+          </div>
+        }
+      </div>
+
+      @if (sefState(); as state) {
+        @if (!state.configured || !state.enabled) {
+          <p class="rounded-lg border border-warning/40 bg-warning/10 p-3 text-warning" role="status">
+            {{ "finance.sef.notConfigured" | translate }}
+          </p>
+        }
+        @if (state.environment === "PRODUCTION") {
+          <p class="rounded-lg border border-destructive p-3" role="alert">
+            {{ "finance.sef.productionBlocked" | translate }}
+          </p>
+        }
+        @if (state.submission; as submission) {
+          <dl class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <dt class="text-muted-foreground">{{ "finance.sef.localState" | translate }}</dt>
+              <dd class="font-medium">{{ sefStateKey(submission.state) | translate }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">{{ "finance.sef.remoteStatus" | translate }}</dt>
+              <dd class="font-medium">{{ submission.remoteStatus || "—" }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">{{ "finance.sef.outgoingId" | translate }}</dt>
+              <dd class="break-all font-medium">{{ submission.sefSalesInvoiceId || "—" }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">{{ "finance.sef.submittedAt" | translate }}</dt>
+              <dd class="font-medium">{{ submission.submittedAt ? formatDate(submission.submittedAt) : "—" }}</dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">{{ "finance.sef.lastCheckedAt" | translate }}</dt>
+              <dd class="font-medium">{{ submission.lastCheckedAt ? formatDate(submission.lastCheckedAt) : "—" }}</dd>
+            </div>
+          </dl>
+          @if (submission.state === "UNKNOWN") {
+            <p class="rounded-lg border border-warning/40 bg-warning/10 p-3 text-warning" role="alert">
+              {{ "finance.sef.unknownOutcome" | translate }}
+            </p>
+          }
+          @if (submission.lastErrorMessage) {
+            <p class="rounded-lg border border-destructive p-3" role="alert">
+              {{ submission.lastErrorMessage }}
+            </p>
+          }
+          @if (state.immutable) {
+            <p class="text-muted-foreground">
+              {{ "finance.sef.immutableExplanation" | translate }}
+            </p>
+          }
+        }
+
+        @if (canSend()) {
+          <div class="flex flex-wrap gap-2">
+            <button hlmBtn type="button" variant="outline" [disabled]="sefAction() !== null" (click)="validateForSef()">
+              @if (sefAction() === "validate") { <hlm-spinner /> }
+              {{ "finance.sef.validate" | translate }}
+            </button>
+            <button hlmBtn type="button" variant="outline" [disabled]="sefAction() !== null" (click)="downloadUbl()">
+              @if (sefAction() === "download") { <hlm-spinner /> }
+              {{ "finance.sef.downloadUbl" | translate }}
+            </button>
+            <button hlmBtn type="button" [disabled]="sefSendBlocked()" (click)="sendToDemoSef()">
+              @if (sefAction() === "send") { <hlm-spinner /> }
+              {{ "finance.sef.send" | translate }}
+            </button>
+            @if (state.submission?.state === "SUBMITTED") {
+              <button hlmBtn type="button" variant="outline" [disabled]="sefAction() !== null" (click)="refreshSef()">
+                @if (sefAction() === "refresh") { <hlm-spinner /> }
+                {{ "finance.sef.refresh" | translate }}
+              </button>
+            }
+          </div>
+        }
+      } @else if (!sefLoading()) {
+        <button hlmBtn type="button" variant="outline" (click)="loadSefState()">
+          {{ "finance.retry" | translate }}
+        </button>
+      }
+
+      @if (sefValidation(); as validation) {
+        <div class="space-y-2" [attr.role]="validation.valid ? 'status' : 'alert'">
+          <p class="font-medium">
+            {{ (validation.valid ? "finance.sef.validationPassed" : "finance.sef.validationFailed") | translate }}
+          </p>
+          @if (validation.issues.length) {
+            <ul class="list-disc space-y-1 ps-5">
+              @for (issue of validation.issues; track issue.code + issue.fieldPath) {
+                <li>
+                  <span class="font-medium">{{ sefFieldLabel(issue.fieldPath) }}:</span>
+                  {{ issue.messageKey | translate: issue.params }}
+                </li>
+              }
+            </ul>
+          }
+          <p class="text-muted-foreground">
+            {{ "finance.sef.validationVersion" | translate: { version: validation.validationVersion } }}
+          </p>
+        </div>
+      }
+    </section>
 
     <section class="space-y-3 border-b border-border pb-4">
       <h2 class="text-base font-semibold">

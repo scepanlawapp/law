@@ -26,6 +26,27 @@ const client = {
   status: "ACTIVE" as const,
 };
 
+const organizationSettings = {
+  company: { city: "Novi Sad", countryCode: "RS" },
+  tax: {
+    defaultVatRate: 20,
+    defaultTaxCategoryCode: "S20",
+    defaultTaxExemptionReasonCode: null,
+    defaultTaxExemptionReasonText: null,
+    cashAccountingEnabled: false,
+  },
+  invoiceNumbering: { allowManualOverride: true },
+  payment: {
+    defaultPaymentTermDays: 15,
+    defaultPaymentMethod: "BANK_TRANSFER",
+  },
+  currency: { defaultCurrencyCode: "RSD" },
+  invoiceDefaults: {
+    defaultIssuePlace: "Beograd",
+    defaultNote: "Plaćanje u roku dospeća.",
+  },
+};
+
 function entry(id: string, treatment: WorkEntry["treatment"]): WorkEntry {
   return {
     id,
@@ -93,7 +114,7 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
         {
           provide: OrganizationSettingsApiClient,
           useValue: {
-            get: () => of({ invoiceNumbering: { allowManualOverride: true } }),
+            get: () => of(organizationSettings),
           },
         },
         {
@@ -135,9 +156,29 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     expect(component.form.controls.currency.value).toBe("EUR");
     const [hourly, flagged] = component.form.controls.lines.controls;
     expect(hourly.controls.netAmount.value).toBe(100);
+    expect(hourly.controls.vatRate.value).toBe(20);
+    expect(hourly.controls.taxCategoryCode.value).toBe("S20");
+    expect(hourly.controls.vatAmount.value).toBe(20);
+    expect(hourly.controls.grossAmount.value).toBe(120);
     expect(hourly.controls.pricingRequired.value).toBe(false);
     expect(flagged.controls.pricingRequired.value).toBe(true);
     expect(component.pricingRequiredCount()).toBe(1);
+  });
+
+  it("prefills the invoice header from organization settings", () => {
+    const component = create().componentInstance;
+
+    expect(component.form.controls.placeOfIssue.value).toBe("Beograd");
+    expect(component.form.controls.methodOfPayment.value).toBe("BANK_TRANSFER");
+    expect(component.form.controls.country.value).toBe("RS");
+    expect(component.form.controls.comment.value).toBe(
+      "Plaćanje u roku dospeća.",
+    );
+    expect(component.form.controls.vatRate.value).toBe(20);
+    expect(component.form.controls.vatLiabilityTimingCode.value).toBe("35");
+    expect(component.form.controls.dateOfMaturity.value).toBe(
+      addDaysForTest(component.form.controls.dateOfCreate.value, 15),
+    );
   });
 
   it("clears the flag when the user prices a flagged row", () => {
@@ -247,7 +288,7 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
         {
           provide: OrganizationSettingsApiClient,
           useValue: {
-            get: () => of({ invoiceNumbering: { allowManualOverride: true } }),
+            get: () => of(organizationSettings),
           },
         },
         {
@@ -308,4 +349,29 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
       netAmount: 800,
     });
   });
+
+  it("preserves saved header values and fills only missing draft values", () => {
+    const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const firstLine = component.form.controls.lines.at(0);
+
+    expect(component.form.controls.placeOfIssue.value).toBe("Beograd");
+    expect(component.form.controls.methodOfPayment.value).toBe("Prenos");
+    expect(component.form.controls.country.value).toBe("Srbija");
+    expect(component.form.controls.comment.value).toBe(
+      "Plaćanje u roku dospeća.",
+    );
+    expect(component.form.controls.vatLiabilityTimingCode.value).toBe("35");
+    expect(firstLine.controls.taxCategoryCode.value).toBe("S20");
+    expect(firstLine.controls.vatRate.value).toBe(20);
+    expect(firstLine.controls.vatAmount.value).toBe(200);
+    expect(firstLine.controls.grossAmount.value).toBe(1200);
+  });
 });
+
+function addDaysForTest(date: string, days: number): string {
+  const parsed = new Date(`${date}T12:00:00`);
+  parsed.setDate(parsed.getDate() + days);
+  return parsed.toISOString().slice(0, 10);
+}

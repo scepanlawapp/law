@@ -1,0 +1,21 @@
+# Implementation Plan
+
+- [x] Create the delivery track, parent link, metadata, and matching implementation branch.
+- [x] Verify current official DEMO API, upload/status contracts, UBL profile identifiers, tax mappings, unit codes, and validation assets.
+- [x] Inspect invoice, organization settings, encryption, bank account, work-entry, authorization, API-client, frontend, and test patterns.
+- [x] Add additive Prisma enums/models/relations/line tax fields/invoice timing fields and migration.
+- [x] Add shared API contracts and validated Nest DTOs for validation, XML download, submission state, send, and refresh.
+- [x] Implement decimal monetary verification and supported-scenario checks.
+- [x] Implement server-side UBL builder and offline XSD/profile validator with bundled assets.
+- [x] Implement secret decryption and the DEMO-only precision-safe SEF HTTP adapter.
+- [x] Implement locked/idempotent submission preparation, upload, recovery, persistence, immutable-state guards, and manual refresh.
+- [x] Add controller routes and typed frontend API-client methods without exposing secrets or client-controlled SEF identifiers/XML.
+- [x] Add the localized Spartan/UI SEF panel and tax/timing controls to existing invoice/settings flows where required.
+- [x] Add focused backend, HTTP-adapter, concurrency, persistence, security, and Angular tests.
+- [x] Add a developer guide and update the implemented-business-logic source of truth.
+- [x] Verify Prisma schema/generation/migration, targeted tests, lint/build, runtime validator assets, and opt-in DEMO behavior (live upload remains deliberately skipped without a DEMO key).
+- [x] Mark this plan complete and update metadata status after verification.
+- [x] Map organization settings to new-invoice header and line defaults.
+- [x] Fill only missing values when an existing draft is opened for editing.
+- [x] Cover default application and edit preservation with focused Angular tests.
+- [x] Re-run targeted tests, lint, build, and complete the delivery-track metadata.
