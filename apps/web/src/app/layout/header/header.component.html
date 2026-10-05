@@ -10,10 +10,15 @@
     </hlm-input-group-addon>
   </hlm-input-group>
 
-  <div aria-live="polite">
-    <span aria-hidden="true">“</span>
-    <span class="italic opacity-80">{{ quoteKey() | translate }}</span>
-    <span aria-hidden="true">“</span>
+  <div
+    class="hidden min-w-0 flex-1 px-4 text-center 2xl:block"
+    aria-live="polite"
+  >
+    <span class="block truncate whitespace-nowrap italic opacity-80">
+      <span aria-hidden="true">“</span>
+      {{ quoteKey() | translate }}
+      <span aria-hidden="true">“</span>
+    </span>
   </div>
 
   <div class="flex items-center gap-2">

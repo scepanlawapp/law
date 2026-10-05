@@ -104,6 +104,11 @@ describe("FinanceInvoiceDetailComponent send", () => {
       '[data-testid="send-invoice"]',
     ) as HTMLButtonElement;
 
+  const editLink = (fixture: ComponentFixture<unknown>) =>
+    (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="edit-invoice"]',
+    ) as HTMLAnchorElement | null;
+
   beforeEach(() => {
     jest.clearAllMocks();
     role = WorkspaceRole.OWNER;
@@ -152,12 +157,18 @@ describe("FinanceInvoiceDetailComponent send", () => {
     expect(api.sendInvoice).not.toHaveBeenCalled();
   });
 
+  it("links a draft invoice to its edit page", () => {
+    const fixture = create(false);
+
+    expect(editLink(fixture)?.getAttribute("href")).toBe(
+      "/finance/invoices/invoice-1/edit",
+    );
+  });
+
   it("sends a fully priced draft after confirmation", () => {
     const fixture = create(false);
     confirmDialog.confirm.mockReturnValue(of(true));
-    api.sendInvoice.mockReturnValue(
-      of({ ...invoice(false), status: "SENT" }),
-    );
+    api.sendInvoice.mockReturnValue(of({ ...invoice(false), status: "SENT" }));
 
     expect(sendButton(fixture).disabled).toBe(false);
     sendButton(fixture).click();
@@ -166,6 +177,7 @@ describe("FinanceInvoiceDetailComponent send", () => {
     expect(api.sendInvoice).toHaveBeenCalledWith("invoice-1");
     expect(toast.success).toHaveBeenCalled();
     expect(sendButton(fixture)).toBeNull();
+    expect(editLink(fixture)).toBeNull();
   });
 
   it("hides send from roles that cannot manage billing", () => {

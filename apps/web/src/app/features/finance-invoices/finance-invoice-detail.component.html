@@ -43,6 +43,16 @@
         </span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        @if (item.status === "DRAFT") {
+          <a
+            hlmBtn
+            variant="outline"
+            data-testid="edit-invoice"
+            [routerLink]="['/finance/invoices', item.id, 'edit']"
+          >
+            {{ "common.edit" | translate }}
+          </a>
+        }
         @if (item.status === "DRAFT" && canSend()) {
           @if (sendBlocked()) {
             <span

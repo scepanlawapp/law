@@ -160,6 +160,28 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
     expect(fixture.componentInstance.selectedCount()).toBe(1);
   });
 
+  it("toggles selection from a row click without toggling from its buttons", () => {
+    const fixture = create();
+    const firstRow = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="unbilled-entry"]',
+    ) as HTMLTableRowElement;
+    const checkbox = firstRow.querySelector(
+      'input[type="checkbox"]',
+    ) as HTMLInputElement;
+
+    (firstRow.cells[1] as HTMLTableCellElement).click();
+    fixture.detectChanges();
+    expect(checkbox.checked).toBe(true);
+
+    (firstRow.querySelector("button") as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(checkbox.checked).toBe(true);
+
+    (firstRow.cells[1] as HTMLTableCellElement).click();
+    fixture.detectChanges();
+    expect(checkbox.checked).toBe(false);
+  });
+
   it("writes off an entry and removes it from unbilled work", () => {
     writeOffDialog.open.mockReturnValue(of("Ne naplaćuje se"));
     entries.writeOff.mockReturnValue(

@@ -243,6 +243,17 @@ export class FinanceWorkReviewComponent {
     this.selected.set(selected);
   }
 
+  toggleFromRow(event: MouseEvent, entry: WorkEntry): void {
+    const target = event.target;
+    if (
+      target instanceof Element &&
+      target.closest("button, input, a, select, textarea")
+    ) {
+      return;
+    }
+    this.toggle(entry);
+  }
+
   newStatementFromSelection(): void {
     this.navigateToStatement([...this.selected().values()]);
   }

@@ -78,7 +78,12 @@
           </thead>
           <tbody hlmTBody>
             @for (entry of entries(); track entry.id) {
-              <tr hlmTr data-testid="import-entry">
+              <tr
+                hlmTr
+                data-testid="import-entry"
+                [class.cursor-pointer]="!excludedEntryIds.has(entry.id)"
+                (click)="toggleFromRow($event, entry)"
+              >
                 <td hlmTd>
                   <div class="flex items-center gap-2">
                     <input

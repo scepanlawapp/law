@@ -6,6 +6,53 @@
 @import "@spartan-ng/brain/hlm-tailwind-preset.css";
 @import "flag-icons/css/flag-icons.min.css";
 
+hlm-toaster {
+  --brn-sonner-toast-success-background: color-mix(
+    in srgb,
+    var(--success) 10%,
+    var(--popover)
+  );
+  --brn-sonner-toast-success-border: color-mix(
+    in srgb,
+    var(--success) 40%,
+    var(--border)
+  );
+  --brn-sonner-toast-success-color: var(--success);
+  --brn-sonner-toast-info-background: color-mix(
+    in srgb,
+    var(--info) 10%,
+    var(--popover)
+  );
+  --brn-sonner-toast-info-border: color-mix(
+    in srgb,
+    var(--info) 40%,
+    var(--border)
+  );
+  --brn-sonner-toast-info-color: var(--info);
+  --brn-sonner-toast-warning-background: color-mix(
+    in srgb,
+    var(--warning) 10%,
+    var(--popover)
+  );
+  --brn-sonner-toast-warning-border: color-mix(
+    in srgb,
+    var(--warning) 40%,
+    var(--border)
+  );
+  --brn-sonner-toast-warning-color: var(--warning);
+  --brn-sonner-toast-error-background: color-mix(
+    in srgb,
+    var(--destructive) 10%,
+    var(--popover)
+  );
+  --brn-sonner-toast-error-border: color-mix(
+    in srgb,
+    var(--destructive) 40%,
+    var(--border)
+  );
+  --brn-sonner-toast-error-color: var(--destructive);
+}
+
 @theme {
   --color-background: var(--background);
   --color-foreground: var(--foreground);

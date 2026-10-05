@@ -215,7 +215,12 @@
       </thead>
       <tbody hlmTBody>
         @for (entry of entries(); track entry.id) {
-          <tr hlmTr data-testid="unbilled-entry">
+          <tr
+            hlmTr
+            class="cursor-pointer"
+            data-testid="unbilled-entry"
+            (click)="toggleFromRow($event, entry)"
+          >
             <td hlmTd>
               <input
                 type="checkbox"
