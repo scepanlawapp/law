@@ -361,6 +361,13 @@ dd {
   padding: 4mm 5mm;
 }
 
+.payment-card-content {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 6mm;
+  align-items: start;
+}
+
 .payment-card dl {
   width: 115mm;
   margin: 0;
@@ -368,6 +375,23 @@ dd {
 
 .payment-card dl div {
   grid-template-columns: 42mm 1fr;
+}
+
+.payment-qr {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5mm;
+  color: #527096;
+  font-size: 8px;
+  text-align: center;
+}
+
+.payment-qr qrcode {
+  display: block;
+  width: 43mm;
+  height: 43mm;
+  background: #fff;
 }
 
 .closing-row {

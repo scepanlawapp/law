@@ -50,6 +50,12 @@ describe("OrganizationSettingsService", () => {
     defaultUnitOfMeasure: null,
     defaultNote: null,
     defaultFooterText: null,
+    paymentQrEnabled: false,
+    paymentQrStandard: "NBS_IPS",
+    paymentQrAccountId: null as string | null,
+    paymentQrPurposeTemplate: "Plaćanje po fakturi {{invoiceNumber}}",
+    paymentQrReferenceModel: null as string | null,
+    paymentQrReferenceTemplate: null as string | null,
     includeGeneratedInvoicePdf: false,
     includeUserAttachments: true,
     allowedSefAttachmentFileExtensions: [],
@@ -66,7 +72,16 @@ describe("OrganizationSettingsService", () => {
         return record;
       }),
     },
-    bankAccount: { findMany: jest.fn(async () => []) },
+    bankAccount: {
+      findMany: jest.fn(async () => []),
+      findFirst: jest.fn(async () => ({
+        id: "account-1",
+        workspaceId: "ws-1",
+        active: true,
+        currencyCode: "RSD",
+        accountNumber: "160-1234567890123-45",
+      })),
+    },
   };
   const config = {
     get: jest.fn(() => "a-secure-test-key-with-at-least-32-characters"),
@@ -94,6 +109,43 @@ describe("OrganizationSettingsService", () => {
     expect(db.organizationSettings.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ where: { workspaceId: "ws-1" } }),
     );
+    expect(result.paymentQr.enabled).toBe(false);
+  });
+
+  it("stores a valid enabled NBS IPS payment QR configuration", async () => {
+    record = { ...record, legalName: "Primer DOO" };
+    const result = await run(() =>
+      service.updatePaymentQr({
+        enabled: true,
+        paymentStandard: "NBS_IPS",
+        paymentAccountId: "account-1",
+        paymentPurposeTemplate: "Faktura {{invoiceNumber}}",
+        referenceModel: "97",
+        referenceTemplate: "{{invoiceNumber}}",
+      }),
+    );
+    expect(result).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        paymentAccountId: "account-1",
+        referenceModel: "97",
+      }),
+    );
+  });
+
+  it("rejects enabling payment QR without company and account data", async () => {
+    await expect(
+      run(() =>
+        service.updatePaymentQr({
+          enabled: true,
+          paymentStandard: "NBS_IPS",
+          paymentAccountId: null,
+          paymentPurposeTemplate: "Faktura {{invoiceNumber}}",
+          referenceModel: null,
+          referenceTemplate: null,
+        }),
+      ),
+    ).rejects.toThrow("Company name is required");
   });
 
   it("stores the SEF key encrypted and only returns masked state", async () => {

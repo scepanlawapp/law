@@ -3,7 +3,7 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from "@angular/router";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 
 @Component({
-  selector: "law-workspace-settings-layout",
+  selector: "law-company-settings-layout",
   standalone: true,
   imports: [RouterLink, RouterLinkActive, RouterOutlet, TranslatePipe],
   host: { class: "block min-w-0" },
@@ -11,10 +11,10 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
     <div class="px-4 py-6 md:px-8">
       <header class="max-w-4xl">
         <h2 class="text-base font-semibold">
-          {{ "settings.organization.title" | translate }}
+          {{ "settings.company" | translate }}
         </h2>
         <p class="mt-1 text-sm leading-snug text-muted-foreground">
-          {{ "settings.organization.description" | translate }}
+          {{ "settings.companyDescription" | translate }}
         </p>
       </header>
       <nav
@@ -45,10 +45,9 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
     </div>
   `,
 })
-export class WorkspaceSettingsLayoutComponent {
+export class CompanySettingsLayoutComponent {
   readonly tabs = [
-    { path: "general", label: "settings.organization.tabs.general" },
-    { path: "company", label: "settings.organization.tabs.company" },
+    { path: "details", label: "settings.organization.tabs.company" },
     { path: "tax", label: "settings.organization.tabs.tax" },
     { path: "sef", label: "settings.organization.tabs.sef" },
     { path: "numbering", label: "settings.organization.tabs.numbering" },
@@ -58,5 +57,6 @@ export class WorkspaceSettingsLayoutComponent {
       path: "invoice-defaults",
       label: "settings.organization.tabs.invoiceDefaults",
     },
+    { path: "payment-qr", label: "settings.organization.tabs.paymentQr" },
   ];
 }

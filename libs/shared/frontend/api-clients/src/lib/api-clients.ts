@@ -97,6 +97,7 @@ import {
   PaymentSettings,
   CurrencySettings,
   InvoiceDefaultsSettings,
+  InvoicePaymentQrSettings,
   SefAttachmentSettings,
   BankAccount,
   BankAccountRequest,
@@ -807,6 +808,11 @@ export class OrganizationSettingsApiClient {
     body: InvoiceDefaultsSettings,
   ): Observable<InvoiceDefaultsSettings> {
     return this.put("/invoice-defaults", body);
+  }
+  updatePaymentQr(
+    body: InvoicePaymentQrSettings,
+  ): Observable<InvoicePaymentQrSettings> {
+    return this.put("/payment-qr", body);
   }
   updateSefAttachments(
     body: SefAttachmentSettings,

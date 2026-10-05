@@ -108,6 +108,7 @@
     "@ng-icons/lucide": "^36.0.0",
     "@prisma/client": "^6.16.2",
     "@spartan-ng/brain": "^1.4.1",
+    "angularx-qrcode": "^22.0.1",
     "axios": "^1.6.0",
     "bullmq": "^6.3.4",
     "busboy": "^1.6.0",
