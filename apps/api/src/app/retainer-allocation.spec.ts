@@ -186,6 +186,15 @@ describe("allocate", () => {
     expect(result.overage).toEqual({ entryIds: ["e1"], minutes: 70 });
   });
 
+  it("covers untimed (0-minute) work even past the cap", () => {
+    const a = agreement();
+    const result = allocate(a, full(a), 600, [
+      entry({ id: "e1", minutes: 0 }),
+    ]);
+    expect(result.feeEntryIds).toEqual(["e1"]);
+    expect(result.overage).toBeNull();
+  });
+
   it("absorbs overage when the rule is ABSORBED", () => {
     const a = agreement({ overageRule: "ABSORBED", overageHourlyRate: null });
     const result = allocate(a, full(a), 0, covered);

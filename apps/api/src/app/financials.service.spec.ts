@@ -346,19 +346,12 @@ describe("FinancialsService", () => {
 
     await asAdmin(() => service.updateInvoice(invoiceId, { lines: [line()] }));
 
-    expect(order).toEqual(["release", "release", "delete"]);
+    // Timed and untimed entries both go back to CONFIRMED in one update.
+    expect(order).toEqual(["release", "delete"]);
     expect(db.workEntry.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: [entryA] }, workspaceId },
+      where: { id: { in: [entryA, entryB] }, workspaceId },
       data: {
         status: "CONFIRMED",
-        invoiceLineId: null,
-        updatedByUserId: userId,
-      },
-    });
-    expect(db.workEntry.updateMany).toHaveBeenCalledWith({
-      where: { id: { in: [entryB] }, workspaceId },
-      data: {
-        status: "PROPOSED",
         invoiceLineId: null,
         updatedByUserId: userId,
       },
@@ -559,7 +552,7 @@ describe("FinancialsService", () => {
 
     expect(db.workEntry.updateMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ status: "PROPOSED" }),
+        data: expect.objectContaining({ status: "CONFIRMED" }),
       }),
     );
     expect(db.invoiceLine.deleteMany).toHaveBeenCalledTimes(1);

@@ -5,21 +5,34 @@
 
 <div class="min-h-0 flex-1 overflow-y-auto text-sm">
   <div class="grid gap-4">
-    @if (!fromSource) {
+    <form
+      id="quick-capture-form"
+      [formGroup]="form"
+      (ngSubmit)="submit()"
+      class="grid gap-4"
+      novalidate
+    >
+      @if (loadingEntry()) {
+        <div class="text-muted-foreground flex items-center gap-2">
+          <hlm-spinner />
+          <span>{{ "time.capture.loading" | translate }}</span>
+        </div>
+      }
       <div hlmField>
-        <label hlmFieldLabel for="capture-free-text">
+        <label hlmFieldLabel for="capture-title">
           {{ "time.capture.freeText" | translate }}
         </label>
         <div class="flex items-center gap-2">
           <input
             hlmInput
-            id="capture-free-text"
+            id="capture-title"
             class="min-w-0 flex-1"
-            [formControl]="freeText"
+            formControlName="title"
+            maxlength="200"
             [placeholder]="'time.capture.freeTextPlaceholder' | translate"
             (keydown.enter)="fillFromText(); $event.preventDefault()"
           />
-          @if (speech.isSupported()) {
+          @if (!fromSource && speech.isSupported()) {
             <button
               hlmBtn
               type="button"
@@ -37,19 +50,26 @@
               />
             </button>
           }
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            [disabled]="parsing() || !freeText.value.trim()"
-            (click)="fillFromText()"
-          >
-            @if (parsing()) {
-              <hlm-spinner />
-            }
-            {{ "time.capture.fill" | translate }}
-          </button>
+          @if (!fromSource) {
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [disabled]="parsing() || !form.controls.title.value.trim()"
+              (click)="fillFromText()"
+            >
+              @if (parsing()) {
+                <hlm-spinner />
+              }
+              {{ "time.capture.fill" | translate }}
+            </button>
+          }
         </div>
+        @if (form.controls.title.touched && form.controls.title.invalid) {
+          <p class="text-destructive" role="alert">
+            {{ "time.capture.titleRequired" | translate }}
+          </p>
+        }
         @if (parseFailed()) {
           <p class="text-muted-foreground" role="status">
             {{ "time.capture.parseFailed" | translate }}
@@ -92,21 +112,7 @@
           </div>
         }
       </div>
-    }
 
-    <form
-      id="quick-capture-form"
-      [formGroup]="form"
-      (ngSubmit)="submit()"
-      class="grid gap-4"
-      novalidate
-    >
-      @if (loadingEntry()) {
-        <div class="text-muted-foreground flex items-center gap-2">
-          <hlm-spinner />
-          <span>{{ "time.capture.loading" | translate }}</span>
-        </div>
-      }
       @if (!fromSource) {
         <div class="grid gap-4 md:grid-cols-2">
           <div hlmField>
@@ -239,13 +245,6 @@
           id="capture-description"
           formControlName="description"
         ></textarea>
-        @if (
-          form.controls.description.touched && form.controls.description.invalid
-        ) {
-          <p class="text-destructive" role="alert">
-            {{ "time.capture.descriptionRequired" | translate }}
-          </p>
-        }
       </div>
 
       @if (!fromSource) {

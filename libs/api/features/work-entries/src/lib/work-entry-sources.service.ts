@@ -32,7 +32,9 @@ export interface EnsureSourceEntryInput {
   clientIds: string[];
   caseId: string | null;
   workDate: Date;
-  description: string;
+  /** Title of the source record; becomes the entry title. */
+  title: string;
+  description?: string;
   minutes: number | null;
   confirm: boolean;
 }
@@ -130,7 +132,8 @@ export class WorkEntrySourcesService {
           caseId: input.caseId,
           workDate: input.workDate,
           minutes,
-          description: toLatin(input.description.trim()),
+          title: toLatin(input.title.trim()).slice(0, 200) || "Rad",
+          description: toLatin((input.description ?? "").trim()),
           treatment,
           status,
           source: SOURCE_BY_TYPE[input.sourceType],
@@ -174,8 +177,8 @@ export class WorkEntrySourcesService {
   }
 
   /**
-   * Confirms the entry a source produced. Without minutes the entry stays
-   * PROPOSED so the performer can still decide later.
+   * Confirms the entry a source produced. Without minutes it is confirmed as
+   * untimed work, priced later on the invoice.
    */
   async confirmFromSource(
     input: ConfirmSourceEntryRequest,
@@ -189,9 +192,9 @@ export class WorkEntrySourcesService {
       select: { id: true },
     });
     if (!entry) throw new NotFoundException("Work entry not found");
-    if (input.minutes === null) return this.workEntries.get(entry.id);
     return this.workEntries.confirm(entry.id, {
       minutes: input.minutes,
+      title: input.title,
       description: input.description,
     });
   }

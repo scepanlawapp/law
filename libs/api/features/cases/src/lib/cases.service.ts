@@ -678,7 +678,7 @@ export class CasesService {
             clientIds: [caseRecord.clientId],
             caseId,
             workDate: workDateFor(activity.activityDate),
-            description: activity.title,
+            title: activity.title,
             minutes: input.durationMinutes ?? null,
             confirm: true,
           });

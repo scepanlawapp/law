@@ -329,7 +329,7 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
         clientIds: [clientId],
         caseId: null,
         workDate: completionDate,
-        description: "Pregled ugovora",
+        title: "Pregled ugovora",
         minutes: null,
         confirm: false,
       });
@@ -463,7 +463,7 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
         clientIds: [clientId, clientId],
         caseId,
         workDate: completionDate,
-        description: "Sastanak sa klijentom",
+        title: "Sastanak sa klijentom",
         minutes: 90,
         confirm: false,
       });
@@ -530,7 +530,7 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
         clientIds: [clientId],
         caseId: null,
         workDate: completionDate,
-        description: "Odgovor na tužbu",
+        title: "Odgovor na tužbu",
         minutes: null,
         confirm: false,
       });

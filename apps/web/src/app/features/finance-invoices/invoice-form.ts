@@ -217,10 +217,11 @@ export function createWorkEntryLineForm(
     minutes,
     pricingRequired: !priced,
     serviceDate: entry.workDate.slice(0, 10),
+    // Untimed work shows just its title and is priced by hand.
     description:
       minutes === null
-        ? entry.description
-        : `${entry.description} (${formatHoursMinutes(minutes)})`,
+        ? entry.title
+        : `${entry.title} (${formatHoursMinutes(minutes)})`,
     netAmount: price,
     vatRate: 0,
     vatAmount: 0,

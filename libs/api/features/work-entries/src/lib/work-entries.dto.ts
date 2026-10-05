@@ -17,6 +17,7 @@ import {
 import { PaginationQueryDto } from "@law/core";
 import type {
   ConfirmSourceEntryRequest,
+  ConfirmWorkEntryRequest,
   CreateWorkEntryRequest,
   StartTimerRequest,
   UpdateWorkEntryRequest,
@@ -71,14 +72,20 @@ export class CreateWorkEntryDto implements CreateWorkEntryRequest {
   @IsISO8601()
   workDate!: string;
 
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(1440)
-  minutes!: number;
+  minutes?: number | null;
 
   @IsString()
   @IsNotEmpty()
-  description!: string;
+  @MaxLength(200)
+  title!: string;
+
+  @IsOptional()
+  @IsString()
+  description?: string;
 
   @IsOptional()
   @IsUUID()
@@ -114,11 +121,16 @@ export class UpdateWorkEntryDto implements UpdateWorkEntryRequest {
   @IsInt()
   @Min(1)
   @Max(1440)
-  minutes?: number;
+  minutes?: number | null;
 
   @IsOptional()
   @IsString()
   @IsNotEmpty()
+  @MaxLength(200)
+  title?: string;
+
+  @IsOptional()
+  @IsString()
   description?: string;
 
   @IsOptional()
@@ -138,11 +150,18 @@ export class UpdateWorkEntryDto implements UpdateWorkEntryRequest {
   aiParsed?: boolean;
 }
 
-export class ConfirmWorkEntryDto {
+export class ConfirmWorkEntryDto implements ConfirmWorkEntryRequest {
+  @IsOptional()
   @IsInt()
   @Min(1)
   @Max(1440)
-  minutes!: number;
+  minutes?: number | null;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  title?: string;
 
   @IsOptional()
   @IsString()
@@ -162,6 +181,11 @@ export class StartTimerDto implements StartTimerRequest {
   @IsOptional()
   @IsUUID()
   caseId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  title?: string;
 
   @IsOptional()
   @IsString()
@@ -218,6 +242,12 @@ export class ConfirmSourceEntryDto implements ConfirmSourceEntryRequest {
   @Min(1)
   @Max(1440)
   minutes!: number | null;
+
+  @IsOptional()
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  title?: string;
 
   @IsOptional()
   @IsString()

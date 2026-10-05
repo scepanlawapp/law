@@ -83,6 +83,8 @@ export class WorkTimerStore {
         clientId: entry.client.id,
         caseId: entry.case?.id,
         minutes: entry.minutes ?? undefined,
+        requireMinutes: true,
+        title: entry.title || undefined,
         description: entry.description || undefined,
         workDate: entry.workDate,
       })

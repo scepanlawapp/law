@@ -140,6 +140,7 @@ export class MonthEndComponent {
             clientId: entry.client.id,
             caseId: entry.case?.id,
             minutes: entry.minutes ?? undefined,
+            title: entry.title,
             description: entry.description,
             workDate: entry.workDate,
           })

@@ -179,6 +179,7 @@ export class TimeReviewComponent {
         clientId: entry.client.id,
         caseId: entry.case?.id,
         minutes: entry.minutes ?? undefined,
+        title: entry.title,
         description: entry.description,
         workDate: entry.workDate,
       })
@@ -232,7 +233,7 @@ export class TimeReviewComponent {
         source: { sourceType: "EVENT", sourceId: item.eventId },
         clientId: item.client?.id,
         caseId: item.case?.id,
-        description: item.title,
+        title: item.title,
         minutes: minutesBetween(item.startsAt, item.endsAt),
         workDate: this.date(),
       })

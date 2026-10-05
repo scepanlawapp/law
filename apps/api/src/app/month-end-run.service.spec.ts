@@ -25,6 +25,7 @@ interface FakeEntry {
   clientId: string;
   workDate: Date;
   createdAt: Date;
+  title: string;
   minutes: number | null;
   status: string;
   treatment: Treatment;
@@ -37,7 +38,7 @@ interface FakeEntry {
 let sequence = 0;
 function entry(
   date: string,
-  minutes: number,
+  minutes: number | null,
   treatment: Treatment,
   extra: Partial<FakeEntry> = {},
 ): FakeEntry {
@@ -47,6 +48,7 @@ function entry(
     clientId: clientA,
     workDate: new Date(date),
     createdAt: new Date(`${date}T08:00:00Z`),
+    title: `Rad ${sequence}`,
     minutes,
     status: "CONFIRMED",
     treatment,
@@ -242,7 +244,6 @@ describe("MonthEndRunService", () => {
         const rows = state.entries.filter(
           (row) =>
             row.status === where.status &&
-            row.minutes !== null &&
             (where.treatment as { in: string[] }).in.includes(row.treatment) &&
             (!where.clientId || row.clientId === where.clientId),
         );
@@ -605,6 +606,55 @@ describe("MonthEndRunService", () => {
       pricingRequired: true,
     });
     expect(result.statements[0].pricingRequiredLines).toBe(1);
+  });
+
+  it("bills untimed hourly work as its own line awaiting a price", async () => {
+    state.profile = { hourlyRate: new Prisma.Decimal(6000), currency: "RSD" };
+    state.entries = [
+      entry("2026-09-05", 60, "HOURLY"),
+      entry("2026-09-06", null, "HOURLY", {
+        title: "Overa punomoćja",
+        caseId: "c1",
+        case: { caseNumber: "P-12/2026", name: "Alfa protiv Beta" },
+      }),
+    ];
+
+    const result = await runAsOwner();
+
+    const [priced, untimed] = createdLines();
+    expect(priced).toMatchObject({
+      netAmount: 6000,
+      pricingRequired: false,
+      minutes: 60,
+    });
+    expect(priced.workEntryIds).toEqual([state.entries[0].id]);
+    expect(untimed).toMatchObject({
+      description: "P-12/2026 Overa punomoćja",
+      netAmount: 0,
+      pricingRequired: true,
+      workEntryIds: [state.entries[1].id],
+    });
+    expect(untimed.minutes).toBeUndefined();
+    expect(result.statements[0].pricingRequiredLines).toBe(1);
+  });
+
+  it("covers untimed retainer work by the fee even past the cap", async () => {
+    state.agreements[clientA] = [agreement()];
+    state.entries = [
+      ...Array.from({ length: 21 }, (_, index) =>
+        entry(`2026-09-${String(index + 1).padStart(2, "0")}`, 60, "RETAINER"),
+      ),
+      entry("2026-09-25", null, "RETAINER"),
+    ];
+
+    await runAsOwner();
+
+    const [fee, overage] = createdLines();
+    expect(fee.workEntryIds).toHaveLength(21);
+    expect(fee.workEntryIds).toContain(state.entries[21].id);
+    expect(fee.minutes).toBe(1200);
+    expect(overage).toMatchObject({ minutes: 60 });
+    expect(overage.workEntryIds).toEqual([state.entries[20].id]);
   });
 
   it("leaves AT entries unpriced, grouped by case, in the retainer currency", async () => {
