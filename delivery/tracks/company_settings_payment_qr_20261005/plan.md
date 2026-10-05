@@ -7,6 +7,7 @@
 - [x] Implement reusable template interpolation and NBS IPS payload generation with focused unit tests.
 - [x] Install and use the Angular 22 `angularx-qrcode` standalone renderer in the invoice print flow, deriving company/account/invoice values from existing data.
 - [x] Update business documentation, translations, delivery status, and run targeted Prisma, API, Angular, test, lint/build, formatting, and diff verification.
+- [x] Make the shell-free invoice print view an explicit viewport scroll container while preserving print-media overflow behavior.
 
 ## Status convention
 
