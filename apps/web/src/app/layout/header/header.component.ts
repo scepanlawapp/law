@@ -1,4 +1,5 @@
-import { Component, computed, inject, signal } from "@angular/core";
+import { Component, computed, DestroyRef, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideSearch,
@@ -19,8 +20,11 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { NotificationsStore } from "../../core/notifications/notifications.store";
 import { notificationTarget } from "../../core/notifications/notification-navigation";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { EventDialogService } from "../../features/calendar/event-dialog/event-dialog.service";
 import { QuickCaptureDialogService } from "../../features/time/quick-capture/quick-capture-dialog.service";
 import { HeaderTimerComponent } from "../../features/time/timer/header-timer.component";
+import { TaskDialogService } from "../../features/work-management/task-dialog/task-dialog.service";
+import { todayDateInputValue } from "../../features/work-management/work-management-utils";
 
 const LEGAL_QUOTE_KEYS = Array.from(
   { length: 120 },
@@ -72,9 +76,12 @@ const notificationIcon: Record<NotificationType, string> = {
   ],
 })
 export class HeaderComponent {
+  private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
   private readonly quickCapture = inject(QuickCaptureDialogService);
+  private readonly taskDialog = inject(TaskDialogService);
+  private readonly eventDialog = inject(EventDialogService);
   readonly notifications = inject(NotificationsStore);
   readonly quoteKey = signal(
     LEGAL_QUOTE_KEYS[Math.floor(Math.random() * LEGAL_QUOTE_KEYS.length)],
@@ -86,7 +93,24 @@ export class HeaderComponent {
   );
 
   openQuickCapture(): void {
-    this.quickCapture.open({ mode: "create" }).subscribe();
+    this.quickCapture
+      .open({ mode: "create" })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+
+  openCreateTask(): void {
+    this.taskDialog
+      .open({})
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+
+  openCreateEvent(): void {
+    this.eventDialog
+      .open({ date: todayDateInputValue(), hour: 9 })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
   }
 
   iconFor(type: NotificationType): string {

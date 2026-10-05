@@ -47,7 +47,6 @@ import {
 } from "../../shared/currency";
 import {
   InvoiceLineForm,
-  InvoiceLineDefaults,
   ClientRate,
   appendUniqueWorkEntries,
   calculateInvoiceTotals,
@@ -187,19 +186,6 @@ export class FinanceInvoiceCreateComponent {
   readonly currencyOptions = CURRENCY_OPTIONS;
   readonly currencyItemToString = createCurrencyItemToString((key) =>
     this.localization.translate(key),
-  );
-  readonly taxCategoryOptions = [
-    { value: "S20", label: "finance.sef.taxCategoryS20" },
-    { value: "S10", label: "finance.sef.taxCategoryS10" },
-    { value: "Z", label: "finance.sef.taxCategoryZ" },
-    { value: "E", label: "finance.sef.taxCategoryE" },
-    { value: "R", label: "finance.sef.taxCategoryR" },
-    { value: "O", label: "finance.sef.taxCategoryO" },
-    { value: "OE", label: "finance.sef.taxCategoryOE" },
-  ];
-  readonly taxCategoryItemToString = createSelectItemToString(
-    this.taxCategoryOptions,
-    (key) => this.localization.translate(key),
   );
   readonly vatTimingOptions = [
     { value: "35", label: "finance.sef.vatTiming35" },
@@ -349,7 +335,7 @@ export class FinanceInvoiceCreateComponent {
     const line = createInvoiceLineForm(
       undefined,
       normalizeCurrency(this.form.controls.currency.value) || "RSD",
-      this.invoiceLineDefaults(),
+      this.invoiceLineDefaultVatRate(),
     );
     this.form.controls.lines.push(line);
     this.registerLine(line);
@@ -483,7 +469,6 @@ export class FinanceInvoiceCreateComponent {
     this.form.controls.lines.clear({ emitEvent: false });
     for (const line of invoice.lines) {
       const lineForm = createInvoiceLineForm(line);
-      this.applyMissingLineDefaults(lineForm);
       this.form.controls.lines.push(lineForm, {
         emitEvent: false,
       });
@@ -589,7 +574,7 @@ export class FinanceInvoiceCreateComponent {
       entries,
       normalizeCurrency(this.form.controls.currency.value) || "RSD",
       rate,
-      this.invoiceLineDefaults(),
+      this.invoiceLineDefaultVatRate(),
     );
     if (!added) return;
     this.registerLinesFrom(firstNewIndex);
@@ -676,47 +661,30 @@ export class FinanceInvoiceCreateComponent {
       (!this.isEditMode ||
         this.form.controls.vatLiabilityTimingCode.value == null)
     ) {
-      const category = settings.tax?.defaultTaxCategoryCode?.trim();
-      if (category) {
+      const defaultVatRate = settings.tax?.defaultVatRate;
+      if (defaultVatRate !== null && defaultVatRate !== undefined)
         this.form.controls.vatLiabilityTimingCode.setValue(
-          category === "S10" || category === "S20"
+          defaultVatRate > 0
             ? settings.tax?.cashAccountingEnabled
               ? "432"
               : "35"
             : null,
         );
-      }
     }
 
     for (const line of this.form.controls.lines.controls) {
-      this.applyMissingLineDefaults(line);
+      if (line.controls.id.value === null && line.controls.vatRate.pristine) {
+        line.controls.vatRate.setValue(settings.tax?.defaultVatRate ?? 0, {
+          emitEvent: false,
+        });
+        recalculateInvoiceLine(line, "vatRate");
+      }
     }
     this.bumpRevision();
   }
 
-  private invoiceLineDefaults(): InvoiceLineDefaults | undefined {
-    const tax = this.organizationSettings()?.tax;
-    if (!tax) return undefined;
-    const taxCategoryCode = tax.defaultTaxCategoryCode?.trim() ?? "";
-    const standard = taxCategoryCode === "S10" || taxCategoryCode === "S20";
-    return {
-      vatRate: tax.defaultVatRate ?? 0,
-      taxCategoryCode,
-      taxExemptionReasonCode: standard
-        ? ""
-        : (tax.defaultTaxExemptionReasonCode?.trim() ?? ""),
-      taxExemptionReasonText: standard
-        ? ""
-        : (tax.defaultTaxExemptionReasonText?.trim() ?? ""),
-    };
-  }
-
-  private applyMissingLineDefaults(line: InvoiceLineForm): void {
-    if (line.controls.taxCategoryCode.value.trim()) return;
-    const defaults = this.invoiceLineDefaults();
-    if (!defaults) return;
-    line.patchValue(defaults, { emitEvent: false });
-    recalculateInvoiceLine(line, "vatRate");
+  private invoiceLineDefaultVatRate(): number {
+    return this.organizationSettings()?.tax.defaultVatRate ?? 0;
   }
 
   private registerLinesFrom(firstIndex: number): void {

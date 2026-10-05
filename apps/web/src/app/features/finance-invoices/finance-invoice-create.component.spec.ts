@@ -30,9 +30,6 @@ const organizationSettings = {
   company: { city: "Novi Sad", countryCode: "RS" },
   tax: {
     defaultVatRate: 20,
-    defaultTaxCategoryCode: "S20",
-    defaultTaxExemptionReasonCode: null,
-    defaultTaxExemptionReasonText: null,
     cashAccountingEnabled: false,
   },
   invoiceNumbering: { allowManualOverride: true },
@@ -157,7 +154,6 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     const [hourly, flagged] = component.form.controls.lines.controls;
     expect(hourly.controls.netAmount.value).toBe(100);
     expect(hourly.controls.vatRate.value).toBe(20);
-    expect(hourly.controls.taxCategoryCode.value).toBe("S20");
     expect(hourly.controls.vatAmount.value).toBe(20);
     expect(hourly.controls.grossAmount.value).toBe(120);
     expect(hourly.controls.pricingRequired.value).toBe(false);
@@ -190,23 +186,6 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
 
     expect(flagged.controls.pricingRequired.value).toBe(false);
     expect(fixture.componentInstance.pricingRequiredCount()).toBe(0);
-  });
-
-  it("hints at an unpriced, unflagged row", () => {
-    const fixture = create();
-    const lines = fixture.componentInstance.form.controls.lines;
-    const element = fixture.nativeElement as HTMLElement;
-    expect(
-      element.querySelector('[data-testid="price-required-hint"]'),
-    ).toBeNull();
-
-    lines.at(0).controls.netAmount.setValue(0);
-    lines.at(0).controls.pricingRequired.setValue(false);
-    fixture.detectChanges();
-
-    expect(
-      element.querySelector('[data-testid="price-required-hint"]'),
-    ).toBeTruthy();
   });
 });
 
@@ -350,7 +329,7 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
     });
   });
 
-  it("preserves saved header values and fills only missing draft values", () => {
+  it("preserves saved header and line VAT values while filling missing headers", () => {
     const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
@@ -363,10 +342,9 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
       "Plaćanje u roku dospeća.",
     );
     expect(component.form.controls.vatLiabilityTimingCode.value).toBe("35");
-    expect(firstLine.controls.taxCategoryCode.value).toBe("S20");
-    expect(firstLine.controls.vatRate.value).toBe(20);
-    expect(firstLine.controls.vatAmount.value).toBe(200);
-    expect(firstLine.controls.grossAmount.value).toBe(1200);
+    expect(firstLine.controls.vatRate.value).toBe(0);
+    expect(firstLine.controls.vatAmount.value).toBe(0);
+    expect(firstLine.controls.grossAmount.value).toBe(1000);
   });
 });
 

@@ -29,6 +29,14 @@
       <ng-icon name="lucidePlus" aria-hidden="true" />
       <span>{{ "time.capture.open" | translate }}</span>
     </button>
+    <button hlmBtn type="button" variant="outline" (click)="openCreateTask()">
+      <ng-icon name="lucideCheckCheck" aria-hidden="true" />
+      <span>{{ "work.tasks.create" | translate }}</span>
+    </button>
+    <button hlmBtn type="button" variant="outline" (click)="openCreateEvent()">
+      <ng-icon name="lucideCalendar" aria-hidden="true" />
+      <span>{{ "calendar.createEvent" | translate }}</span>
+    </button>
     <button
       hlmBtn
       variant="ghost"
