@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Organization Settings UI Refinement](./tracks/organization_settings_ui_refinement_20261005/index.md)
 - [Organization and Invoicing Settings](./tracks/organization_invoicing_settings_20261004/index.md)
 - [Invoice Domain Rename](./tracks/invoice_domain_rename_20261004/index.md)
 - [Work Capture, Retainers, and Month-End Billing (epic)](./tracks/work_capture_retainers_20261004/index.md)

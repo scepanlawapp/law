@@ -24,9 +24,16 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
         <div class="flex min-w-max gap-1">
           @for (tab of tabs; track tab.path) {
             <a
-              class="border-b-2 border-transparent px-3 py-2 text-sm font-medium text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              class="border-b-2 px-3 py-2 text-sm font-medium hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               [routerLink]="tab.path"
-              routerLinkActive="border-primary text-foreground"
+              routerLinkActive
+              #activeTab="routerLinkActive"
+              [routerLinkActiveOptions]="{ exact: true }"
+              [class.border-primary]="activeTab.isActive"
+              [class.border-transparent]="!activeTab.isActive"
+              [class.bg-accent]="activeTab.isActive"
+              [class.text-accent-foreground]="activeTab.isActive"
+              [class.text-muted-foreground]="!activeTab.isActive"
               ariaCurrentWhenActive="page"
             >
               {{ tab.label | translate }}
