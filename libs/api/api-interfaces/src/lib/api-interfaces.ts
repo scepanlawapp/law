@@ -1120,6 +1120,7 @@ export type ExchangeRateSource =
   | "NBS_BUY"
   | "NBS_SELL"
   | "MANUAL";
+export type PaymentQrStandard = "NBS_IPS";
 
 export interface CompanySettings {
   legalName: string | null;
@@ -1186,6 +1187,15 @@ export interface InvoiceDefaultsSettings {
   defaultFooterText: string | null;
 }
 
+export interface InvoicePaymentQrSettings {
+  enabled: boolean;
+  paymentStandard: PaymentQrStandard;
+  paymentAccountId: string | null;
+  paymentPurposeTemplate: string;
+  referenceModel: "00" | "97" | null;
+  referenceTemplate: string | null;
+}
+
 export interface SefAttachmentSettings {
   includeGeneratedInvoicePdf: boolean;
   includeUserAttachments: boolean;
@@ -1216,6 +1226,7 @@ export interface OrganizationSettings {
   payment: PaymentSettings;
   currency: CurrencySettings;
   invoiceDefaults: InvoiceDefaultsSettings;
+  paymentQr: InvoicePaymentQrSettings;
   sefAttachments: SefAttachmentSettings;
   bankAccounts: BankAccount[];
 }

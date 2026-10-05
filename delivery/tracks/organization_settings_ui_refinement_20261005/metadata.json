@@ -1,0 +1,17 @@
+{
+  "created_at": "2026-10-05T00:00:00Z",
+  "keywords": [
+    "organization-settings",
+    "workspace",
+    "invoice-numbering",
+    "currency",
+    "localization",
+    "accessibility"
+  ],
+  "parent_track_id": "organization_invoicing_settings_20261004",
+  "priority": "medium",
+  "status": "completed",
+  "track_id": "organization_settings_ui_refinement_20261005",
+  "type": "fix",
+  "updated_at": "2026-10-05T00:00:00Z"
+}

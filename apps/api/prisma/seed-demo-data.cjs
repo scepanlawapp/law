@@ -1214,6 +1214,7 @@ async function ensureRatesAndRetainers(
       availableVatRates: [0, 10, 20],
       allowedCurrencyCodes: ["RSD", "EUR"],
       allowedSefAttachmentFileExtensions: ["pdf", "docx", "xlsx"],
+      paymentQrEnabled: false,
     },
   });
   // Only fill the office target when nobody has set one yet.

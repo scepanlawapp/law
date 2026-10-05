@@ -28,7 +28,7 @@
           class="hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-sidebar-ring flex min-h-11 min-w-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium focus-visible:ring-2 focus-visible:outline-none"
           [routerLink]="item.path"
           routerLinkActive="bg-accent text-accent-foreground"
-          [routerLinkActiveOptions]="{ exact: item.path !== 'workspace' }"
+          [routerLinkActiveOptions]="{ exact: item.exact }"
           ariaCurrentWhenActive="page"
         >
           <ng-icon class="size-4 shrink-0" [name]="item.icon" />

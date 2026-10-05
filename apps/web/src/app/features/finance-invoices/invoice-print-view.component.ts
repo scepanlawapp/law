@@ -6,32 +6,37 @@ import {
   Invoice,
   InvoiceLineSummary,
   ClientDetail,
+  OrganizationSettings,
 } from "@law/api-interfaces";
 import {
   ClientAddress,
   ClientsApiClient,
   FinancialsApiClient,
+  OrganizationSettingsApiClient,
 } from "@law/api-clients";
+import { QRCodeComponent } from "angularx-qrcode";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { catchError, forkJoin, of, switchMap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { formatDate, formatHoursMinutes } from "../../shared/billing";
+import { InvoicePaymentQrService } from "./invoice-payment-qr.service";
 
-export type WorkSpecificationRow =
-  InvoiceLineSummary["workEntries"][number];
+export type WorkSpecificationRow = InvoiceLineSummary["workEntries"][number];
 
 @Component({
   selector: "law-invoice-print-view",
   standalone: true,
   templateUrl: "./invoice-print-view.component.html",
   styleUrl: "./invoice-print-view.component.scss",
-  imports: [RouterLink, HlmButton, HlmSpinner, TranslatePipe],
+  imports: [RouterLink, HlmButton, HlmSpinner, TranslatePipe, QRCodeComponent],
 })
 export class InvoicePrintViewComponent {
   private readonly invoicesApi = inject(FinancialsApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
+  private readonly organizationApi = inject(OrganizationSettingsApiClient);
+  private readonly paymentQr = inject(InvoicePaymentQrService);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
@@ -41,6 +46,7 @@ export class InvoicePrintViewComponent {
   readonly invoice = signal<Invoice | null>(null);
   readonly client = signal<ClientDetail | null>(null);
   readonly addresses = signal<ClientAddress[]>([]);
+  readonly organizationSettings = signal<OrganizationSettings | null>(null);
   readonly loading = signal(true);
   readonly error = signal(false);
   /**
@@ -68,19 +74,43 @@ export class InvoicePrintViewComponent {
       null,
   );
 
-  // TODO(invoice-print): Replace these placeholders with the workspace billing
-  // profile once issuer identity, contact, and banking settings are persisted.
-  readonly issuer = {
-    name: "LEGAL AI DOO",
-    address: "Bulevar Mihajla Pupina 10, 11070 Novi Beograd, Srbija",
-    taxNumber: "112233445",
-    registrationNumber: "12345678",
-    bankAccount: "160-123456-78",
-    bankName: "Banca Intesa a.d.",
-    email: "office@legalai.rs",
-    phone: "+381 11 123 4567",
-    website: "www.legalai.rs",
-  };
+  readonly issuer = computed(() => {
+    const settings = this.organizationSettings();
+    const company = settings?.company;
+    const account =
+      settings?.bankAccounts.find(
+        (candidate) => candidate.id === settings.paymentQr.paymentAccountId,
+      ) ??
+      settings?.bankAccounts.find(
+        (candidate) => candidate.active && candidate.isDefault,
+      ) ??
+      settings?.bankAccounts.find((candidate) => candidate.active);
+    return {
+      name: company?.legalName || company?.displayName || "—",
+      address:
+        [
+          company?.addressLine1,
+          company?.addressLine2,
+          [company?.postalCode, company?.city].filter(Boolean).join(" "),
+          company?.countryCode,
+        ]
+          .filter(Boolean)
+          .join(", ") || "—",
+      taxNumber: company?.taxId || "—",
+      registrationNumber: company?.registrationNumber || "—",
+      bankAccount: account?.accountNumber || account?.iban || "—",
+      bankName: account?.bankName || "—",
+      email: company?.email || "—",
+      phone: company?.phone || "—",
+      website: company?.website || "—",
+    };
+  });
+  readonly paymentQrPayload = computed(() => {
+    const invoice = this.invoice();
+    return invoice
+      ? this.paymentQr.generate(invoice, this.organizationSettings())
+      : null;
+  });
 
   constructor() {
     this.load();
@@ -101,15 +131,19 @@ export class InvoicePrintViewComponent {
             addresses: this.clientsApi
               .listAddresses(invoice.clientId)
               .pipe(catchError(() => of([] as ClientAddress[]))),
+            organizationSettings: this.organizationApi
+              .get()
+              .pipe(catchError(() => of(null))),
           }),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: ({ invoice, client, addresses }) => {
+        next: ({ invoice, client, addresses, organizationSettings }) => {
           this.invoice.set(invoice);
           this.client.set(client);
           this.addresses.set(addresses);
+          this.organizationSettings.set(organizationSettings);
           this.loading.set(false);
         },
         error: () => {

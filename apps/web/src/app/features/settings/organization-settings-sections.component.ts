@@ -21,14 +21,22 @@ import {
   HlmFieldLabel,
 } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { Observable, finalize } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  CURRENCY_OPTIONS,
+  CurrencyCode,
+  createCurrencyItemToString,
+} from "../../shared/currency";
+import { SelectOption, createSelectItemToString } from "../../shared/utils";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { OrganizationSettingsStore } from "./organization-settings.store";
+import { normalizeSerbianPaymentAccount } from "../finance-invoices/invoice-payment-qr.service";
 
 const baseImports = [
   ReactiveFormsModule,
@@ -403,21 +411,34 @@ export class TaxSettingsComponent extends SectionBase {
               {{ "settings.organization.numbering.patternHint" | translate }}
             </p>
           </div>
-          <div>
-            <p class="mb-2 text-sm font-medium">
-              {{ "settings.organization.numbering.tokens" | translate }}
-            </p>
-            <div class="flex flex-wrap gap-2">
-              @for (token of tokens; track token) {
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  (click)="append(token)"
+          <div class="flex flex-col gap-3">
+            <div>
+              <p class="text-sm font-medium">
+                {{ "settings.organization.numbering.tokens" | translate }}
+              </p>
+              <p class="mt-1 text-sm text-muted-foreground">
+                {{ "settings.organization.numbering.tokensHint" | translate }}
+              </p>
+            </div>
+            <div class="flex flex-col gap-2">
+              @for (item of tokens; track item.token) {
+                <div
+                  class="flex items-start gap-3 rounded-lg border border-border p-3"
                 >
-                  {{ token }}
-                </button>
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    class="shrink-0 font-mono"
+                    (click)="append(item.token)"
+                  >
+                    {{ item.token }}
+                  </button>
+                  <p class="pt-1 text-sm leading-snug text-muted-foreground">
+                    {{ item.description | translate }}
+                  </p>
+                </div>
               }
             </div>
           </div>
@@ -504,14 +525,38 @@ export class TaxSettingsComponent extends SectionBase {
 })
 export class InvoiceNumberingSettingsComponent extends SectionBase {
   readonly tokens = [
-    "{YYYY}",
-    "{YY}",
-    "{MM}",
-    "{M}",
-    "{DD}",
-    "{D}",
-    "{SEQ}",
-    "{SEQ:6}",
+    {
+      token: "{YYYY}",
+      description: "settings.organization.numbering.tokenDescriptions.YYYY",
+    },
+    {
+      token: "{YY}",
+      description: "settings.organization.numbering.tokenDescriptions.YY",
+    },
+    {
+      token: "{MM}",
+      description: "settings.organization.numbering.tokenDescriptions.MM",
+    },
+    {
+      token: "{M}",
+      description: "settings.organization.numbering.tokenDescriptions.M",
+    },
+    {
+      token: "{DD}",
+      description: "settings.organization.numbering.tokenDescriptions.DD",
+    },
+    {
+      token: "{D}",
+      description: "settings.organization.numbering.tokenDescriptions.D",
+    },
+    {
+      token: "{SEQ}",
+      description: "settings.organization.numbering.tokenDescriptions.SEQ",
+    },
+    {
+      token: "{SEQ:6}",
+      description: "settings.organization.numbering.tokenDescriptions.SEQ6",
+    },
   ];
   readonly revision = signal(0);
   readonly form = new FormGroup({
@@ -1184,7 +1229,7 @@ export class PaymentSettingsComponent extends SectionBase {
 @Component({
   selector: "law-currency-settings",
   standalone: true,
-  imports: [...baseImports, HlmFieldDescription, HlmSwitch],
+  imports: [...baseImports, HlmFieldDescription, HlmSelectImports, HlmSwitch],
   template: `
     <section class="py-6">
       <h3 class="text-base font-semibold">
@@ -1198,26 +1243,71 @@ export class PaymentSettingsComponent extends SectionBase {
           [formGroup]="form"
           (ngSubmit)="save()"
         >
-          <div ${field}>
+          <div class="flex flex-col gap-4">
             <div hlmField>
               <label hlmFieldLabel for="default-currency">
                 {{ "settings.organization.currency.default" | translate }}
               </label>
-              <input
-                hlmInput
-                id="default-currency"
+              <hlm-select
                 formControlName="defaultCurrencyCode"
-              />
+                [itemToString]="currencyItemToString"
+              >
+                <hlm-select-trigger buttonId="default-currency" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (currency of currencies; track currency.value) {
+                      <hlm-select-item [value]="currency.value">
+                        {{ currency.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
             </div>
             <div hlmField>
               <label hlmFieldLabel for="allowed-currencies">
                 {{ "settings.organization.currency.allowed" | translate }}
               </label>
-              <input
-                hlmInput
-                id="allowed-currencies"
+              <hlm-select-multiple
                 formControlName="allowedCurrencyCodes"
-              />
+                [itemToString]="currencyItemToString"
+              >
+                <hlm-select-trigger
+                  buttonId="allowed-currencies"
+                  class="w-full"
+                >
+                  <hlm-select-placeholder>
+                    {{
+                      "settings.organization.currency.allowedPlaceholder"
+                        | translate
+                    }}
+                  </hlm-select-placeholder>
+                  <ng-template hlmSelectValues let-values>
+                    <hlm-select-values-content>
+                      {{ currencyItemToString(values[0]) }}
+                      @if (values.length > 1) {
+                        <span>
+                          {{
+                            "settings.organization.currency.moreSelected"
+                              | translate: { count: values.length - 1 }
+                          }}
+                        </span>
+                      }
+                    </hlm-select-values-content>
+                  </ng-template>
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (currency of currencies; track currency.value) {
+                      <hlm-select-item [value]="currency.value">
+                        {{ currency.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select-multiple>
               <p hlmFieldDescription>
                 {{ "settings.organization.currency.allowedHint" | translate }}
               </p>
@@ -1226,16 +1316,26 @@ export class PaymentSettingsComponent extends SectionBase {
               <label hlmFieldLabel for="rate-source">
                 {{ "settings.organization.currency.source" | translate }}
               </label>
-              <select
-                id="rate-source"
+              <hlm-select
                 formControlName="exchangeRateSource"
-                class="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                [itemToString]="sourceItemToString"
               >
-                @for (source of sources; track source) {
-                  <option [value]="source">{{ source }}</option>
-                }
-              </select>
+                <hlm-select-trigger buttonId="rate-source" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (source of sources; track source.value) {
+                      <hlm-select-item [value]="source.value">
+                        {{ source.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
             </div>
+          </div>
+          <div class="flex flex-col gap-4">
             <div hlmField>
               <label hlmFieldLabel for="rate-precision">
                 {{ "settings.organization.currency.ratePrecision" | translate }}
@@ -1246,6 +1346,11 @@ export class PaymentSettingsComponent extends SectionBase {
                 type="number"
                 formControlName="exchangeRatePrecision"
               />
+              <p hlmFieldDescription>
+                {{
+                  "settings.organization.currency.ratePrecisionHint" | translate
+                }}
+              </p>
             </div>
             <div hlmField>
               <label hlmFieldLabel for="amount-precision">
@@ -1259,6 +1364,12 @@ export class PaymentSettingsComponent extends SectionBase {
                 type="number"
                 formControlName="amountPrecision"
               />
+              <p hlmFieldDescription>
+                {{
+                  "settings.organization.currency.amountPrecisionHint"
+                    | translate
+                }}
+              </p>
             </div>
           </div>
           <div class="flex items-center justify-between gap-4">
@@ -1285,17 +1396,43 @@ export class PaymentSettingsComponent extends SectionBase {
   `,
 })
 export class CurrencySettingsComponent extends SectionBase {
-  readonly sources = ["NBS_MIDDLE", "NBS_BUY", "NBS_SELL", "MANUAL"] as const;
+  readonly currencies = CURRENCY_OPTIONS;
+  readonly currencyItemToString = createCurrencyItemToString((key) =>
+    this.localization.translate(key),
+  );
+  readonly sources = [
+    {
+      value: "NBS_MIDDLE",
+      label: "settings.organization.currency.sources.NBS_MIDDLE",
+    },
+    {
+      value: "NBS_BUY",
+      label: "settings.organization.currency.sources.NBS_BUY",
+    },
+    {
+      value: "NBS_SELL",
+      label: "settings.organization.currency.sources.NBS_SELL",
+    },
+    {
+      value: "MANUAL",
+      label: "settings.organization.currency.sources.MANUAL",
+    },
+  ] as const satisfies ReadonlyArray<
+    SelectOption<"NBS_MIDDLE" | "NBS_BUY" | "NBS_SELL" | "MANUAL">
+  >;
+  readonly sourceItemToString = createSelectItemToString(this.sources, (key) =>
+    this.localization.translate(key),
+  );
   readonly form = new FormGroup({
-    defaultCurrencyCode: new FormControl("RSD", {
-      nonNullable: true,
-      validators: [Validators.required, Validators.pattern(/^[A-Z]{3}$/)],
-    }),
-    allowedCurrencyCodes: new FormControl("RSD", {
+    defaultCurrencyCode: new FormControl<CurrencyCode>("RSD", {
       nonNullable: true,
       validators: Validators.required,
     }),
-    exchangeRateSource: new FormControl<(typeof this.sources)[number]>(
+    allowedCurrencyCodes: new FormControl<CurrencyCode[]>(["RSD"], {
+      nonNullable: true,
+      validators: Validators.required,
+    }),
+    exchangeRateSource: new FormControl<(typeof this.sources)[number]["value"]>(
       "NBS_MIDDLE",
       { nonNullable: true },
     ),
@@ -1313,11 +1450,18 @@ export class CurrencySettingsComponent extends SectionBase {
     super();
     effect(() => {
       const v = this.store.settings()?.currency;
-      if (v && this.form.pristine)
+      if (v && this.form.pristine) {
+        const allowedCurrencyCodes =
+          v.allowedCurrencyCodes.filter(isCurrencyCode);
         this.form.patchValue({
           ...v,
-          allowedCurrencyCodes: v.allowedCurrencyCodes.join(", "),
+          defaultCurrencyCode: isCurrencyCode(v.defaultCurrencyCode)
+            ? v.defaultCurrencyCode
+            : "RSD",
+          allowedCurrencyCodes:
+            allowedCurrencyCodes.length > 0 ? allowedCurrencyCodes : ["RSD"],
         });
+      }
     });
   }
   save() {
@@ -1328,11 +1472,327 @@ export class CurrencySettingsComponent extends SectionBase {
           "currency",
           this.api.updateCurrency({
             ...v,
-            defaultCurrencyCode: v.defaultCurrencyCode.toUpperCase(),
-            allowedCurrencyCodes: v.allowedCurrencyCodes
-              .split(",")
-              .map((x) => x.trim().toUpperCase())
-              .filter(Boolean),
+            allowedCurrencyCodes: v.allowedCurrencyCodes,
+          }),
+        )
+        .pipe(finalize(() => this.form.markAsPristine())),
+    );
+  }
+}
+
+function isCurrencyCode(value: string): value is CurrencyCode {
+  return CURRENCY_OPTIONS.some((option) => option.value === value);
+}
+
+@Component({
+  selector: "law-invoice-payment-qr-settings",
+  standalone: true,
+  imports: [
+    ...baseImports,
+    HlmFieldDescription,
+    HlmSelectImports,
+    HlmSwitch,
+    HlmTextarea,
+  ],
+  template: `
+    <section class="py-6">
+      <h3 class="text-base font-semibold">
+        {{ "settings.organization.paymentQr.title" | translate }}
+      </h3>
+      <p class="mt-1 text-sm text-muted-foreground">
+        {{ "settings.organization.paymentQr.description" | translate }}
+      </p>
+      @if (loading()) {
+        <hlm-spinner class="mt-6" />
+      } @else {
+        <form
+          class="mt-6 flex flex-col gap-5"
+          [formGroup]="form"
+          (ngSubmit)="save()"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <label for="payment-qr-enabled" class="text-sm font-medium">
+                {{ "settings.organization.paymentQr.enabled" | translate }}
+              </label>
+              <p class="mt-1 text-sm text-muted-foreground">
+                {{ "settings.organization.paymentQr.enabledHint" | translate }}
+              </p>
+            </div>
+            <hlm-switch id="payment-qr-enabled" formControlName="enabled" />
+          </div>
+
+          <div hlmField>
+            <label hlmFieldLabel for="payment-qr-standard">
+              {{ "settings.organization.paymentQr.standard" | translate }}
+            </label>
+            <hlm-select
+              formControlName="paymentStandard"
+              [itemToString]="standardItemToString"
+            >
+              <hlm-select-trigger buttonId="payment-qr-standard" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (standard of standards; track standard.value) {
+                    <hlm-select-item [value]="standard.value">
+                      {{ standard.label | translate }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+
+          <div hlmField>
+            <label hlmFieldLabel for="payment-qr-account">
+              {{ "settings.organization.paymentQr.account" | translate }}
+            </label>
+            <hlm-select
+              formControlName="paymentAccountId"
+              [itemToString]="accountItemToString"
+            >
+              <hlm-select-trigger buttonId="payment-qr-account" class="w-full">
+                <hlm-select-placeholder>
+                  {{
+                    "settings.organization.paymentQr.accountPlaceholder"
+                      | translate
+                  }}
+                </hlm-select-placeholder>
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (account of accounts(); track account.id) {
+                    <hlm-select-item [value]="account.id">
+                      {{ account.name }} ·
+                      {{ account.accountNumber || account.iban }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+            <p hlmFieldDescription>
+              {{ "settings.organization.paymentQr.accountHint" | translate }}
+            </p>
+          </div>
+
+          <div hlmField>
+            <label hlmFieldLabel for="payment-purpose-template">
+              {{
+                "settings.organization.paymentQr.purposeTemplate" | translate
+              }}
+            </label>
+            <textarea
+              hlmTextarea
+              id="payment-purpose-template"
+              formControlName="paymentPurposeTemplate"
+            ></textarea>
+            <p hlmFieldDescription>
+              {{
+                "settings.organization.paymentQr.templateVariables" | translate
+              }}
+              <span class="font-mono">{{ templateVariables }}</span>
+            </p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <div hlmField>
+              <label hlmFieldLabel for="payment-reference-model">
+                {{
+                  "settings.organization.paymentQr.referenceModel" | translate
+                }}
+              </label>
+              <hlm-select
+                formControlName="referenceModel"
+                [itemToString]="referenceModelItemToString"
+              >
+                <hlm-select-trigger
+                  buttonId="payment-reference-model"
+                  class="w-full"
+                >
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (model of referenceModels; track model.value) {
+                      <hlm-select-item [value]="model.value">
+                        {{ model.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+            <div hlmField>
+              <label hlmFieldLabel for="payment-reference-template">
+                {{
+                  "settings.organization.paymentQr.referenceTemplate"
+                    | translate
+                }}
+              </label>
+              <input
+                hlmInput
+                id="payment-reference-template"
+                formControlName="referenceTemplate"
+              />
+            </div>
+          </div>
+
+          @if (configurationErrors().length) {
+            <div
+              class="rounded-lg border border-destructive/40 bg-destructive/10 p-4"
+              role="alert"
+            >
+              <p class="text-sm font-medium">
+                {{ "settings.organization.paymentQr.invalidTitle" | translate }}
+              </p>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
+                @for (error of configurationErrors(); track error) {
+                  <li>{{ error | translate }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          <div class="flex justify-end">
+            <button
+              hlmBtn
+              type="submit"
+              [disabled]="
+                saving() ||
+                form.invalid ||
+                form.pristine ||
+                configurationErrors().length > 0
+              "
+            >
+              {{
+                (saving() ? "settings.saving" : "settings.saveChanges")
+                  | translate
+              }}
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+  `,
+})
+export class InvoicePaymentQrSettingsComponent extends SectionBase {
+  readonly revision = signal(0);
+  readonly accounts = computed(
+    () =>
+      this.store.settings()?.bankAccounts.filter((account) => account.active) ??
+      [],
+  );
+  readonly templateVariables =
+    "{{invoiceNumber}}, {{customerName}}, {{amount}}, {{currency}}, {{dueDate}}";
+  readonly standards = [
+    {
+      value: "NBS_IPS",
+      label: "settings.organization.paymentQr.standards.NBS_IPS",
+    },
+  ] as const satisfies ReadonlyArray<SelectOption<"NBS_IPS">>;
+  readonly standardItemToString = createSelectItemToString(
+    this.standards,
+    (key) => this.localization.translate(key),
+  );
+  readonly referenceModels = [
+    { value: "", label: "settings.organization.paymentQr.noReference" },
+    { value: "00", label: "settings.organization.paymentQr.model00" },
+    { value: "97", label: "settings.organization.paymentQr.model97" },
+  ] as const satisfies ReadonlyArray<SelectOption<"" | "00" | "97">>;
+  readonly referenceModelItemToString = createSelectItemToString(
+    this.referenceModels,
+    (key) => this.localization.translate(key),
+  );
+  readonly accountItemToString = (id: string) => {
+    const account = this.accounts().find((candidate) => candidate.id === id);
+    return account
+      ? `${account.name} · ${account.accountNumber || account.iban || "—"}`
+      : id;
+  };
+  readonly form = new FormGroup({
+    enabled: new FormControl(false, { nonNullable: true }),
+    paymentStandard: new FormControl<"NBS_IPS">("NBS_IPS", {
+      nonNullable: true,
+    }),
+    paymentAccountId: new FormControl("", { nonNullable: true }),
+    paymentPurposeTemplate: new FormControl(
+      "Plaćanje po fakturi {{invoiceNumber}}",
+      {
+        nonNullable: true,
+        validators: [Validators.required, Validators.maxLength(200)],
+      },
+    ),
+    referenceModel: new FormControl<"" | "00" | "97">("", {
+      nonNullable: true,
+    }),
+    referenceTemplate: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.maxLength(200),
+    }),
+  });
+  readonly configurationErrors = computed(() => {
+    this.revision();
+    if (!this.form.controls.enabled.value) return [];
+    const settings = this.store.settings();
+    const value = this.form.getRawValue();
+    const errors: string[] = [];
+    if (!(settings?.company.legalName || settings?.company.displayName))
+      errors.push("settings.organization.paymentQr.errors.companyName");
+    const account = settings?.bankAccounts.find(
+      (candidate) => candidate.id === value.paymentAccountId,
+    );
+    if (!account || !account.active)
+      errors.push("settings.organization.paymentQr.errors.account");
+    else {
+      if (account.currencyCode !== "RSD")
+        errors.push("settings.organization.paymentQr.errors.currency");
+      if (!normalizeSerbianPaymentAccount(account.accountNumber))
+        errors.push("settings.organization.paymentQr.errors.accountNumber");
+    }
+    if (!value.paymentPurposeTemplate.trim())
+      errors.push("settings.organization.paymentQr.errors.purpose");
+    if (
+      Boolean(value.referenceModel) !== Boolean(value.referenceTemplate.trim())
+    )
+      errors.push("settings.organization.paymentQr.errors.referencePair");
+    return errors;
+  });
+
+  constructor() {
+    super();
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.revision.update((value) => value + 1));
+    effect(() => {
+      const value = this.store.settings()?.paymentQr;
+      if (value && this.form.pristine)
+        this.form.patchValue({
+          ...value,
+          paymentAccountId: value.paymentAccountId ?? "",
+          referenceModel: value.referenceModel ?? "",
+          referenceTemplate: value.referenceTemplate ?? "",
+        });
+    });
+  }
+
+  save(): void {
+    if (this.form.invalid || this.configurationErrors().length) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    const value = this.form.getRawValue();
+    this.persist(
+      this.store
+        .update(
+          "paymentQr",
+          this.api.updatePaymentQr({
+            ...value,
+            paymentAccountId: value.paymentAccountId || null,
+            referenceModel: value.referenceModel || null,
+            referenceTemplate: value.referenceTemplate || null,
           }),
         )
         .pipe(finalize(() => this.form.markAsPristine())),

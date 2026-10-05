@@ -17,6 +17,7 @@ import {
   CurrencySettingsDto,
   InvoiceDefaultsSettingsDto,
   InvoiceNumberingSettingsDto,
+  InvoicePaymentQrSettingsDto,
   PaymentSettingsDto,
   SefApiKeyDto,
   SefAttachmentSettingsDto,
@@ -63,6 +64,9 @@ export class OrganizationSettingsController {
     @Body() body: InvoiceDefaultsSettingsDto,
   ) {
     return this.settings.updateInvoiceDefaults(body);
+  }
+  @Put("payment-qr") paymentQr(@Body() body: InvoicePaymentQrSettingsDto) {
+    return this.settings.updatePaymentQr(body);
   }
   @Put("sef-attachments") sefAttachments(
     @Body() body: SefAttachmentSettingsDto,

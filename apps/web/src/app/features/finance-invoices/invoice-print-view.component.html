@@ -40,23 +40,24 @@
             </div>
           </div>
           <address class="issuer-address">
-            <strong>{{ issuer.name }}</strong>
-            <span>{{ issuer.address }}</span>
+            <strong>{{ issuer().name }}</strong>
+            <span>{{ issuer().address }}</span>
             <span>
-              {{ "finance.taxNumber" | translate }}: {{ issuer.taxNumber }}
+              {{ "finance.taxNumber" | translate }}: {{ issuer().taxNumber }}
               <b aria-hidden="true">|</b>
               {{ "finance.registrationNumber" | translate }}:
-              {{ issuer.registrationNumber }}
+              {{ issuer().registrationNumber }}
             </span>
             <span>
-              {{ "finance.bankAccount" | translate }}: {{ issuer.bankAccount }}
+              {{ "finance.bankAccount" | translate }}:
+              {{ issuer().bankAccount }}
             </span>
             <span>
-              {{ issuer.email }}
+              {{ issuer().email }}
               <b aria-hidden="true">|</b>
-              {{ issuer.phone }}
+              {{ issuer().phone }}
             </span>
-            <span>{{ issuer.website }}</span>
+            <span>{{ issuer().website }}</span>
           </address>
         </header>
 
@@ -205,39 +206,58 @@
         </section>
 
         <section class="payment-card">
-          <h2>{{ "finance.paymentInstructions" | translate }}</h2>
-          <dl>
+          <div class="payment-card-content">
             <div>
-              <dt>{{ "finance.recipientName" | translate }}:</dt>
-              <dd>{{ issuer.name }}</dd>
+              <h2>{{ "finance.paymentInstructions" | translate }}</h2>
+              <dl>
+                <div>
+                  <dt>{{ "finance.recipientName" | translate }}:</dt>
+                  <dd>{{ issuer().name }}</dd>
+                </div>
+                <div>
+                  <dt>{{ "finance.bankAccount" | translate }}:</dt>
+                  <dd>{{ issuer().bankAccount }}</dd>
+                </div>
+                <div>
+                  <dt>{{ "finance.bank" | translate }}:</dt>
+                  <dd>{{ issuer().bankName }}</dd>
+                </div>
+                <div>
+                  <dt>{{ "finance.paymentReference" | translate }}:</dt>
+                  <dd>{{ item.invoiceNumber }}</dd>
+                </div>
+                <div>
+                  <dt>{{ "finance.paymentPurpose" | translate }}:</dt>
+                  <dd>
+                    {{
+                      "finance.invoicePaymentPurpose"
+                        | translate: { number: item.invoiceNumber }
+                    }}
+                  </dd>
+                </div>
+              </dl>
             </div>
-            <div>
-              <dt>{{ "finance.bankAccount" | translate }}:</dt>
-              <dd>{{ issuer.bankAccount }}</dd>
-            </div>
-            <div>
-              <dt>{{ "finance.bank" | translate }}:</dt>
-              <dd>{{ issuer.bankName }}</dd>
-            </div>
-            <div>
-              <dt>{{ "finance.paymentReference" | translate }}:</dt>
-              <dd>{{ item.invoiceNumber }}</dd>
-            </div>
-            <div>
-              <dt>{{ "finance.paymentPurpose" | translate }}:</dt>
-              <dd>
-                {{
-                  "finance.invoicePaymentPurpose"
-                    | translate: { number: item.invoiceNumber }
-                }}
-              </dd>
-            </div>
-          </dl>
+            @if (paymentQrPayload(); as qrPayload) {
+              <div class="payment-qr">
+                <qrcode
+                  [qrdata]="qrPayload"
+                  [width]="164"
+                  [margin]="0"
+                  elementType="svg"
+                  errorCorrectionLevel="M"
+                  [alt]="'finance.paymentQrAlt' | translate"
+                  [ariaLabel]="'finance.paymentQrAlt' | translate"
+                  [title]="'finance.paymentQrAlt' | translate"
+                />
+                <span>{{ "finance.paymentQrScan" | translate }}</span>
+              </div>
+            }
+          </div>
         </section>
 
         <section class="closing-row">
           <p>
-            {{ item.placeOfIssue || issuer.address }},
+            {{ item.placeOfIssue || issuer().address }},
             {{ formatDate(item.dateOfCreate) }}
           </p>
           <div
@@ -251,22 +271,22 @@
 
         <footer class="invoice-footer">
           <div>
-            <strong>{{ issuer.name }}</strong>
-            <span>{{ issuer.address }}</span>
+            <strong>{{ issuer().name }}</strong>
+            <span>{{ issuer().address }}</span>
             <span>
-              {{ "finance.taxNumber" | translate }}: {{ issuer.taxNumber }}
+              {{ "finance.taxNumber" | translate }}: {{ issuer().taxNumber }}
               <b aria-hidden="true">|</b>
               {{ "finance.registrationNumber" | translate }}:
-              {{ issuer.registrationNumber }}
+              {{ issuer().registrationNumber }}
             </span>
           </div>
           <div>
             <span>
-              {{ issuer.website }}
+              {{ issuer().website }}
               <b aria-hidden="true">|</b>
-              {{ issuer.email }}
+              {{ issuer().email }}
             </span>
-            <span>{{ issuer.phone }}</span>
+            <span>{{ issuer().phone }}</span>
             <span>
               {{ "finance.pageOf" | translate: { page: 1, total: 1 } }}
             </span>
