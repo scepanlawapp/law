@@ -136,6 +136,15 @@ export class InvoiceDefaultsSettingsDto {
     | null;
 }
 
+export class InvoicePaymentQrSettingsDto {
+  @IsBoolean() enabled!: boolean;
+  @IsIn(["NBS_IPS"]) paymentStandard!: "NBS_IPS";
+  @IsOptional() @IsString() paymentAccountId?: string | null;
+  @IsString() @MaxLength(200) paymentPurposeTemplate!: string;
+  @IsOptional() @Matches(/^(00|97)$/) referenceModel?: string | null;
+  @IsOptional() @IsString() @MaxLength(200) referenceTemplate?: string | null;
+}
+
 export class SefAttachmentSettingsDto {
   @IsBoolean() includeGeneratedInvoicePdf!: boolean;
   @IsBoolean() includeUserAttachments!: boolean;

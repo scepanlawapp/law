@@ -36,6 +36,7 @@ import {
 import { SelectOption, createSelectItemToString } from "../../shared/utils";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { OrganizationSettingsStore } from "./organization-settings.store";
+import { normalizeSerbianPaymentAccount } from "../finance-invoices/invoice-payment-qr.service";
 
 const baseImports = [
   ReactiveFormsModule,
@@ -1481,6 +1482,322 @@ export class CurrencySettingsComponent extends SectionBase {
 
 function isCurrencyCode(value: string): value is CurrencyCode {
   return CURRENCY_OPTIONS.some((option) => option.value === value);
+}
+
+@Component({
+  selector: "law-invoice-payment-qr-settings",
+  standalone: true,
+  imports: [
+    ...baseImports,
+    HlmFieldDescription,
+    HlmSelectImports,
+    HlmSwitch,
+    HlmTextarea,
+  ],
+  template: `
+    <section class="py-6">
+      <h3 class="text-base font-semibold">
+        {{ "settings.organization.paymentQr.title" | translate }}
+      </h3>
+      <p class="mt-1 text-sm text-muted-foreground">
+        {{ "settings.organization.paymentQr.description" | translate }}
+      </p>
+      @if (loading()) {
+        <hlm-spinner class="mt-6" />
+      } @else {
+        <form
+          class="mt-6 flex flex-col gap-5"
+          [formGroup]="form"
+          (ngSubmit)="save()"
+        >
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <label for="payment-qr-enabled" class="text-sm font-medium">
+                {{ "settings.organization.paymentQr.enabled" | translate }}
+              </label>
+              <p class="mt-1 text-sm text-muted-foreground">
+                {{ "settings.organization.paymentQr.enabledHint" | translate }}
+              </p>
+            </div>
+            <hlm-switch id="payment-qr-enabled" formControlName="enabled" />
+          </div>
+
+          <div hlmField>
+            <label hlmFieldLabel for="payment-qr-standard">
+              {{ "settings.organization.paymentQr.standard" | translate }}
+            </label>
+            <hlm-select
+              formControlName="paymentStandard"
+              [itemToString]="standardItemToString"
+            >
+              <hlm-select-trigger buttonId="payment-qr-standard" class="w-full">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (standard of standards; track standard.value) {
+                    <hlm-select-item [value]="standard.value">
+                      {{ standard.label | translate }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+
+          <div hlmField>
+            <label hlmFieldLabel for="payment-qr-account">
+              {{ "settings.organization.paymentQr.account" | translate }}
+            </label>
+            <hlm-select
+              formControlName="paymentAccountId"
+              [itemToString]="accountItemToString"
+            >
+              <hlm-select-trigger buttonId="payment-qr-account" class="w-full">
+                <hlm-select-placeholder>
+                  {{
+                    "settings.organization.paymentQr.accountPlaceholder"
+                      | translate
+                  }}
+                </hlm-select-placeholder>
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (account of accounts(); track account.id) {
+                    <hlm-select-item [value]="account.id">
+                      {{ account.name }} ·
+                      {{ account.accountNumber || account.iban }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+            <p hlmFieldDescription>
+              {{ "settings.organization.paymentQr.accountHint" | translate }}
+            </p>
+          </div>
+
+          <div hlmField>
+            <label hlmFieldLabel for="payment-purpose-template">
+              {{
+                "settings.organization.paymentQr.purposeTemplate" | translate
+              }}
+            </label>
+            <textarea
+              hlmTextarea
+              id="payment-purpose-template"
+              formControlName="paymentPurposeTemplate"
+            ></textarea>
+            <p hlmFieldDescription>
+              {{
+                "settings.organization.paymentQr.templateVariables" | translate
+              }}
+              <span class="font-mono">{{ templateVariables }}</span>
+            </p>
+          </div>
+
+          <div class="grid gap-4 md:grid-cols-2">
+            <div hlmField>
+              <label hlmFieldLabel for="payment-reference-model">
+                {{
+                  "settings.organization.paymentQr.referenceModel" | translate
+                }}
+              </label>
+              <hlm-select
+                formControlName="referenceModel"
+                [itemToString]="referenceModelItemToString"
+              >
+                <hlm-select-trigger
+                  buttonId="payment-reference-model"
+                  class="w-full"
+                >
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    @for (model of referenceModels; track model.value) {
+                      <hlm-select-item [value]="model.value">
+                        {{ model.label | translate }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+            <div hlmField>
+              <label hlmFieldLabel for="payment-reference-template">
+                {{
+                  "settings.organization.paymentQr.referenceTemplate"
+                    | translate
+                }}
+              </label>
+              <input
+                hlmInput
+                id="payment-reference-template"
+                formControlName="referenceTemplate"
+              />
+            </div>
+          </div>
+
+          @if (configurationErrors().length) {
+            <div
+              class="rounded-lg border border-destructive/40 bg-destructive/10 p-4"
+              role="alert"
+            >
+              <p class="text-sm font-medium">
+                {{ "settings.organization.paymentQr.invalidTitle" | translate }}
+              </p>
+              <ul class="mt-2 list-disc space-y-1 pl-5 text-sm">
+                @for (error of configurationErrors(); track error) {
+                  <li>{{ error | translate }}</li>
+                }
+              </ul>
+            </div>
+          }
+
+          <div class="flex justify-end">
+            <button
+              hlmBtn
+              type="submit"
+              [disabled]="
+                saving() ||
+                form.invalid ||
+                form.pristine ||
+                configurationErrors().length > 0
+              "
+            >
+              {{
+                (saving() ? "settings.saving" : "settings.saveChanges")
+                  | translate
+              }}
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+  `,
+})
+export class InvoicePaymentQrSettingsComponent extends SectionBase {
+  readonly revision = signal(0);
+  readonly accounts = computed(
+    () =>
+      this.store.settings()?.bankAccounts.filter((account) => account.active) ??
+      [],
+  );
+  readonly templateVariables =
+    "{{invoiceNumber}}, {{customerName}}, {{amount}}, {{currency}}, {{dueDate}}";
+  readonly standards = [
+    {
+      value: "NBS_IPS",
+      label: "settings.organization.paymentQr.standards.NBS_IPS",
+    },
+  ] as const satisfies ReadonlyArray<SelectOption<"NBS_IPS">>;
+  readonly standardItemToString = createSelectItemToString(
+    this.standards,
+    (key) => this.localization.translate(key),
+  );
+  readonly referenceModels = [
+    { value: "", label: "settings.organization.paymentQr.noReference" },
+    { value: "00", label: "settings.organization.paymentQr.model00" },
+    { value: "97", label: "settings.organization.paymentQr.model97" },
+  ] as const satisfies ReadonlyArray<SelectOption<"" | "00" | "97">>;
+  readonly referenceModelItemToString = createSelectItemToString(
+    this.referenceModels,
+    (key) => this.localization.translate(key),
+  );
+  readonly accountItemToString = (id: string) => {
+    const account = this.accounts().find((candidate) => candidate.id === id);
+    return account
+      ? `${account.name} · ${account.accountNumber || account.iban || "—"}`
+      : id;
+  };
+  readonly form = new FormGroup({
+    enabled: new FormControl(false, { nonNullable: true }),
+    paymentStandard: new FormControl<"NBS_IPS">("NBS_IPS", {
+      nonNullable: true,
+    }),
+    paymentAccountId: new FormControl("", { nonNullable: true }),
+    paymentPurposeTemplate: new FormControl(
+      "Plaćanje po fakturi {{invoiceNumber}}",
+      {
+        nonNullable: true,
+        validators: [Validators.required, Validators.maxLength(200)],
+      },
+    ),
+    referenceModel: new FormControl<"" | "00" | "97">("", {
+      nonNullable: true,
+    }),
+    referenceTemplate: new FormControl("", {
+      nonNullable: true,
+      validators: Validators.maxLength(200),
+    }),
+  });
+  readonly configurationErrors = computed(() => {
+    this.revision();
+    if (!this.form.controls.enabled.value) return [];
+    const settings = this.store.settings();
+    const value = this.form.getRawValue();
+    const errors: string[] = [];
+    if (!(settings?.company.legalName || settings?.company.displayName))
+      errors.push("settings.organization.paymentQr.errors.companyName");
+    const account = settings?.bankAccounts.find(
+      (candidate) => candidate.id === value.paymentAccountId,
+    );
+    if (!account || !account.active)
+      errors.push("settings.organization.paymentQr.errors.account");
+    else {
+      if (account.currencyCode !== "RSD")
+        errors.push("settings.organization.paymentQr.errors.currency");
+      if (!normalizeSerbianPaymentAccount(account.accountNumber))
+        errors.push("settings.organization.paymentQr.errors.accountNumber");
+    }
+    if (!value.paymentPurposeTemplate.trim())
+      errors.push("settings.organization.paymentQr.errors.purpose");
+    if (
+      Boolean(value.referenceModel) !== Boolean(value.referenceTemplate.trim())
+    )
+      errors.push("settings.organization.paymentQr.errors.referencePair");
+    return errors;
+  });
+
+  constructor() {
+    super();
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.revision.update((value) => value + 1));
+    effect(() => {
+      const value = this.store.settings()?.paymentQr;
+      if (value && this.form.pristine)
+        this.form.patchValue({
+          ...value,
+          paymentAccountId: value.paymentAccountId ?? "",
+          referenceModel: value.referenceModel ?? "",
+          referenceTemplate: value.referenceTemplate ?? "",
+        });
+    });
+  }
+
+  save(): void {
+    if (this.form.invalid || this.configurationErrors().length) {
+      this.form.markAllAsTouched();
+      return;
+    }
+    const value = this.form.getRawValue();
+    this.persist(
+      this.store
+        .update(
+          "paymentQr",
+          this.api.updatePaymentQr({
+            ...value,
+            paymentAccountId: value.paymentAccountId || null,
+            referenceModel: value.referenceModel || null,
+            referenceTemplate: value.referenceTemplate || null,
+          }),
+        )
+        .pipe(finalize(() => this.form.markAsPristine())),
+    );
+  }
 }
 
 @Component({

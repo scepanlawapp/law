@@ -15,6 +15,7 @@ import {
   CurrencySettingsDto,
   InvoiceDefaultsSettingsDto,
   InvoiceNumberingSettingsDto,
+  InvoicePaymentQrSettingsDto,
   PaymentSettingsDto,
   SefAttachmentSettingsDto,
   SefSettingsDto,
@@ -120,6 +121,18 @@ export class OrganizationSettingsService {
         "defaultNote",
         "defaultFooterText",
       ]),
+      paymentQr: {
+        enabled: settings.paymentQrEnabled,
+        paymentStandard: settings.paymentQrStandard,
+        paymentAccountId: settings.paymentQrAccountId,
+        paymentPurposeTemplate: settings.paymentQrPurposeTemplate,
+        referenceModel:
+          settings.paymentQrReferenceModel === "00" ||
+          settings.paymentQrReferenceModel === "97"
+            ? settings.paymentQrReferenceModel
+            : null,
+        referenceTemplate: settings.paymentQrReferenceTemplate,
+      },
       sefAttachments: {
         includeGeneratedInvoicePdf: settings.includeGeneratedInvoicePdf,
         includeUserAttachments: settings.includeUserAttachments,
@@ -250,6 +263,60 @@ export class OrganizationSettingsService {
     return (await this.get()).invoiceDefaults;
   }
 
+  async updatePaymentQr(input: InvoicePaymentQrSettingsDto) {
+    const referenceModel = input.referenceModel?.trim() || null;
+    const referenceTemplate = input.referenceTemplate?.trim() || null;
+    if (Boolean(referenceModel) !== Boolean(referenceTemplate))
+      throw new BadRequestException(
+        "Payment reference model and template must be configured together",
+      );
+
+    if (input.enabled) {
+      const settings = await this.record();
+      if (!(settings.legalName?.trim() || settings.displayName?.trim()))
+        throw new BadRequestException(
+          "Company name is required for payment QR codes",
+        );
+      if (!input.paymentAccountId)
+        throw new BadRequestException(
+          "A payment account is required for payment QR codes",
+        );
+      const account = await this.db.bankAccount.findFirst({
+        where: {
+          id: input.paymentAccountId,
+          workspaceId: this.workspaceId,
+          active: true,
+        },
+      });
+      if (!account)
+        throw new BadRequestException(
+          "Selected payment account is unavailable",
+        );
+      if (account.currencyCode !== "RSD")
+        throw new BadRequestException(
+          "NBS IPS payment QR requires an RSD account",
+        );
+      if (!normalizeSerbianAccountNumber(account.accountNumber))
+        throw new BadRequestException(
+          "NBS IPS payment QR requires a valid Serbian domestic account number",
+        );
+      if (!input.paymentPurposeTemplate.trim())
+        throw new BadRequestException(
+          "Payment purpose template is required for payment QR codes",
+        );
+    }
+
+    await this.upsert({
+      paymentQrEnabled: input.enabled,
+      paymentQrStandard: input.paymentStandard,
+      paymentQrAccountId: input.paymentAccountId || null,
+      paymentQrPurposeTemplate: input.paymentPurposeTemplate.trim(),
+      paymentQrReferenceModel: referenceModel,
+      paymentQrReferenceTemplate: referenceTemplate,
+    });
+    return (await this.get()).paymentQr;
+  }
+
   async updateSefAttachments(input: SefAttachmentSettingsDto) {
     await this.upsert({
       includeGeneratedInvoicePdf: input.includeGeneratedInvoicePdf,
@@ -336,4 +403,14 @@ function numberArray(value: unknown): number[] {
   return Array.isArray(value)
     ? value.filter((item): item is number => typeof item === "number")
     : [];
+}
+
+function normalizeSerbianAccountNumber(value: string | null): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (/^\d{18}$/.test(trimmed)) return trimmed;
+
+  const formatted = /^(\d{3})-(\d{1,13})-(\d{2})$/.exec(trimmed);
+  if (!formatted) return null;
+  return `${formatted[1]}${formatted[2].padStart(13, "0")}${formatted[3]}`;
 }

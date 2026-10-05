@@ -14,13 +14,14 @@ import { SettingsComponent } from "./features/settings/settings.component";
 import { ProfileSettingsComponent } from "./features/settings/profile-settings.component";
 import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
 import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
-import { WorkspaceSettingsLayoutComponent } from "./features/settings/workspace-settings-layout.component";
+import { CompanySettingsLayoutComponent } from "./features/settings/company-settings-layout.component";
 import {
   CompanySettingsComponent,
   CurrencySettingsComponent,
   InvoiceDefaultsSettingsComponent,
   InvoiceNumberingSettingsComponent,
   PaymentSettingsComponent,
+  InvoicePaymentQrSettingsComponent,
   SefSettingsComponent,
   TaxSettingsComponent,
 } from "./features/settings/organization-settings-sections.component";
@@ -145,12 +146,34 @@ export const appRoutes: Route[] = [
           { path: "profile", component: ProfileSettingsComponent },
           { path: "appearance", component: AppearanceSettingsComponent },
           {
-            path: "workspace",
-            component: WorkspaceSettingsLayoutComponent,
+            path: "workspace/general",
+            pathMatch: "full",
+            redirectTo: "workspace",
+          },
+          {
+            path: "workspace/company",
+            pathMatch: "full",
+            redirectTo: "company/details",
+          },
+          ...[
+            "tax",
+            "sef",
+            "numbering",
+            "payments",
+            "currencies",
+            "invoice-defaults",
+          ].map((section) => ({
+            path: `workspace/${section}`,
+            pathMatch: "full" as const,
+            redirectTo: `company/${section}`,
+          })),
+          { path: "workspace", component: WorkspaceSettingsComponent },
+          {
+            path: "company",
+            component: CompanySettingsLayoutComponent,
             children: [
-              { path: "", pathMatch: "full", redirectTo: "general" },
-              { path: "general", component: WorkspaceSettingsComponent },
-              { path: "company", component: CompanySettingsComponent },
+              { path: "", pathMatch: "full", redirectTo: "details" },
+              { path: "details", component: CompanySettingsComponent },
               { path: "tax", component: TaxSettingsComponent },
               { path: "sef", component: SefSettingsComponent },
               {
@@ -162,6 +185,10 @@ export const appRoutes: Route[] = [
               {
                 path: "invoice-defaults",
                 component: InvoiceDefaultsSettingsComponent,
+              },
+              {
+                path: "payment-qr",
+                component: InvoicePaymentQrSettingsComponent,
               },
             ],
           },
