@@ -61,3 +61,7 @@ ALTER TABLE "InvoiceSefSubmission" ADD CONSTRAINT "InvoiceSefSubmission_workspac
 FOREIGN KEY ("workspaceId") REFERENCES "Workspace"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 ALTER TABLE "InvoiceSefSubmission" ADD CONSTRAINT "InvoiceSefSubmission_submittedByUserId_fkey"
 FOREIGN KEY ("submittedByUserId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- RenameIndex
+ALTER INDEX "public"."InvoiceSefSubmission_workspaceId_invoiceId_environment_createdA" RENAME TO "InvoiceSefSubmission_workspaceId_invoiceId_environment_crea_idx";
+

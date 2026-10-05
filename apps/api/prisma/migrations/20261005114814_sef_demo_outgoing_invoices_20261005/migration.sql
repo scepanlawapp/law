@@ -1,2 +1,0 @@
--- RenameIndex
-ALTER INDEX "public"."InvoiceSefSubmission_workspaceId_invoiceId_environment_createdA" RENAME TO "InvoiceSefSubmission_workspaceId_invoiceId_environment_crea_idx";
