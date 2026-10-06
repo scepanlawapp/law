@@ -119,6 +119,7 @@ const DOCUMENT_PAGE_SIZE = 20;
   selector: "law-documents",
   standalone: true,
   templateUrl: "./documents.component.html",
+  host: { class: "block h-full min-h-0 min-w-0" },
   imports: [
     ReactiveFormsModule,
     NgTemplateOutlet,
@@ -239,6 +240,10 @@ export class DocumentsComponent implements OnInit {
     { value: "needs-linking", label: "documents.tabs.needsLinking" },
     { value: "archived", label: "documents.tabs.archived" },
   ];
+
+  readonly tabItemToString = createSelectItemToString(this.tabOptions, (key) =>
+    this.localization.translate(key),
+  );
 
   readonly categoryOptions: ReadonlyArray<SelectOption<DocumentCategory | "">> =
     [
@@ -683,6 +688,11 @@ export class DocumentsComponent implements OnInit {
       ...document.cases.map((item) => `${item.caseNumber} — ${item.name}`),
       ...document.clients.map((item) => item.displayName),
     ].join("; ");
+  }
+
+  onTabChange(value: string | null | undefined): void {
+    const tab = this.tabOptions.find((option) => option.value === value);
+    if (tab) this.selectTab(tab.value);
   }
 
   selectTab(tab: DocumentsTab): void {

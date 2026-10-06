@@ -10,6 +10,14 @@
 - [x] Update implemented behavior documentation.
 - [ ] Resolve production bundle-budget gate and mark track completed.
 
+## Layout Continuation (2026-10-07)
+
+- [x] Align selection counts/actions with the breadcrumb and constrain the local host/section/content height chain.
+- [x] Verify many-row vertical scrolling, reachable final row, fixed controls/pagination, desktop toolbar alignment and mobile geometry/screenshots with mocked Chromium tests.
+- [x] Run scoped diagnostics/lint and the development web build; leave the existing production gate open.
+
+Layout verification: all 9 documents-actions Chromium tests pass, including 40-file desktop (1440x960) and mobile (390x844) list/grid overflow checks. The final row/card is reachable; filters, breadcrumb and pagination retain their geometry during content scrolling; mobile horizontal scrolling works; desktop selection actions share the breadcrumb row and align to the content's right edge. Both screenshots inspected. Mocked validation performed no mutations. Changed Angular template/component and browser tests pass scoped ESLint without warnings; editor diagnostics and `git diff --check` are clean. `nx build web --configuration=development --outputStyle=static` passes (Nx cache hit). Production build was not rerun; the prior 2.15 MB / 1.75 MB gate remains unresolved. No shell/backend/action changes, branch creation or commits.
+
 ## Verification
 
 - API: 40 tests across document/folder service suites, including real ZIP streaming, workspace isolation, cycle rejection and upload/archive race protection.

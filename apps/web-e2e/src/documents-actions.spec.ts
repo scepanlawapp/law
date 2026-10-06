@@ -1,4 +1,4 @@
-import { expect, Page, test } from "@playwright/test";
+import { expect, Locator, Page, test } from "@playwright/test";
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
@@ -6,7 +6,7 @@ const folderId = "a0000000-0000-4000-a000-000000000001";
 const destinationId = "a0000000-0000-4000-a000-000000000002";
 const nestedId = "a0000000-0000-4000-a000-000000000003";
 
-async function mockDocuments(page: Page) {
+async function mockDocuments(page: Page, documentCount = 2) {
   const english = await readFile(
     resolve("apps/web/public/i18n/eng.json"),
     "utf8",
@@ -37,8 +37,13 @@ async function mockDocuments(page: Page) {
       createdAt: "2026-10-06T10:00:00Z",
     },
   ];
-  const documents = ["Brief.pdf", "Evidence.pdf"].map((title, index) => ({
-    id: `b0000000-0000-4000-a000-00000000000${index + 1}`,
+  const titles = Array.from(
+    { length: documentCount },
+    (_, index) =>
+      ["Brief.pdf", "Evidence.pdf"][index] ?? `Document ${index + 1}.pdf`,
+  );
+  const documents = titles.map((title, index) => ({
+    id: `b0000000-0000-4000-a000-${String(index + 1).padStart(12, "0")}`,
     title,
     folderId: null as string | null,
     archived: false,
@@ -129,10 +134,10 @@ async function mockDocuments(page: Page) {
       result = {
         items,
         meta: {
-          page: 1,
-          pageSize: 20,
-          totalPages: 1,
-          totalItems: items.length,
+          page: Number(url.searchParams.get("page") ?? 1),
+          pageSize: documentCount,
+          totalPages: documentCount > 2 ? 2 : 1,
+          totalItems: documentCount > 2 ? items.length * 2 : items.length,
         },
       };
     } else if (/\/download$/.test(path)) {
@@ -176,8 +181,133 @@ async function mockDocuments(page: Page) {
   await expect(
     page.getByRole("heading", { name: "Documents", exact: true }),
   ).toBeVisible();
-  await expect(page.locator("tbody tr")).toHaveCount(4);
+  await expect(page.locator("tbody tr")).toHaveCount(documentCount + 2);
   return state;
+}
+
+async function selectDocumentStatus(page: Page, label: string) {
+  await page.getByLabel("Status", { exact: true }).click();
+  await page.getByRole("option", { name: label, exact: true }).click();
+  await expect(page.getByLabel("Status", { exact: true })).toHaveText(label);
+}
+
+async function layoutBox(locator: Locator) {
+  const box = await locator.boundingBox();
+  if (!box) throw new Error(`No layout box for ${locator}`);
+  return box;
+}
+
+for (const viewport of [
+  {
+    name: "desktop",
+    width: 1440,
+    height: 960,
+    maxToolbarOffset: 2,
+    minHorizontalScroll: 0,
+  },
+  {
+    name: "mobile",
+    width: 390,
+    height: 844,
+    maxToolbarOffset: 40,
+    minHorizontalScroll: 1,
+  },
+]) {
+  test(`documents layout scrolls content with fixed controls on ${viewport.name}`, async ({
+    page,
+  }) => {
+    await page.setViewportSize(viewport);
+    const state = await mockDocuments(page, 40);
+    await page
+      .getByRole("checkbox", { name: "Select: Legal", exact: true })
+      .check();
+    const content = page.locator("law-documents .app-data-region");
+    const breadcrumb = page.getByRole("navigation", {
+      name: "Folder location",
+    });
+    const toolbar = page.locator("law-documents div[aria-label][aria-busy]");
+    const filters = page.locator("law-documents .app-filter-toolbar");
+    const pagination = page.getByRole("button", { name: "Next", exact: true });
+    await expect(toolbar).toBeVisible();
+    const breadcrumbBefore = await layoutBox(breadcrumb);
+    const toolbarBox = await layoutBox(toolbar);
+    const filtersBefore = await layoutBox(filters);
+    const paginationBefore = await layoutBox(pagination);
+    expect(
+      Math.abs(
+        breadcrumbBefore.y +
+          breadcrumbBefore.height / 2 -
+          toolbarBox.y -
+          toolbarBox.height / 2,
+      ),
+    ).toBeLessThan(viewport.maxToolbarOffset);
+    expect(toolbarBox.x).toBeGreaterThan(breadcrumbBefore.x);
+    expect(toolbarBox.x + toolbarBox.width).toBeLessThanOrEqual(viewport.width);
+    const metrics = await content.evaluate((element) => ({
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      bottom: element.getBoundingClientRect().bottom,
+      right: element.getBoundingClientRect().right,
+    }));
+    expect(
+      Math.abs(toolbarBox.x + toolbarBox.width - metrics.right),
+    ).toBeLessThan(2);
+    expect(metrics.clientHeight).toBeGreaterThan(80);
+    expect(metrics.clientHeight).toBeLessThan(metrics.scrollHeight);
+    expect(metrics.bottom).toBeLessThanOrEqual(viewport.height);
+    await content.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    expect(
+      await content.evaluate((element) => element.scrollTop),
+    ).toBeGreaterThan(0);
+    const finalRow = page.locator("tbody tr").last();
+    const finalBox = await layoutBox(finalRow);
+    expect(finalBox.y + finalBox.height).toBeLessThanOrEqual(
+      metrics.bottom + 1,
+    );
+    expect(await breadcrumb.boundingBox()).toEqual(breadcrumbBefore);
+    expect(await filters.boundingBox()).toEqual(filtersBefore);
+    expect(await pagination.boundingBox()).toEqual(paginationBefore);
+    expect(paginationBefore.y + paginationBefore.height).toBeLessThanOrEqual(
+      viewport.height,
+    );
+    await page.screenshot({
+      path: `tmp/documents-layout-${viewport.name}.png`,
+      fullPage: true,
+    });
+    await content.evaluate((element) => {
+      element.scrollLeft = element.scrollWidth;
+    });
+    expect(
+      await content.evaluate((element) => element.scrollLeft),
+    ).toBeGreaterThanOrEqual(viewport.minHorizontalScroll);
+    expect(await breadcrumb.boundingBox()).toEqual(breadcrumbBefore);
+    await page.getByRole("button", { name: "Grid", exact: true }).click();
+    const grid = page.locator("law-documents section > div.grid");
+    expect(
+      await grid.evaluate(
+        (element) => element.scrollHeight > element.clientHeight,
+      ),
+    ).toBe(true);
+    await grid.evaluate((element) => {
+      element.scrollTop = element.scrollHeight;
+    });
+    expect(await grid.evaluate((element) => element.scrollTop)).toBeGreaterThan(
+      0,
+    );
+    const finalCard = await layoutBox(
+      grid.getByRole("group", { name: "Document 40.pdf", exact: true }),
+    );
+    const gridBox = await layoutBox(grid);
+    expect(finalCard.y + finalCard.height).toBeLessThanOrEqual(
+      gridBox.y + gridBox.height + 1,
+    );
+    expect(await breadcrumb.boundingBox()).toEqual(breadcrumbBefore);
+    expect(await filters.boundingBox()).toEqual(filtersBefore);
+    expect(await pagination.boundingBox()).toEqual(paginationBefore);
+    expect(state.mutations).toHaveLength(0);
+  });
 }
 
 test("single clicks select, modifiers select multiple, double-click and Enter open", async ({
@@ -336,6 +466,56 @@ test("moves selected files and folders to a nested destination and excludes sele
   });
 });
 
+test("status filter displays translated choices and resets selection and pagination", async ({
+  page,
+}) => {
+  await mockDocuments(page, 40);
+  const filters = page.locator("law-documents .app-filter-toolbar");
+  await expect(filters.getByText("Status", { exact: true })).toBeVisible();
+  await expect(filters.getByLabel("Status", { exact: true })).toHaveText("All");
+  await expect(
+    page.getByRole("button", { name: "All", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Previous", exact: true }),
+  ).toBeEnabled();
+  await page
+    .getByRole("checkbox", { name: "Select: Brief.pdf", exact: true })
+    .check();
+
+  for (const status of [
+    { label: "Recent", view: "recent", archived: "false" },
+    { label: "Needs linking", view: "needs-linking", archived: "false" },
+    { label: "Archived", view: null, archived: "true" },
+    { label: "All", view: null, archived: "false" },
+  ]) {
+    const response = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return (
+        url.pathname === "/api/documents" &&
+        url.searchParams.get("view") === status.view &&
+        url.searchParams.get("archived") === status.archived &&
+        url.searchParams.get("page") === "1"
+      );
+    });
+    await selectDocumentStatus(page, status.label);
+    await response;
+    await expect(
+      page.getByRole("button", { name: "Previous", exact: true }),
+    ).toBeDisabled();
+    await expect(
+      page.locator("law-documents div[aria-label][aria-busy]"),
+    ).toHaveCount(0);
+    await expect(page.locator("tbody tr")).toHaveCount(
+      status.archived === "true" ? 0 : 42,
+    );
+  }
+  await expect(
+    page.getByRole("checkbox", { name: "Select: Brief.pdf", exact: true }),
+  ).not.toBeChecked();
+});
+
 test("archive confirmation cancels safely and archived files restore", async ({
   page,
 }) => {
@@ -356,12 +536,14 @@ test("archive confirmation cancels safely and archived files restore", async ({
     .getByRole("button", { name: "Archive", exact: true })
     .click();
   await expect(page.getByText("Brief.pdf", { exact: true })).toHaveCount(0);
-  await page.getByRole("button", { name: "Archived", exact: true }).click();
+  await selectDocumentStatus(page, "Archived");
   await page
     .getByRole("checkbox", { name: "Select: Brief.pdf", exact: true })
     .check();
   await page.getByRole("button", { name: "Restore", exact: true }).click();
   await expect(page.getByText("Brief.pdf", { exact: true })).toHaveCount(0);
+  await selectDocumentStatus(page, "All");
+  await expect(page.getByText("Brief.pdf", { exact: true })).toBeVisible();
   expect(state.mutations.map(({ path }) => path)).toEqual([
     "/documents/b0000000-0000-4000-a000-000000000001/archive",
     "/documents/b0000000-0000-4000-a000-000000000001/restore",
