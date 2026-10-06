@@ -501,9 +501,15 @@ test("status filter displays translated choices and resets selection and paginat
     });
     await selectDocumentStatus(page, status.label);
     await response;
-    await expect(
-      page.getByRole("button", { name: "Previous", exact: true }),
-    ).toBeDisabled();
+    if (status.archived === "true") {
+      await expect(
+        page.getByRole("button", { name: "Previous", exact: true }),
+      ).toHaveCount(0);
+    } else {
+      await expect(
+        page.getByRole("button", { name: "Previous", exact: true }),
+      ).toBeDisabled();
+    }
     await expect(
       page.locator("law-documents div[aria-label][aria-busy]"),
     ).toHaveCount(0);
