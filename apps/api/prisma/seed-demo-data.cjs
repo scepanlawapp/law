@@ -1680,7 +1680,12 @@ async function main() {
     await prisma.documentFolder.upsert({
       where: { id: demoFolderId },
       update: {},
-      create: { id: demoFolderId, workspaceId, name: "Demo dokumenti" },
+      create: {
+        id: demoFolderId,
+        workspaceId,
+        name: "Demo dokumenti",
+        archivedAt: null,
+      },
     });
 
     const users = await ensureUsers(prisma, workspaceId);

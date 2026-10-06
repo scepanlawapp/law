@@ -1,5 +1,21 @@
 import { formatFileSize } from "./document-upload-modal/document-upload.utils";
-import { forkJoin, Subscription } from "rxjs";
+import {
+  catchError,
+  concatMap,
+  forkJoin,
+  from,
+  map,
+  Observable,
+  of,
+  Subscription,
+  toArray,
+} from "rxjs";
+import { NgTemplateOutlet } from "@angular/common";
+import { HlmDialogService } from "@spartan-ng/helm/dialog";
+import {
+  DocumentMoveDialogComponent,
+  DocumentMoveContext,
+} from "./document-move-dialog.component";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import {
   Component,
@@ -9,6 +25,10 @@ import {
   input,
   output,
   signal,
+  viewChild,
+  ElementRef,
+  Injector,
+  afterNextRender,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
@@ -31,6 +51,8 @@ import {
   lucideSearch,
   lucideUpload,
   lucideX,
+  lucidePencil,
+  lucideFolderInput,
 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -90,6 +112,7 @@ import { DocumentAssociationsDialogService } from "./document-associations/docum
 
 export type DocumentsViewMode = "list" | "grid";
 export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";
+export type DocumentSelection = { id: string; kind: "file" | "folder" };
 
 const DOCUMENT_PAGE_SIZE = 20;
 @Component({
@@ -98,6 +121,7 @@ const DOCUMENT_PAGE_SIZE = 20;
   templateUrl: "./documents.component.html",
   imports: [
     ReactiveFormsModule,
+    NgTemplateOutlet,
     NgIcon,
     HlmButton,
     HlmComboboxContent,
@@ -145,6 +169,8 @@ const DOCUMENT_PAGE_SIZE = 20;
       lucideSearch,
       lucideUpload,
       lucideX,
+      lucidePencil,
+      lucideFolderInput,
     }),
   ],
 })
@@ -160,6 +186,9 @@ export class DocumentsComponent implements OnInit {
   private readonly confirmDialog = inject(ConfirmDialogService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly dialog = inject(HlmDialogService);
+  private readonly injector = inject(Injector);
+  readonly renameInput = viewChild<ElementRef<HTMLInputElement>>("renameInput");
 
   readonly embedded = input(false);
   readonly fixedCaseId = input<string>();
@@ -173,6 +202,14 @@ export class DocumentsComponent implements OnInit {
   readonly selectedCategory = new FormControl("", { nonNullable: true });
   readonly currentFolderId = signal<string | null>(null);
   readonly folders = signal<DocumentFolderSummary[]>([]);
+  readonly selection = signal<DocumentSelection[]>([]);
+  private selectionAnchor: string | null = null;
+  readonly bulkPending = signal(false);
+  readonly bulkError = signal(false);
+  readonly renaming = signal<DocumentSelection | null>(null);
+  readonly renameControl = new FormControl("", { nonNullable: true });
+  readonly renamePending = signal(false);
+  readonly renameError = signal(false);
   readonly breadcrumbs = signal<DocumentFolderSummary[]>([]);
   readonly stats = signal<DocumentStatistics | null>(null);
   private listSubscription?: Subscription;
@@ -329,6 +366,302 @@ export class DocumentsComponent implements OnInit {
     this.currentFolderId.set(id);
     this.page.set(1);
     this.load();
+  }
+
+  visibleItems(): DocumentSelection[] {
+    return [
+      ...this.folders().map(({ id }) => ({ id, kind: "folder" as const })),
+      ...this.documents().map(({ id }) => ({ id, kind: "file" as const })),
+    ];
+  }
+
+  isSelected(id: string): boolean {
+    return this.selection().some((item) => item.id === id);
+  }
+
+  selectItem(
+    item: DocumentSelection,
+    event: Pick<MouseEvent, "ctrlKey" | "metaKey" | "shiftKey">,
+    toggle = false,
+  ): void {
+    if (this.bulkPending() || this.renamePending()) return;
+    const items = this.visibleItems();
+    const anchor = items.findIndex(({ id }) => id === this.selectionAnchor);
+    const index = items.findIndex(({ id }) => id === item.id);
+    if (event.shiftKey && anchor >= 0 && index >= 0) {
+      const range = items.slice(
+        Math.min(anchor, index),
+        Math.max(anchor, index) + 1,
+      );
+      this.selection.set(
+        event.ctrlKey || event.metaKey
+          ? [
+              ...this.selection().filter(
+                (selected) => !range.some(({ id }) => id === selected.id),
+              ),
+              ...range,
+            ]
+          : range,
+      );
+    } else if (toggle || event.ctrlKey || event.metaKey) {
+      this.selection.set(
+        this.isSelected(item.id)
+          ? this.selection().filter(({ id }) => id !== item.id)
+          : [...this.selection(), item],
+      );
+      this.selectionAnchor = item.id;
+    } else {
+      this.selection.set([item]);
+      this.selectionAnchor = item.id;
+    }
+  }
+
+  selectionCount(kind: DocumentSelection["kind"]): number {
+    return this.selection().filter((item) => item.kind === kind).length;
+  }
+
+  clearSelection(): void {
+    if (this.bulkPending()) return;
+    this.selection.set([]);
+    this.selectionAnchor = null;
+  }
+
+  toggleAll(): void {
+    if (this.bulkPending()) return;
+    this.selection.set(
+      this.selection().length === this.visibleItems().length
+        ? []
+        : this.visibleItems(),
+    );
+  }
+
+  rowKey(event: KeyboardEvent, item: DocumentSelection): void {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === " ") {
+      event.preventDefault();
+      this.selectItem(item, event, true);
+    } else if (event.key === "Enter") {
+      event.preventDefault();
+      this.openItem(item);
+    } else if (event.key === "F2") {
+      event.preventDefault();
+      this.startRename(item);
+    }
+  }
+
+  openItem(item: DocumentSelection): void {
+    if (this.bulkPending() || this.renamePending()) return;
+    if (item.kind === "folder") this.openFolder(item.id);
+    else {
+      const document = this.documents().find(({ id }) => id === item.id);
+      if (document) this.openDocumentDetail(document);
+    }
+  }
+
+  itemNameText(item: DocumentSelection): string {
+    return item.kind === "folder"
+      ? (this.folders().find(({ id }) => id === item.id)?.name ?? "")
+      : (this.documents().find(({ id }) => id === item.id)?.title ?? "");
+  }
+
+  startRename(item: DocumentSelection): void {
+    if (
+      this.bulkPending() ||
+      this.renamePending() ||
+      this.selectedTab() === "archived"
+    )
+      return;
+    this.renaming.set(item);
+    this.renameControl.setValue(this.itemNameText(item));
+    this.renameError.set(false);
+    afterNextRender(
+      () => {
+        this.renameInput()?.nativeElement.focus();
+        this.renameInput()?.nativeElement.select();
+      },
+      { injector: this.injector },
+    );
+  }
+
+  cancelRename(): void {
+    if (!this.renamePending()) {
+      this.renaming.set(null);
+      this.renameError.set(false);
+    }
+  }
+
+  saveRename(): void {
+    const item = this.renaming();
+    const name = this.renameControl.value.trim();
+    if (!item || this.renamePending()) return;
+    if (!name || name.length > (item.kind === "folder" ? 255 : 320)) {
+      this.renameError.set(true);
+      return;
+    }
+    this.renamePending.set(true);
+    this.renameError.set(false);
+    const request: Observable<DocumentFolderSummary | DocumentDetail> =
+      item.kind === "folder"
+        ? this.documentsApi.updateFolder(item.id, { name })
+        : this.documentsApi.update(item.id, { title: name });
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (saved) => {
+        if ("name" in saved)
+          this.folders.update((rows) =>
+            rows.map((row) => (row.id === item.id ? saved : row)),
+          );
+        else {
+          this.documents.update((rows) =>
+            rows.map((row) => (row.id === item.id ? saved : row)),
+          );
+          if (this.detailDocument()?.id === saved.id) {
+            this.detailDocument.set(saved);
+            this.syncDetailForm(saved);
+          }
+        }
+        this.renamePending.set(false);
+        this.renaming.set(null);
+        this.documentsChanged.emit();
+      },
+      error: () => {
+        this.renamePending.set(false);
+        this.renameError.set(true);
+      },
+    });
+  }
+
+  moveSelected(): void {
+    if (!this.selection().length || this.bulkPending() || this.renamePending())
+      return;
+    this.dialog
+      .open<{ folderId: string | null }, DocumentMoveContext>(
+        DocumentMoveDialogComponent,
+        {
+          context: {
+            excludedFolderIds: this.selection()
+              .filter(({ kind }) => kind === "folder")
+              .map(({ id }) => id),
+            sourceFolderId: this.currentFolderId(),
+          },
+          contentClass: "sm:max-w-lg",
+          showCloseButton: false,
+        },
+      )
+      .closed$.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result)
+          this.runBulk((item) =>
+            item.kind === "folder"
+              ? this.documentsApi.updateFolder(item.id, {
+                  parentId: result.folderId,
+                })
+              : this.documentsApi.update(item.id, {
+                  folderId: result.folderId,
+                }),
+          );
+      });
+  }
+
+  archiveSelected(): void {
+    if (!this.selection().length || this.bulkPending() || this.renamePending())
+      return;
+    this.bulkPending.set(true);
+    this.confirmDialog
+      .confirm({
+        title: this.localization.translate("documents.archiveTitle"),
+        message: this.localization.translate("documents.bulk.archiveMessage", {
+          files: this.selectionCount("file"),
+          folders: this.selectionCount("folder"),
+        }),
+        confirmText: this.localization.translate("documents.archiveConfirm"),
+        cancelText: this.localization.translate("common.cancel"),
+        variant: "warning",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        this.bulkPending.set(false);
+        if (confirmed)
+          this.runBulk((item) =>
+            item.kind === "folder"
+              ? this.documentsApi.archiveFolder(item.id)
+              : this.documentsApi.archive(item.id),
+          );
+      });
+  }
+
+  restoreSelected(): void {
+    this.runBulk((item) =>
+      item.kind === "folder"
+        ? this.documentsApi.restoreFolder(item.id)
+        : this.documentsApi.restore(item.id),
+    );
+  }
+
+  runBulk(action: (item: DocumentSelection) => Observable<unknown>): void {
+    if (!this.selection().length || this.bulkPending() || this.renamePending())
+      return;
+    const selected = [...this.selection()];
+    this.bulkPending.set(true);
+    this.bulkError.set(false);
+    from(selected)
+      .pipe(
+        concatMap((item) =>
+          action(item).pipe(
+            map(() => ({ item, success: true })),
+            catchError(() => of({ item, success: false })),
+          ),
+        ),
+        toArray(),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((results) => {
+        const failed = results
+          .filter(({ success }) => !success)
+          .map(({ item }) => item);
+        this.selection.set(failed);
+        this.bulkPending.set(false);
+        this.bulkError.set(failed.length > 0);
+        if (results.some(({ success }) => success)) {
+          this.load(true);
+          this.closeDetail();
+          this.documentsChanged.emit();
+        }
+        if (failed.length)
+          this.toast.error(
+            this.localization.translate("documents.bulk.error", {
+              count: failed.length,
+            }),
+          );
+        else this.toast.success(this.localization.translate("documents.saved"));
+      });
+  }
+
+  downloadSelected(): void {
+    if (this.bulkPending()) return;
+    for (const item of this.selection()) {
+      if (item.kind === "folder") {
+        const link = window.document.createElement("a");
+        link.href = this.documentsApi.folderDownloadUrl(item.id);
+        link.download = "";
+        link.click();
+        continue;
+      }
+      const document =
+        item.kind === "file"
+          ? this.documents().find(({ id }) => id === item.id)
+          : undefined;
+      if (document?.currentVersion) this.downloadDocument(document);
+    }
+  }
+
+  canDownloadSelection(): boolean {
+    return this.selection().some(
+      (item) =>
+        item.kind === "folder" ||
+        this.documents().some(
+          (document) => document.id === item.id && document.currentVersion,
+        ),
+    );
   }
 
   fileIcon(document: DocumentSummary): string {
@@ -611,7 +944,13 @@ export class DocumentsComponent implements OnInit {
     this.load();
   }
 
-  load(): void {
+  load(preserveSelection = false): void {
+    if (!preserveSelection) {
+      this.selection.set([]);
+      this.selectionAnchor = null;
+      this.bulkError.set(false);
+    }
+    if (!this.renamePending()) this.cancelRename();
     const arch: "true" | "false" | "all" =
       this.selectedTab() === "archived" ? "true" : "false";
 
@@ -625,16 +964,28 @@ export class DocumentsComponent implements OnInit {
       navigation: this.documentsApi.browseFolders(
         this.currentFolderId(),
         query.search,
+        arch === "true" ? "true" : "false",
       ),
       stats: this.documentsApi.statistics(),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ documents: response, navigation, stats }) => {
+          const lastPage = response.meta.totalPages || 1;
+          if (response.meta.page > lastPage) {
+            this.page.set(lastPage);
+            this.load(preserveSelection);
+            return;
+          }
           this.folders.set(navigation.folders);
           this.breadcrumbs.set(navigation.breadcrumbs);
           this.stats.set(stats);
           this.documents.set(response.items);
+          this.selection.update((selected) =>
+            selected.filter((item) =>
+              this.visibleItems().some(({ id }) => id === item.id),
+            ),
+          );
           this.page.set(response.meta.page);
           this.pageCount.set(response.meta.totalPages || 1);
           this.totalItems.set(response.meta.totalItems);

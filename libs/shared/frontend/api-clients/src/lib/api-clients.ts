@@ -53,6 +53,8 @@ import {
   TaskStatus,
   DocumentDetail,
   DocumentFolderBrowseResponse,
+  DocumentFolderSummary,
+  DocumentFolderUpdateRequest,
   EnsureDocumentFoldersRequest,
   EnsureDocumentFoldersResponse,
   DocumentStatistics,
@@ -1787,12 +1789,17 @@ export class DocumentsApiClient {
   browseFolders(
     parentId: string | null,
     search?: string,
+    archived: "true" | "false" = "false",
   ): Observable<DocumentFolderBrowseResponse> {
     return this.http.get<DocumentFolderBrowseResponse>(
       this.endpoint("/documents/folders"),
       {
         withCredentials: true,
-        params: queryParams({ parentId: parentId ?? undefined, search }),
+        params: queryParams({
+          parentId: parentId ?? undefined,
+          search,
+          archived,
+        }),
       },
     );
   }
@@ -1803,6 +1810,33 @@ export class DocumentsApiClient {
     return this.http.post<EnsureDocumentFoldersResponse>(
       this.endpoint("/documents/folders/ensure"),
       request,
+      { withCredentials: true },
+    );
+  }
+
+  updateFolder(
+    id: string,
+    request: DocumentFolderUpdateRequest,
+  ): Observable<DocumentFolderSummary> {
+    return this.http.patch<DocumentFolderSummary>(
+      this.endpoint(`/documents/folders/${id}`),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  archiveFolder(id: string): Observable<DocumentFolderSummary> {
+    return this.http.post<DocumentFolderSummary>(
+      this.endpoint(`/documents/folders/${id}/archive`),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  restoreFolder(id: string): Observable<DocumentFolderSummary> {
+    return this.http.post<DocumentFolderSummary>(
+      this.endpoint(`/documents/folders/${id}/restore`),
+      {},
       { withCredentials: true },
     );
   }
@@ -1872,6 +1906,10 @@ export class DocumentsApiClient {
       );
     }
     return this.endpoint(`/documents/${documentId}/download`);
+  }
+
+  folderDownloadUrl(id: string): string {
+    return this.endpoint(`/documents/folders/${id}/download`);
   }
 
   create(

@@ -67,6 +67,10 @@ export class DocumentListQueryDto extends PaginationQueryDto {
 
 export class UpdateDocumentDto {
   @IsOptional()
+  @IsUUID()
+  folderId?: string | null;
+
+  @IsOptional()
   @IsString()
   @MaxLength(320)
   title?: string;
@@ -93,6 +97,10 @@ export class DocumentVersionListQueryDto extends PaginationQueryDto {}
 
 export class DocumentFolderQueryDto {
   @IsOptional()
+  @IsIn(["true", "false"])
+  archived?: "true" | "false";
+
+  @IsOptional()
   @IsUUID()
   parentId?: string;
 
@@ -111,4 +119,15 @@ export class EnsureDocumentFoldersDto {
   @IsString({ each: true })
   @MaxLength(1024, { each: true })
   paths!: string[];
+}
+
+export class UpdateDocumentFolderDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(255)
+  name?: string;
+
+  @IsOptional()
+  @IsUUID()
+  parentId?: string | null;
 }

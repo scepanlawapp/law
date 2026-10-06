@@ -1659,6 +1659,7 @@ model DocumentFolder {
   workspaceId String
   name        String
   parentId    String?
+  archivedAt  DateTime?        @db.Timestamptz(3)
   createdAt   DateTime         @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
   workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)

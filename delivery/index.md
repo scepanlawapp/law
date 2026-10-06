@@ -111,3 +111,4 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Authentication implementation](./tracks/auth_implementation_20260906/index.md)
 
 - [Document folders](tracks/document_folders_20261006/index.md) — completed
+- [Documents Drive Actions](tracks/documents_drive_actions_20261006/index.md)

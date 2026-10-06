@@ -12,6 +12,7 @@ import {
 } from "@nestjs/common";
 import { Response } from "express";
 import { IncomingMessage } from "node:http";
+import archiver = require("archiver");
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
@@ -20,6 +21,7 @@ import {
   EnsureDocumentFoldersDto,
   DocumentVersionListQueryDto,
   UpdateDocumentDto,
+  UpdateDocumentFolderDto,
 } from "./documents.dto";
 import {
   parseDocumentUpload,
@@ -51,6 +53,58 @@ export class DocumentsController {
   @Get("statistics")
   statistics() {
     return this.documents.statistics();
+  }
+
+  @Patch("folders/:id")
+  updateFolder(@Param("id") id: string, @Body() body: UpdateDocumentFolderDto) {
+    return this.folders.update(id, body);
+  }
+
+  @Post("folders/:id/archive")
+  archiveFolder(@Param("id") id: string) {
+    return this.folders.setArchived(id, true);
+  }
+
+  @Post("folders/:id/restore")
+  restoreFolder(@Param("id") id: string) {
+    return this.folders.setArchived(id, false);
+  }
+
+  @Get("folders/:id/download")
+  async downloadFolder(@Param("id") id: string, @Res() response: Response) {
+    const bundle = await this.folders.downloadEntries(id);
+    response.setHeader("Content-Type", "application/zip");
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename*=UTF-8''${encodeURIComponent(bundle.filename)}`,
+    );
+    const archive = archiver("zip", { zlib: { level: 5 } });
+    const streams = new Set<NodeJS.ReadableStream>();
+    archive.on("error", (error) => response.destroy(error));
+    response.on("close", () => {
+      archive.abort();
+      for (const stream of streams)
+        if ("destroy" in stream)
+          (stream as import("node:stream").Readable).destroy();
+    });
+    archive.pipe(response);
+    try {
+      for (const directory of bundle.directories)
+        archive.append("", { name: directory });
+      for (const entry of bundle.entries) {
+        if (response.destroyed) break;
+        const file = await this.documents.openDownload(entry.id);
+        streams.add(file.stream);
+        file.stream.on("error", (error) => response.destroy(error));
+        archive.append(file.stream, { name: entry.name });
+      }
+      await archive.finalize();
+    } catch (error) {
+      archive.abort();
+      response.destroy(
+        error instanceof Error ? error : new Error("Folder download failed"),
+      );
+    }
   }
 
   @Get()

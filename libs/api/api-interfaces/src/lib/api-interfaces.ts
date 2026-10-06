@@ -956,7 +956,12 @@ export interface DocumentFolderSummary {
   id: string;
   name: string;
   parentId: string | null;
+  archivedAt?: string | null;
   createdAt: string;
+}
+export interface DocumentFolderUpdateRequest {
+  name?: string;
+  parentId?: string | null;
 }
 export interface DocumentFolderBrowseResponse {
   folders: DocumentFolderSummary[];
@@ -1010,6 +1015,7 @@ export interface DocumentListQuery extends PaginationQuery {
 }
 
 export interface DocumentUpdateRequest {
+  folderId?: string | null;
   title?: string;
   category?: DocumentCategory | null;
   caseIds?: string[];

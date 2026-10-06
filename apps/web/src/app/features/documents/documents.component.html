@@ -1,3 +1,108 @@
+<ng-template #itemName let-item>
+  <div class="flex min-w-0 items-center gap-1">
+    @if (renaming()?.id === item.id) {
+      <div
+        class="min-w-0 flex-1"
+        tabindex="-1"
+        (click)="$event.stopPropagation()"
+        (dblclick)="$event.stopPropagation()"
+        (keydown)="$event.stopPropagation()"
+      >
+        <div class="flex items-center gap-1">
+          <input
+            #renameInput
+            hlmInput
+            class="min-w-0"
+            [formControl]="renameControl"
+            [readOnly]="renamePending()"
+            [attr.aria-label]="'documents.actions.rename' | translate"
+            [attr.aria-invalid]="renameError()"
+            [attr.aria-describedby]="
+              renameError() ? 'rename-error-' + item.id : null
+            "
+            (keydown.enter)="$event.preventDefault(); saveRename()"
+            (keydown.escape)="$event.preventDefault(); cancelRename()"
+          />
+          @if (renamePending()) {
+            <hlm-spinner [attr.aria-label]="'documents.saving' | translate" />
+          }
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            [disabled]="renamePending()"
+            [attr.aria-label]="'common.save' | translate"
+            [hlmTooltip]="'common.save' | translate"
+            (click)="saveRename()"
+          >
+            <ng-icon name="lucideCheck" aria-hidden="true" />
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            [disabled]="renamePending()"
+            [attr.aria-label]="'common.cancel' | translate"
+            [hlmTooltip]="'common.cancel' | translate"
+            (click)="cancelRename()"
+          >
+            <ng-icon name="lucideX" aria-hidden="true" />
+          </button>
+        </div>
+        @if (renameError()) {
+          <p
+            [id]="'rename-error-' + item.id"
+            class="text-sm text-destructive"
+            role="alert"
+          >
+            {{ "documents.renameError" | translate }}
+          </p>
+        }
+      </div>
+    } @else {
+      <span
+        class="min-w-0 flex-1 truncate font-medium"
+        [hlmTooltip]="itemNameText(item)"
+      >
+        {{ itemNameText(item) }}
+      </span>
+      @if (selectedTab() !== "archived") {
+        <button
+          hlmBtn
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          class="shrink-0"
+          [disabled]="bulkPending() || renamePending()"
+          [attr.aria-label]="
+            ('documents.actions.rename' | translate) + ': ' + itemNameText(item)
+          "
+          [hlmTooltip]="'documents.actions.rename' | translate"
+          (click)="$event.stopPropagation(); startRename(item)"
+          (dblclick)="$event.stopPropagation()"
+        >
+          <ng-icon name="lucidePencil" aria-hidden="true" />
+        </button>
+      }
+    }
+  </div>
+</ng-template>
+<ng-template #itemSelection let-item>
+  <input
+    type="checkbox"
+    class="size-4 shrink-0 accent-primary"
+    [checked]="isSelected(item.id)"
+    [disabled]="bulkPending() || renamePending()"
+    [attr.aria-label]="
+      ('documents.selection.select' | translate) + ': ' + itemNameText(item)
+    "
+    (click)="$event.stopPropagation(); selectItem(item, $event, true)"
+    (dblclick)="$event.stopPropagation()"
+    (keydown)="$event.stopPropagation()"
+  />
+</ng-template>
 <div class="flex h-full min-h-0 min-w-0 gap-4 overflow-hidden">
   <div
     class="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
@@ -261,6 +366,97 @@
           }
         }
       </nav>
+      @if (selection().length) {
+        <div
+          class="flex min-w-0 flex-wrap items-center gap-2 border-y border-border py-2"
+          [attr.aria-label]="'documents.selection.actions' | translate"
+          [attr.aria-busy]="bulkPending()"
+        >
+          <span class="mr-2 text-sm" aria-live="polite">
+            {{
+              "documents.selection.counts"
+                | translate
+                  : {
+                      files: selectionCount("file"),
+                      folders: selectionCount("folder"),
+                    }
+            }}
+          </span>
+          @if (selectedTab() !== "archived") {
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              [disabled]="bulkPending() || renamePending()"
+              [attr.aria-label]="'documents.actions.move' | translate"
+              [hlmTooltip]="'documents.actions.move' | translate"
+              (click)="moveSelected()"
+            >
+              <ng-icon name="lucideFolderInput" aria-hidden="true" />
+            </button>
+          }
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            [disabled]="bulkPending() || !canDownloadSelection()"
+            [attr.aria-label]="'documents.actions.download' | translate"
+            [hlmTooltip]="'documents.actions.download' | translate"
+            (click)="downloadSelected()"
+          >
+            <ng-icon name="lucideArrowDownToLine" aria-hidden="true" />
+          </button>
+          @if (selectedTab() === "archived") {
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              [disabled]="bulkPending() || renamePending()"
+              [attr.aria-label]="'documents.actions.restore' | translate"
+              [hlmTooltip]="'documents.actions.restore' | translate"
+              (click)="restoreSelected()"
+            >
+              <ng-icon name="lucideRefreshCw" aria-hidden="true" />
+            </button>
+          } @else {
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              [disabled]="bulkPending() || renamePending()"
+              [attr.aria-label]="'documents.actions.archive' | translate"
+              [hlmTooltip]="'documents.actions.archive' | translate"
+              (click)="archiveSelected()"
+            >
+              <ng-icon name="lucideArchive" aria-hidden="true" />
+            </button>
+          }
+          <button
+            hlmBtn
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            [disabled]="bulkPending()"
+            [attr.aria-label]="'documents.selection.clear' | translate"
+            [hlmTooltip]="'documents.selection.clear' | translate"
+            (click)="clearSelection()"
+          >
+            <ng-icon name="lucideX" aria-hidden="true" />
+          </button>
+          @if (bulkPending()) {
+            <hlm-spinner [attr.aria-label]="'documents.saving' | translate" />
+          }
+        </div>
+      }
+      @if (bulkError()) {
+        <p class="py-2 text-sm text-destructive" role="alert">
+          {{ "documents.bulk.retryFailed" | translate }}
+        </p>
+      }
       @if (loading()) {
         <div class="flex items-center gap-2 py-8" role="status">
           <hlm-spinner aria-label="{{ 'documents.loading' | translate }}" />
@@ -308,29 +504,40 @@
       } @else if (viewMode() === "list") {
         <div
           hlmTableContainer
-          class="app-data-region mt-4 overflow-x-hidden"
+          class="app-data-region mt-4 overflow-x-auto"
           [attr.aria-busy]="loading()"
         >
           <table
             hlmTable
-            class="w-full table-fixed [&_th]:whitespace-normal [&_th]:px-2 [&_td]:px-2 [&_td]:whitespace-normal [&_td]:min-w-0"
+            class="w-full min-w-[760px] table-fixed [&_th]:whitespace-normal [&_th]:px-2 [&_td]:px-2 [&_td]:whitespace-normal [&_td]:min-w-0"
           >
             <colgroup>
-              <col class="w-10" />
-              <col class="w-[16%]" />
+              <col class="w-20" />
+              <col class="w-[24%]" />
               <col class="w-[11%]" />
               <col />
               <col class="w-[6%]" />
               <col class="w-[7%]" />
               <col class="w-[11%]" />
-              <col class="w-[12%]" />
             </colgroup>
             <thead hlmTHead>
               <tr hlmTr>
                 <th hlmTh>
-                  <span class="sr-only">
-                    {{ "documents.columns.type" | translate }}
-                  </span>
+                  <input
+                    type="checkbox"
+                    class="size-4 accent-primary"
+                    [checked]="
+                      selection().length === visibleItems().length &&
+                      visibleItems().length > 0
+                    "
+                    [indeterminate]="
+                      selection().length > 0 &&
+                      selection().length < visibleItems().length
+                    "
+                    [disabled]="bulkPending() || renamePending()"
+                    [attr.aria-label]="'documents.selection.all' | translate"
+                    (change)="toggleAll()"
+                  />
                 </th>
                 <th hlmTh>{{ "documents.columns.name" | translate }}</th>
                 <th hlmTh>{{ "documents.columns.category" | translate }}</th>
@@ -338,7 +545,6 @@
                 <th hlmTh>{{ "documents.columns.version" | translate }}</th>
                 <th hlmTh>{{ "documents.columns.size" | translate }}</th>
                 <th hlmTh>{{ "documents.columns.updated" | translate }}</th>
-                <th hlmTh>{{ "documents.columns.actions" | translate }}</th>
               </tr>
             </thead>
             <tbody hlmTBody>
@@ -353,25 +559,38 @@
                 <tr
                   hlmTr
                   class="cursor-pointer"
-                  (click)="openFolder(folder.id)"
+                  tabindex="0"
+                  [attr.aria-selected]="isSelected(folder.id)"
+                  [class.bg-muted]="isSelected(folder.id)"
+                  (click)="
+                    selectItem({ id: folder.id, kind: 'folder' }, $event)
+                  "
+                  (dblclick)="openItem({ id: folder.id, kind: 'folder' })"
+                  (keydown)="rowKey($event, { id: folder.id, kind: 'folder' })"
                 >
                   <td hlmTd>
-                    <ng-icon
-                      name="lucideFolder"
-                      size="1.5em"
-                      class="text-primary"
-                      aria-hidden="true"
-                    />
+                    <div class="flex items-center gap-2">
+                      <ng-container
+                        [ngTemplateOutlet]="itemSelection"
+                        [ngTemplateOutletContext]="{
+                          $implicit: { id: folder.id, kind: 'folder' },
+                        }"
+                      />
+                      <ng-icon
+                        name="lucideFolder"
+                        size="1.5em"
+                        class="text-primary"
+                        aria-hidden="true"
+                      />
+                    </div>
                   </td>
                   <td hlmTd>
-                    <button
-                      type="button"
-                      class="block w-full min-w-0 truncate text-left font-medium"
-                      [hlmTooltip]="folderNameTooltip"
-                      (click)="$event.stopPropagation(); openFolder(folder.id)"
-                    >
-                      {{ folder.name }}
-                    </button>
+                    <ng-container
+                      [ngTemplateOutlet]="itemName"
+                      [ngTemplateOutletContext]="{
+                        $implicit: { id: folder.id, kind: 'folder' },
+                      }"
+                    />
                   </td>
                   <td hlmTd>{{ "documents.folder" | translate }}</td>
                   <td hlmTd>—</td>
@@ -379,19 +598,6 @@
                   <td hlmTd>—</td>
                   <td hlmTd class="break-words">
                     {{ formatDateOnly(folder.createdAt) }}
-                  </td>
-                  <td hlmTd>
-                    <button
-                      hlmBtn
-                      type="button"
-                      variant="ghost"
-                      size="icon-sm"
-                      [attr.aria-label]="'documents.folders.open' | translate"
-                      [hlmTooltip]="'documents.folders.open' | translate"
-                      (click)="$event.stopPropagation(); openFolder(folder.id)"
-                    >
-                      <ng-icon name="lucideFolder" />
-                    </button>
                   </td>
                 </tr>
               }
@@ -403,23 +609,40 @@
                     {{ documentTitle(document) }}
                   </div>
                 </ng-template>
-                <tr hlmTr>
+                <tr
+                  hlmTr
+                  class="cursor-pointer"
+                  tabindex="0"
+                  [attr.aria-selected]="isSelected(document.id)"
+                  [class.bg-muted]="isSelected(document.id)"
+                  (click)="
+                    selectItem({ id: document.id, kind: 'file' }, $event)
+                  "
+                  (dblclick)="openItem({ id: document.id, kind: 'file' })"
+                  (keydown)="rowKey($event, { id: document.id, kind: 'file' })"
+                >
                   <td hlmTd>
-                    <ng-icon
-                      [name]="fileIcon(document)"
-                      size="1.5em"
-                      aria-hidden="true"
-                    />
+                    <div class="flex items-center gap-2">
+                      <ng-container
+                        [ngTemplateOutlet]="itemSelection"
+                        [ngTemplateOutletContext]="{
+                          $implicit: { id: document.id, kind: 'file' },
+                        }"
+                      />
+                      <ng-icon
+                        [name]="fileIcon(document)"
+                        size="1.5em"
+                        aria-hidden="true"
+                      />
+                    </div>
                   </td>
                   <td hlmTd>
-                    <button
-                      type="button"
-                      class="block w-full min-w-0 truncate text-left font-medium"
-                      [hlmTooltip]="documentNameTooltip"
-                      (click)="openDocumentDetail(document)"
-                    >
-                      {{ documentTitle(document) }}
-                    </button>
+                    <ng-container
+                      [ngTemplateOutlet]="itemName"
+                      [ngTemplateOutletContext]="{
+                        $implicit: { id: document.id, kind: 'file' },
+                      }"
+                    />
                   </td>
                   <td hlmTd>
                     <span
@@ -485,7 +708,10 @@
                           [hlmTooltip]="
                             'documents.actions.manageAssociations' | translate
                           "
-                          (click)="openAssociations(document)"
+                          (click)="
+                            $event.stopPropagation(); openAssociations(document)
+                          "
+                          (dblclick)="$event.stopPropagation()"
                         >
                           <ng-icon name="lucideLink2" aria-hidden="true" />
                         </button>
@@ -496,7 +722,10 @@
                           variant="outline"
                           size="sm"
                           class="shrink-0"
-                          (click)="openAssociations(document)"
+                          (click)="
+                            $event.stopPropagation(); openAssociations(document)
+                          "
+                          (dblclick)="$event.stopPropagation()"
                         >
                           <ng-icon name="lucideLink2" aria-hidden="true" />
                           {{
@@ -517,67 +746,6 @@
                   <td hlmTd class="break-words">
                     {{ lastUpdatedInfo(document) }}
                   </td>
-                  <td hlmTd>
-                    <div class="flex min-w-0 flex-wrap justify-end gap-1">
-                      <button
-                        hlmBtn
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        [attr.aria-label]="
-                          'documents.actions.openDetails' | translate
-                        "
-                        [hlmTooltip]="
-                          'documents.actions.openDetails' | translate
-                        "
-                        (click)="openDocumentDetail(document)"
-                      >
-                        <ng-icon name="lucideMoreHorizontal" />
-                      </button>
-                      <button
-                        hlmBtn
-                        type="button"
-                        variant="ghost"
-                        size="icon-sm"
-                        [attr.aria-label]="
-                          'documents.actions.download' | translate
-                        "
-                        [hlmTooltip]="'documents.actions.download' | translate"
-                        (click)="downloadDocument(document)"
-                      >
-                        <ng-icon name="lucideArrowDownToLine" />
-                      </button>
-                      @if (document.archived) {
-                        <button
-                          hlmBtn
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          [attr.aria-label]="
-                            'documents.actions.restore' | translate
-                          "
-                          [hlmTooltip]="'documents.actions.restore' | translate"
-                          (click)="restoreDocument(document)"
-                        >
-                          <ng-icon name="lucideRefreshCw" />
-                        </button>
-                      } @else {
-                        <button
-                          hlmBtn
-                          type="button"
-                          variant="ghost"
-                          size="icon-sm"
-                          [attr.aria-label]="
-                            'documents.actions.archive' | translate
-                          "
-                          [hlmTooltip]="'documents.actions.archive' | translate"
-                          (click)="archiveDocument(document)"
-                        >
-                          <ng-icon name="lucideArchive" />
-                        </button>
-                      }
-                    </div>
-                  </td>
                 </tr>
               }
             </tbody>
@@ -593,21 +761,36 @@
                 {{ folder.name }}
               </div>
             </ng-template>
-            <button
-              type="button"
-              class="app-interactive-card min-w-0 p-4 text-left"
-              (click)="openFolder(folder.id)"
-              [hlmTooltip]="folderNameTooltip"
+            <div
+              tabindex="0"
+              role="group"
+              [attr.aria-label]="folder.name"
+              [class.bg-muted]="isSelected(folder.id)"
+              class="app-interactive-card min-w-0 cursor-pointer p-4 text-left"
+              (click)="selectItem({ id: folder.id, kind: 'folder' }, $event)"
+              (dblclick)="openItem({ id: folder.id, kind: 'folder' })"
+              (keydown)="rowKey($event, { id: folder.id, kind: 'folder' })"
             >
+              <ng-container
+                [ngTemplateOutlet]="itemSelection"
+                [ngTemplateOutletContext]="{
+                  $implicit: { id: folder.id, kind: 'folder' },
+                }"
+              />
               <ng-icon
                 name="lucideFolder"
                 class="text-primary"
                 aria-hidden="true"
               />
-              <span class="mt-3 block truncate font-medium">
-                {{ folder.name }}
-              </span>
-            </button>
+              <div class="mt-3">
+                <ng-container
+                  [ngTemplateOutlet]="itemName"
+                  [ngTemplateOutletContext]="{
+                    $implicit: { id: folder.id, kind: 'folder' },
+                  }"
+                />
+              </div>
+            </div>
           }
           @for (document of documents(); track document.id) {
             <ng-template #documentNameTooltip>
@@ -617,11 +800,22 @@
                 {{ documentTitle(document) }}
               </div>
             </ng-template>
-            <button
-              type="button"
-              class="app-interactive-card min-w-0 overflow-hidden p-4 text-left"
-              (click)="openDocumentDetail(document)"
+            <div
+              tabindex="0"
+              role="group"
+              [attr.aria-label]="documentTitle(document)"
+              [class.bg-muted]="isSelected(document.id)"
+              class="app-interactive-card min-w-0 cursor-pointer overflow-hidden p-4 text-left"
+              (click)="selectItem({ id: document.id, kind: 'file' }, $event)"
+              (dblclick)="openItem({ id: document.id, kind: 'file' })"
+              (keydown)="rowKey($event, { id: document.id, kind: 'file' })"
             >
+              <ng-container
+                [ngTemplateOutlet]="itemSelection"
+                [ngTemplateOutletContext]="{
+                  $implicit: { id: document.id, kind: 'file' },
+                }"
+              />
               <div class="mb-3 flex items-center justify-between gap-2">
                 <span
                   class="inline-flex size-9 items-center justify-center rounded-md bg-muted text-muted-foreground"
@@ -629,17 +823,17 @@
                   <ng-icon [name]="fileIcon(document)" aria-hidden="true" />
                 </span>
                 <span
-                  class="inline-flex rounded-full border border-border bg-muted px-2 py-1 text-[10px] uppercase tracking-wide"
+                  class="inline-flex rounded border border-border bg-muted px-2 py-1 text-sm"
                 >
                   {{ categoryLabel(document.category) }}
                 </span>
               </div>
-              <p
-                class="truncate font-medium"
-                [hlmTooltip]="documentNameTooltip"
-              >
-                {{ documentTitle(document) }}
-              </p>
+              <ng-container
+                [ngTemplateOutlet]="itemName"
+                [ngTemplateOutletContext]="{
+                  $implicit: { id: document.id, kind: 'file' },
+                }"
+              />
               <p class="mt-1 truncate text-sm text-muted-foreground">
                 {{
                   document.currentVersion?.originalFilename || document.title
@@ -673,6 +867,7 @@
               <div
                 class="mt-4 min-w-0 space-y-2 text-sm"
                 [hlmTooltip]="gridLinkedRecordsTooltip"
+                tabindex="0"
               >
                 @if (document.cases.length) {
                   <p class="truncate">
@@ -693,16 +888,32 @@
                 }
                 @if (!document.cases.length && !document.clients.length) {
                   <p
-                    class="inline-flex rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs text-amber-700 dark:text-amber-300"
+                    class="inline-flex rounded border border-border bg-muted px-2 py-1 text-sm text-muted-foreground"
                   >
                     {{ "documents.needsLinking" | translate }}
                   </p>
                 }
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  size="icon-sm"
+                  [attr.aria-label]="
+                    'documents.actions.manageAssociations' | translate
+                  "
+                  [hlmTooltip]="
+                    'documents.actions.manageAssociations' | translate
+                  "
+                  (click)="$event.stopPropagation(); openAssociations(document)"
+                  (dblclick)="$event.stopPropagation()"
+                >
+                  <ng-icon name="lucideLink2" aria-hidden="true" />
+                </button>
               </div>
-              <p class="mt-4 text-xs text-muted-foreground">
+              <p class="mt-4 text-sm text-muted-foreground">
                 {{ lastUpdatedInfo(document) }}
               </p>
-            </button>
+            </div>
           }
         </div>
       }
@@ -742,7 +953,7 @@
 
   @if (detailOpen()) {
     <aside
-      class="flex h-full w-[26rem] min-w-[22rem] shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-card shadow-sm"
+      class="fixed inset-3 z-20 flex min-h-0 min-w-0 flex-col overflow-hidden rounded-lg border border-border bg-card shadow-sm lg:relative lg:inset-auto lg:z-auto lg:h-full lg:w-[26rem] lg:min-w-[22rem] lg:shrink-0"
     >
       @if (detailLoading()) {
         <div class="flex items-center gap-2 p-6">
@@ -754,11 +965,11 @@
           <div
             class="flex items-start justify-between gap-3 border-b border-border p-6"
           >
-            <div>
-              <h2 class="text-xl font-semibold">
+            <div class="min-w-0 flex-1">
+              <h2 class="break-words text-xl font-semibold">
                 {{ documentTitle(document) }}
               </h2>
-              <p class="mt-1 text-sm text-muted-foreground">
+              <p class="mt-1 break-words text-sm text-muted-foreground">
                 {{
                   document.currentVersion?.originalFilename || document.title
                 }}
@@ -771,6 +982,7 @@
               size="icon"
               (click)="closeDetail()"
               [attr.aria-label]="'common.close' | translate"
+              [hlmTooltip]="'common.close' | translate"
             >
               <ng-icon name="lucideX" aria-hidden="true" />
             </button>

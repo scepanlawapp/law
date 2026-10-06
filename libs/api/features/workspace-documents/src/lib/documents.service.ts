@@ -74,7 +74,11 @@ export class DocumentsService {
       if (
         input.folderId &&
         !(await this.prisma.documentFolder.findFirst({
-          where: { id: input.folderId, workspaceId: this.context.workspaceId },
+          where: {
+            id: input.folderId,
+            workspaceId: this.context.workspaceId,
+            archivedAt: null,
+          },
         }))
       ) {
         throw new BadRequestException("Folder is unavailable");
@@ -107,6 +111,19 @@ export class DocumentsService {
     }
 
     const created = await this.prisma.$transaction(async (tx) => {
+      if (input.folderId) {
+        const workspaceId = this.context.workspaceId;
+        await tx.$queryRaw(
+          Prisma.sql`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`,
+        );
+        if (
+          !(await tx.documentFolder.findFirst({
+            where: { id: input.folderId, workspaceId, archivedAt: null },
+          }))
+        ) {
+          throw new BadRequestException("Folder is unavailable");
+        }
+      }
       const document = await tx.document.create({
         data: {
           workspaceId: this.context.workspaceId,
@@ -349,9 +366,28 @@ export class DocumentsService {
     if (body.clientIds !== undefined) await this.requireLinks([], clientIds);
 
     await this.prisma.$transaction(async (tx) => {
+      const workspaceId = this.context.workspaceId;
+      if (body.folderId !== undefined) {
+        await tx.$queryRaw(
+          Prisma.sql`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`,
+        );
+        if (
+          body.folderId &&
+          !(await tx.documentFolder.findFirst({
+            where: { id: body.folderId, workspaceId, archivedAt: null },
+          }))
+        ) {
+          throw new BadRequestException("Destination folder not found");
+        }
+      }
       await tx.document.update({
-        where: { id: existing.id },
-        data: { title, category, updatedByUserId: this.context.userId },
+        where: { id: existing.id, workspaceId },
+        data: {
+          title,
+          category,
+          folderId: body.folderId,
+          updatedByUserId: this.context.userId,
+        },
       });
       if (body.caseIds !== undefined || body.clientIds !== undefined) {
         await this.replaceLinks(
@@ -370,7 +406,12 @@ export class DocumentsService {
         entityId: existing.id,
         caseId: caseIds[0],
         clientId: clientIds[0],
-        metadata: { caseIds, clientIds, category },
+        metadata: {
+          caseIds,
+          clientIds,
+          category,
+          ...(body.folderId !== undefined ? { folderId: body.folderId } : {}),
+        },
       });
     });
     return this.get(id);
@@ -406,6 +447,18 @@ export class DocumentsService {
     const existing = await this.requireDocument(id);
     if (existing.archivedAt) {
       await this.prisma.$transaction(async (tx) => {
+        const workspaceId = this.context.workspaceId;
+        await tx.$queryRaw(
+          Prisma.sql`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`,
+        );
+        if (
+          existing.folderId &&
+          !(await tx.documentFolder.findFirst({
+            where: { id: existing.folderId, workspaceId, archivedAt: null },
+          }))
+        ) {
+          throw new BadRequestException("Restore the parent folder first");
+        }
         await tx.document.update({
           where: { id: existing.id },
           data: {

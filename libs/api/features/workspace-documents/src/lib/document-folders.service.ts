@@ -6,6 +6,7 @@ import {
 import { DocumentFolder, Prisma } from "@prisma/client";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { toLatin } from "@law/transliteration";
+import { basename } from "node:path";
 import {
   DocumentFolderBrowseResponse,
   EnsureDocumentFoldersResponse,
@@ -13,6 +14,7 @@ import {
 import {
   DocumentFolderQueryDto,
   EnsureDocumentFoldersDto,
+  UpdateDocumentFolderDto,
 } from "./documents.dto";
 
 export function folderSegments(path: string): string[] {
@@ -60,7 +62,15 @@ export class DocumentFoldersService {
     const folders = await this.prisma.documentFolder.findMany({
       where: {
         workspaceId,
-        parentId: query.parentId ?? null,
+        ...(query.archived === "true" && !query.parentId
+          ? {
+              archivedAt: { not: null },
+              OR: [{ parentId: null }, { parent: { archivedAt: null } }],
+            }
+          : {
+              parentId: query.parentId ?? null,
+              archivedAt: query.archived === "true" ? { not: null } : null,
+            }),
         ...(query.search?.trim()
           ? {
               name: {
@@ -100,7 +110,11 @@ export class DocumentFoldersService {
         if (
           input.targetParentFolderId &&
           !(await tx.documentFolder.findFirst({
-            where: { id: input.targetParentFolderId, workspaceId },
+            where: {
+              id: input.targetParentFolderId,
+              workspaceId,
+              archivedAt: null,
+            },
           }))
         ) {
           throw new NotFoundException("Folder not found");
@@ -119,6 +133,8 @@ export class DocumentFoldersService {
               const folder =
                 (await tx.documentFolder.findFirst({ where })) ??
                 (await tx.documentFolder.create({ data: where }));
+              if (folder.archivedAt)
+                throw new BadRequestException("Folder is archived");
               id = folder.id;
               resolved.set(key, id);
             }
@@ -132,6 +148,194 @@ export class DocumentFoldersService {
       { timeout: 30000 },
     );
   }
+
+  async update(id: string, input: UpdateDocumentFolderDto) {
+    const { workspaceId } = WorkspaceContextService.required;
+    const name =
+      input.name === undefined ? undefined : folderSegments(input.name);
+    if (name && name.length !== 1)
+      throw new BadRequestException("Invalid folder name");
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`,
+      );
+      const folder = await tx.documentFolder.findFirst({
+        where: { id, workspaceId, archivedAt: null },
+      });
+      if (!folder) throw new NotFoundException("Folder not found");
+      if (input.parentId) {
+        const rows = await tx.documentFolder.findMany({
+          where: { workspaceId },
+        });
+        let parent = rows.find((row) => row.id === input.parentId);
+        if (!parent || parent.archivedAt)
+          throw new NotFoundException("Folder not found");
+        const visited = new Set<string>();
+        while (parent) {
+          if (parent.id === id || visited.has(parent.id))
+            throw new BadRequestException(
+              "Cannot move folder into itself or a descendant",
+            );
+          if (parent.archivedAt)
+            throw new BadRequestException("Destination is archived");
+          visited.add(parent.id);
+          parent = rows.find((row) => row.id === parent?.parentId);
+        }
+      }
+      const parentId =
+        input.parentId === undefined ? folder.parentId : input.parentId;
+      const sibling = await tx.documentFolder.findFirst({
+        where: {
+          workspaceId,
+          parentId,
+          name: name?.[0] ?? folder.name,
+          id: { not: id },
+        },
+      });
+      if (sibling)
+        throw new BadRequestException("A folder with this name already exists");
+      return summary(
+        await tx.documentFolder.update({
+          where: { id, workspaceId },
+          data: { name: name?.[0], parentId },
+        }),
+      );
+    });
+  }
+
+  async setArchived(id: string, archived: boolean) {
+    const { workspaceId, userId } = WorkspaceContextService.required;
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw(
+        Prisma.sql`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR UPDATE`,
+      );
+      const rows = await tx.documentFolder.findMany({ where: { workspaceId } });
+      const folder = rows.find((row) => row.id === id);
+      if (!folder) throw new NotFoundException("Folder not found");
+      if (!!folder.archivedAt === archived) return summary(folder);
+      if (
+        !archived &&
+        rows.some((row) => row.id === folder.parentId && row.archivedAt)
+      )
+        throw new BadRequestException("Restore the parent folder first");
+      const ids = new Set([id]);
+      let changed = true;
+      while (changed) {
+        changed = false;
+        for (const row of rows) {
+          if (row.parentId && ids.has(row.parentId) && !ids.has(row.id)) {
+            ids.add(row.id);
+            changed = true;
+          }
+        }
+      }
+      const archivedAt = archived ? new Date() : null;
+      const priorArchive = archived ? null : folder.archivedAt;
+      await tx.document.updateMany({
+        where: {
+          workspaceId,
+          folderId: { in: [...ids] },
+          archivedAt: priorArchive,
+        },
+        data: {
+          archivedAt,
+          archivedByUserId: archived ? userId : null,
+          updatedByUserId: userId,
+        },
+      });
+      await tx.documentFolder.updateMany({
+        where: { workspaceId, id: { in: [...ids] }, archivedAt: priorArchive },
+        data: { archivedAt },
+      });
+      return summary({ ...folder, archivedAt });
+    });
+  }
+
+  async downloadEntries(id: string) {
+    const { workspaceId } = WorkspaceContextService.required;
+    const folders = await this.prisma.$queryRaw<DocumentFolder[]>(Prisma.sql`
+      WITH RECURSIVE subtree AS (
+        SELECT * FROM "DocumentFolder" WHERE id = ${id} AND "workspaceId" = ${workspaceId}
+        UNION ALL
+        SELECT f.* FROM "DocumentFolder" f JOIN subtree s ON f."parentId" = s.id WHERE f."workspaceId" = ${workspaceId}
+      ) SELECT * FROM subtree LIMIT 1001
+    `);
+    const root = folders.find((folder) => folder.id === id);
+    if (!root) throw new NotFoundException("Folder not found");
+    if (folders.length > 1000)
+      throw new BadRequestException("Folder download exceeds 1000 folders");
+    const documents = await this.prisma.document.findMany({
+      where: {
+        workspaceId,
+        folderId: { in: folders.map((folder) => folder.id) },
+        currentVersionId: { not: null },
+      },
+      select: {
+        id: true,
+        folderId: true,
+        currentVersion: {
+          select: {
+            originalFilename: true,
+            storedFile: { select: { sizeBytes: true } },
+          },
+        },
+      },
+      take: 251,
+      orderBy: { id: "asc" },
+    });
+    if (
+      documents.length > 250 ||
+      documents.reduce(
+        (size, document) =>
+          size + Number(document.currentVersion?.storedFile.sizeBytes ?? 0),
+        0,
+      ) >
+        1024 ** 3
+    ) {
+      throw new BadRequestException(
+        "Folder download exceeds 250 files or 1 GiB",
+      );
+    }
+    const paths = new Map<string, string>();
+    const safeName = (name: string) =>
+      Array.from(basename(name.replace(/\\/g, "/")))
+        .map((character) =>
+          character.charCodeAt(0) < 32 || character.charCodeAt(0) === 127
+            ? "_"
+            : character,
+        )
+        .join("")
+        .replace(/^\.+$/, "_") || "file";
+    const pathFor = (folder: DocumentFolder): string => {
+      const cached = paths.get(folder.id);
+      if (cached) return cached;
+      const parent =
+        folder.id === id
+          ? undefined
+          : folders.find((row) => row.id === folder.parentId);
+      const path = `${parent ? pathFor(parent) : ""}${safeName(folder.name)}/`;
+      paths.set(folder.id, path);
+      return path;
+    };
+    const directories = folders.map(pathFor);
+    const used = new Set(directories.map((path) => path.slice(0, -1)));
+    const entries = documents.map((document) => {
+      const directory = paths.get(document.folderId ?? "");
+      if (!directory) throw new BadRequestException("Folder unavailable");
+      const filename = safeName(
+        document.currentVersion?.originalFilename ?? "file",
+      );
+      let name = `${directory}${filename}`;
+      let duplicate = 0;
+      while (used.has(name)) {
+        duplicate += 1;
+        name = `${directory}${duplicate > 1 ? `${duplicate}-` : ""}${document.id}-${filename}`;
+      }
+      used.add(name);
+      return { id: document.id, name };
+    });
+    return { filename: `${safeName(root.name)}.zip`, directories, entries };
+  }
 }
 
 function summary(folder: DocumentFolder) {
@@ -139,6 +343,7 @@ function summary(folder: DocumentFolder) {
     id: folder.id,
     name: folder.name,
     parentId: folder.parentId,
+    archivedAt: folder.archivedAt?.toISOString() ?? null,
     createdAt: folder.createdAt.toISOString(),
   };
 }

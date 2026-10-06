@@ -145,6 +145,45 @@ describe("DocumentsService", () => {
     });
   });
 
+  it("moves a document only to an active workspace folder and supports root", async () => {
+    prisma.documentFolder.findFirst.mockResolvedValue(null);
+    await expect(
+      run(() => service.update("doc-1", { folderId: "foreign" })),
+    ).rejects.toThrow("Destination folder not found");
+    expect(prisma.documentFolder.findFirst).toHaveBeenCalledWith({
+      where: { id: "foreign", workspaceId, archivedAt: null },
+    });
+    expect(prisma.document.update).not.toHaveBeenCalled();
+    await run(() => service.update("doc-1", { folderId: null }));
+    expect(prisma.document.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ folderId: null }),
+      }),
+    );
+  });
+
+  it("rechecks an upload destination inside the transaction before creating a document", async () => {
+    prisma.documentFolder.findFirst
+      .mockResolvedValueOnce({ id: "folder" })
+      .mockResolvedValueOnce(null);
+    await expect(
+      run(() =>
+        service.create({
+          title: "Brief",
+          folderId: "folder",
+          caseIds: [],
+          clientIds: [],
+          originalFilename: "brief.txt",
+          stream: Readable.from(["text"]),
+          idempotencyKey: "upload-race",
+        }),
+      ),
+    ).rejects.toThrow("Folder is unavailable");
+    expect(prisma.documentFolder.findFirst).toHaveBeenCalledTimes(2);
+    expect(prisma.document.create).not.toHaveBeenCalled();
+    expect(files.commitAvailable).not.toHaveBeenCalled();
+  });
+
   it("filters documents linked to any selected case", async () => {
     const secondCaseId = "55555555-5555-4555-a555-555555555555";
 
@@ -190,7 +229,7 @@ describe("DocumentsService", () => {
       ),
     ).rejects.toThrow("Folder is unavailable");
     expect(prisma.documentFolder.findFirst).toHaveBeenCalledWith({
-      where: { id: "foreign", workspaceId },
+      where: { id: "foreign", workspaceId, archivedAt: null },
     });
     expect(files.ingest).not.toHaveBeenCalled();
   });
