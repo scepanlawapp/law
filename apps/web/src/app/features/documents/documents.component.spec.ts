@@ -1,4 +1,5 @@
 import { DocumentSummary } from "@law/api-interfaces";
+import { of } from "rxjs";
 import { DocumentsComponent } from "./documents.component";
 
 describe("DocumentsComponent state helpers", () => {
@@ -134,5 +135,67 @@ describe("DocumentsComponent state helpers", () => {
     expect(caseComponent.showClientFilter()).toBe(false);
     expect(clientComponent.showCaseFilter()).toBe(true);
     expect(clientComponent.showClientFilter()).toBe(false);
+  });
+
+  it("refreshes the list and emits documentsChanged after associations save", () => {
+    const document = createDocument();
+    const updated = { ...document, clients: [], cases: [] };
+    const associationsDialog = { open: jest.fn(() => of(updated)) };
+    const changes = { emit: jest.fn() };
+    const component = Object.assign(
+      Object.create(DocumentsComponent.prototype),
+      {
+        associationsDialog,
+        fixedCaseId: () => undefined,
+        fixedClientId: () => undefined,
+        destroyRef: {
+          destroyed: false,
+          onDestroy: () => () => undefined,
+        },
+        documentsChanged: changes,
+        toast: { success: jest.fn() },
+        localization: { translate: (key: string) => key },
+        load: jest.fn(),
+      },
+    ) as DocumentsComponent;
+
+    component.openAssociations(document);
+
+    expect(associationsDialog.open).toHaveBeenCalledWith({
+      documentId: document.id,
+      documentTitle: document.title,
+      caseOptions: [{ id: "case-1", label: "P-1/2026 — Complaint case" }],
+      clientOptions: [{ id: "client-1", label: "Client One" }],
+      fixedCaseId: undefined,
+      fixedClientId: undefined,
+    });
+    expect(component.load).toHaveBeenCalledTimes(1);
+    expect(changes.emit).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not refresh or emit documentsChanged when association editing is cancelled", () => {
+    const associationsDialog = { open: jest.fn(() => of(undefined)) };
+    const changes = { emit: jest.fn() };
+    const component = Object.assign(
+      Object.create(DocumentsComponent.prototype),
+      {
+        associationsDialog,
+        fixedCaseId: () => undefined,
+        fixedClientId: () => undefined,
+        destroyRef: {
+          destroyed: false,
+          onDestroy: () => () => undefined,
+        },
+        documentsChanged: changes,
+        toast: { success: jest.fn() },
+        localization: { translate: (key: string) => key },
+        load: jest.fn(),
+      },
+    ) as DocumentsComponent;
+
+    component.openAssociations(createDocument());
+
+    expect(component.load).not.toHaveBeenCalled();
+    expect(changes.emit).not.toHaveBeenCalled();
   });
 });

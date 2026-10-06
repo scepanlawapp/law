@@ -431,44 +431,80 @@
                     </span>
                   </td>
                   <td hlmTd>
-                    @if (document.cases.length || document.clients.length) {
-                      <ng-template #linkedRecordsTooltip>
-                        <div
-                          class="max-w-[min(24rem,calc(100vw-3rem))] whitespace-normal text-left text-sm [overflow-wrap:anywhere] space-y-1"
-                        >
-                          @if (document.cases.length) {
-                            <p class="font-medium">
+                    <div class="flex min-w-0 items-start gap-1">
+                      <div class="min-w-0 flex-1">
+                        @if (document.cases.length || document.clients.length) {
+                          <ng-template #linkedRecordsTooltip>
+                            <div
+                              class="max-w-[min(24rem,calc(100vw-3rem))] whitespace-normal text-left text-sm [overflow-wrap:anywhere] space-y-1"
+                            >
+                              @if (document.cases.length) {
+                                <p class="font-medium">
+                                  {{ getLinkedCaseName(document) }}
+                                </p>
+                              }
+                              @if (document.clients.length) {
+                                <p class="opacity-80">
+                                  {{ getLinkedClientName(document) }}
+                                </p>
+                              }
+                            </div>
+                          </ng-template>
+                          <div
+                            class="min-w-0"
+                            tabindex="0"
+                            [hlmTooltip]="linkedRecordsTooltip"
+                          >
+                            <p class="truncate font-medium">
                               {{ getLinkedCaseName(document) }}
                             </p>
-                          }
-                          @if (document.clients.length) {
-                            <p class="opacity-80">
+                            <p class="truncate text-sm text-muted-foreground">
                               {{ getLinkedClientName(document) }}
                             </p>
-                          }
-                        </div>
-                      </ng-template>
-                      <div
-                        class="min-w-0"
-                        tabindex="0"
-                        [hlmTooltip]="linkedRecordsTooltip"
-                      >
-                        <p class="truncate font-medium">
-                          {{ getLinkedCaseName(document) }}
-                        </p>
-                        <p class="truncate text-sm text-muted-foreground">
-                          {{ getLinkedClientName(document) }}
-                        </p>
+                          </div>
+                        } @else {
+                          <span
+                            class="block truncate text-muted-foreground"
+                            [hlmTooltip]="'documents.needsLinking' | translate"
+                            tabindex="0"
+                          >
+                            {{ "documents.needsLinking" | translate }}
+                          </span>
+                        }
                       </div>
-                    } @else {
-                      <span
-                        class="block truncate text-muted-foreground"
-                        [hlmTooltip]="'documents.needsLinking' | translate"
-                        tabindex="0"
-                      >
-                        {{ "documents.needsLinking" | translate }}
-                      </span>
-                    }
+                      @if (document.cases.length || document.clients.length) {
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          class="shrink-0"
+                          [attr.aria-label]="
+                            'documents.actions.manageAssociations' | translate
+                          "
+                          [hlmTooltip]="
+                            'documents.actions.manageAssociations' | translate
+                          "
+                          (click)="openAssociations(document)"
+                        >
+                          <ng-icon name="lucideLink2" aria-hidden="true" />
+                        </button>
+                      } @else {
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          class="shrink-0"
+                          (click)="openAssociations(document)"
+                        >
+                          <ng-icon name="lucideLink2" aria-hidden="true" />
+                          {{
+                            "documents.actions.connectAssociations" | translate
+                          }}
+                        </button>
+                      }
+                    </div>
                   </td>
                   <td hlmTd>
                     {{

@@ -86,6 +86,7 @@ import {
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
+import { DocumentAssociationsDialogService } from "./document-associations/document-associations-dialog.service";
 
 export type DocumentsViewMode = "list" | "grid";
 export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";
@@ -149,6 +150,9 @@ const DOCUMENT_PAGE_SIZE = 20;
 })
 export class DocumentsComponent implements OnInit {
   private readonly uploadDialog = inject(DocumentUploadDialogService);
+  private readonly associationsDialog = inject(
+    DocumentAssociationsDialogService,
+  );
   private readonly documentsApi = inject(DocumentsApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
@@ -293,6 +297,31 @@ export class DocumentsComponent implements OnInit {
       .subscribe((result) => {
         this.load();
         if (result?.documents.length) this.documentsChanged.emit();
+      });
+  }
+
+  openAssociations(document: DocumentSummary): void {
+    this.associationsDialog
+      .open({
+        documentId: document.id,
+        documentTitle: this.documentTitle(document),
+        caseOptions: document.cases.map((item) => ({
+          id: item.id,
+          label: `${item.caseNumber} — ${item.name}`,
+        })),
+        clientOptions: document.clients.map((item) => ({
+          id: item.id,
+          label: item.displayName,
+        })),
+        fixedCaseId: this.fixedCaseId(),
+        fixedClientId: this.fixedClientId(),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (!result) return;
+        this.toast.success(this.localization.translate("documents.saved"));
+        this.load();
+        this.documentsChanged.emit();
       });
   }
 
