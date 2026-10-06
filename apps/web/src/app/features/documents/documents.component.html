@@ -4,12 +4,18 @@
   >
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
-        <h1 class="text-2xl font-semibold tracking-tight">
-          {{ "nav.documents" | translate }}
-        </h1>
-        <p class="mt-1 text-sm text-muted-foreground">
-          {{ "documents.pageSubtitle" | translate }}
-        </p>
+        @if (embedded()) {
+          <h2 class="text-xl font-semibold">
+            {{ "nav.documents" | translate }}
+          </h2>
+        } @else {
+          <h1 class="text-2xl font-semibold tracking-tight">
+            {{ "nav.documents" | translate }}
+          </h1>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ "documents.pageSubtitle" | translate }}
+          </p>
+        }
       </div>
       <button hlmBtn type="button" (click)="openUpload()">
         <ng-icon name="lucideUpload" aria-hidden="true" />
@@ -89,63 +95,68 @@
         </div>
 
         <div class="app-filter-toolbar md:flex-row">
-          <div class="min-w-[180px] flex-1">
-            <label
-              class="mb-1 block text-sm font-medium"
-              for="documents-case-filter"
-            >
-              {{ "documents.filters.case" | translate }}
-            </label>
-            <hlm-select
-              [formControl]="selectedCaseId"
-              [itemToString]="caseItemToString"
-            >
-              <hlm-select-trigger buttonId="documents-case-filter">
-                <hlm-select-value />
-              </hlm-select-trigger>
-              <hlm-select-content *hlmSelectPortal>
-                <hlm-select-group>
-                  <hlm-select-item value="">
-                    {{ "documents.filters.allCases" | translate }}
-                  </hlm-select-item>
+          @if (showCaseFilter()) {
+            <fieldset class="min-w-[180px] flex-1">
+              <legend class="mb-1 block text-sm font-medium">
+                {{ "documents.filters.case" | translate }}
+              </legend>
+              <details class="relative">
+                <summary
+                  class="flex min-h-10 w-full cursor-pointer select-none items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <span class="min-w-0 truncate">{{ caseFilterLabel() }}</span>
+                </summary>
+                <div
+                  class="absolute left-0 top-full z-50 mt-1 max-h-64 w-full min-w-[240px] overflow-y-auto rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
+                >
                   @for (option of caseOptions(); track option.id) {
-                    <hlm-select-item [value]="option.id">
-                      {{ option.label }}
-                    </hlm-select-item>
+                    <label
+                      class="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent"
+                    >
+                      <input
+                        type="checkbox"
+                        class="size-4 shrink-0 accent-primary"
+                        [checked]="selectedCaseIds().includes(option.id)"
+                        (change)="toggleCaseFilter(option.id, $event)"
+                      />
+                      <span>{{ option.label }}</span>
+                    </label>
                   }
-                </hlm-select-group>
-              </hlm-select-content>
-            </hlm-select>
-          </div>
+                </div>
+              </details>
+            </fieldset>
+          }
 
-          <div class="min-w-[180px] flex-1">
-            <label
-              class="mb-1 block text-sm font-medium"
-              for="documents-client-filter"
-            >
-              {{ "documents.filters.client" | translate }}
-            </label>
-            <hlm-select
-              [formControl]="selectedClientId"
-              [itemToString]="clientItemToString"
-            >
-              <hlm-select-trigger buttonId="documents-client-filter">
-                <hlm-select-value />
-              </hlm-select-trigger>
-              <hlm-select-content *hlmSelectPortal>
-                <hlm-select-group>
-                  <hlm-select-item value="">
-                    {{ "documents.filters.allClients" | translate }}
-                  </hlm-select-item>
-                  @for (option of clientOptions(); track option.id) {
-                    <hlm-select-item [value]="option.id">
-                      {{ option.label }}
+          @if (showClientFilter()) {
+            <div class="min-w-[180px] flex-1">
+              <label
+                class="mb-1 block text-sm font-medium"
+                for="documents-client-filter"
+              >
+                {{ "documents.filters.client" | translate }}
+              </label>
+              <hlm-select
+                [formControl]="selectedClientId"
+                [itemToString]="clientItemToString"
+              >
+                <hlm-select-trigger buttonId="documents-client-filter">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    <hlm-select-item value="">
+                      {{ "documents.filters.allClients" | translate }}
                     </hlm-select-item>
-                  }
-                </hlm-select-group>
-              </hlm-select-content>
-            </hlm-select>
-          </div>
+                    @for (option of clientOptions(); track option.id) {
+                      <hlm-select-item [value]="option.id">
+                        {{ option.label }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
+            </div>
+          }
 
           <div class="min-w-[180px] flex-1">
             <label
@@ -265,7 +276,7 @@
           <hlm-empty-content>
             @if (
               searchControl.value ||
-              selectedCaseId.value ||
+              selectedCaseIds().length ||
               selectedClientId.value ||
               selectedCategory.value
             ) {

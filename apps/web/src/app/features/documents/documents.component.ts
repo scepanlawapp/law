@@ -1,7 +1,15 @@
 import { formatFileSize } from "./document-upload-modal/document-upload.utils";
 import { forkJoin, Subscription } from "rxjs";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import {
+  Component,
+  DestroyRef,
+  OnInit,
+  inject,
+  input,
+  output,
+  signal,
+} from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { NgIcon, provideIcons } from "@ng-icons/core";
@@ -121,7 +129,7 @@ const DOCUMENT_PAGE_SIZE = 20;
     }),
   ],
 })
-export class DocumentsComponent {
+export class DocumentsComponent implements OnInit {
   private readonly uploadDialog = inject(DocumentUploadDialogService);
   private readonly documentsApi = inject(DocumentsApiClient);
   private readonly casesApi = inject(CasesApiClient);
@@ -131,10 +139,14 @@ export class DocumentsComponent {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly embedded = input(false);
+  readonly fixedCaseId = input<string>();
+  readonly fixedClientId = input<string>();
+  readonly documentsChanged = output<void>();
   readonly searchControl = new FormControl("", { nonNullable: true });
   readonly selectedTab = signal<DocumentsTab>("all");
   readonly viewMode = signal<DocumentsViewMode>("list");
-  readonly selectedCaseId = new FormControl("", { nonNullable: true });
+  readonly selectedCaseIds = signal<string[]>([]);
   readonly selectedClientId = new FormControl("", { nonNullable: true });
   readonly selectedCategory = new FormControl("", { nonNullable: true });
   readonly currentFolderId = signal<string | null>(null);
@@ -204,10 +216,6 @@ export class DocumentsComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.resetPageAndLoad());
 
-    this.selectedCaseId.valueChanges
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.resetPageAndLoad());
-
     this.selectedClientId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.resetPageAndLoad());
@@ -215,7 +223,9 @@ export class DocumentsComponent {
     this.selectedCategory.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.resetPageAndLoad());
+  }
 
+  ngOnInit(): void {
     this.loadReferenceData();
     this.load();
   }
@@ -238,11 +248,34 @@ export class DocumentsComponent {
     return option?.label ?? "documents.tabs.all";
   }
 
+  showCaseFilter(): boolean {
+    return !this.fixedCaseId();
+  }
+
+  showClientFilter(): boolean {
+    return !this.fixedCaseId() && !this.fixedClientId();
+  }
+
   openUpload(): void {
     this.uploadDialog
-      .open({ targetFolderId: this.currentFolderId() })
+      .open({
+        targetFolderId: this.currentFolderId(),
+        caseId: this.fixedCaseId(),
+        caseLabel: this.caseOptions().find(
+          (option) => option.id === this.fixedCaseId(),
+        )?.label,
+        clientId: this.fixedClientId(),
+        clientLabel: this.clientOptions().find(
+          (option) => option.id === this.fixedClientId(),
+        )?.label,
+        lockCase: !!this.fixedCaseId(),
+        lockClient: !!this.fixedClientId(),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => this.load());
+      .subscribe((result) => {
+        this.load();
+        if (result?.documents.length) this.documentsChanged.emit();
+      });
   }
 
   openFolder(id: string | null): void {
@@ -290,11 +323,32 @@ export class DocumentsComponent {
 
   clearFilters(): void {
     this.searchControl.setValue("");
-    this.selectedCaseId.setValue("");
+    this.selectedCaseIds.set([]);
     this.selectedClientId.setValue("");
     this.selectedCategory.setValue("");
     this.page.set(1);
     this.load();
+  }
+
+  toggleCaseFilter(caseId: string, event: Event): void {
+    const checkbox = event.target;
+    if (!(checkbox instanceof HTMLInputElement)) return;
+
+    const selected = new Set(this.selectedCaseIds());
+    if (checkbox.checked) selected.add(caseId);
+    else selected.delete(caseId);
+    this.selectedCaseIds.set([...selected]);
+    this.resetPageAndLoad();
+  }
+
+  caseFilterLabel(): string {
+    const selected = new Set(this.selectedCaseIds());
+    if (!selected.size)
+      return this.localization.translate("documents.filters.allCases");
+    return this.caseOptions()
+      .filter((option) => selected.has(option.id))
+      .map((option) => option.label)
+      .join(", ");
   }
 
   formatDate(value: string | null | undefined): string {
@@ -420,6 +474,7 @@ export class DocumentsComponent {
           this.detailEditing.set(false);
           this.toast.success(this.localization.translate("documents.saved"));
           this.load();
+          this.documentsChanged.emit();
         },
         error: () => {
           this.toast.error(this.localization.translate("documents.saveError"));
@@ -447,9 +502,10 @@ export class DocumentsComponent {
     this.uploadDialog
       .open({ mode: "version", documentId: document.id })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
+      .subscribe((result) => {
         this.load();
         this.openDocumentDetail(document);
+        if (result?.documents.length) this.documentsChanged.emit();
       });
   }
 
@@ -475,6 +531,7 @@ export class DocumentsComponent {
               );
               this.load();
               this.closeDetail();
+              this.documentsChanged.emit();
             },
             error: () => {
               this.toast.error(
@@ -494,6 +551,7 @@ export class DocumentsComponent {
           this.toast.success(this.localization.translate("documents.restored"));
           this.load();
           this.closeDetail();
+          this.documentsChanged.emit();
         },
         error: () => {
           this.toast.error(
@@ -516,24 +574,7 @@ export class DocumentsComponent {
     const arch: "true" | "false" | "all" =
       this.selectedTab() === "archived" ? "true" : "false";
 
-    const query: DocumentListQuery = {
-      folderId: this.currentFolderId() ?? "root",
-      view:
-        this.selectedTab() === "recent"
-          ? "recent"
-          : this.selectedTab() === "needs-linking"
-            ? "needs-linking"
-            : undefined,
-      archived: arch,
-      caseId: this.selectedCaseId.value || undefined,
-      clientId: this.selectedClientId.value || undefined,
-      category: (this.selectedCategory.value || undefined) as
-        | DocumentCategory
-        | undefined,
-      search: this.searchControl.value.trim() || undefined,
-      page: this.page(),
-      pageSize: DOCUMENT_PAGE_SIZE,
-    };
+    const query = this.buildListQuery(arch);
 
     this.listSubscription?.unsubscribe();
     this.loading.set(true);
@@ -565,9 +606,41 @@ export class DocumentsComponent {
       });
   }
 
+  buildListQuery(archived: "true" | "false" | "all"): DocumentListQuery {
+    const fixedCaseId = this.fixedCaseId();
+    return {
+      folderId: this.currentFolderId() ?? "root",
+      view:
+        this.selectedTab() === "recent"
+          ? "recent"
+          : this.selectedTab() === "needs-linking"
+            ? "needs-linking"
+            : undefined,
+      archived,
+      caseIds: fixedCaseId
+        ? [fixedCaseId]
+        : this.selectedCaseIds().length
+          ? this.selectedCaseIds()
+          : undefined,
+      clientId:
+        this.fixedClientId() || this.selectedClientId.value || undefined,
+      category: (this.selectedCategory.value || undefined) as
+        | DocumentCategory
+        | undefined,
+      search: this.searchControl.value.trim() || undefined,
+      page: this.page(),
+      pageSize: DOCUMENT_PAGE_SIZE,
+    };
+  }
+
   private loadReferenceData(): void {
+    const fixedClientId = this.fixedClientId();
     this.casesApi
-      .list({ page: 1, pageSize: 100 })
+      .list({
+        page: 1,
+        pageSize: 100,
+        ...(fixedClientId ? { clientId: fixedClientId } : {}),
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {

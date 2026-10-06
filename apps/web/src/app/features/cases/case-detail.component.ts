@@ -45,7 +45,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
-import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
+import { DocumentsComponent } from "../documents/documents.component";
 import { WorkViewComponent } from "../work-management/work-view/work-view.component";
 import { debounceTime, distinctUntilChanged } from "rxjs";
 import { integerValidator } from "../time/validators";
@@ -94,6 +94,7 @@ type CaseTab =
     KeyValuePipe,
     TranslatePipe,
     WorkViewComponent,
+    DocumentsComponent,
   ],
 })
 export class CaseDetailComponent {
@@ -107,7 +108,6 @@ export class CaseDetailComponent {
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly confirm = inject(ConfirmDialogService);
-  private readonly uploadDialog = inject(DocumentUploadDialogService);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly id = this.route.snapshot.paramMap.get("caseId") ?? "";
@@ -131,10 +131,7 @@ export class CaseDetailComponent {
   readonly documents = signal<DocumentSummary[]>([]);
   readonly documentsLoading = signal(false);
   readonly documentsLoaded = signal(false);
-  readonly documentsPage = signal(1);
-  readonly documentsPageCount = signal(1);
   readonly documentsTotal = signal(0);
-  readonly documentSearch = new FormControl("", { nonNullable: true });
   readonly users = signal(new Map<string, string>());
   readonly tags = signal(new Map<string, string>());
   readonly caseTypes = signal(new Map<string, string>());
@@ -271,16 +268,6 @@ export class CaseDetailComponent {
         this.activitiesPage.set(1);
         this.loadActivities(true);
       });
-    this.documentSearch.valueChanges
-      .pipe(
-        debounceTime(300),
-        distinctUntilChanged(),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe(() => {
-        this.documentsPage.set(1);
-        this.loadDocuments(true);
-      });
     this.refs
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -331,7 +318,6 @@ export class CaseDetailComponent {
     if (selected === "activities") this.loadActivities();
     if (selected === "responsibilities") this.loadResponsibilities();
     if (selected === "assistant") this.loadAssistantLinks();
-    if (selected === "documents") this.loadDocuments();
   }
 
   displayValue(value: string | null | undefined): string {
@@ -364,22 +350,6 @@ export class CaseDetailComponent {
 
   priorityBadgeClass(priority: string): string {
     return sharedPriorityBadgeClass(priority);
-  }
-
-  openDocumentsUpload(): void {
-    const item = this.item();
-    if (!item) return;
-    this.uploadDialog
-      .open({
-        caseId: item.id,
-        caseLabel: `${item.caseNumber} ${item.name}`.trim(),
-        lockCase: true,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe(() => {
-        this.documentsPage.set(1);
-        this.loadDocuments(true);
-      });
   }
 
   reload(): void {
@@ -495,16 +465,13 @@ export class CaseDetailComponent {
     this.documentsApi
       .list({
         caseId: this.id,
-        search: this.documentSearch.value.trim() || undefined,
-        page: this.documentsPage(),
+        page: 1,
         pageSize: CASE_DETAIL_PAGE_SIZE,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
           this.documents.set(response.items);
-          this.documentsPage.set(response.meta.page);
-          this.documentsPageCount.set(Math.max(1, response.meta.totalPages));
           this.documentsTotal.set(response.meta.totalItems);
           this.documentsLoaded.set(true);
           this.documentsLoading.set(false);
@@ -526,12 +493,6 @@ export class CaseDetailComponent {
     if (page < 1 || page > this.activitiesPageCount()) return;
     this.activitiesPage.set(page);
     this.loadActivities(true);
-  }
-
-  changeDocumentsPage(page: number): void {
-    if (page < 1 || page > this.documentsPageCount()) return;
-    this.documentsPage.set(page);
-    this.loadDocuments(true);
   }
 
   changeResponsibilitiesPage(page: number): void {

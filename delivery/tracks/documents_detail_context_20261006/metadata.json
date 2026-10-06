@@ -1,0 +1,9 @@
+{
+  "track_id": "documents_detail_context_20261006",
+  "parent_track_id": "documents_workspace_20260923",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-10-06T00:00:00Z",
+  "updated_at": "2026-10-06T19:50:00Z",
+  "keywords": ["documents", "case detail", "client detail", "fixed filters"]
+}

@@ -145,6 +145,35 @@ describe("DocumentsService", () => {
     });
   });
 
+  it("filters documents linked to any selected case", async () => {
+    const secondCaseId = "55555555-5555-4555-a555-555555555555";
+
+    await run(() =>
+      service.list({
+        caseIds: [secondCaseId],
+        caseId,
+        page: 1,
+        pageSize: 20,
+      } as never),
+    );
+
+    expect(prisma.document.count).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          AND: [
+            {
+              cases: {
+                some: {
+                  caseId: { in: [secondCaseId, caseId] },
+                },
+              },
+            },
+          ],
+        }),
+      }),
+    );
+  });
+
   it("rejects an upload destination outside the workspace before ingestion", async () => {
     prisma.documentFolder.findFirst.mockResolvedValue(null);
     await expect(
