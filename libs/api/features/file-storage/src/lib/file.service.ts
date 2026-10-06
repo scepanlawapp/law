@@ -462,6 +462,7 @@ export class FileService {
 }
 
 export function uploadFingerprint(input: {
+  folderId?: string | null;
   purpose: string;
   documentId?: string;
   title?: string;
@@ -479,5 +480,9 @@ export function uploadFingerprint(input: {
     [...input.clientIds].sort().join(","),
     input.originalFilename,
   ].join("|");
-  return createHash("sha256").update(payload).digest("hex");
+  // Preserve existing root/version fingerprints across deployment.
+  const locatedPayload = input.folderId
+    ? `${payload}|folder:${input.folderId}`
+    : payload;
+  return createHash("sha256").update(locatedPayload).digest("hex");
 }

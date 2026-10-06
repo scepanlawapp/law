@@ -23,7 +23,7 @@ export class DocumentUploadDialogService {
       closeOnOutsidePointerEvents: false,
       showCloseButton: false,
       contentClass:
-        "sm:max-w-4xl max-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
+        "sm:max-w-6xl w-[calc(100vw-2rem)] max-h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
     }).closed$;
   }
 }

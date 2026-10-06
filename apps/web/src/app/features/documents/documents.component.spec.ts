@@ -1,10 +1,13 @@
+import { DocumentSummary } from "@law/api-interfaces";
 import { DocumentsComponent } from "./documents.component";
 
 describe("DocumentsComponent state helpers", () => {
   const createComponent = () =>
     Object.create(DocumentsComponent.prototype) as DocumentsComponent;
 
-  const createDocument = (overrides: Partial<any> = {}) => ({
+  const createDocument = (
+    overrides: Partial<DocumentSummary> = {},
+  ): DocumentSummary => ({
     id: "doc-1",
     title: "Complaint",
     category: null,
@@ -45,24 +48,25 @@ describe("DocumentsComponent state helpers", () => {
     expect(component.isNeedsLinking(unlinked)).toBe(true);
   });
 
-  it("computes summary cards from current document set", () => {
+  it("uses immutable import time instead of metadata update time", () => {
     const component = createComponent();
-    const docs = [
-      createDocument({ archived: false, cases: [], clients: [] }),
-      createDocument({ id: "doc-2", archived: false }),
-      createDocument({
-        id: "doc-3",
-        archived: true,
-        createdAt: "2026-08-20T08:00:00.000Z",
-      }),
-      createDocument({ id: "doc-4", createdAt: "2026-09-20T08:00:00.000Z" }),
-    ];
+    component.formatDateOnly = (value) => value ?? "";
+    expect(component.lastUpdatedInfo(createDocument())).toBe(
+      "2026-09-01T10:00:00.000Z",
+    );
+  });
 
-    expect(component.computeSummaryStats(docs)).toEqual({
-      active: 3,
-      addedThisMonth: 3,
-      needsLinking: 1,
-      archived: 1,
+  it("keeps all linked case and client values in the tooltip", () => {
+    const component = createComponent();
+    const document = createDocument();
+    document.clients.push({
+      ...document.clients[0],
+      id: "second",
+      displayName: "Client Two",
     });
+    expect(component.linkedInfo(document)).toContain("Client One; Client Two");
+    expect(component.getLinkedClientName(document)).toBe(
+      "Client One; Client Two",
+    );
   });
 });

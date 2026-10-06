@@ -16,6 +16,8 @@ import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   DocumentListQueryDto,
+  DocumentFolderQueryDto,
+  EnsureDocumentFoldersDto,
   DocumentVersionListQueryDto,
   UpdateDocumentDto,
 } from "./documents.dto";
@@ -25,11 +27,31 @@ import {
 } from "./documents.multipart";
 import { DocumentsService } from "./documents.service";
 
+import { DocumentFoldersService } from "./document-folders.service";
+
 @Controller("documents")
 @UseGuards(CsrfOriginGuard, AuthGuard, WorkspaceAccessGuard)
 @WorkspaceAccess()
 export class DocumentsController {
-  constructor(private readonly documents: DocumentsService) {}
+  constructor(
+    private readonly documents: DocumentsService,
+    private readonly folders: DocumentFoldersService,
+  ) {}
+
+  @Get("folders")
+  browseFolders(@Query() query: DocumentFolderQueryDto) {
+    return this.folders.browse(query);
+  }
+
+  @Post("folders/ensure")
+  ensureFolders(@Body() body: EnsureDocumentFoldersDto) {
+    return this.folders.ensure(body);
+  }
+
+  @Get("statistics")
+  statistics() {
+    return this.documents.statistics();
+  }
 
   @Get()
   list(@Query() query: DocumentListQueryDto) {
@@ -44,6 +66,7 @@ export class DocumentsController {
     const upload = await parseDocumentUpload(request);
     return this.documents.create({
       title: upload.title ?? "",
+      folderId: upload.folderId,
       category: upload.category,
       caseIds: upload.caseIds,
       clientIds: upload.clientIds,

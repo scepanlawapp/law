@@ -19,8 +19,8 @@ function documentDetail(id: string): DocumentDetail {
     category: null,
     archived: false,
     archivedAt: null,
-    caseIds: [],
-    clientIds: [],
+    cases: [],
+    clients: [],
     currentVersion: null,
     createdByUserId: "user",
     updatedByUserId: "user",
@@ -32,7 +32,8 @@ function documentDetail(id: string): DocumentDetail {
 describe("DocumentUploadQueue", () => {
   it("uploads ready rows with bounded concurrency and per-row errors", () => {
     const streams = new Map<string, Subject<HttpEvent<DocumentDetail>>>();
-    const create = jest.fn((body: FormData) => {
+    const create = jest.fn((body: FormData, _key: string) => {
+      void _key;
       const title = String(body.get("title"));
       const subject = new Subject<HttpEvent<DocumentDetail>>();
       streams.set(title, subject);
@@ -135,5 +136,77 @@ describe("DocumentUploadQueue", () => {
     queue.rows[0].status = "succeeded";
     queue.remove(queue.rows[0].id);
     expect(queue.rows).toHaveLength(1);
+  });
+});
+
+describe("folder upload destinations", () => {
+  it("freezes each resolved folder and idempotency key across retry", () => {
+    const streams: Subject<HttpEvent<DocumentDetail>>[] = [];
+    const create = jest.fn((_body: FormData, _key: string) => {
+      void _body;
+      void _key;
+      const stream = new Subject<HttpEvent<DocumentDetail>>();
+      streams.push(stream);
+      return stream;
+    });
+    const queue = new DocumentUploadQueue(
+      { create, addVersion: jest.fn() },
+      "create",
+      undefined,
+      100,
+    );
+    const nested = file();
+    Object.defineProperty(nested, "webkitRelativePath", {
+      value: "Legal/Contracts/a.pdf",
+    });
+    queue.addFiles([nested, file("root.pdf")]);
+    queue.resolveFolders(
+      new Map([["Legal/Contracts", "nested-id"]]),
+      "target-id",
+    );
+    queue.startReady(["case"], ["client"]);
+    expect(create.mock.calls[0][0].get("folderId")).toBe("nested-id");
+    expect(create.mock.calls[1][0].get("folderId")).toBe("target-id");
+    streams[0].error(new HttpErrorResponse({ status: 500 }));
+    queue.resolveFolders(new Map([["Legal/Contracts", "changed"]]), "changed");
+    queue.retryRow(queue.rows[0].id);
+    expect(create.mock.calls[2][0].get("folderId")).toBe("nested-id");
+    expect(create.mock.calls[2][1]).toBe(create.mock.calls[0][1]);
+    expect(create.mock.calls[2][0].getAll("caseIds")).toEqual(["case"]);
+  });
+  it("keeps version mode single-file and omits folder metadata", () => {
+    const addVersion = jest.fn(() => new Subject<HttpEvent<DocumentDetail>>());
+    const queue = new DocumentUploadQueue(
+      { create: jest.fn(), addVersion },
+      "version",
+      "document",
+      100,
+    );
+    queue.addFiles([file(), file("second.pdf")]);
+    queue.resolveFolders(new Map(), "target");
+    queue.startReady([], []);
+    expect(queue.rows).toHaveLength(1);
+    expect(addVersion.mock.calls[0]).toEqual([
+      "document",
+      expect.any(FormData),
+      expect.any(String),
+    ]);
+    expect(queue.rows[0].frozenCreate).toBeNull();
+  });
+  it("preserves unknown-outcome protection after all bytes are sent", () => {
+    const stream = new Subject<HttpEvent<DocumentDetail>>();
+    const queue = new DocumentUploadQueue(
+      { create: () => stream, addVersion: jest.fn() },
+      "create",
+      undefined,
+      100,
+    );
+    queue.addFiles([file()]);
+    queue.startReady([], []);
+    stream.next({ type: HttpEventType.UploadProgress, loaded: 12, total: 12 });
+    stream.error(new HttpErrorResponse({ status: 0 }));
+    queue.retryFailed();
+    expect(queue.hasUnknownOutcomes).toBe(true);
+    expect(queue.canRemove(queue.rows[0])).toBe(false);
   });
 });

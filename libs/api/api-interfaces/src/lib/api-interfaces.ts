@@ -952,7 +952,32 @@ export interface DocumentVersionSummary {
   createdAt: string;
 }
 
+export interface DocumentFolderSummary {
+  id: string;
+  name: string;
+  parentId: string | null;
+  createdAt: string;
+}
+export interface DocumentFolderBrowseResponse {
+  folders: DocumentFolderSummary[];
+  breadcrumbs: DocumentFolderSummary[];
+}
+export interface EnsureDocumentFoldersRequest {
+  targetParentFolderId?: string | null;
+  paths: string[];
+}
+export interface EnsureDocumentFoldersResponse {
+  folders: Array<{ path: string; id: string }>;
+}
+export interface DocumentStatistics {
+  active: number;
+  addedThisMonth: number;
+  needsLinking: number;
+  archived: number;
+}
+
 export interface DocumentSummary {
+  folderId?: string | null;
   id: string;
   title: string;
   category: string | null;
@@ -973,6 +998,9 @@ export type DocumentVersionListResponse =
   PaginatedResponse<DocumentVersionSummary>;
 
 export interface DocumentListQuery extends PaginationQuery {
+  /** Omitted means all locations; "root" means direct root files. */
+  folderId?: string;
+  view?: "recent" | "needs-linking";
   caseId?: string;
   clientId?: string;
   archived?: "true" | "false" | "all";

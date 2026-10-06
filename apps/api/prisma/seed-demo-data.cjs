@@ -1675,6 +1675,14 @@ async function main() {
       },
     });
 
+    // Logical folders are metadata; existing seeded/uploaded files remain at root.
+    const demoFolderId = "a0000000-0000-4000-a000-000000000001";
+    await prisma.documentFolder.upsert({
+      where: { id: demoFolderId },
+      update: {},
+      create: { id: demoFolderId, workspaceId, name: "Demo dokumenti" },
+    });
+
     const users = await ensureUsers(prisma, workspaceId);
     const adminUser = users[0];
     const lawyers = users; // include admin in the assignable pool too

@@ -1,3 +1,4 @@
+import { droppedCandidates } from "./document-upload-candidates";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -173,6 +174,8 @@ export class DocumentUploadDialogComponent {
   readonly categoryFilter = comboboxContainsFilter;
 
   readonly dragging = signal(false);
+  readonly preparing = signal(false);
+  readonly importError = signal<string | null>(null);
   readonly caseOptions = signal<DocumentUploadAssociation[]>([]);
   readonly clientOptions = signal<DocumentUploadAssociation[]>([]);
   readonly caseOptionsLoading = signal(false);
@@ -220,21 +223,25 @@ export class DocumentUploadDialogComponent {
       .filter((row) => row.status === "ready" || row.status === "invalid")
       .reduce((sum, row) => sum + row.file.size, 0),
   );
-  readonly busy = computed(() =>
-    this.rows().some((row) =>
-      ["queued", "uploading", "processing"].includes(row.status),
-    ),
+  readonly busy = computed(
+    () =>
+      this.preparing() ||
+      this.rows().some((row) =>
+        ["queued", "uploading", "processing"].includes(row.status),
+      ),
   );
   readonly hasUnknown = computed(() =>
     this.rows().some((row) => row.status === "outcome_unknown"),
   );
-  readonly associationsLocked = computed(() =>
-    this.rows().some(
-      (row) =>
-        !!row.frozenCreate ||
-        !!row.frozenVersion ||
-        ["queued", "uploading", "processing"].includes(row.status),
-    ),
+  readonly associationsLocked = computed(
+    () =>
+      this.preparing() ||
+      this.rows().some(
+        (row) =>
+          !!row.frozenCreate ||
+          !!row.frozenVersion ||
+          ["queued", "uploading", "processing"].includes(row.status),
+      ),
   );
   readonly compactDropzone = computed(() => this.rows().length > 0);
   readonly casesEnabled = computed(
@@ -331,21 +338,43 @@ export class DocumentUploadDialogComponent {
 
   categoryItemToString = (value: string | null | undefined): string => {
     if (!value) return this.t("documents.upload.categoryUnclassified");
-    const key = DOCUMENT_CATEGORY_LABEL_KEYS[value as keyof typeof DOCUMENT_CATEGORY_LABEL_KEYS];
+    const key =
+      DOCUMENT_CATEGORY_LABEL_KEYS[
+        value as keyof typeof DOCUMENT_CATEGORY_LABEL_KEYS
+      ];
     return key ? this.t(key) : this.t("documents.upload.categoryUnknown");
   };
 
   onFileInput(event: Event): void {
     const input = event.target as HTMLInputElement;
-    if (input.files?.length) this.queue.addFiles(input.files);
+    if (this.preparing()) return;
+    this.importError.set(null);
+    try {
+      if (input.files?.length) this.queue.addFiles(input.files);
+    } catch {
+      this.importError.set("documents.upload.folderError");
+    }
     input.value = "";
   }
 
-  onDrop(event: DragEvent): void {
+  async onDrop(event: DragEvent): Promise<void> {
     event.preventDefault();
     this.dragging.set(false);
-    if (event.dataTransfer?.files.length) {
-      this.queue.addFiles(event.dataTransfer.files);
+    if (!event.dataTransfer || this.preparing()) return;
+    this.preparing.set(true);
+    this.importError.set(null);
+    try {
+      this.queue.addCandidates(
+        await droppedCandidates(event.dataTransfer, this.versionMode),
+      );
+    } catch (error) {
+      this.importError.set(
+        error instanceof Error && error.message.startsWith("documents.")
+          ? error.message
+          : "documents.upload.folderError",
+      );
+    } finally {
+      this.preparing.set(false);
     }
   }
 
@@ -363,15 +392,16 @@ export class DocumentUploadDialogComponent {
   }
 
   remove(id: string): void {
-    this.queue.remove(id);
+    if (!this.preparing()) this.queue.remove(id);
   }
 
   canRemove(row: DocumentUploadRow): boolean {
-    return this.queue.canRemove(row);
+    return !this.preparing() && this.queue.canRemove(row);
   }
 
   canEditTitle(row: DocumentUploadRow): boolean {
     return (
+      !this.preparing() &&
       this.mode === "create" &&
       (row.status === "ready" || row.status === "invalid") &&
       !row.frozenCreate
@@ -382,9 +412,45 @@ export class DocumentUploadDialogComponent {
     this.queue.revalidate(id);
   }
 
-  startUpload(): void {
+  async startUpload(): Promise<void> {
     if (this.busy()) return;
-    this.queue.startReady(this.effectiveCaseIds(), this.effectiveClientIds());
+    this.importError.set(null);
+    this.preparing.set(true);
+    try {
+      if (!this.versionMode) {
+        const paths = [
+          ...new Set(
+            this.rows()
+              .filter(
+                (row) => row.status === "ready" && row.relativeDirectoryPath,
+              )
+              .map((row) => row.relativeDirectoryPath),
+          ),
+        ];
+        const response = paths.length
+          ? await firstValueFrom(
+              this.documentsApi
+                .ensureFolders({
+                  targetParentFolderId: this.context.targetFolderId,
+                  paths,
+                })
+                .pipe(takeUntilDestroyed(this.destroyRef)),
+            )
+          : { folders: [] };
+        const mapping = new Map(
+          response.folders.map((folder) => [folder.path, folder.id]),
+        );
+        if (paths.some((path) => !mapping.has(path)))
+          throw new Error("Incomplete folder mapping");
+        this.queue.resolveFolders(mapping, this.context.targetFolderId ?? null);
+      }
+      if (this.destroyRef.destroyed) return;
+      this.queue.startReady(this.effectiveCaseIds(), this.effectiveClientIds());
+    } catch {
+      this.importError.set("documents.upload.folderError");
+    } finally {
+      this.preparing.set(false);
+    }
   }
 
   retryFailed(): void {
