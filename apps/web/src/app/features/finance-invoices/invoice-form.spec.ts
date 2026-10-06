@@ -10,6 +10,7 @@ import {
   detachInvoiceLineWorkEntries,
   hasPricingRequiredLines,
   incompatibleCurrencyIndexes,
+  localizePaymentMethod,
   normalizeCurrency,
   recalculateInvoiceLine,
   toInvoiceLineInput,
@@ -27,6 +28,21 @@ const user = {
   displayName: "Advokat",
   email: null,
 };
+
+describe("localizePaymentMethod", () => {
+  it("translates known payment methods and preserves custom text", () => {
+    const translate = (key: string) =>
+      key === "settings.organization.payment.methods.BANK_TRANSFER"
+        ? "Virman"
+        : key;
+
+    expect(localizePaymentMethod("BANK_TRANSFER", translate)).toBe("Virman");
+    expect(localizePaymentMethod("Plaćanje po dogovoru", translate)).toBe(
+      "Plaćanje po dogovoru",
+    );
+    expect(localizePaymentMethod(null, translate)).toBeNull();
+  });
+});
 
 function entry(overrides: Partial<WorkEntry> = {}): WorkEntry {
   return {

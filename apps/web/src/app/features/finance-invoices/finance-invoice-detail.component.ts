@@ -18,7 +18,7 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { AuthState } from "@law/security";
 import { canManageBilling } from "../../shared/billing";
-import { hasPricingRequiredLines } from "./invoice-form";
+import { hasPricingRequiredLines, localizePaymentMethod } from "./invoice-form";
 import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
@@ -74,6 +74,13 @@ export class FinanceInvoiceDetailComponent {
       hasPricingRequiredLines(this.invoice()?.lines ?? []) ||
       Boolean(this.sefState()?.immutable),
   );
+
+  paymentMethodLabel(value: string | null): string {
+    return (
+      localizePaymentMethod(value, (key) => this.localization.translate(key)) ??
+      "—"
+    );
+  }
   readonly sefSendBlocked = computed(() => {
     const state = this.sefState();
     return (

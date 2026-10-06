@@ -53,6 +53,7 @@ import {
   createInvoiceLineForm,
   detachInvoiceLineWorkEntries,
   incompatibleCurrencyIndexes,
+  localizePaymentMethod,
   lineWorkEntryIds,
   normalizeCurrency,
   recalculateInvoiceLine,
@@ -456,7 +457,10 @@ export class FinanceInvoiceCreateComponent {
         dateOfMaturity: invoice.dateOfMaturity.slice(0, 10),
         dateOfTurnover: invoice.dateOfTurnover.slice(0, 10),
         placeOfIssue: invoice.placeOfIssue,
-        methodOfPayment: invoice.methodOfPayment,
+        methodOfPayment:
+          localizePaymentMethod(invoice.methodOfPayment, (key) =>
+            this.localization.translate(key),
+          ) ?? "",
         comment: invoice.comment,
         vatRate: Number(invoice.vatRate),
         vatLiabilityTimingCode: invoice.vatLiabilityTimingCode,
@@ -634,7 +638,9 @@ export class FinanceInvoiceCreateComponent {
     );
     setTextDefault(
       this.form.controls.methodOfPayment,
-      settings.payment?.defaultPaymentMethod,
+      localizePaymentMethod(settings.payment?.defaultPaymentMethod, (key) =>
+        this.localization.translate(key),
+      ),
     );
     setTextDefault(
       this.form.controls.comment,

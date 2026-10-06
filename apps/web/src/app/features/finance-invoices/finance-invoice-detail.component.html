@@ -370,7 +370,9 @@
           <dt class="text-muted-foreground">
             {{ "finance.methodOfPayment" | translate }}
           </dt>
-          <dd class="font-medium">{{ item.methodOfPayment || "—" }}</dd>
+          <dd class="font-medium">
+            {{ paymentMethodLabel(item.methodOfPayment) }}
+          </dd>
         </div>
         <div>
           <dt class="text-muted-foreground">
