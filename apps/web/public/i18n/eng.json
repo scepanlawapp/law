@@ -2171,5 +2171,17 @@
   "finance.sef.validation.EXEMPTION_RATE_MUST_BE_ZERO": "An exempt line must have a zero VAT rate.",
   "finance.sef.validation.UNSUPPORTED_TAX_CATEGORY": "This tax category is not supported in version one.",
   "finance.sef.validation.VAT_TIMING_CODE_NOT_ALLOWED": "Remove the VAT-liability timing code when there are no standard VAT lines.",
-  "finance.sef.validation.DUE_DATE_BEFORE_ISSUE": "The due date cannot be before the issue date."
+  "finance.sef.validation.DUE_DATE_BEFORE_ISSUE": "The due date cannot be before the issue date.",
+  "documents.columns.type": "Type",
+  "documents.columns.name": "Name",
+  "documents.columns.size": "Size",
+  "documents.folder": "Folder",
+  "documents.folders.open": "Open folder",
+  "documents.folders.breadcrumb": "Folder location",
+  "documents.upload.chooseFolder": "Select folder",
+  "documents.upload.folderDropHint": "Drop files or folders here, or select a folder. Nested folders are preserved.",
+  "documents.upload.preparingFolders": "Preparing folders…",
+  "documents.upload.folderError": "Could not prepare the folders. Check the folder names and try again.",
+  "documents.upload.folderDropUnsupported": "This browser could not read the dropped folder. Use Select folder.",
+  "documents.upload.versionFolderError": "Select one file to add a document version. Folder import is available for new documents."
 }

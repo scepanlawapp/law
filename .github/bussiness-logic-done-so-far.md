@@ -68,9 +68,9 @@ The cases backend and frontend implement the main case lifecycle:
 
 ## Workspace documents (backend)
 
-Authenticated document APIs are implemented. The Angular documents library (list, archive, download) is still a placeholder; a reusable upload modal is implemented.
+Authenticated document APIs and the Angular Documents workspace are implemented, including list/grid, metadata details, download, archive/restore, version history and version uploads.
 
-- `POST /api/documents` uploads one streamed file (`multipart` field `file`) with title and optional `caseIds`/`clientIds`. `Idempotency-Key` is required.
+- `POST /api/documents` uploads one streamed file (`multipart` field `file`) with title and optional `caseIds`/`clientIds` and `folderId`. The folder must belong to the active workspace. `Idempotency-Key` is required and its fingerprint includes the destination for folder uploads.
 - Paginated list (`archived` defaults to active-only; `true`/`false`/`all`), detail, metadata/link patch (arrays replace when present), version upload/list, current and historical download, archive, and restore.
 - Bytes live under `FILE_STORAGE_ROOT` with generated keys. Metadata and the recorded storage connection stay in PostgreSQL. Chat uploads are not moved.
 - Linked cases and clients must belong to the workspace (400 when unavailable). Archive hides from the default list; authorized detail and download still work.
@@ -78,11 +78,19 @@ Authenticated document APIs are implemented. The Angular documents library (list
 - There is no virus-scanning claim, no cloud adapter, and no permanent delete in this slice.
 - Each document version can carry extracted Serbian Latin text (`extractionStatus`, `extractedText`, `sourceScript`). The assistant fills it lazily; it is not exposed in the document API.
 
+### Persistent document folders
+
+- `DocumentFolder` stores workspace-owned parent/child hierarchy separately from physical file storage. Documents have an optional folder; root files have no folder. Composite foreign keys prevent cross-workspace relations. Sibling names, including root names, are unique.
+- `GET /api/documents/folders` returns direct children and ancestor breadcrumbs. `POST /api/documents/folders/ensure` atomically resolves a bounded batch of relative paths below an optional target folder, reusing existing siblings under concurrent imports. It rejects traversal, empty/control-character segments and excessive paths; names are stored in Serbian Latin.
+- `GET /api/documents?folderId=root|<id>` scopes files before pagination. Omitting the location preserves global lists for case/client views and other consumers. Recent and Needs linking filters run before pagination. `GET /api/documents/statistics` returns real workspace-wide document counts, excluding folders.
+- The Documents page navigates direct children with breadcrumbs and displays folders before paginated files in both list and grid. Uploads target the current folder. The fixed-layout list has type icon, name, category, linked records, version, size, import date (immutable `createdAt`) and actions. Long names/linked values truncate with full tooltips.
+- Folder picker and supported directory drops normalize files into the existing upload queue. The backend resolves hierarchy before uploads start; resolved destinations are frozen with retry payloads. Folder preparation also protects against closing. Empty directories not exposed by the picker are omitted; unsupported directory drops guide users to Select folder. Version mode remains single-file only.
+
 ## Workspace documents (upload modal)
 
 - Documents, client detail, and case detail can open a reusable upload dialog against `POST /api/documents`.
 - Each selected file is its own document. Title is required (max 320). Case/client links are locked on those detail pages and searchable on the documents page.
-- Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Optional per-row category codes are stored on `Document.category`. Clients are selected before cases; case search is constrained by selected clients. Version-mode queue exists; there is no version UI entry in this slice.
+- Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Optional per-row category codes are stored on `Document.category`. Clients are selected before cases; case search is constrained by selected clients. The document detail panel opens the same queue in single-file version mode.
 - Removing a row only drops it from the local queue. It does not archive or delete a stored document.
 - The upload dialog does not dismiss on an outside/backdrop click; users close it through its explicit actions.
 

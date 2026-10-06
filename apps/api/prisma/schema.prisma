@@ -424,6 +424,7 @@ model Workspace {
   tenantAuditEvents           TenantAuditEvent[]
   legalSources                LegalSource[]
   storageConnections          StorageConnection[]
+  documentFolders             DocumentFolder[]
   documents                   Document[]
   documentCases               DocumentCase[]
   documentClients             DocumentClient[]
@@ -1653,11 +1654,30 @@ model StorageConnection {
   @@index([workspaceId, isDefault, enabled])
 }
 
+model DocumentFolder {
+  id          String           @id @default(uuid())
+  workspaceId String
+  name        String
+  parentId    String?
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  workspace   Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent      DocumentFolder?  @relation("FolderTree", fields: [parentId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  children    DocumentFolder[] @relation("FolderTree")
+  documents   Document[]
+
+  @@unique([id, workspaceId])
+  // Migration uses NULLS NOT DISTINCT so root siblings are also unique.
+  @@unique([workspaceId, parentId, name])
+}
+
 model Document {
   id               String            @id @default(uuid())
   workspaceId      String
   title            String
   category         String?
+  folderId         String?
+  folder           DocumentFolder?   @relation(fields: [folderId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
   currentVersionId String?           @unique
   archivedAt       DateTime?         @db.Timestamptz(3)
   archivedByUserId String?
@@ -1676,6 +1696,7 @@ model Document {
   operations       UploadOperation[]
   chatAttachments  ChatAttachment[]
 
+  @@index([workspaceId, folderId])
   @@index([workspaceId, archivedAt, updatedAt])
   @@index([workspaceId, title])
   @@index([workspaceId, category])

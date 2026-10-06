@@ -41,6 +41,7 @@ export const DOCUMENT_CATEGORY_LABEL_KEYS: Record<DocumentCategory, string> =
   ) as Record<DocumentCategory, string>;
 
 export interface FrozenCreatePayload {
+  folderId: string | null;
   title: string;
   category: string | null;
   caseIds: string[];
@@ -56,6 +57,9 @@ export interface FrozenVersionPayload {
 export interface DocumentUploadRow {
   id: string;
   file: File;
+  relativePath: string;
+  relativeDirectoryPath: string;
+  folderId: string | null;
   titleControl: FormControl<string>;
   category: string | null;
   status: DocumentUploadRowStatus;

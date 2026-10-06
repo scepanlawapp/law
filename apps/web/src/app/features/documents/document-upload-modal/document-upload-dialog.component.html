@@ -179,25 +179,54 @@
         [multiple]="!versionMode"
         (change)="onFileInput($event)"
       />
-      <button
-        type="button"
-        class="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border text-center"
-        [class.px-4]="true"
+      <div
+        class="flex w-full flex-col items-center justify-center gap-2 rounded-lg border border-dashed border-border px-4 text-center"
         [class.py-3]="compactDropzone()"
         [class.py-8]="!compactDropzone()"
         [class.bg-muted]="dragging()"
-        (click)="fileInput.click()"
         (drop)="onDrop($event)"
         (dragover)="onDragOver($event)"
         (dragleave)="onDragLeave()"
       >
         <ng-icon name="lucideUpload" size="20" />
-        <span class="font-medium">
-          {{ "documents.upload.chooseFiles" | translate }}
-        </span>
+        <div class="flex flex-wrap justify-center gap-2">
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="preparing()"
+            (click)="fileInput.click()"
+          >
+            {{ "documents.upload.chooseFiles" | translate }}
+          </button>
+          @if (!versionMode) {
+            <input
+              #directoryInput
+              type="file"
+              multiple
+              webkitdirectory
+              hidden
+              (change)="onFileInput($event)"
+            />
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              [disabled]="preparing()"
+              (click)="directoryInput.click()"
+            >
+              {{ "documents.upload.chooseFolder" | translate }}
+            </button>
+          }
+        </div>
         @if (!compactDropzone()) {
           <span class="text-muted-foreground">
-            {{ "documents.upload.dropHint" | translate }}
+            {{
+              (versionMode
+                ? "documents.upload.dropHint"
+                : "documents.upload.folderDropHint"
+              ) | translate
+            }}
           </span>
           <span class="text-muted-foreground">
             {{ "documents.upload.formats" | translate }}
@@ -209,12 +238,24 @@
             }}
           </span>
         }
-      </button>
+      </div>
     </section>
 
+    @if (preparing()) {
+      <div class="flex items-center gap-2" role="status">
+        <hlm-spinner />
+        {{ "documents.upload.preparingFolders" | translate }}
+      </div>
+    }
+    @if (importError(); as message) {
+      <p role="alert" class="text-destructive">{{ message | translate }}</p>
+    }
     @if (rows().length) {
       <div hlmTableContainer>
-        <table hlmTable>
+        <table
+          hlmTable
+          class="table-fixed w-full [&_td]:whitespace-normal [&_th]:whitespace-normal [&_td]:min-w-0"
+        >
           <caption class="sr-only">
             {{ "documents.upload.tableCaption" | translate }}
           </caption>
@@ -278,17 +319,26 @@
                 </td>
                 <td hlmTd>
                   <span
-                    class="block max-w-40 truncate"
+                    class="block w-full min-w-0 truncate"
                     [attr.title]="row.file.name"
                   >
                     {{ row.file.name }}
                   </span>
+                  @if (row.relativeDirectoryPath) {
+                    <span
+                      class="block truncate text-sm text-muted-foreground"
+                      [hlmTooltip]="row.relativeDirectoryPath"
+                      tabindex="0"
+                    >
+                      {{ row.relativeDirectoryPath }}
+                    </span>
+                  }
                 </td>
                 <td hlmTd>
                   @if (canEditCategory(row)) {
                     <div
                       hlmCombobox
-                      class="w-full min-w-40"
+                      class="w-full min-w-0"
                       [value]="row.category"
                       (valueChange)="setCategory(row.id, $event ?? null)"
                       [itemToString]="categoryItemToString"
@@ -335,7 +385,7 @@
                   }
                 </td>
                 <td hlmTd>
-                  <div class="min-w-28 space-y-1">
+                  <div class="min-w-0 space-y-1">
                     <p>{{ statusLabel(row) }}</p>
                     @if (
                       row.status === "uploading" || row.status === "processing"

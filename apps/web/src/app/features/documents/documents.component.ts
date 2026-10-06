@@ -1,8 +1,16 @@
-import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
+import { formatFileSize } from "./document-upload-modal/document-upload.utils";
+import { forkJoin, Subscription } from "rxjs";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
+  lucideFolder,
+  lucideFile,
+  lucideFileType,
+  lucideFileSpreadsheet,
+  lucideImage,
   lucideArchive,
   lucideArrowDownToLine,
   lucideCheck,
@@ -46,6 +54,9 @@ import {
   DocumentCategory,
   DocumentDetail,
   DocumentSummary,
+  DocumentFolderSummary,
+  DocumentStatistics,
+  DocumentListQuery,
   DocumentVersionSummary,
 } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -62,13 +73,6 @@ export type DocumentsViewMode = "list" | "grid";
 export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";
 
 const DOCUMENT_PAGE_SIZE = 20;
-const DOCUMENT_SUMMARY_FALLBACKS = {
-  active: 84,
-  addedThisMonth: 12,
-  needsLinking: 8,
-  archived: 9,
-};
-
 @Component({
   selector: "law-documents",
   standalone: true,
@@ -77,6 +81,7 @@ const DOCUMENT_SUMMARY_FALLBACKS = {
     ReactiveFormsModule,
     NgIcon,
     HlmButton,
+    HlmTooltip,
     HlmEmpty,
     HlmEmptyContent,
     HlmEmptyDescription,
@@ -96,6 +101,11 @@ const DOCUMENT_SUMMARY_FALLBACKS = {
   ],
   providers: [
     provideIcons({
+      lucideFolder,
+      lucideFile,
+      lucideFileType,
+      lucideFileSpreadsheet,
+      lucideImage,
       lucideArchive,
       lucideArrowDownToLine,
       lucideCheck,
@@ -127,9 +137,13 @@ export class DocumentsComponent {
   readonly selectedCaseId = new FormControl("", { nonNullable: true });
   readonly selectedClientId = new FormControl("", { nonNullable: true });
   readonly selectedCategory = new FormControl("", { nonNullable: true });
+  readonly currentFolderId = signal<string | null>(null);
+  readonly folders = signal<DocumentFolderSummary[]>([]);
+  readonly breadcrumbs = signal<DocumentFolderSummary[]>([]);
+  readonly stats = signal<DocumentStatistics | null>(null);
+  private listSubscription?: Subscription;
   readonly documents = signal<DocumentSummary[]>([]);
   readonly loading = signal(false);
-  readonly loaded = signal(false);
   readonly error = signal(false);
   readonly page = signal(1);
   readonly pageCount = signal(1);
@@ -206,29 +220,6 @@ export class DocumentsComponent {
     this.load();
   }
 
-  readonly stats = computed(() => {
-    const docs = this.documents();
-    return this.computeSummaryStats(docs);
-  });
-
-  computeSummaryStats(docs: DocumentSummary[]) {
-    const summary = {
-      active: docs.filter((doc) => !doc.archived).length,
-      addedThisMonth: docs.filter((doc) => this.isAddedThisMonth(doc)).length,
-      needsLinking: docs.filter((doc) => this.isNeedsLinking(doc)).length,
-      archived: docs.filter((doc) => doc.archived).length,
-    };
-
-    return {
-      active: summary.active || DOCUMENT_SUMMARY_FALLBACKS.active,
-      addedThisMonth:
-        summary.addedThisMonth || DOCUMENT_SUMMARY_FALLBACKS.addedThisMonth,
-      needsLinking:
-        summary.needsLinking || DOCUMENT_SUMMARY_FALLBACKS.needsLinking,
-      archived: summary.archived || DOCUMENT_SUMMARY_FALLBACKS.archived,
-    };
-  }
-
   isNeedsLinking(document: DocumentSummary): boolean {
     return !document.cases.length && !document.clients.length;
   }
@@ -249,9 +240,36 @@ export class DocumentsComponent {
 
   openUpload(): void {
     this.uploadDialog
-      .open()
+      .open({ targetFolderId: this.currentFolderId() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.load());
+  }
+
+  openFolder(id: string | null): void {
+    this.currentFolderId.set(id);
+    this.page.set(1);
+    this.load();
+  }
+
+  fileIcon(document: DocumentSummary): string {
+    const mime = document.currentVersion?.mimeType ?? "";
+    const filename =
+      document.currentVersion?.originalFilename.toLowerCase() ?? "";
+    if (mime.startsWith("image/") || /\.(png|jpe?g|webp)$/.test(filename))
+      return "lucideImage";
+    if (/sheet|excel/.test(mime) || /\.xlsx?$/.test(filename))
+      return "lucideFileSpreadsheet";
+    if (/word/.test(mime) || /\.docx?$/.test(filename)) return "lucideFileType";
+    if (/pdf|text/.test(mime) || /\.(pdf|txt)$/.test(filename))
+      return "lucideFileText";
+    return "lucideFile";
+  }
+
+  linkedInfo(document: DocumentSummary): string {
+    return [
+      ...document.cases.map((item) => `${item.caseNumber} — ${item.name}`),
+      ...document.clients.map((item) => item.displayName),
+    ].join("; ");
   }
 
   selectTab(tab: DocumentsTab): void {
@@ -313,15 +331,7 @@ export class DocumentsComponent {
 
   fileSize(document: DocumentSummary): string {
     const bytes = document.currentVersion?.sizeBytes;
-    if (!bytes) return "";
-    const units = ["B", "KB", "MB", "GB"];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-      size /= 1024;
-      unitIndex += 1;
-    }
-    return `${size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1)} ${units[unitIndex]}`;
+    return bytes == null ? "" : formatFileSize(bytes);
   }
 
   documentTitle(document: DocumentSummary): string {
@@ -329,14 +339,13 @@ export class DocumentsComponent {
   }
 
   getLinkedCaseName(document: DocumentSummary): string {
-    const linkedCase = document.cases[0];
-    return linkedCase
-      ? `${linkedCase.caseNumber} ${linkedCase.name}`.trim()
-      : "";
+    return document.cases
+      .map((item) => `${item.caseNumber} — ${item.name}`)
+      .join("; ");
   }
 
   getLinkedClientName(document: DocumentSummary): string {
-    return document.clients[0]?.displayName ?? "";
+    return document.clients.map((item) => item.displayName).join("; ");
   }
 
   openDocumentDetail(document: DocumentSummary): void {
@@ -495,7 +504,7 @@ export class DocumentsComponent {
   }
 
   lastUpdatedInfo(document: DocumentSummary): string {
-    return this.formatDate(document.updatedAt);
+    return this.formatDateOnly(document.createdAt);
   }
 
   private resetPageAndLoad(): void {
@@ -505,13 +514,16 @@ export class DocumentsComponent {
 
   load(): void {
     const arch: "true" | "false" | "all" =
-      this.selectedTab() === "archived"
-        ? "true"
-        : this.selectedTab() === "all"
-          ? "all"
-          : "false";
+      this.selectedTab() === "archived" ? "true" : "false";
 
-    const query = {
+    const query: DocumentListQuery = {
+      folderId: this.currentFolderId() ?? "root",
+      view:
+        this.selectedTab() === "recent"
+          ? "recent"
+          : this.selectedTab() === "needs-linking"
+            ? "needs-linking"
+            : undefined,
       archived: arch,
       caseId: this.selectedCaseId.value || undefined,
       clientId: this.selectedClientId.value || undefined,
@@ -523,30 +535,27 @@ export class DocumentsComponent {
       pageSize: DOCUMENT_PAGE_SIZE,
     };
 
+    this.listSubscription?.unsubscribe();
     this.loading.set(true);
     this.error.set(false);
-    this.documentsApi
-      .list(query)
+    this.listSubscription = forkJoin({
+      documents: this.documentsApi.list(query),
+      navigation: this.documentsApi.browseFolders(
+        this.currentFolderId(),
+        query.search,
+      ),
+      stats: this.documentsApi.statistics(),
+    })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (response) => {
-          const items = response.items.filter((item) => {
-            if (this.selectedTab() === "recent") {
-              return this.isRecentDocument(item);
-            }
-            if (this.selectedTab() === "needs-linking") {
-              return this.isNeedsLinking(item);
-            }
-            if (this.selectedTab() === "all") {
-              return !item.archived;
-            }
-            return true;
-          });
-          this.documents.set(items);
+        next: ({ documents: response, navigation, stats }) => {
+          this.folders.set(navigation.folders);
+          this.breadcrumbs.set(navigation.breadcrumbs);
+          this.stats.set(stats);
+          this.documents.set(response.items);
           this.page.set(response.meta.page);
           this.pageCount.set(response.meta.totalPages || 1);
           this.totalItems.set(response.meta.totalItems);
-          this.loaded.set(true);
           this.loading.set(false);
         },
         error: () => {
@@ -584,11 +593,5 @@ export class DocumentsComponent {
           );
         },
       });
-  }
-
-  private isRecentDocument(document: DocumentSummary): boolean {
-    const threshold = new Date();
-    threshold.setDate(threshold.getDate() - 30);
-    return new Date(document.updatedAt) >= threshold;
   }
 }

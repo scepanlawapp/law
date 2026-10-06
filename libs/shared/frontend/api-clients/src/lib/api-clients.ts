@@ -52,6 +52,10 @@ import {
   TaskDetail,
   TaskStatus,
   DocumentDetail,
+  DocumentFolderBrowseResponse,
+  EnsureDocumentFoldersRequest,
+  EnsureDocumentFoldersResponse,
+  DocumentStatistics,
   DocumentListQuery,
   DocumentListResponse,
   DocumentUpdateRequest,
@@ -1778,6 +1782,36 @@ export class DocumentsApiClient {
   private endpoint(path: string): string {
     const config = getRuntimeConfig();
     return `${config.apiUrl}${config.apiPrefix}${path}`;
+  }
+
+  browseFolders(
+    parentId: string | null,
+    search?: string,
+  ): Observable<DocumentFolderBrowseResponse> {
+    return this.http.get<DocumentFolderBrowseResponse>(
+      this.endpoint("/documents/folders"),
+      {
+        withCredentials: true,
+        params: queryParams({ parentId: parentId ?? undefined, search }),
+      },
+    );
+  }
+
+  ensureFolders(
+    request: EnsureDocumentFoldersRequest,
+  ): Observable<EnsureDocumentFoldersResponse> {
+    return this.http.post<EnsureDocumentFoldersResponse>(
+      this.endpoint("/documents/folders/ensure"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  statistics(): Observable<DocumentStatistics> {
+    return this.http.get<DocumentStatistics>(
+      this.endpoint("/documents/statistics"),
+      { withCredentials: true },
+    );
   }
 
   list(query: DocumentListQuery = {}): Observable<DocumentListResponse> {

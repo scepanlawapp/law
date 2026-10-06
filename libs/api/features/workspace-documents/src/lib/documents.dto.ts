@@ -1,6 +1,7 @@
 import { Transform } from "class-transformer";
 import {
   IsArray,
+  ArrayMaxSize,
   IsBoolean,
   IsIn,
   IsOptional,
@@ -27,6 +28,15 @@ const toBoolean = ({ value }: { value: unknown }): boolean | undefined => {
 };
 
 export class DocumentListQueryDto extends PaginationQueryDto {
+  @IsOptional()
+  @ValidateIf((_, value) => value !== "root")
+  @IsUUID()
+  folderId?: string;
+
+  @IsOptional()
+  @IsIn(["recent", "needs-linking"])
+  view?: "recent" | "needs-linking";
+
   @IsOptional()
   @IsUUID()
   caseId?: string;
@@ -74,3 +84,25 @@ export class UpdateDocumentDto {
 }
 
 export class DocumentVersionListQueryDto extends PaginationQueryDto {}
+
+export class DocumentFolderQueryDto {
+  @IsOptional()
+  @IsUUID()
+  parentId?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(320)
+  search?: string;
+}
+export class EnsureDocumentFoldersDto {
+  @IsOptional()
+  @IsUUID()
+  targetParentFolderId?: string | null;
+
+  @IsArray()
+  @ArrayMaxSize(2000)
+  @IsString({ each: true })
+  @MaxLength(1024, { each: true })
+  paths!: string[];
+}

@@ -106,3 +106,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Chat Session Auto-Title](./tracks/chat_session_title_20260909/index.md)
 - [Chat Session Soft-Delete](./tracks/chat_session_soft_delete_20260909/index.md)
 - [Authentication implementation](./tracks/auth_implementation_20260906/index.md)
+
+- [Document folders](tracks/document_folders_20261006/index.md) — completed

@@ -8,6 +8,7 @@ import {
   CaseReference,
   ClientReference,
   DocumentDetail,
+  DocumentStatistics,
   DocumentListResponse,
   DocumentVersionListResponse,
   DocumentVersionSummary,
@@ -50,6 +51,7 @@ export class DocumentsService {
 
   async create(input: {
     title: string;
+    folderId?: string;
     category?: string;
     caseIds: string[];
     clientIds: string[];
@@ -69,6 +71,14 @@ export class DocumentsService {
       title = this.requireTitle(input.title);
       category = this.requireCategory(input.category);
       await this.requireLinks(caseIds, clientIds);
+      if (
+        input.folderId &&
+        !(await this.prisma.documentFolder.findFirst({
+          where: { id: input.folderId, workspaceId: this.context.workspaceId },
+        }))
+      ) {
+        throw new BadRequestException("Folder is unavailable");
+      }
     } catch (error) {
       input.stream.resume();
       throw error;
@@ -81,6 +91,7 @@ export class DocumentsService {
       purpose: "CREATE_DOCUMENT",
       fingerprint: uploadFingerprint({
         purpose: "CREATE_DOCUMENT",
+        folderId: input.folderId,
         title,
         category,
         caseIds,
@@ -100,6 +111,7 @@ export class DocumentsService {
         data: {
           workspaceId: this.context.workspaceId,
           title,
+          folderId: input.folderId ?? null,
           category,
           createdByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
@@ -240,6 +252,14 @@ export class DocumentsService {
       { field: "updatedAt", direction: "desc" },
     ]);
     const where: Prisma.DocumentWhereInput = { workspaceId };
+    if (query.folderId !== undefined)
+      where.folderId = query.folderId === "root" ? null : query.folderId;
+    if (query.view === "recent")
+      where.updatedAt = { gte: new Date(Date.now() - 30 * 86400000) };
+    if (query.view === "needs-linking") {
+      where.cases = { none: {} };
+      where.clients = { none: {} };
+    }
     if (archived === "false") where.archivedAt = null;
     if (archived === "true") where.archivedAt = { not: null };
     if (query.category && query.uncategorized) {
@@ -247,8 +267,10 @@ export class DocumentsService {
         "category and uncategorized cannot be combined",
       );
     }
-    if (query.caseId) where.cases = { some: { caseId: query.caseId } };
-    if (query.clientId) where.clients = { some: { clientId: query.clientId } };
+    if (query.caseId)
+      where.AND = [{ cases: { some: { caseId: query.caseId } } }];
+    if (query.clientId)
+      where.clients = { ...where.clients, some: { clientId: query.clientId } };
     if (query.category) where.category = query.category;
     if (query.uncategorized) where.category = null;
     if (query.search?.trim()) {
@@ -268,6 +290,33 @@ export class DocumentsService {
       items: rows.map((row) => this.toDetail(row)),
       meta: paginationMeta(query.page, query.pageSize, totalItems, sort),
     };
+  }
+
+  async statistics(): Promise<DocumentStatistics> {
+    const { workspaceId } = this.context;
+    const now = new Date();
+    const month = new Date(now.getFullYear(), now.getMonth(), 1);
+    const [active, addedThisMonth, needsLinking, archived] =
+      await this.prisma.$transaction([
+        this.prisma.document.count({
+          where: { workspaceId, archivedAt: null },
+        }),
+        this.prisma.document.count({
+          where: { workspaceId, createdAt: { gte: month } },
+        }),
+        this.prisma.document.count({
+          where: {
+            workspaceId,
+            archivedAt: null,
+            cases: { none: {} },
+            clients: { none: {} },
+          },
+        }),
+        this.prisma.document.count({
+          where: { workspaceId, archivedAt: { not: null } },
+        }),
+      ]);
+    return { active, addedThisMonth, needsLinking, archived };
   }
 
   async get(id: string): Promise<DocumentDetail> {
@@ -538,6 +587,7 @@ export class DocumentsService {
 
   private toDetail(row: {
     id: string;
+    folderId?: string | null;
     title: string;
     category: string | null;
     archivedAt: Date | null;
@@ -551,6 +601,7 @@ export class DocumentsService {
   }): DocumentDetail {
     return {
       id: row.id,
+      folderId: row.folderId ?? null,
       title: row.title,
       category: row.category,
       archived: !!row.archivedAt,

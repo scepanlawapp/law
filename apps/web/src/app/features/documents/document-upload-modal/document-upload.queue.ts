@@ -1,4 +1,8 @@
 import {
+  DocumentUploadCandidate,
+  uploadCandidate,
+} from "./document-upload-candidates";
+import {
   HttpErrorResponse,
   HttpEvent,
   HttpEventType,
@@ -65,11 +69,14 @@ export class DocumentUploadQueue {
   }
 
   addFiles(files: FileList | File[]): void {
-    const incoming = Array.from(files);
+    this.addCandidates(Array.from(files).map((file) => uploadCandidate(file)));
+  }
+
+  addCandidates(incoming: DocumentUploadCandidate[]): void {
     const next = [...this.rows];
-    for (const file of incoming) {
+    for (const candidate of incoming) {
       if (this.mode === "version" && next.length >= 1) break;
-      next.push(this.createRow(file));
+      next.push(this.createRow(candidate));
     }
     this.rows = next;
     this.emit();
@@ -109,6 +116,23 @@ export class DocumentUploadQueue {
     this.patch(id, { category });
   }
 
+  resolveFolders(
+    mapping: ReadonlyMap<string, string>,
+    targetFolderId: string | null,
+  ): void {
+    this.rows = this.rows.map((row) =>
+      row.frozenCreate || row.frozenVersion
+        ? row
+        : {
+            ...row,
+            folderId: row.relativeDirectoryPath
+              ? (mapping.get(row.relativeDirectoryPath) ?? null)
+              : targetFolderId,
+          },
+    );
+    this.emit();
+  }
+
   startReady(caseIds: string[], clientIds: string[]): void {
     const next = this.rows.map((row) => {
       if (row.status !== "ready") return row;
@@ -142,7 +166,8 @@ export class DocumentUploadQueue {
     this.inflight.clear();
   }
 
-  private createRow(file: File): DocumentUploadRow {
+  private createRow(candidate: DocumentUploadCandidate): DocumentUploadRow {
+    const { file, relativePath, relativeDirectoryPath } = candidate;
     const derived = titleFromFilename(file.name);
     const control = new FormControl(derived, {
       nonNullable: true,
@@ -154,6 +179,9 @@ export class DocumentUploadQueue {
     const row: DocumentUploadRow = {
       id: newRowId(),
       file,
+      relativePath,
+      relativeDirectoryPath,
+      folderId: null,
       titleControl: control,
       category: null,
       status: "ready",
@@ -211,6 +239,7 @@ export class DocumentUploadQueue {
     }
     const title = row.titleControl.value.trim();
     const frozen: FrozenCreatePayload = {
+      folderId: row.folderId,
       title,
       category: row.category,
       caseIds: [...caseIds],
@@ -264,6 +293,7 @@ export class DocumentUploadQueue {
   private createBody(row: DocumentUploadRow): FormData {
     const frozen = row.frozenCreate;
     const body = new FormData();
+    if (frozen?.folderId) body.append("folderId", frozen.folderId);
     body.append("title", frozen?.title ?? row.titleControl.value.trim());
     const category = frozen?.category ?? row.category;
     if (category) body.append("category", category);

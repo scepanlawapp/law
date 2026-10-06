@@ -18,6 +18,7 @@ describe("DocumentsService", () => {
   };
   const activityLog = { create: jest.fn() };
   const prisma = {
+    documentFolder: { findFirst: jest.fn() },
     case: { count: jest.fn() },
     client: { count: jest.fn() },
     document: {
@@ -142,6 +143,121 @@ describe("DocumentsService", () => {
       mimeType: "application/pdf",
       sizeBytes: 8,
     });
+  });
+
+  it("rejects an upload destination outside the workspace before ingestion", async () => {
+    prisma.documentFolder.findFirst.mockResolvedValue(null);
+    await expect(
+      run(() =>
+        service.create({
+          title: "File",
+          folderId: "foreign",
+          caseIds: [],
+          clientIds: [],
+          originalFilename: "a.pdf",
+          stream: Readable.from("file"),
+          idempotencyKey: "key",
+        }),
+      ),
+    ).rejects.toThrow("Folder is unavailable");
+    expect(prisma.documentFolder.findFirst).toHaveBeenCalledWith({
+      where: { id: "foreign", workspaceId },
+    });
+    expect(files.ingest).not.toHaveBeenCalled();
+  });
+
+  it("persists the destination in metadata and the upload fingerprint", async () => {
+    prisma.documentFolder.findFirst.mockResolvedValue({ id: "folder" });
+    await run(() =>
+      service.create({
+        title: "File",
+        folderId: "folder",
+        caseIds: [],
+        clientIds: [],
+        originalFilename: "a.pdf",
+        stream: Readable.from("file"),
+        idempotencyKey: "key",
+      }),
+    );
+    expect(prisma.document.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ folderId: "folder", workspaceId }),
+    });
+    const locatedFingerprint = files.ingest.mock.calls[0][0].fingerprint;
+    await run(() =>
+      service.create({
+        title: "File",
+        caseIds: [],
+        clientIds: [],
+        originalFilename: "a.pdf",
+        stream: Readable.from("file"),
+        idempotencyKey: "other-key",
+      }),
+    );
+    expect(files.ingest.mock.calls[1][0].fingerprint).not.toBe(
+      locatedFingerprint,
+    );
+  });
+
+  it("scopes direct-child listing before pagination and keeps global lists compatible", async () => {
+    await run(() =>
+      service.list({
+        folderId: "root",
+        view: "needs-linking",
+        page: 2,
+        pageSize: 20,
+      } as never),
+    );
+    expect(prisma.document.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          workspaceId,
+          folderId: null,
+          cases: { none: {} },
+          clients: { none: {} },
+        }),
+        skip: 20,
+        take: 20,
+      }),
+    );
+    await run(() =>
+      service.list({ folderId: "folder", page: 1, pageSize: 20 } as never),
+    );
+    expect(prisma.document.findMany).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ folderId: "folder" }),
+      }),
+    );
+    await run(() => service.list({ page: 1, pageSize: 20 } as never));
+    expect(
+      prisma.document.findMany.mock.calls.at(-1)?.[0].where,
+    ).not.toHaveProperty("folderId");
+  });
+
+  it("keeps Recent based on last modification while import time remains createdAt", async () => {
+    await run(() =>
+      service.list({ view: "recent", page: 1, pageSize: 20 } as never),
+    );
+    expect(prisma.document.findMany.mock.calls.at(-1)?.[0].where).toMatchObject(
+      { updatedAt: { gte: expect.any(Date) } },
+    );
+    expect(
+      prisma.document.findMany.mock.calls.at(-1)?.[0].where,
+    ).not.toHaveProperty("createdAt");
+  });
+
+  it("returns real zero statistics independently of the current page", async () => {
+    prisma.document.count.mockResolvedValue(0);
+    expect(await run(() => service.statistics())).toEqual({
+      active: 0,
+      addedThisMonth: 0,
+      needsLinking: 0,
+      archived: 0,
+    });
+    expect(
+      prisma.document.count.mock.calls.every(
+        ([query]) => query.where.workspaceId === workspaceId,
+      ),
+    ).toBe(true);
   });
 
   it("rejects case/client links outside the workspace", async () => {

@@ -2171,5 +2171,17 @@
   "finance.sef.validation.EXEMPTION_RATE_MUST_BE_ZERO": "Oslobođena stavka mora imati stopu PDV-a nula.",
   "finance.sef.validation.UNSUPPORTED_TAX_CATEGORY": "Ova poreska kategorija nije podržana u prvoj verziji.",
   "finance.sef.validation.VAT_TIMING_CODE_NOT_ALLOWED": "Uklonite datum nastanka PDV obaveze kada nema stavki sa standardnim PDV-om.",
-  "finance.sef.validation.DUE_DATE_BEFORE_ISSUE": "Datum dospeća ne može biti pre datuma izdavanja."
+  "finance.sef.validation.DUE_DATE_BEFORE_ISSUE": "Datum dospeća ne može biti pre datuma izdavanja.",
+  "documents.columns.type": "Tip",
+  "documents.columns.name": "Naziv",
+  "documents.columns.size": "Veličina",
+  "documents.folder": "Folder",
+  "documents.folders.open": "Otvorite fasciklu",
+  "documents.folders.breadcrumb": "Lokacija fascikle",
+  "documents.upload.chooseFolder": "Izaberite fasciklu",
+  "documents.upload.folderDropHint": "Prevucite fajlove ili fascikle ovde, ili izaberite fasciklu. Struktura podfascikli se čuva.",
+  "documents.upload.preparingFolders": "Priprema fascikli…",
+  "documents.upload.folderError": "Priprema fascikli nije uspela. Proverite nazive fascikli i pokušajte ponovo.",
+  "documents.upload.folderDropUnsupported": "Pregledač ne može da pročita prevučenu fasciklu. Koristite Izaberite fasciklu.",
+  "documents.upload.versionFolderError": "Izaberite jedan fajl za novu verziju dokumenta. Uvoz fascikle je dostupan za nove dokumente."
 }
