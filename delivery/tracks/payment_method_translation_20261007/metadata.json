@@ -1,0 +1,9 @@
+{
+  "track_id": "payment_method_translation_20261007",
+  "parent_track_id": "company_settings_payment_qr_20261005",
+  "type": "fix",
+  "status": "completed",
+  "created_at": "2026-10-07T00:00:00Z",
+  "updated_at": "2026-10-07T12:00:00Z",
+  "keywords": ["invoice", "payment-method", "localization", "translation"]
+}

@@ -13,6 +13,22 @@ import {
 } from "@law/api-interfaces";
 import { formatHoursMinutes, priceMinutes } from "../../shared/billing";
 
+const PAYMENT_METHOD_TRANSLATION_KEYS: Record<string, string> = {
+  BANK_TRANSFER: "settings.organization.payment.methods.BANK_TRANSFER",
+  CASH: "settings.organization.payment.methods.CASH",
+  CARD: "settings.organization.payment.methods.CARD",
+  OTHER: "settings.organization.payment.methods.OTHER",
+};
+
+export function localizePaymentMethod(
+  value: string | null | undefined,
+  translate: (key: string) => string,
+): string | null | undefined {
+  if (!value) return value;
+  const translationKey = PAYMENT_METHOD_TRANSLATION_KEYS[value];
+  return translationKey ? translate(translationKey) : value;
+}
+
 export type InvoiceLineForm = FormGroup<{
   /** Saved line id; null for lines added in the composer. */
   id: FormControl<string | null>;

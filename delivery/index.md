@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Invoice Payment Method Localization](./tracks/payment_method_translation_20261007/index.md)
 - [Documents in Case and Client Details](./tracks/documents_detail_context_20261006/index.md)
 - [Documents Case Multi-Select](./tracks/documents_case_multiselect_20261006/index.md)
 - [Documents Row Associations](./tracks/documents_row_associations_20261006/index.md)

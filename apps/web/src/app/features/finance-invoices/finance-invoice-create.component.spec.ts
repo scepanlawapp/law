@@ -131,7 +131,13 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
         { provide: InvoiceLineImportDialogService, useValue: {} },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) =>
+              key === "settings.organization.payment.methods.BANK_TRANSFER"
+                ? "Virman"
+                : key,
+            language: () => "SR",
+          },
         },
         {
           provide: ActivatedRoute,
@@ -168,7 +174,7 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     const component = create().componentInstance;
 
     expect(component.form.controls.placeOfIssue.value).toBe("Beograd");
-    expect(component.form.controls.methodOfPayment.value).toBe("BANK_TRANSFER");
+    expect(component.form.controls.methodOfPayment.value).toBe("Virman");
     expect(component.form.controls.country.value).toBe("RS");
     expect(component.form.controls.comment.value).toBe(
       "Plaćanje u roku dospeća.",

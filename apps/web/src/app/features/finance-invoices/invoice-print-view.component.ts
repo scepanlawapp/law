@@ -21,6 +21,7 @@ import { catchError, forkJoin, of, switchMap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { formatDate, formatHoursMinutes } from "../../shared/billing";
+import { localizePaymentMethod } from "./invoice-form";
 import { InvoicePaymentQrService } from "./invoice-payment-qr.service";
 
 export type WorkSpecificationRow = InvoiceLineSummary["workEntries"][number];
@@ -182,6 +183,13 @@ export class InvoicePrintViewComponent {
 
   formatCurrency(value: string, currency: string): string {
     return `${this.formatAmount(value)} ${currency}`;
+  }
+
+  paymentMethodLabel(value: string | null): string {
+    return (
+      localizePaymentMethod(value, (key) => this.localization.translate(key)) ??
+      "—"
+    );
   }
 
   clientAddress(address: ClientAddress | null): string {
