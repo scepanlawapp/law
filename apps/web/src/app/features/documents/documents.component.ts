@@ -34,6 +34,16 @@ import {
 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
+import {
   HlmEmpty,
   HlmEmptyContent,
   HlmEmptyDescription,
@@ -89,6 +99,14 @@ const DOCUMENT_PAGE_SIZE = 20;
     ReactiveFormsModule,
     NgIcon,
     HlmButton,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
     HlmTooltip,
     HlmEmpty,
     HlmEmptyContent,
@@ -330,14 +348,8 @@ export class DocumentsComponent implements OnInit {
     this.load();
   }
 
-  toggleCaseFilter(caseId: string, event: Event): void {
-    const checkbox = event.target;
-    if (!(checkbox instanceof HTMLInputElement)) return;
-
-    const selected = new Set(this.selectedCaseIds());
-    if (checkbox.checked) selected.add(caseId);
-    else selected.delete(caseId);
-    this.selectedCaseIds.set([...selected]);
+  setSelectedCaseIds(caseIds: string[]): void {
+    this.selectedCaseIds.set(caseIds);
     this.resetPageAndLoad();
   }
 

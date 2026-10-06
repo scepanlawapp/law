@@ -250,6 +250,7 @@
   "documents.view.grid": "Mreža",
   "documents.filters.case": "Predmet",
   "documents.filters.allCases": "Svi predmeti",
+  "documents.filters.searchCases": "Pretraži predmete",
   "documents.filters.client": "Klijent",
   "documents.filters.allClients": "Svi klijenti",
   "documents.filters.category": "Kategorija",

@@ -74,8 +74,8 @@
             <button
               hlmBtn
               type="button"
-              variant="outline"
-              [class.bg-muted]="viewMode() === 'grid'"
+              [variant]="viewMode() === 'list' ? 'default' : 'outline'"
+              [attr.aria-pressed]="viewMode() === 'list'"
               (click)="setViewMode('list')"
             >
               <ng-icon name="lucideList" aria-hidden="true" />
@@ -84,8 +84,8 @@
             <button
               hlmBtn
               type="button"
-              variant="outline"
-              [class.bg-muted]="viewMode() === 'list'"
+              [variant]="viewMode() === 'grid' ? 'default' : 'outline'"
+              [attr.aria-pressed]="viewMode() === 'grid'"
               (click)="setViewMode('grid')"
             >
               <ng-icon name="lucideGrid2x2" aria-hidden="true" />
@@ -96,35 +96,45 @@
 
         <div class="app-filter-toolbar md:flex-row">
           @if (showCaseFilter()) {
-            <fieldset class="min-w-[180px] flex-1">
-              <legend class="mb-1 block text-sm font-medium">
+            <div class="min-w-[180px] flex-1">
+              <label
+                class="mb-1 block text-sm font-medium"
+                for="documents-case-filter"
+              >
                 {{ "documents.filters.case" | translate }}
-              </legend>
-              <details class="relative">
-                <summary
-                  class="flex min-h-10 w-full cursor-pointer select-none items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              </label>
+              <div
+                hlmComboboxMultiple
+                [value]="selectedCaseIds()"
+                (valueChange)="setSelectedCaseIds($event ?? [])"
+                [itemToString]="caseItemToString"
+              >
+                <hlm-combobox-trigger
+                  buttonId="documents-case-filter"
+                  class="w-full min-w-0"
                 >
-                  <span class="min-w-0 truncate">{{ caseFilterLabel() }}</span>
-                </summary>
-                <div
-                  class="absolute left-0 top-full z-50 mt-1 max-h-64 w-full min-w-[240px] overflow-y-auto rounded-md border border-border bg-popover p-2 text-popover-foreground shadow-md"
-                >
-                  @for (option of caseOptions(); track option.id) {
-                    <label
-                      class="flex cursor-pointer items-center gap-2 rounded-sm px-2 py-2 text-sm hover:bg-accent"
-                    >
-                      <input
-                        type="checkbox"
-                        class="size-4 shrink-0 accent-primary"
-                        [checked]="selectedCaseIds().includes(option.id)"
-                        (change)="toggleCaseFilter(option.id, $event)"
-                      />
-                      <span>{{ option.label }}</span>
-                    </label>
-                  }
-                </div>
-              </details>
-            </fieldset>
+                  <span data-slot="combobox-value" class="truncate">
+                    {{ caseFilterLabel() }}
+                  </span>
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'documents.filters.searchCases' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "work.filters.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    @for (option of caseOptions(); track option.id) {
+                      <hlm-combobox-item [value]="option.id">
+                        {{ option.label }}
+                      </hlm-combobox-item>
+                    }
+                  </div>
+                </hlm-combobox-content>
+              </div>
+            </div>
           }
 
           @if (showClientFilter()) {

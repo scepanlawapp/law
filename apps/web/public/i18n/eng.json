@@ -250,6 +250,7 @@
   "documents.view.grid": "Grid",
   "documents.filters.case": "Case",
   "documents.filters.allCases": "All cases",
+  "documents.filters.searchCases": "Search cases",
   "documents.filters.client": "Client",
   "documents.filters.allClients": "All clients",
   "documents.filters.category": "Category",
