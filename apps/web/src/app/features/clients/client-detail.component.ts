@@ -29,7 +29,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { loadCountryOptions } from "../../shared/utils/countries";
 import { CasesListComponent } from "../cases/cases-list/cases-list.component";
-import { DocumentUploadDialogService } from "../documents/document-upload-modal/document-upload-dialog.service";
+import { DocumentsComponent } from "../documents/documents.component";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 import { ClientRetainerCardComponent } from "./client-retainer-card/client-retainer-card.component";
 import {
@@ -57,6 +57,7 @@ type ClientTab =
     HlmTabsList,
     HlmTabsTrigger,
     CasesListComponent,
+    DocumentsComponent,
     ClientRetainerCardComponent,
     TranslatePipe,
   ],
@@ -71,7 +72,6 @@ export class ClientDetailComponent {
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
   private readonly clientDialog = inject(ClientFormDialogService);
-  private readonly uploadDialog = inject(DocumentUploadDialogService);
 
   readonly id = this.route.snapshot.paramMap.get("clientId")!;
   readonly client = signal<ClientDetail | null>(null);
@@ -190,19 +190,6 @@ export class ClientDetailComponent {
       .subscribe((updated) => {
         if (updated) this.reload();
       });
-  }
-
-  openDocumentsUpload(): void {
-    const client = this.client();
-    if (!client) return;
-    this.uploadDialog
-      .open({
-        clientId: client.id,
-        clientLabel: this.title(),
-        lockClient: true,
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe();
   }
 
   responsibleUserName(userId: string | null): string {

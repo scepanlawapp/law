@@ -42,6 +42,12 @@ export class DocumentListQueryDto extends PaginationQueryDto {
   caseId?: string;
 
   @IsOptional()
+  @Transform(toArray)
+  @IsArray()
+  @IsUUID("4", { each: true })
+  caseIds?: string[];
+
+  @IsOptional()
   @IsUUID()
   clientId?: string;
 

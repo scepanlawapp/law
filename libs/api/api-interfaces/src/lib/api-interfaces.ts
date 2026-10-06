@@ -1002,6 +1002,7 @@ export interface DocumentListQuery extends PaginationQuery {
   folderId?: string;
   view?: "recent" | "needs-linking";
   caseId?: string;
+  caseIds?: string[];
   clientId?: string;
   archived?: "true" | "false" | "all";
   category?: DocumentCategory;

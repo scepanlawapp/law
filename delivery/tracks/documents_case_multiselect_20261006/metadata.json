@@ -1,0 +1,9 @@
+{
+  "track_id": "documents_case_multiselect_20261006",
+  "parent_track_id": "documents_workspace_20260923",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-10-06T00:00:00Z",
+  "updated_at": "2026-10-06T00:00:00Z",
+  "keywords": ["documents", "cases", "filters", "multi-select", "angular"]
+}

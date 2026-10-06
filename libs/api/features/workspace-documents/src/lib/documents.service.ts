@@ -267,8 +267,14 @@ export class DocumentsService {
         "category and uncategorized cannot be combined",
       );
     }
-    if (query.caseId)
-      where.AND = [{ cases: { some: { caseId: query.caseId } } }];
+    const caseIds = [
+      ...new Set([
+        ...(query.caseIds ?? []),
+        ...(query.caseId ? [query.caseId] : []),
+      ]),
+    ];
+    if (caseIds.length)
+      where.AND = [{ cases: { some: { caseId: { in: caseIds } } } }];
     if (query.clientId)
       where.clients = { ...where.clients, some: { clientId: query.clientId } };
     if (query.category) where.category = query.category;
