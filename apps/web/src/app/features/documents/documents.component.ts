@@ -34,6 +34,16 @@ import {
 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxMultiple,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+} from "@spartan-ng/helm/combobox";
+import {
   HlmEmpty,
   HlmEmptyContent,
   HlmEmptyDescription,
@@ -76,6 +86,7 @@ import {
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
+import { DocumentAssociationsDialogService } from "./document-associations/document-associations-dialog.service";
 
 export type DocumentsViewMode = "list" | "grid";
 export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";
@@ -89,6 +100,14 @@ const DOCUMENT_PAGE_SIZE = 20;
     ReactiveFormsModule,
     NgIcon,
     HlmButton,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxMultiple,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
     HlmTooltip,
     HlmEmpty,
     HlmEmptyContent,
@@ -131,6 +150,9 @@ const DOCUMENT_PAGE_SIZE = 20;
 })
 export class DocumentsComponent implements OnInit {
   private readonly uploadDialog = inject(DocumentUploadDialogService);
+  private readonly associationsDialog = inject(
+    DocumentAssociationsDialogService,
+  );
   private readonly documentsApi = inject(DocumentsApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
@@ -278,6 +300,31 @@ export class DocumentsComponent implements OnInit {
       });
   }
 
+  openAssociations(document: DocumentSummary): void {
+    this.associationsDialog
+      .open({
+        documentId: document.id,
+        documentTitle: this.documentTitle(document),
+        caseOptions: document.cases.map((item) => ({
+          id: item.id,
+          label: `${item.caseNumber} — ${item.name}`,
+        })),
+        clientOptions: document.clients.map((item) => ({
+          id: item.id,
+          label: item.displayName,
+        })),
+        fixedCaseId: this.fixedCaseId(),
+        fixedClientId: this.fixedClientId(),
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (!result) return;
+        this.toast.success(this.localization.translate("documents.saved"));
+        this.load();
+        this.documentsChanged.emit();
+      });
+  }
+
   openFolder(id: string | null): void {
     this.currentFolderId.set(id);
     this.page.set(1);
@@ -330,14 +377,8 @@ export class DocumentsComponent implements OnInit {
     this.load();
   }
 
-  toggleCaseFilter(caseId: string, event: Event): void {
-    const checkbox = event.target;
-    if (!(checkbox instanceof HTMLInputElement)) return;
-
-    const selected = new Set(this.selectedCaseIds());
-    if (checkbox.checked) selected.add(caseId);
-    else selected.delete(caseId);
-    this.selectedCaseIds.set([...selected]);
+  setSelectedCaseIds(caseIds: string[]): void {
+    this.selectedCaseIds.set(caseIds);
     this.resetPageAndLoad();
   }
 
