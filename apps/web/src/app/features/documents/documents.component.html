@@ -107,7 +107,7 @@
   <div
     class="flex h-full min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-hidden"
   >
-    <div class="flex flex-wrap items-start justify-between gap-4">
+    <div class="flex shrink-0 flex-wrap items-start justify-between gap-4">
       <div>
         @if (embedded()) {
           <h2 class="text-xl font-semibold">
@@ -155,8 +155,10 @@
       </div>
     </div> -->
 
-    <section class="app-section-surface p-4">
-      <div class="flex flex-col gap-4">
+    <section
+      class="app-section-surface flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden p-4"
+    >
+      <div class="flex shrink-0 flex-col gap-4">
         <div
           class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"
         >
@@ -298,160 +300,176 @@
               </hlm-select-content>
             </hlm-select>
           </div>
-        </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          @for (tab of tabOptions; track tab.value) {
-            <button
-              hlmBtn
-              type="button"
-              variant="outline"
-              size="sm"
-              [class.bg-muted]="selectedTab() === tab.value"
-              (click)="selectTab(tab.value)"
+          <div class="min-w-[180px] flex-1">
+            <label
+              class="mb-1 block text-sm font-medium"
+              for="documents-status-filter"
             >
-              {{ tab.label | translate }}
-            </button>
-          }
+              {{ "documents.filters.status" | translate }}
+            </label>
+            <hlm-select
+              [value]="selectedTab()"
+              (valueChange)="onTabChange($event)"
+              [itemToString]="tabItemToString"
+            >
+              <hlm-select-trigger buttonId="documents-status-filter">
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (tab of tabOptions; track tab.value) {
+                    <hlm-select-item [value]="tab.value">
+                      {{ tab.label | translate }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
         </div>
       </div>
 
-      <nav
-        class="my-4 flex min-w-0 flex-wrap items-center gap-2"
-        [attr.aria-label]="'documents.folders.breadcrumb' | translate"
+      <div
+        class="mt-4 flex shrink-0 flex-wrap items-center justify-between gap-2"
       >
-        @if (currentFolderId()) {
-          <button
-            hlmBtn
-            type="button"
-            variant="ghost"
-            size="sm"
-            (click)="openFolder(null)"
-          >
-            {{ "nav.documents" | translate }}
-          </button>
-        } @else {
-          <span aria-current="page">{{ "nav.documents" | translate }}</span>
-        }
-        @for (folder of breadcrumbs(); track folder.id; let last = $last) {
-          <ng-template #folderNameTooltip>
-            <div
-              class="max-w-[min(24rem,calc(100vw-3rem))] whitespace-normal text-left text-sm [overflow-wrap:anywhere]"
-            >
-              {{ folder.name }}
-            </div>
-          </ng-template>
-          <span aria-hidden="true">/</span>
-          @if (last) {
-            <span
-              class="max-w-full truncate"
-              aria-current="page"
-              [hlmTooltip]="folderNameTooltip"
-              tabindex="0"
-            >
-              {{ folder.name }}
-            </span>
-          } @else {
+        <nav
+          class="flex min-w-0 max-w-full flex-wrap items-center gap-2"
+          [attr.aria-label]="'documents.folders.breadcrumb' | translate"
+        >
+          @if (currentFolderId()) {
             <button
               hlmBtn
               type="button"
               variant="ghost"
               size="sm"
-              class="max-w-full truncate"
-              [hlmTooltip]="folderNameTooltip"
-              (click)="openFolder(folder.id)"
+              (click)="openFolder(null)"
             >
-              {{ folder.name }}
-            </button>
-          }
-        }
-      </nav>
-      @if (selection().length) {
-        <div
-          class="flex min-w-0 flex-wrap items-center gap-2 border-y border-border py-2"
-          [attr.aria-label]="'documents.selection.actions' | translate"
-          [attr.aria-busy]="bulkPending()"
-        >
-          <span class="mr-2 text-sm" aria-live="polite">
-            {{
-              "documents.selection.counts"
-                | translate
-                  : {
-                      files: selectionCount("file"),
-                      folders: selectionCount("folder"),
-                    }
-            }}
-          </span>
-          @if (selectedTab() !== "archived") {
-            <button
-              hlmBtn
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              [disabled]="bulkPending() || renamePending()"
-              [attr.aria-label]="'documents.actions.move' | translate"
-              [hlmTooltip]="'documents.actions.move' | translate"
-              (click)="moveSelected()"
-            >
-              <ng-icon name="lucideFolderInput" aria-hidden="true" />
-            </button>
-          }
-          <button
-            hlmBtn
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            [disabled]="bulkPending() || !canDownloadSelection()"
-            [attr.aria-label]="'documents.actions.download' | translate"
-            [hlmTooltip]="'documents.actions.download' | translate"
-            (click)="downloadSelected()"
-          >
-            <ng-icon name="lucideArrowDownToLine" aria-hidden="true" />
-          </button>
-          @if (selectedTab() === "archived") {
-            <button
-              hlmBtn
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              [disabled]="bulkPending() || renamePending()"
-              [attr.aria-label]="'documents.actions.restore' | translate"
-              [hlmTooltip]="'documents.actions.restore' | translate"
-              (click)="restoreSelected()"
-            >
-              <ng-icon name="lucideRefreshCw" aria-hidden="true" />
+              {{ "nav.documents" | translate }}
             </button>
           } @else {
+            <span aria-current="page">{{ "nav.documents" | translate }}</span>
+          }
+          @for (folder of breadcrumbs(); track folder.id; let last = $last) {
+            <ng-template #folderNameTooltip>
+              <div
+                class="max-w-[min(24rem,calc(100vw-3rem))] whitespace-normal text-left text-sm [overflow-wrap:anywhere]"
+              >
+                {{ folder.name }}
+              </div>
+            </ng-template>
+            <span aria-hidden="true">/</span>
+            @if (last) {
+              <span
+                class="max-w-full truncate"
+                aria-current="page"
+                [hlmTooltip]="folderNameTooltip"
+                tabindex="0"
+              >
+                {{ folder.name }}
+              </span>
+            } @else {
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                size="sm"
+                class="max-w-full truncate"
+                [hlmTooltip]="folderNameTooltip"
+                (click)="openFolder(folder.id)"
+              >
+                {{ folder.name }}
+              </button>
+            }
+          }
+        </nav>
+        @if (selection().length) {
+          <div
+            class="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2"
+            [attr.aria-label]="'documents.selection.actions' | translate"
+            [attr.aria-busy]="bulkPending()"
+          >
+            <span class="mr-2 text-sm" aria-live="polite">
+              {{
+                "documents.selection.counts"
+                  | translate
+                    : {
+                        files: selectionCount("file"),
+                        folders: selectionCount("folder"),
+                      }
+              }}
+            </span>
+            @if (selectedTab() !== "archived") {
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                [disabled]="bulkPending() || renamePending()"
+                [attr.aria-label]="'documents.actions.move' | translate"
+                [hlmTooltip]="'documents.actions.move' | translate"
+                (click)="moveSelected()"
+              >
+                <ng-icon name="lucideFolderInput" aria-hidden="true" />
+              </button>
+            }
             <button
               hlmBtn
               type="button"
               variant="ghost"
               size="icon-sm"
-              [disabled]="bulkPending() || renamePending()"
-              [attr.aria-label]="'documents.actions.archive' | translate"
-              [hlmTooltip]="'documents.actions.archive' | translate"
-              (click)="archiveSelected()"
+              [disabled]="bulkPending() || !canDownloadSelection()"
+              [attr.aria-label]="'documents.actions.download' | translate"
+              [hlmTooltip]="'documents.actions.download' | translate"
+              (click)="downloadSelected()"
             >
-              <ng-icon name="lucideArchive" aria-hidden="true" />
+              <ng-icon name="lucideArrowDownToLine" aria-hidden="true" />
             </button>
-          }
-          <button
-            hlmBtn
-            type="button"
-            variant="ghost"
-            size="icon-sm"
-            [disabled]="bulkPending()"
-            [attr.aria-label]="'documents.selection.clear' | translate"
-            [hlmTooltip]="'documents.selection.clear' | translate"
-            (click)="clearSelection()"
-          >
-            <ng-icon name="lucideX" aria-hidden="true" />
-          </button>
-          @if (bulkPending()) {
-            <hlm-spinner [attr.aria-label]="'documents.saving' | translate" />
-          }
-        </div>
-      }
+            @if (selectedTab() === "archived") {
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                [disabled]="bulkPending() || renamePending()"
+                [attr.aria-label]="'documents.actions.restore' | translate"
+                [hlmTooltip]="'documents.actions.restore' | translate"
+                (click)="restoreSelected()"
+              >
+                <ng-icon name="lucideRefreshCw" aria-hidden="true" />
+              </button>
+            } @else {
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                [disabled]="bulkPending() || renamePending()"
+                [attr.aria-label]="'documents.actions.archive' | translate"
+                [hlmTooltip]="'documents.actions.archive' | translate"
+                (click)="archiveSelected()"
+              >
+                <ng-icon name="lucideArchive" aria-hidden="true" />
+              </button>
+            }
+            <button
+              hlmBtn
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              [disabled]="bulkPending()"
+              [attr.aria-label]="'documents.selection.clear' | translate"
+              [hlmTooltip]="'documents.selection.clear' | translate"
+              (click)="clearSelection()"
+            >
+              <ng-icon name="lucideX" aria-hidden="true" />
+            </button>
+            @if (bulkPending()) {
+              <hlm-spinner [attr.aria-label]="'documents.saving' | translate" />
+            }
+          </div>
+        }
+      </div>
       @if (bulkError()) {
         <p class="py-2 text-sm text-destructive" role="alert">
           {{ "documents.bulk.retryFailed" | translate }}
@@ -504,7 +522,7 @@
       } @else if (viewMode() === "list") {
         <div
           hlmTableContainer
-          class="app-data-region mt-4 overflow-x-auto"
+          class="app-data-region mt-4 min-h-0 flex-1 overflow-auto"
           [attr.aria-busy]="loading()"
         >
           <table
@@ -752,7 +770,9 @@
           </table>
         </div>
       } @else {
-        <div class="mt-4 grid min-w-0 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <div
+          class="mt-4 grid min-h-0 min-w-0 flex-1 auto-rows-max gap-4 overflow-auto md:grid-cols-2 xl:grid-cols-3"
+        >
           @for (folder of folders(); track folder.id) {
             <ng-template #folderNameTooltip>
               <div

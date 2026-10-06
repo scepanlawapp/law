@@ -4,6 +4,15 @@
   "type": "feature",
   "status": "in_progress",
   "created_at": "2026-10-06",
-  "updated_at": "2026-10-06",
-  "keywords": ["documents", "selection", "folders", "move", "rename", "archive"]
+  "updated_at": "2026-10-07",
+  "keywords": [
+    "documents",
+    "selection",
+    "folders",
+    "move",
+    "rename",
+    "archive",
+    "layout",
+    "scroll"
+  ]
 }

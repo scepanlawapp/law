@@ -255,6 +255,7 @@
   "documents.filters.allClients": "All clients",
   "documents.filters.category": "Category",
   "documents.filters.allCategories": "All categories",
+  "documents.filters.status": "Status",
   "documents.stats.active": "Active",
   "documents.stats.addedThisMonth": "Added this month",
   "documents.stats.needsLinking": "Needs linking",

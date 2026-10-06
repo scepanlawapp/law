@@ -255,6 +255,7 @@
   "documents.filters.allClients": "Svi klijenti",
   "documents.filters.category": "Kategorija",
   "documents.filters.allCategories": "Sve kategorije",
+  "documents.filters.status": "Status",
   "documents.stats.active": "Aktivni",
   "documents.stats.addedThisMonth": "Dodat ovaj mesec",
   "documents.stats.needsLinking": "Potrebno povezivanje",
