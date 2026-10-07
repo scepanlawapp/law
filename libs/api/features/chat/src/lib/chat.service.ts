@@ -359,12 +359,14 @@ export class ChatService {
     userId: string,
     sessionId: string,
     briefId: string,
+    clientRole?: string,
   ) {
     return this.requireMatterLink().previewBrief({
       workspaceId,
       userId,
       sessionId,
       briefId,
+      clientRole,
     });
   }
 

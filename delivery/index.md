@@ -70,6 +70,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Assistant Capabilities (epic)](./tracks/assistant_capabilities_20261007/index.md)
+- [Assistant Drafting Document Types](./tracks/assistant_drafting_document_types_20261007/index.md)
 - [SEF DEMO Outgoing Invoices](./tracks/sef_demo_outgoing_invoices_20261005/index.md)
 - [Assistant Mastra Migration (epic)](./tracks/assistant_mastra_migration_20260927/index.md)
 - [Mastra Foundation](./tracks/mastra_foundation_20260927/index.md)

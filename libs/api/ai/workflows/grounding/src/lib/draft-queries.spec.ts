@@ -2,16 +2,20 @@ import type { BriefResult } from "@law/brief-extraction";
 import { buildDraftGroundingQueries } from "./draft-queries";
 
 const baseBrief: BriefResult = {
-  jobType: "lawsuit",
-  plaintiff: { name: "Petar Petrović", address: "Knez Mihailova 1, Beograd" },
-  defendant: { name: "Marko Marković", address: null },
-  competentCourt: "Prvi osnovni sud u Beogradu",
-  claimValue: "150.000 RSD",
+  documentType: "LAWSUIT",
+  parties: [
+    { role: "plaintiff", name: "Petar Petrović", address: "Knez Mihailova 1, Beograd", idNumber: null },
+    { role: "defendant", name: "Marko Marković", address: null, idNumber: null },
+  ],
+  fields: [
+    { key: "competentCourt", value: "Prvi osnovni sud u Beogradu" },
+    { key: "claimValue", value: "150.000 RSD" },
+    { key: "reliefSought", value: "Isplata naknade za neiskorišćeni godišnji odmor." },
+  ],
   legalBasis: ["ZOO čl. 154", "Zakon o radu čl. 76"],
   factualDescription:
     "Poslodavac nije isplatio naknadu za neiskorišćeni odmor.",
   evidence: [{ label: "ugovor.pdf", provided: true }],
-  reliefSought: "Isplata naknade za neiskorišćeni godišnji odmor.",
   missingFields: [],
   confidence: 0.8,
   warnings: [],
@@ -27,7 +31,7 @@ describe("buildDraftGroundingQueries", () => {
       "Poslodavac nije isplatio naknadu za neiskorišćeni odmor.",
     );
     expect(queries).toContain(
-      "lawsuit Isplata naknade za neiskorišćeni godišnji odmor.",
+      "Tužba Isplata naknade za neiskorišćeni godišnji odmor.",
     );
   });
 
@@ -36,10 +40,21 @@ describe("buildDraftGroundingQueries", () => {
       ...baseBrief,
       legalBasis: ["ista odredba", "ista odredba"],
       factualDescription: null,
-      reliefSought: null,
-      jobType: null,
+      fields: [],
     };
 
-    expect(buildDraftGroundingQueries(brief)).toEqual(["ista odredba"]);
+    expect(buildDraftGroundingQueries(brief)).toEqual(["ista odredba", "Tužba"]);
+  });
+
+  it("uses the purpose field of other document types", () => {
+    const brief: BriefResult = {
+      ...baseBrief,
+      documentType: "APPEAL",
+      legalBasis: [],
+      factualDescription: null,
+      fields: [{ key: "contestedDecision", value: "Presuda P 12/2026" }],
+    };
+
+    expect(buildDraftGroundingQueries(brief)).toEqual(["Žalba Presuda P 12/2026"]);
   });
 });

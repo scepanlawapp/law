@@ -115,7 +115,43 @@
         {{ "assistant.matter.alreadyFiled" | translate }}
       </a>
       } @else {
-      <p>{{ card.plaintiffName }}</p>
+      @if (documentTypeLabel(); as typeLabel) {
+      <p class="text-sm text-muted-foreground">
+        {{ "assistant.matter.documentType" | translate }}:
+        {{ typeLabel | translate }}
+      </p>
+      }
+      @if (card.parties.length > 1) {
+      <fieldset class="flex flex-col gap-2">
+        <legend class="text-sm font-medium">
+          {{ "assistant.matter.clientParty" | translate }}
+        </legend>
+        <hlm-radio-group
+          [formControl]="clientRole"
+          class="flex flex-wrap gap-4"
+          [attr.aria-busy]="loading()"
+        >
+          @for (party of card.parties; track party.role) {
+          <div class="flex items-center gap-2">
+            <hlm-radio
+              [value]="party.role"
+              [inputId]="'matter-client-role-' + party.role"
+            >
+              <hlm-radio-indicator indicator />
+            </hlm-radio>
+            <label
+              hlmLabel
+              class="cursor-pointer"
+              [for]="'matter-client-role-' + party.role"
+            >
+              {{ partyRoleLabel(party) }}@if (party.name) {: {{ party.name }}}
+            </label>
+          </div>
+          }
+        </hlm-radio-group>
+      </fieldset>
+      }
+      <p>{{ card.clientPartyName }}</p>
       @for (match of card.clientMatches; track match.id) {
       <label class="flex gap-2">
         <input
@@ -153,7 +189,7 @@
       }
       <p>
         {{ "assistant.matter.opposing" | translate }}:
-        {{ card.defendantName }}
+        {{ card.opposingPartyName }}
       </p>
       <input hlmInput formControlName="caseNumber" />
       <input hlmInput formControlName="name" />

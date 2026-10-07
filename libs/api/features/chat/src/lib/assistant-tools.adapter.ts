@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException, Optional } from "@nestjs/common";
+import type { DraftDocumentType } from "@law/api-interfaces";
 import { CaseListQueryDto, CasesService } from "@law/cases";
 import { WorkspaceContextService } from "@law/core";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
@@ -152,12 +153,16 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
         });
   }
 
-  draftLawsuit(
+  draftDocument(
     scope: AssistantTurnScope,
-    args: { note?: string },
+    args: {
+      documentType: DraftDocumentType;
+      note?: string;
+      documentRefs?: string[];
+    },
   ): Promise<DraftToolResult> {
     return this.drafting
-      ? this.drafting.draftLawsuit(scope, args)
+      ? this.drafting.draftDocument(scope, args)
       : Promise.resolve(DRAFTING_UNAVAILABLE);
   }
 

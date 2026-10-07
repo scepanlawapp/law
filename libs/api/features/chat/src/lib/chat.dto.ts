@@ -100,6 +100,13 @@ export class BriefApplyClientDto {
   lastName?: string;
 }
 
+export class BriefApplyPreviewDto {
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  clientRole?: string;
+}
+
 export class BriefApplyDto {
   @ValidateNested()
   @Type(() => BriefApplyClientDto)

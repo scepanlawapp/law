@@ -18,7 +18,7 @@ export * from "./lib/assistant/tools/read-document.tool";
 export * from "./lib/assistant/tools/search-documents.tool";
 export * from "./lib/assistant/tools/search-legal-sources.tool";
 export * from "./lib/assistant/tools/tool-call-summary";
-export * from "./lib/assistant/tools/draft-lawsuit.tool";
+export * from "./lib/assistant/tools/draft-document.tool";
 export * from "./lib/assistant/tools/revise-draft.tool";
 export * from "./lib/assistant/tools/get-draft.tool";
 export * from "./lib/assistant/tools/list-drafts.tool";

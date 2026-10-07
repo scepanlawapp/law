@@ -5,15 +5,12 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { Prisma } from "@prisma/client";
 import {
   BriefApplyPreview,
   BriefApplyRequest,
   BriefApplyResponse,
   BriefEvidenceItem,
   BriefMissingField,
-  BriefMissingFieldKey,
-  BriefResult,
   BriefTaskApplyRequest,
   BriefTaskApplyResponse,
   BriefTaskPreview,
@@ -22,8 +19,13 @@ import {
   ChatSessionSummary,
 } from "@law/api-interfaces";
 import {
-  normalizeEvidence,
-  normalizeMissingFields,
+  briefFieldValue,
+  briefParty,
+  describeMissingField,
+  getDocumentType,
+  normalizeBrief,
+  type BriefResult,
+  type DocumentTypeDefinition,
 } from "@law/brief-extraction";
 import { PlatformPrismaService, paginationMeta } from "@law/core";
 import { ActivitiesTasksDeadlinesService } from "@law/activities-tasks-deadlines";
@@ -33,26 +35,6 @@ import { ChatDocumentPromotionService } from "./chat-document-promotion.service"
 import { toSessionSummary } from "./chat.mappers";
 
 const AI_SOURCE = { source: "AI_ASSISTED" } as const;
-
-// Task titles for missing brief data, phrased as the action to take.
-const MISSING_TASK_TITLES: Record<
-  Exclude<BriefMissingFieldKey, "other">,
-  string
-> = {
-  plaintiffName: "Utvrditi tačno ime tužioca",
-  plaintiffAddress: "Pribaviti adresu tužioca",
-  plaintiffIdNumber: "Pribaviti JMBG / matični broj tužioca",
-  defendantName: "Utvrditi tačan naziv tuženog",
-  defendantAddress: "Pribaviti adresu tuženog",
-  defendantIdNumber: "Pribaviti matični broj tuženog",
-  competentCourt: "Utvrditi nadležni sud",
-  claimValue: "Utvrditi vrednost predmeta spora",
-  legalBasis: "Utvrditi pravni osnov",
-  factualDescription: "Dopuniti činjenični opis sa klijentom",
-  reliefSought: "Precizirati tužbeni zahtev sa klijentom",
-  serviceDate: "Utvrditi datum dostavljanja osporenog akta",
-  contractReference: "Pribaviti broj i datum ugovora",
-};
 
 const DEFAULT_DUE_WORKING_DAYS = 3;
 
@@ -288,20 +270,33 @@ export class MatterLinkService {
     userId: string;
     sessionId: string;
     briefId: string;
+    clientRole?: string;
   }): Promise<BriefApplyPreview> {
     const briefRow = await this.requireBrief(
       input.workspaceId,
       input.sessionId,
       input.briefId,
     );
-    const brief = this.readBrief(briefRow.brief);
-    const plaintiffName = brief.plaintiff.name?.trim() || null;
-    const split = splitPersonName(plaintiffName);
-    const matches = plaintiffName
+    const brief = normalizeBrief(briefRow.brief);
+    const type = getDocumentType(brief.documentType);
+    const clientRole = type.parties.some(
+      (party) => party.role === input.clientRole,
+    )
+      ? input.clientRole!
+      : type.defaultClientRole;
+    const clientParty = briefParty(brief, clientRole);
+    // The opposing party is the first other party that has a name.
+    const opposing =
+      brief.parties.find((party) => party.role !== clientRole && party.name) ??
+      brief.parties.find((party) => party.role !== clientRole) ??
+      null;
+    const clientName = clientParty?.name ?? null;
+    const split = splitPersonName(clientName);
+    const matches = clientName
       ? await this.clients.list({
           page: 1,
           pageSize: 5,
-          search: plaintiffName,
+          search: clientName,
           status: "ACTIVE",
         } as never)
       : { items: [] };
@@ -310,9 +305,20 @@ export class MatterLinkService {
       briefId: briefRow.id,
       alreadyApplied: Boolean(briefRow.appliedCaseId),
       appliedCaseId: briefRow.appliedCaseId,
-      plaintiffName,
-      plaintiffAddress: brief.plaintiff.address,
-      nameNeedsSplit: Boolean(plaintiffName) && !split,
+      documentType: brief.documentType,
+      parties: type.parties.map((party) => {
+        const entry = briefParty(brief, party.role);
+        return {
+          role: party.role,
+          label: party.label,
+          name: entry?.name ?? null,
+          address: entry?.address ?? null,
+        };
+      }),
+      clientRole,
+      clientPartyName: clientName,
+      clientPartyAddress: clientParty?.address ?? null,
+      nameNeedsSplit: Boolean(clientName) && !split,
       suggestedFirstName: split?.firstName ?? null,
       suggestedLastName: split?.lastName ?? null,
       clientMatches: matches.items.map((item) => ({
@@ -320,9 +326,13 @@ export class MatterLinkService {
         displayName: item.displayName,
         clientNumber: item.clientNumber,
       })),
-      defendantName: brief.defendant.name,
-      defendantAddress: brief.defendant.address,
-      suggestedCaseName: suggestCaseName(brief, briefRow.sessionId),
+      opposingPartyName: opposing?.name ?? null,
+      opposingPartyAddress: opposing?.address ?? null,
+      suggestedCaseName: suggestCaseName(
+        brief,
+        clientName,
+        briefRow.sessionId,
+      ),
       suggestedDescription: suggestDescription(brief),
       suggestedCaseNumber: suggestion.caseNumber,
       responsibleUserId: input.userId,
@@ -480,15 +490,16 @@ export class MatterLinkService {
       input.workspaceId,
       briefRow.appliedCaseId,
     );
-    const brief = this.readBrief(briefRow.brief);
+    const brief = normalizeBrief(briefRow.brief);
+    const type = getDocumentType(brief.documentType);
     const applied = new Set(briefRow.appliedTaskKeys);
     const today = new Date();
     const proposals = [
       ...brief.missingFields.map((field, index) =>
-        this.missingProposal(field, index, matter, applied, today),
+        this.missingProposal(type, field, index, matter, applied, today),
       ),
       ...brief.evidence.map((item, index) =>
-        this.evidenceProposal(item, index, matter, applied, today),
+        this.evidenceProposal(type, item, index, matter, applied, today),
       ),
     ].filter((item): item is BriefTaskProposal => item !== null);
     return {
@@ -561,6 +572,7 @@ export class MatterLinkService {
   }
 
   private missingProposal(
+    type: DocumentTypeDefinition,
     field: BriefMissingField,
     index: number,
     matter: { responsibleUserId: string },
@@ -570,18 +582,16 @@ export class MatterLinkService {
     const label = field.label.trim();
     if (!label) return null;
     const key = `missing:${field.key}:${index}`;
-    const urgent = field.key === "serviceDate";
+    const info = describeMissingField(type, field.key);
+    const urgent = info?.urgent ?? false;
     return {
       key,
       source: "missing",
       fieldKey: field.key,
-      title: (field.key === "other"
-        ? `Pribaviti podatak: ${label}`
-        : MISSING_TASK_TITLES[field.key]
-      ).slice(0, 320),
+      title: (info?.taskTitle ?? `Pribaviti podatak: ${label}`).slice(0, 320),
       description: urgent
-        ? "Od datuma dostavljanja zavisi rok za podnošenje tužbe — utvrditi hitno i uneti rok u kalendar."
-        : `Podatak je potreban za nacrt tužbe, a ne nalazi se u dostavljenim dokumentima: ${label}.`,
+        ? `Od datuma dostavljanja zavisi rok za podnošenje ${type.labelGenitive} — utvrditi hitno i uneti rok u kalendar.`
+        : `Podatak je potreban za nacrt ${type.labelGenitive}, a ne nalazi se u dostavljenim dokumentima: ${label}.`,
       assigneeUserId: matter.responsibleUserId,
       priority: urgent ? "HIGH" : "NORMAL",
       dueDate: addWorkingDays(today, urgent ? 1 : DEFAULT_DUE_WORKING_DAYS),
@@ -592,6 +602,7 @@ export class MatterLinkService {
   }
 
   private evidenceProposal(
+    type: DocumentTypeDefinition,
     item: BriefEvidenceItem,
     index: number,
     matter: { responsibleUserId: string },
@@ -605,7 +616,7 @@ export class MatterLinkService {
       key,
       source: "evidence",
       title: `Pribaviti dokaz: ${label}`.slice(0, 320),
-      description: `Dokaz je naveden u nacrtu tužbe, a nije priložen u razgovoru: ${label}.`,
+      description: `Dokaz je naveden u nacrtu ${type.labelGenitive}, a nije priložen u razgovoru: ${label}.`,
       assigneeUserId: matter.responsibleUserId,
       priority: "NORMAL",
       dueDate: addWorkingDays(today, DEFAULT_DUE_WORKING_DAYS),
@@ -625,30 +636,6 @@ export class MatterLinkService {
     if (!brief) throw new NotFoundException("Brief not found");
     return brief;
   }
-
-  private readBrief(value: Prisma.JsonValue): BriefResult {
-    const brief = value as Partial<BriefResult> | null;
-    return {
-      jobType: brief?.jobType ?? null,
-      plaintiff: {
-        name: brief?.plaintiff?.name ?? null,
-        address: brief?.plaintiff?.address ?? null,
-      },
-      defendant: {
-        name: brief?.defendant?.name ?? null,
-        address: brief?.defendant?.address ?? null,
-      },
-      competentCourt: brief?.competentCourt ?? null,
-      claimValue: brief?.claimValue ?? null,
-      legalBasis: brief?.legalBasis ?? [],
-      factualDescription: brief?.factualDescription ?? null,
-      evidence: normalizeEvidence(brief?.evidence),
-      reliefSought: brief?.reliefSought ?? null,
-      missingFields: normalizeMissingFields(brief?.missingFields),
-      confidence: brief?.confidence ?? 0,
-      warnings: brief?.warnings ?? [],
-    };
-  }
 }
 
 export function splitPersonName(
@@ -663,23 +650,30 @@ export function splitPersonName(
   };
 }
 
-function suggestCaseName(brief: BriefResult, fallback: string): string {
-  const relief = brief.reliefSought?.trim();
-  if (relief) return relief.slice(0, 320);
-  const plaintiff = brief.plaintiff.name?.trim();
-  if (plaintiff) return `Predmet — ${plaintiff}`.slice(0, 320);
+function suggestCaseName(
+  brief: BriefResult,
+  clientName: string | null,
+  fallback: string,
+): string {
+  const type = getDocumentType(brief.documentType);
+  const purposeKey = type.fields.find((field) => field.caseName)?.key;
+  const purpose = purposeKey ? briefFieldValue(brief, purposeKey) : null;
+  if (purpose) return purpose.slice(0, 320);
+  if (clientName) return `Predmet — ${clientName}`.slice(0, 320);
   return fallback.slice(0, 320);
 }
 
 export function suggestDescription(brief: BriefResult): string {
+  const type = getDocumentType(brief.documentType);
   const lines = [
     brief.factualDescription?.trim(),
-    brief.competentCourt ? `Sud: ${brief.competentCourt}` : null,
-    brief.claimValue ? `Vrednost spora: ${brief.claimValue}` : null,
+    ...type.fields.map((field) => {
+      const value = briefFieldValue(brief, field.key);
+      return value ? `${field.label}: ${value}` : null;
+    }),
     brief.legalBasis.length
       ? `Pravni osnov: ${brief.legalBasis.join("; ")}`
       : null,
-    brief.reliefSought ? `Tužbeni zahtev: ${brief.reliefSought}` : null,
   ].filter((line): line is string => Boolean(line));
   return lines.join("\n\n");
 }

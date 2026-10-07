@@ -1542,6 +1542,8 @@ model BriefExtractionResult {
   workspaceId     String
   sessionId       String
   messageId       String?
+  // Draft document type id from the @law/brief-extraction registry (validated in code).
+  documentType    String        @default("LAWSUIT")
   brief           Json
   confidence      Float?
   missingFields   Json          @default("[]")
@@ -1572,6 +1574,8 @@ model DraftResult {
   caseId            String?
   messageId         String?
   briefResultId     String?
+  // Draft document type id from the @law/brief-extraction registry (validated in code).
+  documentType      String                 @default("LAWSUIT")
   documentText      String                 @db.Text
   finalDocumentText String?                @db.Text
   warnings          String[]               @default([])
@@ -1598,6 +1602,7 @@ model DraftResult {
 
   @@index([workspaceId, createdAt])
   @@index([workspaceId, caseId])
+  @@index([workspaceId, documentType])
   @@index([sessionId, createdAt])
   @@index([approvalStatus, reviewedAt])
 }

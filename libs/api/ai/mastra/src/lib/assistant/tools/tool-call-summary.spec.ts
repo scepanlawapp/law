@@ -13,7 +13,13 @@ describe("tool call summary", () => {
     expect(
       describeToolCall("revise_draft", { instruction: "Skrati uvod." }),
     ).toBe("Skrati uvod.");
-    expect(describeToolCall("draft_lawsuit", {})).toBeNull();
+    expect(describeToolCall("draft_document", {})).toBeNull();
+    expect(
+      describeToolCall("draft_document", {
+        documentType: "APPEAL",
+        note: "Presuda P 12/2026",
+      }),
+    ).toBe("Žalba · Presuda P 12/2026");
     expect(
       describeToolCall("create_deadline", {
         title: "Odgovor",
@@ -94,7 +100,7 @@ describe("tool call summary", () => {
       toolResultCount("list_conversation_drafts", { drafts: [{}, {}] }),
     ).toBe(2);
     expect(
-      toolResultCount("draft_lawsuit", { status: "DRAFT_READY" }),
+      toolResultCount("draft_document", { status: "DRAFT_READY" }),
     ).toBeNull();
   });
 });

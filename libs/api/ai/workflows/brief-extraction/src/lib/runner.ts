@@ -1,17 +1,23 @@
 import type { ChatModelProvider } from "@law/llm";
 import { z } from "zod";
-import { briefResultSchema, type BriefResult } from "./schema";
-import { BRIEF_SYSTEM_PROMPT } from "./prompts";
+import { briefLlmOutputSchema, type BriefLlmOutput, type BriefResult } from "./schema";
+import { buildBriefSystemPrompt } from "./prompts";
+import { getDocumentType } from "./document-types";
+import { normalizeBriefForType } from "./normalize-brief";
+import type { DraftDocumentType } from "@law/api-interfaces";
 
 export async function runBriefExtractionLlm(
   provider: ChatModelProvider,
   userPrompt: string,
+  documentType: DraftDocumentType,
 ): Promise<BriefResult> {
-  return provider.completeStructured({
-    schema: briefResultSchema as z.ZodType<BriefResult>,
+  const type = getDocumentType(documentType);
+  const output = await provider.completeStructured({
+    schema: briefLlmOutputSchema as z.ZodType<BriefLlmOutput>,
     messages: [
-      { role: "system", content: BRIEF_SYSTEM_PROMPT },
+      { role: "system", content: buildBriefSystemPrompt(type) },
       { role: "user", content: userPrompt },
     ],
   });
+  return normalizeBriefForType({ ...output, documentType }, type);
 }

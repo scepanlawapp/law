@@ -21,16 +21,19 @@ const scope: AssistantTurnScope = {
   userDisplayName: null,
 };
 
+// Model output (legacy string evidence and missing fields are still accepted).
 const lawsuitBrief = {
-  jobType: "lawsuit",
-  plaintiff: { name: "Petar Petrović", address: "Knez Mihailova 1, Beograd" },
-  defendant: { name: "Alfa d.o.o.", address: null },
-  competentCourt: null,
-  claimValue: "150.000 RSD",
+  parties: [
+    { role: "plaintiff", name: "Petar Petrović", address: "Knez Mihailova 1, Beograd", idNumber: null },
+    { role: "defendant", name: "Alfa d.o.o.", address: null, idNumber: null },
+  ],
+  fields: [
+    { key: "claimValue", value: "150.000 RSD" },
+    { key: "reliefSought", value: "Isplata zarade." },
+  ],
   legalBasis: ["Zakon o radu čl. 104"],
   factualDescription: "Poslodavac nije isplatio zaradu.",
   evidence: ["ugovor.txt"],
-  reliefSought: "Isplata zarade.",
   missingFields: ["defendant.address", "competentCourt"],
   confidence: 0.8,
   warnings: [],
@@ -181,7 +184,10 @@ function prismaMock() {
   };
 }
 
-function setup(providerOutputs: unknown[]) {
+function setup(
+  providerOutputs: unknown[],
+  documentReads?: { documentsByRef: jest.Mock },
+) {
   const prisma = prismaMock();
   const events = new ChatEventBus();
   const emitted: ChatStreamEvent[] = [];
@@ -228,6 +234,7 @@ function setup(providerOutputs: unknown[]) {
     matterLink as never,
     provider,
     legalKnowledge as never,
+    documentReads as never,
   );
   return {
     service,
@@ -239,7 +246,7 @@ function setup(providerOutputs: unknown[]) {
   };
 }
 
-describe("AssistantDraftingService.draftLawsuit", () => {
+describe("AssistantDraftingService.draftDocument", () => {
   it("drafts from the conversation and persists brief and draft through child jobs", async () => {
     const {
       service,
@@ -250,13 +257,15 @@ describe("AssistantDraftingService.draftLawsuit", () => {
       legalKnowledge,
     } = setup([lawsuitBrief, draftOutput]);
 
-    const result = await service.draftLawsuit(scope, {
+    const result = await service.draftDocument(scope, {
+      documentType: "LAWSUIT",
       note: "Tužba je za tri meseca.",
     });
 
     expect(result).toMatchObject({
       status: "DRAFT_READY",
       draftId: "draft-1",
+      documentType: "Tužba",
       version: 1,
       missingFields: ["Adresa tuženog", "Nadležni sud"],
       citationCount: 1,
@@ -298,11 +307,14 @@ describe("AssistantDraftingService.draftLawsuit", () => {
         language: "sr",
       },
     });
+    expect(briefJob["input"]).toMatchObject({ documentType: "LAWSUIT" });
     expect(prisma.briefs.get("brief-1")).toMatchObject({
       jobId: briefJob["id"],
+      documentType: "LAWSUIT",
     });
     expect(prisma.drafts.get("draft-1")).toMatchObject({
       jobId: draftJob["id"],
+      documentType: "LAWSUIT",
       caseId: "case-1",
       briefResultId: "brief-1",
       previousDraftId: null,
@@ -334,31 +346,88 @@ describe("AssistantDraftingService.draftLawsuit", () => {
       { content: "(attachment)", attachments: [] },
     ]);
 
-    await expect(service.draftLawsuit(scope, {})).resolves.toMatchObject({
+    await expect(service.draftDocument(scope, { documentType: "LAWSUIT" })).resolves.toMatchObject({
       status: "NO_CONTEXT",
     });
     expect(completeStructured).not.toHaveBeenCalled();
   });
 
-  it("stops at the brief for non-lawsuit requests", async () => {
-    const { service, prisma } = setup([
-      { ...lawsuitBrief, jobType: "contract" },
-    ]);
+  it("rejects an unknown document type without creating jobs", async () => {
+    const { service, prisma, completeStructured } = setup([lawsuitBrief]);
 
-    await expect(service.draftLawsuit(scope, {})).resolves.toMatchObject({
-      status: "UNSUPPORTED",
-      jobType: "contract",
-    });
-    expect([...prisma.jobs.values()].map((job) => job["workflowName"])).toEqual(
-      ["brief-extraction"],
+    await expect(
+      service.draftDocument(scope, { documentType: "POEM" as never }),
+    ).resolves.toMatchObject({ status: "FAILED" });
+    expect(prisma.workflowJob.create).not.toHaveBeenCalled();
+    expect(completeStructured).not.toHaveBeenCalled();
+  });
+
+  it("drafts an appeal from a named filed document", async () => {
+    const documentReads = {
+      documentsByRef: jest.fn().mockResolvedValue([
+        {
+          id: "doc:presuda-1",
+          name: "Presuda P 12/2026",
+          mimeType: "presuda.pdf",
+          status: "COMPLETED",
+          text: "PRESUDA: odbija se tužbeni zahtev tužioca.",
+        },
+      ]),
+    };
+    const { service, prisma, completeStructured } = setup(
+      [
+        {
+          ...lawsuitBrief,
+          parties: [
+            { role: "appellant", name: "Petar Petrović", address: null, idNumber: null },
+            { role: "opponent", name: "Alfa d.o.o.", address: null, idNumber: null },
+          ],
+          fields: [{ key: "contestedDecision", value: "Presuda P 12/2026" }],
+          missingFields: [{ key: "serviceDate", label: "Datum prijema presude" }],
+        },
+        { ...draftOutput, documentText: "ŽALBA" },
+      ],
+      documentReads,
     );
-    expect(prisma.draftResult.create).not.toHaveBeenCalled();
+
+    const result = await service.draftDocument(scope, {
+      documentType: "APPEAL",
+      documentRefs: ["doc:presuda-1"],
+    });
+
+    expect(result).toMatchObject({
+      status: "DRAFT_READY",
+      documentType: "Žalba",
+      missingFields: ["Datum prijema presude"],
+    });
+    expect(documentReads.documentsByRef).toHaveBeenCalledWith(scope, [
+      "doc:presuda-1",
+    ]);
+    const [briefCall, draftCall] = completeStructured.mock.calls;
+    expect(briefCall[0].messages[0].content).toContain("„Žalba”");
+    expect(briefCall[0].messages[1].content).toContain(
+      "Presuda P 12/2026 (presuda.pdf):\nPRESUDA: odbija se tužbeni zahtev tužioca.",
+    );
+    expect(draftCall[0].messages[0].content).toContain("žalbeni razlozi");
+    expect(prisma.drafts.get("draft-1")).toMatchObject({
+      documentType: "APPEAL",
+    });
+    expect(prisma.briefs.get("brief-1")).toMatchObject({
+      documentType: "APPEAL",
+      brief: expect.objectContaining({
+        documentType: "APPEAL",
+        parties: [
+          expect.objectContaining({ role: "appellant", name: "Petar Petrović" }),
+          expect.objectContaining({ role: "opponent", name: "Alfa d.o.o." }),
+        ],
+      }),
+    });
   });
 
   it("fails the open job and returns FAILED when the model output is invalid", async () => {
     const { service, prisma } = setup([lawsuitBrief, { warnings: [] }]);
 
-    await expect(service.draftLawsuit(scope, {})).resolves.toMatchObject({
+    await expect(service.draftDocument(scope, { documentType: "LAWSUIT" })).resolves.toMatchObject({
       status: "FAILED",
     });
     const draftJob = [...prisma.jobs.values()].find(
@@ -378,7 +447,7 @@ describe("AssistantDraftingService revisions and reads", () => {
       draftOutput,
       { ...draftOutput, documentText: "TUŽBA (kraća)", usedCitations: [] },
     ]);
-    await service.draftLawsuit(scope, {});
+    await service.draftDocument(scope, { documentType: "LAWSUIT" });
 
     const result = await service.reviseDraft(scope, {
       instruction: "Скрати образложење.",
@@ -419,7 +488,7 @@ describe("AssistantDraftingService revisions and reads", () => {
 
   it("lists drafts with versions and renders the workspace state", async () => {
     const { service } = setup([lawsuitBrief, draftOutput, draftOutput]);
-    await service.draftLawsuit(scope, {});
+    await service.draftDocument(scope, { documentType: "LAWSUIT" });
     await service.reviseDraft(scope, { instruction: "Dodaj troškove." });
 
     await expect(service.listDrafts(scope)).resolves.toEqual({
@@ -445,7 +514,7 @@ describe("AssistantDraftingService revisions and reads", () => {
 
   it("reads a draft with its text and approval status", async () => {
     const { service } = setup([lawsuitBrief, draftOutput]);
-    await service.draftLawsuit(scope, {});
+    await service.draftDocument(scope, { documentType: "LAWSUIT" });
 
     await expect(service.getDraft(scope, {})).resolves.toMatchObject({
       status: "FOUND",
@@ -485,7 +554,7 @@ describe("AssistantDraftingService queued jobs", () => {
       draftOutput,
       { ...draftOutput, documentText: "TUŽBA (dopunjena)", usedCitations: [] },
     ]);
-    await service.draftLawsuit(scope, {});
+    await service.draftDocument(scope, { documentType: "LAWSUIT" });
     const job = queuedJob("job-review", "drafting", {
       briefResultId: "brief-1",
       previousDraftId: "draft-1",

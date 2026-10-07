@@ -1,19 +1,24 @@
 import { FakeChatModelProvider } from "@law/llm";
-import type { BriefResult } from "@law/brief-extraction";
+import { getDocumentType, type BriefResult } from "@law/brief-extraction";
 import { buildDraftingUserPrompt } from "./context";
+import { buildDraftingSystemPrompt } from "./prompts";
 import { runDraftingLlm } from "./runner";
 import { draftResultSchema } from "./schema";
 
 const fullBrief: BriefResult = {
-  jobType: "lawsuit",
-  plaintiff: { name: "Petar Petrović", address: "Knez Mihailova 1, Beograd" },
-  defendant: { name: "Marko Marković", address: null },
-  competentCourt: "Prvi osnovni sud u Beogradu",
-  claimValue: "150.000 RSD",
+  documentType: "LAWSUIT",
+  parties: [
+    { role: "plaintiff", name: "Petar Petrović", address: "Knez Mihailova 1, Beograd", idNumber: null },
+    { role: "defendant", name: "Marko Marković", address: null, idNumber: null },
+  ],
+  fields: [
+    { key: "competentCourt", value: "Prvi osnovni sud u Beogradu" },
+    { key: "claimValue", value: "150.000 RSD" },
+    { key: "reliefSought", value: "Isplata naknade štete u iznosu od 150.000 RSD." },
+  ],
   legalBasis: ["ZOO čl. 154"],
   factualDescription: "Tuženi nije isplatio naknadu štete.",
   evidence: [{ label: "ugovor.pdf", provided: true }],
-  reliefSought: "Isplata naknade štete u iznosu od 150.000 RSD.",
   missingFields: [{ key: "defendantAddress", label: "Adresa tuženog" }],
   confidence: 0.8,
   warnings: [],
@@ -37,10 +42,28 @@ describe("draftResultSchema", () => {
   });
 });
 
+describe("buildDraftingSystemPrompt", () => {
+  it("builds the structure of each type and keeps the placeholder rules", () => {
+    const lawsuit = buildDraftingSystemPrompt(getDocumentType("LAWSUIT"));
+    expect(lawsuit).toContain("„Tužba”");
+    expect(lawsuit).toContain("tužbeni zahtev");
+    expect(lawsuit).toContain("[UNOS POTREBAN:");
+    expect(lawsuit).toContain("usedCitations");
+    expect(lawsuit).not.toContain("Stojković");
+
+    const appeal = buildDraftingSystemPrompt(getDocumentType("APPEAL"));
+    expect(appeal).toContain("„Žalba”");
+    expect(appeal).toContain("žalbeni razlozi");
+    expect(appeal).toContain("Žalbene razloge zasnivaj");
+    expect(appeal).not.toContain("tužbeni zahtev,");
+  });
+});
+
 describe("buildDraftingUserPrompt", () => {
   it("includes the serialized brief fields", () => {
     const result = buildDraftingUserPrompt(fullBrief, 10_000);
 
+    expect(result.prompt).toContain("za nacrt: tužba.");
     expect(result.prompt).toContain("Petar Petrović");
     expect(result.prompt).toContain("Prvi osnovni sud u Beogradu");
     expect(result.prompt).toContain("defendantAddress");
@@ -85,7 +108,7 @@ describe("runDraftingLlm", () => {
     const provider = new FakeChatModelProvider(fullDraft);
 
     await expect(
-      runDraftingLlm(provider, "Izvučene činjenice:\n{}"),
+      runDraftingLlm(provider, "Izvučene činjenice:\n{}", "LAWSUIT"),
     ).resolves.toEqual(fullDraft);
   });
 
@@ -93,7 +116,7 @@ describe("runDraftingLlm", () => {
     const provider = new FakeChatModelProvider({ warnings: [] });
 
     await expect(
-      runDraftingLlm(provider, "Izvučene činjenice:\n{}"),
+      runDraftingLlm(provider, "Izvučene činjenice:\n{}", "LAWSUIT"),
     ).rejects.toThrow();
   });
 });

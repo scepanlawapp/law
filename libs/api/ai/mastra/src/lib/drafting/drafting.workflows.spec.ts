@@ -12,16 +12,19 @@ const budget = {
   draftingPromptMaxChars: 40_000,
 };
 
+// What the model returns (the document type is chosen before the run).
 const lawsuitBrief = {
-  jobType: "lawsuit",
-  plaintiff: { name: "Petar Petrović", address: "Knez Mihailova 1, Beograd" },
-  defendant: { name: "Alfa d.o.o.", address: null },
-  competentCourt: null,
-  claimValue: "150.000 RSD",
+  parties: [
+    { role: "plaintiff", name: "Petar Petrović", address: "Knez Mihailova 1, Beograd", idNumber: null },
+    { role: "defendant", name: "Alfa d.o.o.", address: null, idNumber: null },
+  ],
+  fields: [
+    { key: "claimValue", value: "150.000 RSD" },
+    { key: "reliefSought", value: "Isplata neisplaćene zarade." },
+  ],
   legalBasis: ["Zakon o radu čl. 104"],
   factualDescription: "Poslodavac nije isplatio zaradu za tri meseca.",
   evidence: [],
-  reliefSought: "Isplata neisplaćene zarade.",
   missingFields: [
     { key: "defendantAddress", label: "Adresa tuženog" },
     { key: "competentCourt", label: "Nadležni sud" },
@@ -58,7 +61,7 @@ describe("drafting workflows", () => {
     const stages: DraftingStage[] = [];
     const onBrief = jest.fn();
     const search = jest.fn().mockResolvedValue([hit("chunk-104")]);
-    const { lawsuitDrafting } = createDraftingWorkflows({
+    const { documentDrafting } = createDraftingWorkflows({
       provider: new FakeChatModelProvider([lawsuitBrief, draft]),
       search,
       onStage: (stage) => {
@@ -67,7 +70,8 @@ describe("drafting workflows", () => {
       onBrief,
     });
 
-    const outcome = await runDraftingWorkflow(lawsuitDrafting, {
+    const outcome = await runDraftingWorkflow(documentDrafting, {
+      documentType: "LAWSUIT",
       userText:
         "Petar Petrović traži tužbu protiv Alfa d.o.o. zbog neisplaćene zarade.",
       documents: [],
@@ -78,7 +82,7 @@ describe("drafting workflows", () => {
     expect(stages).toEqual(["EXTRACTING_FACTS", "PREPARING_DRAFT"]);
     expect(onBrief).toHaveBeenCalledWith(
       expect.objectContaining({
-        brief: expect.objectContaining({ jobType: "lawsuit" }),
+        brief: expect.objectContaining({ documentType: "LAWSUIT" }),
       }),
     );
     expect(search).toHaveBeenCalledWith(
@@ -92,27 +96,60 @@ describe("drafting workflows", () => {
     });
   });
 
-  it("stops after the brief for non-lawsuit requests", async () => {
+  it("drafts an appeal with the appeal prompts", async () => {
     const provider = new FakeChatModelProvider([
-      { ...lawsuitBrief, jobType: "contract" },
+      {
+        ...lawsuitBrief,
+        parties: [
+          { role: "appellant", name: "Alfa d.o.o.", address: null, idNumber: null },
+          { role: "opponent", name: "Petar Petrović", address: null, idNumber: null },
+        ],
+        fields: [{ key: "contestedDecision", value: "Presuda P 12/2026" }],
+      },
+      { ...draft, documentText: "ŽALBA … [1]" },
     ]);
-    const { lawsuitDrafting } = createDraftingWorkflows({
+    const completeStructured = jest.spyOn(provider, "completeStructured");
+    const { documentDrafting } = createDraftingWorkflows({
       provider,
-      search: jest.fn(),
+      search: jest.fn().mockResolvedValue([hit("chunk-104")]),
     });
 
-    const outcome = await runDraftingWorkflow(lawsuitDrafting, {
-      userText: "Treba mi ugovor o zakupu.",
+    const outcome = await runDraftingWorkflow(documentDrafting, {
+      documentType: "APPEAL",
+      userText: "Uložiti žalbu na presudu P 12/2026.",
       documents: [],
       caseContext: null,
       budget,
     });
 
-    expect(outcome).toMatchObject({
-      outcome: "UNSUPPORTED",
-      draft: null,
-      citations: [],
+    expect(outcome.brief.documentType).toBe("APPEAL");
+    expect(outcome.brief.parties.map((party) => party.role)).toEqual([
+      "appellant",
+      "opponent",
+    ]);
+    const [briefCall, draftCall] = completeStructured.mock.calls;
+    expect(briefCall[0].messages[0].content).toContain("„Žalba”");
+    expect(draftCall[0].messages[0].content).toContain("žalbeni razlozi");
+  });
+
+  it("rejects an unknown document type before calling the model", async () => {
+    const provider = new FakeChatModelProvider([lawsuitBrief, draft]);
+    const completeStructured = jest.spyOn(provider, "completeStructured");
+    const { documentDrafting } = createDraftingWorkflows({
+      provider,
+      search: jest.fn(),
     });
+
+    await expect(
+      runDraftingWorkflow(documentDrafting, {
+        documentType: "POEM" as never,
+        userText: "Napiši pesmu.",
+        documents: [],
+        caseContext: null,
+        budget,
+      }),
+    ).rejects.toThrow();
+    expect(completeStructured).not.toHaveBeenCalled();
   });
 
   it("revises a draft with the previous text and the instruction as feedback", async () => {
@@ -126,7 +163,7 @@ describe("drafting workflows", () => {
     });
 
     const outcome = await runDraftingWorkflow(draftRevision, {
-      brief: lawsuitBrief as never,
+      brief: { ...lawsuitBrief, documentType: "LAWSUIT" } as never,
       caseContext: null,
       budget,
       feedback: {
@@ -152,7 +189,7 @@ describe("drafting workflows", () => {
 
     await expect(
       runDraftingWorkflow(draftRevision, {
-        brief: lawsuitBrief as never,
+        brief: { ...lawsuitBrief, documentType: "LAWSUIT" } as never,
         caseContext: null,
         budget,
         feedback: null,
@@ -161,13 +198,14 @@ describe("drafting workflows", () => {
   });
 
   it("surfaces model failures as errors", async () => {
-    const { lawsuitDrafting } = createDraftingWorkflows({
+    const { documentDrafting } = createDraftingWorkflows({
       provider: new FakeChatModelProvider({ jobType: "lawsuit" }),
       search: jest.fn(),
     });
 
     await expect(
-      runDraftingWorkflow(lawsuitDrafting, {
+      runDraftingWorkflow(documentDrafting, {
+        documentType: "LAWSUIT",
         userText: "Tužba",
         documents: [],
         caseContext: null,

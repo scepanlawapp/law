@@ -17,7 +17,7 @@ export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   search_documents: "none",
   get_draft: "none",
   list_conversation_drafts: "none",
-  draft_lawsuit: "reversible",
+  draft_document: "reversible",
   revise_draft: "reversible",
   link_case: "confirm",
   create_deadline: "confirm",

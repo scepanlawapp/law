@@ -23,14 +23,20 @@ const preview: BriefApplyPreview = {
   briefId: "brief-1",
   alreadyApplied: false,
   appliedCaseId: null,
-  plaintiffName: "Petar Petrović",
-  plaintiffAddress: null,
+  documentType: "LAWSUIT",
+  parties: [
+    { role: "plaintiff", label: "Tužilac", name: "Petar Petrović", address: null },
+    { role: "defendant", label: "Tuženi", name: "ACME doo", address: null },
+  ],
+  clientRole: "plaintiff",
+  clientPartyName: "Petar Petrović",
+  clientPartyAddress: null,
   nameNeedsSplit: true,
   suggestedFirstName: "Petar",
   suggestedLastName: "Petrović",
   clientMatches: [],
-  defendantName: "ACME doo",
-  defendantAddress: null,
+  opposingPartyName: "ACME doo",
+  opposingPartyAddress: null,
   suggestedCaseName: "Petar Petrović vs. ACME",
   suggestedDescription: "Opis",
   suggestedCaseNumber: "P-1/2026",
@@ -91,6 +97,7 @@ describe("AssistantMatterLinkComponent", () => {
       "workspace-1",
       "session-1",
       "brief-1",
+      {},
     );
     const toggle = fixture.nativeElement.querySelector(
       '[aria-controls="matter-link-content"]',
@@ -101,6 +108,45 @@ describe("AssistantMatterLinkComponent", () => {
     ) as HTMLElement;
     expect(content).not.toBeNull();
     expect(content.textContent).toContain("assistant.matter.confirmCase");
+  });
+
+  it("shows the parties and reloads the preview for another client party", () => {
+    const fixture = TestBed.createComponent(AssistantMatterLinkComponent);
+    fixture.componentRef.setInput("workspaceId", "workspace-1");
+    fixture.componentRef.setInput("session", session);
+    fixture.componentRef.setInput("briefId", "brief-1");
+    fixture.componentRef.setInput("expanded", true);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const text = fixture.nativeElement.textContent as string;
+    expect(text).toContain("assistant.documentType.LAWSUIT");
+    expect(text).toContain("assistant.matter.clientParty");
+    expect(
+      fixture.nativeElement.querySelectorAll("hlm-radio").length,
+    ).toBe(2);
+
+    chat.previewBrief.mockReturnValue(
+      of({
+        ...preview,
+        clientRole: "defendant",
+        clientPartyName: "ACME doo",
+        opposingPartyName: "Petar Petrović",
+      }),
+    );
+    fixture.componentInstance.clientRole.setValue("defendant");
+    fixture.detectChanges();
+
+    expect(chat.previewBrief).toHaveBeenLastCalledWith(
+      "workspace-1",
+      "session-1",
+      "brief-1",
+      { clientRole: "defendant" },
+    );
+    expect(fixture.componentInstance.form.getRawValue().opposingPartyName).toBe(
+      "Petar Petrović",
+    );
+    expect(chat.previewBrief).toHaveBeenCalledTimes(2);
   });
 
   it("collapses to a rail header and emits the expanded change", () => {

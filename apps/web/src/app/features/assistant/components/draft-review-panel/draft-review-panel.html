@@ -21,6 +21,10 @@
       <div>
         <strong id="draft-review-title">
           {{ "assistant.draftReview" | translate }}
+          @if (draft.documentType) {
+          ·
+          {{ "assistant.documentType." + draft.documentType | translate }}
+          }
         </strong>
         <span
           class="draft-status"
