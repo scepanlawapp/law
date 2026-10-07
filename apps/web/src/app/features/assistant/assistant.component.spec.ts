@@ -6,6 +6,7 @@ import { ChatApiClient, CasesApiClient } from "@law/api-clients";
 import {
   BriefApplyPreview,
   ChatMessageResponse,
+  DocumentAnalysisResponse,
   DraftResultResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
@@ -33,6 +34,28 @@ const createDraft = (id: string): DraftResultResponse => ({
   model: "test-model",
   approvalStatus: "READY_FOR_SIGNOFF",
   createdAt: "2026-09-15T12:00:00.000Z",
+});
+
+const createAnalysis = (id: string): DocumentAnalysisResponse => ({
+  id,
+  sessionId: "session-1",
+  caseId: null,
+  kind: "CONTRACT_REVIEW",
+  documentRef: "att:nda",
+  documentTitle: "NDA Alfa",
+  contractType: "NDA",
+  clientSide: null,
+  result: {
+    summary: "Kratko.",
+    keyTerms: [],
+    issues: [],
+    missingClauses: [],
+    warnings: [],
+  },
+  citations: [],
+  truncated: false,
+  model: "test-model",
+  createdAt: "2026-10-07T09:00:00.000Z",
 });
 
 const createBriefPreview = (briefId = "brief-1"): BriefApplyPreview => ({
@@ -86,6 +109,7 @@ describe("AssistantComponent review state", () => {
     previewBriefTasks: jest.fn(() => NEVER),
     applyBriefTasks: jest.fn(() => NEVER),
     downloadUrl: jest.fn(() => "http://localhost/api/chat/attachments"),
+    analysisExportUrl: jest.fn(),
     createSession: jest.fn(),
     sendMessage: jest.fn(),
   };
@@ -665,6 +689,97 @@ describe("AssistantComponent review state", () => {
         ".assistant-rail-pane.is-active law-draft-review-panel",
       ),
     ).toBeNull();
+  });
+
+  it("adds an Analiza tab and opens it when a review arrives", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    component["sessions"].set([session]);
+    component["selectedSessionId"].set(session.id);
+    component["draft"].set(createDraft("draft-1"));
+    component["rightRailExpanded"].set(false);
+    fixture.detectChanges();
+
+    component["handleEvent"]({
+      type: "analysis.updated",
+      sessionId: session.id,
+      createdAt: "2026-10-07T09:00:00.000Z",
+      analysis: createAnalysis("analysis-1"),
+    });
+    fixture.detectChanges();
+
+    expect(component["rightRailExpanded"]()).toBe(true);
+    expect(component["activeRailTab"]()).toBe("analysis");
+    const tabs = fixture.nativeElement.querySelector(
+      ".assistant-rail-tabs",
+    ) as HTMLElement;
+    expect(tabs.textContent).toContain("assistant.rail.draftTab");
+    expect(tabs.textContent).toContain("assistant.rail.analysisTab");
+    expect(
+      fixture.nativeElement.querySelector(
+        ".assistant-rail-pane.is-active law-contract-review-panel",
+      ),
+    ).not.toBeNull();
+
+    // A repeated event for the same review never re-expands a collapsed rail.
+    component["rightRailExpanded"].set(false);
+    component["handleEvent"]({
+      type: "analysis.updated",
+      sessionId: session.id,
+      createdAt: "2026-10-07T09:00:01.000Z",
+      analysis: createAnalysis("analysis-1"),
+    });
+    expect(component["rightRailExpanded"]()).toBe(false);
+  });
+
+  it("shows only the review pane when a session has nothing else", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    component["sessions"].set([session]);
+    chat.getSession.mockReturnValue(
+      of({
+        ...session,
+        messages: [],
+        jobs: [],
+        drafts: [],
+        analyses: [createAnalysis("analysis-1"), createAnalysis("analysis-2")],
+        latestBriefId: null,
+      }),
+    );
+
+    component["selectSession"]("session-1");
+    fixture.detectChanges();
+
+    expect(component["analysis"]()?.id).toBe("analysis-2");
+    expect(component["rightRailExpanded"]()).toBe(true);
+    expect(fixture.nativeElement.querySelector(".assistant-rail-tabs")).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(
+        ".assistant-rail-pane.is-active law-contract-review-panel",
+      ),
+    ).not.toBeNull();
+  });
+
+  it("opens the review export in the chosen script", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    const open = jest.spyOn(window, "open").mockReturnValue(null);
+    chat.analysisExportUrl.mockReturnValue("https://api.test/export");
+    component["analysis"].set(createAnalysis("analysis-1"));
+
+    component["exportAnalysisDocx"]("cyrillic");
+
+    expect(chat.analysisExportUrl).toHaveBeenCalledWith(
+      "workspace-1",
+      "analysis-1",
+      "cyrillic",
+    );
+    expect(open).toHaveBeenCalledWith(
+      "https://api.test/export",
+      "_blank",
+      "noopener,noreferrer",
+    );
+    open.mockRestore();
   });
 
   it("opens the rail for existing content on select and keeps a user collapse across resync", () => {

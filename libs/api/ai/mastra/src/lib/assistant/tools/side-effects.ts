@@ -19,6 +19,7 @@ export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   list_conversation_drafts: "none",
   draft_document: "reversible",
   revise_draft: "reversible",
+  review_contract: "reversible",
   link_case: "confirm",
   create_deadline: "confirm",
   create_tasks_from_brief: "confirm",

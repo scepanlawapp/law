@@ -24,6 +24,7 @@ import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
+import { createReviewContractTool } from "./tools/review-contract.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
@@ -88,6 +89,18 @@ function deps(
       excerpt: "TUŽBA",
     }),
     reviseDraft: jest.fn(),
+    reviewContract: jest.fn().mockResolvedValue({
+      status: "REVIEW_READY",
+      analysisId: "analysis-1",
+      documentTitle: "NDA",
+      contractType: "Ugovor o poverljivosti",
+      summary: "Kratko.",
+      issueCounts: { high: 1, medium: 0, low: 0 },
+      topIssues: [],
+      missingClauses: [],
+      citationCount: 0,
+      truncated: false,
+    }),
     getDraft: jest.fn(),
     listDrafts: jest.fn().mockResolvedValue({ drafts: [] }),
     searchCases: jest.fn().mockResolvedValue(emptyList),
@@ -269,6 +282,20 @@ describe("assistant tools", () => {
       documentType: "APPEAL",
       note: "Žalilac je Petar.",
       documentRefs: ["doc:presuda-1"],
+    });
+    await createReviewContractTool(toolDeps).execute?.(
+      {
+        documentRef: "att:nda-1",
+        contractType: "NDA",
+        clientSide: "Beta d.o.o.",
+      },
+      context,
+    );
+    expect(toolDeps.reviewContract).toHaveBeenCalledWith(turn, {
+      documentRef: "att:nda-1",
+      contractType: "NDA",
+      clientSide: "Beta d.o.o.",
+      focus: undefined,
     });
     expect(toolDeps.reviseDraft).toHaveBeenCalledWith(turn, {
       instruction: "Skrati obrazloženje.",

@@ -164,7 +164,7 @@
         </strong>
       </div>
 
-      @if (draft() || matterAvailable()) {
+      @if (rightRailVisible()) {
         <button
           hlmBtn
           variant="outline"
@@ -176,14 +176,20 @@
         >
           <ng-icon
             [name]="
-              railTab() === 'matter' ? 'lucideBriefcase' : 'lucideFileText'
+              activeRailTab() === 'matter'
+                ? 'lucideBriefcase'
+                : activeRailTab() === 'analysis'
+                  ? 'lucideFileSearch'
+                  : 'lucideFileText'
             "
             aria-hidden="true"
           />
           {{
-            (railTab() === "matter"
+            (activeRailTab() === "matter"
               ? "assistant.rail.matterTab"
-              : "assistant.draftReview"
+              : activeRailTab() === "analysis"
+                ? "assistant.rail.analysisTab"
+                : "assistant.draftReview"
             ) | translate
           }}
         </button>
@@ -192,7 +198,7 @@
 
     <div
       class="assistant-workspace"
-      [class.has-draft]="draft() || matterAvailable()"
+      [class.has-draft]="rightRailVisible()"
       [class.review-expanded]="rightRailExpanded()"
     >
       <section
@@ -607,37 +613,30 @@
           class="review-pane assistant-rail"
           [class.is-expanded]="rightRailExpanded()"
         >
-          @if (rightRailExpanded() && draft() && matterAvailable()) {
+          @if (rightRailExpanded() && railTabs().length > 1) {
             <div
               class="assistant-rail-tabs"
               role="tablist"
               [attr.aria-label]="'assistant.rail.tabsLabel' | translate"
             >
-              <button
-                type="button"
-                role="tab"
-                [class.selected]="railTab() === 'draft'"
-                [attr.aria-selected]="railTab() === 'draft'"
-                (click)="railTab.set('draft')"
-              >
-                {{ "assistant.rail.draftTab" | translate }}
-              </button>
-              <button
-                type="button"
-                role="tab"
-                [class.selected]="railTab() === 'matter'"
-                [attr.aria-selected]="railTab() === 'matter'"
-                (click)="railTab.set('matter')"
-              >
-                {{ "assistant.rail.matterTab" | translate }}
-              </button>
+              @for (tab of railTabs(); track tab) {
+                <button
+                  type="button"
+                  role="tab"
+                  [class.selected]="activeRailTab() === tab"
+                  [attr.aria-selected]="activeRailTab() === tab"
+                  (click)="railTab.set(tab)"
+                >
+                  {{ "assistant.rail." + tab + "Tab" | translate }}
+                </button>
+              }
             </div>
           }
 
           @if (draft(); as draftItem) {
             <div
               class="assistant-rail-pane"
-              [class.is-active]="railTab() === 'draft' || !matterAvailable()"
+              [class.is-active]="activeRailTab() === 'draft'"
             >
               <law-draft-review-panel
                 [draft]="draftItem"
@@ -663,7 +662,7 @@
               @if (latestBriefId(); as briefId) {
                 <div
                   class="assistant-rail-pane"
-                  [class.is-active]="railTab() === 'matter' || !draft()"
+                  [class.is-active]="activeRailTab() === 'matter'"
                 >
                   <app-assistant-matter-link
                     [workspaceId]="workspace"
@@ -676,6 +675,20 @@
                 </div>
               }
             }
+          }
+
+          @if (analysis(); as analysisItem) {
+            <div
+              class="assistant-rail-pane"
+              [class.is-active]="activeRailTab() === 'analysis'"
+            >
+              <law-contract-review-panel
+                [analysis]="analysisItem"
+                [expanded]="rightRailExpanded()"
+                (expandedChange)="rightRailExpanded.set($event)"
+                (exportDocx)="exportAnalysisDocx($event)"
+              />
+            </div>
           }
         </section>
       }

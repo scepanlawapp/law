@@ -47,6 +47,9 @@
       "@law/brief-extraction": [
         "./libs/api/ai/workflows/brief-extraction/src/index.ts"
       ],
+      "@law/contract-review": [
+        "./libs/api/ai/workflows/contract-review/src/index.ts"
+      ],
       "@law/drafting": ["./libs/api/ai/workflows/drafting/src/index.ts"],
       "@law/legal-grounding": [
         "./libs/api/ai/workflows/grounding/src/index.ts"

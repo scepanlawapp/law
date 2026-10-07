@@ -13,6 +13,7 @@ import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { ConversationSummaryService } from "./conversation-summary.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
+import { AssistantContractReviewService } from "./assistant-contract-review.service";
 import { AssistantOfficeReadsService } from "./assistant-office-reads.service";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { ChatDocumentPromotionService } from "./chat-document-promotion.service";
@@ -69,6 +70,7 @@ import {
     AssistantContextBuilder,
     AssistantToolsAdapter,
     AssistantDraftingService,
+    AssistantContractReviewService,
     AssistantActionsService,
     AssistantOfficeReadsService,
     AssistantDocumentReadsService,

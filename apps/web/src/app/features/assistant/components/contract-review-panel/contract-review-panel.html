@@ -1,0 +1,196 @@
+<section
+  class="review-panel"
+  [class.is-collapsed]="!expanded()"
+  aria-labelledby="contract-review-title"
+>
+  <header class="review-panel-header">
+    <div class="review-heading">
+      <span
+        class="review-heading-icon"
+        [class.has-risk]="highRiskCount() > 0"
+        aria-hidden="true"
+      >
+        <ng-icon
+          [name]="highRiskCount() ? 'lucideTriangleAlert' : 'lucideFileSearch'"
+        />
+      </span>
+      <div>
+        <strong id="contract-review-title">
+          {{ "assistant.review.title" | translate }}
+        </strong>
+        @if (expanded()) {
+        <span class="review-subtitle">
+          {{ analysis().documentTitle }} ·
+          {{ "assistant.review.type." + analysis().contractType | translate }}
+        </span>
+        }
+      </div>
+    </div>
+    <button
+      hlmBtn
+      variant="ghost"
+      size="icon"
+      type="button"
+      [hlmTooltip]="
+        (expanded() ? 'assistant.review.collapse' : 'assistant.review.expand')
+          | translate
+      "
+      [attr.aria-label]="
+        (expanded() ? 'assistant.review.collapse' : 'assistant.review.expand')
+          | translate
+      "
+      [attr.aria-expanded]="expanded()"
+      aria-controls="contract-review-content"
+      (click)="expandedChange.emit(!expanded())"
+    >
+      <ng-icon [name]="expanded() ? 'lucideChevronRight' : 'lucideChevronLeft'" />
+    </button>
+  </header>
+
+  @if (expanded()) {
+  <div id="contract-review-content" class="review-panel-content">
+    <p class="review-disclaimer">
+      {{ "assistant.review.disclaimer" | translate }}
+    </p>
+
+    <section class="review-section" aria-labelledby="review-summary-title">
+      <h3 id="review-summary-title">
+        {{ "assistant.review.summary" | translate }}
+      </h3>
+      <p>{{ analysis().result.summary }}</p>
+      <p class="review-client">
+        {{ "assistant.review.clientSide" | translate }}:
+        {{ analysis().clientSide ?? ("assistant.review.clientUnknown" | translate) }}
+      </p>
+    </section>
+
+    @if (analysis().result.keyTerms.length) {
+    <section class="review-section" aria-labelledby="review-terms-title">
+      <h3 id="review-terms-title">
+        {{ "assistant.review.keyTerms" | translate }}
+      </h3>
+      <dl class="review-terms">
+        @for (term of analysis().result.keyTerms; track $index) {
+        <div>
+          <dt>
+            {{ term.label }}@if (term.clause) {
+            <span class="review-clause">{{ term.clause }}</span>
+            }
+          </dt>
+          <dd>{{ term.value }}</dd>
+        </div>
+        }
+      </dl>
+    </section>
+    }
+
+    <section class="review-section" aria-labelledby="review-issues-title">
+      <h3 id="review-issues-title">
+        {{ "assistant.review.issues" | translate }}
+        ({{ analysis().result.issues.length }})
+      </h3>
+      @for (group of issueGroups(); track group.risk) {
+      <ul
+        class="review-issues"
+        [attr.aria-label]="'assistant.review.risk.' + group.risk | translate"
+      >
+        @for (issue of group.issues; track $index) {
+        <li class="review-issue" [attr.data-risk]="issue.risk">
+          <div class="review-issue-head">
+            <span [class]="badgeBase + ' ' + riskBadgeClass(issue.risk)">
+              {{ "assistant.review.risk." + issue.risk | translate }}
+            </span>
+            <span class="review-category">
+              {{ "assistant.review.category." + issue.category | translate }}
+            </span>
+            @if (issue.clause) {
+            <span class="review-clause">{{ issue.clause }}</span>
+            }
+          </div>
+          <strong class="review-issue-title">
+            {{ issue.title }}@if (issue.citations.length) {
+            <span class="review-markers">{{ markers(issue) }}</span>
+            }
+          </strong>
+          @if (issue.quote) {
+          <blockquote class="review-quote">„{{ issue.quote }}”</blockquote>
+          }
+          <p>{{ issue.explanation }}</p>
+          @if (issue.suggestion) {
+          <p class="review-suggestion">
+            <span>{{ "assistant.review.suggestion" | translate }}:</span>
+            {{ issue.suggestion }}
+          </p>
+          }
+        </li>
+        }
+      </ul>
+      } @empty {
+      <p class="review-empty">{{ "assistant.review.noIssues" | translate }}</p>
+      }
+    </section>
+
+    @if (analysis().result.missingClauses.length) {
+    <section class="review-section" aria-labelledby="review-missing-title">
+      <h3 id="review-missing-title">
+        {{ "assistant.review.missingClauses" | translate }}
+        ({{ analysis().result.missingClauses.length }})
+      </h3>
+      <ul class="review-missing">
+        @for (clause of analysis().result.missingClauses; track $index) {
+        <li>
+          <strong>{{ clause.title }}</strong>
+          <p>{{ clause.explanation }}</p>
+          @if (clause.suggestion) {
+          <p class="review-suggestion">
+            <span>{{ "assistant.review.suggestion" | translate }}:</span>
+            {{ clause.suggestion }}
+          </p>
+          }
+        </li>
+        }
+      </ul>
+    </section>
+    }
+
+    @if (notes().length) {
+    <law-collapsible-section
+      class="review-collapsible"
+      [title]="('assistant.review.notes' | translate) + ' (' + notes().length + ')'"
+      [expanded]="notesExpanded()"
+      (expandedChange)="notesExpanded.set($event)"
+    >
+      <ul class="review-notes">
+        @for (note of notes(); track $index) {
+        <li>{{ note | translate }}</li>
+        }
+      </ul>
+    </law-collapsible-section>
+    }
+
+    @if (analysis().citations.length) {
+    <law-collapsible-section
+      class="review-collapsible"
+      [title]="'assistant.sources' | translate"
+      [expanded]="sourcesExpanded()"
+      (expandedChange)="sourcesExpanded.set($event)"
+    >
+      <law-citation-list
+        [citations]="analysis().citations"
+        [idPrefix]="'review-' + analysis().id"
+      />
+    </law-collapsible-section>
+    }
+  </div>
+
+  <footer class="review-panel-footer">
+    <button hlmBtn variant="outline" type="button" (click)="exportDocx.emit('latin')">
+      <ng-icon name="lucideDownload" aria-hidden="true" />
+      {{ "assistant.review.exportLatin" | translate }}
+    </button>
+    <button hlmBtn variant="ghost" type="button" (click)="exportDocx.emit('cyrillic')">
+      {{ "assistant.review.exportCyrillic" | translate }}
+    </button>
+  </footer>
+  }
+</section>

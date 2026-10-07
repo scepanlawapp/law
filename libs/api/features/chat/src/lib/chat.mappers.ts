@@ -4,12 +4,15 @@ import {
   ChatAttachmentSummary,
   ChatMessageResponse,
   ChatSessionSummary,
+  ContractReviewResult,
+  DocumentAnalysisResponse,
   DraftResultResponse,
   LegalCitationResponse,
   WorkflowProgressStage,
   WorkflowJobResponse,
   isDraftDocumentType,
 } from "@law/api-interfaces";
+import { isContractReviewType } from "@law/contract-review";
 import {
   DEFAULT_DOCUMENT_TYPE,
   getDocumentType,
@@ -384,5 +387,47 @@ export function toPendingAction(action: {
     expiresAt: action.expiresAt.toISOString(),
     decidedAt: action.decidedAt?.toISOString() ?? null,
     createdAt: action.createdAt.toISOString(),
+  };
+}
+
+export function toAnalysis(row: {
+  id: string;
+  sessionId: string;
+  caseId: string | null;
+  documentRef: string;
+  documentTitle: string;
+  contractType: string;
+  clientSide: string | null;
+  result: unknown;
+  citations: unknown;
+  truncated: boolean;
+  model: string;
+  createdAt: Date;
+}): DocumentAnalysisResponse {
+  const result = (row.result ?? {}) as Partial<ContractReviewResult>;
+  return {
+    id: row.id,
+    sessionId: row.sessionId,
+    caseId: row.caseId,
+    kind: "CONTRACT_REVIEW",
+    documentRef: row.documentRef,
+    documentTitle: row.documentTitle,
+    contractType: isContractReviewType(row.contractType)
+      ? row.contractType
+      : "OTHER_CONTRACT",
+    clientSide: row.clientSide,
+    result: {
+      summary: result.summary ?? "",
+      keyTerms: result.keyTerms ?? [],
+      issues: result.issues ?? [],
+      missingClauses: result.missingClauses ?? [],
+      warnings: result.warnings ?? [],
+    },
+    citations: Array.isArray(row.citations)
+      ? (row.citations as LegalCitationResponse[])
+      : [],
+    truncated: row.truncated,
+    model: row.model,
+    createdAt: row.createdAt.toISOString(),
   };
 }

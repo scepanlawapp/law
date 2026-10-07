@@ -26,6 +26,7 @@ import {
   lucideCircleAlert,
   lucideCopy,
   lucideFileText,
+  lucideFileSearch,
   lucideLoaderCircle,
   lucideMenu,
   lucideMessageCircle,
@@ -63,6 +64,7 @@ import {
   ChatSessionSummary,
   ChatStreamEvent,
   PendingActionSummary,
+  DocumentAnalysisResponse,
   DocumentScript,
   DraftResultResponse,
   LegalCitationResponse,
@@ -73,6 +75,7 @@ import { finalize } from "rxjs";
 import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
+import { ContractReviewPanelComponent } from "./components/contract-review-panel/contract-review-panel";
 import { CitationListComponent } from "./components/citation-list/citation-list";
 import { CitationPreviewController } from "./components/citation-preview/citation-preview.controller";
 import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
@@ -98,6 +101,8 @@ import {
   WorkflowActivityState,
 } from "./assistant-workflow-state";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+
+type RailTab = "draft" | "matter" | "analysis";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
 const STICK_TO_BOTTOM_THRESHOLD_PX = 80;
@@ -166,6 +171,7 @@ interface SessionGroup {
     AssistantMarkdownPipe,
     AssistantMatterLinkComponent,
     DraftReviewPanelComponent,
+    ContractReviewPanelComponent,
     CitationListComponent,
     PendingActionCardComponent,
     StarterPromptsComponent,
@@ -195,6 +201,7 @@ interface SessionGroup {
       lucideCircleAlert,
       lucideCopy,
       lucideFileText,
+      lucideFileSearch,
       lucideLoaderCircle,
       lucideMenu,
       lucideMessageCircle,
@@ -319,7 +326,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly draftScript = signal<DocumentScript>("latin");
   protected readonly draftReviewNote = signal("");
   protected readonly rightRailExpanded = signal(false);
-  protected readonly railTab = signal<"draft" | "matter">("draft");
+  protected readonly railTab = signal<RailTab>("draft");
+  /** Latest contract review of the open session. */
+  protected readonly analysis = signal<DocumentAnalysisResponse | null>(null);
   protected readonly conversationSheetOpen = signal(false);
   protected readonly matterAvailable = computed(() =>
     Boolean(
@@ -328,11 +337,25 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         this.selectedSession(),
     ),
   );
-  protected readonly rightRailVisible = computed(() =>
-    Boolean(this.draft() || this.matterAvailable()),
+  /** Rail tabs that have content, in display order. */
+  protected readonly railTabs = computed(() => {
+    const tabs: RailTab[] = [];
+    if (this.draft()) tabs.push("draft");
+    if (this.matterAvailable()) tabs.push("matter");
+    if (this.analysis()) tabs.push("analysis");
+    return tabs;
+  });
+  /** The selected tab, or the first available one when it has no content. */
+  protected readonly activeRailTab = computed<RailTab>(() => {
+    const tabs = this.railTabs();
+    return tabs.includes(this.railTab()) ? this.railTab() : (tabs[0] ?? "draft");
+  });
+  protected readonly rightRailVisible = computed(
+    () => this.railTabs().length > 0,
   );
   private loadedDraftId: string | null = null;
   private loadedBriefId: string | null = null;
+  private loadedAnalysisId: string | null = null;
 
   constructor() {
     effect(() => {
@@ -402,6 +425,34 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       this.rightRailExpanded.set(true);
       this.railTab.set("draft");
     }
+  }
+
+  protected openAnalysis(): void {
+    if (this.analysis()) {
+      this.rightRailExpanded.set(true);
+      this.railTab.set("analysis");
+    }
+  }
+
+  protected exportAnalysisDocx(script: DocumentScript): void {
+    const workspaceId = this.workspaceId();
+    const analysis = this.analysis();
+    if (!workspaceId || !analysis) return;
+    window.open(
+      this.chat.analysisExportUrl(workspaceId, analysis.id, script),
+      "_blank",
+      "noopener,noreferrer",
+    );
+  }
+
+  /** Shows a new review; only a genuinely new id expands the rail. */
+  private applyAnalysis(analysis: DocumentAnalysisResponse): void {
+    if (analysis.id !== this.loadedAnalysisId) {
+      this.loadedAnalysisId = analysis.id;
+      this.rightRailExpanded.set(true);
+      this.railTab.set("analysis");
+    }
+    this.analysis.set(analysis);
   }
 
   protected openMatterLink(): void {
@@ -594,7 +645,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       this.rightRailExpanded.set(true);
       this.railTab.set("draft");
     }
-    if (!id && !this.latestBriefId()) this.rightRailExpanded.set(false);
+    if (!id && !this.latestBriefId() && !this.analysis()) {
+      this.rightRailExpanded.set(false);
+    }
     this.loadedDraftId = id;
     this.draft.set(draft);
     this.draftText.set(draft?.finalDocumentText ?? draft?.documentText ?? "");
@@ -615,8 +668,15 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const latestDraft = detail.drafts[detail.drafts.length - 1] ?? null;
     const draftId = latestDraft?.id ?? null;
     const briefId = this.briefIdFromDetail(detail);
+    const analyses = detail.analyses ?? [];
+    const latestAnalysis = analyses[analyses.length - 1] ?? null;
+    const analysisId = latestAnalysis?.id ?? null;
     const draftChanged = draftId !== null && draftId !== this.loadedDraftId;
     const briefChanged = briefId !== null && briefId !== this.loadedBriefId;
+    const analysisChanged =
+      analysisId !== null && analysisId !== this.loadedAnalysisId;
+    this.analysis.set(latestAnalysis);
+    this.loadedAnalysisId = analysisId;
 
     this.latestBriefId.set(briefId);
     this.loadedBriefId = briefId;
@@ -631,7 +691,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (forceOpen) {
       if (latestDraft) this.railTab.set("draft");
       else if (briefId) this.railTab.set("matter");
-      this.rightRailExpanded.set(Boolean(latestDraft || briefId));
+      else if (latestAnalysis) this.railTab.set("analysis");
+      this.rightRailExpanded.set(
+        Boolean(latestDraft || briefId || latestAnalysis),
+      );
       return;
     }
     if (briefChanged) {
@@ -640,6 +703,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     } else if (draftChanged) {
       this.rightRailExpanded.set(true);
       this.railTab.set("draft");
+    } else if (analysisChanged) {
+      this.rightRailExpanded.set(true);
+      this.railTab.set("analysis");
     }
   }
 
@@ -938,8 +1004,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
                 this.selectedSessionId.set(null);
                 this.messages.set([]);
                 this.draft.set(null);
+                this.analysis.set(null);
                 this.loadedDraftId = null;
                 this.loadedBriefId = null;
+                this.loadedAnalysisId = null;
                 this.latestBriefId.set(null);
                 this.rightRailExpanded.set(false);
                 this.railTab.set("draft");
@@ -1269,6 +1337,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       event.type === "job.queued" ||
       event.type === "job.updated" ||
       event.type === "draft.updated" ||
+      event.type === "analysis.updated" ||
       event.type === "session.title.updated" ||
       event.type === "session.deleted"
     ) {
@@ -1283,6 +1352,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (event.type === "draft.updated") {
       this.toast.success(
         this.localization.translate("assistant.backgroundDraftReady"),
+      );
+    } else if (event.type === "analysis.updated") {
+      this.toast.success(
+        this.localization.translate("assistant.backgroundReviewReady"),
       );
     } else if (
       event.type === "message.updated" &&
@@ -1381,6 +1454,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     }
     if (event.type === "draft.updated" && event.draft) {
       this.applyDraft(event.draft);
+    }
+    if (event.type === "analysis.updated" && event.analysis) {
+      this.applyAnalysis(event.analysis);
     }
     if (
       event.type === "job.updated" &&

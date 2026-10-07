@@ -1,4 +1,7 @@
-import type { DraftDocumentType } from "@law/api-interfaces";
+import type {
+  ContractReviewType,
+  DraftDocumentType,
+} from "@law/api-interfaces";
 import type { GroundingSearchHit } from "@law/legal-grounding";
 
 /** Read-only case facts a tool may show the model. */
@@ -161,6 +164,28 @@ export type DraftToolResult =
       excerpt: string;
     }
   | { status: "NO_CONTEXT" | "NOT_FOUND" | "FAILED"; message: string };
+
+export type ContractReviewToolResult =
+  | {
+      status: "REVIEW_READY";
+      analysisId: string;
+      documentTitle: string;
+      /** Serbian name of the checklist used ("Ugovor o radu"). */
+      contractType: string;
+      summary: string;
+      issueCounts: { high: number; medium: number; low: number };
+      /** Highest-risk issues first, capped. */
+      topIssues: Array<{
+        title: string;
+        risk: string;
+        category: string;
+        clause: string | null;
+      }>;
+      missingClauses: string[];
+      citationCount: number;
+      truncated: boolean;
+    }
+  | { status: "NOT_FOUND" | "NO_TEXT" | "FAILED"; message: string };
 
 export interface DraftListItem {
   draftId: string;
@@ -343,6 +368,16 @@ export interface LegalAssistantToolDeps {
       documentRefs?: string[];
     },
   ): Promise<DraftToolResult>;
+  /** Reviews a contract document and stores the analysis (read-only otherwise). */
+  reviewContract(
+    scope: AssistantTurnScope,
+    args: {
+      documentRef: string;
+      contractType: ContractReviewType;
+      clientSide?: string;
+      focus?: string;
+    },
+  ): Promise<ContractReviewToolResult>;
   /** Creates a new version of a conversation draft (reversible). */
   reviseDraft(
     scope: AssistantTurnScope,

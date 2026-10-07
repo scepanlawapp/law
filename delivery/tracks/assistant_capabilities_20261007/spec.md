@@ -40,6 +40,6 @@ Each phase is a child track with its own spec and plan, created when the phase s
 |---|---|---|
 | 1 | `assistant_drafting_document_types_20261007` | implemented; manual check pending |
 | 2 | `assistant_drafting_contracts_letters_20261007` | implemented; manual check pending (type list confirmed 2026-10-07; no house templates) |
-| 3 | contract review | pending |
+| 3 | `assistant_contract_review_20261007` | implemented; manual check pending (checklists built in, review panel and DOCX memo, read-only) |
 | 4 | case summary and timeline | pending |
 | 5 | deadline from document | pending |

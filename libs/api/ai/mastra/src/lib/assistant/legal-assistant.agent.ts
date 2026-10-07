@@ -15,6 +15,7 @@ import { createListDocumentsTool } from "./tools/list-documents.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
 import { createListWorkItemsTool } from "./tools/list-work-items.tool";
 import { createReadDocumentTool } from "./tools/read-document.tool";
+import { createReviewContractTool } from "./tools/review-contract.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
 import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
@@ -62,6 +63,7 @@ export function createLegalAssistantAgent(options: {
       search_documents: createSearchDocumentsTool(options.deps),
       draft_document: createDraftDocumentTool(options.deps),
       revise_draft: createReviseDraftTool(options.deps),
+      review_contract: createReviewContractTool(options.deps),
       get_draft: createGetDraftTool(options.deps),
       list_conversation_drafts: createListDraftsTool(options.deps),
       link_case: createLinkCaseTool(options.deps),

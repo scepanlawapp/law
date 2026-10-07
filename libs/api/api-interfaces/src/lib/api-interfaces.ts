@@ -287,6 +287,7 @@ export type ChatEventType =
   | "job.queued"
   | "job.updated"
   | "draft.updated"
+  | "analysis.updated"
   | "tool.started"
   | "tool.finished"
   | "confirmation.required"
@@ -391,6 +392,8 @@ export interface ChatSessionDetail extends ChatSessionSummary {
   toolCalls?: AgentToolCallSummary[];
   /** Assistant proposals awaiting or after a decision, oldest first. */
   pendingActions?: PendingActionSummary[];
+  /** Read-only document analyses (contract reviews), oldest first. */
+  analyses?: DocumentAnalysisResponse[];
   latestBriefId: string | null;
 }
 
@@ -498,6 +501,7 @@ export interface ChatStreamEvent {
   attachment?: ChatAttachmentSummary;
   job?: WorkflowJobResponse;
   draft?: DraftResultResponse;
+  analysis?: DocumentAnalysisResponse;
   toolCall?: AgentToolCallSummary;
   pendingAction?: PendingActionSummary;
   decision?: TriageDecision;
@@ -728,6 +732,77 @@ export interface LegalCitationResponse {
   sourceUrl: string;
   snippet: string;
   score: number;
+}
+
+// Contract types with a built-in review checklist; OTHER_CONTRACT is generic.
+export const CONTRACT_REVIEW_TYPES = [
+  "SERVICES_CONTRACT",
+  "NDA",
+  "EMPLOYMENT_CONTRACT",
+  "COPYRIGHT_LICENCE",
+  "OTHER_CONTRACT",
+] as const;
+
+export type ContractReviewType = (typeof CONTRACT_REVIEW_TYPES)[number];
+
+export type ContractIssueRisk = "HIGH" | "MEDIUM" | "LOW";
+
+// RISK: unfavourable for the client; COMPLIANCE: conflicts with mandatory law.
+export type ContractIssueCategory = "RISK" | "COMPLIANCE";
+
+export interface ContractKeyTerm {
+  label: string;
+  value: string;
+  // Clause reference as written in the contract, e.g. "Član 5".
+  clause: string | null;
+}
+
+export interface ContractReviewIssue {
+  title: string;
+  category: ContractIssueCategory;
+  risk: ContractIssueRisk;
+  clause: string | null;
+  // Short verbatim quote of the clause.
+  quote: string | null;
+  explanation: string;
+  // Suggested replacement or added wording.
+  suggestion: string | null;
+  // Legal-source markers ([n]) that support the issue.
+  citations: number[];
+}
+
+export interface ContractMissingClause {
+  title: string;
+  explanation: string;
+  suggestion: string | null;
+}
+
+export interface ContractReviewResult {
+  summary: string;
+  keyTerms: ContractKeyTerm[];
+  issues: ContractReviewIssue[];
+  missingClauses: ContractMissingClause[];
+  warnings: string[];
+}
+
+export type DocumentAnalysisKind = "CONTRACT_REVIEW";
+
+export interface DocumentAnalysisResponse {
+  id: string;
+  sessionId: string;
+  caseId: string | null;
+  kind: DocumentAnalysisKind;
+  // doc:<id> or att:<id>; for tool calls and links only.
+  documentRef: string;
+  documentTitle: string;
+  contractType: ContractReviewType;
+  // The party the office represents, as the lawyer named it.
+  clientSide: string | null;
+  result: ContractReviewResult;
+  citations: LegalCitationResponse[];
+  truncated: boolean;
+  model: string;
+  createdAt: string;
 }
 
 export interface DraftResultResponse {

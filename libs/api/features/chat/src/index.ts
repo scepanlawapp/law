@@ -14,6 +14,7 @@ export * from "./lib/agent-turn.runner";
 export * from "./lib/assistant-context.builder";
 export * from "./lib/assistant-tools.adapter";
 export * from "./lib/assistant-drafting.service";
+export * from "./lib/assistant-contract-review.service";
 export * from "./lib/assistant-actions.service";
 export * from "./lib/assistant-office-reads.service";
 export * from "./lib/conversation-summary.service";

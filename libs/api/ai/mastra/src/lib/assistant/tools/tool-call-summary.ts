@@ -1,5 +1,9 @@
 import { isDraftDocumentType } from "@law/api-interfaces";
 import { getDocumentType } from "@law/brief-extraction";
+import {
+  getContractChecklist,
+  isContractReviewType,
+} from "@law/contract-review";
 import { CREATE_DEADLINE_TOOL_ID } from "./create-deadline.tool";
 import { DRAFT_DOCUMENT_TOOL_ID } from "./draft-document.tool";
 import { GET_AGENDA_TOOL_ID } from "./get-agenda.tool";
@@ -11,6 +15,7 @@ import { LIST_DOCUMENTS_TOOL_ID } from "./list-documents.tool";
 import { LIST_DRAFTS_TOOL_ID } from "./list-drafts.tool";
 import { LIST_WORK_ITEMS_TOOL_ID } from "./list-work-items.tool";
 import { READ_DOCUMENT_TOOL_ID } from "./read-document.tool";
+import { REVIEW_CONTRACT_TOOL_ID } from "./review-contract.tool";
 import { REVISE_DRAFT_TOOL_ID } from "./revise-draft.tool";
 import { SEARCH_CASES_TOOL_ID } from "./search-cases.tool";
 import { SEARCH_CLIENTS_TOOL_ID } from "./search-clients.tool";
@@ -18,6 +23,10 @@ import { SEARCH_DOCUMENTS_TOOL_ID } from "./search-documents.tool";
 import { SEARCH_LEGAL_SOURCES_TOOL_ID } from "./search-legal-sources.tool";
 
 const LABEL_MAX_CHARS = 120;
+
+function contractTypeLabel(value: unknown): string | null {
+  return isContractReviewType(value) ? getContractChecklist(value).label : null;
+}
 
 function documentTypeLabel(value: unknown): string | null {
   return isDraftDocumentType(value) ? getDocumentType(value).label : null;
@@ -76,6 +85,8 @@ export function describeToolCall(
       return joined(documentTypeLabel(args?.["documentType"]), args?.["note"]);
     case REVISE_DRAFT_TOOL_ID:
       return clip(args?.["instruction"]);
+    case REVIEW_CONTRACT_TOOL_ID:
+      return joined(contractTypeLabel(args?.["contractType"]), args?.["focus"]);
     case LINK_CASE_TOOL_ID:
       return clip(args?.["caseReference"]);
     case CREATE_DEADLINE_TOOL_ID:
@@ -114,6 +125,15 @@ export function toolResultCount(
         : 0;
     case READ_DOCUMENT_TOOL_ID:
       return result["status"] === "OK" ? 1 : 0;
+    case REVIEW_CONTRACT_TOOL_ID: {
+      // Findings in the review.
+      const counts = record(result["issueCounts"]);
+      return result["status"] === "REVIEW_READY" && counts
+        ? Number(counts["high"] ?? 0) +
+            Number(counts["medium"] ?? 0) +
+            Number(counts["low"] ?? 0)
+        : null;
+    }
     case SEARCH_DOCUMENTS_TOOL_ID:
       return result["status"] === "OK" && Array.isArray(result["matches"])
         ? result["matches"].reduce(
