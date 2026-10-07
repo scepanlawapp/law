@@ -4,4 +4,4 @@
 - [x] Phase 2: contracts, letters and corporate acts (type list confirmed 2026-10-07), see [child track](../assistant_drafting_contracts_letters_20261007/plan.md); manual check pending
 - [x] Phase 3: contract review (`review_contract`, `DocumentAnalysis`, Analiza rail tab), see [child track](../assistant_contract_review_20261007/plan.md); manual check pending
 - [x] Phase 4: case summary and timeline (`summarize_case_documents`), see [child track](../assistant_case_timeline_20261007/plan.md); manual check pending
-- [ ] Phase 5: deadline from document (`detect_deadlines`, deterministic `@law/legal-deadlines`, `create_deadline` proposal)
+- [x] Phase 5: deadline from document (`detect_deadlines`, deterministic `@law/legal-deadlines`, `create_deadline` proposal), see [child track](../assistant_deadline_from_document_20261007/plan.md); manual check pending

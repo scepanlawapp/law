@@ -9,6 +9,7 @@ import { createLegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
+import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
 import { ASSISTANT_TOOL_SIDE_EFFECTS } from "./tools/side-effects";
@@ -90,6 +91,17 @@ function deps(
       excerpt: "TUŽBA",
     }),
     reviseDraft: jest.fn(),
+    detectDeadlines: jest.fn().mockResolvedValue({
+      status: "NEEDS_SERVICE_DATE",
+      document: "Presuda",
+      act: "Prvostepena presuda u parnici",
+      procedure: "opšti parnični postupak",
+      remedy: "Žalba protiv presude",
+      days: 15,
+      legalBasis: "ZPP čl. 367 st. 1",
+      message: "Datum dostavljanja nije poznat.",
+      warnings: [],
+    }),
     summarizeCaseDocuments: jest.fn().mockResolvedValue({
       status: "TIMELINE_READY",
       analysisId: "analysis-2",
@@ -221,6 +233,9 @@ describe("buildLegalAssistantInstructions", () => {
     expect(
       buildLegalAssistantInstructions({ language: "sr", today: "2026-09-27" }),
     ).toContain("Today is 2026-09-27");
+    expect(buildLegalAssistantInstructions({ language: "sr" })).toContain(
+      "Never compute such a deadline yourself and never call create_deadline for it",
+    );
   });
 
   it("names the current user", () => {
@@ -345,7 +360,15 @@ describe("assistant tools", () => {
       context,
     );
     await createCreateTasksFromBriefTool(toolDeps).execute?.({}, context);
+    await createDetectDeadlinesTool(toolDeps).execute?.(
+      { documentRef: "att:presuda-1", serviceDate: "2026-10-02" },
+      context,
+    );
 
+    expect(toolDeps.detectDeadlines).toHaveBeenCalledWith(turn, {
+      documentRef: "att:presuda-1",
+      serviceDate: "2026-10-02",
+    });
     expect(toolDeps.proposeAction).toHaveBeenNthCalledWith(1, turn, {
       type: "link_case",
       caseReference: "2026-21",
@@ -377,7 +400,12 @@ describe("assistant tools", () => {
         .filter(([, level]) => level === "confirm")
         .map(([name]) => name)
         .sort(),
-    ).toEqual(["create_deadline", "create_tasks_from_brief", "link_case"]);
+    ).toEqual([
+      "create_deadline",
+      "create_tasks_from_brief",
+      "detect_deadlines",
+      "link_case",
+    ]);
   });
 
   it("office read tools pass the turn scope, arguments, and linked case", async () => {

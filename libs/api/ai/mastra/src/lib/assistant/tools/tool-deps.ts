@@ -205,6 +205,58 @@ export type CaseTimelineToolResult =
     }
   | { status: "NO_DOCUMENTS" | "FAILED"; message: string };
 
+/** What detect_deadlines recognized and which rule applies. */
+export interface DetectedDeadlineFacts {
+  /** Document title. */
+  document: string;
+  /** Kind and title of the act ("Prvostepena presuda u parnici: Presuda … P 123/2026"). */
+  act: string;
+  /** Civil procedure kind, when it matters. */
+  procedure: string | null;
+  /** "Žalba protiv presude" */
+  remedy: string;
+  days: number;
+  /** "ZPP čl. 367 st. 1" */
+  legalBasis: string;
+}
+
+export interface ComputedDeadlineFacts extends DetectedDeadlineFacts {
+  /** YYYY-MM-DD */
+  serviceDate: string;
+  serviceDateSource: "USER" | "DOCUMENT";
+  /** YYYY-MM-DD; computed by the rules, never by the model. */
+  dueDate: string;
+  /** How the date was counted, in Serbian. */
+  computation: string;
+  warnings: string[];
+}
+
+export type DeadlineToolResult =
+  | (ComputedDeadlineFacts & {
+      status: "PROPOSED";
+      pendingActionId: string;
+    })
+  | (ComputedDeadlineFacts & {
+      status: "EXPIRED" | "NOT_PROPOSED";
+      message: string;
+    })
+  | (DetectedDeadlineFacts & {
+      status: "NEEDS_SERVICE_DATE";
+      message: string;
+      warnings: string[];
+    })
+  | {
+      status: "NO_DEADLINE";
+      document: string;
+      act: string;
+      reason: string;
+      warnings: string[];
+    }
+  | {
+      status: "NOT_FOUND" | "NO_TEXT" | "INVALID" | "FAILED";
+      message: string;
+    };
+
 export interface DraftListItem {
   draftId: string;
   version: number;
@@ -401,6 +453,14 @@ export interface LegalAssistantToolDeps {
     scope: AssistantTurnScope,
     args: { documentRefs?: string[]; focus?: string },
   ): Promise<CaseTimelineToolResult>;
+  /**
+   * Recognizes a served act, computes its response or remedy deadline by the
+   * legal rules, and proposes it (confirm: a user must approve the card).
+   */
+  detectDeadlines(
+    scope: AssistantTurnScope,
+    args: { documentRef: string; serviceDate?: string },
+  ): Promise<DeadlineToolResult>;
   /** Creates a new version of a conversation draft (reversible). */
   reviseDraft(
     scope: AssistantTurnScope,

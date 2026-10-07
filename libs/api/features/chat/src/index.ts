@@ -16,6 +16,7 @@ export * from "./lib/assistant-tools.adapter";
 export * from "./lib/assistant-drafting.service";
 export * from "./lib/assistant-contract-review.service";
 export * from "./lib/assistant-case-timeline.service";
+export * from "./lib/assistant-deadline-detection.service";
 export * from "./lib/assistant-actions.service";
 export * from "./lib/assistant-office-reads.service";
 export * from "./lib/conversation-summary.service";

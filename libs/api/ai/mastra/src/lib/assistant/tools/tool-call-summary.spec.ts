@@ -25,6 +25,12 @@ describe("tool call summary", () => {
       describeToolCall("summarize_case_documents", { focus: "rokovi" }),
     ).toBe("rokovi");
     expect(
+      describeToolCall("detect_deadlines", {
+        documentRef: "att:1",
+        serviceDate: "2026-10-02",
+      }),
+    ).toBe("2026-10-02");
+    expect(
       describeToolCall("draft_document", {
         documentType: "APPEAL",
         note: "Presuda P 12/2026",

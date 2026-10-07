@@ -11,6 +11,7 @@
     "@law/case-timeline": "0.0.1",
     "@law/contract-review": "0.0.1",
     "@law/drafting": "0.0.1",
+    "@law/legal-deadlines": "0.0.1",
     "@law/legal-grounding": "0.0.1",
     "@law/llm": "0.0.1",
     "@law/transliteration": "0.0.1",

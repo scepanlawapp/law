@@ -50,6 +50,9 @@
       "@law/case-timeline": [
         "./libs/api/ai/workflows/case-timeline/src/index.ts"
       ],
+      "@law/legal-deadlines": [
+        "./libs/api/ai/workflows/legal-deadlines/src/index.ts"
+      ],
       "@law/contract-review": [
         "./libs/api/ai/workflows/contract-review/src/index.ts"
       ],

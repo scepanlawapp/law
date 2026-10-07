@@ -15,6 +15,7 @@ import { ConversationSummaryService } from "./conversation-summary.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import { AssistantContractReviewService } from "./assistant-contract-review.service";
 import { AssistantCaseTimelineService } from "./assistant-case-timeline.service";
+import { AssistantDeadlineDetectionService } from "./assistant-deadline-detection.service";
 import { AssistantOfficeReadsService } from "./assistant-office-reads.service";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { ChatDocumentPromotionService } from "./chat-document-promotion.service";
@@ -73,6 +74,7 @@ import {
     AssistantDraftingService,
     AssistantContractReviewService,
     AssistantCaseTimelineService,
+    AssistantDeadlineDetectionService,
     AssistantActionsService,
     AssistantOfficeReadsService,
     AssistantDocumentReadsService,

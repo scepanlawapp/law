@@ -4,6 +4,7 @@ import type { LegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
+import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
 import { createGetAgendaTool } from "./tools/get-agenda.tool";
 import { createGetCaseTool } from "./tools/get-case.tool";
@@ -66,6 +67,7 @@ export function createLegalAssistantAgent(options: {
       revise_draft: createReviseDraftTool(options.deps),
       review_contract: createReviewContractTool(options.deps),
       summarize_case_documents: createSummarizeCaseDocumentsTool(options.deps),
+      detect_deadlines: createDetectDeadlinesTool(options.deps),
       get_draft: createGetDraftTool(options.deps),
       list_conversation_drafts: createListDraftsTool(options.deps),
       link_case: createLinkCaseTool(options.deps),

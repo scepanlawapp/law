@@ -5,6 +5,7 @@ import {
   isContractReviewType,
 } from "@law/contract-review";
 import { CREATE_DEADLINE_TOOL_ID } from "./create-deadline.tool";
+import { DETECT_DEADLINES_TOOL_ID } from "./detect-deadlines.tool";
 import { DRAFT_DOCUMENT_TOOL_ID } from "./draft-document.tool";
 import { GET_AGENDA_TOOL_ID } from "./get-agenda.tool";
 import { GET_CASE_TOOL_ID } from "./get-case.tool";
@@ -90,6 +91,8 @@ export function describeToolCall(
       return joined(contractTypeLabel(args?.["contractType"]), args?.["focus"]);
     case SUMMARIZE_CASE_DOCUMENTS_TOOL_ID:
       return clip(args?.["focus"]);
+    case DETECT_DEADLINES_TOOL_ID:
+      return clip(args?.["serviceDate"]);
     case LINK_CASE_TOOL_ID:
       return clip(args?.["caseReference"]);
     case CREATE_DEADLINE_TOOL_ID:

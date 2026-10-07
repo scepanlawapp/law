@@ -23,6 +23,7 @@ export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   summarize_case_documents: "reversible",
   link_case: "confirm",
   create_deadline: "confirm",
+  detect_deadlines: "confirm",
   create_tasks_from_brief: "confirm",
 } as const;
 

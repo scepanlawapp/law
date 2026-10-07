@@ -23,6 +23,7 @@ import type {
   AssistantTurnScope,
   AssistantWorkItem,
   CaseTimelineToolResult,
+  DeadlineToolResult,
   ContractReviewToolResult,
   DraftListItem,
   DraftReadResult,
@@ -34,6 +35,7 @@ import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { AssistantCaseTimelineService } from "./assistant-case-timeline.service";
 import { AssistantContractReviewService } from "./assistant-contract-review.service";
+import { AssistantDeadlineDetectionService } from "./assistant-deadline-detection.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import {
   AssistantOfficeReadsService,
@@ -70,6 +72,7 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     @Optional() private readonly documents?: AssistantDocumentReadsService,
     @Optional() private readonly review?: AssistantContractReviewService,
     @Optional() private readonly timeline?: AssistantCaseTimelineService,
+    @Optional() private readonly deadlines?: AssistantDeadlineDetectionService,
   ) {}
 
   listDocuments(scope: AssistantTurnScope): Promise<AssistantDocumentList> {
@@ -201,6 +204,18 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
       : Promise.resolve({
           status: "FAILED",
           message: "Izrada hronologije trenutno nije dostupna.",
+        });
+  }
+
+  detectDeadlines(
+    scope: AssistantTurnScope,
+    args: { documentRef: string; serviceDate?: string },
+  ): Promise<DeadlineToolResult> {
+    return this.deadlines
+      ? this.deadlines.detectDeadlines(scope, args)
+      : Promise.resolve({
+          status: "FAILED",
+          message: "Izračunavanje rokova trenutno nije dostupno.",
         });
   }
 
