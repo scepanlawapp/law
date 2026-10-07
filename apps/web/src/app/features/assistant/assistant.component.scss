@@ -140,6 +140,16 @@
   flex-direction: row-reverse;
 }
 
+.message-avatar,
+.assistant-empty-state > span {
+  display: grid;
+  flex: 0 0 auto;
+  place-items: center;
+  color: var(--primary);
+  background: var(--accent);
+  border-radius: 0.375rem;
+}
+
 .message-avatar {
   width: 2rem;
   height: 2rem;

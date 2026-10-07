@@ -14,6 +14,8 @@
 
 ## Notes
 
+- Moving the sidebar styles also dropped the rule `.conversation-heading-icon` shared with `.message-avatar` and the empty-state icon; it is restored in `assistant.component.scss` for the chat avatars.
+
 - Sidebar layout: "Grupiši po" is a caption above a full-width Datum | Predmet toggle (side by side it clipped the Predmet icon at the 17rem rail); segmented buttons keep icons and truncate labels.
 
 - The case page's `?caseId=` link keeps its meaning (start a chat for that case); organizer filters use their own params (`case`, `client`, …) so the two do not collide.
