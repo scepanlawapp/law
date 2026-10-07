@@ -626,13 +626,23 @@
                             <a
                               class="underline-offset-4 hover:underline"
                               [routerLink]="['/assistant']"
-                              [queryParams]="{ caseId: id }"
+                              [queryParams]="{ sessionId: session.id }"
                             >
                               {{
                                 session.title ||
                                   ("assistant.newChat" | translate)
                               }}
                             </a>
+                            <p class="text-xs text-muted-foreground">
+                              {{ formatDate(session.updatedAt) }}
+                              @if (session.draftCount) {
+                                ·
+                                {{
+                                  "cases.detail.draftCount"
+                                    | translate: { count: session.draftCount }
+                                }}
+                              }
+                            </p>
                           </li>
                         }
                       </ul>
@@ -649,13 +659,23 @@
                     @if (links.drafts.items.length) {
                       <ul class="space-y-2">
                         @for (draft of links.drafts.items; track draft.id) {
-                          <li
-                            class="rounded-md border border-border bg-muted p-2"
-                          >
-                            <p class="font-medium">{{ draft.id }}</p>
-                            <p class="text-xs text-muted-foreground">
-                              {{ draft.approvalStatus }}
-                            </p>
+                          <li>
+                            <a
+                              class="block rounded-md border border-border bg-muted p-2 hover:bg-accent hover:text-accent-foreground"
+                              [routerLink]="['/assistant']"
+                              [queryParams]="{ sessionId: draft.sessionId }"
+                            >
+                              <p class="font-medium">
+                                {{ "assistant.documentType." + draft.documentType | translate }}
+                              </p>
+                              <p class="text-xs text-muted-foreground">
+                                {{
+                                  "assistant.draftStatus." +
+                                    (draft.approvalStatus || "READY_FOR_SIGNOFF") | translate
+                                }}
+                                · {{ formatDate(draft.createdAt) }}
+                              </p>
+                            </a>
                           </li>
                         }
                       </ul>
@@ -1054,12 +1074,22 @@
                         <a
                           class="underline-offset-4 hover:underline"
                           [routerLink]="['/assistant']"
-                          [queryParams]="{ caseId: id }"
+                          [queryParams]="{ sessionId: session.id }"
                         >
                           {{
                             session.title || ("assistant.newChat" | translate)
                           }}
                         </a>
+                        <p class="text-xs text-muted-foreground">
+                          {{ formatDate(session.updatedAt) }}
+                          @if (session.draftCount) {
+                            ·
+                            {{
+                              "cases.detail.draftCount"
+                                | translate: { count: session.draftCount }
+                            }}
+                          }
+                        </p>
                       </li>
                     }
                   </ul>
@@ -1125,11 +1155,23 @@
                 @if (links.drafts.items.length) {
                   <ul class="space-y-2">
                     @for (draft of links.drafts.items; track draft.id) {
-                      <li class="rounded-md border border-border bg-muted p-3">
-                        <p class="font-medium">{{ draft.id }}</p>
-                        <p class="text-xs text-muted-foreground">
-                          {{ draft.approvalStatus }}
-                        </p>
+                      <li>
+                        <a
+                          class="block rounded-md border border-border bg-muted p-3 hover:bg-accent hover:text-accent-foreground"
+                          [routerLink]="['/assistant']"
+                          [queryParams]="{ sessionId: draft.sessionId }"
+                        >
+                          <p class="font-medium">
+                            {{ "assistant.documentType." + draft.documentType | translate }}
+                          </p>
+                          <p class="text-xs text-muted-foreground">
+                            {{
+                              "assistant.draftStatus." +
+                                (draft.approvalStatus || "READY_FOR_SIGNOFF") | translate
+                            }}
+                            · {{ formatDate(draft.createdAt) }}
+                          </p>
+                        </a>
                       </li>
                     }
                   </ul>

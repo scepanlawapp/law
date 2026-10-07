@@ -66,6 +66,7 @@ describe("MatterLinkService", () => {
             id: "session-1",
             title: "Chat",
             updatedAt: new Date("2026-09-21T00:00:00.000Z"),
+            _count: { draftResults: 1 },
           },
         ]),
         create: jest.fn(
@@ -216,6 +217,54 @@ describe("MatterLinkService", () => {
       totalPages: 3,
     });
     expect(result.latestTimeline).toBeNull();
+  });
+
+  it("returns draft counts per session and document types per draft", async () => {
+    const { service, prisma } = harness();
+    prisma.chatSession.findMany.mockResolvedValueOnce([
+      {
+        id: "session-2",
+        title: "Tužba",
+        updatedAt: new Date("2026-10-07T10:00:00.000Z"),
+        _count: { draftResults: 2 },
+      },
+    ]);
+    prisma.draftResult.findMany.mockResolvedValueOnce([
+      {
+        id: "draft-1",
+        sessionId: "session-2",
+        documentType: "LAWSUIT",
+        approvalStatus: "APPROVED",
+        reviewedAt: null,
+        createdAt: new Date("2026-10-07T09:00:00.000Z"),
+        warnings: [],
+      },
+    ]);
+
+    const result = await service.listForCase(workspaceId, "case-1", {
+      page: 1,
+      draftPage: 1,
+      pageSize: 5,
+    });
+
+    expect(prisma.chatSession.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: { _count: { select: { draftResults: true } } },
+      }),
+    );
+    expect(result.sessions.items).toEqual([
+      {
+        id: "session-2",
+        title: "Tužba",
+        updatedAt: "2026-10-07T10:00:00.000Z",
+        draftCount: 2,
+      },
+    ]);
+    expect(result.drafts.items[0]).toMatchObject({
+      sessionId: "session-2",
+      documentType: "LAWSUIT",
+      approvalStatus: "APPROVED",
+    });
   });
 
   it("returns the case's latest timeline with a summary and event count", async () => {

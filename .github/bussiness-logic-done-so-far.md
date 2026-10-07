@@ -261,6 +261,10 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
     - The rail's "Analiza" tab shows the latest analysis of either kind. For a timeline it shows the summary, open questions, events grouped by year (date, kind, title, description, quote, source), and the documents with their status.
     - The case's Assistant tab shows the latest timeline (date, summary excerpt, number of events) with a link that opens that conversation (`/assistant?sessionId=`; the assistant opens it even when it is not on the first page of conversations).
     - The case card "Hronologija predmeta" asks for it in a case-linked conversation. Only contract reviews can be exported to DOCX.
+  - Case detail (overview card and Assistant tab) lists the case's conversations and drafts:
+    - Each conversation row shows its last-updated date and draft count, and opens that conversation (`/assistant?sessionId=`).
+    - Each draft row shows the translated document type, approval status and creation date, and opens its conversation; the rail then shows the conversation's latest draft.
+    - Only "Start assistant" passes `?caseId=`, so a new conversation is linked to the case. Opening an existing conversation does not link new ones.
   - `revise_draft` creates a new draft version from a chat instruction (for example "skrati obrazloženje"). `get_draft` and `list_conversation_drafts` read the conversation's drafts, which the agent also sees in its context.
   - A turn that produced a draft is marked `DRAFT_READY`. Every draft still needs lawyer approval in the review panel.
   - "Request changes" in the draft review panel queues a `drafting` job that the same Mastra `draft-revision` workflow runs; the new version is announced with "Nacrt je spreman za pregled." Retrying a failed `brief-extraction` or `drafting` job reruns it from its stored input. Older queued `answering` jobs run as agent turns.

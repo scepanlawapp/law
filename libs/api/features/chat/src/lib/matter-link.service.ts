@@ -221,6 +221,7 @@ export class MatterLinkService {
           orderBy: { updatedAt: "desc" },
           skip: (query.page - 1) * query.pageSize,
           take: query.pageSize,
+          include: { _count: { select: { draftResults: true } } },
         }),
         this.db.draftResult.count({
           where: { workspaceId, caseId },
@@ -233,6 +234,7 @@ export class MatterLinkService {
           select: {
             id: true,
             sessionId: true,
+            documentType: true,
             approvalStatus: true,
             reviewedAt: true,
             createdAt: true,
@@ -251,6 +253,7 @@ export class MatterLinkService {
           id: session.id,
           title: session.title,
           updatedAt: session.updatedAt.toISOString(),
+          draftCount: session._count.draftResults,
         })),
         meta: paginationMeta(query.page, query.pageSize, sessionTotal, [
           { field: "updatedAt", direction: "desc" },
@@ -260,6 +263,7 @@ export class MatterLinkService {
         items: drafts.map((draft) => ({
           id: draft.id,
           sessionId: draft.sessionId,
+          documentType: draft.documentType,
           approvalStatus: draft.approvalStatus,
           reviewedAt: draft.reviewedAt?.toISOString() ?? null,
           createdAt: draft.createdAt.toISOString(),
