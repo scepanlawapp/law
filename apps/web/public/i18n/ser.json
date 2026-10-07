@@ -1531,6 +1531,7 @@
   "cases.detail.noDocuments": "Nema dokumenata vezanih za ovaj predmet.",
   "cases.detail.noAssistantSessions": "Nema razgovora asistenta za ovaj predmet.",
   "cases.detail.noAssistantDrafts": "Nema nacrta asistenta.",
+  "cases.detail.draftCount": "Nacrta: {count}",
   "cases.detail.noTags": "Nema oznaka.",
   "cases.detail.aiBrief": "AI sažetak predmeta",
   "cases.detail.aiBriefUnavailable": "Nema generisanog sažetka.",

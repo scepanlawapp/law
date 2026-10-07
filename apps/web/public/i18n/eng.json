@@ -1531,6 +1531,7 @@
   "cases.detail.noDocuments": "No documents are attached to this case yet.",
   "cases.detail.noAssistantSessions": "No assistant sessions for this case.",
   "cases.detail.noAssistantDrafts": "No assistant drafts.",
+  "cases.detail.draftCount": "Drafts: {count}",
   "cases.detail.noTags": "No tags available.",
   "cases.detail.aiBrief": "AI case brief",
   "cases.detail.aiBriefUnavailable": "No generated brief is available yet.",

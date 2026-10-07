@@ -8,6 +8,8 @@ import {
 import { Observable } from "rxjs";
 import {
   AuthSessionResponse,
+  DraftApprovalStatus,
+  DraftDocumentType,
   ChatSendMessageResponse,
   ChatMessageFeedback,
   ChatMessageResponse,
@@ -1020,11 +1022,13 @@ export interface CaseLinksResponse {
     id: string;
     title: string | null;
     updatedAt: string;
+    draftCount: number;
   }>;
   drafts: PaginatedResponse<{
     id: string;
     sessionId: string;
-    approvalStatus: string;
+    documentType: DraftDocumentType;
+    approvalStatus: DraftApprovalStatus;
     reviewedAt: string | null;
     createdAt: string;
   }>;

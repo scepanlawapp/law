@@ -1,0 +1,11 @@
+{
+  "track_id": "case_assistant_tab_links_20261007",
+  "parent_track_id": "assistant_matter_link_ui_20260921",
+  "type": "fix",
+  "status": "completed",
+  "prd_reference": null,
+  "created_at": "2026-10-07T12:00:00Z",
+  "updated_at": "2026-10-07T17:10:00Z",
+  "keywords": ["assistant", "case-detail", "deep-link", "drafts"],
+  "priority": "medium"
+}
