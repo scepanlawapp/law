@@ -144,6 +144,20 @@ export const GENERAL_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
     group: "drafting",
   },
   {
+    id: "deadlineFromDocument",
+    icon: "lucideAlarmClock",
+    mode: "compose",
+    pick: "document",
+    group: "drafting",
+  },
+  {
+    id: "reviewContract",
+    icon: "lucideFileSearch",
+    mode: "compose",
+    pick: "document",
+    group: "drafting",
+  },
+  {
     id: "analyzeDocument",
     icon: "lucideFileSearch",
     mode: "send",
@@ -158,10 +172,17 @@ export const CASE_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
   { id: "caseWork", icon: "lucideListChecks", mode: "send" },
   { id: "caseActivity", icon: "lucideHistory", mode: "send" },
   { id: "caseDocuments", icon: "lucideFileText", mode: "send" },
+  { id: "caseTimeline", icon: "lucideHistory", mode: "send" },
   { id: "caseDraftLawsuit", icon: "lucideFilePen", mode: "compose" },
   { id: "caseDraftAppeal", icon: "lucideFilePen", mode: "compose" },
   { id: "caseDemandLetter", icon: "lucideFilePen", mode: "compose" },
+  { id: "caseReviewContract", icon: "lucideFileSearch", mode: "compose" },
   { id: "caseSetDeadline", icon: "lucideCalendarPlus", mode: "compose" },
+  {
+    id: "caseDeadlineFromDocument",
+    icon: "lucideAlarmClock",
+    mode: "compose",
+  },
   { id: "researchLaw", icon: "lucideBookOpen", mode: "compose" },
 ];
 

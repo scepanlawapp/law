@@ -1,4 +1,7 @@
-import type { DraftDocumentType } from "@law/api-interfaces";
+import type {
+  ContractReviewType,
+  DraftDocumentType,
+} from "@law/api-interfaces";
 import type { GroundingSearchHit } from "@law/legal-grounding";
 
 /** Read-only case facts a tool may show the model. */
@@ -161,6 +164,98 @@ export type DraftToolResult =
       excerpt: string;
     }
   | { status: "NO_CONTEXT" | "NOT_FOUND" | "FAILED"; message: string };
+
+export type ContractReviewToolResult =
+  | {
+      status: "REVIEW_READY";
+      analysisId: string;
+      documentTitle: string;
+      /** Serbian name of the checklist used ("Ugovor o radu"). */
+      contractType: string;
+      summary: string;
+      issueCounts: { high: number; medium: number; low: number };
+      /** Highest-risk issues first, capped. */
+      topIssues: Array<{
+        title: string;
+        risk: string;
+        category: string;
+        clause: string | null;
+      }>;
+      missingClauses: string[];
+      citationCount: number;
+      truncated: boolean;
+    }
+  | { status: "NOT_FOUND" | "NO_TEXT" | "FAILED"; message: string };
+
+export type CaseTimelineToolResult =
+  | {
+      status: "TIMELINE_READY";
+      analysisId: string;
+      /** Case number, or null when the conversation has no case. */
+      case: string | null;
+      documentCount: number;
+      eventCount: number;
+      /** Earliest and latest dated events (YYYY-MM-DD, YYYY-MM or YYYY). */
+      firstDate: string | null;
+      lastDate: string | null;
+      summary: string;
+      openQuestions: string[];
+      /** Titles of documents that were skipped, unreadable, or failed. */
+      notRead: string[];
+    }
+  | { status: "NO_DOCUMENTS" | "FAILED"; message: string };
+
+/** What detect_deadlines recognized and which rule applies. */
+export interface DetectedDeadlineFacts {
+  /** Document title. */
+  document: string;
+  /** Kind and title of the act ("Prvostepena presuda u parnici: Presuda … P 123/2026"). */
+  act: string;
+  /** Civil procedure kind, when it matters. */
+  procedure: string | null;
+  /** "Žalba protiv presude" */
+  remedy: string;
+  days: number;
+  /** "ZPP čl. 367 st. 1" */
+  legalBasis: string;
+}
+
+export interface ComputedDeadlineFacts extends DetectedDeadlineFacts {
+  /** YYYY-MM-DD */
+  serviceDate: string;
+  serviceDateSource: "USER" | "DOCUMENT";
+  /** YYYY-MM-DD; computed by the rules, never by the model. */
+  dueDate: string;
+  /** How the date was counted, in Serbian. */
+  computation: string;
+  warnings: string[];
+}
+
+export type DeadlineToolResult =
+  | (ComputedDeadlineFacts & {
+      status: "PROPOSED";
+      pendingActionId: string;
+    })
+  | (ComputedDeadlineFacts & {
+      status: "EXPIRED" | "NOT_PROPOSED";
+      message: string;
+    })
+  | (DetectedDeadlineFacts & {
+      status: "NEEDS_SERVICE_DATE";
+      message: string;
+      warnings: string[];
+    })
+  | {
+      status: "NO_DEADLINE";
+      document: string;
+      act: string;
+      reason: string;
+      warnings: string[];
+    }
+  | {
+      status: "NOT_FOUND" | "NO_TEXT" | "INVALID" | "FAILED";
+      message: string;
+    };
 
 export interface DraftListItem {
   draftId: string;
@@ -343,6 +438,29 @@ export interface LegalAssistantToolDeps {
       documentRefs?: string[];
     },
   ): Promise<DraftToolResult>;
+  /** Reviews a contract document and stores the analysis (read-only otherwise). */
+  reviewContract(
+    scope: AssistantTurnScope,
+    args: {
+      documentRef: string;
+      contractType: ContractReviewType;
+      clientSide?: string;
+      focus?: string;
+    },
+  ): Promise<ContractReviewToolResult>;
+  /** Builds a sourced timeline of the case documents (stores an analysis only). */
+  summarizeCaseDocuments(
+    scope: AssistantTurnScope,
+    args: { documentRefs?: string[]; focus?: string },
+  ): Promise<CaseTimelineToolResult>;
+  /**
+   * Recognizes a served act, computes its response or remedy deadline by the
+   * legal rules, and proposes it (confirm: a user must approve the card).
+   */
+  detectDeadlines(
+    scope: AssistantTurnScope,
+    args: { documentRef: string; serviceDate?: string },
+  ): Promise<DeadlineToolResult>;
   /** Creates a new version of a conversation draft (reversible). */
   reviseDraft(
     scope: AssistantTurnScope,

@@ -1,5 +1,8 @@
 import { Injectable, NotFoundException, Optional } from "@nestjs/common";
-import type { DraftDocumentType } from "@law/api-interfaces";
+import type {
+  ContractReviewType,
+  DraftDocumentType,
+} from "@law/api-interfaces";
 import { CaseListQueryDto, CasesService } from "@law/cases";
 import { WorkspaceContextService } from "@law/core";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
@@ -19,6 +22,9 @@ import type {
   AssistantListResult,
   AssistantTurnScope,
   AssistantWorkItem,
+  CaseTimelineToolResult,
+  DeadlineToolResult,
+  ContractReviewToolResult,
   DraftListItem,
   DraftReadResult,
   DraftToolResult,
@@ -27,6 +33,9 @@ import type {
 } from "@law/mastra";
 import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
+import { AssistantCaseTimelineService } from "./assistant-case-timeline.service";
+import { AssistantContractReviewService } from "./assistant-contract-review.service";
+import { AssistantDeadlineDetectionService } from "./assistant-deadline-detection.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import {
   AssistantOfficeReadsService,
@@ -61,6 +70,9 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     @Optional() private readonly actions?: AssistantActionsService,
     @Optional() private readonly office?: AssistantOfficeReadsService,
     @Optional() private readonly documents?: AssistantDocumentReadsService,
+    @Optional() private readonly review?: AssistantContractReviewService,
+    @Optional() private readonly timeline?: AssistantCaseTimelineService,
+    @Optional() private readonly deadlines?: AssistantDeadlineDetectionService,
   ) {}
 
   listDocuments(scope: AssistantTurnScope): Promise<AssistantDocumentList> {
@@ -164,6 +176,47 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     return this.drafting
       ? this.drafting.draftDocument(scope, args)
       : Promise.resolve(DRAFTING_UNAVAILABLE);
+  }
+
+  reviewContract(
+    scope: AssistantTurnScope,
+    args: {
+      documentRef: string;
+      contractType: ContractReviewType;
+      clientSide?: string;
+      focus?: string;
+    },
+  ): Promise<ContractReviewToolResult> {
+    return this.review
+      ? this.review.reviewContract(scope, args)
+      : Promise.resolve({
+          status: "FAILED",
+          message: "Pregled ugovora trenutno nije dostupan.",
+        });
+  }
+
+  summarizeCaseDocuments(
+    scope: AssistantTurnScope,
+    args: { documentRefs?: string[]; focus?: string },
+  ): Promise<CaseTimelineToolResult> {
+    return this.timeline
+      ? this.timeline.summarizeCaseDocuments(scope, args)
+      : Promise.resolve({
+          status: "FAILED",
+          message: "Izrada hronologije trenutno nije dostupna.",
+        });
+  }
+
+  detectDeadlines(
+    scope: AssistantTurnScope,
+    args: { documentRef: string; serviceDate?: string },
+  ): Promise<DeadlineToolResult> {
+    return this.deadlines
+      ? this.deadlines.detectDeadlines(scope, args)
+      : Promise.resolve({
+          status: "FAILED",
+          message: "Izračunavanje rokova trenutno nije dostupno.",
+        });
   }
 
   reviseDraft(

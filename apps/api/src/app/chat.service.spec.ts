@@ -1,3 +1,4 @@
+import JSZip from "jszip";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { FakeChatModelProvider } from "@law/llm";
 import type { ChatStreamEvent } from "@law/api-interfaces";
@@ -157,6 +158,10 @@ function prismaMock() {
     },
     pendingAction: {
       findMany: jest.fn().mockResolvedValue([]),
+    },
+    documentAnalysis: {
+      findMany: jest.fn().mockResolvedValue([]),
+      findFirst: jest.fn(),
     },
     auditEvent: {
       create: jest.fn(),
@@ -437,6 +442,111 @@ describe("ChatService", () => {
     await expect(
       service.getDraft(session.workspaceId, "job-unknown"),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it("exports a contract review memo and records the audit event", async () => {
+    const prisma = prismaMock();
+    prisma.documentAnalysis.findFirst.mockResolvedValue({
+      id: "analysis-1",
+      sessionId: session.id,
+      caseId: null,
+      kind: "CONTRACT_REVIEW",
+      documentRef: "att:nda",
+      documentTitle: "NDA Alfa",
+      contractType: "NDA",
+      clientSide: "Beta d.o.o.",
+      result: {
+        summary: "Kratak sažetak.",
+        keyTerms: [],
+        issues: [
+          {
+            title: "Neograničeno trajanje",
+            category: "RISK",
+            risk: "HIGH",
+            clause: "Član 6",
+            quote: null,
+            explanation: "Obaveza traje neograničeno.",
+            suggestion: "Ograničiti na 3 godine.",
+            citations: [],
+          },
+        ],
+        missingClauses: [],
+        warnings: [],
+      },
+      citations: [],
+      truncated: false,
+      model: "test-model",
+      createdAt: now,
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    const result = await service.exportAnalysis(
+      session.workspaceId,
+      "analysis-1",
+      "user-1",
+      "latin",
+    );
+
+    expect(result.filename).toBe(
+      "analiza-ugovor-o-poverljivosti-session1-2026-09-06.docx",
+    );
+    const zip = await JSZip.loadAsync(result.buffer);
+    const xml = await zip.file("word/document.xml")?.async("string");
+    expect(xml).toContain("Neograničeno trajanje");
+    expect(xml).toContain("Klijent kancelarije: Beta d.o.o.");
+    expect(prisma.documentAnalysis.findFirst).toHaveBeenCalledWith({
+      where: { id: "analysis-1", workspaceId: session.workspaceId },
+    });
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        eventType: "analysis.exported",
+        metadata: expect.objectContaining({ analysisId: "analysis-1" }),
+      }),
+    });
+  });
+
+  it("does not export a case timeline", async () => {
+    const prisma = prismaMock();
+    prisma.documentAnalysis.findFirst.mockResolvedValue({
+      id: "analysis-2",
+      sessionId: session.id,
+      kind: "CASE_TIMELINE",
+      createdAt: now,
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.exportAnalysis(session.workspaceId, "analysis-2", "user-1"),
+    ).rejects.toThrow("Only contract reviews can be exported");
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("rejects exporting an analysis from another workspace", async () => {
+    const prisma = prismaMock();
+    prisma.documentAnalysis.findFirst.mockResolvedValue(null);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.exportAnalysis("other-workspace", "analysis-1", "user-1"),
+    ).rejects.toThrow("Analysis not found");
   });
 
   it("names the export after the draft's document type", async () => {

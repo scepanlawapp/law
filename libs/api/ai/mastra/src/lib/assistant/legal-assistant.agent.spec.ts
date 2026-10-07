@@ -9,6 +9,7 @@ import { createLegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
+import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
 import { ASSISTANT_TOOL_SIDE_EFFECTS } from "./tools/side-effects";
@@ -24,6 +25,8 @@ import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
+import { createReviewContractTool } from "./tools/review-contract.tool";
+import { createSummarizeCaseDocumentsTool } from "./tools/summarize-case-documents.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
@@ -88,6 +91,41 @@ function deps(
       excerpt: "TUŽBA",
     }),
     reviseDraft: jest.fn(),
+    detectDeadlines: jest.fn().mockResolvedValue({
+      status: "NEEDS_SERVICE_DATE",
+      document: "Presuda",
+      act: "Prvostepena presuda u parnici",
+      procedure: "opšti parnični postupak",
+      remedy: "Žalba protiv presude",
+      days: 15,
+      legalBasis: "ZPP čl. 367 st. 1",
+      message: "Datum dostavljanja nije poznat.",
+      warnings: [],
+    }),
+    summarizeCaseDocuments: jest.fn().mockResolvedValue({
+      status: "TIMELINE_READY",
+      analysisId: "analysis-2",
+      case: "P-7",
+      documentCount: 2,
+      eventCount: 3,
+      firstDate: "2025-01-10",
+      lastDate: "2026-03-15",
+      summary: "Kratko.",
+      openQuestions: [],
+      notRead: [],
+    }),
+    reviewContract: jest.fn().mockResolvedValue({
+      status: "REVIEW_READY",
+      analysisId: "analysis-1",
+      documentTitle: "NDA",
+      contractType: "Ugovor o poverljivosti",
+      summary: "Kratko.",
+      issueCounts: { high: 1, medium: 0, low: 0 },
+      topIssues: [],
+      missingClauses: [],
+      citationCount: 0,
+      truncated: false,
+    }),
     getDraft: jest.fn(),
     listDrafts: jest.fn().mockResolvedValue({ drafts: [] }),
     searchCases: jest.fn().mockResolvedValue(emptyList),
@@ -195,6 +233,9 @@ describe("buildLegalAssistantInstructions", () => {
     expect(
       buildLegalAssistantInstructions({ language: "sr", today: "2026-09-27" }),
     ).toContain("Today is 2026-09-27");
+    expect(buildLegalAssistantInstructions({ language: "sr" })).toContain(
+      "Never compute such a deadline yourself and never call create_deadline for it",
+    );
   });
 
   it("names the current user", () => {
@@ -270,6 +311,28 @@ describe("assistant tools", () => {
       note: "Žalilac je Petar.",
       documentRefs: ["doc:presuda-1"],
     });
+    await createReviewContractTool(toolDeps).execute?.(
+      {
+        documentRef: "att:nda-1",
+        contractType: "NDA",
+        clientSide: "Beta d.o.o.",
+      },
+      context,
+    );
+    await createSummarizeCaseDocumentsTool(toolDeps).execute?.(
+      { focus: "rokovi" },
+      context,
+    );
+    expect(toolDeps.summarizeCaseDocuments).toHaveBeenCalledWith(turn, {
+      documentRefs: undefined,
+      focus: "rokovi",
+    });
+    expect(toolDeps.reviewContract).toHaveBeenCalledWith(turn, {
+      documentRef: "att:nda-1",
+      contractType: "NDA",
+      clientSide: "Beta d.o.o.",
+      focus: undefined,
+    });
     expect(toolDeps.reviseDraft).toHaveBeenCalledWith(turn, {
       instruction: "Skrati obrazloženje.",
       draftId: "draft-1",
@@ -297,7 +360,15 @@ describe("assistant tools", () => {
       context,
     );
     await createCreateTasksFromBriefTool(toolDeps).execute?.({}, context);
+    await createDetectDeadlinesTool(toolDeps).execute?.(
+      { documentRef: "att:presuda-1", serviceDate: "2026-10-02" },
+      context,
+    );
 
+    expect(toolDeps.detectDeadlines).toHaveBeenCalledWith(turn, {
+      documentRef: "att:presuda-1",
+      serviceDate: "2026-10-02",
+    });
     expect(toolDeps.proposeAction).toHaveBeenNthCalledWith(1, turn, {
       type: "link_case",
       caseReference: "2026-21",
@@ -329,7 +400,12 @@ describe("assistant tools", () => {
         .filter(([, level]) => level === "confirm")
         .map(([name]) => name)
         .sort(),
-    ).toEqual(["create_deadline", "create_tasks_from_brief", "link_case"]);
+    ).toEqual([
+      "create_deadline",
+      "create_tasks_from_brief",
+      "detect_deadlines",
+      "link_case",
+    ]);
   });
 
   it("office read tools pass the turn scope, arguments, and linked case", async () => {

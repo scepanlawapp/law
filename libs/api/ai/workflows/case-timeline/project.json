@@ -1,0 +1,26 @@
+{
+  "name": "case-timeline",
+  "$schema": "../../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/workflows/case-timeline/src",
+  "projectType": "library",
+  "tags": [
+    "scope:ai",
+    "type:workflow"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/ai/workflows/case-timeline",
+        "main": "libs/api/ai/workflows/case-timeline/src/index.ts",
+        "tsConfig": "libs/api/ai/workflows/case-timeline/tsconfig.lib.json",
+        "assets": [
+          "libs/api/ai/workflows/case-timeline/*.md"
+        ]
+      }
+    }
+  }
+}

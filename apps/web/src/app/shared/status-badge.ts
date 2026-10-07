@@ -54,3 +54,16 @@ export function priorityBadgeClass(priority: string): string {
       return MUTED;
   }
 }
+
+export function riskBadgeClass(risk: string): string {
+  switch (risk) {
+    case "HIGH":
+      return DESTRUCTIVE;
+    case "MEDIUM":
+      return WARNING;
+    case "LOW":
+      return INFO;
+    default:
+      return MUTED;
+  }
+}

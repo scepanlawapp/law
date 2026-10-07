@@ -57,6 +57,10 @@ export class ChatRuntimeConfig {
   readonly draftingPromptMaxChars = Number(
     process.env.DRAFTING_PROMPT_MAX_CHARS ?? 40_000,
   );
+  /** Contract text plus legal sources sent to one contract review call. */
+  readonly contractReviewMaxChars = Number(
+    process.env.CONTRACT_REVIEW_MAX_CHARS ?? 60_000,
+  );
   readonly titleContentMaxChars = Number(
     process.env.TITLE_CONTENT_MAX_CHARS ?? 300,
   );

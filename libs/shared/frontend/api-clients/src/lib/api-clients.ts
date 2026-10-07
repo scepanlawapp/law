@@ -596,6 +596,18 @@ export class ChatApiClient {
     return url.toString();
   }
 
+  analysisExportUrl(
+    workspaceId: string,
+    analysisId: string,
+    script: DocumentScript = "latin",
+  ): string {
+    const url = new URL(this.endpoint(`/chat/analyses/${analysisId}/export`));
+    url.searchParams.set("workspaceId", workspaceId);
+    url.searchParams.set("format", "docx");
+    url.searchParams.set("script", script);
+    return url.toString();
+  }
+
   updateDraft(
     workspaceId: string,
     draftId: string,
@@ -1016,6 +1028,14 @@ export interface CaseLinksResponse {
     reviewedAt: string | null;
     createdAt: string;
   }>;
+  /** Latest assistant timeline of the case's documents, if any. */
+  latestTimeline?: {
+    id: string;
+    sessionId: string;
+    createdAt: string;
+    summary: string;
+    eventCount: number;
+  } | null;
 }
 
 export interface CaseResponsibilityUpdateRequest {

@@ -4,6 +4,7 @@ import type { LegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
+import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
 import { createGetAgendaTool } from "./tools/get-agenda.tool";
 import { createGetCaseTool } from "./tools/get-case.tool";
@@ -15,11 +16,13 @@ import { createListDocumentsTool } from "./tools/list-documents.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
 import { createListWorkItemsTool } from "./tools/list-work-items.tool";
 import { createReadDocumentTool } from "./tools/read-document.tool";
+import { createReviewContractTool } from "./tools/review-contract.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
 import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createSearchDocumentsTool } from "./tools/search-documents.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
+import { createSummarizeCaseDocumentsTool } from "./tools/summarize-case-documents.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
 
 export const LEGAL_ASSISTANT_AGENT_ID = "legal-assistant";
@@ -62,6 +65,9 @@ export function createLegalAssistantAgent(options: {
       search_documents: createSearchDocumentsTool(options.deps),
       draft_document: createDraftDocumentTool(options.deps),
       revise_draft: createReviseDraftTool(options.deps),
+      review_contract: createReviewContractTool(options.deps),
+      summarize_case_documents: createSummarizeCaseDocumentsTool(options.deps),
+      detect_deadlines: createDetectDeadlinesTool(options.deps),
       get_draft: createGetDraftTool(options.deps),
       list_conversation_drafts: createListDraftsTool(options.deps),
       link_case: createLinkCaseTool(options.deps),

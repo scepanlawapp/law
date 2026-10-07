@@ -401,6 +401,7 @@ model Workspace {
   pendingActions              PendingAction[]
   briefExtractionResults      BriefExtractionResult[]
   draftResults                DraftResult[]
+  documentAnalyses            DocumentAnalysis[]
   config                      WorkspaceConfig?
   organizationSettings        OrganizationSettings?
   bankAccounts                BankAccount[]
@@ -814,6 +815,7 @@ model Case {
   documentCases        DocumentCase[]
   chatSessions         ChatSession[]
   draftResults         DraftResult[]
+  documentAnalyses     DocumentAnalysis[]
   appliedBriefs        BriefExtractionResult[] @relation("BriefAppliedCase")
   invoiceLineCases     InvoiceLineCase[]
   priceSources         PriceSource[]
@@ -1403,6 +1405,7 @@ model ChatSession {
   pendingActions         PendingAction[]
   briefExtractionResults BriefExtractionResult[]
   draftResults           DraftResult[]
+  documentAnalyses       DocumentAnalysis[]
 
   @@index([workspaceId, caseId])
   @@index([workspaceId, updatedAt])
@@ -1605,6 +1608,37 @@ model DraftResult {
   @@index([workspaceId, documentType])
   @@index([sessionId, createdAt])
   @@index([approvalStatus, reviewedAt])
+}
+
+/// Read-only AI analysis of a document (contract review). `result` holds the
+/// structured review; `citations` snapshots the legal sources it used.
+model DocumentAnalysis {
+  id            String      @id @default(uuid())
+  workspaceId   String
+  sessionId     String
+  caseId        String?
+  /// The agent-turn job that produced it.
+  jobId         String?
+  /// CONTRACT_REVIEW or CASE_TIMELINE (validated in code).
+  kind          String
+  /// doc:<id> or att:<id> (review); case:<id> or session:<id> (timeline)
+  documentRef   String
+  documentTitle String
+  /// Review checklist id from @law/contract-review; null for a timeline.
+  contractType  String?
+  clientSide    String?
+  result        Json
+  citations     Json        @default("[]")
+  promptChars   Int
+  truncated     Boolean     @default(false)
+  model         String
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  workspace     Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  session       ChatSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  case          Case?       @relation(fields: [caseId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, sessionId, createdAt])
+  @@index([workspaceId, caseId])
 }
 
 // Snapshotted at generation time so a draft's sources stay stable even if the corpus changes later.

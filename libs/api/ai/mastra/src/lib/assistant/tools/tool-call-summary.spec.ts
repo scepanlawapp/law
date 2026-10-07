@@ -15,6 +15,22 @@ describe("tool call summary", () => {
     ).toBe("Skrati uvod.");
     expect(describeToolCall("draft_document", {})).toBeNull();
     expect(
+      describeToolCall("review_contract", {
+        documentRef: "att:1",
+        contractType: "EMPLOYMENT_CONTRACT",
+        focus: "probni rad",
+      }),
+    ).toBe("Ugovor o radu · probni rad");
+    expect(
+      describeToolCall("summarize_case_documents", { focus: "rokovi" }),
+    ).toBe("rokovi");
+    expect(
+      describeToolCall("detect_deadlines", {
+        documentRef: "att:1",
+        serviceDate: "2026-10-02",
+      }),
+    ).toBe("2026-10-02");
+    expect(
       describeToolCall("draft_document", {
         documentType: "APPEAL",
         note: "Presuda P 12/2026",
@@ -102,5 +118,20 @@ describe("tool call summary", () => {
     expect(
       toolResultCount("draft_document", { status: "DRAFT_READY" }),
     ).toBeNull();
+    expect(
+      toolResultCount("review_contract", {
+        status: "REVIEW_READY",
+        issueCounts: { high: 1, medium: 2, low: 0 },
+      }),
+    ).toBe(3);
+    expect(
+      toolResultCount("review_contract", { status: "NO_TEXT" }),
+    ).toBeNull();
+    expect(
+      toolResultCount("summarize_case_documents", {
+        status: "TIMELINE_READY",
+        eventCount: 7,
+      }),
+    ).toBe(7);
   });
 });

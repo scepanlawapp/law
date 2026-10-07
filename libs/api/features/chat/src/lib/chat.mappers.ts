@@ -4,12 +4,18 @@ import {
   ChatAttachmentSummary,
   ChatMessageResponse,
   ChatSessionSummary,
+  CaseTimelineAnalysis,
+  CaseTimelineResult,
+  ContractReviewAnalysis,
+  ContractReviewResult,
+  DocumentAnalysisResponse,
   DraftResultResponse,
   LegalCitationResponse,
   WorkflowProgressStage,
   WorkflowJobResponse,
   isDraftDocumentType,
 } from "@law/api-interfaces";
+import { isContractReviewType } from "@law/contract-review";
 import {
   DEFAULT_DOCUMENT_TYPE,
   getDocumentType,
@@ -385,4 +391,76 @@ export function toPendingAction(action: {
     decidedAt: action.decidedAt?.toISOString() ?? null,
     createdAt: action.createdAt.toISOString(),
   };
+}
+
+type AnalysisRow = {
+  id: string;
+  sessionId: string;
+  caseId: string | null;
+  kind: string;
+  documentRef: string;
+  documentTitle: string;
+  contractType: string | null;
+  clientSide: string | null;
+  result: unknown;
+  citations: unknown;
+  truncated: boolean;
+  model: string;
+  createdAt: Date;
+};
+
+function analysisBase(row: AnalysisRow) {
+  return {
+    id: row.id,
+    sessionId: row.sessionId,
+    caseId: row.caseId,
+    documentRef: row.documentRef,
+    documentTitle: row.documentTitle,
+    citations: Array.isArray(row.citations)
+      ? (row.citations as LegalCitationResponse[])
+      : [],
+    truncated: row.truncated,
+    model: row.model,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function toContractReview(row: AnalysisRow): ContractReviewAnalysis {
+  const result = (row.result ?? {}) as Partial<ContractReviewResult>;
+  return {
+    ...analysisBase(row),
+    kind: "CONTRACT_REVIEW",
+    contractType: isContractReviewType(row.contractType)
+      ? row.contractType
+      : "OTHER_CONTRACT",
+    clientSide: row.clientSide,
+    result: {
+      summary: result.summary ?? "",
+      keyTerms: result.keyTerms ?? [],
+      issues: result.issues ?? [],
+      missingClauses: result.missingClauses ?? [],
+      warnings: result.warnings ?? [],
+    },
+  };
+}
+
+export function toCaseTimeline(row: AnalysisRow): CaseTimelineAnalysis {
+  const result = (row.result ?? {}) as Partial<CaseTimelineResult>;
+  return {
+    ...analysisBase(row),
+    kind: "CASE_TIMELINE",
+    result: {
+      summary: result.summary ?? "",
+      events: result.events ?? [],
+      openQuestions: result.openQuestions ?? [],
+      sources: result.sources ?? [],
+      warnings: result.warnings ?? [],
+    },
+  };
+}
+
+export function toAnalysis(row: AnalysisRow): DocumentAnalysisResponse {
+  return row.kind === "CASE_TIMELINE"
+    ? toCaseTimeline(row)
+    : toContractReview(row);
 }

@@ -1,0 +1,11 @@
+{
+  "created_at": "2026-10-07T00:00:00Z",
+  "keywords": ["assistant", "deadlines", "rokovi", "zpp", "holidays", "pending-action", "mastra"],
+  "parent_track_id": "assistant_capabilities_20261007",
+  "prd_reference": null,
+  "priority": "high",
+  "status": "in_progress",
+  "track_id": "assistant_deadline_from_document_20261007",
+  "type": "feature",
+  "updated_at": "2026-10-07T00:00:00Z"
+}

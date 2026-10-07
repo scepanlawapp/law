@@ -23,6 +23,10 @@ import {
 } from "@law/api-interfaces";
 import { DEFAULT_DOCUMENT_TYPE, getDocumentType } from "@law/brief-extraction";
 import {
+  getContractChecklist,
+  renderContractReviewMemo,
+} from "@law/contract-review";
+import {
   paginationMeta,
   PaginationQueryDto,
   parseSort,
@@ -40,6 +44,8 @@ import { ChatStorageService } from "./chat.storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
 import {
+  toAnalysis,
+  toContractReview,
   toDraft,
   toJob,
   toMessage,
@@ -291,40 +297,51 @@ export class ChatService {
     sessionId: string,
   ): Promise<ChatSessionDetail> {
     const session = await this.requireSession(workspaceId, sessionId);
-    const [messages, jobs, drafts, latestBrief, toolCalls, pendingActions] =
-      await Promise.all([
-        this.db.chatMessage.findMany({
-          where: { sessionId },
-          include: { attachments: true },
-          orderBy: { createdAt: "asc" },
-        }),
-        this.db.workflowJob.findMany({
-          where: { sessionId },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        }),
-        this.db.draftResult.findMany({
-          where: { sessionId },
-          include: {
-            briefResult: { select: { missingFields: true } },
-            citations: true,
-          },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        }),
-        this.db.briefExtractionResult.findFirst({
-          where: { sessionId, workspaceId },
-          orderBy: { createdAt: "desc" },
-          select: { id: true },
-        }),
-        this.db.agentToolCall.findMany({
-          where: { sessionId, workspaceId },
-          include: { job: { select: { correlationId: true } } },
-          orderBy: [{ startedAt: "asc" }, { id: "asc" }],
-        }),
-        this.db.pendingAction.findMany({
-          where: { sessionId, workspaceId },
-          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-        }),
-      ]);
+    const [
+      messages,
+      jobs,
+      drafts,
+      latestBrief,
+      toolCalls,
+      pendingActions,
+      analyses,
+    ] = await Promise.all([
+      this.db.chatMessage.findMany({
+        where: { sessionId },
+        include: { attachments: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      this.db.workflowJob.findMany({
+        where: { sessionId },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+      this.db.draftResult.findMany({
+        where: { sessionId },
+        include: {
+          briefResult: { select: { missingFields: true } },
+          citations: true,
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+      this.db.briefExtractionResult.findFirst({
+        where: { sessionId, workspaceId },
+        orderBy: { createdAt: "desc" },
+        select: { id: true },
+      }),
+      this.db.agentToolCall.findMany({
+        where: { sessionId, workspaceId },
+        include: { job: { select: { correlationId: true } } },
+        orderBy: [{ startedAt: "asc" }, { id: "asc" }],
+      }),
+      this.db.pendingAction.findMany({
+        where: { sessionId, workspaceId },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+      this.db.documentAnalysis.findMany({
+        where: { sessionId, workspaceId },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      }),
+    ]);
     return {
       ...toSessionSummary(session),
       messages: messages.map((message) => toMessage(message)),
@@ -334,6 +351,7 @@ export class ChatService {
       toolCalls: toolCalls.map((call) =>
         toToolCall(call, call.job.correlationId),
       ),
+      analyses: analyses.map((analysis) => toAnalysis(analysis)),
       latestBriefId: latestBrief?.id ?? null,
     };
   }
@@ -654,6 +672,54 @@ export class ChatService {
       metadata: {
         draftId,
         sessionId: draft.sessionId,
+        format: "docx",
+        script,
+      },
+    });
+
+    return { buffer, filename };
+  }
+
+  async exportAnalysis(
+    workspaceId: string,
+    analysisId: string,
+    userId: string,
+    script: DocumentScript = "latin",
+  ): Promise<{ buffer: Buffer; filename: string }> {
+    const row = await this.db.documentAnalysis.findFirst({
+      where: { id: analysisId, workspaceId },
+    });
+    if (!row) throw new NotFoundException("Analysis not found");
+    if (row.kind !== "CONTRACT_REVIEW") {
+      throw new BadRequestException("Only contract reviews can be exported");
+    }
+    const analysis = toContractReview(row);
+    const checklist = getContractChecklist(analysis.contractType);
+    const date = row.createdAt.toISOString().slice(0, 10);
+    const buffer = await renderDraftDocx({
+      text: renderContractReviewMemo({
+        documentTitle: analysis.documentTitle,
+        contractLabel: checklist.label,
+        clientSide: analysis.clientSide,
+        date,
+        result: analysis.result,
+        citations: analysis.citations,
+        truncated: analysis.truncated,
+      }),
+      script,
+      title: "Analiza ugovora",
+    });
+    const sessionToken = row.sessionId.replace(/[^a-zA-Z0-9]/g, "").slice(0, 8);
+    const filename = `analiza-${checklist.fileSlug}-${sessionToken}-${date}.docx`;
+
+    await this.recordAuditEvent({
+      workspaceId,
+      userId,
+      eventType: "analysis.exported",
+      outcome: "SUCCESS",
+      metadata: {
+        analysisId,
+        sessionId: row.sessionId,
         format: "docx",
         script,
       },

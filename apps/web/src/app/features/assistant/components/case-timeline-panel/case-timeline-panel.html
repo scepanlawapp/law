@@ -1,0 +1,146 @@
+<section
+  class="timeline-panel"
+  [class.is-collapsed]="!expanded()"
+  aria-labelledby="case-timeline-title"
+>
+  <header class="timeline-panel-header">
+    <div class="timeline-heading">
+      <span class="timeline-heading-icon" aria-hidden="true">
+        <ng-icon name="lucideHistory" />
+      </span>
+      <div>
+        <strong id="case-timeline-title">
+          {{ "assistant.timeline.title" | translate }}
+        </strong>
+        @if (expanded()) {
+        <span class="timeline-subtitle">
+          {{ analysis().documentTitle }} ·
+          {{ "assistant.timeline.eventCount" | translate: { count: analysis().result.events.length } }}
+        </span>
+        }
+      </div>
+    </div>
+    <button
+      hlmBtn
+      variant="ghost"
+      size="icon"
+      type="button"
+      [hlmTooltip]="
+        (expanded() ? 'assistant.timeline.collapse' : 'assistant.timeline.expand')
+          | translate
+      "
+      [attr.aria-label]="
+        (expanded() ? 'assistant.timeline.collapse' : 'assistant.timeline.expand')
+          | translate
+      "
+      [attr.aria-expanded]="expanded()"
+      aria-controls="case-timeline-content"
+      (click)="expandedChange.emit(!expanded())"
+    >
+      <ng-icon [name]="expanded() ? 'lucideChevronRight' : 'lucideChevronLeft'" />
+    </button>
+  </header>
+
+  @if (expanded()) {
+  <div id="case-timeline-content" class="timeline-panel-content">
+    <p class="timeline-disclaimer">
+      {{ "assistant.timeline.disclaimer" | translate }}
+    </p>
+
+    <section class="timeline-section" aria-labelledby="timeline-summary-title">
+      <h3 id="timeline-summary-title">
+        {{ "assistant.timeline.summary" | translate }}
+      </h3>
+      <p>{{ analysis().result.summary }}</p>
+    </section>
+
+    @if (analysis().result.openQuestions.length) {
+    <section class="timeline-section" aria-labelledby="timeline-questions-title">
+      <h3 id="timeline-questions-title">
+        {{ "assistant.timeline.openQuestions" | translate }}
+      </h3>
+      <ul class="timeline-questions">
+        @for (question of analysis().result.openQuestions; track $index) {
+        <li>{{ question }}</li>
+        }
+      </ul>
+    </section>
+    }
+
+    <section class="timeline-section" aria-labelledby="timeline-events-title">
+      <h3 id="timeline-events-title">
+        {{ "assistant.timeline.events" | translate }}
+      </h3>
+      @for (group of groups(); track group.year) {
+      <div class="timeline-year">
+        <h4>{{ group.year ?? ("assistant.timeline.undated" | translate) }}</h4>
+        <ol class="timeline-events">
+          @for (event of group.events; track $index) {
+          <li class="timeline-event" [attr.data-kind]="event.kind">
+            <div class="timeline-event-meta">
+              <time [attr.datetime]="event.date">
+                {{ formatDate(event) ?? ("assistant.timeline.undated" | translate) }}
+              </time>
+              <span class="timeline-kind">
+                {{ "assistant.timeline.kind." + event.kind | translate }}
+              </span>
+            </div>
+            <strong>{{ event.title }}</strong>
+            @if (event.description) {
+            <p>{{ event.description }}</p>
+            }
+            @if (event.quote) {
+            <blockquote class="timeline-quote">„{{ event.quote }}”</blockquote>
+            }
+            <span class="timeline-source">
+              {{ "assistant.timeline.source" | translate }}: {{ event.sourceTitle }}
+            </span>
+          </li>
+          }
+        </ol>
+      </div>
+      } @empty {
+      <p class="timeline-empty">{{ "assistant.timeline.noEvents" | translate }}</p>
+      }
+    </section>
+
+    @if (analysis().result.warnings.length) {
+    <law-collapsible-section
+      class="timeline-collapsible"
+      [title]="('assistant.timeline.notes' | translate) + ' (' + analysis().result.warnings.length + ')'"
+      [expanded]="notesExpanded()"
+      (expandedChange)="notesExpanded.set($event)"
+    >
+      <ul class="timeline-notes">
+        @for (warning of analysis().result.warnings; track $index) {
+        <li>{{ warning }}</li>
+        }
+      </ul>
+    </law-collapsible-section>
+    }
+
+    <law-collapsible-section
+      class="timeline-collapsible"
+      [title]="('assistant.timeline.documents' | translate) + ' (' + analysis().result.sources.length + ')'"
+      [expanded]="sourcesExpanded()"
+      (expandedChange)="sourcesExpanded.set($event)"
+    >
+      <ul class="timeline-documents">
+        @for (source of analysis().result.sources; track source.ref) {
+        <li>
+          <div class="timeline-document-head">
+            <span class="timeline-document-title">{{ source.title }}</span>
+            <span [class]="sourceBadge(source.status)">
+              {{ "assistant.timeline.sourceStatus." + source.status | translate }}
+            </span>
+          </div>
+          @if (source.summary) {
+          <p>{{ source.summary }}</p>
+          }
+        </li>
+        }
+      </ul>
+    </law-collapsible-section>
+  </div>
+  }
+</section>

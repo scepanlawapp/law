@@ -338,6 +338,31 @@ export class ChatController {
     return this.chat.listDrafts(request.workspace!.workspaceId, sessionId);
   }
 
+  @Get("analyses/:analysisId/export")
+  async exportAnalysis(
+    @Req() request: WorkspaceRequest,
+    @Param("analysisId") analysisId: string,
+    @Query() query: DraftExportQueryDto,
+    @Res() response: Response,
+  ): Promise<void> {
+    const { buffer, filename } = await this.chat.exportAnalysis(
+      request.workspace!.workspaceId,
+      analysisId,
+      request.auth!.user.id,
+      query.script ?? "latin",
+    );
+    response.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    );
+    response.setHeader(
+      "Content-Disposition",
+      `attachment; filename="${filename}"`,
+    );
+    response.setHeader("Content-Length", String(buffer.length));
+    response.send(buffer);
+  }
+
   @Get("drafts/:draftId/export")
   async exportDraft(
     @Req() request: WorkspaceRequest,
