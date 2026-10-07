@@ -9,6 +9,7 @@
     "tslib": "^2.3.0",
     "zod": "^3.24.2",
     "@law/llm": "0.0.1",
-    "@law/brief-extraction": "0.0.1"
+    "@law/brief-extraction": "0.0.1",
+    "@law/api-interfaces": "0.0.1"
   }
 }

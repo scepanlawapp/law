@@ -1,4 +1,5 @@
 import { createStep, createWorkflow } from "@mastra/core/workflows";
+import { DRAFT_DOCUMENT_TYPES } from "@law/api-interfaces";
 import {
   briefResultSchema,
   buildBriefUserPrompt,
@@ -72,7 +73,8 @@ const feedbackSchema = z.object({
   reviewerNote: z.string().optional(),
 });
 
-export const lawsuitDraftingInputSchema = z.object({
+export const documentDraftingInputSchema = z.object({
+  documentType: z.enum(DRAFT_DOCUMENT_TYPES),
   /** Client facts in Latin script (conversation messages). */
   userText: z.string(),
   documents: z.array(documentSchema),
@@ -88,31 +90,32 @@ export const draftRevisionInputSchema = z.object({
 });
 
 export const draftingOutcomeSchema = z.object({
-  outcome: z.enum(["DRAFTED", "UNSUPPORTED"]),
+  outcome: z.literal("DRAFTED"),
   brief: briefResultSchema,
-  draft: draftResultSchema.nullable(),
+  draft: draftResultSchema,
   /** Only the citations the draft actually uses. */
   citations: z.array(citationSchema),
   promptChars: z.number(),
   truncated: z.boolean(),
 });
 
-export type LawsuitDraftingInput = z.infer<typeof lawsuitDraftingInputSchema>;
+export type DocumentDraftingInput = z.infer<typeof documentDraftingInputSchema>;
 export type DraftRevisionInput = z.infer<typeof draftRevisionInputSchema>;
 export type DraftingOutcome = z.infer<typeof draftingOutcomeSchema> & {
   citations: GroundingCitation[];
 };
 
 /**
- * Lawsuit drafting as Mastra workflows (AI_ARCHITECTURE.md §4): code decides
- * the steps, the model fills them. Reuses the existing prompts and schemas.
+ * Document drafting as Mastra workflows (AI_ARCHITECTURE.md §4): code decides
+ * the steps, the model fills them. The document type (chosen before the run)
+ * selects the prompts through the `@law/brief-extraction` registry.
  */
 export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
   const extractBrief = createStep({
     id: "extract-brief",
-    inputSchema: lawsuitDraftingInputSchema,
+    inputSchema: documentDraftingInputSchema,
     outputSchema: draftRevisionInputSchema,
-    execute: async ({ inputData, bail }) => {
+    execute: async ({ inputData }) => {
       await deps.onStage?.("EXTRACTING_FACTS");
       const { prompt, promptChars, truncated } = buildBriefUserPrompt(
         {
@@ -124,18 +127,12 @@ export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
           totalMaxChars: inputData.budget.totalMaxChars,
         },
       );
-      const brief = await runBriefExtractionLlm(deps.provider, prompt);
+      const brief = await runBriefExtractionLlm(
+        deps.provider,
+        prompt,
+        inputData.documentType,
+      );
       await deps.onBrief?.({ brief, promptChars, truncated });
-      if (brief.jobType !== "lawsuit") {
-        return bail({
-          outcome: "UNSUPPORTED" as const,
-          brief,
-          draft: null,
-          citations: [],
-          promptChars,
-          truncated,
-        });
-      }
       return {
         brief,
         caseContext: inputData.caseContext,
@@ -151,11 +148,14 @@ export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
     outputSchema: draftingOutcomeSchema,
     execute: async ({ inputData }) => {
       await deps.onStage?.("PREPARING_DRAFT");
+      // Validated by draftRevisionInputSchema; the cast only restores strict
+      // field types for projects compiled without strictNullChecks.
+      const brief = inputData.brief as BriefResult;
       let citations: GroundingCitation[] = [];
       try {
         citations = await retrieveGroundingCitations(
           deps.search,
-          buildDraftGroundingQueries(inputData.brief),
+          buildDraftGroundingQueries(brief),
         );
       } catch {
         // Grounding is best-effort, as in the legacy drafting job.
@@ -168,15 +168,19 @@ export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
         .filter(Boolean)
         .join("\n\n");
       const { prompt, promptChars, truncated } = buildDraftingUserPrompt(
-        inputData.brief,
+        brief,
         inputData.budget.draftingPromptMaxChars,
         inputData.feedback ?? undefined,
         context,
       );
-      const draft = await runDraftingLlm(deps.provider, prompt);
+      const draft = await runDraftingLlm(
+        deps.provider,
+        prompt,
+        brief.documentType,
+      );
       return {
         outcome: "DRAFTED" as const,
-        brief: inputData.brief,
+        brief,
         draft,
         citations: filterUsedCitations(citations, draft.usedCitations),
         promptChars,
@@ -185,9 +189,9 @@ export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
     },
   });
 
-  const lawsuitDrafting = createWorkflow({
-    id: "lawsuit-drafting",
-    inputSchema: lawsuitDraftingInputSchema,
+  const documentDrafting = createWorkflow({
+    id: "document-drafting",
+    inputSchema: documentDraftingInputSchema,
     outputSchema: draftingOutcomeSchema,
   })
     .then(extractBrief)
@@ -202,7 +206,7 @@ export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
     .then(groundAndDraft)
     .commit();
 
-  return { lawsuitDrafting, draftRevision };
+  return { documentDrafting, draftRevision };
 }
 
 /** Runs a drafting workflow and returns its outcome or throws its error. */

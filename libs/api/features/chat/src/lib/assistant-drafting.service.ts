@@ -1,15 +1,17 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import type {
-  ChatAttachmentSummary,
-  ChatStreamEvent,
-  WorkflowJobStatus,
-  WorkflowProgressStage,
+import {
+  isDraftDocumentType,
+  type ChatAttachmentSummary,
+  type ChatStreamEvent,
+  type DraftDocumentType,
+  type WorkflowJobStatus,
+  type WorkflowProgressStage,
 } from "@law/api-interfaces";
 import {
-  normalizeEvidence,
-  normalizeMissingFields,
+  DEFAULT_DOCUMENT_TYPE,
+  getDocumentType,
+  normalizeBrief,
   type BriefDocumentInput,
-  type BriefResult,
 } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
@@ -28,6 +30,7 @@ import { toLatin } from "@law/transliteration";
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { resolveChatModelProvider } from "./chat-model.util";
+import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { toDraft, toJob, toMessage } from "./chat.mappers";
 import { ChatStorageService } from "./chat.storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
@@ -72,41 +75,67 @@ export class AssistantDraftingService {
     @Inject(CHAT_MODEL_PROVIDER)
     private readonly provider?: ChatModelProvider,
     @Optional() private readonly legalKnowledge?: LegalKnowledgeService,
+    @Optional() private readonly documentReads?: AssistantDocumentReadsService,
   ) {}
 
-  async draftLawsuit(
+  async draftDocument(
     scope: AssistantTurnScope,
-    args: { note?: string },
+    args: {
+      documentType: DraftDocumentType;
+      note?: string;
+      documentRefs?: string[];
+    },
   ): Promise<DraftToolResult> {
+    if (!isDraftDocumentType(args.documentType)) {
+      return {
+        status: "FAILED",
+        message: "Ta vrsta dokumenta nije podržana za automatsku izradu.",
+      };
+    }
     const { userText, attachments } = await this.conversationInput(
       scope,
       args.note,
     );
+    const documentRefs = args.documentRefs ?? [];
     const summaries = attachments.map(toAttachmentSummary);
     const briefJob = await this.createJob(
       scope,
       "brief-extraction",
       {
         messageId: scope.messageId,
+        documentType: args.documentType,
         userText,
         attachments: summaries,
+        documentRefs,
         language: scope.language,
         source: "agent",
       },
-      attachments.length ? "READING_ATTACHMENTS" : "EXTRACTING_FACTS",
+      attachments.length || documentRefs.length
+        ? "READING_ATTACHMENTS"
+        : "EXTRACTING_FACTS",
     );
-    return this.runLawsuitDraft(scope, briefJob, userText, attachments);
+    return this.runDocumentDraft(
+      scope,
+      briefJob,
+      args.documentType,
+      userText,
+      attachments,
+      documentRefs,
+    );
   }
 
   /**
    * Runs a queued `brief-extraction` job (retry of a failed one, or a legacy
-   * job still in the queue) through the Mastra lawsuit-drafting workflow.
+   * job still in the queue) through the Mastra document-drafting workflow.
+   * Jobs stored before document types are lawsuits.
    */
   async runBriefJob(job: JobRecord): Promise<DraftToolResult> {
     const input = (job.input ?? {}) as {
       messageId?: string | null;
+      documentType?: string;
       userText?: string;
       attachments?: Array<{ id: string }>;
+      documentRefs?: string[];
       language?: "sr" | "en";
     };
     const scope = scopeFromJob(job, input);
@@ -124,16 +153,40 @@ export class AssistantDraftingService {
       input.userText && input.userText !== "(attachment)"
         ? toLatin(input.userText)
         : "";
-    return this.runLawsuitDraft(scope, job, userText, attachments);
+    const documentType = isDraftDocumentType(input.documentType)
+      ? input.documentType
+      : DEFAULT_DOCUMENT_TYPE;
+    return this.runDocumentDraft(
+      scope,
+      job,
+      documentType,
+      userText,
+      attachments,
+      input.documentRefs ?? [],
+    );
   }
 
-  private async runLawsuitDraft(
+  private async runDocumentDraft(
     scope: AssistantTurnScope,
     briefJob: JobRecord,
+    documentType: DraftDocumentType,
     userText: string,
     attachments: AttachmentRow[],
+    documentRefs: string[],
   ): Promise<DraftToolResult> {
-    const documents = await this.readDocuments(scope, attachments);
+    // Named documents first: they are what the draft answers (judgment,
+    // lawsuit). An attachment already filed as one of them is not read twice.
+    const named = new Set(documentRefs.map((ref) => ref.trim()));
+    const documents = [
+      ...(await this.documentsByRef(scope, documentRefs)),
+      ...(await this.readDocuments(
+        scope,
+        attachments.filter(
+          (attachment) =>
+            !attachment.documentId || !named.has(`doc:${attachment.documentId}`),
+        ),
+      )),
+    ];
     const hasContext =
       userText.trim().length > 0 ||
       documents.some((doc) => doc.status === "COMPLETED" && !!doc.text);
@@ -152,7 +205,7 @@ export class AssistantDraftingService {
     let briefId: string | null = null;
     let draftJob: JobRecord | null = null;
     let briefDone = false;
-    const { lawsuitDrafting } = createDraftingWorkflows({
+    const { documentDrafting } = createDraftingWorkflows({
       provider: resolveChatModelProvider(this.config, this.provider),
       search: (query, limit) => this.search(scope.workspaceId, query, limit),
       onStage: async (stage) => {
@@ -169,6 +222,7 @@ export class AssistantDraftingService {
             workspaceId: scope.workspaceId,
             sessionId: scope.sessionId,
             messageId: scope.messageId || null,
+            documentType: brief.documentType,
             brief: JSON.parse(JSON.stringify(brief)),
             confidence: brief.confidence,
             missingFields: JSON.parse(JSON.stringify(brief.missingFields)),
@@ -191,24 +245,23 @@ export class AssistantDraftingService {
           brief,
           briefResultId: row.id,
         });
-        if (brief.jobType === "lawsuit") {
-          draftJob = await this.createJob(
-            scope,
-            "drafting",
-            {
-              briefResultId: row.id,
-              messageId: scope.messageId,
-              language: scope.language,
-            },
-            "PREPARING_DRAFT",
-          );
-        }
+        draftJob = await this.createJob(
+          scope,
+          "drafting",
+          {
+            briefResultId: row.id,
+            messageId: scope.messageId,
+            language: scope.language,
+          },
+          "PREPARING_DRAFT",
+        );
       },
     });
 
     let outcome: DraftingOutcome;
     try {
-      outcome = await runDraftingWorkflow(lawsuitDrafting, {
+      outcome = await runDraftingWorkflow(documentDrafting, {
+        documentType,
         userText,
         documents,
         caseContext: await this.caseContext(scope),
@@ -222,17 +275,8 @@ export class AssistantDraftingService {
       return { status: "FAILED", message: "Izrada nacrta nije uspela." };
     }
 
-    if (
-      outcome.outcome !== "DRAFTED" ||
-      !outcome.draft ||
-      !draftJob ||
-      !briefId
-    ) {
-      return {
-        status: "UNSUPPORTED",
-        jobType: outcome.brief.jobType,
-        message: "Automatska izrada trenutno podržava samo nacrte tužbi.",
-      };
+    if (!draftJob || !briefId) {
+      return { status: "FAILED", message: "Izrada nacrta nije uspela." };
     }
     return this.saveDraft(scope, draftJob, briefId, outcome, null);
   }
@@ -342,7 +386,7 @@ export class AssistantDraftingService {
     });
     try {
       const outcome = await runDraftingWorkflow(draftRevision, {
-        brief: readStoredBrief(briefRow.brief),
+        brief: normalizeBrief(briefRow.brief),
         caseContext: await this.caseContext(scope),
         budget: this.budget(),
         feedback:
@@ -538,6 +582,14 @@ export class AssistantDraftingService {
     return { userText: texts.join("\n\n"), attachments };
   }
 
+  private async documentsByRef(
+    scope: AssistantTurnScope,
+    refs: string[],
+  ): Promise<BriefDocumentInput[]> {
+    if (!refs.length || !this.documentReads) return [];
+    return this.documentReads.documentsByRef(scope, refs);
+  }
+
   /** Reuses extracted text; extracts pending attachments like the legacy job. */
   private async readDocuments(
     scope: AssistantTurnScope,
@@ -644,7 +696,7 @@ export class AssistantDraftingService {
     outcome: DraftingOutcome,
     previousDraftId: string | null,
   ): Promise<DraftToolResult> {
-    const draft = outcome.draft!;
+    const draft = outcome.draft;
     await this.transition(scope, job, "RUNNING", {
       progressStage: "SAVING_FOR_REVIEW",
     });
@@ -660,6 +712,7 @@ export class AssistantDraftingService {
         caseId: sessionCaseId,
         messageId: scope.messageId || null,
         briefResultId,
+        documentType: outcome.brief.documentType,
         documentText: draft.documentText,
         warnings: draft.warnings,
         promptChars: outcome.promptChars,
@@ -699,6 +752,7 @@ export class AssistantDraftingService {
     return {
       status: "DRAFT_READY",
       draftId: saved.id,
+      documentType: getDocumentType(outcome.brief.documentType).label,
       version: await this.versionOf(saved),
       approvalStatus: saved.approvalStatus,
       missingFields: outcome.brief.missingFields.map((field) => field.label),
@@ -833,6 +887,7 @@ type AttachmentRow = {
   extractionStatus: ChatAttachmentSummary["extractionStatus"];
   extractedText: string | null;
   sourceScript: ChatAttachmentSummary["sourceScript"] | null;
+  documentId?: string | null;
 };
 
 function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
@@ -895,15 +950,5 @@ function scopeFromJob(
     // Queued drafting jobs never call the office tools.
     userId: null,
     userDisplayName: null,
-  };
-}
-
-// Briefs stored before structured missing fields hold plain strings.
-function readStoredBrief(value: unknown): BriefResult {
-  const brief = value as BriefResult;
-  return {
-    ...brief,
-    missingFields: normalizeMissingFields(brief?.missingFields),
-    evidence: normalizeEvidence(brief?.evidence),
   };
 }

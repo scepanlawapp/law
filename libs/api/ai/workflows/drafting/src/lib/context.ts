@@ -1,4 +1,4 @@
-import type { BriefResult } from "@law/brief-extraction";
+import { getDocumentType, type BriefResult } from "@law/brief-extraction";
 
 export interface DraftingContextResult {
   prompt: string;
@@ -21,7 +21,8 @@ export function buildDraftingUserPrompt(
   feedback?: DraftingFeedback,
   groundingContextBlock?: string,
 ): DraftingContextResult {
-  const header = "Izvučene činjenice (BriefResult) za nacrt tužbe:";
+  const label = getDocumentType(brief.documentType).label.toLowerCase();
+  const header = `Izvučene činjenice (BriefResult) za nacrt: ${label}.`;
   let briefJson = serializeBrief(brief);
   let truncated = false;
 

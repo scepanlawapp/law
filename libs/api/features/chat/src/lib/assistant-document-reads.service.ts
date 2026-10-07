@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
+import type { BriefDocumentInput } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
 import type {
@@ -104,6 +105,38 @@ export class AssistantDocumentReadsService {
       totalChars: text.length,
       text: text.slice(offset, end),
     };
+  }
+
+  /**
+   * Full text of documents named by ref (`doc:` or `att:`) for drafting.
+   * Unknown refs are skipped; documents without text report their status.
+   */
+  async documentsByRef(
+    scope: AssistantTurnScope,
+    refs: string[],
+  ): Promise<BriefDocumentInput[]> {
+    const wanted = [...new Set(refs.map((ref) => ref.trim()).filter(Boolean))];
+    if (!wanted.length) return [];
+    const { sources } = await this.sources(scope);
+    const documents: BriefDocumentInput[] = [];
+    for (const ref of wanted) {
+      const source =
+        sources.find((item) => item.ref === ref) ??
+        (await this.namedDocument(scope, ref));
+      if (!source) continue;
+      const { status, text } = await this.textOf(scope, source);
+      // The prompt shows "title (file name)".
+      const base = { id: source.ref, name: source.title, mimeType: source.fileName };
+      if (text !== null && text.trim()) {
+        documents.push({ ...base, status: "COMPLETED", text: toLatin(text) });
+      } else {
+        documents.push({
+          ...base,
+          status: status === "UNSUPPORTED" ? "UNSUPPORTED" : "FAILED",
+        });
+      }
+    }
+    return documents;
   }
 
   async searchDocuments(

@@ -8,8 +8,14 @@ import {
   LegalCitationResponse,
   WorkflowProgressStage,
   WorkflowJobResponse,
+  isDraftDocumentType,
 } from "@law/api-interfaces";
-import { normalizeMissingFields } from "@law/brief-extraction";
+import {
+  DEFAULT_DOCUMENT_TYPE,
+  getDocumentType,
+  missingFieldKeys,
+  normalizeMissingFields,
+} from "@law/brief-extraction";
 import { describeToolCall, toolResultCount } from "@law/mastra";
 
 /**
@@ -268,6 +274,7 @@ export function toDraft(draft: {
   caseId?: string | null;
   messageId: string | null;
   briefResultId: string | null;
+  documentType?: string | null;
   documentText: string;
   finalDocumentText?: string | null;
   warnings: string[];
@@ -299,6 +306,9 @@ export function toDraft(draft: {
   createdAt: Date;
   updatedAt?: Date;
 }): DraftResultResponse {
+  const documentType = isDraftDocumentType(draft.documentType)
+    ? draft.documentType
+    : DEFAULT_DOCUMENT_TYPE;
   return {
     id: draft.id,
     jobId: draft.jobId,
@@ -307,11 +317,13 @@ export function toDraft(draft: {
     caseId: draft.caseId ?? null,
     messageId: draft.messageId,
     briefResultId: draft.briefResultId,
+    documentType,
     documentText: draft.documentText,
     finalDocumentText: draft.finalDocumentText ?? null,
     warnings: draft.warnings,
     missingFields: normalizeMissingFields(
       draft.briefResult?.missingFields ?? draft.missingFields,
+      new Set(missingFieldKeys(getDocumentType(documentType))),
     ),
     citations: (draft.citations ?? [])
       .slice()

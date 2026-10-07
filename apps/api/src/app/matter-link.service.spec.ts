@@ -501,4 +501,136 @@ describe("MatterLinkService", () => {
       jest.useRealTimers();
     }
   });
+  it("previews a legacy lawsuit brief with the plaintiff as client", async () => {
+    const { service } = harness();
+    const preview = await service.previewBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+    });
+    expect(preview).toMatchObject({
+      documentType: "LAWSUIT",
+      clientRole: "plaintiff",
+      clientPartyName: "Petar Petrović",
+      opposingPartyName: "Marko Marković",
+      opposingPartyAddress: "Terazije 1",
+      suggestedCaseName: "Naknada štete",
+    });
+    expect(preview.parties.map((party) => party.label)).toEqual([
+      "Tužilac",
+      "Tuženi",
+    ]);
+    expect(preview.suggestedDescription).toContain(
+      "Nadležni sud: Osnovni sud u Beogradu",
+    );
+  });
+
+  it("uses the defendant as client for a statement of defence and honours a role switch", async () => {
+    const { service, prisma, clients } = harness();
+    const defence = {
+      documentType: "STATEMENT_OF_DEFENCE",
+      parties: [
+        { role: "defendant", name: "Alfa d.o.o.", address: "Terazije 1", idNumber: null },
+        { role: "plaintiff", name: "Petar Petrović", address: null, idNumber: null },
+      ],
+      fields: [{ key: "defencePosition", value: "Osporava se u celini" }],
+      legalBasis: [],
+      factualDescription: null,
+      evidence: [],
+      missingFields: [],
+      confidence: 0.7,
+      warnings: [],
+    };
+    prisma.briefExtractionResult.findFirst.mockResolvedValue({
+      id: "brief-1",
+      sessionId: "session-1",
+      workspaceId,
+      brief: defence,
+      appliedCaseId: null,
+      appliedTaskKeys: [],
+    });
+    const preview = await service.previewBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+    });
+    expect(preview).toMatchObject({
+      documentType: "STATEMENT_OF_DEFENCE",
+      clientRole: "defendant",
+      clientPartyName: "Alfa d.o.o.",
+      opposingPartyName: "Petar Petrović",
+      suggestedCaseName: "Osporava se u celini",
+    });
+    expect(clients.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ search: "Alfa d.o.o." }),
+    );
+
+    const switched = await service.previewBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+      clientRole: "plaintiff",
+    });
+    expect(switched).toMatchObject({
+      clientRole: "plaintiff",
+      clientPartyName: "Petar Petrović",
+      opposingPartyName: "Alfa d.o.o.",
+    });
+
+    const unknown = await service.previewBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+      clientRole: "witness",
+    });
+    expect(unknown.clientRole).toBe("defendant");
+  });
+
+  it("phrases appeal tasks from the appeal registry", async () => {
+    const { service, prisma } = harness({ appliedCaseId: "case-1" });
+    prisma.briefExtractionResult.findFirst.mockResolvedValueOnce({
+      id: "brief-1",
+      sessionId: "session-1",
+      workspaceId,
+      brief: {
+        documentType: "APPEAL",
+        parties: [],
+        fields: [],
+        legalBasis: [],
+        factualDescription: null,
+        evidence: [{ label: "Presuda", provided: false }],
+        missingFields: [
+          { key: "contestedDecision", label: "Presuda" },
+          { key: "opponentAddress", label: "Adresa protivne strane" },
+          { key: "serviceDate", label: "Datum prijema presude" },
+        ],
+        confidence: 0.5,
+        warnings: [],
+      },
+      appliedCaseId: "case-1",
+      appliedTaskKeys: [],
+    });
+    const preview = await service.previewTasks({
+      workspaceId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+    });
+    expect(
+      preview.proposals.map(({ title, priority }) => ({ title, priority })),
+    ).toEqual([
+      { title: "Pribaviti osporenu odluku", priority: "NORMAL" },
+      { title: "Pribaviti adresu protivne strane", priority: "NORMAL" },
+      {
+        title: "Utvrditi datum dostavljanja osporenog akta",
+        priority: "HIGH",
+      },
+      { title: "Pribaviti dokaz: Presuda", priority: "NORMAL" },
+    ]);
+    expect(preview.proposals[2].description).toContain("podnošenje žalbe");
+    expect(preview.proposals[3].description).toContain("nacrtu žalbe");
+  });
 });

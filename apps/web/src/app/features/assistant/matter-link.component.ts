@@ -8,6 +8,7 @@ import {
   output,
   signal,
 } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, FormGroup, ReactiveFormsModule } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
@@ -20,6 +21,7 @@ import {
 import {
   BriefApplyPreview,
   BriefMissingField,
+  BriefPartyOption,
   BriefTaskPreview,
   BriefTaskProposal,
   ChatSessionSummary,
@@ -27,6 +29,8 @@ import {
 import { ChatApiClient, CasesApiClient } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmLabel } from "@spartan-ng/helm/label";
+import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -45,6 +49,8 @@ type TaskGroupSource = BriefTaskProposal["source"];
     NgIcon,
     HlmButton,
     HlmInput,
+    HlmLabel,
+    HlmRadioGroupImports,
     HlmSpinner,
     HlmTooltipImports,
     TranslatePipe,
@@ -99,6 +105,12 @@ export class AssistantMatterLinkComponent {
       .filter((group) => group.tasks.length);
   });
   readonly canConfirm = computed(() => !this.saving());
+  readonly documentTypeLabel = computed(() => {
+    const type = this.preview()?.documentType;
+    return type ? `assistant.documentType.${type}` : null;
+  });
+  // Which brief party is the office's client; changing it reloads the preview.
+  readonly clientRole = new FormControl<string | null>(null);
   private loadedKey: string | null = null;
   readonly form = new FormGroup({
     firstName: new FormControl(""),
@@ -119,36 +131,49 @@ export class AssistantMatterLinkComponent {
       this.loadedKey = key;
       this.loadBrief();
     });
+    this.clientRole.valueChanges
+      .pipe(takeUntilDestroyed())
+      .subscribe((role) => {
+        if (role && role !== this.preview()?.clientRole) this.loadBrief(role);
+      });
   }
 
-  loadBrief(): void {
+  loadBrief(clientRole?: string): void {
     const workspaceId = this.workspaceId();
     const session = this.session();
     const briefId = this.briefId();
     if (!workspaceId || !session || !briefId) return;
     this.loading.set(true);
-    this.chat.previewBrief(workspaceId, session.id, briefId).subscribe({
-      next: (preview) => {
-        this.preview.set(preview);
-        this.form.patchValue({
-          firstName: preview.suggestedFirstName ?? "",
-          lastName: preview.suggestedLastName ?? "",
-          caseNumber: preview.suggestedCaseNumber,
-          name: preview.suggestedCaseName,
-          description: preview.suggestedDescription,
-          opposingPartyName: preview.defendantName ?? "",
-          opposingPartyAddress: preview.defendantAddress ?? "",
-        });
-        this.createClient.set(!preview.clientMatches.length);
-        this.selectedClientId.set(preview.clientMatches[0]?.id ?? null);
-        this.loading.set(false);
-        if (preview.alreadyApplied) this.loadTasks();
-      },
-      error: () => {
-        this.loading.set(false);
-        this.error.set("assistant.matter.previewError");
-      },
-    });
+    this.chat
+      .previewBrief(
+        workspaceId,
+        session.id,
+        briefId,
+        clientRole ? { clientRole } : {},
+      )
+      .subscribe({
+        next: (preview) => {
+          this.preview.set(preview);
+          this.clientRole.setValue(preview.clientRole, { emitEvent: false });
+          this.form.patchValue({
+            firstName: preview.suggestedFirstName ?? "",
+            lastName: preview.suggestedLastName ?? "",
+            caseNumber: preview.suggestedCaseNumber,
+            name: preview.suggestedCaseName,
+            description: preview.suggestedDescription,
+            opposingPartyName: preview.opposingPartyName ?? "",
+            opposingPartyAddress: preview.opposingPartyAddress ?? "",
+          });
+          this.createClient.set(!preview.clientMatches.length);
+          this.selectedClientId.set(preview.clientMatches[0]?.id ?? null);
+          this.loading.set(false);
+          if (preview.alreadyApplied) this.loadTasks();
+        },
+        error: () => {
+          this.loading.set(false);
+          this.error.set("assistant.matter.previewError");
+        },
+      });
   }
 
   onSearch(event: Event): void {
@@ -189,6 +214,13 @@ export class AssistantMatterLinkComponent {
   selectCreate(): void {
     this.createClient.set(true);
     this.selectedClientId.set(null);
+  }
+
+  // Known roles are translated; a role the UI does not know keeps the server label.
+  partyRoleLabel(party: BriefPartyOption): string {
+    const key = `assistant.partyRole.${party.role}`;
+    const translated = this.localization.translate(key);
+    return translated === key ? party.label : translated;
   }
 
   fieldLabel(field: BriefMissingField): string {

@@ -12,6 +12,7 @@ import {
   ChatMessageFeedback,
   ChatMessageResponse,
   BriefApplyPreview,
+  BriefApplyPreviewRequest,
   BriefApplyRequest,
   BriefApplyResponse,
   BriefTaskApplyRequest,
@@ -383,10 +384,11 @@ export class ChatApiClient {
     workspaceId: string,
     sessionId: string,
     briefId: string,
+    body: BriefApplyPreviewRequest = {},
   ): Observable<BriefApplyPreview> {
     return this.http.post<BriefApplyPreview>(
       this.endpoint(`/chat/sessions/${sessionId}/briefs/${briefId}/preview`),
-      {},
+      body,
       this.workspaceOptions(workspaceId),
     );
   }

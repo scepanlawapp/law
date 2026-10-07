@@ -1,4 +1,4 @@
-import type { BriefResult } from "@law/brief-extraction";
+import { getDocumentType, type BriefResult } from "@law/brief-extraction";
 
 const MIN_QUERY_LENGTH = 3;
 
@@ -11,7 +11,11 @@ export function buildDraftGroundingQueries(brief: BriefResult): string[] {
   if (brief.factualDescription?.trim()) {
     queries.push(brief.factualDescription.trim());
   }
-  const claimSummary = [brief.jobType, brief.reliefSought]
+  // The document type plus what it asks for (relief, appeal grounds, …).
+  const type = getDocumentType(brief.documentType);
+  const purposeKey = type.fields.find((field) => field.caseName)?.key;
+  const purpose = brief.fields.find((field) => field.key === purposeKey)?.value;
+  const claimSummary = [type.label, purpose]
     .filter((value): value is string => Boolean(value?.trim()))
     .join(" ")
     .trim();

@@ -1,6 +1,7 @@
 /**
  * Starter cards on an empty assistant chat. Each prompt is phrased for an
- * existing assistant tool (agenda, work items, cases, legal sources, drafting).
+ * existing assistant tool (agenda, work items, cases, legal sources, drafting
+ * by document type).
  * `send` prompts are complete questions; `compose` prompts are stems the user
  * finishes in the composer. A card with `pick` first asks the user to choose a
  * client, case, colleague, or document; its prompt takes the choice as the
@@ -88,6 +89,27 @@ export const GENERAL_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
     group: "drafting",
   },
   {
+    id: "draftDefence",
+    icon: "lucideFilePen",
+    mode: "compose",
+    pick: "document",
+    group: "drafting",
+  },
+  {
+    id: "draftAppeal",
+    icon: "lucideFilePen",
+    mode: "compose",
+    pick: "document",
+    group: "drafting",
+  },
+  {
+    id: "draftEnforcement",
+    icon: "lucideFilePen",
+    mode: "compose",
+    pick: "case",
+    group: "drafting",
+  },
+  {
     id: "setDeadline",
     icon: "lucideCalendarPlus",
     mode: "compose",
@@ -110,6 +132,7 @@ export const CASE_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
   { id: "caseActivity", icon: "lucideHistory", mode: "send" },
   { id: "caseDocuments", icon: "lucideFileText", mode: "send" },
   { id: "caseDraftLawsuit", icon: "lucideFilePen", mode: "compose" },
+  { id: "caseDraftAppeal", icon: "lucideFilePen", mode: "compose" },
   { id: "caseSetDeadline", icon: "lucideCalendarPlus", mode: "compose" },
   { id: "researchLaw", icon: "lucideBookOpen", mode: "compose" },
 ];

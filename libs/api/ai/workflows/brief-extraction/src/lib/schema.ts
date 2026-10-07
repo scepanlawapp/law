@@ -1,11 +1,12 @@
 import { z } from "zod";
-import { BRIEF_MISSING_FIELD_KEYS } from "@law/api-interfaces";
+import {
+  DRAFT_DOCUMENT_TYPES,
+  type BriefResult as BriefResultContract,
+} from "@law/api-interfaces";
 import { normalizeEvidence, normalizeMissingFields } from "./normalize";
 
-export const BRIEF_JOB_TYPES = ["lawsuit", "contract", "other"] as const;
-
 const missingFieldSchema = z.object({
-  key: z.enum(BRIEF_MISSING_FIELD_KEYS),
+  key: z.string(),
   label: z.string(),
 });
 
@@ -15,27 +16,38 @@ const evidenceSchema = z.object({
 });
 
 const partySchema = z.object({
+  role: z.string(),
   name: z.string().nullable(),
   address: z.string().nullable(),
+  idNumber: z.string().nullable().default(null),
 });
 
-export const briefResultSchema = z.object({
-  jobType: z.enum(BRIEF_JOB_TYPES).nullable(),
-  plaintiff: partySchema,
-  defendant: partySchema,
-  competentCourt: z.string().nullable(),
-  claimValue: z.string().nullable(),
+const fieldValueSchema = z.object({
+  key: z.string(),
+  value: z.string().nullable(),
+});
+
+/** What the model returns; the document type is chosen before extraction. */
+export const briefLlmOutputSchema = z.object({
+  parties: z.array(partySchema).default([]),
+  fields: z.array(fieldValueSchema).default([]),
   legalBasis: z.array(z.string()).default([]),
   factualDescription: z.string().nullable(),
-  // Normalize legacy string output and unknown keys before validating.
+  // Normalize legacy string output before validating.
   evidence: z.preprocess(normalizeEvidence, z.array(evidenceSchema)),
-  reliefSought: z.string().nullable(),
   missingFields: z.preprocess(
-    normalizeMissingFields,
+    (value) => normalizeMissingFields(value, null),
     z.array(missingFieldSchema),
   ),
   confidence: z.number().min(0).max(1),
   warnings: z.array(z.string()).default([]),
 });
 
-export type BriefResult = z.infer<typeof briefResultSchema>;
+export const briefResultSchema = briefLlmOutputSchema.extend({
+  documentType: z.enum(DRAFT_DOCUMENT_TYPES),
+});
+
+// The shared contract, not z.infer: projects compiled without strictNullChecks
+// would otherwise see every field as optional.
+export type BriefResult = BriefResultContract;
+export type BriefLlmOutput = Omit<BriefResult, "documentType">;

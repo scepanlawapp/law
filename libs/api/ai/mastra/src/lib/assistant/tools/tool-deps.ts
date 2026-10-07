@@ -1,3 +1,4 @@
+import type { DraftDocumentType } from "@law/api-interfaces";
 import type { GroundingSearchHit } from "@law/legal-grounding";
 
 /** Read-only case facts a tool may show the model. */
@@ -150,6 +151,8 @@ export type DraftToolResult =
   | {
       status: "DRAFT_READY";
       draftId: string;
+      /** Serbian name of the document type ("Žalba"). */
+      documentType: string;
       version: number;
       approvalStatus: string;
       missingFields: string[];
@@ -157,7 +160,6 @@ export type DraftToolResult =
       citationCount: number;
       excerpt: string;
     }
-  | { status: "UNSUPPORTED"; jobType: string | null; message: string }
   | { status: "NO_CONTEXT" | "NOT_FOUND" | "FAILED"; message: string };
 
 export interface DraftListItem {
@@ -332,10 +334,14 @@ export interface LegalAssistantToolDeps {
     scope: AssistantTurnScope,
     args: { query: string; ref?: string },
   ): Promise<AssistantDocumentSearch>;
-  /** Drafts a lawsuit from the conversation (reversible: needs lawyer approval). */
-  draftLawsuit(
+  /** Drafts a document from the conversation (reversible: needs lawyer approval). */
+  draftDocument(
     scope: AssistantTurnScope,
-    args: { note?: string },
+    args: {
+      documentType: DraftDocumentType;
+      note?: string;
+      documentRefs?: string[];
+    },
   ): Promise<DraftToolResult>;
   /** Creates a new version of a conversation draft (reversible). */
   reviseDraft(

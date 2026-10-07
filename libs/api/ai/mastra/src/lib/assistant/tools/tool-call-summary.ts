@@ -1,5 +1,7 @@
+import { isDraftDocumentType } from "@law/api-interfaces";
+import { getDocumentType } from "@law/brief-extraction";
 import { CREATE_DEADLINE_TOOL_ID } from "./create-deadline.tool";
-import { DRAFT_LAWSUIT_TOOL_ID } from "./draft-lawsuit.tool";
+import { DRAFT_DOCUMENT_TOOL_ID } from "./draft-document.tool";
 import { GET_AGENDA_TOOL_ID } from "./get-agenda.tool";
 import { GET_CASE_TOOL_ID } from "./get-case.tool";
 import { GET_CLIENT_TOOL_ID } from "./get-client.tool";
@@ -16,6 +18,10 @@ import { SEARCH_DOCUMENTS_TOOL_ID } from "./search-documents.tool";
 import { SEARCH_LEGAL_SOURCES_TOOL_ID } from "./search-legal-sources.tool";
 
 const LABEL_MAX_CHARS = 120;
+
+function documentTypeLabel(value: unknown): string | null {
+  return isDraftDocumentType(value) ? getDocumentType(value).label : null;
+}
 
 function record(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
@@ -66,8 +72,8 @@ export function describeToolCall(
       return joined(args?.["case"], args?.["client"]);
     case SEARCH_DOCUMENTS_TOOL_ID:
       return clip(args?.["query"]);
-    case DRAFT_LAWSUIT_TOOL_ID:
-      return clip(args?.["note"]);
+    case DRAFT_DOCUMENT_TOOL_ID:
+      return joined(documentTypeLabel(args?.["documentType"]), args?.["note"]);
     case REVISE_DRAFT_TOOL_ID:
       return clip(args?.["instruction"]);
     case LINK_CASE_TOOL_ID:

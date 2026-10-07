@@ -6,6 +6,7 @@
   "main": "./src/index.js",
   "types": "./src/index.d.ts",
   "dependencies": {
+    "@law/api-interfaces": "0.0.1",
     "@law/brief-extraction": "0.0.1",
     "@law/drafting": "0.0.1",
     "@law/legal-grounding": "0.0.1",

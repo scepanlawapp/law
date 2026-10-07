@@ -37,6 +37,7 @@ import {
   CaseLinksQueryDto,
   ChatSessionListQueryDto,
   BriefApplyDto,
+  BriefApplyPreviewDto,
   BriefTaskApplyDto,
   CreateChatSessionDto,
   DraftExportQueryDto,
@@ -125,12 +126,14 @@ export class ChatController {
     @Req() request: WorkspaceRequest,
     @Param("sessionId") sessionId: string,
     @Param("briefId") briefId: string,
+    @Body() body: BriefApplyPreviewDto,
   ): Promise<BriefApplyPreview> {
     return this.chat.previewBrief(
       request.workspace!.workspaceId,
       request.auth!.user.id,
       sessionId,
       briefId,
+      body?.clientRole,
     );
   }
 

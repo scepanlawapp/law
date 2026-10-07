@@ -392,9 +392,10 @@ describe("AgentTurnRunner", () => {
 
   it("marks a drafting turn DRAFT_READY with the draft id and passes the turn scope", async () => {
     const drafting = {
-      draftLawsuit: jest.fn().mockResolvedValue({
+      draftDocument: jest.fn().mockResolvedValue({
         status: "DRAFT_READY",
         draftId: "draft-9",
+        documentType: "Tužba",
         version: 1,
         approvalStatus: "READY_FOR_SIGNOFF",
         missingFields: ["defendant.address"],
@@ -405,7 +406,11 @@ describe("AgentTurnRunner", () => {
     };
     const { prisma, emitted, runner, job } = setup(
       [
-        { toolCalls: [{ toolName: "draft_lawsuit", input: {} }] },
+        {
+          toolCalls: [
+            { toolName: "draft_document", input: { documentType: "LAWSUIT" } },
+          ],
+        },
         { text: "Nacrt je spreman za pregled. Nedostaje adresa tuženog." },
       ],
       drafting,
@@ -413,7 +418,7 @@ describe("AgentTurnRunner", () => {
 
     await runner.run({ ...turnInput, intent: "DRAFT" }, payload, job);
 
-    expect(drafting.draftLawsuit).toHaveBeenCalledWith(
+    expect(drafting.draftDocument).toHaveBeenCalledWith(
       {
         workspaceId: "workspace-1",
         sessionId: "session-1",
@@ -424,7 +429,7 @@ describe("AgentTurnRunner", () => {
         userId: null,
         userDisplayName: null,
       },
-      { note: undefined },
+      { documentType: "LAWSUIT", note: undefined, documentRefs: undefined },
     );
     expect(prisma.chatMessage.update).toHaveBeenLastCalledWith({
       where: { id: "message-answer" },
@@ -435,7 +440,7 @@ describe("AgentTurnRunner", () => {
     });
     expect(
       emitted.find((event) => event.type === "tool.finished")?.toolCall,
-    ).toMatchObject({ toolName: "draft_lawsuit", status: "COMPLETED" });
+    ).toMatchObject({ toolName: "draft_document", status: "COMPLETED" });
   });
 
   it("leaves the run waiting for confirmation when the agent proposed an action", async () => {

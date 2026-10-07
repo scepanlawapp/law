@@ -9,7 +9,7 @@ import { createLegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
-import { createDraftLawsuitTool } from "./tools/draft-lawsuit.tool";
+import { createDraftDocumentTool } from "./tools/draft-document.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
 import { ASSISTANT_TOOL_SIDE_EFFECTS } from "./tools/side-effects";
 import { createGetAgendaTool } from "./tools/get-agenda.tool";
@@ -76,9 +76,10 @@ function deps(
   return {
     searchLegalSources: jest.fn().mockResolvedValue([hit("chunk-a", 0.9)]),
     lookupCase: jest.fn().mockResolvedValue({ found: "none", message: "none" }),
-    draftLawsuit: jest.fn().mockResolvedValue({
+    draftDocument: jest.fn().mockResolvedValue({
       status: "DRAFT_READY",
       draftId: "draft-1",
+      documentType: "Tužba",
       version: 1,
       approvalStatus: "READY_FOR_SIGNOFF",
       missingFields: ["defendant.address"],
@@ -249,8 +250,12 @@ describe("assistant tools", () => {
     const toolDeps = deps();
     const context = { requestContext: requestContext() } as never;
 
-    await createDraftLawsuitTool(toolDeps).execute?.(
-      { note: "Tužilac je Petar." },
+    await createDraftDocumentTool(toolDeps).execute?.(
+      {
+        documentType: "APPEAL",
+        note: "Žalilac je Petar.",
+        documentRefs: ["doc:presuda-1"],
+      },
       context,
     );
     await createReviseDraftTool(toolDeps).execute?.(
@@ -260,8 +265,10 @@ describe("assistant tools", () => {
     await createGetDraftTool(toolDeps).execute?.({}, context);
     await createListDraftsTool(toolDeps).execute?.({}, context);
 
-    expect(toolDeps.draftLawsuit).toHaveBeenCalledWith(turn, {
-      note: "Tužilac je Petar.",
+    expect(toolDeps.draftDocument).toHaveBeenCalledWith(turn, {
+      documentType: "APPEAL",
+      note: "Žalilac je Petar.",
+      documentRefs: ["doc:presuda-1"],
     });
     expect(toolDeps.reviseDraft).toHaveBeenCalledWith(turn, {
       instruction: "Skrati obrazloženje.",
@@ -453,10 +460,14 @@ describe("assistant tools", () => {
 });
 
 describe("legal assistant agent", () => {
-  it("drafts through draft_lawsuit and summarizes the tool result", async () => {
+  it("drafts through draft_document and summarizes the tool result", async () => {
     const toolDeps = deps();
     const { model, prompts } = createScriptedModel([
-      { toolCalls: [{ toolName: "draft_lawsuit", input: {} }] },
+      {
+        toolCalls: [
+          { toolName: "draft_document", input: { documentType: "LAWSUIT" } },
+        ],
+      },
       { text: "Nacrt je spreman. Nedostaje adresa tuženog." },
     ]);
     const agent = createLegalAssistantAgent({
@@ -471,8 +482,10 @@ describe("legal assistant agent", () => {
     let text = "";
     for await (const delta of stream.textStream) text += delta;
 
-    expect(toolDeps.draftLawsuit).toHaveBeenCalledWith(turn, {
+    expect(toolDeps.draftDocument).toHaveBeenCalledWith(turn, {
+      documentType: "LAWSUIT",
       note: undefined,
+      documentRefs: undefined,
     });
     expect(text).toContain("Nacrt je spreman");
     expect(textOf(prompts[0])).toContain("draft-1 v1 (READY_FOR_SIGNOFF)");

@@ -506,14 +506,28 @@ export interface ChatStreamEvent {
   error?: string;
 }
 
-export type BriefJobType = "lawsuit" | "contract" | "other";
+// Document types the assistant can draft; the backend registry defines each one.
+export const DRAFT_DOCUMENT_TYPES = [
+  "LAWSUIT",
+  "STATEMENT_OF_DEFENCE",
+  "APPEAL",
+  "ENFORCEMENT_MOTION",
+  "SUBMISSION",
+] as const;
 
-export interface BriefParty {
-  name: string | null;
-  address: string | null;
+export type DraftDocumentType = (typeof DRAFT_DOCUMENT_TYPES)[number];
+
+export type DraftDocumentFamily = "LITIGATION" | "CONTRACT" | "LETTER" | "CORPORATE";
+
+export function isDraftDocumentType(value: unknown): value is DraftDocumentType {
+  return (
+    typeof value === "string" &&
+    (DRAFT_DOCUMENT_TYPES as readonly string[]).includes(value)
+  );
 }
 
-// Canonical keys for data the brief could not find; "other" carries only a label.
+// Lawsuit keys with UI translations; other types use their own keys and the
+// model's label. "other" carries only a label.
 export const BRIEF_MISSING_FIELD_KEYS = [
   "plaintiffName",
   "plaintiffAddress",
@@ -534,7 +548,8 @@ export const BRIEF_MISSING_FIELD_KEYS = [
 export type BriefMissingFieldKey = (typeof BRIEF_MISSING_FIELD_KEYS)[number];
 
 export interface BriefMissingField {
-  key: BriefMissingFieldKey;
+  // A party key (`<role>Name`), a field key of the document type, or "other".
+  key: string;
   // Short Serbian Latin phrase, e.g. "Adresa tuženog".
   label: string;
 }
@@ -545,16 +560,26 @@ export interface BriefEvidenceItem {
   provided: boolean;
 }
 
+export interface BriefPartyEntry {
+  // Role id from the document type, e.g. "plaintiff", "appellant".
+  role: string;
+  name: string | null;
+  address: string | null;
+  idNumber: string | null;
+}
+
+export interface BriefFieldValue {
+  key: string;
+  value: string | null;
+}
+
 export interface BriefResult {
-  jobType: BriefJobType | null;
-  plaintiff: BriefParty;
-  defendant: BriefParty;
-  competentCourt: string | null;
-  claimValue: string | null;
+  documentType: DraftDocumentType;
+  parties: BriefPartyEntry[];
+  fields: BriefFieldValue[];
   legalBasis: string[];
   factualDescription: string | null;
   evidence: BriefEvidenceItem[];
-  reliefSought: string | null;
   missingFields: BriefMissingField[];
   confidence: number;
   warnings: string[];
@@ -566,6 +591,7 @@ export interface BriefExtractionResultResponse {
   workspaceId: string;
   sessionId: string;
   messageId: string | null;
+  documentType: DraftDocumentType;
   brief: BriefResult;
   confidence: number | null;
   missingFields: BriefMissingField[];
@@ -584,18 +610,34 @@ export interface BriefClientMatch {
   clientNumber: string;
 }
 
+export interface BriefPartyOption {
+  role: string;
+  // Serbian role label from the document type, e.g. "Tuženi".
+  label: string;
+  name: string | null;
+  address: string | null;
+}
+
+export interface BriefApplyPreviewRequest {
+  // Party role to treat as the office's client; defaults to the type's choice.
+  clientRole?: string;
+}
+
 export interface BriefApplyPreview {
   briefId: string;
   alreadyApplied: boolean;
   appliedCaseId: string | null;
-  plaintiffName: string | null;
-  plaintiffAddress: string | null;
+  documentType: DraftDocumentType;
+  parties: BriefPartyOption[];
+  clientRole: string | null;
+  clientPartyName: string | null;
+  clientPartyAddress: string | null;
   nameNeedsSplit: boolean;
   suggestedFirstName: string | null;
   suggestedLastName: string | null;
   clientMatches: BriefClientMatch[];
-  defendantName: string | null;
-  defendantAddress: string | null;
+  opposingPartyName: string | null;
+  opposingPartyAddress: string | null;
   suggestedCaseName: string;
   suggestedDescription: string;
   suggestedCaseNumber: string;
@@ -633,7 +675,7 @@ export interface BriefApplyResponse {
 export interface BriefTaskProposal {
   key: string;
   source: "missing" | "evidence";
-  fieldKey?: BriefMissingFieldKey;
+  fieldKey?: string;
   title: string;
   description: string;
   assigneeUserId: string;
@@ -685,6 +727,7 @@ export interface DraftResultResponse {
   caseId?: string | null;
   messageId: string | null;
   briefResultId: string | null;
+  documentType: DraftDocumentType;
   documentText: string;
   finalDocumentText?: string | null;
   warnings: string[];

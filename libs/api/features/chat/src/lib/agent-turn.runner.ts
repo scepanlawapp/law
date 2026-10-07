@@ -503,7 +503,7 @@ function stripMastraMetadata(args: unknown): unknown {
   return rest;
 }
 
-/** Draft id from a successful draft_lawsuit / revise_draft tool result. */
+/** Draft id from a successful draft_document / revise_draft tool result. */
 function readyDraftId(result: unknown): string | null {
   if (!result || typeof result !== "object") return null;
   const value = result as { status?: unknown; draftId?: unknown };
