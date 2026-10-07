@@ -15,6 +15,8 @@ export type DraftExportScript = "latin" | "cyrillic";
 export interface RenderDraftDocxOptions {
   text: string;
   script: DraftExportScript;
+  /** Document title metadata in Latin script (e.g. "Žalba"). */
+  title?: string;
 }
 
 type DraftBlock =
@@ -29,6 +31,11 @@ const PAGE_HEIGHT = 16838;
 const PAGE_MARGIN = 1417;
 const LINE_SPACING = 276;
 
+function documentTitle(options: RenderDraftDocxOptions): string {
+  const title = options.title?.trim() || "Nacrt";
+  return options.script === "cyrillic" ? toCyrillic(title) : title;
+}
+
 export async function renderDraftDocx(
   options: RenderDraftDocxOptions,
 ): Promise<Buffer> {
@@ -38,7 +45,7 @@ export async function renderDraftDocx(
   const children = blocks.map((block) => toParagraph(block));
 
   const document = new Document({
-    title: "Tužba",
+    title: documentTitle(options),
     creator: "Law AI",
     numbering: {
       config: [

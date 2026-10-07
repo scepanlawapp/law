@@ -33,7 +33,7 @@ export function createDraftDocumentTool(deps: LegalAssistantToolDeps) {
         .max(5)
         .optional()
         .describe(
-          "Refs (doc:…) of filed documents the draft relies on, e.g. the judgment for an appeal or the served lawsuit for a statement of defence. Attachments of this conversation are included automatically.",
+          "Refs (doc:…) of filed documents the draft relies on, e.g. the judgment for an appeal, the served lawsuit for a statement of defence, or the contract being terminated. Attachments of this conversation are included automatically.",
         ),
     }),
     execute: async ({ documentType, note, documentRefs }, context) => {

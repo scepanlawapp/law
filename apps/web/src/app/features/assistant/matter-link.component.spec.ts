@@ -207,6 +207,7 @@ describe("AssistantMatterLinkComponent", () => {
     const tasks: BriefTaskPreview = {
       briefId: "brief-1",
       caseId: "case-1",
+      documentFamily: "LITIGATION",
       proposals: [
         {
           key: "missing:defendantAddress:0",
@@ -259,6 +260,10 @@ describe("AssistantMatterLinkComponent", () => {
     const element = fixture.nativeElement as HTMLElement;
     const groups = element.querySelectorAll(".matter-task-group");
     expect(groups.length).toBe(2);
+    expect(groups[1].textContent).toContain("assistant.matter.evidenceGroup");
+    expect(groups[1].textContent).not.toContain(
+      "assistant.matter.evidenceGroup.",
+    );
     expect(element.querySelectorAll(".matter-task.is-created").length).toBe(1);
     expect([...fixture.componentInstance.selectedTaskKeys()]).toEqual([
       "missing:defendantAddress:0",
@@ -283,6 +288,45 @@ describe("AssistantMatterLinkComponent", () => {
           { key: "evidence:0" },
         ],
       },
+    );
+  });
+
+  it("titles the evidence group by the document family", () => {
+    chat.previewBrief.mockReturnValue(
+      of({ ...preview, alreadyApplied: true, appliedCaseId: "case-1" }),
+    );
+    chat.previewBriefTasks.mockReturnValue(
+      of({
+        briefId: "brief-1",
+        caseId: "case-1",
+        documentFamily: "CONTRACT",
+        proposals: [
+          {
+            key: "evidence:0",
+            source: "evidence",
+            title: "Pribaviti prilog: Izvod iz APR",
+            description: "",
+            assigneeUserId: "user-1",
+            priority: "NORMAL",
+            dueDate: "2026-09-30",
+            selectedByDefault: false,
+            alreadyApplied: false,
+          },
+        ],
+      } satisfies BriefTaskPreview),
+    );
+    const fixture = TestBed.createComponent(AssistantMatterLinkComponent);
+    fixture.componentRef.setInput("workspaceId", "workspace-1");
+    fixture.componentRef.setInput("session", session);
+    fixture.componentRef.setInput("briefId", "brief-1");
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const group = fixture.nativeElement.querySelector(
+      ".matter-task-group",
+    ) as HTMLElement;
+    expect(group.textContent).toContain(
+      "assistant.matter.evidenceGroup.CONTRACT",
     );
   });
 });

@@ -439,6 +439,37 @@ describe("ChatService", () => {
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
+  it("names the export after the draft's document type", async () => {
+    const prisma = prismaMock();
+    prisma.draftResult.findFirst.mockResolvedValue({
+      id: "draft-2",
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      documentType: "MEDIA_REPLY_REQUEST",
+      documentText: "Zahtev",
+      finalDocumentText: null,
+      createdAt: now,
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    const result = await service.exportDraft(
+      session.workspaceId,
+      "draft-2",
+      "user-1",
+      "latin",
+    );
+
+    expect(result.filename).toBe(
+      "zahtev-za-objavljivanje-odgovora-session1-2026-09-06.docx",
+    );
+  });
+
   it("exports the final draft text and records the export audit event", async () => {
     const prisma = prismaMock();
     prisma.draftResult.findFirst.mockResolvedValue({

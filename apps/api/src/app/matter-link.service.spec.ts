@@ -633,4 +633,107 @@ describe("MatterLinkService", () => {
     expect(preview.proposals[2].description).toContain("podnošenje žalbe");
     expect(preview.proposals[3].description).toContain("nacrtu žalbe");
   });
+  it("words contract and media tasks for their family", async () => {
+    const { service, prisma } = harness({ appliedCaseId: "case-1" });
+    const base = {
+      parties: [],
+      fields: [],
+      legalBasis: [],
+      factualDescription: null,
+      confidence: 0.5,
+      warnings: [],
+    };
+    prisma.briefExtractionResult.findFirst
+      .mockResolvedValueOnce({
+        id: "brief-1",
+        sessionId: "session-1",
+        workspaceId,
+        brief: {
+          ...base,
+          documentType: "SERVICES_CONTRACT",
+          evidence: [{ label: "Izvod iz APR", provided: false }],
+          missingFields: [{ key: "fee", label: "Naknada" }],
+        },
+        appliedCaseId: "case-1",
+        appliedTaskKeys: [],
+      })
+      .mockResolvedValueOnce({
+        id: "brief-1",
+        sessionId: "session-1",
+        workspaceId,
+        brief: {
+          ...base,
+          documentType: "MEDIA_REPLY_REQUEST",
+          evidence: [],
+          missingFields: [
+            { key: "publicationDate", label: "Datum objavljivanja" },
+          ],
+        },
+        appliedCaseId: "case-1",
+        appliedTaskKeys: [],
+      });
+
+    const contract = await service.previewTasks({
+      workspaceId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+    });
+    expect(contract.documentFamily).toBe("CONTRACT");
+    expect(contract.proposals.map((task) => task.title)).toEqual([
+      "Utvrditi naknadu i uslove plaćanja",
+      "Pribaviti prilog: Izvod iz APR",
+    ]);
+    expect(contract.proposals[1].description).toBe(
+      "Prilog je potreban za nacrt ugovora o pružanju usluga, a nije priložen u razgovoru: Izvod iz APR.",
+    );
+
+    const media = await service.previewTasks({
+      workspaceId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+    });
+    expect(media.documentFamily).toBe("LETTER");
+    expect(media.proposals[0]).toMatchObject({
+      title: "Utvrditi datum objavljivanja sporne informacije",
+      priority: "HIGH",
+    });
+    expect(media.proposals[0].description).toContain("datuma objavljivanja");
+  });
+
+  it("previews a single-party company decision without an opposing party", async () => {
+    const { service, prisma } = harness();
+    prisma.briefExtractionResult.findFirst.mockResolvedValue({
+      id: "brief-1",
+      sessionId: "session-1",
+      workspaceId,
+      brief: {
+        documentType: "CORPORATE_DECISION",
+        parties: [
+          { role: "company", name: "Alfa d.o.o.", address: null, idNumber: null },
+        ],
+        fields: [{ key: "decisionSubject", value: "Imenovanje direktora" }],
+        legalBasis: [],
+        factualDescription: null,
+        evidence: [],
+        missingFields: [],
+        confidence: 0.6,
+        warnings: [],
+      },
+      appliedCaseId: null,
+      appliedTaskKeys: [],
+    });
+    const preview = await service.previewBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+    });
+    expect(preview).toMatchObject({
+      clientRole: "company",
+      clientPartyName: "Alfa d.o.o.",
+      opposingPartyName: null,
+      suggestedCaseName: "Imenovanje direktora",
+    });
+    expect(preview.parties).toHaveLength(1);
+  });
 });

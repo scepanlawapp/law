@@ -59,6 +59,37 @@ describe("buildDraftingSystemPrompt", () => {
   });
 });
 
+describe("buildDraftingSystemPrompt for contracts, letters and acts", () => {
+  it("requires the mandatory employment-contract elements", () => {
+    const prompt = buildDraftingSystemPrompt(
+      getDocumentType("EMPLOYMENT_CONTRACT"),
+    );
+    expect(prompt).toContain("Zakon o radu");
+    expect(prompt).toContain("obavezne elemente");
+    expect(prompt).toContain("numerisanim članovima");
+    expect(prompt).not.toContain("punomoćnika");
+  });
+
+  it("builds a demand letter and a media reply from their sections", () => {
+    const demand = buildDraftingSystemPrompt(getDocumentType("DEMAND_LETTER"));
+    expect(demand).toContain("Opomena pred utuženje");
+    expect(demand).toContain("zateznoj kamati");
+    const media = buildDraftingSystemPrompt(
+      getDocumentType("MEDIA_REPLY_REQUEST"),
+    );
+    expect(media).toContain("Zakon o javnom informisanju i medijima");
+    expect(media).toContain("u zakonskom roku");
+  });
+
+  it("flags registration for company decisions", () => {
+    const prompt = buildDraftingSystemPrompt(
+      getDocumentType("CORPORATE_DECISION"),
+    );
+    expect(prompt).toContain("Agenciji za privredne registre");
+    expect(prompt).toContain("[UNOS POTREBAN:");
+  });
+});
+
 describe("buildDraftingUserPrompt", () => {
   it("includes the serialized brief fields", () => {
     const result = buildDraftingUserPrompt(fullBrief, 10_000);

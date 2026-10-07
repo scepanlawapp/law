@@ -38,8 +38,8 @@ Each phase is a child track with its own spec and plan, created when the phase s
 
 | Phase | Track | Status |
 |---|---|---|
-| 1 | `assistant_drafting_document_types_20261007` | in progress |
-| 2 | contracts, letters, corporate acts | pending; gate: confirm the office's contract-type list and house clauses first |
+| 1 | `assistant_drafting_document_types_20261007` | implemented; manual check pending |
+| 2 | `assistant_drafting_contracts_letters_20261007` | implemented; manual check pending (type list confirmed 2026-10-07; no house templates) |
 | 3 | contract review | pending |
 | 4 | case summary and timeline | pending |
 | 5 | deadline from document | pending |

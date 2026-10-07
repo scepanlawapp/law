@@ -39,4 +39,21 @@ describe("renderDraftDocx", () => {
     expect(documentXml).toContain("Tužilac: Petar Petrović");
     expect(documentXml).not.toContain("Тужилац");
   });
+
+  it("uses the document type as the title, in the export script", async () => {
+    const titleOf = async (options: Parameters<typeof renderDraftDocx>[0]) => {
+      const zip = await JSZip.loadAsync(await renderDraftDocx(options));
+      return zip.file("docProps/core.xml")?.async("string");
+    };
+
+    expect(
+      await titleOf({ script: "latin", text: "Tekst", title: "Žalba" }),
+    ).toContain("<dc:title>Žalba</dc:title>");
+    expect(
+      await titleOf({ script: "cyrillic", text: "Tekst", title: "Žalba" }),
+    ).toContain("<dc:title>Жалба</dc:title>");
+    expect(await titleOf({ script: "latin", text: "Tekst" })).toContain(
+      "<dc:title>Nacrt</dc:title>",
+    );
+  });
 });

@@ -19,7 +19,9 @@ import {
   DocumentScript,
   DraftApprovalStatus,
   DraftResultResponse,
+  isDraftDocumentType,
 } from "@law/api-interfaces";
+import { DEFAULT_DOCUMENT_TYPE, getDocumentType } from "@law/brief-extraction";
 import {
   paginationMeta,
   PaginationQueryDto,
@@ -628,15 +630,21 @@ export class ChatService {
     });
     if (!draft) throw new NotFoundException("Draft not found");
 
+    const type = getDocumentType(
+      isDraftDocumentType(draft.documentType)
+        ? draft.documentType
+        : DEFAULT_DOCUMENT_TYPE,
+    );
     const buffer = await renderDraftDocx({
       text: draft.finalDocumentText ?? draft.documentText,
       script,
+      title: type.label,
     });
     const date = draft.createdAt.toISOString().slice(0, 10);
     const sessionToken = draft.sessionId
       .replace(/[^a-zA-Z0-9]/g, "")
       .slice(0, 8);
-    const filename = `tuzba-${sessionToken}-${date}.docx`;
+    const filename = `${type.fileSlug}-${sessionToken}-${date}.docx`;
 
     await this.recordAuditEvent({
       workspaceId,

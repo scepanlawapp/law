@@ -11,7 +11,7 @@ Extend the assistant beyond lawsuit drafting: more document types and read-only 
 ## Child tracks
 
 1. [Drafting document types](../assistant_drafting_document_types_20261007/index.md): registry, generic brief, court submissions
-2. Contracts, letters and corporate acts (not started)
+2. [Contracts, letters and corporate acts](../assistant_drafting_contracts_letters_20261007/index.md)
 3. Contract review (not started)
 4. Case summary and timeline (not started)
 5. Deadline from document (not started)

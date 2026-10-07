@@ -110,6 +110,33 @@ export const GENERAL_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
     group: "drafting",
   },
   {
+    id: "draftContract",
+    icon: "lucideFilePen",
+    mode: "compose",
+    pick: "client",
+    group: "drafting",
+  },
+  {
+    id: "draftDemandLetter",
+    icon: "lucideFilePen",
+    mode: "compose",
+    pick: "case",
+    group: "drafting",
+  },
+  {
+    id: "draftMediaReply",
+    icon: "lucideFilePen",
+    mode: "compose",
+    group: "drafting",
+  },
+  {
+    id: "draftPowerOfAttorney",
+    icon: "lucideFilePen",
+    mode: "compose",
+    pick: "client",
+    group: "drafting",
+  },
+  {
     id: "setDeadline",
     icon: "lucideCalendarPlus",
     mode: "compose",
@@ -133,6 +160,7 @@ export const CASE_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
   { id: "caseDocuments", icon: "lucideFileText", mode: "send" },
   { id: "caseDraftLawsuit", icon: "lucideFilePen", mode: "compose" },
   { id: "caseDraftAppeal", icon: "lucideFilePen", mode: "compose" },
+  { id: "caseDemandLetter", icon: "lucideFilePen", mode: "compose" },
   { id: "caseSetDeadline", icon: "lucideCalendarPlus", mode: "compose" },
   { id: "researchLaw", icon: "lucideBookOpen", mode: "compose" },
 ];
