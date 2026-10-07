@@ -342,6 +342,10 @@ export interface ChatSessionSummary {
   isDeleted: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Set when the conversation is pinned to the top of the sidebar. */
+  pinnedAt?: string | null;
+  /** Who started the conversation; present on list responses. */
+  createdBy?: { id: string; displayName: string } | null;
   activity?: ChatSessionActivitySummary | null;
 }
 
@@ -349,6 +353,65 @@ export interface ChatSessionActivitySummary {
   activeJobCount: number;
   latestJob: WorkflowJobResponse | null;
   hasDraft: boolean;
+  /** Assistant proposals still waiting for approval. */
+  pendingActionCount?: number;
+  /** Kinds of document analyses produced in the conversation. */
+  analysisKinds?: DocumentAnalysisKind[];
+}
+
+export type ChatSessionScope = "mine" | "team";
+
+/** `pending`: a proposal awaits approval or a job is running. */
+export type ChatSessionStateFilter = "pending" | "draft" | "analysis";
+
+export interface ChatSessionListQuery extends PaginationQuery {
+  /** `mine` (default on the web) limits to conversations the caller started. */
+  scope?: ChatSessionScope;
+  /** Every listed state must hold. */
+  states?: ChatSessionStateFilter[];
+  /** True lists archived conversations instead of active ones. */
+  archived?: boolean;
+  caseIds?: string[];
+  clientIds?: string[];
+  authorIds?: string[];
+  analysisKinds?: DocumentAnalysisKind[];
+  /** `matter` orders by case so matter groups stay contiguous while paging. */
+  group?: "date" | "matter";
+}
+
+export interface ChatSessionUpdateRequest {
+  title?: string;
+  pinned?: boolean;
+  archived?: boolean;
+}
+
+export interface ChatSessionFacetsQuery {
+  scope?: ChatSessionScope;
+  /** Prefix typed in the token search; drives the suggestions. */
+  search?: string;
+}
+
+export interface ChatSessionFacetCase {
+  id: string;
+  caseNumber: string;
+  name: string;
+  clientId: string;
+  clientDisplayName: string | null;
+}
+
+export interface ChatSessionFacetsResponse {
+  /** Active conversations in the scope matching each state, and archived ones. */
+  counts: {
+    pending: number;
+    draft: number;
+    analysis: number;
+    archived: number;
+  };
+  suggestions: {
+    clients: { id: string; displayName: string }[];
+    cases: ChatSessionFacetCase[];
+    authors: { id: string; displayName: string }[];
+  };
 }
 
 export type SortDirection = "asc" | "desc";
@@ -530,9 +593,15 @@ export const DRAFT_DOCUMENT_TYPES = [
 
 export type DraftDocumentType = (typeof DRAFT_DOCUMENT_TYPES)[number];
 
-export type DraftDocumentFamily = "LITIGATION" | "CONTRACT" | "LETTER" | "CORPORATE";
+export type DraftDocumentFamily =
+  | "LITIGATION"
+  | "CONTRACT"
+  | "LETTER"
+  | "CORPORATE";
 
-export function isDraftDocumentType(value: unknown): value is DraftDocumentType {
+export function isDraftDocumentType(
+  value: unknown,
+): value is DraftDocumentType {
   return (
     typeof value === "string" &&
     (DRAFT_DOCUMENT_TYPES as readonly string[]).includes(value)

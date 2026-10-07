@@ -22,7 +22,11 @@ import {
   BriefTaskPreview,
   ChatSessionCreateRequest,
   ChatSessionDetail,
+  ChatSessionFacetsQuery,
+  ChatSessionFacetsResponse,
+  ChatSessionListQuery,
   ChatSessionListResponse,
+  ChatSessionUpdateRequest,
   ChatSessionSummary,
   DocumentScript,
   DraftResultResponse,
@@ -340,7 +344,7 @@ export class ChatApiClient {
 
   listSessions(
     workspaceId: string,
-    query: PaginationQuery = {},
+    query: ChatSessionListQuery = {},
   ): Observable<ChatSessionListResponse> {
     let params = new HttpParams();
     if (query.page) params = params.set("page", query.page);
@@ -354,8 +358,35 @@ export class ChatApiClient {
     if (query.search) params = params.set("search", query.search);
     if (query.from) params = params.set("from", query.from);
     if (query.to) params = params.set("to", query.to);
+    if (query.scope) params = params.set("scope", query.scope);
+    if (query.archived) params = params.set("archived", "true");
+    if (query.group) params = params.set("group", query.group);
+    const lists = {
+      states: query.states,
+      caseIds: query.caseIds,
+      clientIds: query.clientIds,
+      authorIds: query.authorIds,
+      analysisKinds: query.analysisKinds,
+    };
+    for (const [key, values] of Object.entries(lists)) {
+      if (values?.length) params = params.set(key, values.join(","));
+    }
     return this.http.get<ChatSessionListResponse>(
       this.endpoint("/chat/sessions"),
+      { ...this.workspaceOptions(workspaceId), params },
+    );
+  }
+
+  sessionFacets(
+    workspaceId: string,
+    query: ChatSessionFacetsQuery = {},
+  ): Observable<ChatSessionFacetsResponse> {
+    let params = new HttpParams();
+    if (query.scope) params = params.set("scope", query.scope);
+    if (query.search?.trim())
+      params = params.set("search", query.search.trim());
+    return this.http.get<ChatSessionFacetsResponse>(
+      this.endpoint("/chat/sessions/facets"),
       { ...this.workspaceOptions(workspaceId), params },
     );
   }
@@ -462,11 +493,11 @@ export class ChatApiClient {
   updateSession(
     workspaceId: string,
     sessionId: string,
-    title: string,
+    changes: ChatSessionUpdateRequest,
   ): Observable<ChatSessionSummary> {
     return this.http.patch<ChatSessionSummary>(
       this.endpoint(`/chat/sessions/${sessionId}`),
-      { title },
+      changes,
       this.workspaceOptions(workspaceId),
     );
   }

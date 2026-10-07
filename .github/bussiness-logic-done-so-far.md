@@ -202,6 +202,13 @@ The dashboard is a real, API-backed landing page (previously an empty placeholde
 The assistant workflow is implemented across the chat API, Angular assistant screen, and shared contracts:
 
 - Create, list, rename, load, and soft-delete chat sessions.
+- Conversation organizer in the assistant sidebar (`law-conversation-navigator`):
+  - Token search: typing suggests clients, cases, authors and analysis types (`GET /chat/sessions/facets`); picking one adds a removable chip. Leftover text searches title, case number, case name, client name and message text (Cyrillic input is matched in Latin).
+  - Filter chips: `Moji`/`Tim` scope (default `Moji`, i.e. conversations the user started), `Čeka odobrenje` (pending proposal or queued/running job), `Nacrti`, `Analize`, `Arhiva`. Chip counts come from the facets endpoint.
+  - Group by `Datum` (today/yesterday/date) or `Predmet` (client · case number, unlinked last); pinned conversations are always on top.
+  - Row menu: pin/unpin (`ChatSession.pinnedAt`), archive/restore (`ChatSessionStatus.ARCHIVED`, hidden from the default list), rename, delete. `PATCH /chat/sessions/:id` accepts `title`, `pinned`, `archived`.
+  - Filters live in URL query params (`scope`, `state`, `archived`, `q`, `group`, `client`, `case`, `author`, `kind`); the group mode is also remembered per browser. Filtering never switches the open conversation.
+  - `GET /chat/sessions` accepts `scope`, `states`, `archived`, `caseIds`, `clientIds`, `authorIds`, `analysisKinds`, `group`; summaries carry `pinnedAt`, `createdBy`, `activity.pendingActionCount` and `activity.analysisKinds`. Without `scope` the API lists the whole workspace, as before.
 - Send chat messages with up to five uploaded files.
 - Attachment download support and server-side workspace scoping.
 - Session event replay and live Server-Sent Events streams, including workspace-level events.

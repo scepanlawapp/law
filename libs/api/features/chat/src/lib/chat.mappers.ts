@@ -29,6 +29,18 @@ import { describeToolCall, toolResultCount } from "@law/mastra";
  * `WorkflowProcessor` (queue-facing) so both sides emit identical shapes.
  */
 
+/** "First Last", falling back to the e-mail address. */
+export function userDisplayName(user: {
+  firstName: string | null;
+  lastName: string | null;
+  email: string;
+}): string {
+  return (
+    [user.firstName, user.lastName].filter(Boolean).join(" ").trim() ||
+    user.email
+  );
+}
+
 export function toSessionSummary(session: {
   id: string;
   workspaceId: string;
@@ -37,6 +49,13 @@ export function toSessionSummary(session: {
   title: string | null;
   status: "ACTIVE" | "ARCHIVED";
   isDeleted: boolean;
+  pinnedAt?: Date | null;
+  createdBy?: {
+    id: string;
+    firstName: string | null;
+    lastName: string | null;
+    email: string;
+  } | null;
   createdAt: Date;
   updatedAt: Date;
   case?: {
@@ -64,6 +83,15 @@ export function toSessionSummary(session: {
     title: session.title,
     status: session.status,
     isDeleted: session.isDeleted,
+    pinnedAt: session.pinnedAt?.toISOString() ?? null,
+    ...(session.createdBy
+      ? {
+          createdBy: {
+            id: session.createdBy.id,
+            displayName: userDisplayName(session.createdBy),
+          },
+        }
+      : {}),
     createdAt: session.createdAt.toISOString(),
     updatedAt: session.updatedAt.toISOString(),
   };

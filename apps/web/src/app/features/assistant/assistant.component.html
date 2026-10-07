@@ -1,109 +1,21 @@
 <ng-template #conversationNavigation>
-  <div class="conversation-navigation">
-    <div class="conversation-heading">
-      <span class="conversation-heading-icon" aria-hidden="true">
-        <ng-icon name="lucideBot" />
-      </span>
-      <div>
-        <h1>{{ "assistant.title" | translate }}</h1>
-        <p>{{ "assistant.sidebarDescription" | translate }}</p>
-      </div>
-    </div>
-
-    <button
-      class="new-conversation"
-      hlmBtn
-      type="button"
-      (click)="createSession()"
-    >
-      <ng-icon name="lucidePlus" aria-hidden="true" />
-      <span>{{ "assistant.newConversation" | translate }}</span>
-    </button>
-
-    <hlm-input-group class="conversation-search">
-      <input
-        hlmInputGroupInput
-        type="search"
-        [placeholder]="'assistant.searchPlaceholder' | translate"
-        [value]="sessionSearch()"
-        (input)="onSessionSearch($event)"
-      />
-      <hlm-input-group-addon>
-        <ng-icon name="lucideSearch" aria-hidden="true" />
-      </hlm-input-group-addon>
-    </hlm-input-group>
-
-    <div
-      class="conversation-list"
-      appBottomReached
-      (bottomReached)="loadNextSessionPage()"
-    >
-      @for (group of sessionGroups(); track group.key) {
-        <h2>
-          {{
-            group.label
-              ? (group.label | translate)
-              : (group.date | date: "MMM d, y")
-          }}
-        </h2>
-        @for (session of group.sessions; track session.id) {
-          <button
-            hlmBtn
-            variant="ghost"
-            class="conversation-item"
-            [class.is-selected]="selectedSessionId() === session.id"
-            [attr.aria-current]="
-              selectedSessionId() === session.id ? 'true' : null
-            "
-            type="button"
-            (click)="selectSession(session.id)"
-          >
-            <span class="conversation-item-icon" aria-hidden="true">
-              <ng-icon
-                [name]="
-                  session.activity?.activeJobCount
-                    ? 'lucideLoaderCircle'
-                    : session.activity?.hasDraft
-                      ? 'lucideFileText'
-                      : 'lucideMessageCircle'
-                "
-                [class.is-running]="session.activity?.activeJobCount"
-              />
-            </span>
-            <span class="conversation-item-copy">
-              <strong>
-                {{ session.title || ("assistant.newChat" | translate) }}
-              </strong>
-              @if (session.case) {
-                <small>{{ session.case.caseNumber }}</small>
-              }
-              @if (session.activity?.activeJobCount) {
-                <small>{{ "assistant.conversationWorking" | translate }}</small>
-              } @else if (session.activity?.hasDraft) {
-                <small>
-                  {{ "assistant.conversationDraftReady" | translate }}
-                </small>
-              }
-            </span>
-            <time>{{ session.updatedAt | date: "shortTime" }}</time>
-          </button>
-        }
-      } @empty {
-        @if (!loadingSessions()) {
-          <p class="conversation-empty">
-            {{ "assistant.noConversations" | translate }}
-          </p>
-        }
-      }
-      @if (loadingSessions()) {
-        <p class="conversation-loading" aria-live="polite">
-          <hlm-spinner
-            aria-label="{{ 'assistant.loadingConversations' | translate }}"
-          />
-        </p>
-      }
-    </div>
-  </div>
+  <law-conversation-navigator
+    [sessions]="sessions()"
+    [loading]="loadingSessions()"
+    [selectedSessionId]="selectedSessionId()"
+    [filters]="conversationFilters()"
+    [groupMode]="conversationGroupMode()"
+    [facets]="conversationFacets()"
+    (create)="createSession()"
+    (selectSession)="selectSession($event)"
+    (loadMore)="loadNextSessionPage()"
+    (filtersChange)="onConversationFiltersChange($event)"
+    (groupModeChange)="onConversationGroupModeChange($event)"
+    (togglePin)="toggleSessionPin($event)"
+    (toggleArchive)="toggleSessionArchive($event)"
+    (rename)="renameSession($event)"
+    (remove)="deleteSession($event.id)"
+  />
 </ng-template>
 
 <section class="assistant-shell">

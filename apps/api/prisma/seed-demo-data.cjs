@@ -1643,6 +1643,59 @@ async function ensureWorkCapture(prisma, workspaceId, users, clients, cases) {
   );
 }
 
+// Assistant conversations for the sidebar organizer: case-linked, unlinked,
+// several authors, pinned and archived. Fixed ids keep reruns idempotent.
+const DEMO_CHAT_SESSIONS = [
+  { title: "Rokovi za žalbu u parničnom postupku", caseIndex: 0, pinned: true },
+  { title: "Nacrt opomene pred utuženje", caseIndex: 0 },
+  { title: "Analiza ugovora o zakupu poslovnog prostora", caseIndex: 1 },
+  {
+    title: "Hronologija spora sa izvođačem radova",
+    caseIndex: 2,
+    pinned: true,
+  },
+  { title: "Zastarelost potraživanja iz ugovora o delu", caseIndex: 3 },
+  { title: "Pitanje o troškovima postupka", caseIndex: null },
+  { title: "Osnivanje DOO — potrebna dokumentacija", caseIndex: null },
+  { title: "Stara prepiska o naknadi štete", caseIndex: 4, archived: true },
+  { title: "Probni razgovor", caseIndex: null, archived: true },
+];
+
+async function ensureChatSessions(prisma, workspaceId, users, cases) {
+  for (let i = 0; i < DEMO_CHAT_SESSIONS.length; i++) {
+    const seed = DEMO_CHAT_SESSIONS[i];
+    const id = `c0000000-0000-4000-a000-${String(i + 1).padStart(12, "0")}`;
+    const author = users[i % users.length];
+    const linkedCase = seed.caseIndex === null ? null : cases[seed.caseIndex];
+    const updatedAt = new Date(Date.now() - i * 26 * 60 * 60 * 1000);
+    await prisma.chatSession.upsert({
+      where: { id },
+      update: {},
+      create: {
+        id,
+        workspaceId,
+        createdByUserId: author.id,
+        caseId: linkedCase ? linkedCase.id : null,
+        title: seed.title,
+        status: seed.archived ? "ARCHIVED" : "ACTIVE",
+        pinnedAt: seed.pinned ? updatedAt : null,
+        createdAt: updatedAt,
+        updatedAt,
+        messages: {
+          create: [
+            { role: "USER", content: seed.title, createdAt: updatedAt },
+            {
+              role: "ASSISTANT",
+              content: `Demo odgovor za temu: ${seed.title}.`,
+              createdAt: updatedAt,
+            },
+          ],
+        },
+      },
+    });
+  }
+}
+
 async function main() {
   const prisma = new PrismaClient();
   try {
@@ -1716,6 +1769,7 @@ async function main() {
     await ensureCompanyPriceCatalog(prisma, workspaceId, adminUser.id);
     await ensureClientActivities(prisma, workspaceId, adminUser.id, clients);
     await ensureWorkCapture(prisma, workspaceId, users, clients, cases);
+    await ensureChatSessions(prisma, workspaceId, users, cases);
 
     const marker = await prisma.activityLog.findFirst({
       where: { workspaceId, action: "DEMO_SEED_COMPLETED" },

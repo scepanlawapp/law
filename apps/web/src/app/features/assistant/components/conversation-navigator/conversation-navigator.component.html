@@ -1,0 +1,350 @@
+<div class="conversation-navigation">
+  <div class="conversation-heading">
+    <span class="conversation-heading-icon" aria-hidden="true">
+      <ng-icon name="lucideBot" />
+    </span>
+    <div>
+      <h1>{{ "assistant.title" | translate }}</h1>
+      <p>{{ "assistant.sidebarDescription" | translate }}</p>
+    </div>
+  </div>
+
+  <button class="new-conversation" hlmBtn type="button" (click)="create.emit()">
+    <ng-icon name="lucidePlus" aria-hidden="true" />
+    <span>{{ "assistant.newConversation" | translate }}</span>
+  </button>
+
+  <div class="conversation-filters">
+    <div
+      hlmComboboxMultiple
+      class="conversation-search"
+      [value]="tokenKeys()"
+      (valueChange)="onTokensChange($event)"
+      [search]="filters().text"
+      (searchChange)="onSearchChange($event)"
+      [filter]="keepAllSuggestions"
+      [itemToString]="tokenToString"
+    >
+      <hlm-combobox-chips>
+        <ng-icon
+          class="conversation-search-icon"
+          name="lucideSearch"
+          aria-hidden="true"
+        />
+        <ng-container *hlmComboboxValues="let values">
+          @for (key of values; track key) {
+            <hlm-combobox-chip
+              [value]="key"
+              [attr.title]="tokenKindLabel(key) + ': ' + tokenLabel(key)"
+            >
+              {{ tokenLabel(key) }}
+            </hlm-combobox-chip>
+          }
+        </ng-container>
+        <input
+          #searchInput
+          hlmComboboxChipInput
+          [attr.aria-label]="'assistant.organizer.searchLabel' | translate"
+          [placeholder]="
+            tokenKeys().length
+              ? ''
+              : ('assistant.organizer.searchPlaceholder' | translate)
+          "
+        />
+      </hlm-combobox-chips>
+      <hlm-combobox-content *hlmComboboxPortal>
+        <hlm-combobox-empty>
+          {{ "assistant.organizer.noSuggestions" | translate }}
+        </hlm-combobox-empty>
+        <div hlmComboboxList>
+          @for (section of suggestionSections(); track section.kind) {
+            <div hlmComboboxGroup>
+              <div hlmComboboxLabel>{{ section.labelKey | translate }}</div>
+              @for (item of section.items; track item.key) {
+                <hlm-combobox-item [value]="item.key">
+                  <span class="conversation-suggestion">
+                    <span>{{ item.label }}</span>
+                    @if (item.detail) {
+                      <small>{{ item.detail }}</small>
+                    }
+                  </span>
+                </hlm-combobox-item>
+              }
+            </div>
+          }
+        </div>
+      </hlm-combobox-content>
+    </div>
+
+    <div
+      class="conversation-segmented"
+      role="group"
+      [attr.aria-label]="'assistant.organizer.scopeLabel' | translate"
+    >
+      <button
+        type="button"
+        [attr.aria-pressed]="filters().scope === 'mine'"
+        (click)="setScope('mine')"
+      >
+        <span>{{ "assistant.organizer.mine" | translate }}</span>
+      </button>
+      <button
+        type="button"
+        [attr.aria-pressed]="filters().scope === 'team'"
+        (click)="setScope('team')"
+      >
+        <span>{{ "assistant.organizer.team" | translate }}</span>
+      </button>
+    </div>
+
+    <div
+      class="conversation-chips"
+      role="group"
+      [attr.aria-label]="'assistant.organizer.filtersLabel' | translate"
+    >
+      @for (chip of stateChips; track chip.value) {
+        <button
+          type="button"
+          class="conversation-chip"
+          [attr.aria-pressed]="filters().states.includes(chip.value)"
+          (click)="toggleState(chip.value)"
+        >
+          {{ chip.labelKey | translate }}
+          @if (stateCount(chip.value); as count) {
+            <span class="conversation-chip-count">{{ count }}</span>
+          }
+        </button>
+      }
+      <button
+        type="button"
+        class="conversation-chip"
+        [attr.aria-pressed]="filters().archived"
+        (click)="toggleArchived()"
+      >
+        <ng-icon name="lucideArchive" aria-hidden="true" />
+        {{ "assistant.organizer.archive" | translate }}
+        @if (archivedCount(); as count) {
+          <span class="conversation-chip-count">{{ count }}</span>
+        }
+      </button>
+    </div>
+
+    <div class="conversation-group-toggle">
+      <span class="conversation-group-caption" aria-hidden="true">{{
+        "assistant.organizer.groupBy" | translate
+      }}</span>
+      <div
+        class="conversation-segmented"
+        role="group"
+        [attr.aria-label]="'assistant.organizer.groupBy' | translate"
+      >
+        <button
+          type="button"
+          [attr.aria-pressed]="groupMode() === 'date'"
+          (click)="setGroupMode('date')"
+        >
+          <ng-icon name="lucideCalendarDays" aria-hidden="true" />
+          <span>{{ "assistant.organizer.groupDate" | translate }}</span>
+        </button>
+        <button
+          type="button"
+          [attr.aria-pressed]="groupMode() === 'matter'"
+          (click)="setGroupMode('matter')"
+        >
+          <ng-icon name="lucideFolderOpen" aria-hidden="true" />
+          <span>{{ "assistant.organizer.groupMatter" | translate }}</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div
+    class="conversation-list"
+    appBottomReached
+    (bottomReached)="loadMore.emit()"
+  >
+    @if (sections().pinned.length) {
+      <h2>
+        <ng-icon name="lucidePin" aria-hidden="true" />
+        {{ "assistant.organizer.pinned" | translate }}
+      </h2>
+      @for (session of sections().pinned; track session.id) {
+        <ng-container
+          [ngTemplateOutlet]="row"
+          [ngTemplateOutletContext]="{ $implicit: session }"
+        />
+      }
+    }
+    @for (group of sections().groups; track group.key) {
+      <h2>
+        @if (group.title) {
+          <span class="conversation-group-title">{{ group.title }}</span>
+          <span class="conversation-group-count">
+            {{ group.sessions.length }}
+          </span>
+        } @else if (group.labelKey) {
+          {{ group.labelKey | translate }}
+        } @else {
+          {{ group.date | date: "MMM d, y" }}
+        }
+      </h2>
+      @for (session of group.sessions; track session.id) {
+        <ng-container
+          [ngTemplateOutlet]="row"
+          [ngTemplateOutletContext]="{ $implicit: session }"
+        />
+      }
+    }
+    @if (!loading() && !sessions().length) {
+      <div class="conversation-empty">
+        @if (filtered()) {
+          <p>{{ "assistant.organizer.noMatches" | translate }}</p>
+          <button
+            hlmBtn
+            variant="outline"
+            size="sm"
+            type="button"
+            (click)="clearFilters()"
+          >
+            {{ "assistant.organizer.clearFilters" | translate }}
+          </button>
+        } @else {
+          <p>{{ "assistant.noConversations" | translate }}</p>
+        }
+      </div>
+    }
+    @if (loading()) {
+      <p class="conversation-loading" aria-live="polite">
+        <hlm-spinner
+          aria-label="{{ 'assistant.loadingConversations' | translate }}"
+        />
+      </p>
+    }
+  </div>
+</div>
+
+<ng-template #row let-session>
+  <div
+    class="conversation-row"
+    [class.is-selected]="selectedSessionId() === session.id"
+  >
+    @if (renamingId() === session.id) {
+      <input
+        #renameInput
+        class="conversation-rename"
+        type="text"
+        maxlength="200"
+        [value]="session.title ?? ''"
+        [attr.aria-label]="'assistant.organizer.renameLabel' | translate"
+        (keydown.enter)="finishRename(session, renameInput.value)"
+        (keydown.escape)="cancelRename()"
+        (blur)="finishRename(session, renameInput.value)"
+      />
+    } @else {
+      <button
+        hlmBtn
+        variant="ghost"
+        class="conversation-item"
+        [class.is-selected]="selectedSessionId() === session.id"
+        [attr.aria-current]="selectedSessionId() === session.id ? 'true' : null"
+        type="button"
+        (click)="selectSession.emit(session.id)"
+      >
+        <span class="conversation-item-icon" aria-hidden="true">
+          <ng-icon
+            [name]="sessionIcon(session)"
+            [class.is-running]="session.activity?.activeJobCount"
+          />
+        </span>
+        <span class="conversation-item-copy">
+          <strong>
+            {{ session.title || ("assistant.newChat" | translate) }}
+          </strong>
+          @if (groupMode() === "date" && session.case) {
+            <small>{{ session.case.caseNumber }}</small>
+          }
+          @if (filters().scope === "team" && session.createdBy) {
+            <small>{{ session.createdBy.displayName }}</small>
+          }
+          @if (sessionHint(session); as hint) {
+            <small class="conversation-item-hint">{{ hint | translate }}</small>
+          }
+        </span>
+        <time>
+          {{
+            groupMode() === "date"
+              ? (session.updatedAt | date: "shortTime")
+              : (session.updatedAt | date: "d. MMM")
+          }}
+        </time>
+      </button>
+      <button
+        hlmBtn
+        variant="ghost"
+        size="icon-sm"
+        type="button"
+        class="conversation-row-menu"
+        [hlmDropdownMenuTrigger]="rowMenu"
+        [hlmDropdownMenuTriggerData]="{ $implicit: session }"
+        [attr.aria-label]="'assistant.organizer.actions' | translate"
+      >
+        <ng-icon name="lucideEllipsis" aria-hidden="true" />
+      </button>
+    }
+  </div>
+</ng-template>
+
+<ng-template #rowMenu let-session>
+  <hlm-dropdown-menu width="content">
+    <hlm-dropdown-menu-group>
+      <button
+        hlmDropdownMenuItem
+        type="button"
+        (click)="togglePin.emit(session)"
+      >
+        <ng-icon [name]="session.pinnedAt ? 'lucidePinOff' : 'lucidePin'" />
+        {{
+          (session.pinnedAt
+            ? "assistant.organizer.unpin"
+            : "assistant.organizer.pin"
+          ) | translate
+        }}
+      </button>
+      <button hlmDropdownMenuItem type="button" (click)="startRename(session)">
+        <ng-icon name="lucidePencil" />
+        {{ "assistant.organizer.rename" | translate }}
+      </button>
+      <button
+        hlmDropdownMenuItem
+        type="button"
+        (click)="toggleArchive.emit(session)"
+      >
+        <ng-icon
+          [name]="
+            session.status === 'ARCHIVED'
+              ? 'lucideArchiveRestore'
+              : 'lucideArchive'
+          "
+        />
+        {{
+          (session.status === "ARCHIVED"
+            ? "assistant.organizer.restore"
+            : "assistant.organizer.archiveAction"
+          ) | translate
+        }}
+      </button>
+    </hlm-dropdown-menu-group>
+    <hlm-dropdown-menu-separator />
+    <hlm-dropdown-menu-group>
+      <button
+        hlmDropdownMenuItem
+        type="button"
+        variant="destructive"
+        (click)="remove.emit(session)"
+      >
+        <ng-icon name="lucideTrash2" />
+        {{ "assistant.deleteConversation" | translate }}
+      </button>
+    </hlm-dropdown-menu-group>
+  </hlm-dropdown-menu>
+</ng-template>

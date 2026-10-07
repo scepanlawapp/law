@@ -956,7 +956,9 @@ describe("ChatService", () => {
     );
 
     await expect(
-      service.updateSession(session.workspaceId, session.id, "  Ručni naziv  "),
+      service.updateSession(session.workspaceId, session.id, {
+        title: "  Ručni naziv  ",
+      }),
     ).resolves.toMatchObject({ title: "Ručni naziv" });
 
     expect(prisma.chatSession.update).toHaveBeenCalledWith(
@@ -987,7 +989,9 @@ describe("ChatService", () => {
     );
 
     await expect(
-      service.updateSession("workspace-1", "session-2", "Ručni naziv"),
+      service.updateSession("workspace-1", "session-2", {
+        title: "Ručni naziv",
+      }),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 
@@ -1064,6 +1068,274 @@ describe("ChatService", () => {
           },
         },
       ],
+    });
+  });
+
+  describe("conversation organizer", () => {
+    const newService = (prisma: ReturnType<typeof prismaMock>) =>
+      new ChatService(
+        prisma as never,
+        new ChatEventBus(),
+        { save: jest.fn(), read: jest.fn() } as never,
+        new ChatRuntimeConfig(),
+        new FakeChatModelProvider({}),
+      );
+    const caseId = "11111111-1111-4111-8111-111111111111";
+    const clientId = "22222222-2222-4222-8222-222222222222";
+
+    it("listSessions applies scope, state, matter and author filters in the workspace", async () => {
+      const prisma = prismaMock();
+      prisma.chatSession.findMany.mockResolvedValue([]);
+      prisma.chatSession.count.mockResolvedValue(0);
+
+      await newService(prisma).listSessions(
+        session.workspaceId,
+        {
+          page: 1,
+          pageSize: 20,
+          scope: "mine",
+          states: ["pending", "draft"],
+          caseIds: [caseId],
+          clientIds: [clientId],
+          authorIds: ["user-2"],
+          analysisKinds: ["CONTRACT_REVIEW"],
+        },
+        "user-1",
+      );
+
+      const where = prisma.chatSession.findMany.mock.calls[0][0].where;
+      expect(where).toMatchObject({
+        workspaceId: session.workspaceId,
+        isDeleted: false,
+        status: "ACTIVE",
+        createdByUserId: "user-1",
+      });
+      expect(where.AND).toEqual(
+        expect.arrayContaining([
+          {
+            OR: [
+              { pendingActions: { some: { status: "PENDING" } } },
+              {
+                workflowJobs: {
+                  some: { status: { in: ["QUEUED", "RUNNING"] } },
+                },
+              },
+            ],
+          },
+          { draftResults: { some: {} } },
+          {
+            documentAnalyses: {
+              some: { kind: { in: ["CONTRACT_REVIEW"] } },
+            },
+          },
+          { caseId: { in: [caseId] } },
+          { case: { clientId: { in: [clientId] } } },
+          { createdByUserId: { in: ["user-2"] } },
+        ]),
+      );
+      expect(prisma.chatSession.count).toHaveBeenCalledWith({ where });
+    });
+
+    it("listSessions team scope does not restrict the author", async () => {
+      const prisma = prismaMock();
+      prisma.chatSession.findMany.mockResolvedValue([]);
+      prisma.chatSession.count.mockResolvedValue(0);
+
+      await newService(prisma).listSessions(
+        session.workspaceId,
+        { page: 1, pageSize: 20, scope: "team" },
+        "user-1",
+      );
+
+      const where = prisma.chatSession.findMany.mock.calls[0][0].where;
+      expect(where).not.toHaveProperty("createdByUserId");
+      expect(where).not.toHaveProperty("AND");
+    });
+
+    it("listSessions searches title, matter and messages in Latin script", async () => {
+      const prisma = prismaMock();
+      prisma.chatSession.findMany.mockResolvedValue([]);
+      prisma.chatSession.count.mockResolvedValue(0);
+
+      await newService(prisma).listSessions(session.workspaceId, {
+        page: 1,
+        pageSize: 20,
+        search: " Петровић ",
+      });
+
+      const contains = { contains: "Petrović", mode: "insensitive" };
+      expect(prisma.chatSession.findMany.mock.calls[0][0].where.AND).toEqual([
+        {
+          OR: [
+            { title: contains },
+            { case: { caseNumber: contains } },
+            { case: { name: contains } },
+            { case: { client: { displayName: contains } } },
+            { messages: { some: { content: contains } } },
+          ],
+        },
+      ]);
+    });
+
+    it("listSessions lists archived conversations and keeps pinned ones first", async () => {
+      const prisma = prismaMock();
+      prisma.chatSession.findMany.mockResolvedValue([]);
+      prisma.chatSession.count.mockResolvedValue(0);
+
+      await newService(prisma).listSessions(session.workspaceId, {
+        page: 1,
+        pageSize: 20,
+        archived: true,
+        group: "matter",
+      });
+
+      const call = prisma.chatSession.findMany.mock.calls[0][0];
+      expect(call.where.status).toBe("ARCHIVED");
+      expect(call.orderBy.slice(0, 3)).toEqual([
+        { pinnedAt: { sort: "desc", nulls: "last" } },
+        { case: { client: { displayName: "asc" } } },
+        { case: { caseNumber: "asc" } },
+      ]);
+    });
+
+    it("listSessions reports pending proposals and analysis kinds", async () => {
+      const prisma = prismaMock();
+      prisma.chatSession.findMany.mockResolvedValue([
+        { ...session, pinnedAt: now },
+      ]);
+      prisma.chatSession.count.mockResolvedValue(1);
+      prisma.pendingAction.findMany.mockResolvedValue([
+        { sessionId: session.id },
+        { sessionId: session.id },
+      ]);
+      prisma.documentAnalysis.findMany.mockResolvedValue([
+        { sessionId: session.id, kind: "CONTRACT_REVIEW" },
+      ]);
+
+      await expect(
+        newService(prisma).listSessions(session.workspaceId, {
+          page: 1,
+          pageSize: 20,
+        }),
+      ).resolves.toMatchObject({
+        items: [
+          {
+            pinnedAt: now.toISOString(),
+            activity: {
+              pendingActionCount: 2,
+              analysisKinds: ["CONTRACT_REVIEW"],
+            },
+          },
+        ],
+      });
+    });
+
+    it("sessionFacets counts states and suggests matters and authors", async () => {
+      const prisma = prismaMock() as ReturnType<typeof prismaMock> & {
+        client: { findMany: jest.Mock };
+        user: { findMany: jest.Mock };
+      };
+      prisma.chatSession.count
+        .mockResolvedValueOnce(2)
+        .mockResolvedValueOnce(3)
+        .mockResolvedValueOnce(1)
+        .mockResolvedValueOnce(4);
+      (prisma.case as unknown as { findMany: jest.Mock }).findMany = jest
+        .fn()
+        .mockResolvedValue([
+          {
+            id: caseId,
+            caseNumber: "P-12/2026",
+            name: "Petrović protiv Jovanovića",
+            clientId,
+            client: { displayName: "Petrović" },
+          },
+        ]);
+      prisma.client = {
+        findMany: jest
+          .fn()
+          .mockResolvedValue([{ id: clientId, displayName: "Petrović" }]),
+      };
+      prisma.user = {
+        findMany: jest.fn().mockResolvedValue([
+          { id: "user-1", firstName: "Ana", lastName: "Ilić", email: "a@x.rs" },
+          { id: "user-2", firstName: null, lastName: null, email: "b@x.rs" },
+        ]),
+      };
+
+      await expect(
+        newService(prisma).sessionFacets(
+          session.workspaceId,
+          { scope: "mine", search: "Петр" },
+          "user-1",
+        ),
+      ).resolves.toEqual({
+        counts: { pending: 2, draft: 3, analysis: 1, archived: 4 },
+        suggestions: {
+          clients: [{ id: clientId, displayName: "Petrović" }],
+          cases: [
+            {
+              id: caseId,
+              caseNumber: "P-12/2026",
+              name: "Petrović protiv Jovanovića",
+              clientId,
+              clientDisplayName: "Petrović",
+            },
+          ],
+          authors: [
+            { id: "user-1", displayName: "Ana Ilić" },
+            { id: "user-2", displayName: "b@x.rs" },
+          ],
+        },
+      });
+      const scoped = {
+        workspaceId: session.workspaceId,
+        isDeleted: false,
+        createdByUserId: "user-1",
+      };
+      expect(prisma.chatSession.count).toHaveBeenLastCalledWith({
+        where: { ...scoped, status: "ARCHIVED" },
+      });
+      expect(prisma.client.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            workspaceId: session.workspaceId,
+            cases: { some: { chatSessions: { some: scoped } } },
+            displayName: { contains: "Petr", mode: "insensitive" },
+          },
+        }),
+      );
+    });
+
+    it("updateSession pins and archives without touching the title", async () => {
+      const prisma = prismaMock();
+      prisma.chatSession.findFirst.mockResolvedValue(session);
+      prisma.chatSession.update.mockResolvedValue({
+        ...session,
+        status: "ARCHIVED",
+        pinnedAt: now,
+      });
+
+      await expect(
+        newService(prisma).updateSession(session.workspaceId, session.id, {
+          pinned: true,
+          archived: true,
+        }),
+      ).resolves.toMatchObject({
+        status: "ARCHIVED",
+        pinnedAt: now.toISOString(),
+      });
+      const data = prisma.chatSession.update.mock.calls[0][0].data;
+      expect(data).toEqual({ pinnedAt: expect.any(Date), status: "ARCHIVED" });
+
+      await newService(prisma).updateSession(session.workspaceId, session.id, {
+        pinned: false,
+        archived: false,
+      });
+      expect(prisma.chatSession.update.mock.calls[1][0].data).toEqual({
+        pinnedAt: null,
+        status: "ACTIVE",
+      });
     });
   });
 

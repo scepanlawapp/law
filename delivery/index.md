@@ -71,6 +71,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Assistant Conversation Organizer](./tracks/assistant_conversation_organizer_20261007/index.md)
 - [Assistant Capabilities (epic)](./tracks/assistant_capabilities_20261007/index.md)
 - [Assistant Drafting Document Types](./tracks/assistant_drafting_document_types_20261007/index.md)
 - [Assistant Drafting: Contracts, Letters, Corporate Acts](./tracks/assistant_drafting_contracts_letters_20261007/index.md)
