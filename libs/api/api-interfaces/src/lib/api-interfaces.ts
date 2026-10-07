@@ -513,6 +513,15 @@ export const DRAFT_DOCUMENT_TYPES = [
   "APPEAL",
   "ENFORCEMENT_MOTION",
   "SUBMISSION",
+  "SERVICES_CONTRACT",
+  "NDA",
+  "EMPLOYMENT_CONTRACT",
+  "COPYRIGHT_LICENCE",
+  "DEMAND_LETTER",
+  "TERMINATION_NOTICE",
+  "MEDIA_REPLY_REQUEST",
+  "POWER_OF_ATTORNEY",
+  "CORPORATE_DECISION",
 ] as const;
 
 export type DraftDocumentType = (typeof DRAFT_DOCUMENT_TYPES)[number];
@@ -689,6 +698,8 @@ export interface BriefTaskProposal {
 export interface BriefTaskPreview {
   briefId: string;
   caseId: string;
+  // Drives the evidence wording (dokazi, prilozi, isprave).
+  documentFamily: DraftDocumentFamily;
   proposals: BriefTaskProposal[];
 }
 

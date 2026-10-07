@@ -1,4 +1,8 @@
-import { type DocumentTypeDefinition, missingFieldKeys } from "./document-types";
+import {
+  DOCUMENT_FAMILY_TEXT,
+  type DocumentTypeDefinition,
+  missingFieldKeys,
+} from "./document-types";
 
 export function buildBriefSystemPrompt(type: DocumentTypeDefinition): string {
   const parties = type.parties
@@ -33,7 +37,7 @@ export function buildBriefSystemPrompt(type: DocumentTypeDefinition): string {
     `Posebni podaci (fields, polje key): ${fields}.`,
     `Svaka stavka missingFields ima key i label. Dozvoljeni key: ${keys}. Ključ strane je role + Name, Address ili IdNumber (npr. ${type.parties[0].role}Address).`,
     "label je kratak opis podatka na srpskom latinici sa dijakriticima, kako bi ga napisao advokat (npr. \"Adresa tuženog\", \"Datum dostavljanja presude\"), nikada naziv promenljive. key other koristi samo kada nijedan drugi ne odgovara.",
-    "U evidence navedi dokaze kao objekte sa label (kratak opis dokaza) i provided: true ako je taj dokument već među priloženim dokumentima, inače false.",
+    `U evidence navedi ${DOCUMENT_FAMILY_TEXT[type.family].evidenceHint}, kao objekte sa label (kratak opis) i provided: true ako je taj dokument već među priloženim dokumentima, inače false.`,
     `Pravni osnov navedi pozivanjem na relevantne odredbe propisa (${type.legalFrame}) kad god je to moguće.`,
     "Proceni confidence (0 do 1) koliko si siguran u izvučene podatke, i dodaj upozorenja u warnings za nejasne ili kontradiktorne navode.",
     "Odgovori isključivo JSON objektom, bez dodatnog teksta, tačno u sledećem obliku (ključevi su na engleskom, vrednosti na srpskom latinici):",

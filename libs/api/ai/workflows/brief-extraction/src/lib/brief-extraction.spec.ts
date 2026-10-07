@@ -1,6 +1,8 @@
 import { FakeChatModelProvider } from "@law/llm";
 import { buildBriefUserPrompt } from "./context";
+import { DRAFT_DOCUMENT_TYPES } from "@law/api-interfaces";
 import {
+  DOCUMENT_FAMILY_TEXT,
   describeMissingField,
   getDocumentType,
   listDocumentTypes,
@@ -81,6 +83,45 @@ describe("document types", () => {
     }
   });
 
+  it("gives every type a unique ASCII file slug and the shared contract ids", () => {
+    const types = listDocumentTypes();
+    const slugs = types.map((type) => type.fileSlug);
+    expect(new Set(slugs).size).toBe(slugs.length);
+    for (const slug of slugs) expect(slug).toMatch(/^[a-z0-9-]+$/);
+    expect(types.map((type) => type.id)).toEqual([...DRAFT_DOCUMENT_TYPES]);
+  });
+
+  it("keeps party roles and field keys unique per type", () => {
+    for (const type of listDocumentTypes()) {
+      const keys = missingFieldKeys(type);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+
+  it("covers every family with evidence wording", () => {
+    const families = new Set(listDocumentTypes().map((type) => type.family));
+    expect([...families].sort()).toEqual([
+      "CONTRACT",
+      "CORPORATE",
+      "LETTER",
+      "LITIGATION",
+    ]);
+    for (const family of families) {
+      expect(DOCUMENT_FAMILY_TEXT[family].evidenceDescription).toContain(
+        "{label}",
+      );
+    }
+  });
+
+  it("describes the media reply publication date as urgent with its own wording", () => {
+    const info = describeMissingField(
+      getDocumentType("MEDIA_REPLY_REQUEST"),
+      "publicationDate",
+    );
+    expect(info).toMatchObject({ urgent: true });
+    expect(info?.urgentDescription).toContain("datuma objavljivanja");
+  });
+
   it("keeps the lawsuit missing-field keys", () => {
     expect(missingFieldKeys(getDocumentType("LAWSUIT"))).toEqual(
       expect.arrayContaining([
@@ -110,6 +151,21 @@ describe("document types", () => {
 });
 
 describe("buildBriefSystemPrompt", () => {
+  it("asks contracts for attachments, not evidence", () => {
+    const prompt = buildBriefSystemPrompt(getDocumentType("NDA"));
+    expect(prompt).toContain("„Ugovor o poverljivosti”");
+    expect(prompt).toContain("discloser (strana koja otkriva informacije)");
+    expect(prompt).toContain("priloge i isprave potrebne za zaključenje ugovora");
+    expect(prompt).toContain("Zakon o zaštiti poslovne tajne");
+  });
+
+  it("handles a single-party corporate act", () => {
+    const prompt = buildBriefSystemPrompt(getDocumentType("CORPORATE_DECISION"));
+    expect(prompt).toContain("company (društvo)");
+    expect(prompt).toContain("companyAddress");
+    expect(prompt).toContain("Zakon o privrednim društvima");
+  });
+
   it("names the document, its parties, fields and allowed keys", () => {
     const prompt = buildBriefSystemPrompt(getDocumentType("APPEAL"));
     expect(prompt).toContain("„Žalba”");

@@ -92,14 +92,19 @@ export class AssistantMatterLinkComponent {
   readonly selectedTaskKeys = signal<ReadonlySet<string>>(new Set());
   readonly taskDueDates = signal<Readonly<Record<string, string>>>({});
   readonly taskGroups = computed(() => {
-    const proposals = this.taskPreview()?.proposals ?? [];
+    const preview = this.taskPreview();
+    const proposals = preview?.proposals ?? [];
+    // Litigation asks for evidence; other families for attachments or documents.
+    const family = preview?.documentFamily ?? "LITIGATION";
+    const evidenceKey =
+      family === "LITIGATION"
+        ? "assistant.matter.evidenceGroup"
+        : `assistant.matter.evidenceGroup.${family}`;
     return (["missing", "evidence"] as const)
       .map((source) => ({
         source,
         titleKey:
-          source === "missing"
-            ? "assistant.matter.missingData"
-            : "assistant.matter.evidenceGroup",
+          source === "missing" ? "assistant.matter.missingData" : evidenceKey,
         tasks: proposals.filter((task) => task.source === source),
       }))
       .filter((group) => group.tasks.length);

@@ -19,6 +19,7 @@ import {
   ChatSessionSummary,
 } from "@law/api-interfaces";
 import {
+  DOCUMENT_FAMILY_TEXT,
   briefFieldValue,
   briefParty,
   describeMissingField,
@@ -505,6 +506,7 @@ export class MatterLinkService {
     return {
       briefId: briefRow.id,
       caseId: matter.id,
+      documentFamily: type.family,
       proposals,
     };
   }
@@ -590,7 +592,8 @@ export class MatterLinkService {
       fieldKey: field.key,
       title: (info?.taskTitle ?? `Pribaviti podatak: ${label}`).slice(0, 320),
       description: urgent
-        ? `Od datuma dostavljanja zavisi rok za podnošenje ${type.labelGenitive} — utvrditi hitno i uneti rok u kalendar.`
+        ? (info?.urgentDescription ??
+          `Od datuma dostavljanja zavisi rok za podnošenje ${type.labelGenitive} — utvrditi hitno i uneti rok u kalendar.`)
         : `Podatak je potreban za nacrt ${type.labelGenitive}, a ne nalazi se u dostavljenim dokumentima: ${label}.`,
       assigneeUserId: matter.responsibleUserId,
       priority: urgent ? "HIGH" : "NORMAL",
@@ -612,11 +615,14 @@ export class MatterLinkService {
     const label = item.label.trim();
     if (!label || item.provided) return null;
     const key = `evidence:${index}`;
+    const familyText = DOCUMENT_FAMILY_TEXT[type.family];
     return {
       key,
       source: "evidence",
-      title: `Pribaviti dokaz: ${label}`.slice(0, 320),
-      description: `Dokaz je naveden u nacrtu ${type.labelGenitive}, a nije priložen u razgovoru: ${label}.`,
+      title: `${familyText.evidenceTaskPrefix}: ${label}`.slice(0, 320),
+      description: familyText.evidenceDescription
+        .replace("{document}", type.labelGenitive)
+        .replace("{label}", label),
       assigneeUserId: matter.responsibleUserId,
       priority: "NORMAL",
       dueDate: addWorkingDays(today, DEFAULT_DUE_WORKING_DAYS),
