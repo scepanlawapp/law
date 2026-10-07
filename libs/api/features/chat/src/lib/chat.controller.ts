@@ -22,6 +22,7 @@ import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   ChatSendMessageResponse,
   ChatSessionDetail,
+  ChatSessionFacetsResponse,
   ChatSessionListResponse,
   BriefApplyPreview,
   BriefApplyResponse,
@@ -35,6 +36,7 @@ import {
 } from "@law/api-interfaces";
 import {
   CaseLinksQueryDto,
+  ChatSessionFacetsQueryDto,
   ChatSessionListQueryDto,
   BriefApplyDto,
   BriefApplyPreviewDto,
@@ -70,7 +72,23 @@ export class ChatController {
     @Req() request: WorkspaceRequest,
     @Query() query: ChatSessionListQueryDto,
   ): Promise<ChatSessionListResponse> {
-    return this.chat.listSessions(request.workspace!.workspaceId, query);
+    return this.chat.listSessions(
+      request.workspace!.workspaceId,
+      query,
+      request.auth!.user.id,
+    );
+  }
+
+  @Get("sessions/facets")
+  sessionFacets(
+    @Req() request: WorkspaceRequest,
+    @Query() query: ChatSessionFacetsQueryDto,
+  ): Promise<ChatSessionFacetsResponse> {
+    return this.chat.sessionFacets(
+      request.workspace!.workspaceId,
+      query,
+      request.auth!.user.id,
+    );
   }
 
   @Post("sessions")
@@ -109,7 +127,7 @@ export class ChatController {
     return this.chat.updateSession(
       request.workspace!.workspaceId,
       sessionId,
-      body.title,
+      body,
     );
   }
 

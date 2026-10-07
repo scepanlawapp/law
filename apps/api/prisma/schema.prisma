@@ -1393,6 +1393,8 @@ model ChatSession {
   summaryModel           String?
   status                 ChatSessionStatus       @default(ACTIVE)
   isDeleted              Boolean                 @default(false)
+  /// Set when the conversation is pinned to the top of the assistant sidebar.
+  pinnedAt               DateTime?               @db.Timestamptz(3)
   createdAt              DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
   workspace              Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1409,6 +1411,7 @@ model ChatSession {
 
   @@index([workspaceId, caseId])
   @@index([workspaceId, updatedAt])
+  @@index([workspaceId, status, isDeleted, updatedAt])
   @@index([createdByUserId, isDeleted, createdAt])
 }
 

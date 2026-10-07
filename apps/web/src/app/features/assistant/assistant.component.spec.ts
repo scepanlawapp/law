@@ -64,7 +64,12 @@ const createBriefPreview = (briefId = "brief-1"): BriefApplyPreview => ({
   appliedCaseId: null,
   documentType: "LAWSUIT",
   parties: [
-    { role: "plaintiff", label: "Tužilac", name: "Petar Petrović", address: null },
+    {
+      role: "plaintiff",
+      label: "Tužilac",
+      name: "Petar Petrović",
+      address: null,
+    },
     { role: "defendant", label: "Tuženi", name: "ACME doo", address: null },
   ],
   clientRole: "plaintiff",
@@ -98,6 +103,9 @@ describe("AssistantComponent review state", () => {
   };
   const chat = {
     listSessions: jest.fn(),
+    sessionFacets: jest.fn(() => NEVER),
+    updateSession: jest.fn(),
+    deleteSession: jest.fn(() => NEVER),
     getSession: jest.fn(),
     listDrafts: jest.fn(),
     retryJob: jest.fn(),
@@ -122,6 +130,20 @@ describe("AssistantComponent review state", () => {
   };
 
   const routeParams: Record<string, string> = {};
+
+  beforeAll(() => {
+    globalThis.ResizeObserver ??= class {
+      observe(): void {
+        // jsdom has no layout.
+      }
+      unobserve(): void {
+        // jsdom has no layout.
+      }
+      disconnect(): void {
+        // jsdom has no layout.
+      }
+    };
+  });
 
   beforeEach(async () => {
     jest.clearAllMocks();
@@ -752,7 +774,9 @@ describe("AssistantComponent review state", () => {
 
     expect(component["analysis"]()?.id).toBe("analysis-2");
     expect(component["rightRailExpanded"]()).toBe(true);
-    expect(fixture.nativeElement.querySelector(".assistant-rail-tabs")).toBeNull();
+    expect(
+      fixture.nativeElement.querySelector(".assistant-rail-tabs"),
+    ).toBeNull();
     expect(
       fixture.nativeElement.querySelector(
         ".assistant-rail-pane.is-active law-contract-review-panel",
@@ -809,6 +833,132 @@ describe("AssistantComponent review state", () => {
 
     expect(chat.getSession).toHaveBeenCalledWith("workspace-1", "session-9");
     expect(fixture.componentInstance["selectedSessionId"]()).toBe("session-9");
+  });
+
+  describe("conversation organizer", () => {
+    const page = (items: (typeof session)[]) =>
+      of({
+        items,
+        meta: {
+          page: 1,
+          pageSize: 20,
+          totalItems: items.length,
+          totalPages: 1,
+        },
+      });
+
+    it("restores filters from the URL and lists the matching conversations", () => {
+      routeParams["scope"] = "team";
+      routeParams["state"] = "pending";
+      routeParams["case"] = "case-1";
+      routeParams["group"] = "matter";
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+
+      expect(chat.listSessions).toHaveBeenCalledWith("workspace-1", {
+        page: 1,
+        scope: "team",
+        group: "matter",
+        states: ["pending"],
+        caseIds: ["case-1"],
+      });
+      expect(chat.sessionFacets).toHaveBeenCalledWith("workspace-1", {
+        scope: "team",
+        search: "",
+      });
+    });
+
+    it("reloads on a chip change, syncs the URL and keeps the open conversation", () => {
+      chat.listSessions.mockReturnValue(page([session]));
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+      expect(component["selectedSessionId"]()).toBe(session.id);
+      chat.listSessions.mockClear();
+      chat.listSessions.mockReturnValue(page([]));
+
+      component["onConversationFiltersChange"]({
+        ...component["conversationFilters"](),
+        states: ["draft"],
+      });
+
+      expect(chat.listSessions).toHaveBeenCalledWith(
+        "workspace-1",
+        expect.objectContaining({ page: 1, states: ["draft"] }),
+      );
+      expect(TestBed.inject(Router).navigate).toHaveBeenCalledWith(
+        [],
+        expect.objectContaining({
+          queryParams: expect.objectContaining({ state: "draft" }),
+          queryParamsHandling: "merge",
+          replaceUrl: true,
+        }),
+      );
+      expect(component["selectedSessionId"]()).toBe(session.id);
+    });
+
+    it("debounces free-text search", () => {
+      jest.useFakeTimers();
+      try {
+        const fixture = TestBed.createComponent(AssistantComponent);
+        fixture.detectChanges();
+        const component = fixture.componentInstance;
+        chat.listSessions.mockClear();
+
+        component["onConversationFiltersChange"]({
+          ...component["conversationFilters"](),
+          text: "zakup",
+        });
+        expect(chat.listSessions).not.toHaveBeenCalled();
+
+        jest.advanceTimersByTime(300);
+        expect(chat.listSessions).toHaveBeenCalledWith(
+          "workspace-1",
+          expect.objectContaining({ search: "zakup" }),
+        );
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    it("archives a conversation out of the active list", () => {
+      chat.listSessions.mockReturnValue(page([session]));
+      chat.updateSession.mockReturnValue(
+        of({ ...session, status: "ARCHIVED" }),
+      );
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.detectChanges();
+      const component = fixture.componentInstance;
+
+      component["toggleSessionArchive"](session);
+
+      expect(chat.updateSession).toHaveBeenCalledWith(
+        "workspace-1",
+        session.id,
+        { archived: true },
+      );
+      expect(component["sessions"]()).toEqual([]);
+      expect(toast.success).toHaveBeenCalledWith(
+        "assistant.organizer.archived",
+      );
+    });
+
+    it("shows pinned conversations in their own section", () => {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      const component = fixture.componentInstance;
+      component["sessions"].set([
+        { ...session, id: "pinned", pinnedAt: "2026-09-15T12:00:00.000Z" },
+        session,
+      ]);
+      fixture.detectChanges();
+
+      const headings = Array.from(
+        fixture.nativeElement.querySelectorAll(
+          ".desktop-conversations .conversation-list h2",
+        ) as NodeListOf<HTMLElement>,
+      ).map((heading) => heading.textContent?.trim());
+      expect(headings[0]).toContain("assistant.organizer.pinned");
+    });
   });
 
   it("opens the review export in the chosen script", () => {

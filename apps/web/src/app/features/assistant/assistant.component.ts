@@ -45,7 +45,6 @@ import {
 } from "@ng-icons/lucide";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { HlmButton } from "@spartan-ng/helm/button";
-import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
   HlmSheet,
@@ -61,6 +60,7 @@ import {
   ChatMessageResponse,
   ChatMessageFeedback,
   ChatSessionDetail,
+  ChatSessionFacetsResponse,
   ChatSessionSummary,
   ChatStreamEvent,
   PendingActionSummary,
@@ -72,8 +72,19 @@ import {
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { finalize } from "rxjs";
-import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
 import { AssistantMatterLinkComponent } from "./matter-link.component";
+import {
+  ConversationNavigatorComponent,
+  ConversationRename,
+} from "./components/conversation-navigator/conversation-navigator.component";
+import {
+  ConversationFilters,
+  ConversationGroupMode,
+  DEFAULT_CONVERSATION_FILTERS,
+  filtersFromQueryParams,
+  filtersToQueryParams,
+  toListQuery,
+} from "./components/conversation-navigator/conversation-filters";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
 import { ContractReviewPanelComponent } from "./components/contract-review-panel/contract-review-panel";
 import { CaseTimelinePanelComponent } from "./components/case-timeline-panel/case-timeline-panel";
@@ -101,11 +112,12 @@ import {
   selectWorkflowActivities,
   WorkflowActivityState,
 } from "./assistant-workflow-state";
-import { HlmSpinner } from "@spartan-ng/helm/spinner";
 
 type RailTab = "draft" | "matter" | "analysis";
 
 const MAX_UPLOAD_BYTES = 25_000_000;
+const SEARCH_DEBOUNCE_MS = 250;
+const GROUP_MODE_STORAGE_KEY = "law.assistant.conversationGroup";
 const STICK_TO_BOTTOM_THRESHOLD_PX = 80;
 const CITATION_LINK_SELECTOR = ".assistant-markdown a.citation-marker-link";
 
@@ -141,24 +153,15 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
   ".txt": "text/plain",
 };
 
-interface SessionGroup {
-  key: string;
-  date: Date;
-  label: "assistant.today" | "assistant.yesterday" | null;
-  sessions: ChatSessionSummary[];
-}
-
 @Component({
   selector: "law-assistant",
   standalone: true,
   imports: [
-    BottomReachedDirective,
     DatePipe,
     NgTemplateOutlet,
     NgIcon,
     HlmTooltipImports,
     HlmButton,
-    HlmInputGroupImports,
     HlmTextarea,
     HlmSheet,
     HlmSheetClose,
@@ -171,13 +174,13 @@ interface SessionGroup {
     TranslatePipe,
     AssistantMarkdownPipe,
     AssistantMatterLinkComponent,
+    ConversationNavigatorComponent,
     DraftReviewPanelComponent,
     ContractReviewPanelComponent,
     CaseTimelinePanelComponent,
     CitationListComponent,
     PendingActionCardComponent,
     StarterPromptsComponent,
-    HlmSpinner,
   ],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
@@ -236,6 +239,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly citationPreview = inject(CitationPreviewController);
   private source: EventSource | null = null;
   private sessionRefreshTimer: ReturnType<typeof setTimeout> | null = null;
+  private searchTimer: ReturnType<typeof setTimeout> | null = null;
+  /** Bumped per list request so a slower, older response never wins. */
+  private sessionRequestSeq = 0;
   private elapsedTimer: ReturnType<typeof setInterval> | null = null;
   private speechBaseText = "";
   private lastSpeechDraft = "";
@@ -250,48 +256,21 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     draft: new FormControl("", { nonNullable: true }),
   });
   protected readonly sessions = signal<ChatSessionSummary[]>([]);
-  protected readonly sessionGroups = computed<SessionGroup[]>(() => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const groups = new Map<string, SessionGroup>();
-
-    for (const session of this.sessions()) {
-      const date = new Date(session.updatedAt);
-      const day = new Date(date);
-      day.setHours(0, 0, 0, 0);
-      const key = day.toISOString();
-      const differenceInDays = Math.round(
-        (today.getTime() - day.getTime()) / 86_400_000,
-      );
-
-      if (!groups.has(key)) {
-        groups.set(key, {
-          key,
-          date: day,
-          label:
-            differenceInDays === 0
-              ? "assistant.today"
-              : differenceInDays === 1
-                ? "assistant.yesterday"
-                : null,
-          sessions: [],
-        });
-      }
-      groups.get(key)?.sessions.push(session);
-    }
-
-    return [...groups.values()].sort(
-      (first, second) => second.date.getTime() - first.date.getTime(),
-    );
-  });
+  protected readonly conversationFilters = signal<ConversationFilters>(
+    DEFAULT_CONVERSATION_FILTERS,
+  );
+  protected readonly conversationGroupMode =
+    signal<ConversationGroupMode>("date");
+  protected readonly conversationFacets =
+    signal<ChatSessionFacetsResponse | null>(null);
+  /** Summary of the open conversation, kept when filters hide it. */
+  private readonly openSessionSummary = signal<ChatSessionSummary | null>(null);
   protected readonly messages = signal<ChatMessageResponse[]>([]);
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly pendingCaseId = signal<string | null>(null);
   protected readonly latestBriefId = signal<string | null>(null);
   protected readonly selectedSessionTitle = computed(
-    () =>
-      this.sessions().find((session) => session.id === this.selectedSessionId())
-        ?.title ?? null,
+    () => this.selectedSession()?.title ?? null,
   );
   /** Case-linked chats get prompts scoped to that case. */
   protected readonly starterPrompts = computed(() =>
@@ -301,7 +280,6 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   );
   protected readonly pendingFiles = signal<File[]>([]);
   protected readonly sessionPage = signal(1);
-  protected readonly sessionSearch = signal("");
   protected readonly sessionTotalPages = signal(0);
   protected readonly loadingSessions = signal(false);
   protected readonly sending = signal(false);
@@ -334,9 +312,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly conversationSheetOpen = signal(false);
   protected readonly matterAvailable = computed(() =>
     Boolean(
-      this.latestBriefId() &&
-        this.workspaceId() &&
-        this.selectedSession(),
+      this.latestBriefId() && this.workspaceId() && this.selectedSession(),
     ),
   );
   /** Rail tabs that have content, in display order. */
@@ -350,7 +326,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   /** The selected tab, or the first available one when it has no content. */
   protected readonly activeRailTab = computed<RailTab>(() => {
     const tabs = this.railTabs();
-    return tabs.includes(this.railTab()) ? this.railTab() : (tabs[0] ?? "draft");
+    return tabs.includes(this.railTab())
+      ? this.railTab()
+      : (tabs[0] ?? "draft");
   });
   protected readonly rightRailVisible = computed(
     () => this.railTabs().length > 0,
@@ -379,19 +357,21 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.destroyRef.onDestroy(() => {
       this.source?.close();
       if (this.sessionRefreshTimer) clearTimeout(this.sessionRefreshTimer);
+      if (this.searchTimer) clearTimeout(this.searchTimer);
       if (this.elapsedTimer) clearInterval(this.elapsedTimer);
       this.speechRecognition.reset();
     });
     this.elapsedTimer = setInterval(() => this.clock.set(Date.now()), 1000);
     this.pendingCaseId.set(this.route.snapshot.queryParamMap.get("caseId"));
     // Deep link (e.g. from a case's latest timeline): open that conversation.
-    const linkedSessionId =
-      this.route.snapshot.queryParamMap.get("sessionId");
+    const linkedSessionId = this.route.snapshot.queryParamMap.get("sessionId");
     if (linkedSessionId) {
       this.requestedSessionId = linkedSessionId;
       this.selectSession(linkedSessionId);
     }
+    this.restoreConversationFilters();
     this.loadSessions();
+    this.loadConversationFacets();
     this.listenWorkspace();
     this.consumeHandoffPrompt();
   }
@@ -526,40 +506,37 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   protected loadSessions(append = false): void {
     const workspaceId = this.workspaceId();
-    if (!workspaceId || this.loadingSessions()) return;
+    if (!workspaceId) return;
+    // Paging waits for the current request; a filter change supersedes it.
+    if (append && this.loadingSessions()) return;
 
     const page = append ? this.sessionPage() + 1 : this.sessionPage();
     if (append && page > this.sessionTotalPages()) return;
 
+    const requestSeq = ++this.sessionRequestSeq;
     this.loadingSessions.set(true);
 
     this.chat
-      .listSessions(workspaceId, {
-        page,
-        search: this.sessionSearch(),
-      })
+      .listSessions(workspaceId, { page, ...this.conversationListQuery() })
       .pipe(
-        finalize(() => this.loadingSessions.set(false)),
+        finalize(() => {
+          if (requestSeq === this.sessionRequestSeq) {
+            this.loadingSessions.set(false);
+          }
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (response) => {
+          if (requestSeq !== this.sessionRequestSeq) return;
           this.sessions.update((sessions) =>
             append ? [...sessions, ...response.items] : response.items,
           );
           this.sessionPage.set(page);
           this.sessionTotalPages.set(response.meta.totalPages);
-          if (!append) {
-            const selectedSessionId = this.selectedSessionId();
-            if (selectedSessionId) {
-              const exists = response.items.some(
-                (session) => session.id === selectedSessionId,
-              );
-              // A deep-linked conversation may be beyond the first page.
-              if (exists || selectedSessionId === this.requestedSessionId) {
-                return;
-              }
-            }
+          // Filtering never switches the open conversation; only an empty
+          // selection picks the first one.
+          if (!append && !this.selectedSessionId()) {
             const firstSession = response.items[0];
             if (firstSession) this.selectSession(firstSession.id);
           }
@@ -572,11 +549,153 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.loadSessions(true);
   }
 
-  protected onSessionSearch(event: Event): void {
-    this.sessionSearch.set((event.target as HTMLInputElement).value);
+  protected onConversationFiltersChange(filters: ConversationFilters): void {
+    const textOnly =
+      filters.text !== this.conversationFilters().text &&
+      JSON.stringify({ ...filters, text: "" }) ===
+        JSON.stringify({ ...this.conversationFilters(), text: "" });
+    const scopeChanged = filters.scope !== this.conversationFilters().scope;
+    this.conversationFilters.set(filters);
+    this.syncConversationUrl();
+    if (this.searchTimer) clearTimeout(this.searchTimer);
+    if (textOnly) {
+      this.searchTimer = setTimeout(() => {
+        this.searchTimer = null;
+        this.reloadSessions();
+        this.loadConversationFacets();
+      }, SEARCH_DEBOUNCE_MS);
+      return;
+    }
+    this.reloadSessions();
+    if (scopeChanged) this.loadConversationFacets();
+  }
+
+  protected onConversationGroupModeChange(mode: ConversationGroupMode): void {
+    this.conversationGroupMode.set(mode);
+    try {
+      localStorage.setItem(GROUP_MODE_STORAGE_KEY, mode);
+    } catch {
+      // Storage may be unavailable (private mode); the URL still carries it.
+    }
+    this.syncConversationUrl();
+    this.reloadSessions();
+  }
+
+  protected toggleSessionPin(session: ChatSessionSummary): void {
+    this.updateSessionFromSidebar(session, { pinned: !session.pinnedAt });
+  }
+
+  protected toggleSessionArchive(session: ChatSessionSummary): void {
+    const archived = session.status !== "ARCHIVED";
+    this.updateSessionFromSidebar(
+      session,
+      { archived },
+      archived
+        ? "assistant.organizer.archived"
+        : "assistant.organizer.restored",
+    );
+  }
+
+  protected renameSession({ session, title }: ConversationRename): void {
+    this.updateSessionFromSidebar(session, { title });
+  }
+
+  private updateSessionFromSidebar(
+    session: ChatSessionSummary,
+    changes: { title?: string; pinned?: boolean; archived?: boolean },
+    successKey?: string,
+  ): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+    this.chat
+      .updateSession(workspaceId, session.id, changes)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (updated) => {
+          const merged = { ...session, ...updated };
+          if (this.openSessionSummary()?.id === session.id) {
+            this.openSessionSummary.set(merged);
+          }
+          const leavesView =
+            changes.archived !== undefined &&
+            changes.archived !== this.conversationFilters().archived;
+          this.sessions.update((items) =>
+            leavesView
+              ? items.filter((item) => item.id !== session.id)
+              : items.map((item) => (item.id === session.id ? merged : item)),
+          );
+          // Pinning reorders the list; refetch the loaded window.
+          if (changes.pinned !== undefined) this.reloadSessions();
+          if (changes.archived !== undefined) this.loadConversationFacets();
+          if (successKey) {
+            this.toast.success(this.localization.translate(successKey));
+          }
+        },
+        error: () =>
+          this.toast.error(
+            this.localization.translate("assistant.organizer.updateError"),
+          ),
+      });
+  }
+
+  private reloadSessions(): void {
     this.sessionPage.set(1);
-    this.sessions.set([]);
     this.loadSessions();
+  }
+
+  private conversationListQuery() {
+    return toListQuery(
+      this.conversationFilters(),
+      this.conversationGroupMode(),
+    );
+  }
+
+  private loadConversationFacets(): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId) return;
+    const { scope, text } = this.conversationFilters();
+    this.chat
+      .sessionFacets(workspaceId, { scope, search: text })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (facets) => {
+          // Ignore a response for a search the user already changed.
+          const current = this.conversationFilters();
+          if (current.scope === scope && current.text === text) {
+            this.conversationFacets.set(facets);
+          }
+        },
+        error: () => this.conversationFacets.set(null),
+      });
+  }
+
+  /** URL first (shareable), then the remembered group mode. */
+  private restoreConversationFilters(): void {
+    const { filters, group } = filtersFromQueryParams(
+      this.route.snapshot.queryParamMap,
+    );
+    this.conversationFilters.set(filters);
+    let storedGroup: string | null = null;
+    try {
+      storedGroup = localStorage.getItem(GROUP_MODE_STORAGE_KEY);
+    } catch {
+      storedGroup = null;
+    }
+    this.conversationGroupMode.set(
+      group ?? (storedGroup === "matter" ? "matter" : "date"),
+    );
+  }
+
+  private syncConversationUrl(): void {
+    void this.router.navigate([], {
+      relativeTo: this.route,
+      queryParams: filtersToQueryParams(
+        this.conversationFilters(),
+        this.conversationGroupMode(),
+      ),
+      queryParamsHandling: "merge",
+      replaceUrl: true,
+    });
   }
 
   protected createSession(): void {
@@ -601,14 +720,18 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   protected selectedSession(): ChatSessionSummary | null {
+    const selectedId = this.selectedSessionId();
+    const open = this.openSessionSummary();
     return (
-      this.sessions().find(
-        (session) => session.id === this.selectedSessionId(),
-      ) ?? null
+      this.sessions().find((session) => session.id === selectedId) ??
+      (open?.id === selectedId ? open : null)
     );
   }
 
   protected onSessionLinked(session: ChatSessionSummary): void {
+    if (this.openSessionSummary()?.id === session.id) {
+      this.openSessionSummary.update((open) => open && { ...open, ...session });
+    }
     this.sessions.update((items) =>
       items.map((item) =>
         item.id === session.id ? { ...item, ...session } : item,
@@ -633,6 +756,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .subscribe({
         next: (detail) => {
           if (this.selectedSessionId() !== sessionId) return;
+          this.openSessionSummary.set(detail);
           this.messages.set(detail.messages);
           this.workflowState.set(buildWorkflowActivityState(detail));
           this.pendingActions.set(indexPendingActions(detail.pendingActions));
@@ -1396,6 +1520,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.sessionRefreshTimer = setTimeout(() => {
       this.sessionRefreshTimer = null;
       this.refreshSessionSummaries();
+      this.loadConversationFacets();
     }, 100);
   }
 
@@ -1403,10 +1528,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const workspaceId = this.workspaceId();
     if (!workspaceId) return;
     this.chat
-      .listSessions(workspaceId, {
-        page: 1,
-        search: this.sessionSearch(),
-      })
+      .listSessions(workspaceId, { page: 1, ...this.conversationListQuery() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -1513,6 +1635,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   private upsertSessionTitle(sessionId: string, title: string | null): void {
+    if (this.openSessionSummary()?.id === sessionId) {
+      this.openSessionSummary.update((open) => open && { ...open, title });
+    }
     this.sessions.update((items) =>
       items.map((item) => (item.id === sessionId ? { ...item, title } : item)),
     );

@@ -11,7 +11,12 @@ import {
   ChatAttachmentSummary,
   ChatMessageFeedback,
   ChatMessageResponse,
+  ChatSessionFacetsResponse,
+  ChatSessionListQuery,
   ChatSessionListResponse,
+  ChatSessionScope,
+  ChatSessionUpdateRequest,
+  DocumentAnalysisKind,
   ChatSendMessageResponse,
   ChatSessionDetail,
   ChatSessionSummary,
@@ -51,9 +56,11 @@ import {
   toMessage,
   toPendingAction,
   toSessionSummary,
+  userDisplayName,
   toToolCall,
 } from "./chat.mappers";
 import { MatterLinkService } from "./matter-link.service";
+import { ChatSessionFacetsQueryDto, ChatSessionListQueryDto } from "./chat.dto";
 import { ChatDocumentPromotionService } from "./chat-document-promotion.service";
 import { createInlineWorkflowQueue } from "./workflow.runner";
 import { WORKFLOW_QUEUE_PORT, WorkflowQueuePort } from "./workflow-queue.types";
@@ -72,6 +79,71 @@ export interface UploadedChatFile {
   mimetype: string;
   size: number;
   buffer: Buffer;
+}
+
+const FACET_SUGGESTION_LIMIT = 5;
+
+/** Workspace, not deleted, and — for `mine` — started by the caller. */
+function sessionScopeWhere(
+  workspaceId: string,
+  scope: ChatSessionScope | undefined,
+  userId: string | undefined,
+): Prisma.ChatSessionWhereInput {
+  return {
+    workspaceId,
+    isDeleted: false,
+    ...(scope === "mine" && userId ? { createdByUserId: userId } : {}),
+  };
+}
+
+/** Chip and token filters of the sidebar; every condition must hold. */
+function sessionFilterConditions(
+  query: Pick<
+    ChatSessionListQuery,
+    "states" | "caseIds" | "clientIds" | "authorIds" | "analysisKinds"
+  >,
+): Prisma.ChatSessionWhereInput[] {
+  const conditions: Prisma.ChatSessionWhereInput[] = [];
+  const states = new Set(query.states ?? []);
+  if (states.has("pending")) {
+    conditions.push({
+      OR: [
+        { pendingActions: { some: { status: "PENDING" } } },
+        { workflowJobs: { some: { status: { in: ["QUEUED", "RUNNING"] } } } },
+      ],
+    });
+  }
+  if (states.has("draft")) conditions.push({ draftResults: { some: {} } });
+  if (states.has("analysis")) {
+    conditions.push({ documentAnalyses: { some: {} } });
+  }
+  if (query.analysisKinds?.length) {
+    conditions.push({
+      documentAnalyses: { some: { kind: { in: query.analysisKinds } } },
+    });
+  }
+  if (query.caseIds?.length) conditions.push({ caseId: { in: query.caseIds } });
+  if (query.clientIds?.length) {
+    conditions.push({ case: { clientId: { in: query.clientIds } } });
+  }
+  if (query.authorIds?.length) {
+    conditions.push({ createdByUserId: { in: query.authorIds } });
+  }
+  return conditions;
+}
+
+/** Free text over title, matter and message content. */
+function sessionSearchCondition(search: string): Prisma.ChatSessionWhereInput {
+  const contains = { contains: search, mode: "insensitive" as const };
+  return {
+    OR: [
+      { title: contains },
+      { case: { caseNumber: contains } },
+      { case: { name: contains } },
+      { case: { client: { displayName: contains } } },
+      { messages: { some: { content: contains } } },
+    ],
+  };
 }
 
 @Injectable()
@@ -134,7 +206,8 @@ export class ChatService {
 
   async listSessions(
     workspaceId: string,
-    query: PaginationQueryDto,
+    query: ChatSessionListQueryDto,
+    userId?: string,
   ): Promise<ChatSessionListResponse> {
     const page = query.page ?? 1;
     const pageSize = query.pageSize ?? 20;
@@ -148,23 +221,32 @@ export class ChatService {
     const toDate = query.to ? new Date(query.to) : null;
     const validTo = toDate && !isNaN(toDate.getTime()) ? toDate : null;
 
+    const conditions: Prisma.ChatSessionWhereInput[] = [
+      ...sessionFilterConditions(query),
+    ];
+    const search = query.search?.trim() ? toLatin(query.search.trim()) : "";
+    if (search) conditions.push(sessionSearchCondition(search));
+    if (validFrom || validTo) {
+      conditions.push({
+        updatedAt: {
+          ...(validFrom ? { gte: validFrom } : {}),
+          ...(validTo ? { lte: validTo } : {}),
+        },
+      });
+    }
     const where: Prisma.ChatSessionWhereInput = {
-      workspaceId,
-      status: "ACTIVE",
-      isDeleted: false,
-      ...(query.search?.trim()
-        ? { title: { contains: query.search.trim(), mode: "insensitive" } }
-        : {}),
-      ...(validFrom || validTo
-        ? {
-            updatedAt: {
-              ...(validFrom ? { gte: validFrom } : {}),
-              ...(validTo ? { lte: validTo } : {}),
-            },
-          }
-        : {}),
+      ...sessionScopeWhere(workspaceId, query.scope, userId),
+      status: query.archived ? "ARCHIVED" : "ACTIVE",
+      ...(conditions.length ? { AND: conditions } : {}),
     };
     const orderBy: Prisma.ChatSessionOrderByWithRelationInput[] = [
+      { pinnedAt: { sort: "desc", nulls: "last" } },
+      ...(query.group === "matter"
+        ? [
+            { case: { client: { displayName: "asc" as const } } },
+            { case: { caseNumber: "asc" as const } },
+          ]
+        : []),
       ...sort.map((item) => ({ [item.field]: item.direction })),
       { id: "asc" },
     ];
@@ -176,27 +258,40 @@ export class ChatService {
         take: pageSize,
         include: {
           case: { include: { client: { select: { displayName: true } } } },
+          createdBy: {
+            select: { id: true, firstName: true, lastName: true, email: true },
+          },
         },
       }),
       this.db.chatSession.count({ where }),
     ]);
     const sessionIds = sessions.map((session) => session.id);
-    const [activeJobs, sessionsWithDrafts] = sessionIds.length
-      ? await Promise.all([
-          this.db.workflowJob.findMany({
-            where: {
-              sessionId: { in: sessionIds },
-              status: { in: ["QUEUED", "RUNNING"] },
-            },
-            orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
-          }),
-          this.db.draftResult.findMany({
-            where: { sessionId: { in: sessionIds } },
-            select: { sessionId: true },
-            distinct: ["sessionId"],
-          }),
-        ])
-      : [[], []];
+    const [activeJobs, sessionsWithDrafts, pendingActions, analyses] =
+      sessionIds.length
+        ? await Promise.all([
+            this.db.workflowJob.findMany({
+              where: {
+                sessionId: { in: sessionIds },
+                status: { in: ["QUEUED", "RUNNING"] },
+              },
+              orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+            }),
+            this.db.draftResult.findMany({
+              where: { sessionId: { in: sessionIds } },
+              select: { sessionId: true },
+              distinct: ["sessionId"],
+            }),
+            this.db.pendingAction.findMany({
+              where: { sessionId: { in: sessionIds }, status: "PENDING" },
+              select: { sessionId: true },
+            }),
+            this.db.documentAnalysis.findMany({
+              where: { sessionId: { in: sessionIds } },
+              select: { sessionId: true, kind: true },
+              distinct: ["sessionId", "kind"],
+            }),
+          ])
+        : [[], [], [], []];
     const draftSessionIds = new Set(
       sessionsWithDrafts.map((draft) => draft.sessionId),
     );
@@ -211,10 +306,118 @@ export class ChatService {
             activeJobCount: sessionJobs.length,
             latestJob: sessionJobs[0] ? toJob(sessionJobs[0]) : null,
             hasDraft: draftSessionIds.has(session.id),
+            pendingActionCount: pendingActions.filter(
+              (action) => action.sessionId === session.id,
+            ).length,
+            analysisKinds: analyses
+              .filter((analysis) => analysis.sessionId === session.id)
+              .map((analysis) => analysis.kind as DocumentAnalysisKind),
           },
         };
       }),
       meta: paginationMeta(page, pageSize, totalItems, sort),
+    };
+  }
+
+  /** Chip counts and token-search suggestions for the assistant sidebar. */
+  async sessionFacets(
+    workspaceId: string,
+    query: ChatSessionFacetsQueryDto,
+    userId?: string,
+  ): Promise<ChatSessionFacetsResponse> {
+    const scoped = sessionScopeWhere(workspaceId, query.scope, userId);
+    const active: Prisma.ChatSessionWhereInput = {
+      ...scoped,
+      status: "ACTIVE",
+    };
+    const search = query.search?.trim() ? toLatin(query.search.trim()) : "";
+    const contains = (value: string) => ({
+      contains: value,
+      mode: "insensitive" as const,
+    });
+    const [pending, draft, analysis, archived, cases, clients, authors] =
+      await Promise.all([
+        this.db.chatSession.count({
+          where: {
+            ...active,
+            AND: sessionFilterConditions({ states: ["pending"] }),
+          },
+        }),
+        this.db.chatSession.count({
+          where: {
+            ...active,
+            AND: sessionFilterConditions({ states: ["draft"] }),
+          },
+        }),
+        this.db.chatSession.count({
+          where: {
+            ...active,
+            AND: sessionFilterConditions({ states: ["analysis"] }),
+          },
+        }),
+        this.db.chatSession.count({ where: { ...scoped, status: "ARCHIVED" } }),
+        this.db.case.findMany({
+          where: {
+            workspaceId,
+            chatSessions: { some: scoped },
+            ...(search
+              ? {
+                  OR: [
+                    { caseNumber: contains(search) },
+                    { name: contains(search) },
+                    { client: { displayName: contains(search) } },
+                  ],
+                }
+              : {}),
+          },
+          include: { client: { select: { displayName: true } } },
+          orderBy: [{ updatedAt: "desc" }, { id: "asc" }],
+          take: FACET_SUGGESTION_LIMIT,
+        }),
+        this.db.client.findMany({
+          where: {
+            workspaceId,
+            cases: { some: { chatSessions: { some: scoped } } },
+            ...(search ? { displayName: contains(search) } : {}),
+          },
+          select: { id: true, displayName: true },
+          orderBy: [{ displayName: "asc" }, { id: "asc" }],
+          take: FACET_SUGGESTION_LIMIT,
+        }),
+        this.db.user.findMany({
+          where: {
+            chatSessions: { some: scoped },
+            ...(search
+              ? {
+                  OR: [
+                    { firstName: contains(search) },
+                    { lastName: contains(search) },
+                    { email: contains(search) },
+                  ],
+                }
+              : {}),
+          },
+          select: { id: true, firstName: true, lastName: true, email: true },
+          orderBy: [{ firstName: "asc" }, { id: "asc" }],
+          take: FACET_SUGGESTION_LIMIT,
+        }),
+      ]);
+    return {
+      counts: { pending, draft, analysis, archived },
+      suggestions: {
+        clients,
+        cases: cases.map((item) => ({
+          id: item.id,
+          caseNumber: item.caseNumber,
+          name: item.name,
+          clientId: item.clientId,
+          clientDisplayName: item.client?.displayName ?? null,
+        })),
+        authors: authors.map((user) => ({
+          id: user.id,
+          displayName: userDisplayName(user),
+        })),
+      },
     };
   }
 
@@ -275,20 +478,35 @@ export class ChatService {
   async updateSession(
     workspaceId: string,
     sessionId: string,
-    title: string,
+    changes: ChatSessionUpdateRequest,
   ): Promise<ChatSessionSummary> {
     const session = await this.requireSession(workspaceId, sessionId);
+    const data: Prisma.ChatSessionUpdateInput = {};
+    if (changes.title !== undefined) {
+      data.title = changes.title.trim() || "New chat";
+    }
+    if (changes.pinned !== undefined) {
+      data.pinnedAt = changes.pinned ? new Date() : null;
+    }
+    if (changes.archived !== undefined) {
+      data.status = changes.archived ? "ARCHIVED" : "ACTIVE";
+    }
     const updated = await this.db.chatSession.update({
       where: { id: session.id },
-      data: { title: title.trim() || "New chat" },
+      data,
+      include: {
+        case: { include: { client: { select: { displayName: true } } } },
+      },
     });
-    this.emit({
-      type: "session.title.updated",
-      workspaceId,
-      sessionId: session.id,
-      createdAt: updated.updatedAt.toISOString(),
-      title: updated.title,
-    });
+    if (changes.title !== undefined) {
+      this.emit({
+        type: "session.title.updated",
+        workspaceId,
+        sessionId: session.id,
+        createdAt: updated.updatedAt.toISOString(),
+        title: updated.title,
+      });
+    }
     return toSessionSummary(updated);
   }
 
