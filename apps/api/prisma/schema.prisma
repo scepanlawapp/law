@@ -1619,13 +1619,13 @@ model DocumentAnalysis {
   caseId        String?
   /// The agent-turn job that produced it.
   jobId         String?
-  /// CONTRACT_REVIEW (validated in code).
+  /// CONTRACT_REVIEW or CASE_TIMELINE (validated in code).
   kind          String
-  /// doc:<id> or att:<id>
+  /// doc:<id> or att:<id> (review); case:<id> or session:<id> (timeline)
   documentRef   String
   documentTitle String
-  /// Review checklist id from @law/contract-review (validated in code).
-  contractType  String
+  /// Review checklist id from @law/contract-review; null for a timeline.
+  contractType  String?
   clientSide    String?
   result        Json
   citations     Json        @default("[]")

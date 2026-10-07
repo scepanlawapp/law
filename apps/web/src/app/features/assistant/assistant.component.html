@@ -682,12 +682,20 @@
               class="assistant-rail-pane"
               [class.is-active]="activeRailTab() === 'analysis'"
             >
-              <law-contract-review-panel
-                [analysis]="analysisItem"
-                [expanded]="rightRailExpanded()"
-                (expandedChange)="rightRailExpanded.set($event)"
-                (exportDocx)="exportAnalysisDocx($event)"
-              />
+              @if (analysisItem.kind === "CASE_TIMELINE") {
+                <law-case-timeline-panel
+                  [analysis]="analysisItem"
+                  [expanded]="rightRailExpanded()"
+                  (expandedChange)="rightRailExpanded.set($event)"
+                />
+              } @else {
+                <law-contract-review-panel
+                  [analysis]="analysisItem"
+                  [expanded]="rightRailExpanded()"
+                  (expandedChange)="rightRailExpanded.set($event)"
+                  (exportDocx)="exportAnalysisDocx($event)"
+                />
+              }
             </div>
           }
         </section>

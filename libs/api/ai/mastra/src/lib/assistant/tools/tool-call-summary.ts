@@ -21,6 +21,7 @@ import { SEARCH_CASES_TOOL_ID } from "./search-cases.tool";
 import { SEARCH_CLIENTS_TOOL_ID } from "./search-clients.tool";
 import { SEARCH_DOCUMENTS_TOOL_ID } from "./search-documents.tool";
 import { SEARCH_LEGAL_SOURCES_TOOL_ID } from "./search-legal-sources.tool";
+import { SUMMARIZE_CASE_DOCUMENTS_TOOL_ID } from "./summarize-case-documents.tool";
 
 const LABEL_MAX_CHARS = 120;
 
@@ -87,6 +88,8 @@ export function describeToolCall(
       return clip(args?.["instruction"]);
     case REVIEW_CONTRACT_TOOL_ID:
       return joined(contractTypeLabel(args?.["contractType"]), args?.["focus"]);
+    case SUMMARIZE_CASE_DOCUMENTS_TOOL_ID:
+      return clip(args?.["focus"]);
     case LINK_CASE_TOOL_ID:
       return clip(args?.["caseReference"]);
     case CREATE_DEADLINE_TOOL_ID:
@@ -125,6 +128,12 @@ export function toolResultCount(
         : 0;
     case READ_DOCUMENT_TOOL_ID:
       return result["status"] === "OK" ? 1 : 0;
+    case SUMMARIZE_CASE_DOCUMENTS_TOOL_ID:
+      // Events in the timeline.
+      return result["status"] === "TIMELINE_READY" &&
+        typeof result["eventCount"] === "number"
+        ? result["eventCount"]
+        : null;
     case REVIEW_CONTRACT_TOOL_ID: {
       // Findings in the review.
       const counts = record(result["issueCounts"]);

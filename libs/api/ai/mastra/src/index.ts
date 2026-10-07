@@ -25,6 +25,8 @@ export * from "./lib/assistant/tools/list-drafts.tool";
 export * from "./lib/testing/scripted-model";
 export * from "./lib/drafting/drafting.workflows";
 export * from "./lib/review/contract-review.workflow";
+export * from "./lib/timeline/case-timeline.workflow";
+export * from "./lib/assistant/tools/summarize-case-documents.tool";
 export * from "./lib/assistant/tools/review-contract.tool";
 export * from "./lib/assistant/tools/side-effects";
 export * from "./lib/assistant/tools/link-case.tool";

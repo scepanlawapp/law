@@ -22,6 +22,9 @@ describe("tool call summary", () => {
       }),
     ).toBe("Ugovor o radu · probni rad");
     expect(
+      describeToolCall("summarize_case_documents", { focus: "rokovi" }),
+    ).toBe("rokovi");
+    expect(
       describeToolCall("draft_document", {
         documentType: "APPEAL",
         note: "Presuda P 12/2026",
@@ -118,5 +121,11 @@ describe("tool call summary", () => {
     expect(
       toolResultCount("review_contract", { status: "NO_TEXT" }),
     ).toBeNull();
+    expect(
+      toolResultCount("summarize_case_documents", {
+        status: "TIMELINE_READY",
+        eventCount: 7,
+      }),
+    ).toBe(7);
   });
 });

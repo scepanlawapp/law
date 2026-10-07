@@ -1028,6 +1028,14 @@ export interface CaseLinksResponse {
     reviewedAt: string | null;
     createdAt: string;
   }>;
+  /** Latest assistant timeline of the case's documents, if any. */
+  latestTimeline?: {
+    id: string;
+    sessionId: string;
+    createdAt: string;
+    summary: string;
+    eventCount: number;
+  } | null;
 }
 
 export interface CaseResponsibilityUpdateRequest {

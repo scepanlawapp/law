@@ -45,6 +45,7 @@ import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
 import {
   toAnalysis,
+  toContractReview,
   toDraft,
   toJob,
   toMessage,
@@ -689,7 +690,10 @@ export class ChatService {
       where: { id: analysisId, workspaceId },
     });
     if (!row) throw new NotFoundException("Analysis not found");
-    const analysis = toAnalysis(row);
+    if (row.kind !== "CONTRACT_REVIEW") {
+      throw new BadRequestException("Only contract reviews can be exported");
+    }
+    const analysis = toContractReview(row);
     const checklist = getContractChecklist(analysis.contractType);
     const date = row.createdAt.toISOString().slice(0, 10);
     const buffer = await renderDraftDocx({

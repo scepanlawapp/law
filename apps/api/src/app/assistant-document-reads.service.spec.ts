@@ -287,6 +287,56 @@ describe("AssistantDocumentReadsService", () => {
       matches: [],
     });
   });
+
+  it("returns every source with text for a timeline and skips beyond the limit", async () => {
+    const { service, documentText } = setup();
+
+    const result = await service.documentsForTimeline(scope, { limit: 1 });
+
+    expect(result).toEqual({
+      caseId: "case-1",
+      caseNumber: "P-1/2026",
+      documents: [
+        {
+          ref: "doc:doc-1",
+          title: "Ugovor o zakupu",
+          status: "COMPLETED",
+          text: LEASE,
+        },
+      ],
+      skipped: [{ ref: "att:att-2", title: "punomoćje.pdf" }],
+    });
+    expect(documentText.ensureText).toHaveBeenCalledWith(
+      "workspace-1",
+      "version-1",
+    );
+  });
+
+  it("reports a timeline source without readable text", async () => {
+    const { service, documentText } = setup();
+    documentText.ensureText.mockResolvedValueOnce({
+      status: "UNSUPPORTED",
+      text: null,
+    } as never);
+
+    const result = await service.documentsForTimeline(scope, { limit: 1 });
+
+    expect(result.documents).toEqual([
+      { ref: "doc:doc-1", title: "Ugovor o zakupu", status: "UNSUPPORTED" },
+    ]);
+  });
+
+  it("limits a timeline to the named refs", async () => {
+    const { service } = setup();
+
+    const result = await service.documentsForTimeline(scope, {
+      refs: ["doc:doc-1", "doc:unknown"],
+      limit: 20,
+    });
+
+    expect(result.documents.map((doc) => doc.ref)).toEqual(["doc:doc-1"]);
+    expect(result.skipped).toEqual([]);
+  });
 });
 
 describe("fold", () => {

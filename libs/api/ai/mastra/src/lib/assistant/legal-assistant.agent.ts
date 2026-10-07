@@ -21,6 +21,7 @@ import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createSearchDocumentsTool } from "./tools/search-documents.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
+import { createSummarizeCaseDocumentsTool } from "./tools/summarize-case-documents.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
 
 export const LEGAL_ASSISTANT_AGENT_ID = "legal-assistant";
@@ -64,6 +65,7 @@ export function createLegalAssistantAgent(options: {
       draft_document: createDraftDocumentTool(options.deps),
       revise_draft: createReviseDraftTool(options.deps),
       review_contract: createReviewContractTool(options.deps),
+      summarize_case_documents: createSummarizeCaseDocumentsTool(options.deps),
       get_draft: createGetDraftTool(options.deps),
       list_conversation_drafts: createListDraftsTool(options.deps),
       link_case: createLinkCaseTool(options.deps),

@@ -22,6 +22,7 @@ import type {
   AssistantListResult,
   AssistantTurnScope,
   AssistantWorkItem,
+  CaseTimelineToolResult,
   ContractReviewToolResult,
   DraftListItem,
   DraftReadResult,
@@ -31,6 +32,7 @@ import type {
 } from "@law/mastra";
 import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
+import { AssistantCaseTimelineService } from "./assistant-case-timeline.service";
 import { AssistantContractReviewService } from "./assistant-contract-review.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import {
@@ -67,6 +69,7 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     @Optional() private readonly office?: AssistantOfficeReadsService,
     @Optional() private readonly documents?: AssistantDocumentReadsService,
     @Optional() private readonly review?: AssistantContractReviewService,
+    @Optional() private readonly timeline?: AssistantCaseTimelineService,
   ) {}
 
   listDocuments(scope: AssistantTurnScope): Promise<AssistantDocumentList> {
@@ -186,6 +189,18 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
       : Promise.resolve({
           status: "FAILED",
           message: "Pregled ugovora trenutno nije dostupan.",
+        });
+  }
+
+  summarizeCaseDocuments(
+    scope: AssistantTurnScope,
+    args: { documentRefs?: string[]; focus?: string },
+  ): Promise<CaseTimelineToolResult> {
+    return this.timeline
+      ? this.timeline.summarizeCaseDocuments(scope, args)
+      : Promise.resolve({
+          status: "FAILED",
+          message: "Izrada hronologije trenutno nije dostupna.",
         });
   }
 

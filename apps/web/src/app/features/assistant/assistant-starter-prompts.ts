@@ -165,6 +165,7 @@ export const CASE_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
   { id: "caseWork", icon: "lucideListChecks", mode: "send" },
   { id: "caseActivity", icon: "lucideHistory", mode: "send" },
   { id: "caseDocuments", icon: "lucideFileText", mode: "send" },
+  { id: "caseTimeline", icon: "lucideHistory", mode: "send" },
   { id: "caseDraftLawsuit", icon: "lucideFilePen", mode: "compose" },
   { id: "caseDraftAppeal", icon: "lucideFilePen", mode: "compose" },
   { id: "caseDemandLetter", icon: "lucideFilePen", mode: "compose" },

@@ -1013,6 +1013,34 @@
             </div>
           } @else if (assistantLinks(); as links) {
             <div class="space-y-6">
+              @if (links.latestTimeline; as timeline) {
+                <div
+                  class="rounded-xl border border-border bg-card p-5 shadow-sm"
+                >
+                  <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 class="font-medium">
+                      {{ "cases.detail.latestTimeline" | translate }}
+                    </h3>
+                    <span class="text-sm text-muted-foreground">
+                      {{ formatDate(timeline.createdAt) }} ·
+                      {{
+                        "assistant.timeline.eventCount"
+                          | translate: { count: timeline.eventCount }
+                      }}
+                    </span>
+                  </div>
+                  <p class="line-clamp-3 text-sm text-muted-foreground">
+                    {{ timeline.summary }}
+                  </p>
+                  <a
+                    class="mt-3 inline-block text-sm underline-offset-4 hover:underline"
+                    [routerLink]="['/assistant']"
+                    [queryParams]="{ sessionId: timeline.sessionId }"
+                  >
+                    {{ "cases.detail.openTimeline" | translate }}
+                  </a>
+                </div>
+              }
               <div
                 class="rounded-xl border border-border bg-card p-5 shadow-sm"
               >

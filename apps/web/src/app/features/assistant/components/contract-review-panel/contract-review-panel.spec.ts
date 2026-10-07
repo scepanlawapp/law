@@ -1,8 +1,8 @@
 import { TestBed } from "@angular/core/testing";
-import { DocumentAnalysisResponse } from "@law/api-interfaces";
+import { ContractReviewAnalysis } from "@law/api-interfaces";
 import { ContractReviewPanelComponent } from "./contract-review-panel";
 
-const analysis: DocumentAnalysisResponse = {
+const analysis: ContractReviewAnalysis = {
   id: "analysis-1",
   sessionId: "session-1",
   caseId: null,

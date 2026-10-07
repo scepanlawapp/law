@@ -43,6 +43,14 @@ type Source =
 
 type SourceText = { status: string; text: string | null };
 
+export interface TimelineDocumentInput {
+  ref: string;
+  title: string;
+  status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
+  /** Latin script. */
+  text?: string;
+}
+
 /**
  * Read-only document text for the assistant: this conversation's attachments
  * that are not filed yet plus the non-archived documents of the conversation's
@@ -126,7 +134,11 @@ export class AssistantDocumentReadsService {
       if (!source) continue;
       const { status, text } = await this.textOf(scope, source);
       // The prompt shows "title (file name)".
-      const base = { id: source.ref, name: source.title, mimeType: source.fileName };
+      const base = {
+        id: source.ref,
+        name: source.title,
+        mimeType: source.fileName,
+      };
       if (text !== null && text.trim()) {
         documents.push({ ...base, status: "COMPLETED", text: toLatin(text) });
       } else {
@@ -137,6 +149,65 @@ export class AssistantDocumentReadsService {
       }
     }
     return documents;
+  }
+
+  /**
+   * Documents for a case timeline: the named refs, or every readable source of
+   * the conversation (case documents and unfiled attachments), oldest first.
+   * Beyond `limit` documents are returned as skipped, without reading them.
+   */
+  async documentsForTimeline(
+    scope: AssistantTurnScope,
+    args: { refs?: string[]; limit: number },
+  ): Promise<{
+    caseId: string | null;
+    caseNumber: string | null;
+    documents: TimelineDocumentInput[];
+    skipped: Array<{ ref: string; title: string }>;
+  }> {
+    const { caseId, caseNumber, sources } = await this.sources(scope);
+    if (args.refs?.length) {
+      const named = await this.documentsByRef(scope, args.refs);
+      return {
+        caseId,
+        caseNumber,
+        documents: named.slice(0, args.limit).map((doc) => ({
+          ref: doc.id,
+          title: doc.name,
+          status: doc.status,
+          text: doc.text,
+        })),
+        skipped: named
+          .slice(args.limit)
+          .map((doc) => ({ ref: doc.id, title: doc.name })),
+      };
+    }
+    const documents: TimelineDocumentInput[] = [];
+    for (const source of sources.slice(0, args.limit)) {
+      const { status, text } = await this.textOf(scope, source);
+      documents.push(
+        text !== null && text.trim()
+          ? {
+              ref: source.ref,
+              title: source.title,
+              status: "COMPLETED",
+              text: toLatin(text),
+            }
+          : {
+              ref: source.ref,
+              title: source.title,
+              status: status === "UNSUPPORTED" ? "UNSUPPORTED" : "FAILED",
+            },
+      );
+    }
+    return {
+      caseId,
+      caseNumber,
+      documents,
+      skipped: sources
+        .slice(args.limit)
+        .map((source) => ({ ref: source.ref, title: source.title })),
+    };
   }
 
   async searchDocuments(
@@ -182,6 +253,7 @@ export class AssistantDocumentReadsService {
   }
 
   private async sources(scope: AssistantTurnScope): Promise<{
+    caseId: string | null;
     caseNumber: string | null;
     sources: Source[];
     truncated: boolean;
@@ -260,6 +332,7 @@ export class AssistantDocumentReadsService {
       });
     }
     return {
+      caseId,
       caseNumber: session?.case?.caseNumber ?? null,
       sources,
       truncated: documents.length > DOCUMENT_LIMIT,

@@ -450,6 +450,7 @@ describe("ChatService", () => {
       id: "analysis-1",
       sessionId: session.id,
       caseId: null,
+      kind: "CONTRACT_REVIEW",
       documentRef: "att:nda",
       documentTitle: "NDA Alfa",
       contractType: "NDA",
@@ -508,6 +509,28 @@ describe("ChatService", () => {
         metadata: expect.objectContaining({ analysisId: "analysis-1" }),
       }),
     });
+  });
+
+  it("does not export a case timeline", async () => {
+    const prisma = prismaMock();
+    prisma.documentAnalysis.findFirst.mockResolvedValue({
+      id: "analysis-2",
+      sessionId: session.id,
+      kind: "CASE_TIMELINE",
+      createdAt: now,
+    });
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    await expect(
+      service.exportAnalysis(session.workspaceId, "analysis-2", "user-1"),
+    ).rejects.toThrow("Only contract reviews can be exported");
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
   });
 
   it("rejects exporting an analysis from another workspace", async () => {

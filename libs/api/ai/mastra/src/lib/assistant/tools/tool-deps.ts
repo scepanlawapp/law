@@ -187,6 +187,24 @@ export type ContractReviewToolResult =
     }
   | { status: "NOT_FOUND" | "NO_TEXT" | "FAILED"; message: string };
 
+export type CaseTimelineToolResult =
+  | {
+      status: "TIMELINE_READY";
+      analysisId: string;
+      /** Case number, or null when the conversation has no case. */
+      case: string | null;
+      documentCount: number;
+      eventCount: number;
+      /** Earliest and latest dated events (YYYY-MM-DD, YYYY-MM or YYYY). */
+      firstDate: string | null;
+      lastDate: string | null;
+      summary: string;
+      openQuestions: string[];
+      /** Titles of documents that were skipped, unreadable, or failed. */
+      notRead: string[];
+    }
+  | { status: "NO_DOCUMENTS" | "FAILED"; message: string };
+
 export interface DraftListItem {
   draftId: string;
   version: number;
@@ -378,6 +396,11 @@ export interface LegalAssistantToolDeps {
       focus?: string;
     },
   ): Promise<ContractReviewToolResult>;
+  /** Builds a sourced timeline of the case documents (stores an analysis only). */
+  summarizeCaseDocuments(
+    scope: AssistantTurnScope,
+    args: { documentRefs?: string[]; focus?: string },
+  ): Promise<CaseTimelineToolResult>;
   /** Creates a new version of a conversation draft (reversible). */
   reviseDraft(
     scope: AssistantTurnScope,

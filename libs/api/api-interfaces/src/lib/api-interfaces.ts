@@ -785,25 +785,90 @@ export interface ContractReviewResult {
   warnings: string[];
 }
 
-export type DocumentAnalysisKind = "CONTRACT_REVIEW";
+export type DocumentAnalysisKind = "CONTRACT_REVIEW" | "CASE_TIMELINE";
 
-export interface DocumentAnalysisResponse {
+interface DocumentAnalysisBase {
   id: string;
   sessionId: string;
   caseId: string | null;
-  kind: DocumentAnalysisKind;
-  // doc:<id> or att:<id>; for tool calls and links only.
+  // doc:<id> / att:<id> for a review; case:<id> or session:<id> for a timeline.
   documentRef: string;
   documentTitle: string;
-  contractType: ContractReviewType;
-  // The party the office represents, as the lawyer named it.
-  clientSide: string | null;
-  result: ContractReviewResult;
   citations: LegalCitationResponse[];
   truncated: boolean;
   model: string;
   createdAt: string;
 }
+
+export interface ContractReviewAnalysis extends DocumentAnalysisBase {
+  kind: "CONTRACT_REVIEW";
+  contractType: ContractReviewType;
+  // The party the office represents, as the lawyer named it.
+  clientSide: string | null;
+  result: ContractReviewResult;
+}
+
+export const CASE_TIMELINE_EVENT_KINDS = [
+  "FILING",
+  "DECISION",
+  "HEARING",
+  "CORRESPONDENCE",
+  "CONTRACT",
+  "PAYMENT",
+  "DEADLINE",
+  "OTHER",
+] as const;
+
+export type CaseTimelineEventKind = (typeof CASE_TIMELINE_EVENT_KINDS)[number];
+
+export interface CaseTimelineEvent {
+  // YYYY-MM-DD, YYYY-MM or YYYY; null when the document gives no usable date.
+  date: string | null;
+  // The date as written in the document.
+  dateText: string | null;
+  kind: CaseTimelineEventKind;
+  title: string;
+  description: string;
+  // Verified verbatim excerpt of the source, or null.
+  quote: string | null;
+  sourceRef: string;
+  sourceTitle: string;
+}
+
+// READ: fully read; TRUNCATED: read up to the limit; NO_TEXT: no readable
+// text; FAILED: extraction call failed; SKIPPED: beyond the document limit.
+export type CaseTimelineSourceStatus =
+  | "READ"
+  | "TRUNCATED"
+  | "NO_TEXT"
+  | "FAILED"
+  | "SKIPPED";
+
+export interface CaseTimelineSource {
+  ref: string;
+  title: string;
+  status: CaseTimelineSourceStatus;
+  // One-sentence summary of the document, when read.
+  summary: string | null;
+  eventCount: number;
+}
+
+export interface CaseTimelineResult {
+  summary: string;
+  events: CaseTimelineEvent[];
+  openQuestions: string[];
+  sources: CaseTimelineSource[];
+  warnings: string[];
+}
+
+export interface CaseTimelineAnalysis extends DocumentAnalysisBase {
+  kind: "CASE_TIMELINE";
+  result: CaseTimelineResult;
+}
+
+export type DocumentAnalysisResponse =
+  | ContractReviewAnalysis
+  | CaseTimelineAnalysis;
 
 export interface DraftResultResponse {
   id: string;

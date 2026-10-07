@@ -121,6 +121,9 @@ describe("MatterLinkService", () => {
       client: {
         findFirst: jest.fn(async () => ({ id: "client-1", status: "ACTIVE" })),
       },
+      documentAnalysis: {
+        findFirst: jest.fn(async () => null as unknown),
+      },
       activityLog: {
         create: jest.fn(async ({ data }: { data: Record<string, unknown> }) => {
           logs.push(data);
@@ -211,6 +214,50 @@ describe("MatterLinkService", () => {
       page: 3,
       totalItems: 12,
       totalPages: 3,
+    });
+    expect(result.latestTimeline).toBeNull();
+  });
+
+  it("returns the case's latest timeline with a summary and event count", async () => {
+    const { service, prisma } = harness();
+    prisma.documentAnalysis.findFirst.mockResolvedValueOnce({
+      id: "analysis-9",
+      sessionId: "session-4",
+      caseId: "case-1",
+      kind: "CASE_TIMELINE",
+      documentRef: "case:case-1",
+      documentTitle: "Predmet 2026-1",
+      contractType: null,
+      clientSide: null,
+      result: {
+        summary: "Spor oko ugovora.",
+        events: [{ title: "A" }, { title: "B" }],
+        openQuestions: [],
+        sources: [],
+        warnings: [],
+      },
+      citations: [],
+      truncated: false,
+      model: "m",
+      createdAt: new Date("2026-10-07T09:00:00.000Z"),
+    });
+
+    const result = await service.listForCase(workspaceId, "case-1", {
+      page: 1,
+      draftPage: 1,
+      pageSize: 5,
+    });
+
+    expect(prisma.documentAnalysis.findFirst).toHaveBeenCalledWith({
+      where: { workspaceId, caseId: "case-1", kind: "CASE_TIMELINE" },
+      orderBy: { createdAt: "desc" },
+    });
+    expect(result.latestTimeline).toEqual({
+      id: "analysis-9",
+      sessionId: "session-4",
+      createdAt: "2026-10-07T09:00:00.000Z",
+      summary: "Spor oko ugovora.",
+      eventCount: 2,
     });
   });
 

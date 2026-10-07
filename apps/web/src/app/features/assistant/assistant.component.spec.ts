@@ -760,6 +760,57 @@ describe("AssistantComponent review state", () => {
     ).not.toBeNull();
   });
 
+  it("renders a case timeline in the analysis pane", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    component["sessions"].set([session]);
+    component["selectedSessionId"].set(session.id);
+    fixture.detectChanges();
+
+    component["handleEvent"]({
+      type: "analysis.updated",
+      sessionId: session.id,
+      createdAt: "2026-10-07T09:00:00.000Z",
+      analysis: {
+        ...createAnalysis("analysis-2"),
+        kind: "CASE_TIMELINE",
+        result: {
+          summary: "Pregled.",
+          events: [],
+          openQuestions: [],
+          sources: [],
+          warnings: [],
+        },
+      } as DocumentAnalysisResponse,
+    });
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelector(
+        ".assistant-rail-pane.is-active law-case-timeline-panel",
+      ),
+    ).not.toBeNull();
+    expect(
+      fixture.nativeElement.querySelector("law-contract-review-panel"),
+    ).toBeNull();
+  });
+
+  it("opens a deep-linked conversation and keeps it when it is not on the first page", () => {
+    routeParams["sessionId"] = "session-9";
+    chat.getSession.mockReturnValue(NEVER);
+    chat.listSessions.mockReturnValue(
+      of({
+        items: [session],
+        meta: { page: 1, pageSize: 20, totalItems: 30, totalPages: 2 },
+      }),
+    );
+    const fixture = TestBed.createComponent(AssistantComponent);
+    fixture.detectChanges();
+
+    expect(chat.getSession).toHaveBeenCalledWith("workspace-1", "session-9");
+    expect(fixture.componentInstance["selectedSessionId"]()).toBe("session-9");
+  });
+
   it("opens the review export in the chosen script", () => {
     const fixture = TestBed.createComponent(AssistantComponent);
     const component = fixture.componentInstance;

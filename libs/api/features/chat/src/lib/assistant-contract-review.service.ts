@@ -15,7 +15,7 @@ import { AssistantDocumentReadsService } from "./assistant-document-reads.servic
 import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { resolveChatModelProvider } from "./chat-model.util";
-import { toAnalysis } from "./chat.mappers";
+import { toContractReview } from "./chat.mappers";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { MatterLinkService } from "./matter-link.service";
 
@@ -135,7 +135,7 @@ export class AssistantContractReviewService {
         model: this.config.openRouterModel,
       },
     });
-    const analysis = toAnalysis(row);
+    const analysis = toContractReview(row);
     this.emit(scope, {
       type: "analysis.updated",
       createdAt: analysis.createdAt,

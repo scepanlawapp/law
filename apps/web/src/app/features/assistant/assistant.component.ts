@@ -76,6 +76,7 @@ import { BottomReachedDirective } from "../../core/directives/bottom-reached.dir
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
 import { ContractReviewPanelComponent } from "./components/contract-review-panel/contract-review-panel";
+import { CaseTimelinePanelComponent } from "./components/case-timeline-panel/case-timeline-panel";
 import { CitationListComponent } from "./components/citation-list/citation-list";
 import { CitationPreviewController } from "./components/citation-preview/citation-preview.controller";
 import { PendingActionCardComponent } from "./components/pending-action-card/pending-action-card";
@@ -172,6 +173,7 @@ interface SessionGroup {
     AssistantMatterLinkComponent,
     DraftReviewPanelComponent,
     ContractReviewPanelComponent,
+    CaseTimelinePanelComponent,
     CitationListComponent,
     PendingActionCardComponent,
     StarterPromptsComponent,
@@ -356,6 +358,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private loadedDraftId: string | null = null;
   private loadedBriefId: string | null = null;
   private loadedAnalysisId: string | null = null;
+  /** Conversation opened through `?sessionId=`; kept even if not on page 1. */
+  private requestedSessionId: string | null = null;
 
   constructor() {
     effect(() => {
@@ -380,6 +384,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     });
     this.elapsedTimer = setInterval(() => this.clock.set(Date.now()), 1000);
     this.pendingCaseId.set(this.route.snapshot.queryParamMap.get("caseId"));
+    // Deep link (e.g. from a case's latest timeline): open that conversation.
+    const linkedSessionId =
+      this.route.snapshot.queryParamMap.get("sessionId");
+    if (linkedSessionId) {
+      this.requestedSessionId = linkedSessionId;
+      this.selectSession(linkedSessionId);
+    }
     this.loadSessions();
     this.listenWorkspace();
     this.consumeHandoffPrompt();
@@ -544,7 +555,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
               const exists = response.items.some(
                 (session) => session.id === selectedSessionId,
               );
-              if (exists) return;
+              // A deep-linked conversation may be beyond the first page.
+              if (exists || selectedSessionId === this.requestedSessionId) {
+                return;
+              }
             }
             const firstSession = response.items[0];
             if (firstSession) this.selectSession(firstSession.id);
@@ -1355,7 +1369,11 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       );
     } else if (event.type === "analysis.updated") {
       this.toast.success(
-        this.localization.translate("assistant.backgroundReviewReady"),
+        this.localization.translate(
+          event.analysis?.kind === "CASE_TIMELINE"
+            ? "assistant.backgroundTimelineReady"
+            : "assistant.backgroundReviewReady",
+        ),
       );
     } else if (
       event.type === "message.updated" &&

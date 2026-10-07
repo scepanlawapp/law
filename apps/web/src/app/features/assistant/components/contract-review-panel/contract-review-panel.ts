@@ -18,8 +18,8 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import {
   ContractIssueRisk,
+  ContractReviewAnalysis,
   ContractReviewIssue,
-  DocumentAnalysisResponse,
   DocumentScript,
 } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
@@ -58,7 +58,7 @@ const RISKS: readonly ContractIssueRisk[] = ["HIGH", "MEDIUM", "LOW"];
   ],
 })
 export class ContractReviewPanelComponent {
-  readonly analysis = input.required<DocumentAnalysisResponse>();
+  readonly analysis = input.required<ContractReviewAnalysis>();
   readonly expanded = input(true);
   readonly expandedChange = output<boolean>();
   readonly exportDocx = output<DocumentScript>();

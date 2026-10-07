@@ -33,7 +33,7 @@ import { ActivitiesTasksDeadlinesService } from "@law/activities-tasks-deadlines
 import { CasesService } from "@law/cases";
 import { ClientsService } from "@law/clients";
 import { ChatDocumentPromotionService } from "./chat-document-promotion.service";
-import { toSessionSummary } from "./chat.mappers";
+import { toCaseTimeline, toSessionSummary } from "./chat.mappers";
 
 const AI_SOURCE = { source: "AI_ASSISTED" } as const;
 
@@ -211,34 +211,40 @@ export class MatterLinkService {
     query: { page: number; draftPage: number; pageSize: number },
   ) {
     await this.requireWorkspaceCase(workspaceId, caseId);
-    const [sessionTotal, sessions, draftTotal, drafts] = await Promise.all([
-      this.db.chatSession.count({
-        where: { workspaceId, caseId, isDeleted: false },
-      }),
-      this.db.chatSession.findMany({
-        where: { workspaceId, caseId, isDeleted: false },
-        orderBy: { updatedAt: "desc" },
-        skip: (query.page - 1) * query.pageSize,
-        take: query.pageSize,
-      }),
-      this.db.draftResult.count({
-        where: { workspaceId, caseId },
-      }),
-      this.db.draftResult.findMany({
-        where: { workspaceId, caseId },
-        orderBy: { createdAt: "desc" },
-        skip: (query.draftPage - 1) * query.pageSize,
-        take: query.pageSize,
-        select: {
-          id: true,
-          sessionId: true,
-          approvalStatus: true,
-          reviewedAt: true,
-          createdAt: true,
-          warnings: true,
-        },
-      }),
-    ]);
+    const [sessionTotal, sessions, draftTotal, drafts, timeline] =
+      await Promise.all([
+        this.db.chatSession.count({
+          where: { workspaceId, caseId, isDeleted: false },
+        }),
+        this.db.chatSession.findMany({
+          where: { workspaceId, caseId, isDeleted: false },
+          orderBy: { updatedAt: "desc" },
+          skip: (query.page - 1) * query.pageSize,
+          take: query.pageSize,
+        }),
+        this.db.draftResult.count({
+          where: { workspaceId, caseId },
+        }),
+        this.db.draftResult.findMany({
+          where: { workspaceId, caseId },
+          orderBy: { createdAt: "desc" },
+          skip: (query.draftPage - 1) * query.pageSize,
+          take: query.pageSize,
+          select: {
+            id: true,
+            sessionId: true,
+            approvalStatus: true,
+            reviewedAt: true,
+            createdAt: true,
+            warnings: true,
+          },
+        }),
+        this.db.documentAnalysis.findFirst({
+          where: { workspaceId, caseId, kind: "CASE_TIMELINE" },
+          orderBy: { createdAt: "desc" },
+        }),
+      ]);
+    const latestTimeline = timeline ? toCaseTimeline(timeline) : null;
     return {
       sessions: {
         items: sessions.map((session) => ({
@@ -263,6 +269,15 @@ export class MatterLinkService {
           { field: "createdAt", direction: "desc" },
         ]),
       },
+      latestTimeline: latestTimeline
+        ? {
+            id: latestTimeline.id,
+            sessionId: latestTimeline.sessionId,
+            createdAt: latestTimeline.createdAt,
+            summary: latestTimeline.result.summary,
+            eventCount: latestTimeline.result.events.length,
+          }
+        : null,
     };
   }
 
@@ -329,11 +344,7 @@ export class MatterLinkService {
       })),
       opposingPartyName: opposing?.name ?? null,
       opposingPartyAddress: opposing?.address ?? null,
-      suggestedCaseName: suggestCaseName(
-        brief,
-        clientName,
-        briefRow.sessionId,
-      ),
+      suggestedCaseName: suggestCaseName(brief, clientName, briefRow.sessionId),
       suggestedDescription: suggestDescription(brief),
       suggestedCaseNumber: suggestion.caseNumber,
       responsibleUserId: input.userId,

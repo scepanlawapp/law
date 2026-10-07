@@ -25,6 +25,7 @@ import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createListDraftsTool } from "./tools/list-drafts.tool";
 import { createReviewContractTool } from "./tools/review-contract.tool";
+import { createSummarizeCaseDocumentsTool } from "./tools/summarize-case-documents.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
@@ -89,6 +90,18 @@ function deps(
       excerpt: "TUŽBA",
     }),
     reviseDraft: jest.fn(),
+    summarizeCaseDocuments: jest.fn().mockResolvedValue({
+      status: "TIMELINE_READY",
+      analysisId: "analysis-2",
+      case: "P-7",
+      documentCount: 2,
+      eventCount: 3,
+      firstDate: "2025-01-10",
+      lastDate: "2026-03-15",
+      summary: "Kratko.",
+      openQuestions: [],
+      notRead: [],
+    }),
     reviewContract: jest.fn().mockResolvedValue({
       status: "REVIEW_READY",
       analysisId: "analysis-1",
@@ -291,6 +304,14 @@ describe("assistant tools", () => {
       },
       context,
     );
+    await createSummarizeCaseDocumentsTool(toolDeps).execute?.(
+      { focus: "rokovi" },
+      context,
+    );
+    expect(toolDeps.summarizeCaseDocuments).toHaveBeenCalledWith(turn, {
+      documentRefs: undefined,
+      focus: "rokovi",
+    });
     expect(toolDeps.reviewContract).toHaveBeenCalledWith(turn, {
       documentRef: "att:nda-1",
       contractType: "NDA",

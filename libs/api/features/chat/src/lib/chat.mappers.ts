@@ -4,6 +4,9 @@ import {
   ChatAttachmentSummary,
   ChatMessageResponse,
   ChatSessionSummary,
+  CaseTimelineAnalysis,
+  CaseTimelineResult,
+  ContractReviewAnalysis,
   ContractReviewResult,
   DocumentAnalysisResponse,
   DraftResultResponse,
@@ -390,28 +393,43 @@ export function toPendingAction(action: {
   };
 }
 
-export function toAnalysis(row: {
+type AnalysisRow = {
   id: string;
   sessionId: string;
   caseId: string | null;
+  kind: string;
   documentRef: string;
   documentTitle: string;
-  contractType: string;
+  contractType: string | null;
   clientSide: string | null;
   result: unknown;
   citations: unknown;
   truncated: boolean;
   model: string;
   createdAt: Date;
-}): DocumentAnalysisResponse {
-  const result = (row.result ?? {}) as Partial<ContractReviewResult>;
+};
+
+function analysisBase(row: AnalysisRow) {
   return {
     id: row.id,
     sessionId: row.sessionId,
     caseId: row.caseId,
-    kind: "CONTRACT_REVIEW",
     documentRef: row.documentRef,
     documentTitle: row.documentTitle,
+    citations: Array.isArray(row.citations)
+      ? (row.citations as LegalCitationResponse[])
+      : [],
+    truncated: row.truncated,
+    model: row.model,
+    createdAt: row.createdAt.toISOString(),
+  };
+}
+
+export function toContractReview(row: AnalysisRow): ContractReviewAnalysis {
+  const result = (row.result ?? {}) as Partial<ContractReviewResult>;
+  return {
+    ...analysisBase(row),
+    kind: "CONTRACT_REVIEW",
     contractType: isContractReviewType(row.contractType)
       ? row.contractType
       : "OTHER_CONTRACT",
@@ -423,11 +441,26 @@ export function toAnalysis(row: {
       missingClauses: result.missingClauses ?? [],
       warnings: result.warnings ?? [],
     },
-    citations: Array.isArray(row.citations)
-      ? (row.citations as LegalCitationResponse[])
-      : [],
-    truncated: row.truncated,
-    model: row.model,
-    createdAt: row.createdAt.toISOString(),
   };
+}
+
+export function toCaseTimeline(row: AnalysisRow): CaseTimelineAnalysis {
+  const result = (row.result ?? {}) as Partial<CaseTimelineResult>;
+  return {
+    ...analysisBase(row),
+    kind: "CASE_TIMELINE",
+    result: {
+      summary: result.summary ?? "",
+      events: result.events ?? [],
+      openQuestions: result.openQuestions ?? [],
+      sources: result.sources ?? [],
+      warnings: result.warnings ?? [],
+    },
+  };
+}
+
+export function toAnalysis(row: AnalysisRow): DocumentAnalysisResponse {
+  return row.kind === "CASE_TIMELINE"
+    ? toCaseTimeline(row)
+    : toContractReview(row);
 }
