@@ -12,7 +12,7 @@ import type {
 } from "@law/mastra";
 import { toLatin } from "@law/transliteration";
 import { DocumentTextService } from "@law/workspace-documents";
-import { ChatStorageService } from "./chat.storage";
+import { ChatAttachmentStorage } from "@law/file-storage";
 
 const DOCUMENT_LIMIT = 30;
 const READ_WINDOW_CHARS = 12_000;
@@ -64,7 +64,7 @@ export class AssistantDocumentReadsService {
 
   constructor(
     private readonly prisma: PlatformPrismaService,
-    private readonly storage: ChatStorageService,
+    private readonly storage: ChatAttachmentStorage,
     @Optional() private readonly documentText?: DocumentTextService,
   ) {}
 

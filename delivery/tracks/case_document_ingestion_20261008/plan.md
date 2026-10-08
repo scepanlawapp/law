@@ -148,11 +148,11 @@
   - `const CURRENT_PIPELINE_VERSION = 1` in `document-ingestion.types.ts`.
   - `DocumentIngestionModule` imports `BullModule.registerQueue({ name: DOCUMENT_INGEST_QUEUE })`, `FileStorageModule`; exports `DocumentContentService`, `DocumentIngestionQueue`.
 
-- [ ] **Step 1: Write failing tests:** `findOrCreate` calls `upsert` with `where: { workspaceId_sha256: { workspaceId, sha256 } }`; two concurrent calls for the same hash resolve to the same id (mock upsert returning the same row) and `requestIngestion` enqueues once per call with the same `jobId`; `requestIngestion` on a `READY` row with current pipeline version does not enqueue; on `READY` with `pipelineVersion: 0` enqueues; `ensureText` returns stored text without reading bytes.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern=document-content.service.spec`. Expected: FAIL.
-- [ ] **Step 3:** Implement. Move `BullModule.forRootAsync` from `ChatModule` into a new `QueueRootModule` in `libs/api/core/src/lib/queue-root.module.ts` (same Redis options), import it from `ChatModule` and `DocumentIngestionModule`. Register `DocumentIngestionModule` in `apps/api` `AppModule`.
-- [ ] **Step 4:** Run `npx nx test api --testPathPattern="document-content|chat"`. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(document-ingestion): content rows keyed by hash and ingest queue`.
+- [x] **Step 1: Write failing tests:** `findOrCreate` calls `upsert` with `where: { workspaceId_sha256: { workspaceId, sha256 } }`; two concurrent calls for the same hash resolve to the same id (mock upsert returning the same row) and `requestIngestion` enqueues once per call with the same `jobId`; `requestIngestion` on a `READY` row with current pipeline version does not enqueue; on `READY` with `pipelineVersion: 0` enqueues; `ensureText` returns stored text without reading bytes.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern=document-content.service.spec`. Expected: FAIL.
+- [x] **Step 3:** Implement. Move `BullModule.forRootAsync` from `ChatModule` into a new `QueueRootModule` in `libs/api/core/src/lib/queue-root.module.ts` (same Redis options), import it from `ChatModule` and `DocumentIngestionModule`. Register `DocumentIngestionModule` in `apps/api` `AppModule`.
+- [x] **Step 4:** Run `npx nx test api --testPathPattern="document-content|chat"`. Expected: PASS.
+- [x] **Step 5:** Commit `feat(document-ingestion): content rows keyed by hash and ingest queue`.
 
 ### Task 6: Ingestion processor and pipeline
 

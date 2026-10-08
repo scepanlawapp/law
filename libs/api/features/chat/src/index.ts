@@ -6,7 +6,6 @@ export * from "./lib/chat.config";
 export * from "./lib/chat-model.util";
 export * from "./lib/chat.events";
 export * from "./lib/chat.dto";
-export * from "./lib/chat.storage";
 export * from "./lib/workflow-queue.types";
 export * from "./lib/workflow.runner";
 export * from "./lib/workflow.processor";

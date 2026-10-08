@@ -45,7 +45,7 @@ import { toCyrillic, toLatin } from "@law/transliteration";
 import { buildTitleUserPrompt, generateTitle } from "@law/title-generation";
 import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
-import { ChatStorageService } from "./chat.storage";
+import { ChatAttachmentStorage } from "@law/file-storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
 import {
@@ -154,7 +154,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly events: ChatEventBus,
-    private readonly storage: ChatStorageService,
+    private readonly storage: ChatAttachmentStorage,
     private readonly config: ChatRuntimeConfig,
     @Optional()
     @Inject(CHAT_MODEL_PROVIDER)

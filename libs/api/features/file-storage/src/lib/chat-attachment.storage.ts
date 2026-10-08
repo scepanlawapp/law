@@ -1,16 +1,16 @@
 import { Injectable } from "@nestjs/common";
 import { mkdir, writeFile, readFile, stat } from "node:fs/promises";
 import { join } from "node:path";
-import { ChatRuntimeConfig } from "./chat.config";
 
 /**
  * Chat attachments stay on this dedicated disk layout. Workspace document
- * storage (`@law/file-storage`) is a separate stack and must not relocate
+ * storage (`FileService`) is a separate stack and must not relocate
  * these files.
  */
 @Injectable()
-export class ChatStorageService {
-  constructor(private readonly config: ChatRuntimeConfig) {}
+export class ChatAttachmentStorage {
+  private readonly uploadDir =
+    process.env.CHAT_UPLOAD_DIR ?? "./tmp/chat-uploads";
 
   async save(params: {
     workspaceId: string;
@@ -19,7 +19,7 @@ export class ChatStorageService {
     buffer: Buffer;
   }): Promise<string> {
     const directory = join(
-      this.config.uploadDir,
+      this.uploadDir,
       "tenants",
       params.workspaceId,
       params.sessionId,
@@ -36,7 +36,7 @@ export class ChatStorageService {
     storedName: string;
   }): Promise<Buffer> {
     const tenantPath = join(
-      this.config.uploadDir,
+      this.uploadDir,
       "tenants",
       params.workspaceId,
       params.sessionId,
@@ -48,7 +48,7 @@ export class ChatStorageService {
     } catch {
       // Fallback for legacy un-prefixed storage paths
       const legacyPath = join(
-        this.config.uploadDir,
+        this.uploadDir,
         params.workspaceId,
         params.sessionId,
         params.storedName,

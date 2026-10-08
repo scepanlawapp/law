@@ -2,7 +2,7 @@ import { Injectable, Logger, Optional } from "@nestjs/common";
 import { Readable } from "node:stream";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { DocumentsService } from "@law/workspace-documents";
-import { ChatStorageService } from "./chat.storage";
+import { ChatAttachmentStorage } from "@law/file-storage";
 
 /**
  * Turns a case-linked chat's attachments into workspace documents linked to
@@ -17,7 +17,7 @@ export class ChatDocumentPromotionService {
 
   constructor(
     private readonly prisma: PlatformPrismaService,
-    private readonly storage: ChatStorageService,
+    private readonly storage: ChatAttachmentStorage,
     @Optional() private readonly documents?: DocumentsService,
   ) {}
 

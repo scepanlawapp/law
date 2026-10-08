@@ -32,7 +32,7 @@ import { ChatEventBus } from "./chat.events";
 import { resolveChatModelProvider } from "./chat-model.util";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { toDraft, toJob, toMessage } from "./chat.mappers";
-import { ChatStorageService } from "./chat.storage";
+import { ChatAttachmentStorage } from "@law/file-storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { MatterLinkService } from "./matter-link.service";
 
@@ -68,7 +68,7 @@ export class AssistantDraftingService {
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly events: ChatEventBus,
-    private readonly storage: ChatStorageService,
+    private readonly storage: ChatAttachmentStorage,
     private readonly config: ChatRuntimeConfig,
     private readonly matterLink: MatterLinkService,
     @Optional()
