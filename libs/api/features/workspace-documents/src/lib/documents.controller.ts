@@ -16,6 +16,7 @@ import archiver = require("archiver");
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
+  BulkDocumentAiAccessDto,
   DocumentListQueryDto,
   DocumentFolderQueryDto,
   EnsureDocumentFoldersDto,
@@ -122,12 +123,18 @@ export class DocumentsController {
       title: upload.title ?? "",
       folderId: upload.folderId,
       category: upload.category,
+      aiAccess: upload.aiAccess,
       caseIds: upload.caseIds,
       clientIds: upload.clientIds,
       originalFilename: upload.originalFilename,
       stream: upload.stream,
       idempotencyKey,
     });
+  }
+
+  @Patch("ai-access")
+  setAiAccessBulk(@Body() body: BulkDocumentAiAccessDto) {
+    return this.documents.setAiAccessBulk(body);
   }
 
   @Get(":id")
@@ -176,6 +183,11 @@ export class DocumentsController {
   ) {
     const file = await this.documents.openDownload(id, versionId);
     this.sendFile(response, file);
+  }
+
+  @Post(":id/ai-reprocess")
+  reprocess(@Param("id") id: string) {
+    return this.documents.reprocess(id);
   }
 
   @Post(":id/archive")

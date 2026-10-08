@@ -1,14 +1,20 @@
-import { BadRequestException, NotFoundException } from "@nestjs/common";
+import {
+  BadRequestException,
+  ConflictException,
+  NotFoundException,
+} from "@nestjs/common";
 import { Readable } from "node:stream";
 import { WorkspaceContextService } from "@law/core";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { DocumentsService } from "@law/workspace-documents";
+import { DocumentContentService } from "@law/document-ingestion";
 
 const workspaceId = "11111111-1111-4111-a111-111111111111";
 const otherWorkspaceId = "99999999-9999-4999-a999-999999999999";
 const userId = "22222222-2222-4222-a222-222222222222";
 const caseId = "33333333-3333-4333-a333-333333333333";
 const clientId = "44444444-4444-4444-a444-444444444444";
+const sha = "a".repeat(64);
 
 describe("DocumentsService", () => {
   const files = {
@@ -21,9 +27,15 @@ describe("DocumentsService", () => {
     documentFolder: { findFirst: jest.fn() },
     case: { count: jest.fn() },
     client: { count: jest.fn() },
+    documentContent: {
+      upsert: jest.fn(),
+      findFirst: jest.fn(),
+      updateMany: jest.fn(),
+    },
     document: {
       create: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
       findFirst: jest.fn(),
       findFirstOrThrow: jest.fn(),
       findMany: jest.fn(),
@@ -41,7 +53,17 @@ describe("DocumentsService", () => {
     $transaction: jest.fn(),
     $queryRaw: jest.fn(),
   };
-  const service = new DocumentsService(prisma as never, files as never);
+  const queue = { enqueue: jest.fn() };
+  const content = new DocumentContentService(
+    prisma as never,
+    queue as never,
+    {} as never,
+  );
+  const service = new DocumentsService(
+    prisma as never,
+    files as never,
+    content,
+  );
   const run = <T>(callback: () => Promise<T>, ws = workspaceId) =>
     WorkspaceContextService.run(
       { workspaceId: ws, userId, role: WorkspaceRole.OWNER } as never,
@@ -53,6 +75,8 @@ describe("DocumentsService", () => {
     title: "Contract",
     category: null,
     archivedAt: null,
+    aiAccess: false,
+    chatAttachments: [] as { id: string }[],
     createdByUserId: userId,
     updatedByUserId: userId,
     createdAt: new Date("2026-09-21T00:00:00.000Z"),
@@ -101,6 +125,8 @@ describe("DocumentsService", () => {
       versionNumber: 1,
       originalFilename: "a.pdf",
       storedFileId: "file-1",
+      contentId: "content-1" as string | null,
+      content: null as { status: string; documentKind: string | null } | null,
       uploadedByUserId: userId,
       createdAt: new Date("2026-09-21T00:00:00.000Z"),
       storedFile: {
@@ -136,7 +162,22 @@ describe("DocumentsService", () => {
       replay: false,
       operationId: "op-1",
       storedFileId: "file-1",
+      sha256: sha,
+      mimeType: "application/pdf",
+      sizeBytes: 12,
     });
+    prisma.documentContent.upsert.mockResolvedValue({
+      id: "content-1",
+      status: "PENDING",
+      pipelineVersion: 0,
+    });
+    prisma.documentContent.findFirst.mockResolvedValue({
+      status: "PENDING",
+      pipelineVersion: 0,
+    });
+    prisma.documentContent.updateMany.mockResolvedValue({ count: 1 });
+    prisma.document.updateMany.mockResolvedValue({ count: 0 });
+    queue.enqueue.mockResolvedValue(undefined);
     files.commitAvailable.mockResolvedValue(undefined);
     files.openDownload.mockResolvedValue({
       stream: Readable.from([Buffer.from("%PDF-1.4")]),
@@ -398,6 +439,9 @@ describe("DocumentsService", () => {
       replay: false,
       operationId: "op-2",
       storedFileId: "file-2",
+      sha256: "b".repeat(64),
+      mimeType: "application/pdf",
+      sizeBytes: 14,
     });
     await run(() =>
       service.addVersion({
@@ -565,5 +609,441 @@ describe("DocumentsService", () => {
         } as never),
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+  describe("AI access and ingestion status", () => {
+    const upload = (extra: Record<string, unknown> = {}) => ({
+      title: "Contract",
+      caseIds: [],
+      clientIds: [],
+      originalFilename: "a.pdf",
+      stream: Readable.from([Buffer.from("%PDF-1.4")]),
+      idempotencyKey: "k-ai",
+      ...extra,
+    });
+    const rowWith = (extra: Record<string, unknown>, status?: string) => ({
+      ...documentRow,
+      ...extra,
+      currentVersion: {
+        ...documentRow.currentVersion,
+        content: status ? { status, documentKind: null } : null,
+      },
+    });
+
+    it("links content on upload and enqueues when AI access is on", async () => {
+      await run(() => service.create(upload({ aiAccess: true })));
+      expect(prisma.documentContent.upsert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { workspaceId_sha256: { workspaceId, sha256: sha } },
+          create: expect.objectContaining({
+            workspaceId,
+            sha256: sha,
+            mimeType: "application/pdf",
+            sizeBytes: 12,
+          }),
+        }),
+      );
+      expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ contentId: "content-1" }),
+      });
+      expect(prisma.document.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          aiAccess: true,
+          aiAccessChangedByUserId: userId,
+          aiAccessChangedAt: expect.any(Date),
+        }),
+      });
+      expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+    });
+
+    it("links content on upload without enqueueing when AI access is off", async () => {
+      await run(() => service.create(upload()));
+      expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ contentId: "content-1" }),
+      });
+      expect(prisma.document.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ aiAccess: false }),
+      });
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("reuses the same content for an identical second upload", async () => {
+      await run(() => service.create(upload()));
+      await run(() => service.create(upload({ idempotencyKey: "k-ai-2" })));
+      const keys = prisma.documentContent.upsert.mock.calls.map(
+        ([arg]) => arg.where,
+      );
+      expect(keys[0]).toEqual(keys[1]);
+      const contentIds = prisma.documentVersion.create.mock.calls.map(
+        ([arg]) => arg.data.contentId,
+      );
+      expect(contentIds).toEqual(["content-1", "content-1"]);
+    });
+
+    it("does not re-link or enqueue on an idempotent replay", async () => {
+      files.ingest.mockResolvedValue({
+        replay: true,
+        documentId: "doc-1",
+        operationId: "op-1",
+        storedFileId: "file-1",
+        sha256: sha,
+        mimeType: "application/pdf",
+        sizeBytes: 12,
+      });
+      await run(() => service.create(upload({ aiAccess: true })));
+      expect(prisma.documentContent.upsert).not.toHaveBeenCalled();
+      expect(prisma.documentVersion.create).not.toHaveBeenCalled();
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("does not fail an upload when the queue is unavailable", async () => {
+      queue.enqueue.mockRejectedValue(new Error("redis down"));
+      const created = await run(() =>
+        service.create(upload({ aiAccess: true })),
+      );
+      expect(created.id).toBe("doc-1");
+      expect(files.commitAvailable).toHaveBeenCalled();
+    });
+
+    it("keeps initialText working by writing it onto a content row without text", async () => {
+      await run(() =>
+        service.create(
+          upload({
+            initialText: {
+              status: "COMPLETED",
+              text: "Ugovor",
+              sourceScript: "LATIN",
+            },
+          }),
+        ),
+      );
+      expect(prisma.documentContent.updateMany).toHaveBeenCalledWith({
+        where: { id: "content-1", workspaceId, extractedText: null },
+        data: { extractedText: "Ugovor", sourceScript: "LATIN" },
+      });
+    });
+
+    it("links a provided contentId after verifying it in the workspace", async () => {
+      prisma.documentContent.findFirst.mockResolvedValue({ id: "content-9" });
+      await run(() => service.create(upload({ contentId: "content-9" })));
+      expect(prisma.documentContent.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "content-9", workspaceId },
+        }),
+      );
+      expect(prisma.documentContent.upsert).not.toHaveBeenCalled();
+      expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ contentId: "content-9" }),
+      });
+
+      prisma.documentContent.findFirst.mockResolvedValue(null);
+      await expect(
+        run(() => service.create(upload({ contentId: "foreign" }))),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it("turns AI access on for a READY content without enqueueing", async () => {
+      prisma.document.findFirst.mockResolvedValue(rowWith({}, "READY"));
+      prisma.documentContent.findFirst.mockResolvedValue({
+        status: "READY",
+        pipelineVersion: 99,
+      });
+      await run(() => service.setAiAccess("doc-1", true));
+      expect(prisma.document.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: "doc-1", workspaceId },
+          data: expect.objectContaining({
+            aiAccess: true,
+            aiAccessChangedByUserId: userId,
+            aiAccessChangedAt: expect.any(Date),
+          }),
+        }),
+      );
+      expect(activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "DOCUMENT_AI_ACCESS_ENABLED",
+            entityId: "doc-1",
+          }),
+        }),
+      );
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("enqueues the current content when turning AI access on for unprocessed content", async () => {
+      prisma.document.findFirst.mockResolvedValue(rowWith({}, "PENDING"));
+      await run(() => service.setAiAccess("doc-1", true));
+      expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+    });
+
+    it("does not fail the toggle when the queue is unavailable", async () => {
+      queue.enqueue.mockRejectedValue(new Error("redis down"));
+      prisma.document.findFirst.mockResolvedValue(rowWith({}, "PENDING"));
+      await expect(
+        run(() => service.setAiAccess("doc-1", true)),
+      ).resolves.toBeDefined();
+      expect(activityLog.create).toHaveBeenCalled();
+    });
+
+    it("turns AI access off and logs it", async () => {
+      prisma.document.findFirst.mockResolvedValue(
+        rowWith({ aiAccess: true }, "READY"),
+      );
+      await run(() => service.setAiAccess("doc-1", false));
+      expect(activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            action: "DOCUMENT_AI_ACCESS_DISABLED",
+          }),
+        }),
+      );
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("writes nothing when the AI access value does not change", async () => {
+      prisma.document.findFirst.mockResolvedValue(rowWith({ aiAccess: true }));
+      await run(() => service.setAiAccess("doc-1", true));
+      expect(prisma.document.update).not.toHaveBeenCalled();
+      expect(activityLog.create).not.toHaveBeenCalled();
+    });
+
+    it("applies aiAccess from a document patch with one activity row", async () => {
+      prisma.document.findFirst.mockResolvedValue(rowWith({}, "PENDING"));
+      await run(() => service.update("doc-1", { aiAccess: true }));
+      expect(prisma.document.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            aiAccess: true,
+            aiAccessChangedByUserId: userId,
+          }),
+        }),
+      );
+      const actions = activityLog.create.mock.calls.map(
+        ([arg]) => arg.data.action,
+      );
+      expect(actions).toEqual([
+        "DOCUMENT_UPDATED",
+        "DOCUMENT_AI_ACCESS_ENABLED",
+      ]);
+      expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+    });
+
+    describe("bulk", () => {
+      const bulkRow = (
+        id: string,
+        aiAccess: boolean,
+        contentId: string | null,
+      ) => ({
+        id,
+        aiAccess,
+        currentVersion: contentId ? { contentId } : null,
+        cases: [{ caseId }],
+        clients: [{ clientId }],
+      });
+      const ids = ["a", "b", "c", "d"];
+
+      it("updates only changed non-archived documents and counts them", async () => {
+        prisma.document.findMany.mockResolvedValue([
+          bulkRow("a", false, "content-a"),
+          bulkRow("b", true, "content-b"),
+          bulkRow("c", false, null),
+        ]);
+        const result = await run(() =>
+          service.setAiAccessBulk({ documentIds: ids, aiAccess: true }),
+        );
+        expect(prisma.document.findMany).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              id: { in: ids },
+              workspaceId,
+              archivedAt: null,
+            },
+          }),
+        );
+        expect(result).toEqual({ updated: 2 });
+        expect(prisma.document.updateMany).toHaveBeenCalledWith({
+          where: { id: { in: ["a", "c"] }, workspaceId },
+          data: expect.objectContaining({
+            aiAccess: true,
+            aiAccessChangedByUserId: userId,
+            aiAccessChangedAt: expect.any(Date),
+            updatedByUserId: userId,
+          }),
+        });
+        const logs = activityLog.create.mock.calls.map(([arg]) => arg.data);
+        expect(logs.map((row) => row.entityId)).toEqual(["a", "c"]);
+        expect(
+          logs.every((row) => row.action === "DOCUMENT_AI_ACCESS_ENABLED"),
+        ).toBe(true);
+        expect(queue.enqueue).toHaveBeenCalledTimes(1);
+        expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-a");
+      });
+
+      it("logs disables without enqueueing and skips an unchanged batch", async () => {
+        prisma.document.findMany.mockResolvedValue([
+          bulkRow("a", true, "content-a"),
+        ]);
+        await run(() =>
+          service.setAiAccessBulk({ documentIds: ["a"], aiAccess: false }),
+        );
+        expect(activityLog.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              action: "DOCUMENT_AI_ACCESS_DISABLED",
+            }),
+          }),
+        );
+        expect(queue.enqueue).not.toHaveBeenCalled();
+
+        jest.clearAllMocks();
+        prisma.$transaction.mockImplementation(async (arg: unknown) =>
+          typeof arg === "function" ? arg(prisma) : arg,
+        );
+        prisma.document.findMany.mockResolvedValue([
+          bulkRow("a", true, "content-a"),
+        ]);
+        const result = await run(() =>
+          service.setAiAccessBulk({ documentIds: ["a"], aiAccess: true }),
+        );
+        expect(result).toEqual({ updated: 0 });
+        expect(prisma.document.updateMany).not.toHaveBeenCalled();
+        expect(activityLog.create).not.toHaveBeenCalled();
+      });
+
+      it("rejects more than 200 ids", async () => {
+        await expect(
+          run(() =>
+            service.setAiAccessBulk({
+              documentIds: Array.from({ length: 201 }, (_, i) => `d${i}`),
+              aiAccess: true,
+            }),
+          ),
+        ).rejects.toBeInstanceOf(BadRequestException);
+      });
+    });
+
+    it("links new version content and enqueues for an opted-in document", async () => {
+      const optedIn = rowWith({ aiAccess: true }, "READY");
+      const afterVersion = {
+        ...optedIn,
+        currentVersion: {
+          ...optedIn.currentVersion,
+          id: "ver-2",
+          contentId: "content-2",
+          content: { status: "EXTRACTING", documentKind: null },
+        },
+      };
+      prisma.document.findFirst
+        .mockResolvedValueOnce(optedIn)
+        .mockResolvedValueOnce(afterVersion);
+      prisma.documentVersion.create.mockResolvedValue({
+        id: "ver-2",
+        versionNumber: 2,
+      });
+      prisma.documentContent.upsert.mockResolvedValue({
+        id: "content-2",
+        status: "PENDING",
+        pipelineVersion: 0,
+      });
+      const detail = await run(() =>
+        service.addVersion({
+          documentId: "doc-1",
+          originalFilename: "b.pdf",
+          stream: Readable.from([Buffer.from("v2")]),
+          idempotencyKey: "k-v2",
+        }),
+      );
+      expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ contentId: "content-2" }),
+      });
+      expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-2");
+      expect(detail.aiStatus).toBe("PROCESSING");
+    });
+
+    it("links new version content without enqueueing when AI access is off", async () => {
+      prisma.documentVersion.create.mockResolvedValue({
+        id: "ver-2",
+        versionNumber: 2,
+      });
+      await run(() =>
+        service.addVersion({
+          documentId: "doc-1",
+          originalFilename: "b.pdf",
+          stream: Readable.from([Buffer.from("v2")]),
+          idempotencyKey: "k-v2",
+        }),
+      );
+      expect(prisma.documentVersion.create).toHaveBeenCalledWith({
+        data: expect.objectContaining({ contentId: "content-1" }),
+      });
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("reads status from the current version's content in one query", async () => {
+      await run(() => service.list({ page: 1, pageSize: 20 } as never));
+      const include = prisma.document.findMany.mock.calls.at(-1)?.[0].include;
+      expect(include.currentVersion.include.content).toEqual({
+        select: { status: true, documentKind: true },
+      });
+      expect(include.chatAttachments).toEqual({
+        select: { id: true },
+        take: 1,
+      });
+    });
+
+    it.each([
+      [false, undefined, "OFF"],
+      [true, undefined, "QUEUED"],
+      [false, "READY", "OFF"],
+      [true, "PENDING", "QUEUED"],
+      [true, "EXTRACTING", "PROCESSING"],
+      [true, "EMBEDDING", "PROCESSING"],
+      [true, "CLASSIFYING", "PROCESSING"],
+      [true, "READY", "READY"],
+      [true, "FAILED", "FAILED"],
+      [true, "UNSUPPORTED", "UNSUPPORTED"],
+    ])(
+      "maps aiAccess=%s content=%s to %s",
+      async (aiAccess, status, expected) => {
+        prisma.document.findFirst.mockResolvedValue(
+          rowWith({ aiAccess }, status),
+        );
+        const detail = await run(() => service.get("doc-1"));
+        expect(detail.aiAccess).toBe(aiAccess);
+        expect(detail.aiStatus).toBe(expected);
+      },
+    );
+
+    it("exposes the document kind and assistant-chat origin", async () => {
+      prisma.document.findFirst.mockResolvedValue({
+        ...rowWith({ aiAccess: true, chatAttachments: [{ id: "att-1" }] }),
+        currentVersion: {
+          ...documentRow.currentVersion,
+          content: { status: "READY", documentKind: "ID_CARD" },
+        },
+      });
+      const detail = await run(() => service.get("doc-1"));
+      expect(detail.documentKind).toBe("ID_CARD");
+      expect(detail.fromAssistantChat).toBe(true);
+    });
+
+    it("reprocesses only failed content", async () => {
+      prisma.document.findFirst.mockResolvedValue(
+        rowWith({ aiAccess: true }, "READY"),
+      );
+      await expect(
+        run(() => service.reprocess("doc-1")),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(queue.enqueue).not.toHaveBeenCalled();
+
+      prisma.document.findFirst.mockResolvedValue(
+        rowWith({ aiAccess: true }, "FAILED"),
+      );
+      prisma.documentContent.findFirst.mockResolvedValue({
+        status: "FAILED",
+        pipelineVersion: 1,
+      });
+      await run(() => service.reprocess("doc-1"));
+      expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+    });
   });
 });

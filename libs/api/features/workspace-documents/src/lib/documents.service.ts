@@ -1,13 +1,19 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
+  BulkDocumentAiAccessRequest,
+  BulkDocumentAiAccessResponse,
   CaseReference,
   ClientReference,
+  DocumentAiStatus,
   DocumentDetail,
+  DocumentKind,
   DocumentStatistics,
   DocumentListResponse,
   DocumentVersionListResponse,
@@ -20,9 +26,11 @@ import {
   PlatformPrismaService,
   WorkspaceContextService,
 } from "@law/core";
+import { DocumentContentService } from "@law/document-ingestion";
 import { FileService, uploadFingerprint } from "@law/file-storage";
 import { Readable } from "node:stream";
 import {
+  BULK_AI_ACCESS_MAX,
   DocumentListQueryDto,
   DocumentVersionListQueryDto,
   UpdateDocumentDto,
@@ -40,9 +48,12 @@ export interface DocumentInitialText {
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly files: FileService,
+    private readonly content: DocumentContentService,
   ) {}
 
   private get context() {
@@ -58,6 +69,10 @@ export class DocumentsService {
     originalFilename: string;
     stream: Readable;
     idempotencyKey: string;
+    /** Let the assistant read this document; defaults to off. */
+    aiAccess?: boolean;
+    /** Existing content row to link instead of deriving one from the bytes. */
+    contentId?: string;
     /** Text already extracted elsewhere (chat attachments), reused as-is. */
     initialText?: DocumentInitialText;
     /** Origin recorded on the DOCUMENT_CREATED activity row. */
@@ -88,6 +103,7 @@ export class DocumentsService {
       throw error;
     }
 
+    const aiAccess = input.aiAccess ?? false;
     const ingest = await this.files.ingest({
       workspaceId: this.context.workspaceId,
       actorUserId: this.context.userId,
@@ -110,6 +126,11 @@ export class DocumentsService {
       return this.get(ingest.documentId);
     }
 
+    const contentId = await this.resolveContent(ingest, input.contentId);
+    if (input.initialText) {
+      await this.seedContentText(contentId, input.initialText);
+    }
+
     const created = await this.prisma.$transaction(async (tx) => {
       if (input.folderId) {
         const workspaceId = this.context.workspaceId;
@@ -130,6 +151,8 @@ export class DocumentsService {
           title,
           folderId: input.folderId ?? null,
           category,
+          aiAccess,
+          ...(aiAccess ? this.aiAccessAudit() : {}),
           createdByUserId: this.context.userId,
           updatedByUserId: this.context.userId,
         },
@@ -140,6 +163,7 @@ export class DocumentsService {
           workspaceId: this.context.workspaceId,
           versionNumber: 1,
           storedFileId: ingest.storedFileId,
+          contentId,
           originalFilename: input.originalFilename,
           uploadedByUserId: this.context.userId,
           ...(input.initialText
@@ -166,6 +190,7 @@ export class DocumentsService {
           caseIds,
           clientIds,
           category,
+          aiAccess,
           versionId: version.id,
           ...(input.source ? { source: input.source } : {}),
         },
@@ -179,6 +204,7 @@ export class DocumentsService {
       documentId: created.documentId,
       documentVersionId: created.versionId,
     });
+    if (aiAccess) await this.tryRequestIngestion([contentId]);
     return this.get(created.documentId);
   }
 
@@ -210,6 +236,7 @@ export class DocumentsService {
       return this.get(ingest.documentId);
     }
 
+    const contentId = await this.resolveContent(ingest);
     const versionId = await this.prisma.$transaction(async (tx) => {
       await tx.$queryRaw(
         Prisma.sql`SELECT id FROM "Document" WHERE id = ${existing.id} AND "workspaceId" = ${this.context.workspaceId} FOR UPDATE`,
@@ -225,6 +252,7 @@ export class DocumentsService {
           workspaceId: this.context.workspaceId,
           versionNumber,
           storedFileId: ingest.storedFileId,
+          contentId,
           originalFilename: input.originalFilename,
           uploadedByUserId: this.context.userId,
         },
@@ -259,6 +287,7 @@ export class DocumentsService {
       documentId: existing.id,
       documentVersionId: versionId,
     });
+    if (existing.aiAccess) await this.tryRequestIngestion([contentId]);
     return this.get(existing.id);
   }
 
@@ -364,6 +393,8 @@ export class DocumentsService {
         : uniqueIds(body.clientIds);
     if (body.caseIds !== undefined) await this.requireLinks(caseIds, []);
     if (body.clientIds !== undefined) await this.requireLinks([], clientIds);
+    const aiAccessChanged =
+      body.aiAccess !== undefined && body.aiAccess !== existing.aiAccess;
 
     await this.prisma.$transaction(async (tx) => {
       const workspaceId = this.context.workspaceId;
@@ -387,6 +418,9 @@ export class DocumentsService {
           category,
           folderId: body.folderId,
           updatedByUserId: this.context.userId,
+          ...(aiAccessChanged
+            ? { aiAccess: body.aiAccess, ...this.aiAccessAudit() }
+            : {}),
         },
       });
       if (body.caseIds !== undefined || body.clientIds !== undefined) {
@@ -413,7 +447,98 @@ export class DocumentsService {
           ...(body.folderId !== undefined ? { folderId: body.folderId } : {}),
         },
       });
+      if (aiAccessChanged) {
+        await this.logAiAccess(tx, existing.id, body.aiAccess === true, {
+          caseId: caseIds[0],
+          clientId: clientIds[0],
+        });
+      }
     });
+    if (aiAccessChanged && body.aiAccess) {
+      await this.tryRequestIngestion([existing.currentVersion?.contentId]);
+    }
+    return this.get(id);
+  }
+
+  async setAiAccess(id: string, aiAccess: boolean): Promise<DocumentDetail> {
+    const existing = await this.requireDocument(id);
+    if (existing.aiAccess === aiAccess) return this.toDetail(existing);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.document.update({
+        where: { id: existing.id, workspaceId: this.context.workspaceId },
+        data: {
+          aiAccess,
+          ...this.aiAccessAudit(),
+          updatedByUserId: this.context.userId,
+        },
+      });
+      await this.logAiAccess(tx, existing.id, aiAccess, {
+        caseId: existing.cases[0]?.caseId,
+        clientId: existing.clients[0]?.clientId,
+      });
+    });
+    if (aiAccess) {
+      await this.tryRequestIngestion([existing.currentVersion?.contentId]);
+    }
+    return this.get(id);
+  }
+
+  async setAiAccessBulk(
+    body: BulkDocumentAiAccessRequest,
+  ): Promise<BulkDocumentAiAccessResponse> {
+    const { workspaceId } = this.context;
+    const documentIds = uniqueIds(body.documentIds);
+    if (documentIds.length > BULK_AI_ACCESS_MAX) {
+      throw new BadRequestException(
+        `At most ${BULK_AI_ACCESS_MAX} documents can be updated at once`,
+      );
+    }
+    const rows = await this.prisma.document.findMany({
+      where: { id: { in: documentIds }, workspaceId, archivedAt: null },
+      select: {
+        id: true,
+        aiAccess: true,
+        currentVersion: { select: { contentId: true } },
+        cases: { select: { caseId: true }, take: 1 },
+        clients: { select: { clientId: true }, take: 1 },
+      },
+    });
+    const changed = rows.filter((row) => row.aiAccess !== body.aiAccess);
+    if (!changed.length) return { updated: 0 };
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.document.updateMany({
+        where: { id: { in: changed.map((row) => row.id) }, workspaceId },
+        data: {
+          aiAccess: body.aiAccess,
+          ...this.aiAccessAudit(),
+          updatedByUserId: this.context.userId,
+        },
+      });
+      for (const row of changed) {
+        await this.logAiAccess(tx, row.id, body.aiAccess, {
+          caseId: row.cases[0]?.caseId,
+          clientId: row.clients[0]?.clientId,
+        });
+      }
+    });
+    if (body.aiAccess) {
+      await this.tryRequestIngestion(
+        changed.map((row) => row.currentVersion?.contentId),
+      );
+    }
+    return { updated: changed.length };
+  }
+
+  async reprocess(id: string): Promise<DocumentDetail> {
+    const existing = await this.requireDocument(id);
+    const contentId = existing.currentVersion?.contentId;
+    if (!contentId || existing.currentVersion?.content?.status !== "FAILED") {
+      throw new ConflictException(
+        "Only documents whose processing failed can be reprocessed",
+      );
+    }
+    await this.content.requestIngestion(this.context.workspaceId, contentId);
     return this.get(id);
   }
 
@@ -549,8 +674,105 @@ export class DocumentsService {
       cases: { include: { case: true } },
       clients: { include: { client: true } },
       versions: { include: { storedFile: true } },
-      currentVersion: { include: { storedFile: true } },
+      currentVersion: {
+        include: {
+          storedFile: true,
+          content: { select: { status: true, documentKind: true } },
+        },
+      },
+      chatAttachments: { select: { id: true }, take: 1 },
     } as const;
+  }
+
+  private aiAccessAudit() {
+    return {
+      aiAccessChangedAt: new Date(),
+      aiAccessChangedByUserId: this.context.userId,
+    };
+  }
+
+  private async logAiAccess(
+    tx: Prisma.TransactionClient,
+    documentId: string,
+    aiAccess: boolean,
+    links: { caseId?: string; clientId?: string },
+  ): Promise<void> {
+    await this.log(tx, {
+      action: aiAccess
+        ? "DOCUMENT_AI_ACCESS_ENABLED"
+        : "DOCUMENT_AI_ACCESS_DISABLED",
+      entityId: documentId,
+      ...links,
+      metadata: { aiAccess },
+    });
+  }
+
+  /**
+   * Content for a freshly ingested file, outside the main transaction: the
+   * row is keyed by bytes, so linking it is idempotent and safe to repeat.
+   */
+  private async resolveContent(
+    ingest: { sha256: string; mimeType: string; sizeBytes: number },
+    contentId?: string,
+  ): Promise<string> {
+    const { workspaceId } = this.context;
+    if (contentId) {
+      const found = await this.prisma.documentContent.findFirst({
+        where: { id: contentId, workspaceId },
+        select: { id: true },
+      });
+      if (!found) throw new BadRequestException("Content is unavailable");
+      return found.id;
+    }
+    const content = await this.content.findOrCreate({
+      workspaceId,
+      sha256: ingest.sha256,
+      mimeType: ingest.mimeType,
+      sizeBytes: ingest.sizeBytes,
+    });
+    return content.id;
+  }
+
+  /** Text extracted elsewhere fills the content row only while it has none. */
+  private async seedContentText(
+    contentId: string,
+    initialText: DocumentInitialText,
+  ): Promise<void> {
+    if (initialText.status !== "COMPLETED" || initialText.text === null) return;
+    await this.prisma.documentContent.updateMany({
+      where: {
+        id: contentId,
+        workspaceId: this.context.workspaceId,
+        extractedText: null,
+      },
+      data: {
+        extractedText: initialText.text,
+        sourceScript: initialText.sourceScript,
+      },
+    });
+  }
+
+  /**
+   * Best effort: the database state is already correct, so a queue outage
+   * must not fail the request. Unprocessed content stays PENDING (QUEUED) and
+   * is recovered by reprocess or the reindex command.
+   */
+  private async tryRequestIngestion(
+    contentIds: (string | null | undefined)[],
+  ): Promise<void> {
+    const { workspaceId } = this.context;
+    for (const contentId of new Set(contentIds)) {
+      if (!contentId) continue;
+      try {
+        await this.content.requestIngestion(workspaceId, contentId);
+      } catch (error) {
+        this.logger.warn(
+          `Ingestion of content ${contentId} was not queued: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   private async requireLinks(
@@ -650,10 +872,12 @@ export class DocumentsService {
     title: string;
     category: string | null;
     archivedAt: Date | null;
+    aiAccess: boolean;
     createdByUserId: string;
     updatedByUserId: string;
     createdAt: Date;
     updatedAt: Date;
+    chatAttachments: { id: string }[];
     cases: { case: CaseReference }[];
     clients: { client: ClientReference }[];
     currentVersion: VersionRow | null;
@@ -665,11 +889,12 @@ export class DocumentsService {
       category: row.category,
       archived: !!row.archivedAt,
       archivedAt: row.archivedAt?.toISOString() ?? null,
-      // Temporary until the AI-access mapping lands (Task 7).
-      aiAccess: false,
-      aiStatus: "OFF",
-      documentKind: null,
-      fromAssistantChat: false,
+      aiAccess: row.aiAccess,
+      aiStatus: aiStatus(row.aiAccess, row.currentVersion?.content),
+      documentKind:
+        (row.currentVersion?.content?.documentKind as DocumentKind | null) ??
+        null,
+      fromAssistantChat: row.chatAttachments.length > 0,
       cases: row.cases.map((item) => this.caseReference(item.case)),
       clients: row.clients.map((item) => this.clientReference(item.client)),
       currentVersion: row.currentVersion
@@ -718,6 +943,8 @@ export class DocumentsService {
 
 type VersionRow = {
   id: string;
+  contentId?: string | null;
+  content?: { status: string; documentKind: string | null } | null;
   versionNumber: number;
   originalFilename: string;
   storedFileId: string;
@@ -729,6 +956,28 @@ type VersionRow = {
     sha256: string | null;
   };
 };
+
+function aiStatus(
+  aiAccess: boolean,
+  content: { status: string } | null | undefined,
+): DocumentAiStatus {
+  if (!aiAccess) return "OFF";
+  switch (content?.status) {
+    case undefined:
+    case "PENDING":
+      return "QUEUED";
+    case "EXTRACTING":
+    case "EMBEDDING":
+    case "CLASSIFYING":
+      return "PROCESSING";
+    case "READY":
+    case "FAILED":
+    case "UNSUPPORTED":
+      return content.status;
+    default:
+      return "QUEUED";
+  }
+}
 
 function uniqueIds(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];

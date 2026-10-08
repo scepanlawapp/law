@@ -7,6 +7,7 @@ export interface ParsedDocumentUpload {
   folderId?: string;
   title?: string;
   category?: string;
+  aiAccess?: boolean;
   caseIds: string[];
   clientIds: string[];
   originalFilename: string;
@@ -34,6 +35,7 @@ export function parseDocumentUpload(
     let folderId: string | undefined;
     let title: string | undefined;
     let category: string | undefined;
+    let aiAccess: boolean | undefined;
     let originalFilename: string | undefined;
     let stream: Readable | undefined;
 
@@ -52,7 +54,13 @@ export function parseDocumentUpload(
       if (name === "folderId") folderId = String(value);
       else if (name === "title") title = String(value);
       else if (name === "category") category = String(value);
-      else if (name === "caseIds" || name === "caseIds[]")
+      else if (name === "aiAccess") {
+        if (value === "true") aiAccess = true;
+        else if (value === "false") aiAccess = false;
+        else {
+          fail(new BadRequestException("aiAccess must be true or false"));
+        }
+      } else if (name === "caseIds" || name === "caseIds[]")
         pushId(caseIds, value);
       else if (name === "clientIds" || name === "clientIds[]") {
         pushId(clientIds, value);
@@ -60,6 +68,10 @@ export function parseDocumentUpload(
     });
 
     busboy.on("file", (name, file, info) => {
+      if (settled) {
+        file.resume();
+        return;
+      }
       if (name !== "file") {
         file.resume();
         return;
@@ -77,6 +89,7 @@ export function parseDocumentUpload(
         folderId,
         title,
         category,
+        aiAccess,
         caseIds,
         clientIds,
         originalFilename,
