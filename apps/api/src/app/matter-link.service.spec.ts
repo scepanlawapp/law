@@ -533,6 +533,7 @@ describe("MatterLinkService", () => {
         workspaceId,
         brief: {
           ...brief,
+          defendant: { name: "Marko Marković", address: null },
           evidence: [
             { label: "Rešenje o otkazu", provided: true },
             { label: "Ugovor o radu", provided: false },
@@ -836,8 +837,6 @@ describe("MatterLinkService", () => {
     const source = { ref: "doc:lk-1", title: "Lična karta Petar" };
     expect(preview.clientPartySource).toEqual(source);
     expect(preview.opposingPartySource).toBeNull();
-    expect(preview.parties[0].source).toEqual(source);
-    expect(preview.parties[1].source).toBeNull();
 
     const switched = await service.previewBrief({
       workspaceId,

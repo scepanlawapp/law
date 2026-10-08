@@ -55,6 +55,14 @@ export function normalizeBriefForType(
     value: clean(brief.fields.find((item) => item.key === field.key)?.value),
   }));
   const allowed = new Set(missingFieldKeys(type));
+  // A party value that has data is not missing.
+  const filledPartyKeys = new Set(
+    parties.flatMap((party) => [
+      ...(party.name ? [`${party.role}Name`] : []),
+      ...(party.address ? [`${party.role}Address`] : []),
+      ...(party.idNumber ? [`${party.role}IdNumber`] : []),
+    ]),
+  );
   const missingFields: BriefMissingField[] = [];
   for (const item of brief.missingFields) {
     const known = allowed.has(item.key);
@@ -62,6 +70,7 @@ export function normalizeBriefForType(
       item.label.trim() ||
       (known ? (describeMissingField(type, item.key)?.label ?? "") : "");
     if (!label) continue;
+    if (filledPartyKeys.has(item.key)) continue;
     missingFields.push({ key: known ? item.key : "other", label });
   }
   return {
@@ -186,7 +195,8 @@ function sameValue(a: string, b: string, identifier = false): boolean {
 
 /**
  * The model's cited source, accepted only when its ref is among the provided
- * facts and the party carries a value equal to a fact of that document.
+ * facts, the party name equals a fact of that document, and the id number (if
+ * any) does too.
  */
 function verifiedSource(
   cited: unknown,
@@ -198,16 +208,14 @@ function verifiedSource(
   if (!ref) return null;
   const ofRef = facts.filter((fact) => fact.ref === ref);
   if (!ofRef.length) return null;
-  const values: Array<[string | null, boolean]> = [
-    [party.name, false],
-    [party.address, false],
-    [party.idNumber, true],
-  ];
-  const matches = values.some(
-    ([value, identifier]) =>
-      value !== null &&
-      ofRef.some((fact) => sameValue(value, fact.value, identifier)),
-  );
+  // Fail closed: the name must come from this document, and so must the
+  // id number when there is one. The address may be newer than the document.
+  if (party.name === null) return null;
+  const nameMatches = ofRef.some((fact) => sameValue(party.name!, fact.value));
+  const idMatches =
+    party.idNumber === null ||
+    ofRef.some((fact) => sameValue(party.idNumber!, fact.value, true));
+  const matches = nameMatches && idMatches;
   return matches ? { ref, title: ofRef[0].title } : null;
 }
 

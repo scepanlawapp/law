@@ -718,8 +718,6 @@ export interface BriefPartyOption {
   label: string;
   name: string | null;
   address: string | null;
-  // The document the party's data was taken from; absent on older briefs.
-  source?: BriefFactSource | null;
 }
 
 export interface BriefApplyPreviewRequest {

@@ -583,6 +583,95 @@ describe("document facts in the brief", () => {
       expect(brief.parties[0].source?.ref).toBe("doc:id-1");
     });
 
+    it("drops the source when the name matches but the idNumber was invented", () => {
+      const brief = normalizeBriefForType(
+        withSource({ ref: "doc:id-1", title: "x" }, "1111111111111"),
+        type,
+        { facts },
+      );
+
+      expect(brief.parties[0]).not.toHaveProperty("source");
+    });
+
+    it("keeps the source when name and idNumber match even if the address differs", () => {
+      const input = withSource({ ref: "doc:id-1", title: "x" });
+      const brief = normalizeBriefForType(
+        {
+          ...input,
+          parties: [
+            { ...input.parties[0], address: "Nova adresa 5, Novi Sad" },
+            input.parties[1],
+          ],
+        },
+        type,
+        {
+        facts: [
+          ...facts,
+          {
+            ref: "doc:id-1",
+            title: "Lična karta Petar",
+            subjectType: "PERSON",
+            subjectRole: null,
+            field: "address",
+            value: "Stara adresa 1, Beograd",
+          },
+        ],
+        },
+      );
+
+      expect(brief.parties[0].source?.ref).toBe("doc:id-1");
+    });
+
+    it("keeps the source when the idNumber is null and the name matches", () => {
+      const brief = normalizeBriefForType(
+        { ...withSource({ ref: "doc:id-1", title: "x" }, "0101990710006") },
+        type,
+        { facts },
+      );
+      const nullId = normalizeBriefForType(
+        {
+          ...fullBrief,
+          parties: [
+            {
+              role: "plaintiff",
+              name: "Petar Petrović",
+              address: null,
+              idNumber: null,
+              source: { ref: "doc:id-1", title: "x" },
+            },
+            { role: "defendant", name: null, address: null, idNumber: null },
+          ],
+        },
+        type,
+        { facts },
+      );
+
+      expect(brief.parties[0].source?.ref).toBe("doc:id-1");
+      expect(nullId.parties[0].source?.ref).toBe("doc:id-1");
+    });
+
+    it("drops the source when the name is missing or differs", () => {
+      const other = normalizeBriefForType(
+        {
+          ...fullBrief,
+          parties: [
+            {
+              role: "plaintiff",
+              name: "Marko Marković",
+              address: null,
+              idNumber: "0101990710006",
+              source: { ref: "doc:id-1", title: "x" },
+            },
+            { role: "defendant", name: null, address: null, idNumber: null },
+          ],
+        },
+        type,
+        { facts },
+      );
+
+      expect(other.parties[0]).not.toHaveProperty("source");
+    });
+
     it("drops a source whose ref is not among the provided facts", () => {
       const invented = normalizeBriefForType(
         withSource({ ref: "doc:izmisljen", title: "Lažni" }),
@@ -656,5 +745,38 @@ describe("document facts in the brief", () => {
       });
       expect(brief.parties[1]).not.toHaveProperty("source");
     });
+  });
+});
+
+describe("missing fields reconciled with filled party values", () => {
+  it("drops party missing-field entries whose value is filled and keeps the rest", () => {
+    const type = getDocumentType("LAWSUIT");
+    const brief = normalizeBriefForType(
+      {
+        ...fullBrief,
+        parties: [
+          {
+            role: "plaintiff",
+            name: "Petar Petrović",
+            address: "Knez Mihailova 1, Beograd",
+            idNumber: "0101990710006",
+          },
+          { role: "defendant", name: "Alfa d.o.o.", address: null, idNumber: null },
+        ],
+        missingFields: [
+          { key: "plaintiffAddress", label: "Adresa tužioca" },
+          { key: "plaintiffIdNumber", label: "JMBG / matični broj tužioca" },
+          { key: "plaintiffName", label: "Ime tužioca" },
+          { key: "defendantAddress", label: "Adresa tuženog" },
+          { key: "competentCourt", label: "Nadležni sud" },
+        ],
+      },
+      type,
+    );
+
+    expect(brief.missingFields.map((item) => item.key)).toEqual([
+      "defendantAddress",
+      "competentCourt",
+    ]);
   });
 });

@@ -333,7 +333,6 @@ export class MatterLinkService {
           label: party.label,
           name: entry?.name ?? null,
           address: entry?.address ?? null,
-          source: entry?.source ?? null,
         };
       }),
       clientRole,
