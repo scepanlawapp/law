@@ -1,0 +1,183 @@
+<section class="flex flex-col gap-4">
+  <header>
+    <h2 class="text-lg font-semibold">{{ "time.events.title" | translate }}</h2>
+    <p class="text-sm text-muted-foreground">
+      {{ "time.events.description" | translate }}
+    </p>
+  </header>
+  @if (loading()) {
+    <div role="status" class="flex items-center gap-2">
+      <hlm-spinner />
+      {{ "time.events.loading" | translate }}
+    </div>
+  }
+  @if (error()) {
+    <div role="alert" class="flex items-center gap-3">
+      <p class="text-sm text-destructive">
+        {{ "time.events.loadError" | translate }}
+      </p>
+      <button hlmBtn type="button" variant="outline" (click)="load()">
+        {{ "time.retry" | translate }}
+      </button>
+    </div>
+  }
+  @if (!loading() && !error()) {
+    @if (presentation() === "board") {
+      <div class="grid gap-3 lg:grid-cols-2">
+        @for (event of events(); track event.id) {
+          <article
+            class="flex min-w-0 flex-col gap-3 rounded-xl border border-border bg-card p-4"
+          >
+            <div class="flex flex-wrap items-start justify-between gap-2">
+              <h3 class="min-w-0 break-words text-base font-semibold">
+                {{ event.title }}
+              </h3>
+              <span [class]="badgeBase + ' ' + statusBadgeClass(status(event))">
+                {{ statusLabel(event) | translate }}
+              </span>
+            </div>
+            <p class="text-sm text-muted-foreground">
+              @for (client of event.clients; track client.id) {
+                {{ client.displayName }}{{ $last ? "" : ", " }}
+              }
+              @if (event.case) {
+                / {{ event.case.caseNumber }}
+              }
+            </p>
+            <p class="text-sm text-muted-foreground">
+              {{ eventTime(event) }}
+            </p>
+            @if (event.writeOffReason) {
+              <p class="text-sm text-muted-foreground">
+                {{ event.writeOffReason }}
+              </p>
+            }
+            <div class="mt-auto flex flex-wrap justify-end gap-2">
+              <ng-container
+                *ngTemplateOutlet="actions; context: { $implicit: event }"
+              />
+            </div>
+          </article>
+        }
+      </div>
+    } @else {
+      <div hlmTableContainer>
+        <table hlmTable>
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh>{{ "time.events.event" | translate }}</th>
+              <th hlmTh>{{ "time.capture.date" | translate }}</th>
+              <th hlmTh>{{ "work.entries.status" | translate }}</th>
+              <th hlmTh>{{ "finance.actions" | translate }}</th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (event of events(); track event.id) {
+              <tr hlmTr>
+                <td hlmTd>
+                  <span class="font-medium">{{ event.title }}</span>
+                  <span class="block text-sm text-muted-foreground">
+                    @for (client of event.clients; track client.id) {
+                      {{ client.displayName }}{{ $last ? "" : ", " }}
+                    }
+                    @if (event.case) {
+                      / {{ event.case.caseNumber }}
+                    }
+                  </span>
+                </td>
+                <td hlmTd>
+                  {{ eventTime(event) }}
+                </td>
+                <td hlmTd>
+                  <span
+                    [class]="badgeBase + ' ' + statusBadgeClass(status(event))"
+                  >
+                    {{ statusLabel(event) | translate }}
+                  </span>
+                </td>
+                <td hlmTd>
+                  <div class="flex flex-wrap gap-2">
+                    <ng-container
+                      *ngTemplateOutlet="actions; context: { $implicit: event }"
+                    />
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+    @if (!events().length) {
+      <p class="text-sm text-muted-foreground">
+        {{ "time.events.empty" | translate }}
+      </p>
+    }
+  }
+  @if (totalPages() > 1) {
+    <div class="flex justify-end gap-2">
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        [disabled]="loading() || page() <= 1"
+        (click)="load(page() - 1)"
+      >
+        {{ "time.events.previous" | translate }}
+      </button>
+      <span class="self-center text-sm">{{ page() }} / {{ totalPages() }}</span>
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        [disabled]="loading() || page() >= totalPages()"
+        (click)="load(page() + 1)"
+      >
+        {{ "time.events.next" | translate }}
+      </button>
+    </div>
+  }
+</section>
+<ng-template #actions let-event>
+  <button
+    hlmBtn
+    type="button"
+    variant="outline"
+    [disabled]="busy() !== null"
+    (click)="viewEvent(event)"
+  >
+    {{ "time.events.view" | translate }}
+  </button>
+  @if (canWriteOff(event)) {
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      [disabled]="busy() !== null"
+      (click)="writeOff(event)"
+    >
+      {{ "time.review.writeOff" | translate }}
+    </button>
+  }
+  @if (canLog(event)) {
+    <button
+      hlmBtn
+      type="button"
+      [disabled]="busy() !== null"
+      (click)="logWork(event)"
+    >
+      {{ "time.capture.open" | translate }}
+    </button>
+  }
+  @if (event.workEntry?.canManage && !canLog(event)) {
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      [disabled]="busy() !== null"
+      (click)="viewWork(event)"
+    >
+      {{ "work.entries.viewTitle" | translate }}
+    </button>
+  }
+</ng-template>

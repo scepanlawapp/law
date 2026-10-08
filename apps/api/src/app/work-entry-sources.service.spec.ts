@@ -14,6 +14,8 @@ const entryId = "77777777-7777-4777-a777-777777777777";
 
 describe("WorkEntrySourcesService", () => {
   const tx = {
+    $queryRaw: jest.fn(),
+    event: { findFirst: jest.fn() },
     workEntry: { findFirst: jest.fn(), createMany: jest.fn() },
     activityLog: { create: jest.fn() },
   };
@@ -58,6 +60,16 @@ describe("WorkEntrySourcesService", () => {
   });
 
   describe("ensureForSource", () => {
+    it("does not propose work for an explicitly written-off event", async () => {
+      tx.event.findFirst.mockResolvedValue({
+        workWriteOffReason: "Not billable",
+      });
+      await expect(
+        service.ensureForSource(tx as never, input({ sourceType: "EVENT" })),
+      ).resolves.toBeNull();
+      expect(tx.workEntry.createMany).not.toHaveBeenCalled();
+    });
+
     it("returns null and writes nothing when no client is known", async () => {
       await expect(
         service.ensureForSource(tx as never, input({ clientIds: [] })),

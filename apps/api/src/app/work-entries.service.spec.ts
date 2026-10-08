@@ -85,7 +85,12 @@ describe("WorkEntriesService", () => {
     $queryRaw: jest.fn(),
     task: { findFirst: jest.fn() },
     client: { findFirst: jest.fn(), findMany: jest.fn() },
-    event: { findMany: jest.fn() },
+    event: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      count: jest.fn(),
+      update: jest.fn(),
+    },
     document: { findMany: jest.fn() },
     chatSession: { findMany: jest.fn() },
     case: { findFirst: jest.fn() },
@@ -414,6 +419,162 @@ describe("WorkEntriesService", () => {
       } finally {
         logSpy.mockRestore();
       }
+    });
+  });
+
+  describe("past event work", () => {
+    const eventId = "11111111-1111-4111-8111-111111111119";
+    beforeEach(() => {
+      db.event.findFirst.mockResolvedValue({
+        id: eventId,
+        status: "COMPLETED",
+        endsAt: new Date("2020-01-01"),
+        workWriteOffReason: null,
+      });
+      db.workEntry.findFirst.mockResolvedValue(null);
+    });
+    it("captures an event with a durable source link", async () => {
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, eventId }),
+      );
+      expect(db.workEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            source: "EVENT",
+            sourceType: "EVENT",
+            sourceId: eventId,
+            status: "CONFIRMED",
+          }),
+        }),
+      );
+      expect(db.event.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            id: eventId,
+            workspaceId,
+            OR: expect.any(Array),
+          }),
+        }),
+      );
+    });
+    it("rejects an event outside the accessible workspace scope", async () => {
+      db.event.findFirst.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it("does not log upcoming events", async () => {
+      db.event.findFirst.mockResolvedValue({
+        status: "SCHEDULED",
+        endsAt: new Date("2099-01-01"),
+        workWriteOffReason: null,
+      });
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it("does not let an assignee overwrite another performer's event work", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "PROPOSED", userId: otherUserId }),
+      );
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        ),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+      expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+    });
+    it("refuses duplicate capture once event work is confirmed", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "CONFIRMED" }),
+      );
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it("confirms an existing proposal instead of creating duplicate event work", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "PROPOSED" }),
+      );
+      db.workEntry.findUniqueOrThrow.mockResolvedValue(
+        entryRecord({ status: "CONFIRMED" }),
+      );
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, eventId }),
+      );
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+      expect(db.workEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ status: "PROPOSED", workspaceId }),
+          data: expect.objectContaining({ status: "CONFIRMED" }),
+        }),
+      );
+    });
+    it("writes off unlogged events without inventing a client or work entry", async () => {
+      await as(WorkspaceRole.LAWYER, () =>
+        service.writeOffEvent(eventId, "Internal meeting"),
+      );
+      expect(db.event.update).toHaveBeenCalledWith({
+        where: { id: eventId, workspaceId },
+        data: { workWriteOffReason: "Internal meeting" },
+      });
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+      expect(db.activityLog.create).toHaveBeenCalled();
+    });
+    it("rejects capture after the event was written off", async () => {
+      db.event.findFirst.mockResolvedValue({
+        status: "COMPLETED",
+        endsAt: new Date("2020-01-01"),
+        workWriteOffReason: "Internal",
+      });
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it("keeps billed event work immutable", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "BILLED" }),
+      );
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.writeOffEvent(eventId, "Reason"),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(db.event.update).not.toHaveBeenCalled();
+    });
+    it("paginates only past non-cancelled events in the current user's workspace", async () => {
+      db.event.count.mockResolvedValue(0);
+      db.event.findMany.mockResolvedValue([]);
+      await as(WorkspaceRole.LAWYER, () =>
+        service.pastEvents({ page: 2, pageSize: 20 }),
+      );
+      expect(db.event.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId,
+            endsAt: { lte: expect.any(Date) },
+            status: { not: "CANCELLED" },
+            OR: [
+              { organizerUserId: userId },
+              { assignees: { some: { userId } } },
+            ],
+          }),
+          skip: 20,
+          take: 20,
+        }),
+      );
     });
   });
 

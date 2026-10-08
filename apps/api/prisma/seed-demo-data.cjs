@@ -814,6 +814,7 @@ async function ensureEvents(
 
     const event = await prisma.event.create({
       data: {
+        workWriteOffReason: null,
         workspaceId,
         type: template.type,
         title: linkedCase

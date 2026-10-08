@@ -93,6 +93,14 @@ export class WorkEntrySourcesService {
     tx: Prisma.TransactionClient,
     input: EnsureSourceEntryInput,
   ): Promise<string | null> {
+    if (input.sourceType === "EVENT") {
+      await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${input.sourceId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
+      const event = await tx.event.findFirst({
+        where: { id: input.sourceId, workspaceId: input.workspaceId },
+        select: { workWriteOffReason: true },
+      });
+      if (event?.workWriteOffReason) return null;
+    }
     const clientIds = [...new Set(input.clientIds)];
     if (clientIds.length !== 1) return null;
     const [clientId] = clientIds;
