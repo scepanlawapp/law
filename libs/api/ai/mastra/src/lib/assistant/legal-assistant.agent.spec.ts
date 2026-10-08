@@ -20,6 +20,8 @@ import { createListActivityTool } from "./tools/list-activity.tool";
 import { createListDocumentsTool } from "./tools/list-documents.tool";
 import { createReadDocumentTool } from "./tools/read-document.tool";
 import { createSearchDocumentsTool } from "./tools/search-documents.tool";
+import { createSearchCaseDocumentsTool } from "./tools/search-case-documents.tool";
+import { createGetDocumentFactsTool } from "./tools/get-document-facts.tool";
 import { createListWorkItemsTool } from "./tools/list-work-items.tool";
 import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
@@ -146,6 +148,16 @@ function deps(
     searchDocuments: jest
       .fn()
       .mockResolvedValue({ status: "NOT_FOUND", message: "none" }),
+    searchCaseDocuments: jest
+      .fn()
+      .mockResolvedValue({ status: "NO_DOCUMENTS", message: "none" }),
+    getDocumentFacts: jest.fn().mockResolvedValue({
+      status: "OK",
+      subjects: [],
+      conflicts: [],
+      notIndexed: [],
+      aiAccessOff: [],
+    }),
     proposeAction: jest.fn().mockResolvedValue({
       status: "CONFIRMATION_REQUIRED",
       pendingActionId: "action-1",
@@ -505,6 +517,42 @@ describe("assistant tools", () => {
       query: "zakupnina",
       ref: undefined,
     });
+  });
+
+  it("case-document tools pass the turn scope, default and cap the limit", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+
+    await createSearchCaseDocumentsTool(toolDeps).execute?.(
+      { query: "zakupnina", limit: 8 },
+      context,
+    );
+    await createGetDocumentFactsTool(toolDeps).execute?.(
+      { ref: "doc:1" },
+      context,
+    );
+    const schema = createSearchCaseDocumentsTool(toolDeps)
+      .inputSchema as unknown as ZodTypeAny;
+
+    expect(toolDeps.searchCaseDocuments).toHaveBeenCalledWith(turn, {
+      query: "zakupnina",
+      ref: undefined,
+      limit: 8,
+    });
+    expect(toolDeps.getDocumentFacts).toHaveBeenCalledWith(turn, {
+      ref: "doc:1",
+    });
+    expect(schema.parse({ query: "zakup" })).toEqual({
+      query: "zakup",
+      limit: 8,
+    });
+    expect(schema.safeParse({ query: "zakup", limit: 13 }).success).toBe(false);
+  });
+
+  it("routes content, exact and personal-data questions to the right document tool", () => {
+    expect(buildLegalAssistantInstructions({ language: "sr" })).toContain(
+      "Pitanja o sadržaju → search_case_documents; tačan broj, naziv ili citat → search_documents; lični i matični podaci stranaka → get_document_facts.",
+    );
   });
 
   it("document tools validate their inputs", () => {

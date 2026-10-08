@@ -1,5 +1,6 @@
 import type {
   ContractReviewType,
+  DocumentKind,
   DraftDocumentType,
 } from "@law/api-interfaces";
 import type { GroundingSearchHit } from "@law/legal-grounding";
@@ -350,6 +351,76 @@ export type AssistantDocumentSearch =
     }
   | { status: "NOT_FOUND" | "UNAVAILABLE" | "AI_ACCESS_OFF"; message: string };
 
+export const CASE_DOCUMENT_SEARCH_DEFAULT_LIMIT = 8;
+export const CASE_DOCUMENT_SEARCH_MAX_LIMIT = 12;
+
+export interface AssistantCaseDocumentHit {
+  /** 1..N in hit order. */
+  n: number;
+  ref: string;
+  title: string;
+  /** Chunk text of the document, Latin script. */
+  text: string;
+  /** Offsets of the chunk within the document text (for read_document). */
+  charStart: number;
+  charEnd: number;
+  /** Cosine similarity, higher is closer. */
+  score: number;
+}
+
+export type AssistantCaseDocumentSearch =
+  | {
+      status: "OK";
+      query: string;
+      hits: AssistantCaseDocumentHit[];
+      /** Titles of readable documents whose content is not indexed yet. */
+      notIndexed: string[];
+      /** Titles of documents skipped because AI access is off. */
+      aiAccessOff: string[];
+    }
+  | { status: "NO_DOCUMENTS"; message: string }
+  | {
+      status: "NOT_FOUND" | "UNAVAILABLE" | "AI_ACCESS_OFF";
+      message: string;
+    };
+
+export interface AssistantDocumentFact {
+  field: string;
+  value: string;
+  quote: string;
+  confidence: number;
+}
+
+export interface AssistantDocumentSubject {
+  ref: string;
+  title: string;
+  documentKind: DocumentKind;
+  subjectKey: string;
+  subjectType: string;
+  subjectRole: string | null;
+  facts: AssistantDocumentFact[];
+}
+
+export interface AssistantDocumentFactConflict {
+  field: string;
+  /** Name of the person or company the documents disagree about. */
+  subject: string;
+  values: Array<{ value: string; ref: string }>;
+}
+
+export type AssistantDocumentFacts =
+  | {
+      status: "OK";
+      subjects: AssistantDocumentSubject[];
+      conflicts: AssistantDocumentFactConflict[];
+      notIndexed: string[];
+      aiAccessOff: string[];
+    }
+  | {
+      status: "NOT_FOUND" | "UNAVAILABLE" | "AI_ACCESS_OFF";
+      message: string;
+    };
+
 export const ASSISTANT_DEADLINE_TYPES = [
   "COURT",
   "STATUTORY",
@@ -436,6 +507,16 @@ export interface LegalAssistantToolDeps {
     scope: AssistantTurnScope,
     args: { query: string; ref?: string },
   ): Promise<AssistantDocumentSearch>;
+  /** Semantic search over the indexed chunks of readable documents. */
+  searchCaseDocuments(
+    scope: AssistantTurnScope,
+    args: { query: string; ref?: string; limit?: number },
+  ): Promise<AssistantCaseDocumentSearch>;
+  /** Extracted facts (persons, companies, decisions) of readable documents. */
+  getDocumentFacts(
+    scope: AssistantTurnScope,
+    args: { ref?: string },
+  ): Promise<AssistantDocumentFacts>;
   /** Drafts a document from the conversation (reversible: needs lawyer approval). */
   draftDocument(
     scope: AssistantTurnScope,

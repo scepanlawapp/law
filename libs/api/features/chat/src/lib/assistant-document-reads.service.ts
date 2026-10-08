@@ -3,28 +3,50 @@ import type { BriefDocumentInput } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
 import type {
+  AssistantCaseDocumentSearch,
   AssistantDocumentEntry,
+  AssistantDocumentFacts,
   AssistantDocumentList,
   AssistantDocumentMatch,
   AssistantDocumentRead,
   AssistantDocumentSearch,
+  AssistantDocumentSubject,
   AssistantTurnScope,
 } from "@law/mastra";
+import type { DocumentKind } from "@law/api-interfaces";
 import { toLatin } from "@law/transliteration";
-import { DocumentContentService } from "@law/document-ingestion";
+import {
+  DocumentContentSearch,
+  DocumentContentService,
+} from "@law/document-ingestion";
 import { ChatAttachmentStorage } from "@law/file-storage";
 import {
   type AccessDecision,
   DocumentAccessPolicy,
   accessRefusalMessage,
 } from "./document-access.policy";
+import {
+  type SourcedFact,
+  findFactConflicts,
+} from "./document-facts.conflicts";
 
 const DOCUMENT_LIMIT = 30;
 const READ_WINDOW_CHARS = 12_000;
 const SNIPPET_CONTEXT_CHARS = 200;
 const HITS_PER_DOCUMENT = 10;
+const CASE_SEARCH_DEFAULT_LIMIT = 8;
+const CASE_SEARCH_MAX_LIMIT = 12;
 const DOC_PREFIX = "doc:";
 const ATTACHMENT_PREFIX = "att:";
+
+const CASE_SEARCH_UNAVAILABLE = {
+  status: "UNAVAILABLE" as const,
+  message: "Pretraga sadržaja dokumenata trenutno nije dostupna.",
+};
+const FACTS_UNAVAILABLE = {
+  status: "UNAVAILABLE" as const,
+  message: "Podaci iz dokumenata trenutno nisu dostupni.",
+};
 
 type SourceBase = {
   ref: string;
@@ -71,6 +93,9 @@ export class AssistantDocumentReadsService {
     @Optional()
     @Inject(DocumentContentService)
     private readonly content?: DocumentContentService,
+    @Optional()
+    @Inject(DocumentContentSearch)
+    private readonly contentSearch?: DocumentContentSearch,
   ) {}
 
   async listDocuments(
@@ -289,6 +314,236 @@ export class AssistantDocumentReadsService {
       aiAccessOff,
       matches,
     };
+  }
+
+  /**
+   * Semantic search over the chunks of the readable, indexed sources. The
+   * content ids come only from sources the access policy allows; the search
+   * layer never sees an off document.
+   */
+  async searchCaseDocuments(
+    scope: AssistantTurnScope,
+    args: { query: string; ref?: string; limit?: number },
+  ): Promise<AssistantCaseDocumentSearch> {
+    const selection = await this.selectSources(scope, args.ref);
+    if ("refusal" in selection) return selection.refusal;
+    if (!selection.sources.length) {
+      return {
+        status: "NO_DOCUMENTS",
+        message: "Nema dokumenata u razgovoru ni na povezanom predmetu.",
+      };
+    }
+    if (!this.contentSearch) return CASE_SEARCH_UNAVAILABLE;
+    const { indexed, notIndexed, aiAccessOff } = await this.indexedSources(
+      scope,
+      selection.sources,
+    );
+    const limit = Math.min(
+      Math.max(Math.trunc(args.limit ?? CASE_SEARCH_DEFAULT_LIMIT) || 1, 1),
+      CASE_SEARCH_MAX_LIMIT,
+    );
+    let chunks: Awaited<ReturnType<DocumentContentSearch["searchChunks"]>> = [];
+    if (indexed.size) {
+      try {
+        chunks = await this.contentSearch.searchChunks(
+          scope.workspaceId,
+          [...indexed.keys()],
+          args.query,
+          limit,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Semantic document search failed: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return CASE_SEARCH_UNAVAILABLE;
+      }
+    }
+    const hits: Extract<AssistantCaseDocumentSearch, { status: "OK" }>["hits"] =
+      [];
+    for (const chunk of chunks) {
+      const entry = indexed.get(chunk.contentId);
+      if (!entry) continue;
+      hits.push({
+        n: hits.length + 1,
+        ref: entry.source.ref,
+        title: entry.source.title,
+        text: chunk.text,
+        charStart: chunk.charStart,
+        charEnd: chunk.charEnd,
+        score: chunk.score,
+      });
+    }
+    return { status: "OK", query: args.query, hits, notIndexed, aiAccessOff };
+  }
+
+  /**
+   * Extracted facts of the readable, processed sources, grouped by subject,
+   * plus the values two documents report differently for one person or
+   * company. Facts of a document with AI access off are never loaded.
+   */
+  async getDocumentFacts(
+    scope: AssistantTurnScope,
+    args: { ref?: string },
+  ): Promise<AssistantDocumentFacts> {
+    const selection = await this.selectSources(scope, args.ref);
+    if ("refusal" in selection) return selection.refusal;
+    if (!this.contentSearch) return FACTS_UNAVAILABLE;
+    const { indexed, notIndexed, aiAccessOff } = await this.indexedSources(
+      scope,
+      selection.sources,
+    );
+    let rows: Awaited<ReturnType<DocumentContentSearch["factsFor"]>> = [];
+    if (indexed.size) {
+      try {
+        rows = await this.contentSearch.factsFor(scope.workspaceId, [
+          ...indexed.keys(),
+        ]);
+      } catch (error) {
+        this.logger.warn(
+          `Document facts were not read: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return FACTS_UNAVAILABLE;
+      }
+    }
+    const order = [...indexed.keys()];
+    const ordered = rows
+      .filter((row) => indexed.has(row.contentId))
+      .sort((a, b) => order.indexOf(a.contentId) - order.indexOf(b.contentId));
+    const subjects = new Map<string, AssistantDocumentSubject>();
+    const sourced: SourcedFact[] = [];
+    for (const row of ordered) {
+      const entry = indexed.get(row.contentId);
+      if (!entry) continue;
+      const key = `${row.contentId}\u0000${row.subjectKey}`;
+      let subject = subjects.get(key);
+      if (!subject) {
+        subject = {
+          ref: entry.source.ref,
+          title: entry.source.title,
+          documentKind: entry.documentKind ?? "OTHER",
+          subjectKey: row.subjectKey,
+          subjectType: row.subjectType,
+          subjectRole: row.subjectRole,
+          facts: [],
+        };
+        subjects.set(key, subject);
+      }
+      subject.facts.push({
+        field: row.field,
+        value: row.value,
+        quote: row.quote,
+        confidence: row.confidence,
+      });
+      sourced.push({
+        ref: entry.source.ref,
+        contentId: row.contentId,
+        subjectKey: row.subjectKey,
+        subjectType: row.subjectType,
+        field: row.field,
+        value: row.value,
+        normalizedValue: row.normalizedValue,
+      });
+    }
+    return {
+      status: "OK",
+      subjects: [...subjects.values()],
+      conflicts: findFactConflicts(sourced),
+      notIndexed,
+      aiAccessOff,
+    };
+  }
+
+  /**
+   * The sources a tool call covers: all of the conversation's, or the one named
+   * by `ref`. A named source that is off or absent yields the refusal to return.
+   */
+  private async selectSources(
+    scope: AssistantTurnScope,
+    refArg: string | undefined,
+  ): Promise<
+    | { sources: Source[] }
+    | {
+        refusal: {
+          status: "AI_ACCESS_OFF" | "NOT_FOUND";
+          message: string;
+        };
+      }
+  > {
+    const { sources } = await this.sources(scope);
+    const ref = refArg?.trim();
+    if (!ref) return { sources };
+    const source =
+      sources.find((item) => item.ref === ref) ??
+      (await this.namedDocument(scope, ref));
+    if (!source) {
+      return {
+        refusal: {
+          status: "NOT_FOUND",
+          message: `Dokument "${refArg}" nije pronađen. Koristite list_documents.`,
+        },
+      };
+    }
+    const refusal = refuse(source, ref);
+    return refusal ? { refusal } : { sources: [source] };
+  }
+
+  /**
+   * Splits sources by what the assistant may use: readable sources whose
+   * content is processed (READY) are returned by content id; readable but
+   * unprocessed ones are `notIndexed`; documents with AI access off are
+   * `aiAccessOff`. Only readable sources ever contribute a content id.
+   */
+  private async indexedSources(
+    scope: AssistantTurnScope,
+    sources: Source[],
+  ): Promise<{
+    indexed: Map<string, { source: Source; documentKind: DocumentKind | null }>;
+    notIndexed: string[];
+    aiAccessOff: string[];
+  }> {
+    const aiAccessOff: string[] = [];
+    const readable: Source[] = [];
+    for (const source of sources) {
+      if (source.access.readable) readable.push(source);
+      else aiAccessOff.push(source.title);
+    }
+    const contentIds = [
+      ...new Set(
+        readable
+          .map((source) => source.contentId)
+          .filter((id): id is string => Boolean(id)),
+      ),
+    ];
+    const contents = contentIds.length
+      ? await this.prisma.documentContent.findMany({
+          where: { workspaceId: scope.workspaceId, id: { in: contentIds } },
+          select: { id: true, status: true, documentKind: true },
+        })
+      : [];
+    const byId = new Map(contents.map((content) => [content.id, content]));
+    const indexed = new Map<
+      string,
+      { source: Source; documentKind: DocumentKind | null }
+    >();
+    const notIndexed: string[] = [];
+    for (const source of readable) {
+      const content = source.contentId ? byId.get(source.contentId) : null;
+      if (!source.contentId || content?.status !== "READY") {
+        notIndexed.push(source.title);
+        continue;
+      }
+      if (!indexed.has(source.contentId)) {
+        indexed.set(source.contentId, {
+          source,
+          documentKind: content.documentKind,
+        });
+      }
+    }
+    return { indexed, notIndexed, aiAccessOff };
   }
 
   private async sources(scope: AssistantTurnScope): Promise<{

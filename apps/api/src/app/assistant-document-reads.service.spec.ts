@@ -580,3 +580,605 @@ describe("fold", () => {
     expect(folded.origin[folded.text.indexOf("sid")]).toBe(11);
   });
 });
+
+describe("AssistantDocumentReadsService semantic search and facts", () => {
+  function doc(
+    id: string,
+    title: string,
+    contentId: string | null,
+    aiAccess = true,
+  ) {
+    return {
+      id,
+      title,
+      createdAt: new Date("2026-09-20T10:00:00Z"),
+      aiAccess,
+      archivedAt: null,
+      currentVersion: {
+        id: `version-${id}`,
+        originalFilename: `${id}.pdf`,
+        extractionStatus: "COMPLETED",
+        contentId,
+      },
+    };
+  }
+
+  type Fact = {
+    contentId: string;
+    subjectKey: string;
+    subjectType: "PERSON" | "COMPANY" | "DECISION";
+    subjectRole: string | null;
+    field: string;
+    value: string;
+    normalizedValue: string | null;
+    quote: string;
+    charStart: number | null;
+    confidence: number;
+  };
+
+  function fact(
+    contentId: string,
+    field: string,
+    value: string,
+    extra: Partial<Fact> = {},
+  ): Fact {
+    return {
+      contentId,
+      subjectKey: "holder",
+      subjectType: "PERSON",
+      subjectRole: null,
+      field,
+      value,
+      normalizedValue: null,
+      quote: `${field}: ${value}`,
+      charStart: 0,
+      confidence: 0.9,
+      ...extra,
+    };
+  }
+
+  function setupSemantic(
+    options: {
+      documents?: ReturnType<typeof doc>[];
+      attachments?: unknown[];
+      contents?: Array<{
+        id: string;
+        status: string;
+        documentKind: string | null;
+      }>;
+      chunks?: unknown[];
+      facts?: Fact[];
+      searchError?: Error;
+      withSearch?: boolean;
+    } = {},
+  ) {
+    const documents = options.documents ?? [
+      doc("doc-1", "Ugovor o zakupu", "content-1"),
+    ];
+    const prisma = {
+      chatSession: {
+        findFirst: jest.fn(async () => ({
+          case: { id: "case-1", caseNumber: "P-1/2026" },
+        })),
+      },
+      document: {
+        findMany: jest.fn(async () => documents),
+        findFirst: jest.fn(async (): Promise<unknown> => null),
+      },
+      chatAttachment: {
+        findMany: jest.fn(async () => options.attachments ?? []),
+      },
+      documentContent: {
+        findMany: jest.fn(async () => options.contents ?? []),
+      },
+    };
+    const search = {
+      searchChunks: jest.fn(async () => {
+        if (options.searchError) throw options.searchError;
+        return options.chunks ?? [];
+      }),
+      factsFor: jest.fn(async () => options.facts ?? []),
+    };
+    const service = new AssistantDocumentReadsService(
+      prisma as never,
+      { read: jest.fn() } as never,
+      { ensureText: jest.fn() } as never,
+      (options.withSearch === false ? undefined : search) as never,
+    );
+    return { service, prisma, search };
+  }
+
+  const ready = (id: string, documentKind: string | null = null) => ({
+    id,
+    status: "READY",
+    documentKind,
+  });
+
+  describe("searchCaseDocuments", () => {
+    it("searches only the content of readable, ready sources and numbers hits in order", async () => {
+      const { service, search, prisma } = setupSemantic({
+        documents: [
+          doc("doc-1", "Ugovor o zakupu", "content-1"),
+          doc("doc-2", "Tajni ugovor", "content-2", false),
+          doc("doc-3", "Aneks", "content-3"),
+        ],
+        contents: [ready("content-1"), ready("content-2"), ready("content-3")],
+        chunks: [
+          {
+            contentId: "content-3",
+            ordinal: 0,
+            text: "Aneks menja zakupninu.",
+            charStart: 0,
+            charEnd: 22,
+            score: 0.9,
+          },
+          {
+            contentId: "content-1",
+            ordinal: 4,
+            text: "Zakupnina iznosi 500 evra.",
+            charStart: 100,
+            charEnd: 126,
+            score: 0.8,
+          },
+        ],
+      });
+
+      const result = await service.searchCaseDocuments(scope, {
+        query: "zakupnina",
+      });
+
+      expect(search.searchChunks).toHaveBeenCalledWith(
+        "workspace-1",
+        ["content-1", "content-3"],
+        "zakupnina",
+        8,
+      );
+      expect(prisma.documentContent.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            workspaceId: "workspace-1",
+            id: { in: ["content-1", "content-3"] },
+          },
+        }),
+      );
+      expect(result).toEqual({
+        status: "OK",
+        query: "zakupnina",
+        hits: [
+          {
+            n: 1,
+            ref: "doc:doc-3",
+            title: "Aneks",
+            text: "Aneks menja zakupninu.",
+            charStart: 0,
+            charEnd: 22,
+            score: 0.9,
+          },
+          {
+            n: 2,
+            ref: "doc:doc-1",
+            title: "Ugovor o zakupu",
+            text: "Zakupnina iznosi 500 evra.",
+            charStart: 100,
+            charEnd: 126,
+            score: 0.8,
+          },
+        ],
+        notIndexed: [],
+        aiAccessOff: ["Tajni ugovor"],
+      });
+    });
+
+    it("clamps the limit to 12 and defaults it to 8", async () => {
+      const { service, search } = setupSemantic({
+        contents: [ready("content-1")],
+      });
+
+      await service.searchCaseDocuments(scope, { query: "x1", limit: 99 });
+      await service.searchCaseDocuments(scope, { query: "x1", limit: 3 });
+
+      expect(search.searchChunks).toHaveBeenNthCalledWith(
+        1,
+        "workspace-1",
+        ["content-1"],
+        "x1",
+        12,
+      );
+      expect(search.searchChunks).toHaveBeenNthCalledWith(
+        2,
+        "workspace-1",
+        ["content-1"],
+        "x1",
+        3,
+      );
+    });
+
+    it("lists sources whose content is not ready or missing as not indexed", async () => {
+      const { service, search } = setupSemantic({
+        documents: [
+          doc("doc-1", "Ugovor o zakupu", "content-1"),
+          doc("doc-3", "Aneks", "content-3"),
+          doc("doc-4", "Stari dokument", null),
+        ],
+        contents: [
+          ready("content-1"),
+          { id: "content-3", status: "PROCESSING", documentKind: null },
+        ],
+        attachments: [
+          {
+            id: "att-2",
+            originalName: "punomoćje.pdf",
+            extractionStatus: "PENDING",
+            documentId: null,
+            contentId: null,
+            document: null,
+            createdAt: new Date("2026-09-21T09:00:00Z"),
+          },
+        ],
+      });
+
+      const result = await service.searchCaseDocuments(scope, {
+        query: "zakup",
+      });
+
+      expect(search.searchChunks).toHaveBeenCalledWith(
+        "workspace-1",
+        ["content-1"],
+        "zakup",
+        8,
+      );
+      expect(result).toMatchObject({
+        status: "OK",
+        hits: [],
+        notIndexed: ["Aneks", "Stari dokument", "punomoćje.pdf"],
+        aiAccessOff: [],
+      });
+    });
+
+    it("never queries when nothing readable is indexed", async () => {
+      const { service, search } = setupSemantic({
+        documents: [doc("doc-2", "Tajni ugovor", "content-2", false)],
+        contents: [ready("content-2")],
+      });
+
+      const result = await service.searchCaseDocuments(scope, {
+        query: "zakup",
+      });
+
+      expect(search.searchChunks).not.toHaveBeenCalled();
+      expect(result).toMatchObject({
+        status: "OK",
+        hits: [],
+        aiAccessOff: ["Tajni ugovor"],
+      });
+    });
+
+    it("limits the search to one ref", async () => {
+      const { service, search } = setupSemantic({
+        documents: [
+          doc("doc-1", "Ugovor o zakupu", "content-1"),
+          doc("doc-3", "Aneks", "content-3"),
+        ],
+        contents: [ready("content-1"), ready("content-3")],
+      });
+
+      await service.searchCaseDocuments(scope, {
+        query: "zakup",
+        ref: "doc:doc-3",
+      });
+
+      expect(search.searchChunks).toHaveBeenCalledWith(
+        "workspace-1",
+        ["content-3"],
+        "zakup",
+        8,
+      );
+    });
+
+    it("refuses a ref whose AI access is off without searching", async () => {
+      const { service, search } = setupSemantic({
+        documents: [doc("doc-2", "Tajni ugovor", "content-2", false)],
+        contents: [ready("content-2")],
+      });
+
+      const result = await service.searchCaseDocuments(scope, {
+        query: "zakup",
+        ref: "doc:doc-2",
+      });
+
+      expect(result).toEqual({
+        status: "AI_ACCESS_OFF",
+        message: AI_ACCESS_OFF_MESSAGE("Tajni ugovor"),
+      });
+      expect(search.searchChunks).not.toHaveBeenCalled();
+    });
+
+    it("reports an unknown ref and a conversation without documents", async () => {
+      const { service, search } = setupSemantic({ documents: [] });
+
+      const unknown = await service.searchCaseDocuments(scope, {
+        query: "zakup",
+        ref: "doc:nope",
+      });
+      const none = await service.searchCaseDocuments(scope, { query: "zakup" });
+
+      expect(unknown.status).toBe("NOT_FOUND");
+      expect(none.status).toBe("NO_DOCUMENTS");
+      expect(search.searchChunks).not.toHaveBeenCalled();
+    });
+
+    it("reports unavailable when the search is not wired or fails", async () => {
+      const unwired = setupSemantic({ withSearch: false });
+      const failing = setupSemantic({
+        contents: [ready("content-1")],
+        searchError: new Error("embedding down"),
+      });
+
+      expect(
+        (await unwired.service.searchCaseDocuments(scope, { query: "zakup" }))
+          .status,
+      ).toBe("UNAVAILABLE");
+      expect(
+        (await failing.service.searchCaseDocuments(scope, { query: "zakup" }))
+          .status,
+      ).toBe("UNAVAILABLE");
+    });
+  });
+
+  describe("getDocumentFacts", () => {
+    const PERSON_DOC = (id: string, title: string, contentId: string) =>
+      doc(id, title, contentId);
+
+    it("groups facts by subject and passes only readable content ids", async () => {
+      const { service, search } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          doc("doc-2", "Tajna kartica", "content-2", false),
+        ],
+        contents: [
+          ready("content-1", "ID_CARD"),
+          ready("content-2", "ID_CARD"),
+        ],
+        facts: [
+          fact("content-1", "fullName", "Petar Petrović"),
+          fact("content-1", "jmbg", "0101990710006"),
+          fact("content-1", "fullName", "Marko Marković", {
+            subjectKey: "rep1",
+            subjectRole: "zastupnik",
+          }),
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      expect(search.factsFor).toHaveBeenCalledWith("workspace-1", [
+        "content-1",
+      ]);
+      expect(result).toEqual({
+        status: "OK",
+        subjects: [
+          {
+            ref: "doc:doc-1",
+            title: "Lična karta",
+            documentKind: "ID_CARD",
+            subjectKey: "holder",
+            subjectType: "PERSON",
+            subjectRole: null,
+            facts: [
+              {
+                field: "fullName",
+                value: "Petar Petrović",
+                quote: "fullName: Petar Petrović",
+                confidence: 0.9,
+              },
+              {
+                field: "jmbg",
+                value: "0101990710006",
+                quote: "jmbg: 0101990710006",
+                confidence: 0.9,
+              },
+            ],
+          },
+          {
+            ref: "doc:doc-1",
+            title: "Lična karta",
+            documentKind: "ID_CARD",
+            subjectKey: "rep1",
+            subjectType: "PERSON",
+            subjectRole: "zastupnik",
+            facts: [
+              {
+                field: "fullName",
+                value: "Marko Marković",
+                quote: "fullName: Marko Marković",
+                confidence: 0.9,
+              },
+            ],
+          },
+        ],
+        conflicts: [],
+        notIndexed: [],
+        aiAccessOff: ["Tajna kartica"],
+      });
+    });
+
+    it("never returns quotes of a document with AI access off", async () => {
+      const { service, search } = setupSemantic({
+        documents: [doc("doc-2", "Tajna kartica", "content-2", false)],
+        contents: [ready("content-2", "ID_CARD")],
+        facts: [
+          fact("content-2", "jmbg", "0101990710006", { quote: "TAJNI-CITAT" }),
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      expect(search.factsFor).not.toHaveBeenCalled();
+      expect(JSON.stringify(result)).not.toContain("TAJNI-CITAT");
+      expect(JSON.stringify(result)).not.toContain("0101990710006");
+      expect(result).toMatchObject({
+        status: "OK",
+        subjects: [],
+        aiAccessOff: ["Tajna kartica"],
+      });
+    });
+
+    it("refuses a ref whose AI access is off", async () => {
+      const { service, search } = setupSemantic({
+        documents: [doc("doc-2", "Tajna kartica", "content-2", false)],
+        contents: [ready("content-2")],
+      });
+
+      const result = await service.getDocumentFacts(scope, {
+        ref: "doc:doc-2",
+      });
+
+      expect(result).toEqual({
+        status: "AI_ACCESS_OFF",
+        message: AI_ACCESS_OFF_MESSAGE("Tajna kartica"),
+      });
+      expect(search.factsFor).not.toHaveBeenCalled();
+    });
+
+    it("lists contents that are not ready as not indexed", async () => {
+      const { service, search } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          PERSON_DOC("doc-3", "Pasoš", "content-3"),
+        ],
+        contents: [
+          ready("content-1", "ID_CARD"),
+          { id: "content-3", status: "FAILED", documentKind: null },
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      expect(search.factsFor).toHaveBeenCalledWith("workspace-1", [
+        "content-1",
+      ]);
+      expect(result).toMatchObject({ status: "OK", notIndexed: ["Pasoš"] });
+    });
+
+    it("reports one conflict when the same person has different JMBGs in two documents", async () => {
+      const { service } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          PERSON_DOC("doc-3", "Pasoš", "content-3"),
+        ],
+        contents: [
+          ready("content-1", "ID_CARD"),
+          ready("content-3", "PASSPORT"),
+        ],
+        facts: [
+          fact("content-1", "fullName", "Petar Petrović"),
+          fact("content-1", "jmbg", "0101990710006"),
+          fact("content-1", "address", "Knez Mihailova 1"),
+          fact("content-3", "fullName", "PETAR PETROVIĆ"),
+          fact("content-3", "jmbg", "0101990710007"),
+          fact("content-3", "address", "knez mihailova 1"),
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      if (result.status !== "OK") throw new Error("expected OK");
+      expect(result.conflicts).toEqual([
+        {
+          field: "jmbg",
+          subject: "Petar Petrović",
+          values: [
+            { value: "0101990710006", ref: "doc:doc-1" },
+            { value: "0101990710007", ref: "doc:doc-3" },
+          ],
+        },
+      ]);
+    });
+
+    it("matches people by JMBG and compares the normalized value", async () => {
+      const { service } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          PERSON_DOC("doc-3", "Pasoš", "content-3"),
+        ],
+        contents: [
+          ready("content-1", "ID_CARD"),
+          ready("content-3", "PASSPORT"),
+        ],
+        facts: [
+          fact("content-1", "jmbg", "0101990710006"),
+          fact("content-1", "dateOfBirth", "1. januar 1990", {
+            normalizedValue: "1990-01-01",
+          }),
+          fact("content-3", "jmbg", "0101990710006"),
+          fact("content-3", "dateOfBirth", "01.01.1990.", {
+            normalizedValue: "1990-01-01",
+          }),
+          fact("content-3", "placeOfBirth", "Niš"),
+          fact("content-1", "placeOfBirth", "Beograd"),
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      if (result.status !== "OK") throw new Error("expected OK");
+      expect(result.conflicts.map((conflict) => conflict.field)).toEqual([
+        "placeOfBirth",
+      ]);
+    });
+
+    it("does not treat different people or different subject types as conflicting", async () => {
+      const { service } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          PERSON_DOC("doc-3", "Pasoš", "content-3"),
+        ],
+        contents: [
+          ready("content-1", "ID_CARD"),
+          ready("content-3", "APR_EXCERPT"),
+        ],
+        facts: [
+          fact("content-1", "fullName", "Petar Petrović"),
+          fact("content-1", "address", "Knez Mihailova 1"),
+          fact("content-3", "fullName", "Petar Petrović", {
+            subjectType: "COMPANY",
+          }),
+          fact("content-3", "address", "Bulevar 5", { subjectType: "COMPANY" }),
+          fact("content-3", "fullName", "Jovan Jovanović", {
+            subjectKey: "rep1",
+          }),
+          fact("content-3", "address", "Druga 2", { subjectKey: "rep1" }),
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      if (result.status !== "OK") throw new Error("expected OK");
+      expect(result.conflicts).toEqual([]);
+    });
+
+    it("limits facts to one ref and reports unknown refs and unwired search", async () => {
+      const { service, search } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          PERSON_DOC("doc-3", "Pasoš", "content-3"),
+        ],
+        contents: [ready("content-1"), ready("content-3")],
+      });
+      const unwired = setupSemantic({ withSearch: false });
+
+      await service.getDocumentFacts(scope, { ref: "doc:doc-3" });
+      const unknown = await service.getDocumentFacts(scope, {
+        ref: "doc:nope",
+      });
+
+      expect(search.factsFor).toHaveBeenCalledWith("workspace-1", [
+        "content-3",
+      ]);
+      expect(unknown.status).toBe("NOT_FOUND");
+      expect((await unwired.service.getDocumentFacts(scope, {})).status).toBe(
+        "UNAVAILABLE",
+      );
+    });
+  });
+});

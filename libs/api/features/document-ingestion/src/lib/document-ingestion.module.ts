@@ -4,6 +4,7 @@ import { QueueRootModule } from "@law/core";
 import { FileStorageModule } from "@law/file-storage";
 import { ContentBytesReader } from "./content-bytes.reader";
 import { DocumentContentEvents } from "./document-content.events";
+import { DocumentContentSearch } from "./document-content.search";
 import { DocumentContentService } from "./document-content.service";
 import { DocumentIngestionConfig } from "./document-ingestion.config";
 import { DocumentIngestionPipeline } from "./document-ingestion.pipeline";
@@ -24,6 +25,7 @@ import { DOCUMENT_INGEST_QUEUE } from "./document-ingestion.types";
   providers: [
     ContentBytesReader,
     DocumentContentService,
+    DocumentContentSearch,
     DocumentIngestionQueue,
     DocumentIngestionConfig,
     DocumentContentEvents,
@@ -35,6 +37,7 @@ import { DOCUMENT_INGEST_QUEUE } from "./document-ingestion.types";
   exports: [
     ContentBytesReader,
     DocumentContentService,
+    DocumentContentSearch,
     DocumentIngestionQueue,
     DocumentContentEvents,
   ],
