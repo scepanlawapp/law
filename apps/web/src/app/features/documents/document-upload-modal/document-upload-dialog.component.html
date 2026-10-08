@@ -179,13 +179,20 @@
           [disabled]="preparing()"
           (checkedChange)="setAllAiAccess($event)"
         />
-        <label
-          hlmLabel
-          for="upload-ai-access-all"
-          [hlmTooltip]="'documents.ai.accessTooltip' | translate"
-        >
+        <label hlmLabel for="upload-ai-access-all">
           {{ "documents.ai.access" | translate }}
         </label>
+        <button
+          hlmBtn
+          id="upload-ai-access-info"
+          type="button"
+          variant="ghost"
+          size="icon-sm"
+          [hlmTooltip]="'documents.ai.accessTooltip' | translate"
+          [attr.aria-label]="'documents.ai.access' | translate"
+        >
+          <ng-icon name="lucideInfo" />
+        </button>
         <span id="upload-ai-access-tooltip" class="sr-only">
           {{ "documents.ai.accessTooltip" | translate }}
         </span>
