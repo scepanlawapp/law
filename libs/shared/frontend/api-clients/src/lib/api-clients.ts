@@ -86,6 +86,7 @@ import {
   CreateServiceCategoryRequest,
   CreateUserRateRequest,
   CreateWorkEntryRequest,
+  WorkEntryActions,
   MonthEndPrecheck,
   MonthEndRunResult,
   ProfitabilityReport,
@@ -2170,6 +2171,13 @@ export class WorkEntriesApiClient {
     return this.http.get<WorkEntry>(this.endpoint(`/work-entries/${id}`), {
       withCredentials: true,
     });
+  }
+
+  actions(id: string): Observable<WorkEntryActions> {
+    return this.http.get<WorkEntryActions>(
+      this.endpoint(`/work-entries/${id}/actions`),
+      { withCredentials: true },
+    );
   }
 
   create(body: CreateWorkEntryRequest): Observable<WorkEntry> {

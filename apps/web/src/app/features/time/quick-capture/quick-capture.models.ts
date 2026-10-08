@@ -10,6 +10,9 @@ export interface QuickCaptureInput<TResult = WorkEntry> {
   save?: (request: CreateWorkEntryRequest) => Observable<TResult>;
   /** Optional alternative when completing a task that already has work. */
   finishWithoutNewWork?: () => Observable<TResult>;
+  /** Show entry-management actions when opened from task details. */
+  manageEntry?: boolean;
+  onDeleted?: () => void;
   taskId?: string;
   clientId?: string;
   caseId?: string;

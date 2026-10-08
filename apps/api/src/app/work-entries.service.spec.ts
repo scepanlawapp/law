@@ -82,6 +82,7 @@ function agreement(coveredCategoryIds: string[]) {
 
 describe("WorkEntriesService", () => {
   const db = {
+    $queryRaw: jest.fn(),
     task: { findFirst: jest.fn() },
     client: { findFirst: jest.fn(), findMany: jest.fn() },
     event: { findMany: jest.fn() },
@@ -678,7 +679,98 @@ describe("WorkEntriesService", () => {
     });
   });
 
+  describe("actions", () => {
+    it("blocks deleting the task's last entry but still permits editing", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ taskId: "task-1" }),
+      );
+      db.workEntry.count.mockResolvedValue(1);
+      expect(
+        await as(WorkspaceRole.OWNER, () => service.actions(entryId)),
+      ).toEqual({
+        canEdit: true,
+        canDelete: false,
+        deleteBlockedReason: "LAST_TASK_ENTRY",
+      });
+      expect(db.workEntry.count).toHaveBeenCalledWith({
+        where: { workspaceId, taskId: "task-1" },
+      });
+    });
+    it("permits deletion when another linked entry exists", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ taskId: "task-1" }),
+      );
+      db.workEntry.count.mockResolvedValue(2);
+      expect(
+        await as(WorkspaceRole.LAWYER, () => service.actions(entryId)),
+      ).toEqual({ canEdit: true, canDelete: true, deleteBlockedReason: null });
+    });
+    it("keeps readable work from another performer read-only", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ userId: otherUserId, caseId }),
+      );
+      db.caseResponsibility.findFirst.mockResolvedValue({
+        id: "responsibility",
+      });
+      expect(
+        await as(WorkspaceRole.LAWYER, () => service.actions(entryId)),
+      ).toEqual({
+        canEdit: false,
+        canDelete: false,
+        deleteBlockedReason: "NOT_ALLOWED",
+      });
+    });
+    it("rejects action checks for unreadable or foreign-workspace entries", async () => {
+      db.workEntry.findFirst.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.OWNER, () => service.actions(entryId)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(db.workEntry.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: entryId, workspaceId } }),
+      );
+    });
+    it("keeps billed entries immutable", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "BILLED" }),
+      );
+      expect(
+        await as(WorkspaceRole.OWNER, () => service.actions(entryId)),
+      ).toEqual({
+        canEdit: false,
+        canDelete: false,
+        deleteBlockedReason: "BILLED",
+      });
+    });
+  });
+
   describe("remove", () => {
+    it("refuses deletion of the last linked entry without logging a deletion", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ taskId: "task-1" }),
+      );
+      db.workEntry.count.mockResolvedValue(1);
+      const result = as(WorkspaceRole.OWNER, () => service.remove(entryId));
+      await expect(result).rejects.toMatchObject({
+        response: expect.objectContaining({ code: "LAST_TASK_WORK_ENTRY" }),
+      });
+      expect(db.$queryRaw).toHaveBeenCalled();
+      expect(db.workEntry.deleteMany).not.toHaveBeenCalled();
+      expect(db.activityLog.create).not.toHaveBeenCalled();
+    });
+    it("counts entries after obtaining the shared task lock and preserves the final entry", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ taskId: "task-1" }),
+      );
+      db.workEntry.count.mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+      await as(WorkspaceRole.OWNER, () => service.remove(entryId));
+      await expect(
+        as(WorkspaceRole.OWNER, () => service.remove("entry-2")),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(db.workEntry.deleteMany).toHaveBeenCalledTimes(1);
+      expect(db.$queryRaw.mock.invocationCallOrder[0]).toBeLessThan(
+        db.workEntry.count.mock.invocationCallOrder[0],
+      );
+    });
     it("deletes an own entry and logs WORK_ENTRY_DELETED", async () => {
       db.workEntry.findFirst.mockResolvedValue(entryRecord());
       await as(WorkspaceRole.LAWYER, () => service.remove(entryId));
