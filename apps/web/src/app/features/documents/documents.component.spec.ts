@@ -712,6 +712,96 @@ describe("DocumentsComponent AI access", () => {
       expect(documentsApi.list.mock.calls.length).toBe(baseline + 1);
     });
 
+    it("drops a stale poll that lands after a toggle response", () => {
+      jest.useFakeTimers();
+      const on = document({ id: "a", aiAccess: true, aiStatus: "PROCESSING" });
+      const { component, documentsApi } = setup([on], { confirm: true });
+      component.openDocumentDetail(component.documents()[0]);
+      const stalePoll = new Subject<ReturnType<typeof page>>();
+      const staleDetail = new Subject<DocumentSummary>();
+      documentsApi.list.mockReturnValue(stalePoll as never);
+      documentsApi.get.mockReturnValue(staleDetail as never);
+      jest.advanceTimersByTime(5000);
+      documentsApi.setAiAccess.mockReturnValue(
+        of(document({ id: "a", aiAccess: false, aiStatus: "OFF" })),
+      );
+
+      component.toggleDetailAi(false);
+      stalePoll.next(page([on]));
+      stalePoll.complete();
+      staleDetail.next(on);
+      staleDetail.complete();
+
+      expect(component.detailDocument()?.aiAccess).toBe(false);
+      expect(component.aiAccessControl.value).toBe(false);
+      expect(component.documents()[0].aiAccess).toBe(false);
+    });
+
+    it("drops a poll response that was started before the latest mutation", () => {
+      jest.useFakeTimers();
+      const on = document({ id: "a", aiAccess: true, aiStatus: "PROCESSING" });
+      const { component, documentsApi } = setup([on]);
+      component.openDocumentDetail(component.documents()[0]);
+      const toggle = new Subject<DocumentSummary>();
+      documentsApi.setAiAccess.mockReturnValue(toggle as never);
+      // Poll begins while the toggle request is pending would be skipped, so
+      // simulate a poll that began just before the mutation and is still open.
+      const stalePoll = new Subject<ReturnType<typeof page>>();
+      documentsApi.list.mockReturnValue(stalePoll as never);
+      jest.advanceTimersByTime(5000);
+      component.toggleDetailAi(false);
+      toggle.next(document({ id: "a", aiAccess: false, aiStatus: "OFF" }));
+      stalePoll.next(page([on]));
+      expect(component.documents()[0].aiAccess).toBe(false);
+    });
+
+    it("keeps polling after a failed poll without unhandled errors", () => {
+      jest.useFakeTimers();
+      const { documentsApi, component } = setup([
+        document({ aiStatus: "PROCESSING" }),
+      ]);
+      const baseline = documentsApi.list.mock.calls.length;
+      documentsApi.list.mockReturnValueOnce(
+        throwError(() => new Error("boom")) as never,
+      );
+      jest.advanceTimersByTime(5000);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline + 1);
+      jest.advanceTimersByTime(5000);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline + 2);
+      expect(component.error()).toBe(false);
+    });
+
+    it("does not poll while the page is hidden", () => {
+      jest.useFakeTimers();
+      const { documentsApi } = setup([document({ aiStatus: "PROCESSING" })]);
+      const baseline = documentsApi.list.mock.calls.length;
+      const spy = jest
+        .spyOn(window.document, "visibilityState", "get")
+        .mockReturnValue("hidden");
+      jest.advanceTimersByTime(10000);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline);
+      spy.mockReturnValue("visible");
+      jest.advanceTimersByTime(5000);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline + 1);
+      spy.mockRestore();
+    });
+
+    it("does not reset the switch from a poll while a disable confirmation is open", () => {
+      jest.useFakeTimers();
+      const on = document({ id: "a", aiAccess: true, aiStatus: "PROCESSING" });
+      const { component, documentsApi, confirmDialog } = setup([on]);
+      component.openDocumentDetail(component.documents()[0]);
+      const answer = new Subject<boolean>();
+      confirmDialog.confirm.mockReturnValue(answer as never);
+      component.aiAccessControl.setValue(false, { emitEvent: false });
+      component.toggleDetailAi(false);
+      jest.advanceTimersByTime(5000);
+      expect(documentsApi.get).toHaveBeenCalledTimes(2);
+      expect(component.aiAccessControl.value).toBe(false);
+      answer.next(false);
+      expect(component.aiAccessControl.value).toBe(true);
+    });
+
     it("clears the interval on destroy", () => {
       jest.useFakeTimers();
       const { fixture, documentsApi } = setup([

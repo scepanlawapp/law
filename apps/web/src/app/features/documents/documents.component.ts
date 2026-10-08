@@ -237,6 +237,9 @@ export class DocumentsComponent implements OnInit {
   private listSubscription?: Subscription;
   private pollSubscription?: Subscription;
   private pollInFlight = false;
+  /** Bumped when an AI mutation starts and ends; older poll responses are dropped. */
+  private aiMutationGeneration = 0;
+  private aiConfirmPending = false;
   readonly documents = signal<DocumentSummary[]>([]);
   readonly loading = signal(false);
   readonly error = signal(false);
@@ -725,11 +728,13 @@ export class DocumentsComponent implements OnInit {
       return;
     this.bulkPending.set(true);
     this.bulkError.set(false);
+    this.beginAiMutation();
     this.documentsApi
       .setAiAccessBulk({ documentIds, aiAccess })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ updated }) => {
+          this.aiMutationGeneration++;
           this.bulkPending.set(false);
           this.toast.success(
             this.localization.translate("documents.ai.bulkUpdated", {
@@ -741,10 +746,18 @@ export class DocumentsComponent implements OnInit {
           if (openId && documentIds.includes(openId)) this.reloadDetail(openId);
         },
         error: () => {
+          this.aiMutationGeneration++;
           this.bulkPending.set(false);
           this.toast.error(this.localization.translate("documents.saveError"));
         },
       });
+  }
+
+  /** Cancels any in-flight poll so a stale response cannot overwrite the mutation result. */
+  private beginAiMutation(): void {
+    this.aiMutationGeneration++;
+    this.pollSubscription?.unsubscribe();
+    this.pollInFlight = false;
   }
 
   toggleDetailAi(value: boolean): void {
@@ -754,6 +767,7 @@ export class DocumentsComponent implements OnInit {
       this.applyDetailAi(this.documentsApi.setAiAccess(document.id, true));
       return;
     }
+    this.aiConfirmPending = true;
     this.confirmDialog
       .confirm({
         title: this.localization.translate("documents.ai.access"),
@@ -766,6 +780,7 @@ export class DocumentsComponent implements OnInit {
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((confirmed) => {
+        this.aiConfirmPending = false;
         if (confirmed)
           this.applyDetailAi(this.documentsApi.setAiAccess(document.id, false));
         else this.aiAccessControl.setValue(true, { emitEvent: false });
@@ -782,8 +797,10 @@ export class DocumentsComponent implements OnInit {
     const previous = this.detailDocument();
     this.aiPending.set(true);
     this.aiAccessControl.disable({ emitEvent: false });
+    this.beginAiMutation();
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (updated) => {
+        this.aiMutationGeneration++;
         this.documents.update((rows) =>
           rows.map((row) => (row.id === updated.id ? updated : row)),
         );
@@ -795,6 +812,7 @@ export class DocumentsComponent implements OnInit {
         this.aiAccessControl.enable({ emitEvent: false });
       },
       error: () => {
+        this.aiMutationGeneration++;
         this.aiPending.set(false);
         this.aiAccessControl.enable({ emitEvent: false });
         this.aiAccessControl.setValue(previous?.aiAccess ?? false, {
@@ -809,19 +827,30 @@ export class DocumentsComponent implements OnInit {
     this.documentsApi
       .get(documentId)
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: (detail) => this.applyPolledDetail(detail) });
+      .subscribe({
+        next: (detail) => this.applyPolledDetail(detail),
+        error: () => undefined,
+      });
   }
 
   private applyPolledDetail(detail: DocumentDetail): void {
     if (this.detailDocument()?.id !== detail.id) return;
     this.detailDocument.set(detail);
-    if (!this.aiPending())
+    if (!this.aiPending() && !this.aiConfirmPending)
       this.aiAccessControl.setValue(detail.aiAccess, { emitEvent: false });
   }
 
   /** Silent reload of the current page and the open detail (no spinner, no state reset). */
   private refreshAiStatus(): void {
-    if (this.pollInFlight || this.loading()) return;
+    if (
+      this.pollInFlight ||
+      this.loading() ||
+      this.aiPending() ||
+      this.bulkPending() ||
+      window.document.visibilityState === "hidden"
+    )
+      return;
+    const generation = this.aiMutationGeneration;
     const query = this.buildListQuery(
       this.selectedTab() === "archived" ? "true" : "false",
     );
@@ -839,6 +868,7 @@ export class DocumentsComponent implements OnInit {
       )
       .subscribe({
         next: ({ documents: response, detail }) => {
+          if (generation !== this.aiMutationGeneration) return;
           if (response.meta.page === this.page()) {
             this.documents.set(response.items);
             this.pageCount.set(response.meta.totalPages || 1);
@@ -846,6 +876,8 @@ export class DocumentsComponent implements OnInit {
           }
           if (detail) this.applyPolledDetail(detail);
         },
+        // A failed poll is silent; the next tick retries.
+        error: () => undefined,
       });
   }
 

@@ -2466,5 +2466,6 @@
   "documents.ai.confirmDisable": "The assistant will no longer be able to read this document",
   "documents.ai.fromChat": "From an assistant conversation",
   "documents.ai.reprocess": "Reprocess",
-  "documents.ai.bulkUpdated": "Updated: {count}"
+  "documents.ai.bulkUpdated": "Updated: {count}",
+  "documents.ai.accessInfo": "About AI access"
 }

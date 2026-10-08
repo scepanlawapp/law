@@ -104,7 +104,7 @@ describe("DocumentUploadDialogComponent AI access", () => {
     expect(info).not.toBeNull();
     expect(info?.tagName).toBe("BUTTON");
     expect(info?.getAttribute("type")).toBe("button");
-    expect(info?.getAttribute("aria-label")).toBe("documents.ai.access");
+    expect(info?.getAttribute("aria-label")).toBe("documents.ai.accessInfo");
     expect(info?.tabIndex).toBeGreaterThanOrEqual(0);
   });
 });
