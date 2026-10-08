@@ -123,4 +123,3 @@ ALTER TABLE "public"."DocumentFact" ADD CONSTRAINT "DocumentFact_contentId_fkey"
 
 -- AddForeignKey
 ALTER TABLE "public"."DocumentFact" ADD CONSTRAINT "DocumentFact_workspaceId_fkey" FOREIGN KEY ("workspaceId") REFERENCES "public"."Workspace"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-CREATE INDEX "DocumentContentChunk_embedding_hnsw" ON "DocumentContentChunk" USING hnsw ("embedding" vector_cosine_ops);
