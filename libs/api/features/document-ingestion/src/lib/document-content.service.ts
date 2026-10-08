@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
 import { Prisma, type DocumentContentStatus } from "@prisma/client";
@@ -16,6 +16,8 @@ import {
  */
 @Injectable()
 export class DocumentContentService {
+  private readonly logger = new Logger(DocumentContentService.name);
+
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly queue: DocumentIngestionQueue,
@@ -66,16 +68,42 @@ export class DocumentContentService {
   ): Promise<void> {
     const content = await this.prisma.documentContent.findFirst({
       where: { id: contentId, workspaceId },
-      select: { status: true, pipelineVersion: true },
+      select: { status: true, pipelineVersion: true, failedStep: true },
     });
     if (!content) return;
+    // Nothing can be extracted from unsupported content, so a re-run is waste.
+    if (content.status === "UNSUPPORTED") return;
     if (
       content.status === "READY" &&
-      content.pipelineVersion >= CURRENT_PIPELINE_VERSION
+      content.pipelineVersion >= CURRENT_PIPELINE_VERSION &&
+      !content.failedStep // READY with a marker still owes classify/facts
     ) {
       return;
     }
     await this.queue.enqueue(workspaceId, contentId);
+  }
+
+  /**
+   * Best effort: callers have already saved their own state, so a queue outage
+   * must not fail the request. Unprocessed content stays PENDING (QUEUED) and
+   * is recovered by reprocess or the reindex command.
+   */
+  async requestIngestionSafely(
+    workspaceId: string,
+    contentIds: Iterable<string | null | undefined>,
+  ): Promise<void> {
+    for (const contentId of new Set(contentIds)) {
+      if (!contentId) continue;
+      try {
+        await this.requestIngestion(workspaceId, contentId);
+      } catch (error) {
+        this.logger.warn(
+          `Ingestion of content ${contentId} was not queued: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
   }
 
   /**
@@ -108,7 +136,8 @@ export class DocumentContentService {
     });
 
     if (result.status === "COMPLETED") {
-      const text = result.text ?? "";
+      // Postgres text columns reject NUL bytes, which some PDFs/OCR emit.
+      const text = (result.text ?? "").split("\u0000").join("");
       await this.prisma.documentContent.updateMany({
         where: { id: content.id, workspaceId },
         data: {

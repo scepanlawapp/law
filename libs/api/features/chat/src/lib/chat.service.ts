@@ -733,8 +733,11 @@ export class ChatService {
         ...ATTACHMENT_WITH_CONTENT,
       });
       savedAttachments.push(saved);
-      if (content)
-        await this.tryRequestIngestion(params.workspaceId, content.id);
+      if (content) {
+        await this.content?.requestIngestionSafely(params.workspaceId, [
+          content.id,
+        ]);
+      }
     }
 
     await this.db.chatSession.update({
@@ -797,26 +800,6 @@ export class ChatService {
     });
 
     return { userMessage: mappedUserMessage, correlationId };
-  }
-
-  /**
-   * Best effort: the attachment is already saved, so a queue outage must not
-   * fail the chat message. Unprocessed content stays PENDING (queued) and is
-   * recovered by reprocess or the reindex command.
-   */
-  private async tryRequestIngestion(
-    workspaceId: string,
-    contentId: string,
-  ): Promise<void> {
-    try {
-      await this.content?.requestIngestion(workspaceId, contentId);
-    } catch (error) {
-      this.logger.warn(
-        `Ingestion of content ${contentId} was not queued: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-      );
-    }
   }
 
   private async enqueueTriage(params: {

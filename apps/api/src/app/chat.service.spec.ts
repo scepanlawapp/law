@@ -268,7 +268,7 @@ describe("ChatService", () => {
     const pdf = Buffer.from("%PDF-1.4 ugovor");
     const sha256 = createHash("sha256").update(pdf).digest("hex");
 
-    function uploadSetup(options: { requestFails?: boolean } = {}) {
+    function uploadSetup() {
       const prisma = prismaMock();
       prisma.chatSession.findFirst.mockImplementation(
         async ({ where }: { where: { id: string } }) => ({
@@ -300,9 +300,8 @@ describe("ChatService", () => {
           status: "PENDING",
           pipelineVersion: 1,
         })),
-        requestIngestion: options.requestFails
-          ? jest.fn().mockRejectedValue(new Error("redis down"))
-          : jest.fn().mockResolvedValue(undefined),
+        // Never rejects: queue outages are swallowed inside the helper.
+        requestIngestionSafely: jest.fn().mockResolvedValue(undefined),
       };
       const service = new ChatService(
         prisma as never,
@@ -356,9 +355,9 @@ describe("ChatService", () => {
       expect(created[0]).toMatchObject({ sha256, contentId: "content-1" });
       expect(created[1]).toMatchObject({ sha256, contentId: "content-1" });
       expect(created[0].sessionId).not.toBe(created[1].sessionId);
-      expect(content.requestIngestion).toHaveBeenCalledWith(
+      expect(content.requestIngestionSafely).toHaveBeenCalledWith(
         "workspace-1",
-        "content-1",
+        ["content-1"],
       );
       expect(first.userMessage.attachments[0]).toMatchObject({
         aiStatus: "QUEUED",
@@ -366,13 +365,13 @@ describe("ChatService", () => {
       expect(second.userMessage.attachments).toHaveLength(1);
     });
 
-    it("never fails the message when ingestion cannot be queued", async () => {
-      const { content, send } = uploadSetup({ requestFails: true });
+    it("requests ingestion once per saved attachment", async () => {
+      const { content, send } = uploadSetup();
 
       await expect(send("session-1")).resolves.toMatchObject({
         userMessage: { attachments: [{ originalName: "ugovor.pdf" }] },
       });
-      expect(content.requestIngestion).toHaveBeenCalledTimes(1);
+      expect(content.requestIngestionSafely).toHaveBeenCalledTimes(1);
     });
   });
 

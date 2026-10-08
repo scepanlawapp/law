@@ -34,6 +34,7 @@ function setup(
     caseLinked?: boolean;
     aiAccess?: boolean;
     contentId?: string | null;
+    contentStatus?: string;
   } = {},
 ) {
   const caseLinked = options.caseLinked ?? true;
@@ -59,6 +60,9 @@ function setup(
             originalFilename: "ugovor.pdf",
             extractionStatus: "PENDING",
             contentId,
+            ...(options.contentStatus
+              ? { content: { status: options.contentStatus } }
+              : {}),
           },
         },
       ]),
@@ -158,6 +162,32 @@ describe("AssistantDocumentReadsService", () => {
       }),
     );
   });
+
+  it.each([
+    ["READY", "READY"],
+    ["FAILED", "FAILED"],
+    ["UNSUPPORTED", "UNSUPPORTED"],
+    ["PENDING", "PENDING"],
+    ["EXTRACTING", "PENDING"],
+    ["EMBEDDING", "PENDING"],
+    ["CLASSIFYING", "PENDING"],
+  ])(
+    "derives textStatus from content status %s (not the legacy column)",
+    async (contentStatus, expected) => {
+      const { service } = setup({ contentStatus });
+
+      const result = await service.listDocuments(scope);
+
+      expect(result.status).toBe("OK");
+      if (result.status === "OK") {
+        // The legacy extractionStatus column says PENDING; the content wins.
+        expect(result.items[0]).toMatchObject({
+          ref: "doc:doc-1",
+          textStatus: expected,
+        });
+      }
+    },
+  );
 
   it("lists only chat attachments when the conversation has no case", async () => {
     const { service, prisma } = setup({ caseLinked: false });

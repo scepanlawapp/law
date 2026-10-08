@@ -56,6 +56,8 @@ type SourceBase = {
   title: string;
   fileName: string;
   status: string;
+  /** Pipeline status of the shared content; null when there is no content row (legacy `status` applies). */
+  contentStatus: string | null;
   addedAt: Date;
   /** Null for data created before ingestion (legacy text columns apply). */
   contentId: string | null;
@@ -477,8 +479,12 @@ export class AssistantDocumentReadsService {
       if (result.status !== "OK") continue;
       for (const subject of result.subjects) {
         for (const fact of subject.facts) {
-          const key = [subject.ref, subject.subjectKey, fact.field, fact.value]
-            .join("\u0000");
+          const key = [
+            subject.ref,
+            subject.subjectKey,
+            fact.field,
+            fact.value,
+          ].join("\u0000");
           if (seen.has(key)) continue;
           seen.add(key);
           facts.push({
@@ -620,6 +626,7 @@ export class AssistantDocumentReadsService {
                   originalFilename: true,
                   extractionStatus: true,
                   contentId: true,
+                  content: { select: { status: true } },
                 },
               },
             },
@@ -635,6 +642,7 @@ export class AssistantDocumentReadsService {
           extractionStatus: true,
           documentId: true,
           contentId: true,
+          content: { select: { status: true } },
           createdAt: true,
           document: { select: { aiAccess: true, archivedAt: true } },
         },
@@ -655,6 +663,7 @@ export class AssistantDocumentReadsService {
         fileName: document.currentVersion.originalFilename,
         versionId: document.currentVersion.id,
         status: document.currentVersion.extractionStatus,
+        contentStatus: document.currentVersion.content?.status ?? null,
         addedAt: document.createdAt,
         contentId: document.currentVersion.contentId,
         access,
@@ -675,6 +684,7 @@ export class AssistantDocumentReadsService {
         fileName: attachment.originalName,
         attachmentId: attachment.id,
         status: attachment.extractionStatus,
+        contentStatus: attachment.content?.status ?? null,
         addedAt: attachment.createdAt,
         contentId: attachment.contentId,
         access,
@@ -716,6 +726,7 @@ export class AssistantDocumentReadsService {
             originalFilename: true,
             extractionStatus: true,
             contentId: true,
+            content: { select: { status: true } },
           },
         },
       },
@@ -730,6 +741,7 @@ export class AssistantDocumentReadsService {
       fileName: document.currentVersion.originalFilename,
       versionId: document.currentVersion.id,
       status: document.currentVersion.extractionStatus,
+      contentStatus: document.currentVersion.content?.status ?? null,
       addedAt: document.createdAt,
       contentId: document.currentVersion.contentId,
       access,
@@ -860,17 +872,37 @@ function toEntry(source: Source): AssistantDocumentEntry {
     title: source.title,
     fileName: source.fileName,
     origin: source.kind === "document" ? "CASE" : "CHAT",
-    textStatus:
-      source.status === "COMPLETED"
-        ? "READY"
-        : source.status === "FAILED"
-          ? "FAILED"
-          : source.status === "UNSUPPORTED"
-            ? "UNSUPPORTED"
-            : "PENDING",
+    textStatus: textStatusOf(source),
     aiAccess: source.access.readable ? "on" : "off",
     addedAt: source.addedAt.toISOString().slice(0, 10),
   };
+}
+
+/**
+ * Content status wins when the source has a content row (it is the pipeline's
+ * truth); the legacy per-source extraction column covers data from before
+ * ingestion existed.
+ */
+function textStatusOf(source: Source): AssistantDocumentEntry["textStatus"] {
+  if (source.contentStatus !== null) {
+    switch (source.contentStatus) {
+      case "READY":
+      case "FAILED":
+      case "UNSUPPORTED":
+        return source.contentStatus;
+      default:
+        return "PENDING";
+    }
+  }
+  switch (source.status) {
+    case "COMPLETED":
+      return "READY";
+    case "FAILED":
+    case "UNSUPPORTED":
+      return source.status;
+    default:
+      return "PENDING";
+  }
 }
 
 function noTextMessage(title: string, status: string): string {

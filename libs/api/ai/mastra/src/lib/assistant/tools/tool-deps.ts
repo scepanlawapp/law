@@ -294,7 +294,7 @@ export interface AssistantDocumentEntry {
   fileName: string;
   /** CASE: filed on the conversation's case; CHAT: attached in this conversation. */
   origin: "CASE" | "CHAT";
-  /** PENDING: text not extracted yet (read_document extracts it). */
+  /** PENDING: text not extracted or processed yet (read_document extracts it). */
   textStatus: "READY" | "PENDING" | "FAILED" | "UNSUPPORTED";
   /** off: the user disabled AI access; read_document and search_documents refuse it. */
   aiAccess: "on" | "off";

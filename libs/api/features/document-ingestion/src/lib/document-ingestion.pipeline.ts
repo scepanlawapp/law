@@ -31,6 +31,13 @@ interface ContentState {
   pipelineVersion: number;
   extractedText: string | null;
   documentKind: string | null;
+  failedStep: string | null;
+}
+
+/** A classification or fact step that failed on an otherwise READY content. */
+interface StepFailure {
+  step: "CLASSIFYING" | "FACTS";
+  message: string;
 }
 
 /**
@@ -57,13 +64,26 @@ export class DocumentIngestionPipeline {
   async run(workspaceId: string, contentId: string): Promise<void> {
     let state = await this.load(workspaceId, contentId);
     if (!state) return;
+    if (state.status === "UNSUPPORTED") return;
+    const markedForRetry = state.status === "READY" && !!state.failedStep;
     if (
       state.status === "READY" &&
-      state.pipelineVersion >= CURRENT_PIPELINE_VERSION
+      state.pipelineVersion >= CURRENT_PIPELINE_VERSION &&
+      !markedForRetry
     ) {
       return;
     }
-    if (state.status === "READY") {
+    // Off is strict: never send the text of unreadable content to a provider.
+    if (!(await this.hasReadableSource(workspaceId, contentId))) {
+      this.logger.log(
+        `Content ${contentId} is not referenced by an AI-readable source; ingestion skipped`,
+      );
+      return;
+    }
+    if (
+      state.status === "READY" &&
+      state.pipelineVersion < CURRENT_PIPELINE_VERSION
+    ) {
       // READY on an older pipeline: keep the text, redo everything derived.
       await this.resetDerived(workspaceId, contentId);
       state = { ...state, documentKind: null };
@@ -73,17 +93,63 @@ export class DocumentIngestionPipeline {
     if (text === null) return; // unsupported; already recorded and emitted
 
     await this.embedStep(workspaceId, contentId, text);
-    const kind = await this.classifyStep(workspaceId, contentId, state, text);
-    await this.factsStep(workspaceId, contentId, kind, text);
+    const classified = await this.classifyStep(
+      workspaceId,
+      contentId,
+      state,
+      text,
+    );
+    const factsFailure = await this.factsStep(
+      workspaceId,
+      contentId,
+      classified.kind,
+      text,
+    );
+    // The content is usable without a kind or facts, so a transient model
+    // outage still ends READY; the marker lets a later request redo the step.
+    const failure = classified.failure ?? factsFailure;
 
     await this.setStatus(workspaceId, contentId, "READY", {
       processedAt: new Date(),
       pipelineVersion: CURRENT_PIPELINE_VERSION,
       embeddingModel: this.embeddings.model,
       embeddingDimensions: this.embeddings.dimensions,
-      failedStep: null,
-      error: null,
+      failedStep: failure?.step ?? null,
+      error: failure?.message ?? null,
     });
+  }
+
+  /**
+   * Whether an assistant-readable source still references the content: the
+   * current version of an on, non-archived document, or a chat attachment that
+   * is unfiled or belongs to such a document.
+   */
+  private async hasReadableSource(
+    workspaceId: string,
+    contentId: string,
+  ): Promise<boolean> {
+    const document = await this.prisma.document.findFirst({
+      where: {
+        workspaceId,
+        aiAccess: true,
+        archivedAt: null,
+        currentVersion: { contentId },
+      },
+      select: { id: true },
+    });
+    if (document) return true;
+    const attachment = await this.prisma.chatAttachment.findFirst({
+      where: {
+        workspaceId,
+        contentId,
+        OR: [
+          { documentId: null },
+          { document: { aiAccess: true, archivedAt: null } },
+        ],
+      },
+      select: { id: true },
+    });
+    return !!attachment;
   }
 
   private async load(
@@ -97,6 +163,7 @@ export class DocumentIngestionPipeline {
         pipelineVersion: true,
         extractedText: true,
         documentKind: true,
+        failedStep: true,
       },
     });
   }
@@ -203,15 +270,15 @@ export class DocumentIngestionPipeline {
     });
   }
 
-  /** The document kind, or null when it could not be determined. */
+  /** The document kind (null when undetermined) and any model failure. */
   private async classifyStep(
     workspaceId: string,
     contentId: string,
     state: ContentState,
     text: string,
-  ): Promise<string | null> {
-    if (state.documentKind) return state.documentKind;
-    if (text.trim() === "") return null;
+  ): Promise<{ kind: string | null; failure?: StepFailure }> {
+    if (state.documentKind) return { kind: state.documentKind };
+    if (text.trim() === "") return { kind: null };
 
     await this.setStatus(workspaceId, contentId, "CLASSIFYING");
     try {
@@ -224,12 +291,15 @@ export class DocumentIngestionPipeline {
         where: { id: contentId, workspaceId },
         data: { documentKind: kind, kindConfidence: confidence },
       });
-      return kind;
+      return { kind };
     } catch (error) {
       this.logger.warn(
         `Classification of content ${contentId} failed: ${errorMessage(error)}`,
       );
-      return null;
+      return {
+        kind: null,
+        failure: { step: "CLASSIFYING", message: errorMessage(error) },
+      };
     }
   }
 
@@ -238,12 +308,12 @@ export class DocumentIngestionPipeline {
     contentId: string,
     kind: string | null,
     text: string,
-  ): Promise<void> {
-    if (!kind || !isFactKind(kind)) return;
+  ): Promise<StepFailure | undefined> {
+    if (!kind || !isFactKind(kind)) return undefined;
     const existing = await this.prisma.documentFact.count({
       where: { contentId, workspaceId },
     });
-    if (existing > 0) return;
+    if (existing > 0) return undefined;
 
     let facts: ExtractedFact[];
     try {
@@ -252,7 +322,7 @@ export class DocumentIngestionPipeline {
       this.logger.warn(
         `Fact extraction for content ${contentId} failed: ${errorMessage(error)}`,
       );
-      return;
+      return { step: "FACTS", message: errorMessage(error) };
     }
 
     await this.prisma.$transaction(async (tx) => {
@@ -274,6 +344,7 @@ export class DocumentIngestionPipeline {
         })),
       });
     });
+    return undefined;
   }
 
   private async setStatus(

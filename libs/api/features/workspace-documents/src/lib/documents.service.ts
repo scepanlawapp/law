@@ -2,7 +2,6 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
@@ -28,6 +27,7 @@ import {
 import {
   DocumentContentService,
   documentAiStatus,
+  isContentRetryable,
 } from "@law/document-ingestion";
 import { FileService, uploadFingerprint } from "@law/file-storage";
 import { Readable } from "node:stream";
@@ -44,8 +44,6 @@ const DOCUMENT_SORT = ["updatedAt", "createdAt", "title"] as const;
 
 @Injectable()
 export class DocumentsService {
-  private readonly logger = new Logger(DocumentsService.name);
-
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly files: FileService,
@@ -187,7 +185,11 @@ export class DocumentsService {
       documentId: created.documentId,
       documentVersionId: created.versionId,
     });
-    if (aiAccess) await this.tryRequestIngestion([contentId]);
+    if (aiAccess) {
+      await this.content.requestIngestionSafely(this.context.workspaceId, [
+        contentId,
+      ]);
+    }
     return this.get(created.documentId);
   }
 
@@ -270,7 +272,11 @@ export class DocumentsService {
       documentId: existing.id,
       documentVersionId: versionId,
     });
-    if (existing.aiAccess) await this.tryRequestIngestion([contentId]);
+    if (existing.aiAccess && !existing.archivedAt) {
+      await this.content.requestIngestionSafely(this.context.workspaceId, [
+        contentId,
+      ]);
+    }
     return this.get(existing.id);
   }
 
@@ -437,8 +443,11 @@ export class DocumentsService {
         });
       }
     });
-    if (aiAccessChanged && body.aiAccess) {
-      await this.tryRequestIngestion([existing.currentVersion?.contentId]);
+    // An archived document stays unread: the flag changes, nothing is queued.
+    if (aiAccessChanged && body.aiAccess && !existing.archivedAt) {
+      await this.content.requestIngestionSafely(this.context.workspaceId, [
+        existing.currentVersion?.contentId,
+      ]);
     }
     return this.get(id);
   }
@@ -460,8 +469,10 @@ export class DocumentsService {
         clientId: existing.clients[0]?.clientId,
       });
     });
-    if (aiAccess) {
-      await this.tryRequestIngestion([existing.currentVersion?.contentId]);
+    if (aiAccess && !existing.archivedAt) {
+      await this.content.requestIngestionSafely(this.context.workspaceId, [
+        existing.currentVersion?.contentId,
+      ]);
     }
     return this.get(id);
   }
@@ -506,7 +517,8 @@ export class DocumentsService {
       }
     });
     if (body.aiAccess) {
-      await this.tryRequestIngestion(
+      await this.content.requestIngestionSafely(
+        workspaceId,
         changed.map((row) => row.currentVersion?.contentId),
       );
     }
@@ -516,9 +528,9 @@ export class DocumentsService {
   async reprocess(id: string): Promise<DocumentDetail> {
     const existing = await this.requireDocument(id);
     const contentId = existing.currentVersion?.contentId;
-    if (!contentId || existing.currentVersion?.content?.status !== "FAILED") {
+    if (!contentId || !this.isRetryable(existing)) {
       throw new ConflictException(
-        "Only documents whose processing failed can be reprocessed",
+        "Only documents with AI access whose processing failed or stalled can be reprocessed",
       );
     }
     await this.content.requestIngestion(this.context.workspaceId, contentId);
@@ -660,7 +672,14 @@ export class DocumentsService {
       currentVersion: {
         include: {
           storedFile: true,
-          content: { select: { status: true, documentKind: true } },
+          content: {
+            select: {
+              status: true,
+              documentKind: true,
+              failedStep: true,
+              updatedAt: true,
+            },
+          },
         },
       },
       chatAttachments: { select: { id: true }, take: 1 },
@@ -714,29 +733,6 @@ export class DocumentsService {
       sizeBytes: ingest.sizeBytes,
     });
     return content.id;
-  }
-
-  /**
-   * Best effort: the database state is already correct, so a queue outage
-   * must not fail the request. Unprocessed content stays PENDING (QUEUED) and
-   * is recovered by reprocess or the reindex command.
-   */
-  private async tryRequestIngestion(
-    contentIds: (string | null | undefined)[],
-  ): Promise<void> {
-    const { workspaceId } = this.context;
-    for (const contentId of new Set(contentIds)) {
-      if (!contentId) continue;
-      try {
-        await this.content.requestIngestion(workspaceId, contentId);
-      } catch (error) {
-        this.logger.warn(
-          `Ingestion of content ${contentId} was not queued: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        );
-      }
-    }
   }
 
   private async requireLinks(
@@ -830,6 +826,19 @@ export class DocumentsService {
     return category;
   }
 
+  /** Mirrors what `reprocess` accepts: an on, non-archived document with retryable content. */
+  private isRetryable(row: {
+    aiAccess: boolean;
+    archivedAt: Date | null;
+    currentVersion: VersionRow | null;
+  }): boolean {
+    return (
+      row.aiAccess &&
+      !row.archivedAt &&
+      isContentRetryable(row.currentVersion?.content)
+    );
+  }
+
   private toDetail(row: {
     id: string;
     folderId?: string | null;
@@ -855,6 +864,7 @@ export class DocumentsService {
       archivedAt: row.archivedAt?.toISOString() ?? null,
       aiAccess: row.aiAccess,
       aiStatus: documentAiStatus(row.aiAccess, row.currentVersion?.content),
+      aiRetryable: this.isRetryable(row),
       documentKind:
         (row.currentVersion?.content?.documentKind as DocumentKind | null) ??
         null,
@@ -908,7 +918,12 @@ export class DocumentsService {
 type VersionRow = {
   id: string;
   contentId?: string | null;
-  content?: { status: string; documentKind: string | null } | null;
+  content?: {
+    status: string;
+    documentKind: string | null;
+    failedStep?: string | null;
+    updatedAt?: Date | null;
+  } | null;
   versionNumber: number;
   originalFilename: string;
   storedFileId: string;

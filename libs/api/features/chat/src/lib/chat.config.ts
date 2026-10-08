@@ -39,7 +39,6 @@ export class ChatRuntimeConfig {
   get assistantSummaryKeepRecent(): number {
     return Math.max(1, Math.floor(this.assistantHistoryMaxMessages * 0.4));
   }
-  readonly uploadDir = process.env.CHAT_UPLOAD_DIR ?? "./tmp/chat-uploads";
   readonly uploadMaxBytes = Number(process.env.UPLOAD_MAX_BYTES ?? 25_000_000);
   readonly maxFilesPerMessage = Number(
     process.env.CHAT_MAX_FILES_PER_MESSAGE ?? 5,

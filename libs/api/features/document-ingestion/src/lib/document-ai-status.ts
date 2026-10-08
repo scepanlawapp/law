@@ -31,3 +31,38 @@ export function documentAiStatus(
 ): DocumentAiStatus {
   return aiAccess ? contentAiStatus(content) : "OFF";
 }
+
+/** A PENDING content older than this is presumed lost (no job will pick it up). */
+export const STALE_PENDING_MS = 10 * 60_000;
+
+/**
+ * Whether a content can be sent through the pipeline again by hand: it failed,
+ * it sat PENDING long enough that its job was probably lost (queue outage,
+ * Redis flush), or it finished READY but still owes classification or facts.
+ */
+export function isContentRetryable(
+  content:
+    | {
+        status: string;
+        failedStep?: string | null;
+        updatedAt?: Date | null;
+      }
+    | null
+    | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!content) return false;
+  switch (content.status) {
+    case "FAILED":
+      return true;
+    case "PENDING":
+      return (
+        !!content.updatedAt &&
+        now.getTime() - content.updatedAt.getTime() > STALE_PENDING_MS
+      );
+    case "READY":
+      return !!content.failedStep;
+    default:
+      return false;
+  }
+}

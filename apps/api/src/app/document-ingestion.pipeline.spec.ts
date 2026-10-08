@@ -71,6 +71,10 @@ function setup(
     chunkCount?: number;
     factCount?: number;
     bytes?: unknown;
+    /** Whether an AI-readable document or chat attachment references the content. */
+    readable?: boolean;
+    documentReadable?: boolean;
+    attachmentReadable?: boolean;
   } = {},
 ) {
   const row: Row = {
@@ -140,6 +144,20 @@ function setup(
     documentFact: {
       count: jest.fn(async () => factCount),
       deleteMany: tx.documentFact.deleteMany,
+    },
+    document: {
+      findFirst: jest.fn(async () =>
+        (options.documentReadable ?? options.readable ?? true)
+          ? { id: "doc-1" }
+          : null,
+      ),
+    },
+    chatAttachment: {
+      findFirst: jest.fn(async () =>
+        (options.attachmentReadable ?? options.readable ?? true)
+          ? { id: "att-1" }
+          : null,
+      ),
     },
     $transaction: jest.fn(async (callback: (t: typeof tx) => unknown) =>
       callback(tx),
@@ -426,6 +444,11 @@ describe("DocumentIngestionPipeline", () => {
     expect(s.row["documentKind"] ?? null).toBeNull();
     expect(s.tx.documentFact.createMany).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
+    // Marked so a later request can redo only the failed step.
+    expect(s.row).toMatchObject({
+      failedStep: "CLASSIFYING",
+      error: "model down",
+    });
   });
 
   it("reaches READY with the kind and no facts when fact extraction throws", async () => {
@@ -445,6 +468,156 @@ describe("DocumentIngestionPipeline", () => {
     expect(s.row).toMatchObject({ status: "READY", documentKind: "ID_CARD" });
     expect(s.tx.documentFact.createMany).not.toHaveBeenCalled();
     expect(warn).toHaveBeenCalled();
+    expect(s.row).toMatchObject({ failedStep: "FACTS", error: "model down" });
+  });
+
+  describe("READY content marked for retry", () => {
+    it("redoes only classification and facts, then clears the marker", async () => {
+      const s = setup({
+        row: {
+          status: "READY",
+          pipelineVersion: CURRENT_PIPELINE_VERSION,
+          extractedText: ID_CARD_TEXT,
+          failedStep: "CLASSIFYING",
+          error: "model down",
+        },
+        chunkCount: 1,
+      });
+
+      await s.pipeline.run(WORKSPACE, CONTENT);
+
+      expect(extract).not.toHaveBeenCalled();
+      expect(s.embeddings.embed).not.toHaveBeenCalled();
+      // Nothing derived is thrown away on a marker retry.
+      expect(s.tx.documentContentChunk.deleteMany).not.toHaveBeenCalledWith({
+        where: { contentId: CONTENT, workspaceId: WORKSPACE },
+      });
+      expect(s.model).toHaveBeenCalledTimes(2);
+      expect(s.row).toMatchObject({
+        status: "READY",
+        documentKind: "ID_CARD",
+        failedStep: null,
+        error: null,
+      });
+      expect(s.tx.documentFact.createMany).toHaveBeenCalled();
+    });
+
+    it("re-runs only the facts step when the marker says FACTS and a kind is set", async () => {
+      const s = setup({
+        row: {
+          status: "READY",
+          pipelineVersion: CURRENT_PIPELINE_VERSION,
+          extractedText: ID_CARD_TEXT,
+          documentKind: "ID_CARD",
+          kindConfidence: 0.9,
+          failedStep: "FACTS",
+          error: "model down",
+        },
+        chunkCount: 1,
+        model: new FakeChatModelProvider(ID_CARD_FACTS),
+      });
+
+      await s.pipeline.run(WORKSPACE, CONTENT);
+
+      expect(s.model).toHaveBeenCalledTimes(1);
+      expect(s.tx.documentFact.createMany).toHaveBeenCalled();
+      expect(s.row).toMatchObject({ failedStep: null, error: null });
+    });
+
+    it("keeps the marker when the retry fails again", async () => {
+      const s = setup({
+        row: {
+          status: "READY",
+          pipelineVersion: CURRENT_PIPELINE_VERSION,
+          extractedText: ID_CARD_TEXT,
+          failedStep: "CLASSIFYING",
+        },
+        chunkCount: 1,
+        model: {
+          completeStructured: jest.fn(async () => {
+            throw new Error("still down");
+          }),
+          streamText: jest.fn(),
+        } as never,
+      });
+
+      await s.pipeline.run(WORKSPACE, CONTENT);
+
+      expect(s.row).toMatchObject({
+        status: "READY",
+        failedStep: "CLASSIFYING",
+        error: "still down",
+      });
+    });
+  });
+
+  describe("access guard", () => {
+    it("makes no extraction, embedding or model call when only an off document references the content", async () => {
+      const info = jest.spyOn(Logger.prototype, "log").mockImplementation();
+      const s = setup({ readable: false });
+
+      await s.pipeline.run(WORKSPACE, CONTENT);
+
+      expect(extract).not.toHaveBeenCalled();
+      expect(s.embeddings.embed).not.toHaveBeenCalled();
+      expect(s.model).not.toHaveBeenCalled();
+      expect(s.prisma.documentContent.updateMany).not.toHaveBeenCalled();
+      expect(s.row["status"]).toBe("PENDING");
+      expect(info).toHaveBeenCalled();
+      info.mockRestore();
+    });
+
+    it("looks for the current version of an on, non-archived document", async () => {
+      textExtracted();
+      const s = setup();
+
+      await s.pipeline.run(WORKSPACE, CONTENT);
+
+      expect(s.prisma.document.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            workspaceId: WORKSPACE,
+            aiAccess: true,
+            archivedAt: null,
+            currentVersion: { contentId: CONTENT },
+          },
+        }),
+      );
+    });
+
+    it("accepts a chat attachment that was never filed or whose document is on", async () => {
+      textExtracted();
+      const s = setup({ documentReadable: false, attachmentReadable: true });
+
+      await s.pipeline.run(WORKSPACE, CONTENT);
+
+      expect(s.prisma.chatAttachment.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            workspaceId: WORKSPACE,
+            contentId: CONTENT,
+            OR: [
+              { documentId: null },
+              { document: { aiAccess: true, archivedAt: null } },
+            ],
+          },
+        }),
+      );
+      expect(s.row["status"]).toBe("READY");
+    });
+  });
+
+  it("returns early for UNSUPPORTED content without touching status", async () => {
+    const s = setup({
+      row: { status: "UNSUPPORTED", error: "nope" },
+    });
+
+    await s.pipeline.run(WORKSPACE, CONTENT);
+
+    expect(s.statuses).toEqual([]);
+    expect(s.prisma.documentContent.updateMany).not.toHaveBeenCalled();
+    expect(extract).not.toHaveBeenCalled();
+    expect(s.embeddings.embed).not.toHaveBeenCalled();
   });
 
   it("does not extract facts for kind OTHER", async () => {

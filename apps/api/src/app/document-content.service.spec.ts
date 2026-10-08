@@ -1,9 +1,11 @@
 import { Readable } from "node:stream";
+import { Logger } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
   ContentBytesReader,
   DocumentContentService,
   DocumentIngestionQueue,
+  documentIngestJobId,
 } from "@law/document-ingestion";
 import { extractAttachmentText } from "@law/extraction";
 
@@ -181,6 +183,58 @@ describe("DocumentContentService", () => {
       await service.requestIngestion("ws-1", "missing");
       expect(queue.enqueue).not.toHaveBeenCalled();
     });
+
+    it("never enqueues UNSUPPORTED content", async () => {
+      const { service, queue } = setup({
+        row: { status: "UNSUPPORTED", pipelineVersion: 0 },
+      });
+      await service.requestIngestion("ws-1", "content-1");
+      expect(queue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it("re-enqueues READY content marked for retry", async () => {
+      const { service, queue } = setup({
+        row: { status: "READY", pipelineVersion: 1, failedStep: "CLASSIFYING" },
+      });
+      await service.requestIngestion("ws-1", "content-1");
+      expect(queue.enqueue).toHaveBeenCalledWith("ws-1", "content-1");
+    });
+  });
+
+  describe("requestIngestionSafely", () => {
+    let warn: jest.SpyInstance;
+    beforeEach(() => {
+      warn = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+    });
+    afterEach(() => warn.mockRestore());
+
+    it("requests each distinct content once and skips empty ids", async () => {
+      const { service, queue } = setup({
+        row: { status: "PENDING", pipelineVersion: 0 },
+      });
+      await service.requestIngestionSafely("ws-1", [
+        "content-1",
+        "content-1",
+        null,
+        undefined,
+        "content-2",
+      ]);
+      expect(queue.enqueue).toHaveBeenCalledTimes(2);
+      expect(queue.enqueue).toHaveBeenCalledWith("ws-1", "content-1");
+      expect(queue.enqueue).toHaveBeenCalledWith("ws-1", "content-2");
+    });
+
+    it("swallows a queue outage and keeps going", async () => {
+      const { service, queue } = setup({
+        row: { status: "PENDING", pipelineVersion: 0 },
+      });
+      queue.enqueue.mockRejectedValueOnce(new Error("redis down"));
+      await expect(
+        service.requestIngestionSafely("ws-1", ["content-1", "content-2"]),
+      ).resolves.toBeUndefined();
+      expect(queue.enqueue).toHaveBeenCalledTimes(2);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining("redis down"));
+    });
   });
 
   describe("ensureText", () => {
@@ -256,6 +310,26 @@ describe("DocumentContentService", () => {
       });
     });
 
+    it("strips NUL bytes from extracted text before storing it", async () => {
+      extract.mockResolvedValue({
+        status: "COMPLETED",
+        text: "Ugo\u0000vor \u0000o delu",
+        sourceScript: "LATIN",
+      });
+      const { service, prisma } = setup({
+        row: { id: "content-1", status: "PENDING", extractedText: null },
+      });
+
+      expect(await service.ensureText("ws-1", "content-1")).toEqual({
+        status: "COMPLETED",
+        text: "Ugovor o delu",
+      });
+      expect(prisma.documentContent.updateMany).toHaveBeenCalledWith({
+        where: { id: "content-1", workspaceId: "ws-1" },
+        data: { extractedText: "Ugovor o delu", sourceScript: "LATIN" },
+      });
+    });
+
     it("marks content UNSUPPORTED when no extractor exists", async () => {
       extract.mockResolvedValue({ status: "UNSUPPORTED", error: "no" });
       const { service, prisma } = setup({
@@ -287,6 +361,16 @@ describe("DocumentContentService", () => {
         data: { error: "boom" },
       });
     });
+  });
+});
+
+describe("documentIngestJobId", () => {
+  it("is BullMQ-safe: no colon and not integer-only", () => {
+    for (const id of ["0b9c1a52-7e1d-4a8a-9d55-2f1c7f0b6e11", "123456", "7"]) {
+      const jobId = documentIngestJobId(id);
+      expect(jobId).not.toContain(":");
+      expect(jobId).not.toMatch(/^\d+$/);
+    }
   });
 });
 
