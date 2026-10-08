@@ -83,6 +83,7 @@ export interface ClientTotal {
     }),
   ],
   templateUrl: "./my-time.component.html",
+  host: { class: "block h-full" },
 })
 export class MyTimeComponent {
   private readonly api = inject(WorkEntriesApiClient);

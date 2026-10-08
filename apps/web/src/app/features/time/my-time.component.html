@@ -1,185 +1,196 @@
-<section class="flex flex-col gap-6 p-4 md:p-6">
-  <header class="flex flex-wrap items-center justify-between gap-3">
-    <div>
-      <h1 class="text-xl font-semibold">{{ "time.my.title" | translate }}</h1>
-      <p class="text-muted-foreground text-sm">{{ rangeLabel() }}</p>
-    </div>
-    <div class="flex flex-wrap items-center gap-2">
-      <button
-        hlmBtn
-        type="button"
-        variant="outline"
-        size="icon"
-        [attr.aria-label]="'time.my.previousWeek' | translate"
-        (click)="previousWeek()"
-      >
-        <ng-icon name="lucideChevronLeft" aria-hidden="true" />
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        variant="outline"
-        [disabled]="isCurrentWeek()"
-        (click)="goToToday()"
-      >
-        {{ "time.my.today" | translate }}
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        variant="outline"
-        size="icon"
-        [attr.aria-label]="'time.my.nextWeek' | translate"
-        (click)="nextWeek()"
-      >
-        <ng-icon name="lucideChevronRight" aria-hidden="true" />
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        [variant]="presentation() === 'board' ? 'default' : 'outline'"
-        [attr.aria-pressed]="presentation() === 'board'"
-        [attr.aria-label]="'work.view.showBoard' | translate"
-        (click)="presentation.set('board')"
-      >
-        <ng-icon name="lucideKanban" aria-hidden="true" />
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        [variant]="presentation() === 'list' ? 'default' : 'outline'"
-        [attr.aria-pressed]="presentation() === 'list'"
-        [attr.aria-label]="'work.view.showList' | translate"
-        (click)="presentation.set('list')"
-      >
-        <ng-icon name="lucideList" aria-hidden="true" />
-      </button>
-      <button hlmBtn type="button" (click)="logTime()">
-        {{ "time.capture.open" | translate }}
-      </button>
-    </div>
-  </header>
+<section
+  class="grid min-h-full min-w-0 grid-cols-[minmax(0,1fr)_7rem] items-stretch gap-3 p-4 md:gap-6 md:p-6 min-[1600px]:grid-cols-[minmax(0,1fr)_auto]"
+>
+  <div class="flex min-w-0 flex-col gap-6">
+    <header class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-xl font-semibold">{{ "time.my.title" | translate }}</h1>
+        <p class="text-muted-foreground text-sm">{{ rangeLabel() }}</p>
+      </div>
+      <div class="flex flex-wrap items-center gap-2">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          size="icon"
+          [attr.aria-label]="'time.my.previousWeek' | translate"
+          (click)="previousWeek()"
+        >
+          <ng-icon name="lucideChevronLeft" aria-hidden="true" />
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          [disabled]="isCurrentWeek()"
+          (click)="goToToday()"
+        >
+          {{ "time.my.today" | translate }}
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          size="icon"
+          [attr.aria-label]="'time.my.nextWeek' | translate"
+          (click)="nextWeek()"
+        >
+          <ng-icon name="lucideChevronRight" aria-hidden="true" />
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          [variant]="presentation() === 'board' ? 'default' : 'outline'"
+          [attr.aria-pressed]="presentation() === 'board'"
+          [attr.aria-label]="'work.view.showBoard' | translate"
+          (click)="presentation.set('board')"
+        >
+          <ng-icon name="lucideKanban" aria-hidden="true" />
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          [variant]="presentation() === 'list' ? 'default' : 'outline'"
+          [attr.aria-pressed]="presentation() === 'list'"
+          [attr.aria-label]="'work.view.showList' | translate"
+          (click)="presentation.set('list')"
+        >
+          <ng-icon name="lucideList" aria-hidden="true" />
+        </button>
+        <button hlmBtn type="button" (click)="logTime()">
+          {{ "time.capture.open" | translate }}
+        </button>
+      </div>
+    </header>
 
-  @if (loading()) {
-    <div class="flex items-center gap-2" role="status">
-      <hlm-spinner [attr.aria-label]="'time.my.loading' | translate" />
-      <span class="text-muted-foreground text-sm">
-        {{ "time.my.loading" | translate }}
-      </span>
-    </div>
-  } @else if (error()) {
-    <div class="flex items-center gap-3" role="alert">
-      <p class="text-destructive text-sm">
-        {{ "time.my.loadError" | translate }}
-      </p>
-      <button hlmBtn type="button" variant="outline" (click)="reload()">
-        {{ "time.retry" | translate }}
-      </button>
-    </div>
-  } @else {
-    <p class="text-sm" data-testid="week-total">
-      <span class="text-muted-foreground">
-        {{ "time.my.weekTotal" | translate }}
-      </span>
-      <strong class="ms-2 text-base">{{ formatMinutes(weekMinutes()) }}</strong>
-    </p>
-
-    @if (presentation() === "board") {
-      <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
-        @for (day of days(); track day.date) {
-          <section
-            class="bg-card flex min-w-0 flex-col gap-2 rounded-xl border p-3"
-            [class]="day.isToday ? 'border-primary' : 'border-border'"
-            [attr.aria-label]="dayLabel(day.date)"
-            [attr.data-date]="day.date"
-          >
-            <header class="flex items-baseline justify-between gap-2">
-              <h2 class="text-sm font-semibold capitalize">
-                {{ dayLabel(day.date) }}
-              </h2>
-            </header>
-
-            @for (entry of day.entries; track entry.id) {
-              <button
-                type="button"
-                class="border-border hover:bg-accent focus-visible:ring-ring/40 flex min-w-0 flex-col gap-1 rounded-lg border p-2 text-start focus-visible:ring-3 focus-visible:outline-none"
-                data-testid="entry"
-                (click)="edit(entry)"
-              >
-                <ng-container
-                  *ngTemplateOutlet="entryBody; context: { $implicit: entry }"
-                />
-              </button>
-            } @empty {
-              <p class="text-muted-foreground text-xs">
-                {{ "time.my.emptyDay" | translate }}
-              </p>
-            }
-          </section>
-        }
+    @if (loading()) {
+      <div class="flex items-center gap-2" role="status">
+        <hlm-spinner [attr.aria-label]="'time.my.loading' | translate" />
+        <span class="text-muted-foreground text-sm">
+          {{ "time.my.loading" | translate }}
+        </span>
+      </div>
+    } @else if (error()) {
+      <div class="flex items-center gap-3" role="alert">
+        <p class="text-destructive text-sm">
+          {{ "time.my.loadError" | translate }}
+        </p>
+        <button hlmBtn type="button" variant="outline" (click)="reload()">
+          {{ "time.retry" | translate }}
+        </button>
       </div>
     } @else {
-      <div hlmTableContainer>
-        <table hlmTable>
-          <thead hlmTHead>
-            <tr hlmTr>
-              <th hlmTh>{{ "time.capture.date" | translate }}</th>
-              <th hlmTh>{{ "time.capture.workDescription" | translate }}</th>
-              <th hlmTh>{{ "finance.actions" | translate }}</th>
-            </tr>
-          </thead>
-          <tbody hlmTBody>
-            @for (entry of entries(); track entry.id) {
-              <tr hlmTr data-testid="entry">
-                <td hlmTd>{{ dayLabel(entry.workDate) }}</td>
-                <td hlmTd>
+      <p class="text-sm" data-testid="week-total">
+        <span class="text-muted-foreground">
+          {{ "time.my.weekTotal" | translate }}
+        </span>
+        <strong class="ms-2 text-base">
+          {{ formatMinutes(weekMinutes()) }}
+        </strong>
+      </p>
+
+      @if (presentation() === "board") {
+        <div class="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-7">
+          @for (day of days(); track day.date) {
+            <section
+              class="bg-card flex min-w-0 flex-col gap-2 rounded-xl border p-3"
+              [class]="day.isToday ? 'border-primary' : 'border-border'"
+              [attr.aria-label]="dayLabel(day.date)"
+              [attr.data-date]="day.date"
+            >
+              <header class="flex items-baseline justify-between gap-2">
+                <h2 class="text-sm font-semibold capitalize">
+                  {{ dayLabel(day.date) }}
+                </h2>
+              </header>
+
+              @for (entry of day.entries; track entry.id) {
+                <button
+                  type="button"
+                  class="border-border hover:bg-accent focus-visible:ring-ring/40 flex min-w-0 flex-col gap-1 rounded-lg border p-2 text-start focus-visible:ring-3 focus-visible:outline-none"
+                  data-testid="entry"
+                  (click)="edit(entry)"
+                >
                   <ng-container
                     *ngTemplateOutlet="entryBody; context: { $implicit: entry }"
                   />
-                </td>
-                <td hlmTd>
-                  <button
-                    hlmBtn
-                    type="button"
-                    variant="outline"
-                    (click)="edit(entry)"
-                  >
-                    {{ "work.entries.view" | translate }}
-                  </button>
-                </td>
-              </tr>
-            }
-          </tbody>
-        </table>
-      </div>
-      @if (!entries().length) {
-        <p class="text-sm text-muted-foreground">
-          {{ "time.my.emptyWeek" | translate }}
-        </p>
-      }
-    }
-
-    <section class="flex flex-col gap-2">
-      <h2 class="text-sm font-semibold">
-        {{ "time.my.byClient" | translate }}
-      </h2>
-      @for (total of clientTotals(); track total.client.id) {
-        <div
-          class="border-border flex items-center justify-between gap-3 border-b pb-2 text-sm"
-          data-testid="client-total"
-        >
-          <span class="truncate">{{ total.client.displayName }}</span>
-          <strong>{{ formatMinutes(total.minutes) }}</strong>
+                </button>
+              } @empty {
+                <p class="text-muted-foreground text-xs">
+                  {{ "time.my.emptyDay" | translate }}
+                </p>
+              }
+            </section>
+          }
         </div>
-      } @empty {
-        <p class="text-muted-foreground text-sm">
-          {{ "time.my.emptyWeek" | translate }}
-        </p>
+      } @else {
+        <div hlmTableContainer>
+          <table hlmTable>
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "time.capture.date" | translate }}</th>
+                <th hlmTh>{{ "time.capture.workDescription" | translate }}</th>
+                <th hlmTh>{{ "finance.actions" | translate }}</th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (entry of entries(); track entry.id) {
+                <tr hlmTr data-testid="entry">
+                  <td hlmTd>{{ dayLabel(entry.workDate) }}</td>
+                  <td hlmTd>
+                    <ng-container
+                      *ngTemplateOutlet="
+                        entryBody;
+                        context: { $implicit: entry }
+                      "
+                    />
+                  </td>
+                  <td hlmTd>
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="outline"
+                      (click)="edit(entry)"
+                    >
+                      {{ "work.entries.view" | translate }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        @if (!entries().length) {
+          <p class="text-sm text-muted-foreground">
+            {{ "time.my.emptyWeek" | translate }}
+          </p>
+        }
       }
-    </section>
-  }
+
+      <section class="flex flex-col gap-2">
+        <h2 class="text-sm font-semibold">
+          {{ "time.my.byClient" | translate }}
+        </h2>
+        @for (total of clientTotals(); track total.client.id) {
+          <div
+            class="border-border flex items-center justify-between gap-3 border-b pb-2 text-sm"
+            data-testid="client-total"
+          >
+            <span class="truncate">{{ total.client.displayName }}</span>
+            <strong>{{ formatMinutes(total.minutes) }}</strong>
+          </div>
+        } @empty {
+          <p class="text-muted-foreground text-sm">
+            {{ "time.my.emptyWeek" | translate }}
+          </p>
+        }
+      </section>
+    }
+  </div>
+
   <law-past-work-events
-    [presentation]="presentation()"
+    class="block min-w-0"
+    [collapsibleSidebar]="true"
     (workChanged)="reload()"
   />
 </section>

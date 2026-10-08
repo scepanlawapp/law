@@ -11,7 +11,10 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { EventsApiClient, WorkEntriesApiClient } from "@law/api-clients";
 import { PastWorkEvent } from "@law/api-interfaces";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideChevronLeft, lucideChevronRight } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { filter, finalize, switchMap } from "rxjs";
@@ -37,8 +40,16 @@ import { STATUS_LABEL_KEYS, timeLocale } from "../time-utils";
     HlmSpinner,
     HlmTableImports,
     TranslatePipe,
+    NgIcon,
+    HlmTooltip,
   ],
+  providers: [provideIcons({ lucideChevronLeft, lucideChevronRight })],
+  host: {
+    "[attr.data-sidebar]": "collapsibleSidebar()",
+    "[attr.data-expanded]": "expanded()",
+  },
   templateUrl: "./past-events.component.html",
+  styleUrl: "./past-events.component.scss",
 })
 export class PastEventsComponent {
   private readonly api = inject(WorkEntriesApiClient);
@@ -49,7 +60,9 @@ export class PastEventsComponent {
   private readonly toast = inject(ToastService);
   private readonly local = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
-  readonly presentation = input<"board" | "list">("board");
+  readonly collapsibleSidebar = input(false);
+  readonly expanded = signal(false);
+  readonly totalItems = signal<number | null>(null);
   readonly workChanged = output<void>();
   readonly events = signal<PastWorkEvent[]>([]);
   readonly loading = signal(false);
@@ -119,6 +132,7 @@ export class PastEventsComponent {
           this.events.set(response.items);
           this.page.set(page);
           this.totalPages.set(response.meta.totalPages);
+          this.totalItems.set(response.meta.totalItems);
         },
         error: () => this.error.set(true),
       });

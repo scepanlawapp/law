@@ -2447,7 +2447,8 @@
   "time.events.actionError": "Could not complete the action. Refresh the list and retry.",
   "time.events.unlogged": "Unlogged",
   "time.events.event": "Event",
-  "time.events.view": "View Event",
+  "time.events.view": "View",
+  "time.events.view.event": "View Event",
   "time.events.empty": "No past events.",
   "time.events.previous": "Previous page",
   "time.events.next": "Next page"
