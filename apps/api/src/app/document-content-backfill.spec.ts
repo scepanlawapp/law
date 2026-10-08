@@ -319,6 +319,60 @@ describe("backfillDocumentContent", () => {
     expect(result.documentsOptedIn).toBe(1);
   });
 
+  it("never re-enables a promoted document a user switched off", async () => {
+    const touchedAt = new Date("2026-05-01T00:00:00Z");
+    const { prisma, tables } = createFakePrisma({
+      attachments: [
+        attachment("a1", { sha256: sha("b"), documentId: "doc-user-off" }),
+        attachment("a2", { sha256: sha("c"), documentId: "doc-legacy" }),
+      ],
+      documents: [
+        { ...documentRow("doc-user-off"), aiAccessChangedAt: touchedAt },
+        documentRow("doc-legacy"),
+      ],
+    });
+
+    const first = await backfillDocumentContent(prisma, deps());
+    const second = await backfillDocumentContent(prisma, deps());
+
+    const userOff = tables.documents.find((d) => d.id === "doc-user-off")!;
+    expect(userOff.aiAccess).toBe(false);
+    expect(userOff.aiAccessChangedAt).toBe(touchedAt);
+    expect(tables.documents.find((d) => d.id === "doc-legacy")!.aiAccess).toBe(
+      true,
+    );
+    expect(first.documentsOptedIn).toBe(1);
+    expect(second).toEqual(ZERO);
+  });
+
+  it("retries a row whose link failed after the legacy text was carried over", async () => {
+    const { prisma, tables } = createFakePrisma({
+      storedFiles: [storedFile("s1", sha("a"))],
+      versions: [
+        version("v1", "s1", {
+          extractionStatus: "COMPLETED",
+          extractedText: "legacy",
+          sourceScript: "LATIN",
+        }),
+      ],
+    });
+    const realUpdate = (prisma as any).documentVersion.update;
+    (prisma as any).documentVersion.update = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("crash"))
+      .mockImplementation(realUpdate);
+
+    await expect(backfillDocumentContent(prisma, deps())).rejects.toThrow(
+      "crash",
+    );
+    expect(tables.versions[0].contentId).toBeNull();
+    expect(tables.contents[0].extractedText).toBe("legacy");
+
+    const retry = await backfillDocumentContent(prisma, deps());
+    expect(tables.versions[0].contentId).toBe(tables.contents[0].id);
+    expect(retry.versionsLinked).toBe(1);
+  });
+
   it("does not touch the access change time of documents already on", async () => {
     const changedAt = new Date("2026-01-01T00:00:00Z");
     const on = { ...documentRow("doc-on", true), aiAccessChangedAt: changedAt };
@@ -523,7 +577,11 @@ describe("reindexDocumentContent", () => {
 
   function fixture() {
     return createFakePrisma({
-      documents: [documentRow("doc-on", true), documentRow("doc-off", false)],
+      documents: [
+        documentRow("doc-on", true),
+        documentRow("doc-off", false),
+        { ...documentRow("doc-archived", true), archivedAt: new Date() },
+      ],
       versions: [
         version("v-on", "s", { documentId: "doc-on", contentId: "c-on" }),
         version("v-off", "s", { documentId: "doc-off", contentId: "c-off" }),
@@ -532,8 +590,32 @@ describe("reindexDocumentContent", () => {
           contentId: "c-ready",
         }),
         version("v-old", "s", { documentId: "doc-on", contentId: "c-old" }),
+        // Same bytes filed under an off and an on document.
+        version("v-shared-off", "s", {
+          documentId: "doc-off",
+          contentId: "c-shared",
+        }),
+        version("v-shared-on", "s", {
+          documentId: "doc-on",
+          contentId: "c-shared",
+        }),
+        version("v-archived", "s", {
+          documentId: "doc-archived",
+          contentId: "c-archived",
+        }),
+        version("v-current", "s", {
+          documentId: "doc-on",
+          contentId: "c-pending-current",
+        }),
       ],
-      attachments: [attachment("a1", { contentId: "c-chat" })],
+      attachments: [
+        attachment("a1", { contentId: "c-chat" }),
+        attachment("a-off", {
+          contentId: "c-filed-off",
+          documentId: "doc-off",
+        }),
+        attachment("a-on", { contentId: "c-filed-on", documentId: "doc-on" }),
+      ],
       contents: [
         baseContent("c-on"),
         baseContent("c-off"),
@@ -541,56 +623,95 @@ describe("reindexDocumentContent", () => {
         baseContent("c-ready", { status: "READY", pipelineVersion: 99 }),
         baseContent("c-old", { status: "READY", pipelineVersion: 0 }),
         baseContent("c-orphan"),
+        baseContent("c-shared"),
+        baseContent("c-archived"),
+        baseContent("c-filed-off"),
+        baseContent("c-filed-on"),
+        // Not READY, but already on the current pipeline version.
+        baseContent("c-pending-current", { pipelineVersion: 99 }),
       ],
     });
   }
 
+  const enqueuedIds = (enqueue: jest.Mock) =>
+    enqueue.mock.calls.map((c: any[]) => c[1]).sort();
+
   it("enqueues content of access-on documents and chat attachments only", async () => {
     const { prisma } = fixture();
-    const enqueue = jest.fn(async () => undefined);
+    const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
 
     const result = await reindexDocumentContent(prisma, enqueue, {
       pipelineVersionOnly: false,
       dryRun: false,
     });
 
-    const ids = enqueue.mock.calls.map((c: any[]) => c[1]).sort();
-    expect(ids).toEqual(["c-chat", "c-old", "c-on"]);
+    expect(enqueuedIds(enqueue)).toEqual([
+      "c-chat",
+      "c-filed-on",
+      "c-old",
+      "c-on",
+      "c-pending-current",
+      "c-shared",
+    ]);
     expect(enqueue).toHaveBeenCalledWith(WS, "c-on");
-    expect(result.enqueued).toBe(3);
+    expect(result.enqueued).toBe(6);
+  });
+
+  it("never enqueues content of off documents, archived documents or their filed attachments", async () => {
+    const { prisma } = fixture();
+    const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
+
+    await reindexDocumentContent(prisma, enqueue, {
+      pipelineVersionOnly: false,
+      dryRun: false,
+    });
+
+    const ids = enqueuedIds(enqueue);
+    expect(ids).not.toContain("c-off");
+    expect(ids).not.toContain("c-filed-off");
+    expect(ids).not.toContain("c-archived");
+    expect(ids).not.toContain("c-orphan");
+    // Shared with an on document: still enqueued.
+    expect(ids).toContain("c-shared");
   });
 
   it("with --pipeline-version only enqueues rows below the current version", async () => {
     const { prisma } = fixture();
-    const enqueue = jest.fn(async () => undefined);
+    const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
 
     await reindexDocumentContent(prisma, enqueue, {
       pipelineVersionOnly: true,
       dryRun: false,
     });
 
-    const ids = enqueue.mock.calls.map((c: any[]) => c[1]).sort();
-    expect(ids).toEqual(["c-chat", "c-old", "c-on"]);
+    // c-pending-current is only picked up by the default mode.
+    expect(enqueuedIds(enqueue)).toEqual([
+      "c-chat",
+      "c-filed-on",
+      "c-old",
+      "c-on",
+      "c-shared",
+    ]);
   });
 
   it("with --pipeline-version skips READY content on the current version", async () => {
     const { prisma, tables } = fixture();
     tables.contents.find((c) => c.id === "c-old")!.pipelineVersion = 99;
-    const enqueue = jest.fn(async () => undefined);
+    const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
 
     await reindexDocumentContent(prisma, enqueue, {
       pipelineVersionOnly: true,
       dryRun: false,
     });
 
-    const ids = enqueue.mock.calls.map((c: any[]) => c[1]);
+    const ids = enqueuedIds(enqueue);
     expect(ids).not.toContain("c-old");
     expect(ids).not.toContain("c-ready");
   });
 
   it("enqueues nothing on a dry run but reports the count", async () => {
     const { prisma } = fixture();
-    const enqueue = jest.fn(async () => undefined);
+    const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
 
     const result = await reindexDocumentContent(prisma, enqueue, {
       pipelineVersionOnly: false,
@@ -599,7 +720,7 @@ describe("reindexDocumentContent", () => {
 
     expect(enqueue).not.toHaveBeenCalled();
     expect(result.enqueued).toBe(0);
-    expect(result.candidates).toBe(3);
+    expect(result.candidates).toBe(6);
   });
 
   it("parses the CLI flags", () => {

@@ -13,6 +13,23 @@
 --     Task 8/9 legacy fallbacks).
 -- ChatAttachmentSourceScript stays: "DocumentContent"."sourceScript" uses it.
 
+-- Abort unless every row has been linked to a content row (backfill finished);
+-- otherwise dropping the columns would destroy the only copy of the text.
+DO $$
+DECLARE
+  unlinked bigint;
+BEGIN
+  SELECT
+    (SELECT count(*) FROM "DocumentVersion" WHERE "contentId" IS NULL) +
+    (SELECT count(*) FROM "ChatAttachment" WHERE "contentId" IS NULL)
+  INTO unlinked;
+  IF unlinked > 0 THEN
+    RAISE EXCEPTION
+      'Cannot drop legacy text columns: % rows still have contentId IS NULL. Run documents:backfill-content first.',
+      unlinked;
+  END IF;
+END $$;
+
 ALTER TABLE "DocumentVersion"
   DROP COLUMN "extractionStatus",
   DROP COLUMN "extractedText",

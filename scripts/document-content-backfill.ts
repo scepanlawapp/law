@@ -200,12 +200,14 @@ export async function backfillDocumentContent(
         mimeType: version.storedFile.detectedMimeType ?? DEFAULT_MIME,
         sizeBytes,
       });
+      // Carry the legacy text before linking: a crash in between leaves the
+      // row unlinked, so the next run retries it.
+      await carryLegacyExtraction(content, version);
       await prisma.documentVersion.update({
         where: { id: version.id },
         data: { contentId: content.id },
       });
       result.versionsLinked += 1;
-      await carryLegacyExtraction(content, version);
     }
   }
 
@@ -252,6 +254,7 @@ export async function backfillDocumentContent(
         mimeType: attachment.mimeType,
         sizeBytes: attachment.sizeBytes,
       });
+      await carryLegacyExtraction(content, attachment);
       await prisma.chatAttachment.update({
         where: { id: attachment.id },
         data: attachment.sha256
@@ -259,12 +262,13 @@ export async function backfillDocumentContent(
           : { contentId: content.id, sha256 },
       });
       result.attachmentsLinked += 1;
-      await carryLegacyExtraction(content, attachment);
     }
   }
 
   // Documents promoted from chat attachments were already readable by the
   // assistant, so they keep that access. A system change: no acting user.
+  // Only documents nobody ever toggled (aiAccessChangedAt null) qualify, so a
+  // user's explicit "off" is never reverted and re-runs settle at zero.
   const promoted = await prisma.chatAttachment.findMany({
     where: { documentId: { not: null } },
     select: { workspaceId: true, documentId: true },
@@ -278,7 +282,12 @@ export async function backfillDocumentContent(
   const now = new Date();
   for (const [workspaceId, ids] of idsByWorkspace) {
     const updated = await prisma.document.updateMany({
-      where: { id: { in: ids }, workspaceId, aiAccess: false },
+      where: {
+        id: { in: ids },
+        workspaceId,
+        aiAccess: false,
+        aiAccessChangedAt: null,
+      },
       data: { aiAccess: true, aiAccessChangedAt: now },
     });
     result.documentsOptedIn += updated.count;

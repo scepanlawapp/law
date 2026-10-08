@@ -11,6 +11,8 @@ export interface ReindexOptions {
 export interface ReindexResult {
   candidates: number;
   enqueued: number;
+  /** Content ids selected (for dry-run inspection). */
+  candidateIds: string[];
 }
 
 export type EnqueueIngestion = (
@@ -33,9 +35,9 @@ export function parseReindexArgs(argv: string[]): ReindexOptions {
 
 /**
  * Enqueues ingestion for content that an AI-readable source points at: current
- * versions of documents with `aiAccess = true` (any version) and chat
- * attachments. Content reachable only through access-off documents is never
- * enqueued. Rows already READY on the current pipeline version are skipped,
+ * versions of non-archived documents with `aiAccess = true` (any version) and
+ * chat attachments that are unfiled or filed as such a document. Content
+ * reachable only through access-off documents is never enqueued. Rows already READY on the current pipeline version are skipped,
  * matching `DocumentContentService.requestIngestion`.
  */
 export async function reindexDocumentContent(
@@ -56,7 +58,7 @@ export async function reindexDocumentContent(
     const rows = await prisma.documentVersion.findMany({
       where: {
         contentId: { not: null },
-        document: { aiAccess: true },
+        document: { aiAccess: true, archivedAt: null },
         id: { gt: cursor },
       },
       orderBy: { id: "asc" },
@@ -71,7 +73,15 @@ export async function reindexDocumentContent(
   cursor = "";
   for (;;) {
     const rows = await prisma.chatAttachment.findMany({
-      where: { contentId: { not: null }, id: { gt: cursor } },
+      where: {
+        contentId: { not: null },
+        id: { gt: cursor },
+        // Unfiled attachments are readable; filed ones follow their document.
+        OR: [
+          { documentId: null },
+          { document: { aiAccess: true, archivedAt: null } },
+        ],
+      },
       orderBy: { id: "asc" },
       take: PAGE_SIZE,
       select: { id: true, workspaceId: true, contentId: true },
@@ -81,7 +91,11 @@ export async function reindexDocumentContent(
     rows.forEach((row) => add(row.workspaceId, row.contentId));
   }
 
-  const result: ReindexResult = { candidates: 0, enqueued: 0 };
+  const result: ReindexResult = {
+    candidates: 0,
+    enqueued: 0,
+    candidateIds: [],
+  };
   for (const [workspaceId, ids] of byWorkspace) {
     const all = [...ids];
     for (let i = 0; i < all.length; i += PAGE_SIZE) {
@@ -101,6 +115,7 @@ export async function reindexDocumentContent(
           continue;
         }
         result.candidates += 1;
+        result.candidateIds.push(content.id);
         if (options.dryRun) continue;
         await enqueue(workspaceId, content.id);
         result.enqueued += 1;
