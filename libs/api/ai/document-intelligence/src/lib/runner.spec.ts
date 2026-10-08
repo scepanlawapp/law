@@ -1,6 +1,6 @@
 import { FakeChatModelProvider, type ChatModelProvider } from "@law/llm";
 import { classifyDocument, extractFacts } from "./runner";
-import { buildJmbgForTest } from "./test-identifiers";
+import { buildJmbg } from "../testing/test-identifiers";
 
 function spy(inner: ChatModelProvider) {
   const requests: { role: string; content: string }[][] = [];
@@ -58,7 +58,7 @@ describe("classifyDocument", () => {
 });
 
 describe("extractFacts", () => {
-  const jmbg = buildJmbgForTest("0101990");
+  const jmbg = buildJmbg("0101990");
   const text = `Ime: Petar Petrović\nJMBG: ${jmbg}`;
 
   it("keeps verified facts and drops fabricated quotes", async () => {

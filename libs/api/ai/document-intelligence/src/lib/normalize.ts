@@ -1,6 +1,5 @@
 import { toLatin } from "@law/transliteration";
 import {
-  DATE_FIELDS,
   FACT_FIELDS,
   SUBJECT_TYPES,
   type FactKind,
@@ -13,7 +12,7 @@ import {
   isValidPib,
   jmbgBirthDate,
 } from "./identifiers";
-import { locateQuote } from "./quotes";
+import { foldForMatch, foldText, locateInFolded } from "./quotes";
 
 /** One fact as the model reported it, flattened from its subject. */
 export interface RawFact {
@@ -39,9 +38,12 @@ export interface ExtractedFact {
   confidence: number;
 }
 
-const ALL_FIELDS: ReadonlySet<string> = new Set(
-  Object.values(FACT_FIELDS).flat(),
-);
+/** A quote shorter than this cannot verify anything. */
+const MIN_QUOTE_CHARS = 3;
+
+function isDateField(field: string): boolean {
+  return field === "dateOfBirth" || field.endsWith("Date");
+}
 
 const IDENTIFIER_FIELDS: Record<
   string,
@@ -68,18 +70,106 @@ function iso(year: number, month: number, day: number): string | null {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-/** "01.01.1990.", "1. 1. 1990", "01/01/1990", "1990-01-01" -> "1990-01-01". */
-function normalizeDate(value: string): string | null {
-  const text = value.trim();
-  const isoMatch = /^(\d{4})-(\d{1,2})-(\d{1,2})$/.exec(text);
-  if (isoMatch) {
-    return iso(Number(isoMatch[1]), Number(isoMatch[2]), Number(isoMatch[3]));
+// Folded (Latin, lower-case) month stems; genitive "januara" matches the stem.
+const MONTH_STEMS = [
+  "januar",
+  "februar",
+  "mart",
+  "april",
+  "maj",
+  "jun",
+  "jul",
+  "avgust",
+  "septembar",
+  "oktobar",
+  "novembar",
+  "decembar",
+];
+
+/**
+ * Every calendar date written in `text` as ISO strings. Understands
+ * "01.01.1990.", "1.1.1990", "01. 01. 1990.", "01/01/1990", "1990-01-01" and
+ * "1. januar 1990" / "1. januara 1990. godine". Impossible dates are skipped.
+ */
+function datesIn(text: string): Set<string> {
+  const folded = foldForMatch(text);
+  const found = new Set<string>();
+  const add = (year: string, month: number, day: string) => {
+    const value = iso(Number(year), month, Number(day));
+    if (value) {
+      found.add(value);
+    }
+  };
+  for (const m of folded.matchAll(
+    /(?<!\d)(\d{1,2}) ?[./-] ?(\d{1,2}) ?[./-] ?(\d{4})(?!\d)/g,
+  )) {
+    add(m[3], Number(m[2]), m[1]);
   }
-  const dmy =
-    /^(\d{1,2})\s*[./-]\s*(\d{1,2})\s*[./-]\s*(\d{4})\s*\.?(?:\s*god(?:ine|\.)?)?$/i.exec(
-      text,
-    );
-  return dmy ? iso(Number(dmy[3]), Number(dmy[2]), Number(dmy[1])) : null;
+  for (const m of folded.matchAll(/(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g)) {
+    add(m[1], Number(m[2]), m[3]);
+  }
+  const named = new RegExp(
+    `(?<!\\d)(\\d{1,2}) ?\\.? ?(${MONTH_STEMS.join("|")})a? ?(\\d{4})(?!\\d)`,
+    "g",
+  );
+  for (const m of folded.matchAll(named)) {
+    add(m[3], MONTH_STEMS.indexOf(m[2]) + 1, m[1]);
+  }
+  return found;
+}
+
+const SEPARATORS = new Set([" ", "\u00a0", ".", "-", "/"]);
+
+/**
+ * True when `digits` is printed in `quote` as one run of digits (optionally
+ * split by single spaces, dots, dashes or slashes) that is not part of a
+ * longer run of digits.
+ */
+function printsDigitRun(quote: string, digits: string): boolean {
+  const isDigit = (ch: string | undefined) =>
+    ch !== undefined && ch >= "0" && ch <= "9";
+  for (let start = 0; start < quote.length; start += 1) {
+    if (!isDigit(quote[start])) {
+      continue;
+    }
+    const before = quote[start - 1];
+    if (
+      isDigit(before) ||
+      (before !== undefined &&
+        SEPARATORS.has(before) &&
+        isDigit(quote[start - 2]))
+    ) {
+      continue;
+    }
+    let matched = 0;
+    let end = start;
+    while (end < quote.length && matched < digits.length) {
+      const ch = quote[end];
+      if (isDigit(ch)) {
+        if (ch !== digits[matched]) {
+          break;
+        }
+        matched += 1;
+      } else if (
+        !(
+          SEPARATORS.has(ch) &&
+          isDigit(quote[end - 1]) &&
+          isDigit(quote[end + 1])
+        )
+      ) {
+        break;
+      }
+      end += 1;
+    }
+    const after = quote[end];
+    const continues =
+      isDigit(after) ||
+      (after !== undefined && SEPARATORS.has(after) && isDigit(quote[end + 1]));
+    if (matched === digits.length && !continues) {
+      return true;
+    }
+  }
+  return false;
 }
 
 function clamp01(value: number): number {
@@ -88,20 +178,19 @@ function clamp01(value: number): number {
 
 /**
  * Keeps only verified facts: the field is allowed for the kind, the quote is
- * in the text, identifiers pass their checksum and are printed in the quote,
- * and a JMBG agrees with the subject's date of birth. Values and quotes are
- * stored in Latin; `charStart` is an offset in the original `text`.
- *
- * Without `kind`, any known field of any kind is accepted.
+ * in the text, the value itself is printed in the quote (dates compared as
+ * calendar dates, identifiers as one contiguous digit run), identifiers pass
+ * their checksum, and a JMBG agrees with the subject's date of birth. Values
+ * and quotes are stored in Latin; `charStart` is an offset in the original
+ * `text`.
  */
 export function normalizeFacts(
   raw: readonly RawFact[],
   text: string,
-  kind?: FactKind,
+  kind: FactKind,
 ): ExtractedFact[] {
-  const allowed: ReadonlySet<string> = kind
-    ? new Set(FACT_FIELDS[kind])
-    : ALL_FIELDS;
+  const allowed: ReadonlySet<string> = new Set(FACT_FIELDS[kind]);
+  const folded = foldText(text);
   const seen = new Set<string>();
   const facts: ExtractedFact[] = [];
 
@@ -117,7 +206,12 @@ export function normalizeFacts(
     ) {
       continue;
     }
-    const charStart = locateQuote(text, quote);
+    const foldedQuote = foldForMatch(quote);
+    const foldedValue = foldForMatch(value);
+    if (foldedQuote.length < MIN_QUOTE_CHARS || !foldedValue) {
+      continue;
+    }
+    const charStart = locateInFolded(folded, quote);
     if (charStart === null) {
       continue;
     }
@@ -129,13 +223,25 @@ export function normalizeFacts(
       if (
         digits.length !== identifier.digits ||
         !identifier.valid(digits) ||
-        !digitsOnly(quote).includes(digits)
+        !printsDigitRun(quote, digits)
       ) {
         continue;
       }
       normalizedValue = digits;
-    } else if (DATE_FIELDS.has(item.field)) {
-      normalizedValue = normalizeDate(value);
+    } else if (isDateField(item.field)) {
+      const valueDates = datesIn(value);
+      if (valueDates.size !== 1) {
+        continue;
+      }
+      normalizedValue = [...valueDates][0];
+      if (!datesIn(quote).has(normalizedValue)) {
+        continue;
+      }
+    } else if (
+      foldedQuote.length < foldedValue.length ||
+      !foldedQuote.includes(foldedValue)
+    ) {
+      continue;
     }
 
     const dedupeKey = `${subjectKey}\u0000${item.field}\u0000${normalizedValue ?? value}`;

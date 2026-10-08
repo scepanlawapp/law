@@ -4,7 +4,7 @@
  */
 
 /** JMBG from `DDMMYYY` using region 71 and serial 000. */
-export function buildJmbgForTest(
+export function buildJmbg(
   ddmmyyy: string,
   region = "71",
   serial = "000",
@@ -23,7 +23,7 @@ export function buildJmbgForTest(
 }
 
 /** PIB from 8 digits using ISO 7064 MOD 11,10. */
-export function buildPibForTest(first8: string): string {
+export function buildPib(first8: string): string {
   let p = 10;
   for (const ch of first8) {
     let s = (Number(ch) + p) % 10;

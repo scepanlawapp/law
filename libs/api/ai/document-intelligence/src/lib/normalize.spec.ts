@@ -1,9 +1,9 @@
-import { buildJmbgForTest, buildPibForTest } from "./test-identifiers";
+import { buildJmbg, buildPib } from "../testing/test-identifiers";
 import { normalizeFacts, type RawFact } from "./normalize";
 
-const JMBG = buildJmbgForTest("0101990");
-const OTHER_JMBG = buildJmbgForTest("0202985");
-const PIB = buildPibForTest("10000001");
+const JMBG = buildJmbg("0101990");
+const OTHER_JMBG = buildJmbg("0202985");
+const PIB = buildPib("10000001");
 
 function raw(overrides: Partial<RawFact>): RawFact {
   return {
@@ -208,5 +208,146 @@ describe("normalizeFacts", () => {
     expect(fact.value).toBe("Petar Petrović");
     expect(fact.charStart).toBe(0);
     expect(fact.confidence).toBe(1);
+  });
+
+  describe("value must be printed in its quote", () => {
+    const probeText = "Ime: Petar Petrović\nMesto rođenja: Niš";
+
+    it("drops a fullName that differs from its quote", () => {
+      expect(
+        normalizeFacts(
+          [raw({ value: "Marko Marković", quote: "Petar Petrović" })],
+          probeText,
+          "ID_CARD",
+        ),
+      ).toEqual([]);
+    });
+
+    it("drops a dateOfBirth whose quote holds no such date", () => {
+      expect(
+        normalizeFacts(
+          [raw({ field: "dateOfBirth", value: "05.05.1985.", quote: "Niš" })],
+          probeText,
+          "ID_CARD",
+        ),
+      ).toEqual([]);
+    });
+
+    it("drops a one-letter quote used to back a longer value", () => {
+      expect(
+        normalizeFacts(
+          [raw({ field: "address", value: "Bulevar 1", quote: "a" })],
+          probeText,
+          "ID_CARD",
+        ),
+      ).toEqual([]);
+    });
+
+    it("drops a quote shorter than its value", () => {
+      expect(
+        normalizeFacts(
+          [
+            raw({
+              field: "placeOfBirth",
+              value: "Niš i okolina",
+              quote: "Niš",
+            }),
+          ],
+          probeText,
+          "ID_CARD",
+        ),
+      ).toEqual([]);
+    });
+
+    it("accepts a value that is a fragment of a longer quote, across scripts", () => {
+      const [fact] = normalizeFacts(
+        [
+          raw({
+            field: "placeOfBirth",
+            value: "Ниш",
+            quote: "Mesto rođenja: Niš",
+          }),
+        ],
+        probeText,
+        "ID_CARD",
+      );
+      expect(fact.value).toBe("Niš");
+    });
+
+    it.each([
+      ["1.1.1990", "Datum rođenja: 1.1.1990"],
+      ["01. 01. 1990.", "Datum rođenja: 01. 01. 1990."],
+      ["1990-01-01", "Datum rođenja: 1. januar 1990. godine"],
+      ["01.01.1990.", "Rođen 1. januara 1990."],
+    ])(
+      "accepts date value %s against quote %s in another format",
+      (value, quote) => {
+        const [fact] = normalizeFacts(
+          [raw({ field: "dateOfBirth", value, quote })],
+          quote,
+          "ID_CARD",
+        );
+        expect(fact.normalizedValue).toBe("1990-01-01");
+      },
+    );
+
+    it("drops a date that differs from the one in the quote", () => {
+      expect(
+        normalizeFacts(
+          [
+            raw({
+              field: "issuedDate",
+              value: "02.01.1990.",
+              quote: "Izdato: 01.01.1990.",
+            }),
+          ],
+          "Izdato: 01.01.1990.",
+          "ID_CARD",
+        ),
+      ).toEqual([]);
+    });
+
+    it("drops a date whose value cannot be parsed", () => {
+      expect(
+        normalizeFacts(
+          [
+            raw({
+              field: "issuedDate",
+              value: "juče",
+              quote: "Izdato: 01.01.1990.",
+            }),
+          ],
+          "Izdato: 01.01.1990.",
+          "ID_CARD",
+        ),
+      ).toEqual([]);
+    });
+  });
+
+  it("requires the identifier as one contiguous digit run in the quote", () => {
+    const split = "JMBG: 1 0101990 710008";
+    expect(
+      normalizeFacts(
+        [raw({ field: "jmbg", value: "0101990710008", quote: split })],
+        split,
+        "ID_CARD",
+      ),
+    ).toEqual([]);
+    const glued = "JMBG: 10101990710008";
+    expect(
+      normalizeFacts(
+        [raw({ field: "jmbg", value: "0101990710008", quote: glued })],
+        glued,
+        "ID_CARD",
+      ),
+    ).toEqual([]);
+    const spaced = "JMBG: 0101990 710008.";
+    expect(
+      normalizeFacts(
+        [raw({ field: "jmbg", value: "0101990710008", quote: spaced })],
+        spaced,
+        "ID_CARD",
+      ),
+    ).toHaveLength(1);
   });
 });
