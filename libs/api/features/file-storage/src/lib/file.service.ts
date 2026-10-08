@@ -111,38 +111,131 @@ export class FileService {
     return this.writePending(operation.id, input.stream);
   }
 
+  /**
+   * Marks the uploaded bytes available and returns the stored file the
+   * document version must reference. When an identical file (same sha256) is
+   * already available in the workspace, the new upload is discarded and the
+   * version, the operation and the returned id all point at the existing file.
+   */
   async commitAvailable(params: {
     operationId: string;
     workspaceId: string;
     documentId: string;
     documentVersionId: string;
-  }): Promise<void> {
+  }): Promise<{ storedFileId: string }> {
     const operation = await this.prisma.uploadOperation.findFirst({
       where: { id: params.operationId, workspaceId: params.workspaceId },
+      include: { fileLocation: true, storedFile: true },
     });
     if (!operation) {
       throw new BadRequestException("Upload operation was not found");
     }
-    if (operation.status === "COMMITTED") return;
+    if (operation.status === "COMMITTED") {
+      return { storedFileId: operation.storedFileId };
+    }
+
+    const sha256 = operation.storedFile.sha256;
+    const duplicate = sha256
+      ? await this.prisma.storedFile.findFirst({
+          where: {
+            workspaceId: params.workspaceId,
+            sha256,
+            lifecycle: "AVAILABLE",
+            id: { not: operation.storedFileId },
+          },
+          include: {
+            locations: {
+              where: { isActive: true, state: "AVAILABLE" },
+              take: 1,
+            },
+          },
+        })
+      : null;
+    const duplicateLocation = duplicate?.locations[0];
+
+    if (!duplicate || !duplicateLocation) {
+      await this.prisma.$transaction([
+        this.prisma.storedFile.update({
+          where: { id: operation.storedFileId },
+          data: { lifecycle: "AVAILABLE", finalizedAt: new Date() },
+        }),
+        this.prisma.fileLocation.update({
+          where: { id: operation.fileLocationId },
+          data: { state: "AVAILABLE", isActive: true, verifiedAt: new Date() },
+        }),
+        this.prisma.uploadOperation.update({
+          where: { id: operation.id },
+          data: {
+            status: "COMMITTED",
+            documentId: params.documentId,
+            documentVersionId: params.documentVersionId,
+            completedAt: new Date(),
+          },
+        }),
+      ]);
+      return { storedFileId: operation.storedFileId };
+    }
+
+    // The abandoned file and failed location keep their rows (the operation no
+    // longer references them), and the operation becomes COMMITTED against the
+    // existing file, so reconcile() (stale ACCEPTED/WRITING/FINALIZING only)
+    // can never reach the shared bytes.
     await this.prisma.$transaction([
       this.prisma.storedFile.update({
         where: { id: operation.storedFileId },
-        data: { lifecycle: "AVAILABLE", finalizedAt: new Date() },
+        data: { lifecycle: "ABANDONED" },
       }),
       this.prisma.fileLocation.update({
         where: { id: operation.fileLocationId },
-        data: { state: "AVAILABLE", isActive: true, verifiedAt: new Date() },
+        data: { state: "FAILED", isActive: false },
+      }),
+      this.prisma.documentVersion.updateMany({
+        where: {
+          id: params.documentVersionId,
+          workspaceId: params.workspaceId,
+        },
+        data: { storedFileId: duplicate.id },
       }),
       this.prisma.uploadOperation.update({
         where: { id: operation.id },
         data: {
           status: "COMMITTED",
+          storedFileId: duplicate.id,
+          fileLocationId: duplicateLocation.id,
+          storageConnectionId: duplicateLocation.storageConnectionId,
           documentId: params.documentId,
           documentVersionId: params.documentVersionId,
           completedAt: new Date(),
         },
       }),
     ]);
+
+    await this.deleteDuplicateBytes(
+      params.workspaceId,
+      operation.storageConnectionId,
+      operation.fileLocation.storageKey,
+    );
+    return { storedFileId: duplicate.id };
+  }
+
+  private async deleteDuplicateBytes(
+    workspaceId: string,
+    storageConnectionId: string,
+    storageKey: string,
+  ): Promise<void> {
+    try {
+      const connection = await this.router.connectionById(
+        workspaceId,
+        storageConnectionId,
+      );
+      await this.router.adapterFor(connection).delete(storageKey);
+    } catch (error) {
+      this.logger.warn(
+        `Could not delete duplicate upload bytes at ${storageKey}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   async openDownload(params: {

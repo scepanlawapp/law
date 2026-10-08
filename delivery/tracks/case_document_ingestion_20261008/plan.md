@@ -121,14 +121,14 @@
 **Interfaces:**
 - Produces: `commitAvailable(params)` now returns `Promise<{ storedFileId: string }>` — the id the version must reference (existing file on a hash match).
 
-- [ ] **Step 1: Write failing tests** in `file.service.spec.ts`:
+- [x] **Step 1: Write failing tests** in `file.service.spec.ts`:
   - `"reuses an available stored file with the same hash"`: an existing `AVAILABLE` `StoredFile` (same workspace, same `sha256`, different id) → returns its id; the new `StoredFile` becomes `ABANDONED`, its `FileLocation` `FAILED`; the operation's `storedFileId`/`fileLocationId` point to the existing file and its active location; `adapter.delete(newStorageKey)` is called after the transaction.
   - `"does not dedup across workspaces"`: same hash in another workspace → returns the new id, nothing abandoned.
   - `"keeps the new file when no match exists"`.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern=file.service.spec`. Expected: FAIL.
-- [ ] **Step 3:** Implement inside `commitAvailable`: look up `storedFile.findFirst({ where: { workspaceId, sha256, lifecycle: "AVAILABLE", id: { not: operation.storedFileId } }, include: { locations: { where: { isActive: true, state: "AVAILABLE" }, take: 1 } } })`; on a match with an active location, run the dedup branch in the same `$transaction` and update `DocumentVersion.storedFileId` for `params.documentVersionId`; otherwise current behavior. Delete bytes best effort (log on failure).
-- [ ] **Step 4:** Update callers in `documents.service.ts` (`create`, `addVersion`) to ignore the return value (the version row is updated inside `commitAvailable`). Run `npx nx test api --testPathPattern="file.service|documents.service"`. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(file-storage): reuse stored bytes for identical uploads`.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern=file.service.spec`. Expected: FAIL.
+- [x] **Step 3:** Implement inside `commitAvailable`: look up `storedFile.findFirst({ where: { workspaceId, sha256, lifecycle: "AVAILABLE", id: { not: operation.storedFileId } }, include: { locations: { where: { isActive: true, state: "AVAILABLE" }, take: 1 } } })`; on a match with an active location, run the dedup branch in the same `$transaction` and update `DocumentVersion.storedFileId` for `params.documentVersionId`; otherwise current behavior. Delete bytes best effort (log on failure).
+- [x] **Step 4:** Update callers in `documents.service.ts` (`create`, `addVersion`) to ignore the return value (the version row is updated inside `commitAvailable`). Run `npx nx test api --testPathPattern="file.service|documents.service"`. Expected: PASS.
+- [x] **Step 5:** Commit `feat(file-storage): reuse stored bytes for identical uploads`.
 
 ### Task 5: `@law/document-ingestion` — content service and queue port
 

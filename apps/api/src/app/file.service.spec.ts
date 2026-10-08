@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from "@nestjs/common";
+import { BadRequestException, ConflictException, Logger } from "@nestjs/common";
 import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -125,6 +125,9 @@ describe("FileService", () => {
       findUniqueOrThrow: jest.fn(async ({ where }: { where: { id: string } }) =>
         locations.get(where.id),
       ),
+    },
+    documentVersion: {
+      updateMany: jest.fn(async () => ({ count: 1 })),
     },
     storageConnection: {
       findFirst: jest.fn(async () => ({
@@ -352,6 +355,247 @@ describe("FileService", () => {
     ]);
     await service.reconcile();
     expect(prisma.storedFile.update).not.toHaveBeenCalled();
+  });
+
+  describe("commitAvailable byte dedup", () => {
+    const otherWorkspaceId = "44444444-4444-4444-a444-444444444444";
+
+    async function ingestFinalizing(key = "key-dedup") {
+      const result = await service.ingest({
+        workspaceId,
+        actorUserId: userId,
+        idempotencyKey: key,
+        purpose: "CREATE_DOCUMENT",
+        fingerprint: "fp-dedup",
+        originalFilename: "a.pdf",
+        stream: pdfStream("same bytes"),
+      });
+      prisma.uploadOperation.findFirst.mockImplementation(async () => {
+        const row = operations.get(result.operationId)!;
+        return {
+          ...row,
+          fileLocation: locations.get(String(row.fileLocationId)),
+          storedFile: files.get(String(row.storedFileId)),
+        };
+      });
+      return result;
+    }
+
+    function seedExisting() {
+      const existingFileId = crypto.randomUUID();
+      const existingLocationId = crypto.randomUUID();
+      const existingConnectionId = "55555555-5555-4555-a555-555555555555";
+      files.set(existingFileId, {
+        id: existingFileId,
+        lifecycle: "AVAILABLE",
+        sha256: "x",
+        sizeBytes: BigInt(10),
+        detectedMimeType: "application/pdf",
+      });
+      locations.set(existingLocationId, {
+        id: existingLocationId,
+        storedFileId: existingFileId,
+        storageConnectionId: existingConnectionId,
+        storageKey: `${workspaceId}/${existingFileId}/content`,
+        state: "AVAILABLE",
+        isActive: true,
+      });
+      return {
+        existingFileId,
+        existingLocationId,
+        existingConnectionId,
+        row: {
+          id: existingFileId,
+          workspaceId,
+          lifecycle: "AVAILABLE",
+          locations: [locations.get(existingLocationId)],
+        },
+      };
+    }
+
+    it("reuses an available stored file with the same hash", async () => {
+      const ingested = await ingestFinalizing();
+      const existing = seedExisting();
+      prisma.storedFile.findFirst.mockResolvedValue(existing.row);
+      const deleteSpy = jest.spyOn(adapter, "delete");
+      const callOrder: string[] = [];
+      prisma.$transaction.mockImplementationOnce(async (ops: unknown) => {
+        const out = await Promise.all(ops as Promise<unknown>[]);
+        callOrder.push("transaction");
+        return out;
+      });
+      deleteSpy.mockImplementationOnce(async () => {
+        callOrder.push("delete");
+      });
+
+      const result = await service.commitAvailable({
+        operationId: ingested.operationId,
+        workspaceId,
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      });
+
+      expect(result).toEqual({ storedFileId: existing.existingFileId });
+      expect(prisma.storedFile.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId,
+            sha256: ingested.sha256,
+            lifecycle: "AVAILABLE",
+            id: { not: ingested.storedFileId },
+          }),
+        }),
+      );
+      expect(files.get(ingested.storedFileId)?.lifecycle).toBe("ABANDONED");
+      expect(locations.get(ingested.fileLocationId)).toMatchObject({
+        state: "FAILED",
+        isActive: false,
+      });
+      expect(operations.get(ingested.operationId)).toMatchObject({
+        status: "COMMITTED",
+        storedFileId: existing.existingFileId,
+        fileLocationId: existing.existingLocationId,
+        storageConnectionId: existing.existingConnectionId,
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      });
+      expect(prisma.documentVersion.updateMany).toHaveBeenCalledWith({
+        where: { id: "ver-1", workspaceId },
+        data: { storedFileId: existing.existingFileId },
+      });
+      expect(deleteSpy).toHaveBeenCalledWith(ingested.storageKey);
+      expect(callOrder).toEqual(["transaction", "delete"]);
+      expect(files.get(existing.existingFileId)?.lifecycle).toBe("AVAILABLE");
+    });
+
+    it("still succeeds when deleting the duplicate bytes fails", async () => {
+      const ingested = await ingestFinalizing("key-dedup-del");
+      prisma.storedFile.findFirst.mockResolvedValue(seedExisting().row);
+      jest.spyOn(adapter, "delete").mockRejectedValueOnce(new Error("boom"));
+      const warn = jest
+        .spyOn(Logger.prototype, "warn")
+        .mockImplementation(() => undefined);
+      await expect(
+        service.commitAvailable({
+          operationId: ingested.operationId,
+          workspaceId,
+          documentId: "doc-1",
+          documentVersionId: "ver-1",
+        }),
+      ).resolves.toEqual({ storedFileId: expect.any(String) });
+      expect(warn).toHaveBeenCalled();
+      warn.mockRestore();
+    });
+
+    it("resolves an idempotent replay to the deduplicated file", async () => {
+      const ingested = await ingestFinalizing("key-dedup-replay");
+      const existing = seedExisting();
+      prisma.storedFile.findFirst.mockResolvedValue(existing.row);
+      await service.commitAvailable({
+        operationId: ingested.operationId,
+        workspaceId,
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      });
+
+      const replay = await service.ingest({
+        workspaceId,
+        actorUserId: userId,
+        idempotencyKey: "key-dedup-replay",
+        purpose: "CREATE_DOCUMENT",
+        fingerprint: "fp-dedup",
+        originalFilename: "a.pdf",
+        stream: pdfStream("same bytes"),
+      });
+      expect(replay).toMatchObject({
+        replay: true,
+        storedFileId: existing.existingFileId,
+        fileLocationId: existing.existingLocationId,
+        storageConnectionId: existing.existingConnectionId,
+        storageKey: `${workspaceId}/${existing.existingFileId}/content`,
+        documentVersionId: "ver-1",
+      });
+    });
+
+    it("does not reconcile a deduplicated operation or its shared bytes", async () => {
+      const ingested = await ingestFinalizing("key-dedup-rec");
+      const existing = seedExisting();
+      prisma.storedFile.findFirst.mockResolvedValue(existing.row);
+      await service.commitAvailable({
+        operationId: ingested.operationId,
+        workspaceId,
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      });
+      const deleteSpy = jest.spyOn(adapter, "delete");
+      deleteSpy.mockClear();
+      prisma.uploadOperation.findMany.mockImplementationOnce(
+        async ({ where }: { where: { status: { in: string[] } } }) =>
+          [...operations.values()]
+            .filter((row) => where.status.in.includes(String(row.status)))
+            .map((row) => ({
+              ...row,
+              fileLocation: locations.get(String(row.fileLocationId)),
+              storedFile: files.get(String(row.storedFileId)),
+            })),
+      );
+      await service.reconcile();
+      expect(deleteSpy).not.toHaveBeenCalled();
+      expect(files.get(existing.existingFileId)?.lifecycle).toBe("AVAILABLE");
+    });
+
+    it("does not dedup across workspaces", async () => {
+      const ingested = await ingestFinalizing("key-dedup-ws");
+      // The lookup is scoped to the caller's workspace, so a match that only
+      // exists in another workspace is never returned.
+      prisma.storedFile.findFirst.mockImplementation(
+        async ({ where }: { where: { workspaceId: string } }) =>
+          where.workspaceId === otherWorkspaceId ? seedExisting().row : null,
+      );
+      const deleteSpy = jest.spyOn(adapter, "delete");
+      const result = await service.commitAvailable({
+        operationId: ingested.operationId,
+        workspaceId,
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      });
+      expect(result).toEqual({ storedFileId: ingested.storedFileId });
+      expect(files.get(ingested.storedFileId)?.lifecycle).toBe("AVAILABLE");
+      expect(deleteSpy).not.toHaveBeenCalled();
+      expect(prisma.documentVersion.updateMany).not.toHaveBeenCalled();
+    });
+
+    it("keeps the new file when no match exists", async () => {
+      const ingested = await ingestFinalizing("key-dedup-none");
+      prisma.storedFile.findFirst.mockResolvedValue(null);
+      const deleteSpy = jest.spyOn(adapter, "delete");
+      const result = await service.commitAvailable({
+        operationId: ingested.operationId,
+        workspaceId,
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      });
+      expect(result).toEqual({ storedFileId: ingested.storedFileId });
+      expect(files.get(ingested.storedFileId)?.lifecycle).toBe("AVAILABLE");
+      expect(locations.get(ingested.fileLocationId)).toMatchObject({
+        state: "AVAILABLE",
+        isActive: true,
+      });
+      expect(operations.get(ingested.operationId)?.status).toBe("COMMITTED");
+      expect(deleteSpy).not.toHaveBeenCalled();
+    });
+
+    it("returns the stored file of an already committed operation", async () => {
+      const ingested = await ingestFinalizing("key-dedup-done");
+      operations.get(ingested.operationId)!.status = "COMMITTED";
+      const result = await service.commitAvailable({
+        operationId: ingested.operationId,
+        workspaceId,
+        documentId: "doc-1",
+        documentVersionId: "ver-1",
+      });
+      expect(result).toEqual({ storedFileId: ingested.storedFileId });
+    });
   });
 
   it("changes the upload fingerprint when category changes", () => {
