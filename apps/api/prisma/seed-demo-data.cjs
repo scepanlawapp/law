@@ -4,7 +4,9 @@
 // (service categories, rates, retainers, and a month of work entries).
 // Run `npm run db:seed:auth` first, then `npm run db:seed:demo`.
 const { PrismaClient } = require("@prisma/client");
-const { randomBytes, scryptSync } = require("node:crypto");
+const { createHash, randomBytes, scryptSync } = require("node:crypto");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const TODAY = new Date("2026-09-19T09:00:00.000Z");
 const YEAR_END = new Date("2026-12-31T23:59:59.000Z");
@@ -1698,6 +1700,268 @@ async function ensureChatSessions(prisma, workspaceId, users, cases) {
   }
 }
 
+// --- Case documents in both AI-access states -------------------------------
+
+// JMBG control digit: weights 7..2 twice over the first 12 digits, mod 11.
+// 0101990710008 is a fictional, checksum-valid number (not a real person).
+const DEMO_JMBG = "0101990710008";
+function jmbgControlDigit(first12) {
+  const weights = [7, 6, 5, 4, 3, 2, 7, 6, 5, 4, 3, 2];
+  const sum = weights.reduce((acc, w, i) => acc + w * Number(first12[i]), 0);
+  const m = 11 - (sum % 11);
+  return m > 9 ? 0 : m;
+}
+if (jmbgControlDigit(DEMO_JMBG.slice(0, 12)) !== Number(DEMO_JMBG[12])) {
+  throw new Error("Demo JMBG has an invalid control digit");
+}
+
+const DEMO_ID_CARD_TEXT = [
+  "REPUBLIKA SRBIJA (DEMO PODACI)",
+  "LIČNA KARTA",
+  "Prezime: Primerović",
+  "Ime: Marko",
+  "Datum rođenja: 01.01.1990.",
+  "Mesto rođenja: Beograd",
+  `JMBG: ${DEMO_JMBG}`,
+  "Prebivalište: Ulica Primerna 1, Beograd",
+  "Broj dokumenta: 000000001",
+  "Datum izdavanja: 01.02.2022.",
+  "Važi do: 01.02.2032.",
+  "Izdaje: MUP Republike Srbije",
+].join("\n");
+
+// [field, value, normalizedValue, quote]
+const DEMO_ID_CARD_FACTS = [
+  ["fullName", "Marko Primerović", null, "Ime: Marko"],
+  ["firstName", "Marko", null, "Ime: Marko"],
+  ["lastName", "Primerović", null, "Prezime: Primerović"],
+  ["jmbg", DEMO_JMBG, DEMO_JMBG, `JMBG: ${DEMO_JMBG}`],
+  ["dateOfBirth", "01.01.1990.", "1990-01-01", "Datum rođenja: 01.01.1990."],
+  ["placeOfBirth", "Beograd", null, "Mesto rođenja: Beograd"],
+  [
+    "address",
+    "Ulica Primerna 1, Beograd",
+    null,
+    "Prebivalište: Ulica Primerna 1, Beograd",
+  ],
+  ["documentNumber", "000000001", null, "Broj dokumenta: 000000001"],
+  ["issuedDate", "01.02.2022.", "2022-02-01", "Datum izdavanja: 01.02.2022."],
+  ["expiryDate", "01.02.2032.", "2032-02-01", "Važi do: 01.02.2032."],
+  [
+    "issuingAuthority",
+    "MUP Republike Srbije",
+    null,
+    "Izdaje: MUP Republike Srbije",
+  ],
+];
+
+const DEMO_CASE_DOCUMENTS = [
+  {
+    n: 1,
+    title: "Lična karta - Marko Primerović (demo)",
+    category: "Identifikacija",
+    aiAccess: true,
+    text: DEMO_ID_CARD_TEXT,
+    ready: true,
+  },
+  {
+    n: 2,
+    title: "Nacrt ugovora o zakupu poslovnog prostora (demo)",
+    category: "Ugovori",
+    aiAccess: true,
+    text: "Nacrt ugovora o zakupu poslovnog prostora. Zakupodavac i zakupac su fiktivna lica (demo).",
+    ready: false,
+  },
+  {
+    n: 3,
+    title: "Punomoćje za zastupanje (demo)",
+    category: "Punomoćja",
+    aiAccess: false,
+    text: "Punomoćje za zastupanje pred sudom. Fiktivni podaci za demo okruženje.",
+    ready: false,
+  },
+  {
+    n: 4,
+    title: "Interna beleška o strategiji (demo)",
+    category: "Interno",
+    aiAccess: false,
+    text: "Interna beleška kancelarije o strategiji postupka. Asistent ne sme da je čita.",
+    ready: false,
+  },
+];
+
+function demoDocId(prefix, n) {
+  return `${prefix}000000-0000-4000-a000-${String(n).padStart(12, "0")}`;
+}
+
+function demoStorageRoot() {
+  const configured = (process.env.FILE_STORAGE_ROOT ?? "").trim();
+  return configured || path.resolve(process.cwd(), "tmp/file-storage");
+}
+
+// Mirrors LocalStorageAdapter: <root>/<workspaceId>/<storedFileId>/content.
+// Existing bytes are never overwritten.
+function ensureDemoFileBytes(workspaceId, storedFileId, bytes) {
+  const file = path.join(
+    demoStorageRoot(),
+    workspaceId,
+    storedFileId,
+    "content",
+  );
+  if (fs.existsSync(file)) return;
+  fs.mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+  fs.writeFileSync(file, bytes, { mode: 0o600 });
+}
+
+async function ensureCaseDocuments(
+  prisma,
+  workspaceId,
+  actorUserId,
+  caseRow,
+  folderId,
+) {
+  const connection = await prisma.storageConnection.findFirstOrThrow({
+    where: { workspaceId, configRef: "local-default" },
+  });
+  const changedAt = new Date("2026-09-19T09:00:00.000Z");
+
+  for (const doc of DEMO_CASE_DOCUMENTS) {
+    const documentId = demoDocId("d0", doc.n);
+    const versionId = demoDocId("d1", doc.n);
+    const storedFileId = demoDocId("d2", doc.n);
+    const contentId = demoDocId("d3", doc.n);
+    const bytes = Buffer.from(doc.text, "utf8");
+    const sha256 = createHash("sha256").update(bytes).digest("hex");
+    const aiFields = doc.aiAccess
+      ? {
+          aiAccess: true,
+          aiAccessChangedAt: changedAt,
+          aiAccessChangedByUserId: actorUserId,
+        }
+      : { aiAccess: false };
+
+    ensureDemoFileBytes(workspaceId, storedFileId, bytes);
+
+    await prisma.document.upsert({
+      where: { id: documentId },
+      update: aiFields,
+      create: {
+        id: documentId,
+        workspaceId,
+        title: doc.title,
+        category: doc.category,
+        folderId,
+        createdByUserId: actorUserId,
+        updatedByUserId: actorUserId,
+        ...aiFields,
+      },
+    });
+    await prisma.documentCase.upsert({
+      where: { documentId_caseId: { documentId, caseId: caseRow.id } },
+      update: {},
+      create: { documentId, caseId: caseRow.id, workspaceId },
+    });
+    await prisma.storedFile.upsert({
+      where: { id: storedFileId },
+      update: {},
+      create: {
+        id: storedFileId,
+        workspaceId,
+        lifecycle: "AVAILABLE",
+        detectedMimeType: "text/plain",
+        sizeBytes: BigInt(bytes.length),
+        sha256,
+        finalizedAt: changedAt,
+      },
+    });
+    await prisma.fileLocation.upsert({
+      where: {
+        storageConnectionId_storageKey: {
+          storageConnectionId: connection.id,
+          storageKey: `${workspaceId}/${storedFileId}/content`,
+        },
+      },
+      update: {},
+      create: {
+        storedFileId,
+        workspaceId,
+        storageConnectionId: connection.id,
+        storageKey: `${workspaceId}/${storedFileId}/content`,
+        state: "AVAILABLE",
+        isActive: true,
+        verifiedAt: changedAt,
+      },
+    });
+
+    const contentData = doc.ready
+      ? {
+          status: "READY",
+          extractedText: doc.text,
+          sourceScript: "LATIN",
+          pipelineVersion: 1,
+          documentKind: "ID_CARD",
+          kindConfidence: 0.97,
+          processedAt: changedAt,
+        }
+      : {};
+    await prisma.documentContent.upsert({
+      where: { id: contentId },
+      update: contentData,
+      create: {
+        id: contentId,
+        workspaceId,
+        sha256,
+        mimeType: "text/plain",
+        sizeBytes: bytes.length,
+        ...contentData,
+      },
+    });
+
+    await prisma.documentVersion.upsert({
+      where: { id: versionId },
+      update: { contentId },
+      create: {
+        id: versionId,
+        documentId,
+        workspaceId,
+        versionNumber: 1,
+        storedFileId,
+        originalFilename: `${documentId}.txt`,
+        uploadedByUserId: actorUserId,
+        contentId,
+      },
+    });
+    await prisma.document.update({
+      where: { id: documentId },
+      data: { currentVersionId: versionId },
+    });
+
+    if (doc.ready) {
+      // Facts as the pipeline would have stored them; no providers involved.
+      await prisma.documentFact.deleteMany({
+        where: { contentId, workspaceId },
+      });
+      await prisma.documentFact.createMany({
+        data: DEMO_ID_CARD_FACTS.map(
+          ([field, value, normalizedValue, quote]) => ({
+            workspaceId,
+            contentId,
+            subjectKey: "holder",
+            subjectType: "PERSON",
+            subjectRole: null,
+            field,
+            value,
+            normalizedValue,
+            quote,
+            charStart: doc.text.indexOf(quote),
+            confidence: 0.95,
+          }),
+        ),
+      });
+    }
+  }
+}
+
 async function main() {
   const prisma = new PrismaClient();
   try {
@@ -1772,6 +2036,13 @@ async function main() {
     await ensureClientActivities(prisma, workspaceId, adminUser.id, clients);
     await ensureWorkCapture(prisma, workspaceId, users, clients, cases);
     await ensureChatSessions(prisma, workspaceId, users, cases);
+    await ensureCaseDocuments(
+      prisma,
+      workspaceId,
+      adminUser.id,
+      cases[0],
+      demoFolderId,
+    );
 
     const marker = await prisma.activityLog.findFirst({
       where: { workspaceId, action: "DEMO_SEED_COMPLETED" },

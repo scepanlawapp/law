@@ -326,11 +326,11 @@
   - `backfillDocumentContent(prisma: PrismaClient, deps: { readStoredFile(workspaceId, storedFileId): Promise<Buffer>; readChatAttachment(row): Promise<Buffer> }): Promise<{ versionsLinked: number; attachmentsLinked: number; contentsCreated: number; textCopied: number; documentsOptedIn: number }>` — idempotent; uses `StoredFile.sha256` when present, hashes bytes otherwise; copies `extractedText`/`sourceScript` (status `COMPLETED` → content keeps `PENDING` but text present; `UNSUPPORTED` → `UNSUPPORTED`); sets `aiAccess = true` on documents referenced by a `ChatAttachment.documentId`.
   - `reindex` CLI: `--only-opted-in` (default) enqueues `requestIngestion` for content of `aiAccess = true` documents and of chat attachments; `--pipeline-version` forces rows below `CURRENT_PIPELINE_VERSION`.
 
-- [ ] **Step 1: Write failing tests:** two versions with the same hash → one content; second run changes nothing (all counters 0); chat-promoted document becomes `aiAccess = true`; other documents stay `false`; existing text copied without any provider call.
-- [ ] **Step 2:** Run the test. Expected: FAIL.
-- [ ] **Step 3:** Implement; seed adds four documents on one demo case: two `aiAccess: true` (one ID card text fixture with `READY` content and facts inserted directly), two `false`.
-- [ ] **Step 4:** Run the test (PASS), then `npm run db:seed:demo` and `npm run documents:backfill-content` twice locally; second run prints all zeros.
-- [ ] **Step 5:** Write `followup-drop-legacy-text.sql` (drops `extractionStatus`, `extractedText`, `sourceScript`, `extractionError`, `extractedAt` from `DocumentVersion` and `ChatAttachment`) and remove all remaining code reads of those columns (`chat.service.ts` ~L1407, promotion, drafting). Run `npx nx test api`. Expected: PASS. Commit `feat(documents): backfill and reindex document content`.
+- [x] **Step 1: Write failing tests:** two versions with the same hash → one content; second run changes nothing (all counters 0); chat-promoted document becomes `aiAccess = true`; other documents stay `false`; existing text copied without any provider call.
+- [x] **Step 2:** Run the test. Expected: FAIL.
+- [x] **Step 3:** Implement; seed adds four documents on one demo case: two `aiAccess: true` (one ID card text fixture with `READY` content and facts inserted directly), two `false`.
+- [x] **Step 4:** Run the test (PASS), then `npm run db:seed:demo` and `npm run documents:backfill-content` twice locally; second run prints all zeros.
+- [x] **Step 5 (scoped by controller ruling):** Write `followup-drop-legacy-text.sql` (drops `extractionStatus`, `extractedText`, `sourceScript`, `extractionError`, `extractedAt` from `DocumentVersion` and `ChatAttachment`) and remove all remaining code reads of those columns (`chat.service.ts` ~L1407, promotion, drafting). Run `npx nx test api`. Expected: PASS. Commit `feat(documents): backfill and reindex document content`. _Done: SQL file written; code reads of the legacy columns are intentionally kept (Task 8/9 fallbacks protect deployments where backfill has not run) and are removed together with the follow-up migration._
 
 ## Phase F — Frontend
 
