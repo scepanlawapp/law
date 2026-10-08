@@ -72,6 +72,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Case Document Ingestion (epic)](./tracks/case_document_ingestion_20261008/index.md)
 - [Assistant Conversation Organizer](./tracks/assistant_conversation_organizer_20261007/index.md)
 - [Assistant Capabilities (epic)](./tracks/assistant_capabilities_20261007/index.md)
 - [Assistant Drafting Document Types](./tracks/assistant_drafting_document_types_20261007/index.md)
