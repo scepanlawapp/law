@@ -151,6 +151,10 @@ describe("DocumentsComponent state helpers", () => {
     category: null,
     archived: false,
     archivedAt: null,
+    aiAccess: false,
+    aiStatus: "OFF",
+    documentKind: null,
+    fromAssistantChat: false,
     cases: [
       {
         id: "case-1",

@@ -665,6 +665,11 @@ export class DocumentsService {
       category: row.category,
       archived: !!row.archivedAt,
       archivedAt: row.archivedAt?.toISOString() ?? null,
+      // Temporary until the AI-access mapping lands (Task 7).
+      aiAccess: false,
+      aiStatus: "OFF",
+      documentKind: null,
+      fromAssistantChat: false,
       cases: row.cases.map((item) => this.caseReference(item.case)),
       clients: row.clients.map((item) => this.clientReference(item.client)),
       currentVersion: row.currentVersion

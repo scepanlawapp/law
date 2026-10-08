@@ -431,6 +431,9 @@ model Workspace {
   documentClients             DocumentClient[]
   documentVersions            DocumentVersion[]
   storedFiles                 StoredFile[]
+  documentContents            DocumentContent[]
+  documentContentChunks       DocumentContentChunk[]
+  documentFacts               DocumentFact[]
   fileLocations               FileLocation[]
   uploadOperations            UploadOperation[]
   invoiceLines                InvoiceLine[]
@@ -1453,14 +1456,18 @@ model ChatAttachment {
   extractedAt      DateTime?                      @db.Timestamptz(3)
   /// Workspace document this attachment was promoted to when the chat was linked to a case.
   documentId       String?                        @unique
+  sha256           String?
+  contentId        String?
   createdAt        DateTime                       @default(now()) @db.Timestamptz(3)
   workspace        Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  content          DocumentContent?               @relation(fields: [contentId], references: [id], onDelete: SetNull)
   session          ChatSession                    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   message          ChatMessage?                   @relation(fields: [messageId], references: [id], onDelete: SetNull)
   document         Document?                      @relation(fields: [documentId], references: [id], onDelete: SetNull)
 
   @@index([workspaceId, sessionId])
   @@index([messageId])
+  @@index([contentId])
 }
 
 model WorkflowJob {
@@ -1718,29 +1725,32 @@ model DocumentFolder {
 }
 
 model Document {
-  id               String            @id @default(uuid())
-  workspaceId      String
-  title            String
-  category         String?
-  folderId         String?
-  folder           DocumentFolder?   @relation(fields: [folderId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
-  currentVersionId String?           @unique
-  archivedAt       DateTime?         @db.Timestamptz(3)
-  archivedByUserId String?
-  createdByUserId  String
-  updatedByUserId  String
-  createdAt        DateTime          @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime          @updatedAt @db.Timestamptz(3)
-  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
-  currentVersion   DocumentVersion?  @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
-  createdBy        User              @relation("DocumentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  updatedBy        User              @relation("DocumentUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
-  archivedBy       User?             @relation("DocumentArchiver", fields: [archivedByUserId], references: [id], onDelete: SetNull)
-  versions         DocumentVersion[] @relation("DocumentVersions")
-  cases            DocumentCase[]
-  clients          DocumentClient[]
-  operations       UploadOperation[]
-  chatAttachments  ChatAttachment[]
+  id                      String            @id @default(uuid())
+  workspaceId             String
+  title                   String
+  category                String?
+  folderId                String?
+  folder                  DocumentFolder?   @relation(fields: [folderId, workspaceId], references: [id, workspaceId], onDelete: Restrict, onUpdate: Restrict)
+  currentVersionId        String?           @unique
+  archivedAt              DateTime?         @db.Timestamptz(3)
+  archivedByUserId        String?
+  aiAccess                Boolean           @default(false)
+  aiAccessChangedAt       DateTime?         @db.Timestamptz(3)
+  aiAccessChangedByUserId String?
+  createdByUserId         String
+  updatedByUserId         String
+  createdAt               DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt               DateTime          @updatedAt @db.Timestamptz(3)
+  workspace               Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  currentVersion          DocumentVersion?  @relation("DocumentCurrentVersion", fields: [currentVersionId], references: [id], onDelete: SetNull)
+  createdBy               User              @relation("DocumentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy               User              @relation("DocumentUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  archivedBy              User?             @relation("DocumentArchiver", fields: [archivedByUserId], references: [id], onDelete: SetNull)
+  versions                DocumentVersion[] @relation("DocumentVersions")
+  cases                   DocumentCase[]
+  clients                 DocumentClient[]
+  operations              UploadOperation[]
+  chatAttachments         ChatAttachment[]
 
   @@index([workspaceId, folderId])
   @@index([workspaceId, archivedAt, updatedAt])
@@ -1788,17 +1798,20 @@ model DocumentVersion {
   sourceScript     ChatAttachmentSourceScript?
   extractionError  String?
   extractedAt      DateTime?                      @db.Timestamptz(3)
+  contentId        String?
   createdAt        DateTime                       @default(now()) @db.Timestamptz(3)
   document         Document                       @relation("DocumentVersions", fields: [documentId], references: [id], onDelete: Cascade)
   currentFor       Document?                      @relation("DocumentCurrentVersion")
   workspace        Workspace                      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   storedFile       StoredFile                     @relation(fields: [storedFileId], references: [id], onDelete: Restrict)
   uploadedBy       User                           @relation("DocumentVersionUploader", fields: [uploadedByUserId], references: [id], onDelete: Restrict)
+  content          DocumentContent?               @relation(fields: [contentId], references: [id], onDelete: SetNull)
   operations       UploadOperation[]
 
   @@unique([documentId, versionNumber])
   @@index([workspaceId, documentId, createdAt])
   @@index([storedFileId])
+  @@index([contentId])
 }
 
 model StoredFile {
@@ -1816,6 +1829,100 @@ model StoredFile {
   operations       UploadOperation[]
 
   @@index([workspaceId, lifecycle])
+  @@index([workspaceId, sha256])
+}
+
+enum DocumentContentStatus {
+  PENDING
+  EXTRACTING
+  EMBEDDING
+  CLASSIFYING
+  READY
+  FAILED
+  UNSUPPORTED
+}
+
+enum DocumentKind {
+  ID_CARD
+  PASSPORT
+  APR_EXCERPT
+  COURT_DECISION
+  ADMIN_DECISION
+  OTHER
+}
+
+enum DocumentFactSubjectType {
+  PERSON
+  COMPANY
+  DECISION
+}
+
+model DocumentContent {
+  id                  String                      @id @default(uuid())
+  workspaceId         String
+  sha256              String
+  mimeType            String
+  sizeBytes           Int
+  status              DocumentContentStatus       @default(PENDING)
+  failedStep          String?
+  error               String?
+  extractedText       String?                     @db.Text
+  sourceScript        ChatAttachmentSourceScript?
+  truncated           Boolean                     @default(false)
+  pipelineVersion     Int                         @default(0)
+  embeddingModel      String?
+  embeddingDimensions Int?
+  documentKind        DocumentKind?
+  kindConfidence      Float?
+  processedAt         DateTime?                   @db.Timestamptz(3)
+  createdAt           DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                    @updatedAt @db.Timestamptz(3)
+  workspace           Workspace                   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  chunks              DocumentContentChunk[]
+  facts               DocumentFact[]
+  versions            DocumentVersion[]
+  chatAttachments     ChatAttachment[]
+
+  @@unique([workspaceId, sha256])
+  @@index([workspaceId, status])
+}
+
+model DocumentContentChunk {
+  id                  String                       @id @default(uuid())
+  contentId           String
+  workspaceId         String
+  ordinal             Int
+  text                String                       @db.Text
+  charStart           Int
+  charEnd             Int
+  embedding           Unsupported("vector(1024)")?
+  embeddingModel      String
+  embeddingDimensions Int
+  content             DocumentContent              @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  workspace           Workspace                    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([contentId, ordinal])
+  @@index([workspaceId, contentId])
+}
+
+model DocumentFact {
+  id              String                  @id @default(uuid())
+  contentId       String
+  workspaceId     String
+  subjectKey      String
+  subjectType     DocumentFactSubjectType
+  subjectRole     String?
+  field           String
+  value           String                  @db.Text
+  normalizedValue String?                 @db.Text
+  quote           String                  @db.Text
+  charStart       Int?
+  confidence      Float
+  createdAt       DateTime                @default(now()) @db.Timestamptz(3)
+  content         DocumentContent         @relation(fields: [contentId], references: [id], onDelete: Cascade)
+  workspace       Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId, contentId])
 }
 
 model FileLocation {

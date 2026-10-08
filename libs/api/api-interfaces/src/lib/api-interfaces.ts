@@ -1245,6 +1245,31 @@ export interface DocumentStatistics {
   archived: number;
 }
 
+export type DocumentAiStatus =
+  | "OFF"
+  | "QUEUED"
+  | "PROCESSING"
+  | "READY"
+  | "FAILED"
+  | "UNSUPPORTED";
+
+export type DocumentKind =
+  | "ID_CARD"
+  | "PASSPORT"
+  | "APR_EXCERPT"
+  | "COURT_DECISION"
+  | "ADMIN_DECISION"
+  | "OTHER";
+
+export interface BulkDocumentAiAccessRequest {
+  documentIds: string[];
+  aiAccess: boolean;
+}
+
+export interface BulkDocumentAiAccessResponse {
+  updated: number;
+}
+
 export interface DocumentSummary {
   folderId?: string | null;
   id: string;
@@ -1252,6 +1277,10 @@ export interface DocumentSummary {
   category: string | null;
   archived: boolean;
   archivedAt: string | null;
+  aiAccess: boolean;
+  aiStatus: DocumentAiStatus;
+  documentKind: DocumentKind | null;
+  fromAssistantChat: boolean;
   cases: CaseReference[];
   clients: ClientReference[];
   currentVersion: DocumentVersionSummary | null;
