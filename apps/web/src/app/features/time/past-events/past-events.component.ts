@@ -1,4 +1,4 @@
-import { NgTemplateOutlet } from "@angular/common";
+import { DOCUMENT, NgTemplateOutlet } from "@angular/common";
 import {
   ChangeDetectionStrategy,
   Component,
@@ -61,7 +61,10 @@ export class PastEventsComponent {
   private readonly local = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   readonly collapsibleSidebar = input(false);
-  readonly expanded = signal(false);
+  readonly expanded = signal(
+    inject(DOCUMENT).defaultView?.matchMedia?.("(min-width: 1600px)")
+      ?.matches ?? false,
+  );
   readonly totalItems = signal<number | null>(null);
   readonly workChanged = output<void>();
   readonly events = signal<PastWorkEvent[]>([]);
