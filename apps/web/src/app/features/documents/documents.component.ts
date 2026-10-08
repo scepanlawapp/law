@@ -789,7 +789,7 @@ export class DocumentsComponent implements OnInit {
 
   reprocessDetailAi(): void {
     const document = this.detailDocument();
-    if (!document || document.aiStatus !== "FAILED" || this.aiPending()) return;
+    if (!document?.aiRetryable || this.aiPending()) return;
     this.applyDetailAi(this.documentsApi.reprocessAi(document.id));
   }
 

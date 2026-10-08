@@ -21,6 +21,7 @@ function documentDetail(id: string): DocumentDetail {
     archivedAt: null,
     aiAccess: false,
     aiStatus: "OFF",
+    aiRetryable: false,
     documentKind: null,
     fromAssistantChat: false,
     cases: [],

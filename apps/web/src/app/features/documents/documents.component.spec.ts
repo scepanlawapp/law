@@ -165,6 +165,7 @@ describe("DocumentsComponent state helpers", () => {
     archivedAt: null,
     aiAccess: false,
     aiStatus: "OFF",
+    aiRetryable: false,
     documentKind: null,
     fromAssistantChat: false,
     cases: [
@@ -394,6 +395,7 @@ describe("DocumentsComponent AI access", () => {
       archivedAt: null,
       aiAccess: false,
       aiStatus: "OFF",
+      aiRetryable: false,
       documentKind: null,
       fromAssistantChat: false,
       cases: [],
@@ -630,8 +632,13 @@ describe("DocumentsComponent AI access", () => {
     expect(text).toContain("documents.ai.fromChat");
   });
 
-  it("offers reprocess only for FAILED and calls reprocessAi", () => {
-    const failed = document({ id: "a", aiAccess: true, aiStatus: "FAILED" });
+  it("offers reprocess when the document is retryable and calls reprocessAi", () => {
+    const failed = document({
+      id: "a",
+      aiAccess: true,
+      aiStatus: "FAILED",
+      aiRetryable: true,
+    });
     const { component, fixture, el, documentsApi } = setup([failed]);
     component.openDocumentDetail(failed);
     fixture.detectChanges();
@@ -640,20 +647,52 @@ describe("DocumentsComponent AI access", () => {
     ) as HTMLButtonElement;
     expect(button).toBeDefined();
     documentsApi.reprocessAi.mockReturnValue(
-      of({ ...failed, aiStatus: "QUEUED" }),
+      of({ ...failed, aiStatus: "QUEUED", aiRetryable: false }),
     );
     button.click();
     expect(documentsApi.reprocessAi).toHaveBeenCalledWith("a");
     expect(component.detailDocument()?.aiStatus).toBe("QUEUED");
   });
 
-  it("hides reprocess when the status is not FAILED", () => {
-    const ready = document({ id: "a", aiAccess: true, aiStatus: "READY" });
-    const { component, fixture, el } = setup([ready]);
-    component.openDocumentDetail(ready);
-    fixture.detectChanges();
-    expect(el.textContent).not.toContain("documents.ai.reprocess");
-  });
+  it.each(["QUEUED", "READY"] as const)(
+    "offers reprocess for a retryable %s document (stalled queue or missing kind and facts)",
+    (aiStatus) => {
+      const stuck = document({
+        id: "a",
+        aiAccess: true,
+        aiStatus,
+        aiRetryable: true,
+      });
+      const { component, fixture, el, documentsApi } = setup([stuck]);
+      component.openDocumentDetail(stuck);
+      fixture.detectChanges();
+      const button = Array.from(el.querySelectorAll("button")).find((node) =>
+        node.textContent?.includes("documents.ai.reprocess"),
+      ) as HTMLButtonElement;
+      expect(button).toBeDefined();
+      documentsApi.reprocessAi.mockReturnValue(of(stuck));
+      component.reprocessDetailAi();
+      expect(documentsApi.reprocessAi).toHaveBeenCalledWith("a");
+    },
+  );
+
+  it.each(["READY", "QUEUED", "FAILED"] as const)(
+    "hides reprocess when a %s document is not retryable",
+    (aiStatus) => {
+      const row = document({
+        id: "a",
+        aiAccess: true,
+        aiStatus,
+        aiRetryable: false,
+      });
+      const { component, fixture, el, documentsApi } = setup([row]);
+      component.openDocumentDetail(row);
+      fixture.detectChanges();
+      expect(el.textContent).not.toContain("documents.ai.reprocess");
+      component.reprocessDetailAi();
+      expect(documentsApi.reprocessAi).not.toHaveBeenCalled();
+    },
+  );
 
   describe("polling", () => {
     it("polls every 5 s while a row is processing, keeps page and selection, and stops when ready", () => {

@@ -1310,7 +1310,7 @@
                   </span>
                 }
               </div>
-              @if (document.aiStatus === "FAILED") {
+              @if (document.aiRetryable) {
                 <button
                   hlmBtn
                   type="button"

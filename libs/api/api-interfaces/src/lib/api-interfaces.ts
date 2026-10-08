@@ -1301,6 +1301,11 @@ export interface DocumentSummary {
   archivedAt: string | null;
   aiAccess: boolean;
   aiStatus: DocumentAiStatus;
+  /**
+   * The assistant's processing of this document can be retried by hand: it
+   * failed, stalled in the queue, or finished without a kind or facts.
+   */
+  aiRetryable: boolean;
   documentKind: DocumentKind | null;
   fromAssistantChat: boolean;
   cases: CaseReference[];
