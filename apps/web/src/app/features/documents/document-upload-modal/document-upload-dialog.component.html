@@ -170,6 +170,28 @@
       </section>
     }
 
+    @if (showAiAccess) {
+      <section class="flex items-center gap-2">
+        <hlm-switch
+          inputId="upload-ai-access-all"
+          aria-describedby="upload-ai-access-tooltip"
+          [checked]="aiAccessAll()"
+          [disabled]="preparing()"
+          (checkedChange)="setAllAiAccess($event)"
+        />
+        <label
+          hlmLabel
+          for="upload-ai-access-all"
+          [hlmTooltip]="'documents.ai.accessTooltip' | translate"
+        >
+          {{ "documents.ai.access" | translate }}
+        </label>
+        <span id="upload-ai-access-tooltip" class="sr-only">
+          {{ "documents.ai.accessTooltip" | translate }}
+        </span>
+      </section>
+    }
+
     <section>
       <input
         #fileInput
@@ -269,6 +291,11 @@
               <th hlmTh>{{ "documents.upload.columnTitle" | translate }}</th>
               <th hlmTh>{{ "documents.upload.columnFile" | translate }}</th>
               <th hlmTh>{{ "documents.upload.columnCategory" | translate }}</th>
+              @if (showAiAccess) {
+                <th hlmTh class="w-24">
+                  {{ "documents.ai.access" | translate }}
+                </th>
+              }
               <th hlmTh>{{ "documents.upload.columnStatus" | translate }}</th>
               <th hlmTh class="w-12">
                 <span class="sr-only">
@@ -384,6 +411,17 @@
                     </span>
                   }
                 </td>
+                @if (showAiAccess) {
+                  <td hlmTd>
+                    <hlm-switch
+                      [inputId]="'upload-ai-access-' + row.id"
+                      [aria-label]="'documents.ai.access' | translate"
+                      [checked]="row.aiAccess"
+                      [disabled]="!canEditAiAccess(row)"
+                      (checkedChange)="setRowAiAccess(row.id, $event)"
+                    />
+                  </td>
+                }
                 <td hlmTd>
                   <div class="min-w-0 space-y-1">
                     <p>{{ statusLabel(row) }}</p>
@@ -427,7 +465,7 @@
               </tr>
               @if (row.expanded) {
                 <tr hlmTr [id]="'upload-details-' + row.id">
-                  <td hlmTd colspan="6">
+                  <td hlmTd [attr.colspan]="tableColumns">
                     <dl class="grid gap-1 text-muted-foreground">
                       <div>
                         <dt class="inline font-medium text-foreground">

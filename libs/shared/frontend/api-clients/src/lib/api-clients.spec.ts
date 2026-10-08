@@ -8,6 +8,7 @@ import {
   BillingReportsApiClient,
   FinancialsApiClient,
   BillingSetupApiClient,
+  DocumentsApiClient,
   WorkEntriesApiClient,
 } from "./api-clients";
 import { chatEventsUrl, workspaceChatEventsUrl } from "./chat-events-url";
@@ -148,6 +149,47 @@ describe("work entry and billing clients", () => {
   it("posts an invoice send to /financials/invoices/:id/send", () => {
     TestBed.inject(FinancialsApiClient).sendInvoice("s1").subscribe();
     const req = http.expectOne(`${api}/financials/invoices/s1/send`);
+    expect(req.request.method).toBe("POST");
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({});
+  });
+});
+
+describe("documents AI access client", () => {
+  let http: HttpTestingController;
+  const api = "http://localhost:3001/api";
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  it("patches one document AI access", () => {
+    TestBed.inject(DocumentsApiClient).setAiAccess("doc-1", true).subscribe();
+    const req = http.expectOne(`${api}/documents/doc-1`);
+    expect(req.request.method).toBe("PATCH");
+    expect(req.request.body).toEqual({ aiAccess: true });
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({});
+  });
+
+  it("patches AI access in bulk", () => {
+    const body = { documentIds: ["a", "b"], aiAccess: false };
+    TestBed.inject(DocumentsApiClient).setAiAccessBulk(body).subscribe();
+    const req = http.expectOne(`${api}/documents/ai-access`);
+    expect(req.request.method).toBe("PATCH");
+    expect(req.request.body).toEqual(body);
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({ updated: 2 });
+  });
+
+  it("posts an AI reprocess request", () => {
+    TestBed.inject(DocumentsApiClient).reprocessAi("doc-1").subscribe();
+    const req = http.expectOne(`${api}/documents/doc-1/ai-reprocess`);
     expect(req.request.method).toBe("POST");
     expect(req.request.withCredentials).toBe(true);
     req.flush({});

@@ -46,6 +46,7 @@ export interface FrozenCreatePayload {
   category: string | null;
   caseIds: string[];
   clientIds: string[];
+  aiAccess: boolean;
   originalFilename: string;
 }
 
@@ -62,6 +63,8 @@ export interface DocumentUploadRow {
   folderId: string | null;
   titleControl: FormControl<string>;
   category: string | null;
+  /** Document-level AI access; only meaningful (and sent) in create mode. */
+  aiAccess: boolean;
   status: DocumentUploadRowStatus;
   loaded: number;
   total: number | null;
