@@ -418,9 +418,16 @@ describe("AssistantDocumentReadsService AI access", () => {
     const off = await service.readDocument(scope, { ref: "doc:doc-1" });
     const on = await service.readDocument(scope, { ref: "doc:doc-2" });
 
-    expect(off.status).toBe("AI_ACCESS_OFF");
+    expect(off).toEqual({
+      status: "AI_ACCESS_OFF",
+      message: AI_ACCESS_OFF_MESSAGE("Ugovor o zakupu"),
+    });
     expect(on).toMatchObject({ status: "OK", text: LEASE });
     expect(documentText.ensureText).toHaveBeenCalledTimes(1);
+    expect(documentText.ensureText).toHaveBeenCalledWith(
+      "workspace-1",
+      "content-1",
+    );
   });
 
   it("refuses an explicitly named document with AI access off", async () => {

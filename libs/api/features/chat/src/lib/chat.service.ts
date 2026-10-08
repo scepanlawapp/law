@@ -1461,8 +1461,8 @@ export class ChatService {
         mimeType: attachment.mimeType,
         // Text of an attachment filed as an AI-off document never reaches the model.
         text: DocumentAccessPolicy.forAttachment({
-          contentId: attachment.contentId ?? null,
-          document: attachment.document ?? null,
+          contentId: attachment.contentId,
+          document: attachment.document,
         }).readable
           ? (attachment.extractedText ?? "")
           : "",

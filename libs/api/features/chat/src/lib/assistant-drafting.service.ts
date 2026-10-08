@@ -628,8 +628,8 @@ export class AssistantDraftingService {
         mimeType: attachment.mimeType,
       };
       const access = DocumentAccessPolicy.forAttachment({
-        contentId: attachment.contentId ?? null,
-        document: attachment.document ?? null,
+        contentId: attachment.contentId,
+        document: attachment.document,
       });
       if (access.readable === false) {
         // No text source is touched for an attachment the policy refuses.
@@ -972,10 +972,10 @@ type AttachmentRow = {
   extractedText: string | null;
   sourceScript: ChatAttachmentSummary["sourceScript"] | null;
   documentId?: string | null;
-  contentId?: string | null;
+  contentId: string | null;
   content?: { status: string } | null;
-  /** The document the attachment was filed as; its AI access applies. */
-  document?: { aiAccess: boolean; archivedAt: Date | null } | null;
+  /** The document the attachment was filed as (required so a caller cannot skip the AI-access check). */
+  document: { aiAccess: boolean; archivedAt: Date | null } | null;
 };
 
 function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
