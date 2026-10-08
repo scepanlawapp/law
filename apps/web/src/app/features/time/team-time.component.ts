@@ -253,9 +253,8 @@ export class TeamTimeComponent {
   }
 
   edit(entry: WorkEntry): void {
-    if (!isEditable(entry)) return;
     this.capture
-      .open({ mode: "edit", entryId: entry.id })
+      .open({ mode: isEditable(entry) ? "edit" : "view", entryId: entry.id })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((saved) => {
         if (saved) this.replaceEntry(saved);

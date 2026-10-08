@@ -1,3 +1,4 @@
+import { DatePipe } from "@angular/common";
 import { HttpErrorResponse } from "@angular/common/http";
 import {
   Component,
@@ -90,6 +91,11 @@ import {
   agreementTerms,
   defaultTreatment,
 } from "../treatment";
+import {
+  STATUS_LABEL_KEYS,
+  TREATMENT_LABEL_KEYS,
+  formatMinutes,
+} from "../time-utils";
 import { integerValidator } from "../validators";
 import { QuickCaptureInput } from "./quick-capture.models";
 
@@ -116,6 +122,7 @@ const TITLE_KEYS: Record<QuickCaptureInput["mode"], string> = {
   "confirm-timer": "time.capture.title.confirmTimer",
   "confirm-source": "time.capture.title.confirmSource",
   edit: "time.capture.title.edit",
+  view: "work.entries.viewTitle",
 };
 
 /** Today as a YYYY-MM-DD calendar day in the office time zone. */
@@ -131,6 +138,7 @@ function today(): string {
   templateUrl: "./quick-capture-dialog.component.html",
   imports: [
     ReactiveFormsModule,
+    DatePipe,
     NgIcon,
     HlmButton,
     HlmCombobox,
@@ -216,8 +224,17 @@ export class QuickCaptureDialogComponent {
   );
   readonly entryActions = signal<WorkEntryActions | null>(null);
   readonly entryLoadFailed = signal(false);
+  readonly loadedEntry = signal<WorkEntry | null>(null);
+  readonly statusLabelKeys = STATUS_LABEL_KEYS;
+  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  readonly formatMinutes = formatMinutes;
   readonly readOnly = computed(
-    () => this.managingEntry && !this.entryActions()?.canEdit,
+    () =>
+      this.context.mode === "view" ||
+      ["BILLED", "WRITTEN_OFF", "RUNNING"].includes(
+        this.loadedEntry()?.status ?? "",
+      ) ||
+      (this.managingEntry && !this.entryActions()?.canEdit),
   );
   readonly deletionInfoKey = computed(() => {
     switch (this.entryActions()?.deleteBlockedReason) {
@@ -380,6 +397,11 @@ export class QuickCaptureDialogComponent {
       });
       onCleanup(() => subscription.unsubscribe());
     });
+    if (this.mode === "view") {
+      if (this.context.entryId) this.hydrateFromEntry(this.context.entryId);
+      else this.entryLoadFailed.set(true);
+      return;
+    }
     const { clientId, caseId, workDate, serviceCategoryId } =
       this.form.controls;
 
@@ -737,7 +759,10 @@ export class QuickCaptureDialogComponent {
     this.entryLoadFailed.set(false);
     forkJoin({
       entry: this.entriesApi.get(entryId),
-      actions: this.managingEntry ? this.entriesApi.actions(entryId) : of(null),
+      actions:
+        this.managingEntry && this.mode !== "view"
+          ? this.entriesApi.actions(entryId)
+          : of(null),
     })
       .pipe(
         finalize(() => this.loadingEntry.set(false)),
@@ -746,7 +771,11 @@ export class QuickCaptureDialogComponent {
       .subscribe({
         next: ({ entry, actions }) => {
           this.entryActions.set(actions);
-          this.hydrate(entry);
+          this.loadedEntry.set(entry);
+          this.linkedTaskId.set(
+            this.context.taskId ?? entry.taskId ?? undefined,
+          );
+          if (!this.readOnly()) this.hydrate(entry);
           if (this.readOnly()) this.form.disable({ emitEvent: false });
         },
         error: () => this.entryLoadFailed.set(true),
@@ -755,6 +784,7 @@ export class QuickCaptureDialogComponent {
 
   deleteEntry(): void {
     if (
+      this.readOnly() ||
       !this.managingEntry ||
       this.saving() ||
       this.loadingEntry() ||
@@ -859,7 +889,8 @@ export class QuickCaptureDialogComponent {
   }
 
   finishWithoutNewWork(): void {
-    if (this.saving() || !this.context.finishWithoutNewWork) return;
+    if (this.readOnly() || this.saving() || !this.context.finishWithoutNewWork)
+      return;
     this.persist(this.context.finishWithoutNewWork(), "work.taskFinished");
   }
 
@@ -936,6 +967,8 @@ export class QuickCaptureDialogComponent {
           description,
         });
       }
+      case "view":
+        return throwError(() => new Error("Viewed entries cannot be saved"));
       case "edit":
         return this.entriesApi.update(this.requiredEntryId(), {
           ...fields,

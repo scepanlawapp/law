@@ -22,7 +22,7 @@ export interface QuickCaptureInput<TResult = WorkEntry> {
   title?: string;
   description?: string;
   workDate?: string;
-  mode: "create" | "confirm-timer" | "confirm-source" | "edit";
+  mode: "create" | "confirm-timer" | "confirm-source" | "edit" | "view";
   entryId?: string;
   source?: { sourceType: WorkEntrySourceType; sourceId: string };
 }

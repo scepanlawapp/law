@@ -21,6 +21,8 @@ import {
   WorkManagementApiClient,
 } from "@law/api-clients";
 import { CalendarItem, CalendarSourceType } from "@law/api-interfaces";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideChevronDown, lucideChevronUp } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmComboboxContent,
@@ -36,6 +38,7 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { AuthState } from "@law/security";
 import { switchMap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -47,7 +50,7 @@ import {
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { EventDialogService } from "./event-dialog/event-dialog.service";
 import { CalendarEventsListComponent } from "./calendar-events-list/calendar-events-list.component";
-import { DeadlineDialogService } from "../work-management/deadline-dialog/deadline-dialog.service";
+import { TaskDialogService } from "../work-management/task-dialog/task-dialog.service";
 
 type CalendarView = "month" | "week" | "list" | "board";
 
@@ -104,6 +107,7 @@ function mondayIndex(date: Date): number {
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
     ReactiveFormsModule,
+    NgIcon,
     HlmButton,
     HlmComboboxContent,
     HlmComboboxEmpty,
@@ -118,9 +122,11 @@ function mondayIndex(date: Date): number {
     HlmInput,
     HlmSelectImports,
     HlmSpinner,
+    HlmTooltip,
     TranslatePipe,
     CalendarEventsListComponent,
   ],
+  providers: [provideIcons({ lucideChevronDown, lucideChevronUp })],
   styleUrls: ["./calendar.component.scss"],
 })
 export class CalendarComponent {
@@ -129,7 +135,7 @@ export class CalendarComponent {
   private readonly workApi = inject(WorkManagementApiClient);
   private readonly referencesApi = inject(ReferencesApiClient);
   private readonly eventDialog = inject(EventDialogService);
-  private readonly deadlineDialog = inject(DeadlineDialogService);
+  private readonly taskDialog = inject(TaskDialogService);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly localization = inject(LocalizationService);
   private readonly authState = inject(AuthState);
@@ -151,7 +157,6 @@ export class CalendarComponent {
       { value: "", label: "calendar.allSources" },
       { value: "EVENT", label: "calendar.source.event" },
       { value: "TASK", label: "calendar.source.task" },
-      { value: "DEADLINE", label: "calendar.source.deadline" },
     ];
   readonly sourceItemToString = createSelectItemToString(
     this.sourceOptions,
@@ -174,6 +179,12 @@ export class CalendarComponent {
   readonly eventMenuItem = signal<CalendarItem | null>(null);
   readonly selectedDay = signal<string | null>(dateKey(this.anchor()));
   readonly calendarExpanded = signal(false);
+  readonly obligationsExpanded = signal(true);
+  readonly obligationsToggleLabel = computed(() =>
+    this.obligationsExpanded()
+      ? "calendar.collapseObligations"
+      : "calendar.expandObligations",
+  );
   @ViewChild("scheduleViewport")
   private scheduleViewport?: ElementRef<HTMLElement>;
   private requestSequence = 0;
@@ -191,6 +202,11 @@ export class CalendarComponent {
     );
   });
   readonly weekDays = computed(() => this.buildWeekDays(this.anchor()));
+  readonly obligationsRowIds = computed(() =>
+    this.weekDays()
+      .map((day) => `calendar-obligations-${day.date}`)
+      .join(" "),
+  );
   readonly hours = Array.from({ length: 24 }, (_, hour) => hour);
   readonly hourHeight = CALENDAR_HOUR_HEIGHT;
   readonly weekHasObligationItems = computed(() =>
@@ -198,6 +214,10 @@ export class CalendarComponent {
       (day) => this.obligationItemsForDay(day.date).length > 0,
     ),
   );
+  toggleObligations(): void {
+    this.obligationsExpanded.update((expanded) => !expanded);
+  }
+
   readonly weekEventSegments = computed<WeekEventSegment[]>(() => {
     if (this.view() !== "week") return [];
 
@@ -512,11 +532,11 @@ export class CalendarComponent {
             if (updated) this.loadRange(false);
           },
         });
-    } else if (item.sourceType === "DEADLINE") {
+    } else if (item.sourceType === "TASK") {
       this.workApi
-        .getDeadline(item.sourceId)
+        .getTask(item.sourceId)
         .pipe(
-          switchMap((deadline) => this.deadlineDialog.open({ deadline })),
+          switchMap((task) => this.taskDialog.open({ task })),
           takeUntilDestroyed(this.destroyRef),
         )
         .subscribe({
@@ -604,17 +624,6 @@ export class CalendarComponent {
       .subscribe({
         next: (event) => {
           if (event) this.loadRange(false);
-        },
-      });
-  }
-
-  openCreateDeadline(date: string): void {
-    this.deadlineDialog
-      .open({ dueDate: date })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (deadline) => {
-          if (deadline) this.loadRange(false);
         },
       });
   }
@@ -759,7 +768,7 @@ export class CalendarComponent {
       from: `${this.visibleFrom()}T00:00:00.000Z`,
       to: `${this.nextDate(this.visibleTo())}T00:00:00.000Z`,
       limit: 100,
-      sourceTypes: ["EVENT", "TASK", "DEADLINE"],
+      sourceTypes: ["EVENT", "TASK"],
       ...(this.lawyerIds().length && { userIds: this.lawyerIds() }),
     };
     this.api

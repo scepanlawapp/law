@@ -93,6 +93,8 @@
   "calendar.emptyDescription": "There are no matching events, tasks, or deadlines in this range.",
   "calendar.dateOnly": "Date only",
   "calendar.allDay": "All day",
+  "calendar.collapseObligations": "Collapse obligations",
+  "calendar.expandObligations": "Expand obligations",
   "calendar.more": "more",
   "calendar.close": "Close",
   "calendar.date": "Date",
@@ -2429,5 +2431,10 @@
   "settings.organization.other.invalidPattern": "Enter a valid pattern with one {SEQ} or {SEQ:n} token (1–12 digits). Only letters A–Z, digits, /, . and - are allowed; leave room for a 12-digit sequence within 40 characters.",
   "settings.organization.other.loadError": "Settings could not be loaded. Please retry.",
   "time.capture.openTask": "Open linked task",
-  "time.capture.taskLoadError": "Could not open the linked task. Please retry."
+  "time.capture.taskLoadError": "Could not open the linked task. Please retry.",
+  "work.entries.view": "View",
+  "work.entries.viewDescription": "Details of the recorded work.",
+  "work.entries.performer": "Performed by",
+  "work.entries.status": "Status",
+  "work.entries.writeOffReason": "Write-off reason"
 }

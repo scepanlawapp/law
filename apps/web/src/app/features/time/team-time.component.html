@@ -293,6 +293,16 @@
                 >
                   {{ "time.review.writeOff" | translate }}
                 </button>
+              } @else {
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  (click)="edit(entry)"
+                >
+                  {{ "work.entries.view" | translate }}
+                </button>
               }
             </td>
           </tr>

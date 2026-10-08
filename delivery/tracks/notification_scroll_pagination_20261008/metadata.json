@@ -1,0 +1,9 @@
+{
+  "track_id": "notification_scroll_pagination_20261008",
+  "parent_track_id": "notifications_20260929",
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-10-08T00:00:00Z",
+  "updated_at": "2026-10-08T00:00:00Z",
+  "keywords": ["notifications", "header", "scroll", "pagination"]
+}

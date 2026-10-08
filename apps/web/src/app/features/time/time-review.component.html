@@ -81,6 +81,16 @@
                 >
                   {{ "common.edit" | translate }}
                 </button>
+              } @else {
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  (click)="edit(entry)"
+                >
+                  {{ "work.entries.view" | translate }}
+                </button>
               }
             </div>
           </li>

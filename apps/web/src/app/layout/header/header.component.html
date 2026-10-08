@@ -92,7 +92,15 @@
           }
         </div>
 
-        <div class="min-h-0 flex-1 overflow-y-auto p-1" aria-live="polite">
+        <div
+          appBottomReached
+          (bottomReached)="notifications.loadMore()"
+          class="min-h-0 flex-1 overflow-y-auto p-1"
+          aria-live="polite"
+          [attr.aria-busy]="
+            notifications.loading() || notifications.loadingMore()
+          "
+        >
           @if (notifications.loading()) {
             <div
               class="text-muted-foreground flex min-h-32 items-center justify-center gap-2 text-sm"
@@ -191,27 +199,17 @@
               }
             </hlm-dropdown-menu-group>
           }
-        </div>
-
-        @if (notifications.hasMore()) {
-          <div class="shrink-0 border-t border-border p-2">
-            <button
-              hlmBtn
-              type="button"
-              variant="ghost"
-              class="w-full"
-              [disabled]="notifications.loadingMore()"
-              (click)="notifications.loadMore()"
+          @if (notifications.loadingMore()) {
+            <div
+              class="text-muted-foreground flex items-center justify-center gap-2 py-3 text-sm"
             >
-              @if (notifications.loadingMore()) {
-                <hlm-spinner
-                  [attr.aria-label]="'header.notificationsLoading' | translate"
-                />
-              }
-              {{ "header.showMore" | translate }}
-            </button>
-          </div>
-        }
+              <hlm-spinner
+                [attr.aria-label]="'header.notificationsLoading' | translate"
+              />
+              <span>{{ "header.notificationsLoading" | translate }}</span>
+            </div>
+          }
+        </div>
       </hlm-dropdown-menu>
     </ng-template>
   </div>
