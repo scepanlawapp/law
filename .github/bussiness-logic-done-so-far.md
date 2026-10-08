@@ -98,6 +98,7 @@ Authenticated document APIs and the Angular Documents workspace are implemented,
 - Upload uses XHR progress (`withXhr()`), concurrency 2, and a frozen `Idempotency-Key` on retry. Optional per-row category codes are stored on `Document.category`. Clients are selected before cases; case search is constrained by selected clients. The document detail panel opens the same queue in single-file version mode.
 - Removing a row only drops it from the local queue. It does not archive or delete a stored document.
 - The upload dialog does not dismiss on an outside/backdrop click; users close it through its explicit actions.
+- The documents list/grid (also the case Documents tab) shows a focusable AI status icon per file (`documents.ai.status.*`, spinner while `QUEUED`/`PROCESSING`). The detail panel has an AI access switch (turning it off always asks for confirmation), the extracted document kind, a "from assistant conversation" label, and a reprocess button only when the status is `FAILED`. With files selected (folders ignored) the bulk bar can enable or disable AI access (disable confirms once; a toast shows the updated count). While any visible row or the open detail is `QUEUED`/`PROCESSING` the page polls every 5 s, silently reloading the current page and the open detail without resetting page, selection or scroll.
 
 ## Calendar, events, tasks, and deadlines API
 

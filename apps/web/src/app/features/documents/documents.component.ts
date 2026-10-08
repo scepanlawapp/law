@@ -7,6 +7,7 @@ import {
   map,
   Observable,
   of,
+  finalize,
   Subscription,
   toArray,
 } from "rxjs";
@@ -20,6 +21,8 @@ import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import {
   Component,
   DestroyRef,
+  computed,
+  effect,
   OnInit,
   inject,
   input,
@@ -42,13 +45,16 @@ import {
   lucideArchive,
   lucideArrowDownToLine,
   lucideCheck,
+  lucideEyeOff,
   lucideFileText,
   lucideGrid2x2,
+  lucideInfo,
   lucideLink2,
   lucideList,
   lucideMoreHorizontal,
   lucideRefreshCw,
   lucideSearch,
+  lucideSparkles,
   lucideUpload,
   lucideX,
   lucidePencil,
@@ -73,8 +79,10 @@ import {
   HlmEmptyTitle,
 } from "@spartan-ng/helm/empty";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmLabel } from "@spartan-ng/helm/label";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmSwitch } from "@spartan-ng/helm/switch";
 import {
   HlmTable,
   HlmTableContainer,
@@ -91,6 +99,7 @@ import {
 } from "@law/api-clients";
 import {
   DOCUMENT_CATEGORIES,
+  DocumentAiStatus,
   DocumentCategory,
   DocumentDetail,
   DocumentSummary,
@@ -109,12 +118,18 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
 import { DocumentAssociationsDialogService } from "./document-associations/document-associations-dialog.service";
+import { DocumentAiStatusComponent } from "./document-ai-status.component";
 
 export type DocumentsViewMode = "list" | "grid";
 export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";
 export type DocumentSelection = { id: string; kind: "file" | "folder" };
 
 const DOCUMENT_PAGE_SIZE = 20;
+const AI_POLL_INTERVAL_MS = 5000;
+
+const isAiInProgress = (status: DocumentAiStatus | undefined): boolean =>
+  status === "QUEUED" || status === "PROCESSING";
+
 @Component({
   selector: "law-documents",
   standalone: true,
@@ -139,8 +154,10 @@ const DOCUMENT_PAGE_SIZE = 20;
     HlmEmptyDescription,
     HlmEmptyHeader,
     HlmInput,
+    HlmLabel,
     HlmSelectImports,
     HlmSpinner,
+    HlmSwitch,
     HlmTable,
     HlmTableContainer,
     HlmTBody,
@@ -149,6 +166,7 @@ const DOCUMENT_PAGE_SIZE = 20;
     HlmTHead,
     HlmTr,
     HlmEmptyTitle,
+    DocumentAiStatusComponent,
     TranslatePipe,
   ],
   providers: [
@@ -161,13 +179,16 @@ const DOCUMENT_PAGE_SIZE = 20;
       lucideArchive,
       lucideArrowDownToLine,
       lucideCheck,
+      lucideEyeOff,
       lucideFileText,
       lucideGrid2x2,
+      lucideInfo,
       lucideLink2,
       lucideList,
       lucideMoreHorizontal,
       lucideRefreshCw,
       lucideSearch,
+      lucideSparkles,
       lucideUpload,
       lucideX,
       lucidePencil,
@@ -214,6 +235,8 @@ export class DocumentsComponent implements OnInit {
   readonly breadcrumbs = signal<DocumentFolderSummary[]>([]);
   readonly stats = signal<DocumentStatistics | null>(null);
   private listSubscription?: Subscription;
+  private pollSubscription?: Subscription;
+  private pollInFlight = false;
   readonly documents = signal<DocumentSummary[]>([]);
   readonly loading = signal(false);
   readonly error = signal(false);
@@ -227,6 +250,13 @@ export class DocumentsComponent implements OnInit {
   readonly detailLoading = signal(false);
   readonly detailOpen = signal(false);
   readonly detailEditing = signal(false);
+  readonly aiPending = signal(false);
+  readonly aiAccessControl = new FormControl(false, { nonNullable: true });
+  private readonly aiPollingNeeded = computed(
+    () =>
+      this.documents().some((row) => isAiInProgress(row.aiStatus)) ||
+      isAiInProgress(this.detailDocument()?.aiStatus),
+  );
   readonly detailForm = new FormGroup({
     title: new FormControl("", { nonNullable: true }),
     category: new FormControl("", { nonNullable: true }),
@@ -287,6 +317,19 @@ export class DocumentsComponent implements OnInit {
     this.selectedCategory.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.resetPageAndLoad());
+
+    this.aiAccessControl.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((value) => this.toggleDetailAi(value));
+
+    effect((onCleanup) => {
+      if (!this.aiPollingNeeded()) return;
+      const handle = setInterval(
+        () => this.refreshAiStatus(),
+        AI_POLL_INTERVAL_MS,
+      );
+      onCleanup(() => clearInterval(handle));
+    });
   }
 
   ngOnInit(): void {
@@ -641,6 +684,171 @@ export class DocumentsComponent implements OnInit {
       });
   }
 
+  private selectedFileIds(): string[] {
+    return this.selection()
+      .filter(({ kind }) => kind === "file")
+      .map(({ id }) => id);
+  }
+
+  enableAiSelected(): void {
+    this.runBulkAi(true);
+  }
+
+  disableAiSelected(): void {
+    if (
+      !this.selectedFileIds().length ||
+      this.bulkPending() ||
+      this.renamePending()
+    )
+      return;
+    this.bulkPending.set(true);
+    this.confirmDialog
+      .confirm({
+        title: this.localization.translate("documents.ai.disableSelected"),
+        message: this.localization.translate("documents.ai.confirmDisable"),
+        confirmText: this.localization.translate(
+          "documents.ai.disableSelected",
+        ),
+        cancelText: this.localization.translate("common.cancel"),
+        variant: "warning",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        this.bulkPending.set(false);
+        if (confirmed) this.runBulkAi(false);
+      });
+  }
+
+  private runBulkAi(aiAccess: boolean): void {
+    const documentIds = this.selectedFileIds();
+    if (!documentIds.length || this.bulkPending() || this.renamePending())
+      return;
+    this.bulkPending.set(true);
+    this.bulkError.set(false);
+    this.documentsApi
+      .setAiAccessBulk({ documentIds, aiAccess })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: ({ updated }) => {
+          this.bulkPending.set(false);
+          this.toast.success(
+            this.localization.translate("documents.ai.bulkUpdated", {
+              count: updated,
+            }),
+          );
+          this.load(true);
+          const openId = this.detailDocument()?.id;
+          if (openId && documentIds.includes(openId)) this.reloadDetail(openId);
+        },
+        error: () => {
+          this.bulkPending.set(false);
+          this.toast.error(this.localization.translate("documents.saveError"));
+        },
+      });
+  }
+
+  toggleDetailAi(value: boolean): void {
+    const document = this.detailDocument();
+    if (!document || this.aiPending() || document.aiAccess === value) return;
+    if (value) {
+      this.applyDetailAi(this.documentsApi.setAiAccess(document.id, true));
+      return;
+    }
+    this.confirmDialog
+      .confirm({
+        title: this.localization.translate("documents.ai.access"),
+        message: this.localization.translate("documents.ai.confirmDisable"),
+        confirmText: this.localization.translate(
+          "documents.ai.disableSelected",
+        ),
+        cancelText: this.localization.translate("common.cancel"),
+        variant: "warning",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        if (confirmed)
+          this.applyDetailAi(this.documentsApi.setAiAccess(document.id, false));
+        else this.aiAccessControl.setValue(true, { emitEvent: false });
+      });
+  }
+
+  reprocessDetailAi(): void {
+    const document = this.detailDocument();
+    if (!document || document.aiStatus !== "FAILED" || this.aiPending()) return;
+    this.applyDetailAi(this.documentsApi.reprocessAi(document.id));
+  }
+
+  private applyDetailAi(request: Observable<DocumentDetail>): void {
+    const previous = this.detailDocument();
+    this.aiPending.set(true);
+    this.aiAccessControl.disable({ emitEvent: false });
+    request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (updated) => {
+        this.documents.update((rows) =>
+          rows.map((row) => (row.id === updated.id ? updated : row)),
+        );
+        if (this.detailDocument()?.id === updated.id) {
+          this.detailDocument.set(updated);
+          this.aiAccessControl.setValue(updated.aiAccess, { emitEvent: false });
+        }
+        this.aiPending.set(false);
+        this.aiAccessControl.enable({ emitEvent: false });
+      },
+      error: () => {
+        this.aiPending.set(false);
+        this.aiAccessControl.enable({ emitEvent: false });
+        this.aiAccessControl.setValue(previous?.aiAccess ?? false, {
+          emitEvent: false,
+        });
+        this.toast.error(this.localization.translate("documents.saveError"));
+      },
+    });
+  }
+
+  private reloadDetail(documentId: string): void {
+    this.documentsApi
+      .get(documentId)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({ next: (detail) => this.applyPolledDetail(detail) });
+  }
+
+  private applyPolledDetail(detail: DocumentDetail): void {
+    if (this.detailDocument()?.id !== detail.id) return;
+    this.detailDocument.set(detail);
+    if (!this.aiPending())
+      this.aiAccessControl.setValue(detail.aiAccess, { emitEvent: false });
+  }
+
+  /** Silent reload of the current page and the open detail (no spinner, no state reset). */
+  private refreshAiStatus(): void {
+    if (this.pollInFlight || this.loading()) return;
+    const query = this.buildListQuery(
+      this.selectedTab() === "archived" ? "true" : "false",
+    );
+    const detailId = this.detailOpen() ? this.detailDocument()?.id : undefined;
+    this.pollInFlight = true;
+    this.pollSubscription = forkJoin({
+      documents: this.documentsApi.list(query),
+      detail: detailId
+        ? this.documentsApi.get(detailId).pipe(catchError(() => of(null)))
+        : of(null),
+    })
+      .pipe(
+        finalize(() => (this.pollInFlight = false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: ({ documents: response, detail }) => {
+          if (response.meta.page === this.page()) {
+            this.documents.set(response.items);
+            this.pageCount.set(response.meta.totalPages || 1);
+            this.totalItems.set(response.meta.totalItems);
+          }
+          if (detail) this.applyPolledDetail(detail);
+        },
+      });
+  }
+
   downloadSelected(): void {
     if (this.bulkPending()) return;
     for (const item of this.selection()) {
@@ -819,6 +1027,7 @@ export class DocumentsComponent implements OnInit {
   }
 
   syncDetailForm(detail: DocumentDetail): void {
+    this.aiAccessControl.setValue(detail.aiAccess, { emitEvent: false });
     this.detailForm.setValue({
       title: detail.title,
       category: detail.category ?? "",
@@ -966,6 +1175,8 @@ export class DocumentsComponent implements OnInit {
 
     const query = this.buildListQuery(arch);
 
+    this.pollSubscription?.unsubscribe();
+    this.pollInFlight = false;
     this.listSubscription?.unsubscribe();
     this.loading.set(true);
     this.error.set(false);

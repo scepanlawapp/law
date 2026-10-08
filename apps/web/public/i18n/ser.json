@@ -2465,5 +2465,6 @@
   "documents.ai.disableSelected": "Isključi AI pristup",
   "documents.ai.confirmDisable": "Asistent više neće moći da čita ovaj dokument",
   "documents.ai.fromChat": "Iz razgovora sa asistentom",
-  "documents.ai.reprocess": "Ponovo obradi"
+  "documents.ai.reprocess": "Ponovo obradi",
+  "documents.ai.bulkUpdated": "Ažurirano: {count}"
 }

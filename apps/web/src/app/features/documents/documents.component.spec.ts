@@ -1,7 +1,19 @@
+import { TestBed } from "@angular/core/testing";
+import {
+  CasesApiClient,
+  ClientsApiClient,
+  DocumentsApiClient,
+} from "@law/api-clients";
 import { DocumentSummary } from "@law/api-interfaces";
+import { HlmDialogService } from "@spartan-ng/helm/dialog";
 import { of, Subject, throwError } from "rxjs";
 import { signal } from "@angular/core";
 import { FormControl } from "@angular/forms";
+import { LocalizationService } from "../../core/localization/localization.service";
+import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import { ToastService } from "../../shared/ui/toast/toast.service";
+import { DocumentAssociationsDialogService } from "./document-associations/document-associations-dialog.service";
+import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
 import { DocumentMoveDialogComponent } from "./document-move-dialog.component";
 import { DocumentsComponent } from "./documents.component";
 
@@ -369,5 +381,346 @@ describe("DocumentsComponent state helpers", () => {
 
     expect(component.load).not.toHaveBeenCalled();
     expect(changes.emit).not.toHaveBeenCalled();
+  });
+});
+
+describe("DocumentsComponent AI access", () => {
+  const document = (overrides: Partial<DocumentSummary> = {}) =>
+    ({
+      id: "doc-1",
+      title: "Complaint",
+      category: null,
+      archived: false,
+      archivedAt: null,
+      aiAccess: false,
+      aiStatus: "OFF",
+      documentKind: null,
+      fromAssistantChat: false,
+      cases: [],
+      clients: [],
+      currentVersion: null,
+      createdByUserId: "u",
+      updatedByUserId: "u",
+      createdAt: "2026-09-01T10:00:00.000Z",
+      updatedAt: "2026-09-15T10:00:00.000Z",
+      ...overrides,
+    }) as DocumentSummary;
+
+  const page = (items: DocumentSummary[]) => ({
+    items,
+    meta: { page: 1, pageSize: 20, totalItems: items.length, totalPages: 1 },
+  });
+
+  beforeAll(() => {
+    globalThis.ResizeObserver ??= class {
+      observe(): void {
+        // jsdom has no layout.
+      }
+      unobserve(): void {
+        // jsdom has no layout.
+      }
+      disconnect(): void {
+        // jsdom has no layout.
+      }
+    };
+  });
+
+  afterEach(() => {
+    jest.useRealTimers();
+  });
+
+  function setup(
+    rows: DocumentSummary[],
+    options: { confirm?: boolean; folders?: Array<{ id: string }> } = {},
+  ) {
+    const documentsApi = {
+      list: jest.fn(() => of(page(rows))),
+      browseFolders: jest.fn(() =>
+        of({ folders: options.folders ?? [], breadcrumbs: [] }),
+      ),
+      statistics: jest.fn(() => of({})),
+      get: jest.fn((id: string) =>
+        of(rows.find((row) => row.id === id) as DocumentSummary),
+      ),
+      listVersions: jest.fn(() => of({ items: [] })),
+      setAiAccess: jest.fn(),
+      setAiAccessBulk: jest.fn(() => of({ updated: 1 })),
+      reprocessAi: jest.fn(),
+    };
+    const confirmDialog = {
+      confirm: jest.fn(() => of(options.confirm ?? true)),
+    };
+    const toast = { success: jest.fn(), error: jest.fn() };
+    TestBed.configureTestingModule({
+      providers: [
+        { provide: DocumentsApiClient, useValue: documentsApi },
+        {
+          provide: CasesApiClient,
+          useValue: { list: () => of({ items: [] }) },
+        },
+        {
+          provide: ClientsApiClient,
+          useValue: { list: () => of({ items: [] }) },
+        },
+        { provide: ConfirmDialogService, useValue: confirmDialog },
+        { provide: ToastService, useValue: toast },
+        { provide: DocumentUploadDialogService, useValue: { open: jest.fn() } },
+        {
+          provide: DocumentAssociationsDialogService,
+          useValue: { open: jest.fn() },
+        },
+        { provide: HlmDialogService, useValue: { open: jest.fn() } },
+        {
+          provide: LocalizationService,
+          useValue: {
+            translate: (key: string, params?: Record<string, unknown>) =>
+              params ? `${key} ${JSON.stringify(params)}` : key,
+            language: () => "SR",
+          },
+        },
+      ],
+    });
+    const fixture = TestBed.createComponent(DocumentsComponent);
+    fixture.detectChanges();
+    return {
+      fixture,
+      component: fixture.componentInstance,
+      documentsApi,
+      confirmDialog,
+      toast,
+      el: fixture.nativeElement as HTMLElement,
+    };
+  }
+
+  it("renders an AI status icon per document row", () => {
+    const { el } = setup([
+      document({ id: "a", aiStatus: "READY" }),
+      document({ id: "b", aiStatus: "FAILED" }),
+    ]);
+    const labels = Array.from(
+      el.querySelectorAll("law-document-ai-status [role='img']"),
+    ).map((node) => node.getAttribute("aria-label"));
+    expect(labels).toEqual(
+      expect.arrayContaining([
+        "documents.ai.status.READY",
+        "documents.ai.status.FAILED",
+      ]),
+    );
+  });
+
+  it("enables AI for selected files only and refreshes", () => {
+    const { component, documentsApi, toast } = setup(
+      [document({ id: "a" }), document({ id: "b" })],
+      { folders: [{ id: "folder-1" }] },
+    );
+    component.selection.set([
+      { id: "folder-1", kind: "folder" },
+      { id: "a", kind: "file" },
+      { id: "b", kind: "file" },
+    ]);
+    documentsApi.setAiAccessBulk.mockReturnValue(of({ updated: 2 }));
+    const loads = documentsApi.list.mock.calls.length;
+
+    component.enableAiSelected();
+
+    expect(documentsApi.setAiAccessBulk).toHaveBeenCalledWith({
+      documentIds: ["a", "b"],
+      aiAccess: true,
+    });
+    expect(documentsApi.list.mock.calls.length).toBe(loads + 1);
+    expect(toast.success).toHaveBeenCalledWith(
+      expect.stringContaining('"count":2'),
+    );
+    expect(component.bulkPending()).toBe(false);
+  });
+
+  it("does nothing when only folders are selected", () => {
+    const { component, documentsApi } = setup([document()], {
+      folders: [{ id: "folder-1" }],
+    });
+    component.selection.set([{ id: "folder-1", kind: "folder" }]);
+    component.enableAiSelected();
+    component.disableAiSelected();
+    expect(documentsApi.setAiAccessBulk).not.toHaveBeenCalled();
+  });
+
+  it("confirms once before bulk disable and skips on cancel", () => {
+    const { component, documentsApi, confirmDialog } = setup(
+      [document({ id: "a", aiAccess: true })],
+      { confirm: false },
+    );
+    component.selection.set([{ id: "a", kind: "file" }]);
+    component.disableAiSelected();
+    expect(confirmDialog.confirm).toHaveBeenCalledTimes(1);
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "documents.ai.confirmDisable" }),
+    );
+    expect(documentsApi.setAiAccessBulk).not.toHaveBeenCalled();
+    expect(component.bulkPending()).toBe(false);
+  });
+
+  it("bulk disables after confirmation", () => {
+    const { component, documentsApi } = setup([
+      document({ id: "a", aiAccess: true }),
+    ]);
+    component.selection.set([{ id: "a", kind: "file" }]);
+    component.disableAiSelected();
+    expect(documentsApi.setAiAccessBulk).toHaveBeenCalledWith({
+      documentIds: ["a"],
+      aiAccess: false,
+    });
+  });
+
+  it("asks for confirmation when disabling from the detail and keeps it on after cancel", () => {
+    const { component, documentsApi, confirmDialog } = setup(
+      [document({ id: "a", aiAccess: true, aiStatus: "READY" })],
+      { confirm: false },
+    );
+    component.openDocumentDetail(component.documents()[0]);
+    component.toggleDetailAi(false);
+    expect(confirmDialog.confirm).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "documents.ai.confirmDisable" }),
+    );
+    expect(documentsApi.setAiAccess).not.toHaveBeenCalled();
+    expect(component.aiAccessControl.value).toBe(true);
+  });
+
+  it("disables from the detail once confirmed and updates the row", () => {
+    const { component, documentsApi } = setup([
+      document({ id: "a", aiAccess: true, aiStatus: "READY" }),
+    ]);
+    component.openDocumentDetail(component.documents()[0]);
+    documentsApi.setAiAccess.mockReturnValue(
+      of(document({ id: "a", aiAccess: false, aiStatus: "OFF" })),
+    );
+    component.toggleDetailAi(false);
+    expect(documentsApi.setAiAccess).toHaveBeenCalledWith("a", false);
+    expect(component.detailDocument()?.aiAccess).toBe(false);
+    expect(component.documents()[0].aiStatus).toBe("OFF");
+    expect(component.aiPending()).toBe(false);
+  });
+
+  it("enables from the detail without confirmation", () => {
+    const { component, documentsApi, confirmDialog } = setup([
+      document({ id: "a" }),
+    ]);
+    component.openDocumentDetail(component.documents()[0]);
+    documentsApi.setAiAccess.mockReturnValue(
+      of(document({ id: "a", aiAccess: true, aiStatus: "QUEUED" })),
+    );
+    component.toggleDetailAi(true);
+    expect(confirmDialog.confirm).not.toHaveBeenCalled();
+    expect(documentsApi.setAiAccess).toHaveBeenCalledWith("a", true);
+  });
+
+  it("shows kind and from-chat labels in the detail", () => {
+    const { component, fixture, el } = setup([
+      document({
+        id: "a",
+        aiAccess: true,
+        aiStatus: "READY",
+        documentKind: "ID_CARD",
+        fromAssistantChat: true,
+      }),
+    ]);
+    component.openDocumentDetail(component.documents()[0]);
+    fixture.detectChanges();
+    const text = el.textContent ?? "";
+    expect(text).toContain("documents.ai.kind.ID_CARD");
+    expect(text).toContain("documents.ai.fromChat");
+  });
+
+  it("offers reprocess only for FAILED and calls reprocessAi", () => {
+    const failed = document({ id: "a", aiAccess: true, aiStatus: "FAILED" });
+    const { component, fixture, el, documentsApi } = setup([failed]);
+    component.openDocumentDetail(failed);
+    fixture.detectChanges();
+    const button = Array.from(el.querySelectorAll("button")).find((node) =>
+      node.textContent?.includes("documents.ai.reprocess"),
+    ) as HTMLButtonElement;
+    expect(button).toBeDefined();
+    documentsApi.reprocessAi.mockReturnValue(
+      of({ ...failed, aiStatus: "QUEUED" }),
+    );
+    button.click();
+    expect(documentsApi.reprocessAi).toHaveBeenCalledWith("a");
+    expect(component.detailDocument()?.aiStatus).toBe("QUEUED");
+  });
+
+  it("hides reprocess when the status is not FAILED", () => {
+    const ready = document({ id: "a", aiAccess: true, aiStatus: "READY" });
+    const { component, fixture, el } = setup([ready]);
+    component.openDocumentDetail(ready);
+    fixture.detectChanges();
+    expect(el.textContent).not.toContain("documents.ai.reprocess");
+  });
+
+  describe("polling", () => {
+    it("polls every 5 s while a row is processing, keeps page and selection, and stops when ready", () => {
+      jest.useFakeTimers();
+      const processing = document({ id: "a", aiStatus: "PROCESSING" });
+      const ready = document({ id: "a", aiStatus: "READY" });
+      const { component, fixture, documentsApi } = setup([processing]);
+      component.selection.set([{ id: "a", kind: "file" }]);
+      component.page.set(1);
+      const baseline = documentsApi.list.mock.calls.length;
+
+      jest.advanceTimersByTime(4999);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline);
+      jest.advanceTimersByTime(1);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline + 1);
+      expect(component.selection()).toEqual([{ id: "a", kind: "file" }]);
+      expect(component.loading()).toBe(false);
+
+      documentsApi.list.mockImplementation(() => of(page([ready])));
+      jest.advanceTimersByTime(5000);
+      fixture.detectChanges();
+      expect(component.documents()[0].aiStatus).toBe("READY");
+      const afterReady = documentsApi.list.mock.calls.length;
+
+      jest.advanceTimersByTime(30000);
+      expect(documentsApi.list.mock.calls.length).toBe(afterReady);
+    });
+
+    it("does not poll when nothing is queued or processing", () => {
+      jest.useFakeTimers();
+      const { documentsApi } = setup([document({ aiStatus: "READY" })]);
+      const baseline = documentsApi.list.mock.calls.length;
+      jest.advanceTimersByTime(60000);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline);
+    });
+
+    it("reloads the open detail on each tick", () => {
+      jest.useFakeTimers();
+      const queued = document({ id: "a", aiAccess: true, aiStatus: "QUEUED" });
+      const { component, documentsApi } = setup([queued]);
+      component.openDocumentDetail(queued);
+      const baseline = documentsApi.get.mock.calls.length;
+      jest.advanceTimersByTime(5000);
+      expect(documentsApi.get.mock.calls.length).toBe(baseline + 1);
+    });
+
+    it("skips a tick while the previous reload is still in flight", () => {
+      jest.useFakeTimers();
+      const processing = document({ id: "a", aiStatus: "PROCESSING" });
+      const { documentsApi } = setup([processing]);
+      const pending = new Subject<ReturnType<typeof page>>();
+      documentsApi.list.mockReturnValue(pending as never);
+      const baseline = documentsApi.list.mock.calls.length;
+      jest.advanceTimersByTime(5000);
+      jest.advanceTimersByTime(5000);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline + 1);
+    });
+
+    it("clears the interval on destroy", () => {
+      jest.useFakeTimers();
+      const { fixture, documentsApi } = setup([
+        document({ aiStatus: "PROCESSING" }),
+      ]);
+      const baseline = documentsApi.list.mock.calls.length;
+      fixture.destroy();
+      jest.advanceTimersByTime(30000);
+      expect(documentsApi.list.mock.calls.length).toBe(baseline);
+    });
   });
 });

@@ -359,11 +359,11 @@
 **Interfaces:**
 - Produces: `DocumentAiStatusComponent` (`input.required<DocumentAiStatus>()`, renders a lucide icon + `HlmSpinner` for `QUEUED`/`PROCESSING` + tooltip `documents.ai.status.*`); `DocumentsComponent.enableAiSelected()`, `disableAiSelected()`, `toggleDetailAi(value: boolean)` (confirms with `documents.ai.confirmDisable` via the existing confirmation dialog before turning off); polling `effect` that reloads the current page and the open detail every 5,000 ms while any visible row or the detail has `aiStatus` `QUEUED`/`PROCESSING`, cleared on destroy or when none remain.
 
-- [ ] **Step 1: Write failing tests:** status icon per status; bulk enable calls `setAiAccessBulk` with selected file ids only (folders excluded) and refreshes; disabling from detail asks for confirmation and does nothing on cancel; polling starts with a processing row and stops after it becomes `READY` (fake timers); detail shows kind label and `documents.ai.fromChat` when `fromAssistantChat`; `FAILED` shows a reprocess button calling `reprocessAi`.
-- [ ] **Step 2:** Run `npx nx test web --testPathPattern="documents.component|document-ai-status"`. Expected: FAIL.
-- [ ] **Step 3:** Implement with Spartan Helm primitives and semantic tokens.
-- [ ] **Step 4:** Rerun. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(web): document AI status, detail switch, and bulk actions`.
+- [x] **Step 1: Write failing tests:** status icon per status; bulk enable calls `setAiAccessBulk` with selected file ids only (folders excluded) and refreshes; disabling from detail asks for confirmation and does nothing on cancel; polling starts with a processing row and stops after it becomes `READY` (fake timers); detail shows kind label and `documents.ai.fromChat` when `fromAssistantChat`; `FAILED` shows a reprocess button calling `reprocessAi`.
+- [x] **Step 2:** Run `npx nx test web --testPathPattern="documents.component|document-ai-status"`. Expected: FAIL.
+- [x] **Step 3:** Implement with Spartan Helm primitives and semantic tokens.
+- [x] **Step 4:** Rerun. Expected: PASS.
+- [x] **Step 5:** Commit `feat(web): document AI status, detail switch, and bulk actions`.
 
 ### Task 16: Chat attachment status
 
