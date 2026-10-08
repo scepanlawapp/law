@@ -947,6 +947,8 @@ model Task {
   client            Client?      @relation(fields: [clientId], references: [id], onDelete: SetNull)
   deadline          Deadline?    @relation("DeadlineTasks", fields: [deadlineId], references: [id], onDelete: SetNull)
 
+  workEntries WorkEntry[]
+
   @@index([workspaceId, status, dueDate])
   @@index([workspaceId, assigneeUserId, status])
   @@index([workspaceId, dueAt])
@@ -1921,6 +1923,7 @@ model WorkEntry {
   userId            String
   clientId          String
   caseId            String?
+  taskId            String?
   workDate          DateTime           @db.Date
   minutes           Int?
   timerStartedAt    DateTime?          @db.Timestamptz(3)
@@ -1944,12 +1947,14 @@ model WorkEntry {
   user              User               @relation("WorkEntryPerformer", fields: [userId], references: [id], onDelete: Restrict)
   client            Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
   case              Case?              @relation(fields: [caseId], references: [id], onDelete: SetNull)
+  task              Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
   serviceCategory   ServiceCategory?   @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
   invoiceLine       InvoiceLine?       @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
   createdBy         User               @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   updatedBy         User               @relation("WorkEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
 
   @@unique([workspaceId, sourceType, sourceId])
+  @@index([workspaceId, taskId, workDate])
   @@index([workspaceId, clientId, workDate])
   @@index([workspaceId, userId, workDate])
   @@index([workspaceId, status])

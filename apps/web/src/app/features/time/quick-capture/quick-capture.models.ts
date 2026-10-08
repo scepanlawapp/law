@@ -8,6 +8,9 @@ import {
 export interface QuickCaptureInput<TResult = WorkEntry> {
   /** Custom atomic save, used when capturing work also completes a task. */
   save?: (request: CreateWorkEntryRequest) => Observable<TResult>;
+  /** Optional alternative when completing a task that already has work. */
+  finishWithoutNewWork?: () => Observable<TResult>;
+  taskId?: string;
   clientId?: string;
   caseId?: string;
   minutes?: number;

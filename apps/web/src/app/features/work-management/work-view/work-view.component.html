@@ -243,6 +243,15 @@
                     </hlm-select-group>
                   </hlm-select-content>
                 </hlm-select>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  (click)="openQuickCapture(item)"
+                >
+                  {{ "work.addWork" | translate }}
+                </button>
                 @if (canComplete(item)) {
                   <button
                     hlmBtn
@@ -349,6 +358,16 @@
                       <span class="text-sm text-muted-foreground">
                         {{ formatDue(item) }}
                       </span>
+                    </button>
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      class="mt-2"
+                      (click)="openQuickCapture(item)"
+                    >
+                      {{ "work.addWork" | translate }}
                     </button>
                   </div>
                 }

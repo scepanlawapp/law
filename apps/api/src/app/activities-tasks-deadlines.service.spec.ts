@@ -121,6 +121,8 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
   const completionDate = new Date("2026-10-05T00:00:00.000Z");
 
   const tx = {
+    $queryRaw: jest.fn(),
+    workEntry: { findFirst: jest.fn() },
     task: { findFirst: jest.fn(), update: jest.fn(), create: jest.fn() },
     event: { findFirst: jest.fn(), update: jest.fn() },
     deadline: { findFirst: jest.fn(), update: jest.fn() },
@@ -405,12 +407,54 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
       workDate: "2026-10-08",
       minutes: null,
     };
+    it("finishes with existing work without inserting a new entry", async () => {
+      tx.task.findFirst.mockResolvedValue(
+        taskRow({ clientId, status: "IN_PROGRESS" }),
+      );
+      tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      tx.workEntry.findFirst.mockResolvedValue({ id: "work-1" });
+      const result = await run(() =>
+        service.updateTask(taskId, { ...update, finishWithoutNewWork: true }),
+      );
+      expect(result.status).toBe("DONE");
+      expect(saveTaskCapture).not.toHaveBeenCalled();
+      expect(ensureForSource).not.toHaveBeenCalled();
+      expect(tx.workEntry.findFirst).toHaveBeenCalledWith({
+        where: { workspaceId, taskId },
+        select: { id: true },
+      });
+    });
+    it("rolls back finish-without-work if work was removed or never existed", async () => {
+      tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));
+      tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      tx.workEntry.findFirst.mockResolvedValue(null);
+      await expect(
+        run(() =>
+          service.updateTask(taskId, { ...update, finishWithoutNewWork: true }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(saveTaskCapture).not.toHaveBeenCalled();
+      expect(ensureForSource).not.toHaveBeenCalled();
+    });
+    it("rejects conflicting completion choices", async () => {
+      await expect(
+        run(() =>
+          service.updateTask(taskId, {
+            ...update,
+            workEntry,
+            finishWithoutNewWork: true,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.$transaction).not.toHaveBeenCalled();
+    });
     it("captures work inside the same transaction as DONE", async () => {
       tx.task.findFirst.mockResolvedValue(
         taskRow({ clientId, status: "IN_PROGRESS" }),
       );
       tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
       await run(() => service.updateTask(taskId, { ...update, workEntry }));
+      expect(tx.$queryRaw).toHaveBeenCalled();
       expect(saveTaskCapture).toHaveBeenCalledWith(
         tx,
         expect.objectContaining({ id: taskId, status: "DONE" }),

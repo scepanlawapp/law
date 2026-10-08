@@ -1611,6 +1611,7 @@ async function ensureWorkEntries(
         source,
         sourceType: extra.sourceType ?? null,
         sourceId: extra.sourceId ?? null,
+        taskId: extra.sourceType === "TASK" ? extra.sourceId : null,
         invoiceLineId: extra.invoiceLineId ?? null,
         aiParsed: extra.aiParsed ?? false,
         createdByUserId: user.id,

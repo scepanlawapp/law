@@ -537,6 +537,34 @@ describe("QuickCaptureDialogComponent", () => {
     expect(dialogRef.close).toHaveBeenCalledWith(savedEntry);
   });
 
+  it("finishes without new work even when capture fields are invalid, and keeps errors retryable", () => {
+    const pending = new Subject<WorkEntry>();
+    const finishWithoutNewWork = jest.fn(() => pending);
+    context = { mode: "create", finishWithoutNewWork };
+    const { componentInstance: component } = render();
+    expect(component.form.invalid).toBe(true);
+    component.finishWithoutNewWork();
+    component.finishWithoutNewWork();
+    expect(finishWithoutNewWork).toHaveBeenCalledTimes(1);
+    expect(entries.create).not.toHaveBeenCalled();
+    pending.error(new Error("No work remains"));
+    expect(component.saving()).toBe(false);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+  it("saves task linkage when capturing work independently", () => {
+    context = {
+      mode: "create",
+      taskId: "task-1",
+      clientId: "client-1",
+      title: "Review",
+    };
+    const { componentInstance: component } = render();
+    component.submit();
+    expect(entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({ taskId: "task-1" }),
+    );
+  });
+
   describe("save", () => {
     it("creates a MANUAL entry when nothing was parsed", () => {
       const { componentInstance: component } = render();

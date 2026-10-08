@@ -163,6 +163,7 @@ export class WorkEntriesService {
     if (query.clientIds?.length)
       and.push({ clientId: { in: query.clientIds } });
     if (query.caseId) and.push({ caseId: query.caseId });
+    if (query.taskId) and.push({ taskId: query.taskId });
     if (query.statuses?.length) and.push({ status: { in: query.statuses } });
     if (query.treatments?.length) {
       and.push({ treatment: { in: query.treatments } });
@@ -410,15 +411,6 @@ export class WorkEntriesService {
     const workDate = this.toWorkDate(input.workDate);
     await this.assertClientAndCase(input.clientId, input.caseId, tx);
     await this.assertServiceCategory(input.serviceCategoryId, tx);
-    const existing = await tx.workEntry.findFirst({
-      where: {
-        workspaceId: this.workspaceId,
-        sourceType: "TASK",
-        sourceId: task.id,
-      },
-    });
-    // Reopening a task must never duplicate or overwrite previously settled work.
-    if (existing && existing.status !== "PROPOSED") return;
     const treatment =
       input.treatment ??
       (await this.defaultTreatmentFor(
@@ -441,34 +433,22 @@ export class WorkEntriesService {
       aiParsed: input.aiParsed ?? false,
       updatedByUserId: this.userId,
     };
-    const row = existing
-      ? await tx.workEntry.update({
-          where: { id: existing.id },
-          data,
-          include: entryInclude,
-        })
-      : await tx.workEntry.create({
-          data: {
-            ...data,
-            workspaceId: this.workspaceId,
-            source: "TASK",
-            sourceType: "TASK",
-            sourceId: task.id,
-            createdByUserId: this.userId,
-          },
-          include: entryInclude,
-        });
-    await this.log(
-      tx,
-      existing ? "WORK_ENTRY_CONFIRMED" : "WORK_ENTRY_CREATED",
-      row,
-      {
+    const row = await tx.workEntry.create({
+      data: {
+        ...data,
+        workspaceId: this.workspaceId,
+        taskId: task.id,
         source: "TASK",
-        minutes,
-        treatment,
-        status: "CONFIRMED",
+        createdByUserId: this.userId,
       },
-    );
+      include: entryInclude,
+    });
+    await this.log(tx, "WORK_ENTRY_CREATED", row, {
+      source: "TASK",
+      minutes,
+      treatment,
+      status: "CONFIRMED",
+    });
   }
 
   async create(input: CreateWorkEntryRequest): Promise<WorkEntry> {
@@ -488,6 +468,13 @@ export class WorkEntriesService {
       ));
 
     const row = await this.db.$transaction(async (tx) => {
+      if (input.taskId) {
+        const task = await tx.task.findFirst({
+          where: { id: input.taskId, workspaceId: this.workspaceId },
+          select: { id: true },
+        });
+        if (!task) throw new NotFoundException("Task not found");
+      }
       const created = await tx.workEntry.create({
         data: {
           workspaceId: this.workspaceId,
@@ -501,7 +488,8 @@ export class WorkEntriesService {
           serviceCategoryId: input.serviceCategoryId ?? null,
           treatment,
           status: "CONFIRMED",
-          source: input.source ?? "MANUAL",
+          taskId: input.taskId ?? null,
+          source: input.taskId ? "TASK" : (input.source ?? "MANUAL"),
           aiParsed: input.aiParsed ?? false,
           createdByUserId: this.userId,
           updatedByUserId: this.userId,
@@ -1024,6 +1012,7 @@ export class WorkEntriesService {
       source: row.source as WorkEntrySource,
       sourceType: row.sourceType as WorkEntrySourceType | null,
       sourceId: row.sourceId,
+      taskId: row.taskId ?? null,
       invoiceId: row.invoiceLine?.invoiceId ?? null,
       aiParsed: row.aiParsed,
       createdAt: row.createdAt.toISOString(),

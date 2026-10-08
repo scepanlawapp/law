@@ -82,6 +82,7 @@ function agreement(coveredCategoryIds: string[]) {
 
 describe("WorkEntriesService", () => {
   const db = {
+    task: { findFirst: jest.fn() },
     client: { findFirst: jest.fn(), findMany: jest.fn() },
     event: { findMany: jest.fn() },
     document: { findMany: jest.fn() },
@@ -159,38 +160,68 @@ describe("WorkEntriesService", () => {
           data: expect.objectContaining({
             workspaceId,
             userId: otherUserId,
-            sourceType: "TASK",
-            sourceId: "task-1",
+            taskId: "task-1",
+            source: "TASK",
             status: "CONFIRMED",
             minutes: null,
           }),
         }),
       );
     });
-    it.each(["CONFIRMED", "BILLED", "WRITTEN_OFF"])(
-      "does not duplicate or overwrite %s work on recompletion",
+    it.each(["CONFIRMED", "BILLED", "WRITTEN_OFF", "PROPOSED"])(
+      "adds new work without overwriting an existing %s entry",
       async (status) => {
         db.workEntry.findFirst.mockResolvedValue(entryRecord({ status }));
         await as(WorkspaceRole.OWNER, () =>
           service.saveTaskCapture(db as never, task, validCreate),
         );
-        expect(db.workEntry.create).not.toHaveBeenCalled();
+        expect(db.workEntry.create).toHaveBeenCalled();
         expect(db.workEntry.update).not.toHaveBeenCalled();
       },
     );
-    it("confirms an existing proposal using the edited capture", async () => {
-      db.workEntry.findFirst.mockResolvedValue(
-        entryRecord({ status: "PROPOSED" }),
+    it("can add multiple entries without changing task status", async () => {
+      db.task.findFirst.mockResolvedValue({ id: task.id });
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, taskId: task.id }),
       );
-      db.workEntry.update.mockResolvedValue(entryRecord());
-      await as(WorkspaceRole.OWNER, () =>
-        service.saveTaskCapture(db as never, task, validCreate),
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, taskId: task.id }),
       );
-      expect(db.workEntry.create).not.toHaveBeenCalled();
-      expect(db.workEntry.update).toHaveBeenCalledWith(
+      expect(db.workEntry.create).toHaveBeenCalledTimes(2);
+      expect(db.task.findFirst).toHaveBeenCalledWith({
+        where: { id: task.id, workspaceId },
+        select: { id: true },
+      });
+      expect(db.workEntry.create).toHaveBeenLastCalledWith(
         expect.objectContaining({
-          where: { id: entryId },
-          data: expect.objectContaining({ status: "CONFIRMED", minutes: 45 }),
+          data: expect.objectContaining({
+            taskId: task.id,
+            source: "TASK",
+            userId,
+            status: "CONFIRMED",
+          }),
+        }),
+      );
+    });
+    it("rejects work linked to a task outside the workspace", async () => {
+      db.task.findFirst.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.OWNER, () =>
+          service.create({ ...validCreate, taskId: task.id }),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it("filters task work without dropping member visibility restrictions", async () => {
+      await as(WorkspaceRole.MEMBER, () =>
+        service.list({ taskId: task.id, page: 1, pageSize: 50 }),
+      );
+      expect(db.workEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            workspaceId,
+            AND: expect.arrayContaining([{ taskId: task.id }, { userId }]),
+          },
         }),
       );
     });

@@ -312,7 +312,18 @@
   </div>
 </div>
 
-<hlm-dialog-footer class="flex justify-end gap-2">
+<hlm-dialog-footer class="flex flex-wrap justify-end gap-2">
+  @if (canFinishWithoutNewWork) {
+    <button
+      hlmBtn
+      type="button"
+      variant="secondary"
+      [disabled]="saving()"
+      (click)="finishWithoutNewWork()"
+    >
+      {{ "work.finishWithoutNewWork" | translate }}
+    </button>
+  }
   <button
     hlmBtn
     type="button"
