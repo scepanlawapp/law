@@ -40,6 +40,7 @@ describe("digitsOnly", () => {
 
 describe("isValidJmbg", () => {
   it("accepts a JMBG with a correct control digit", () => {
+    expect(isValidJmbg("0101990710008")).toBe(true);
     expect(isValidJmbg(buildJmbg("0101990"))).toBe(true);
     expect(isValidJmbg(buildJmbg("2902000"))).toBe(true);
     expect(isValidJmbg(buildJmbg("1503005", "80", "123"))).toBe(true);
