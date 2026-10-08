@@ -132,11 +132,6 @@ export class SidebarComponent {
     { route: "/assistant", label: "nav.aiAssistant", icon: "lucideBot" },
   ];
 
-  private readonly canManageTime = computed(() => {
-    const role = this.authState.activeWorkspace()?.role;
-    return role === WorkspaceRole.OWNER || role === WorkspaceRole.ADMIN;
-  });
-
   private readonly showRetainers = computed(() =>
     canViewRetainers(this.authState.activeWorkspace()?.role),
   );
@@ -164,20 +159,16 @@ export class SidebarComponent {
         },
         { route: "/work/my", label: "nav.myWork", icon: "lucideUserCheck" },
         {
+          route: "/work/time/team",
+          label: "nav.teamTime",
+          icon: "lucideUsers",
+        },
+        {
           route: "/work/time",
           label: "nav.myTime",
           icon: "lucideClock",
           exact: true,
         },
-        ...(this.canManageTime()
-          ? [
-              {
-                route: "/work/time/team",
-                label: "nav.teamTime",
-                icon: "lucideUsers",
-              },
-            ]
-          : []),
         { route: "/calendar", label: "nav.calendar", icon: "lucideCalendar" },
       ],
     },

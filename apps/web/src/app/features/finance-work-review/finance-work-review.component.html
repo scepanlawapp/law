@@ -261,7 +261,7 @@
                 hlmBtn
                 type="button"
                 size="sm"
-                [disabled]="busyEntryId() === entry.id"
+                [disabled]="busyEntryId() === entry.id || selected().size > 0"
                 (click)="newStatementFor(entry)"
               >
                 {{ "finance.newStatementFromWork" | translate }}
