@@ -284,11 +284,11 @@
 **Interfaces:**
 - Produces: `BriefContextInput.documentFacts?: Array<{ ref: string; title: string; subjectType: string; subjectRole: string | null; field: string; value: string }>`; brief party values filled from a fact carry `source: { ref: string; title: string }` in the brief result; prompt rule: chat-typed values override facts; a field with a fact is not a placeholder.
 
-- [ ] **Step 1: Write failing tests:** drafting passes facts from readable case documents (not from off documents) into the brief context; the brief prompt contains the facts block; normalization keeps the `source` for a party JMBG that matches a fact and drops it when the model invents a source not in `documentFacts`.
-- [ ] **Step 2:** Run `npx nx test brief-extraction` and `npx nx test api --testPathPattern=assistant-drafting`. Expected: FAIL.
-- [ ] **Step 3:** Implement; show "Izvor: {title}" next to sourced party fields in the Case-work pane (translation key `assistant.caseWork.factSource`).
-- [ ] **Step 4:** Rerun both. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(assistant): prefill brief party data from document facts`.
+- [x] **Step 1: Write failing tests:** drafting passes facts from readable case documents (not from off documents) into the brief context; the brief prompt contains the facts block; normalization keeps the `source` for a party JMBG that matches a fact and drops it when the model invents a source not in `documentFacts`.
+- [x] **Step 2:** Run `npx nx test brief-extraction` and `npx nx test api --testPathPattern=assistant-drafting`. Expected: FAIL.
+- [x] **Step 3:** Implement; show "Izvor: {title}" next to sourced party fields in the Case-work pane (translation key `assistant.caseWork.factSource`).
+- [x] **Step 4:** Rerun both. Expected: PASS.
+- [x] **Step 5:** Commit `feat(assistant): prefill brief party data from document facts`.
 
 ### Task 12: Client update proposals
 

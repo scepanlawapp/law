@@ -1,5 +1,8 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
-import type { BriefDocumentInput } from "@law/brief-extraction";
+import type {
+  BriefDocumentFact,
+  BriefDocumentInput,
+} from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
 import type {
@@ -455,6 +458,41 @@ export class AssistantDocumentReadsService {
       notIndexed,
       aiAccessOff,
     };
+  }
+
+  /**
+   * Facts for a drafting brief: the readable sources' facts (named refs first),
+   * flattened to values without quotes. It goes through `getDocumentFacts`, so
+   * a document with AI access off contributes nothing.
+   */
+  async briefDocumentFacts(
+    scope: AssistantTurnScope,
+    refs: string[],
+  ): Promise<BriefDocumentFact[]> {
+    const named = [...new Set(refs.map((ref) => ref.trim()).filter(Boolean))];
+    const seen = new Set<string>();
+    const facts: BriefDocumentFact[] = [];
+    for (const args of [...named.map((ref) => ({ ref })), {}]) {
+      const result = await this.getDocumentFacts(scope, args);
+      if (result.status !== "OK") continue;
+      for (const subject of result.subjects) {
+        for (const fact of subject.facts) {
+          const key = [subject.ref, subject.subjectKey, fact.field, fact.value]
+            .join("\u0000");
+          if (seen.has(key)) continue;
+          seen.add(key);
+          facts.push({
+            ref: subject.ref,
+            title: subject.title,
+            subjectType: subject.subjectType,
+            subjectRole: subject.subjectRole,
+            field: fact.field,
+            value: fact.value,
+          });
+        }
+      }
+    }
+    return facts;
   }
 
   /**

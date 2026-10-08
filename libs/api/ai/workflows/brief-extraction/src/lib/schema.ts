@@ -15,11 +15,19 @@ const evidenceSchema = z.object({
   provided: z.boolean(),
 });
 
+// The model cites only the ref; normalization checks it against the provided
+// facts and fills the title from them.
+const sourceSchema = z.object({
+  ref: z.string(),
+  title: z.string().default(""),
+});
+
 const partySchema = z.object({
   role: z.string(),
   name: z.string().nullable(),
   address: z.string().nullable(),
   idNumber: z.string().nullable().default(null),
+  source: sourceSchema.nullable().optional(),
 });
 
 const fieldValueSchema = z.object({

@@ -152,6 +152,15 @@
       </fieldset>
       }
       <p>{{ card.clientPartyName }}</p>
+      @if (card.clientPartySource; as source) {
+      <p
+        class="truncate text-xs text-muted-foreground"
+        data-testid="fact-source"
+        [attr.title]="source.title"
+      >
+        {{ "assistant.caseWork.factSource" | translate: { title: source.title } }}
+      </p>
+      }
       @for (match of card.clientMatches; track match.id) {
       <label class="flex gap-2">
         <input
@@ -191,6 +200,15 @@
         {{ "assistant.matter.opposing" | translate }}:
         {{ card.opposingPartyName }}
       </p>
+      @if (card.opposingPartySource; as source) {
+      <p
+        class="truncate text-xs text-muted-foreground"
+        data-testid="fact-source"
+        [attr.title]="source.title"
+      >
+        {{ "assistant.caseWork.factSource" | translate: { title: source.title } }}
+      </p>
+      }
       <input hlmInput formControlName="caseNumber" />
       <input hlmInput formControlName="name" />
       <textarea

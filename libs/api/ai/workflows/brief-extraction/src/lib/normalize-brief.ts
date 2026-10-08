@@ -1,4 +1,5 @@
 import {
+  BriefFactSource,
   BriefFieldValue,
   BriefMissingField,
   BriefPartyEntry,
@@ -11,8 +12,20 @@ import {
   getDocumentType,
   missingFieldKeys,
 } from "./document-types";
+import { foldForMatch } from "@law/document-intelligence";
+import type { BriefDocumentFact } from "./context";
 import { normalizeEvidence, normalizeMissingFields } from "./normalize";
 import type { BriefResult } from "./schema";
+
+export interface NormalizeBriefOptions {
+  /**
+   * The facts the brief was extracted with. When given, a party source is kept
+   * only if its ref is among them and a party value equals one of that ref's
+   * fact values; the title comes from the fact. When omitted (reading a stored
+   * brief) a well-formed source is kept as stored.
+   */
+  facts?: readonly BriefDocumentFact[];
+}
 
 /**
  * Aligns a brief with its document type: one entry per party role and field
@@ -22,15 +35,20 @@ import type { BriefResult } from "./schema";
 export function normalizeBriefForType(
   brief: BriefResult,
   type: DocumentTypeDefinition = getDocumentType(brief.documentType),
+  options: NormalizeBriefOptions = {},
 ): BriefResult {
   const parties: BriefPartyEntry[] = type.parties.map((party) => {
     const found = brief.parties.find((item) => item.role === party.role);
-    return {
+    const entry: BriefPartyEntry = {
       role: party.role,
       name: clean(found?.name),
       address: clean(found?.address),
       idNumber: clean(found?.idNumber),
     };
+    const source = options.facts
+      ? verifiedSource(found?.source, entry, options.facts)
+      : storedSource(found?.source);
+    return source ? { ...entry, source } : entry;
   });
   const fields: BriefFieldValue[] = type.fields.map((field) => ({
     key: field.key,
@@ -135,12 +153,62 @@ function readParties(value: unknown): BriefPartyEntry[] {
         Boolean(item) && typeof item === "object",
     )
     .filter((item) => typeof item["role"] === "string")
-    .map((item) => ({
-      role: item["role"] as string,
-      name: clean(item["name"]),
-      address: clean(item["address"]),
-      idNumber: clean(item["idNumber"]),
-    }));
+    .map((item) => {
+      const source = storedSource(item["source"]);
+      return {
+        role: item["role"] as string,
+        name: clean(item["name"]),
+        address: clean(item["address"]),
+        idNumber: clean(item["idNumber"]),
+        ...(source ? { source } : {}),
+      };
+    });
+}
+
+/** A source as stored with the brief; absent on briefs written before facts. */
+function storedSource(value: unknown): BriefFactSource | null {
+  if (!value || typeof value !== "object") return null;
+  const record = value as Record<string, unknown>;
+  const ref = clean(record["ref"]);
+  const title = clean(record["title"]);
+  return ref && title ? { ref, title } : null;
+}
+
+function digits(value: string): string {
+  return value.replace(/\D+/g, "");
+}
+
+/** Equal after folding; identifiers also compare by their digits. */
+function sameValue(a: string, b: string, identifier = false): boolean {
+  if (foldForMatch(a) === foldForMatch(b)) return true;
+  return identifier && digits(a).length >= 6 && digits(a) === digits(b);
+}
+
+/**
+ * The model's cited source, accepted only when its ref is among the provided
+ * facts and the party carries a value equal to a fact of that document.
+ */
+function verifiedSource(
+  cited: unknown,
+  party: BriefPartyEntry,
+  facts: readonly BriefDocumentFact[],
+): BriefFactSource | null {
+  if (!cited || typeof cited !== "object") return null;
+  const ref = clean((cited as Record<string, unknown>)["ref"]);
+  if (!ref) return null;
+  const ofRef = facts.filter((fact) => fact.ref === ref);
+  if (!ofRef.length) return null;
+  const values: Array<[string | null, boolean]> = [
+    [party.name, false],
+    [party.address, false],
+    [party.idNumber, true],
+  ];
+  const matches = values.some(
+    ([value, identifier]) =>
+      value !== null &&
+      ofRef.some((fact) => sameValue(value, fact.value, identifier)),
+  );
+  return matches ? { ref, title: ofRef[0].title } : null;
 }
 
 function readFields(value: unknown): BriefFieldValue[] {

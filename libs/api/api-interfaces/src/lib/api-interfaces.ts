@@ -653,12 +653,21 @@ export interface BriefEvidenceItem {
   provided: boolean;
 }
 
+/** The document whose extracted facts filled a brief party. */
+export interface BriefFactSource {
+  // Document ref (`doc:<id>` or `att:<id>`).
+  ref: string;
+  title: string;
+}
+
 export interface BriefPartyEntry {
   // Role id from the document type, e.g. "plaintiff", "appellant".
   role: string;
   name: string | null;
   address: string | null;
   idNumber: string | null;
+  // Set only when the party's values come from a document fact; older briefs have none.
+  source?: BriefFactSource | null;
 }
 
 export interface BriefFieldValue {
@@ -709,6 +718,8 @@ export interface BriefPartyOption {
   label: string;
   name: string | null;
   address: string | null;
+  // The document the party's data was taken from; absent on older briefs.
+  source?: BriefFactSource | null;
 }
 
 export interface BriefApplyPreviewRequest {
@@ -725,12 +736,14 @@ export interface BriefApplyPreview {
   clientRole: string | null;
   clientPartyName: string | null;
   clientPartyAddress: string | null;
+  clientPartySource?: BriefFactSource | null;
   nameNeedsSplit: boolean;
   suggestedFirstName: string | null;
   suggestedLastName: string | null;
   clientMatches: BriefClientMatch[];
   opposingPartyName: string | null;
   opposingPartyAddress: string | null;
+  opposingPartySource?: BriefFactSource | null;
   suggestedCaseName: string;
   suggestedDescription: string;
   suggestedCaseNumber: string;

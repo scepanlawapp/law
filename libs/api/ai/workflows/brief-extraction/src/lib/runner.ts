@@ -3,6 +3,7 @@ import { z } from "zod";
 import { briefLlmOutputSchema, type BriefLlmOutput, type BriefResult } from "./schema";
 import { buildBriefSystemPrompt } from "./prompts";
 import { getDocumentType } from "./document-types";
+import type { BriefDocumentFact } from "./context";
 import { normalizeBriefForType } from "./normalize-brief";
 import type { DraftDocumentType } from "@law/api-interfaces";
 
@@ -10,6 +11,7 @@ export async function runBriefExtractionLlm(
   provider: ChatModelProvider,
   userPrompt: string,
   documentType: DraftDocumentType,
+  documentFacts: readonly BriefDocumentFact[] = [],
 ): Promise<BriefResult> {
   const type = getDocumentType(documentType);
   const output = await provider.completeStructured({
@@ -19,5 +21,7 @@ export async function runBriefExtractionLlm(
       { role: "user", content: userPrompt },
     ],
   });
-  return normalizeBriefForType({ ...output, documentType }, type);
+  return normalizeBriefForType({ ...output, documentType }, type, {
+    facts: documentFacts,
+  });
 }

@@ -110,6 +110,40 @@ describe("AssistantMatterLinkComponent", () => {
     expect(content.textContent).toContain("assistant.matter.confirmCase");
   });
 
+  it("labels party data that came from a document and leaves older briefs unlabelled", () => {
+    const source = { ref: "doc:lk-1", title: "Lična karta Petar" };
+    chat.previewBrief.mockReturnValue(
+      of({
+        ...preview,
+        clientPartySource: source,
+        opposingPartySource: null,
+      }),
+    );
+    const fixture = TestBed.createComponent(AssistantMatterLinkComponent);
+    fixture.componentRef.setInput("workspaceId", "workspace-1");
+    fixture.componentRef.setInput("session", session);
+    fixture.componentRef.setInput("briefId", "brief-1");
+    fixture.componentRef.setInput("expanded", true);
+    fixture.detectChanges();
+    fixture.detectChanges();
+
+    const labels = fixture.nativeElement.querySelectorAll(
+      "[data-testid='fact-source']",
+    ) as NodeListOf<HTMLElement>;
+    expect(labels.length).toBe(1);
+    expect(labels[0].textContent).toContain("assistant.caseWork.factSource");
+    expect(labels[0].getAttribute("title")).toBe("Lična karta Petar");
+
+    chat.previewBrief.mockReturnValue(of(preview));
+    fixture.componentInstance.clientRole.setValue("defendant");
+    fixture.detectChanges();
+
+    expect(
+      fixture.nativeElement.querySelectorAll("[data-testid='fact-source']")
+        .length,
+    ).toBe(0);
+  });
+
   it("shows the parties and reloads the preview for another client party", () => {
     const fixture = TestBed.createComponent(AssistantMatterLinkComponent);
     fixture.componentRef.setInput("workspaceId", "workspace-1");

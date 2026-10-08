@@ -11,6 +11,7 @@ import {
   DEFAULT_DOCUMENT_TYPE,
   getDocumentType,
   normalizeBrief,
+  type BriefDocumentFact,
   type BriefDocumentInput,
 } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
@@ -286,6 +287,7 @@ export class AssistantDraftingService {
         documentType,
         userText,
         documents,
+        documentFacts: await this.documentFacts(scope, documentRefs),
         caseContext: await this.caseContext(scope),
         budget: this.budget(),
       });
@@ -613,6 +615,24 @@ export class AssistantDraftingService {
   ): Promise<BriefDocumentInput[]> {
     if (!refs.length || !this.documentReads) return [];
     return this.documentReads.documentsByRef(scope, refs);
+  }
+
+  /** Facts of the readable case documents and attachments; none without the reads service. */
+  private async documentFacts(
+    scope: AssistantTurnScope,
+    refs: string[],
+  ): Promise<BriefDocumentFact[]> {
+    if (!this.documentReads) return [];
+    try {
+      return await this.documentReads.briefDocumentFacts(scope, refs);
+    } catch (error) {
+      this.logger.warn(
+        `Document facts were not added to the brief: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return [];
+    }
   }
 
   /** Reuses extracted text; extracts pending attachments like the legacy job. */

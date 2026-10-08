@@ -1002,6 +1002,7 @@
   "assistant.matter.firstName": "First name",
   "assistant.matter.lastName": "Last name",
   "assistant.matter.nameNeedsSplit": "The plaintiff name is not split. Enter first and last name.",
+  "assistant.caseWork.factSource": "Source: {{title}}",
   "assistant.matter.opposing": "Opposing party",
   "assistant.matter.confirmTasks": "Confirm tasks",
   "assistant.matter.openWork": "Open case work",

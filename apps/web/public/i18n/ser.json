@@ -1002,6 +1002,7 @@
   "assistant.matter.firstName": "Ime",
   "assistant.matter.lastName": "Prezime",
   "assistant.matter.nameNeedsSplit": "Ime tužioca nije razdvojeno. Unesite ime i prezime.",
+  "assistant.caseWork.factSource": "Izvor: {{title}}",
   "assistant.matter.opposing": "Protivna strana",
   "assistant.matter.confirmTasks": "Potvrdi zadatke",
   "assistant.matter.openWork": "Otvori rad na predmetu",

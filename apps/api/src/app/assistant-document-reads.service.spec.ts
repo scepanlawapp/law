@@ -1266,6 +1266,93 @@ describe("AssistantDocumentReadsService semantic search and facts", () => {
       expect(result.conflicts).toEqual([]);
     });
 
+    describe("briefDocumentFacts", () => {
+      it("flattens readable facts for the brief without quotes and never loads off documents", async () => {
+        const { service, search } = setupSemantic({
+          documents: [
+            PERSON_DOC("doc-1", "Lična karta", "content-1"),
+            doc("doc-2", "Tajna kartica", "content-2", false),
+          ],
+          contents: [
+            ready("content-1", "ID_CARD"),
+            ready("content-2", "ID_CARD"),
+          ],
+          facts: [
+            fact("content-1", "fullName", "Petar Petrović", {
+              quote: "CITAT-JAVNI",
+            }),
+            fact("content-1", "caseNumber", "P 12/2026", {
+              subjectKey: "decision",
+              subjectType: "DECISION",
+            }),
+            fact("content-2", "jmbg", "9999999999999", {
+              quote: "TAJNI-CITAT",
+            }),
+          ],
+        });
+
+        const facts = await service.briefDocumentFacts(scope, []);
+
+        expect(search.factsFor).toHaveBeenCalledWith("workspace-1", [
+          "content-1",
+        ]);
+        expect(facts).toEqual([
+          {
+            ref: "doc:doc-1",
+            title: "Lična karta",
+            subjectType: "PERSON",
+            subjectRole: null,
+            field: "fullName",
+            value: "Petar Petrović",
+          },
+          {
+            ref: "doc:doc-1",
+            title: "Lična karta",
+            subjectType: "DECISION",
+            subjectRole: null,
+            field: "caseNumber",
+            value: "P 12/2026",
+          },
+        ]);
+        const serialized = JSON.stringify(facts);
+        expect(serialized).not.toContain("9999999999999");
+        expect(serialized).not.toContain("TAJNI-CITAT");
+        expect(serialized).not.toContain("CITAT-JAVNI");
+      });
+
+      it("returns no facts when a named ref is off, and does not repeat a ref already in the case", async () => {
+        const { service, search } = setupSemantic({
+          documents: [
+            PERSON_DOC("doc-1", "Lična karta", "content-1"),
+            doc("doc-2", "Tajna kartica", "content-2", false),
+          ],
+          contents: [
+            ready("content-1", "ID_CARD"),
+            ready("content-2", "ID_CARD"),
+          ],
+          facts: [fact("content-1", "fullName", "Petar Petrović")],
+        });
+
+        const facts = await service.briefDocumentFacts(scope, [
+          "doc:doc-2",
+          "doc:doc-1",
+        ]);
+
+        expect(facts).toHaveLength(1);
+        for (const call of search.factsFor.mock.calls as unknown[][]) {
+          expect(call[1]).not.toContain("content-2");
+        }
+      });
+
+      it("returns no facts when search is not wired", async () => {
+        const { service } = setupSemantic({ withSearch: false });
+
+        await expect(service.briefDocumentFacts(scope, [])).resolves.toEqual(
+          [],
+        );
+      });
+    });
+
     it("limits facts to one ref and reports unknown refs and unwired search", async () => {
       const { service, search } = setupSemantic({
         documents: [

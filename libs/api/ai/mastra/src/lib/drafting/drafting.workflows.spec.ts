@@ -96,6 +96,57 @@ describe("drafting workflows", () => {
     });
   });
 
+  it("offers document facts to the brief and keeps a verified party source", async () => {
+    const provider = new FakeChatModelProvider([
+      {
+        ...lawsuitBrief,
+        parties: [
+          {
+            role: "plaintiff",
+            name: "Petar Petrović",
+            address: null,
+            idNumber: "0101990710006",
+            source: { ref: "doc:id-1" },
+          },
+          { role: "defendant", name: "Alfa d.o.o.", address: null, idNumber: null },
+        ],
+      },
+      draft,
+    ]);
+    const completeStructured = jest.spyOn(provider, "completeStructured");
+    const onBrief = jest.fn();
+    const { documentDrafting } = createDraftingWorkflows({
+      provider,
+      search: jest.fn().mockResolvedValue([hit("chunk-104")]),
+      onBrief,
+    });
+
+    const outcome = await runDraftingWorkflow(documentDrafting, {
+      documentType: "LAWSUIT",
+      userText: "Tužba protiv Alfa d.o.o.",
+      documents: [],
+      documentFacts: [
+        {
+          ref: "doc:id-1",
+          title: "Lična karta",
+          subjectType: "PERSON",
+          subjectRole: null,
+          field: "jmbg",
+          value: "0101990710006",
+        },
+      ],
+      caseContext: null,
+      budget,
+    });
+
+    expect(completeStructured.mock.calls[0][0].messages[1].content).toContain(
+      "jmbg: 0101990710006",
+    );
+    const expected = { ref: "doc:id-1", title: "Lična karta" };
+    expect(onBrief.mock.calls[0][0].brief.parties[0].source).toEqual(expected);
+    expect(outcome.brief.parties[0].source).toEqual(expected);
+  });
+
   it("drafts an appeal with the appeal prompts", async () => {
     const provider = new FakeChatModelProvider([
       {

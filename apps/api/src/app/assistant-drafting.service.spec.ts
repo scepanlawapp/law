@@ -191,7 +191,7 @@ function prismaMock() {
 
 function setup(
   providerOutputs: unknown[],
-  documentReads?: { documentsByRef: jest.Mock },
+  documentReads?: { documentsByRef: jest.Mock; briefDocumentFacts?: jest.Mock },
   content?: { ensureText: jest.Mock },
 ) {
   const prisma = prismaMock();
@@ -373,6 +373,7 @@ describe("AssistantDraftingService.draftDocument", () => {
 
   it("drafts an appeal from a named filed document", async () => {
     const documentReads = {
+      briefDocumentFacts: jest.fn().mockResolvedValue([]),
       documentsByRef: jest.fn().mockResolvedValue([
         {
           id: "doc:presuda-1",
@@ -446,6 +447,85 @@ describe("AssistantDraftingService.draftDocument", () => {
         ],
       }),
     });
+  });
+
+  it("prefills party data from readable document facts and keeps the verified source", async () => {
+    const documentReads = {
+      documentsByRef: jest.fn().mockResolvedValue([]),
+      briefDocumentFacts: jest.fn().mockResolvedValue([
+        {
+          ref: "doc:lk-1",
+          title: "Lična karta Petar",
+          subjectType: "PERSON",
+          subjectRole: null,
+          field: "jmbg",
+          value: "0101990710006",
+        },
+      ]),
+    };
+    const { service, prisma, completeStructured } = setup(
+      [
+        {
+          ...lawsuitBrief,
+          parties: [
+            {
+              role: "plaintiff",
+              name: "Petar Petrović",
+              address: null,
+              idNumber: "0101990710006",
+              source: { ref: "doc:lk-1" },
+            },
+            {
+              role: "defendant",
+              name: "Alfa d.o.o.",
+              address: null,
+              idNumber: null,
+              source: { ref: "doc:izmisljen" },
+            },
+          ],
+        },
+        draftOutput,
+      ],
+      documentReads,
+    );
+
+    await service.draftDocument(scope, {
+      documentType: "LAWSUIT",
+      documentRefs: ["doc:presuda-1"],
+    });
+
+    expect(documentReads.briefDocumentFacts).toHaveBeenCalledWith(scope, [
+      "doc:presuda-1",
+    ]);
+    const briefPrompt = completeStructured.mock.calls[0][0].messages[1].content;
+    expect(briefPrompt).toContain("Činjenice iz dokumenata");
+    expect(briefPrompt).toContain("[doc:lk-1] Lična karta Petar");
+    expect(briefPrompt).toContain("jmbg: 0101990710006");
+    const stored = prisma.briefs.get("brief-1") as {
+      brief: { parties: Array<Record<string, unknown>> };
+    };
+    expect(stored.brief.parties[0]["source"]).toEqual({
+      ref: "doc:lk-1",
+      title: "Lična karta Petar",
+    });
+    expect(stored.brief.parties[1]).not.toHaveProperty("source");
+  });
+
+  it("drafts without facts when none are readable", async () => {
+    const documentReads = {
+      documentsByRef: jest.fn().mockResolvedValue([]),
+      briefDocumentFacts: jest.fn().mockResolvedValue([]),
+    };
+    const { service, completeStructured } = setup(
+      [lawsuitBrief, draftOutput],
+      documentReads,
+    );
+
+    await service.draftDocument(scope, { documentType: "LAWSUIT" });
+
+    expect(
+      completeStructured.mock.calls[0][0].messages[1].content,
+    ).not.toContain("Činjenice iz dokumenata");
   });
 
   it("fails the open job and returns FAILED when the model output is invalid", async () => {

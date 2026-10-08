@@ -796,6 +796,60 @@ describe("MatterLinkService", () => {
     expect(media.proposals[0].description).toContain("datuma objavljivanja");
   });
 
+  it("exposes the document source of the client and opposing party", async () => {
+    const { service, prisma } = harness();
+    prisma.briefExtractionResult.findFirst.mockResolvedValue({
+      id: "brief-1",
+      sessionId: "session-1",
+      workspaceId,
+      brief: {
+        documentType: "LAWSUIT",
+        parties: [
+          {
+            role: "plaintiff",
+            name: "Petar Petrović",
+            address: null,
+            idNumber: "0101990710006",
+            source: { ref: "doc:lk-1", title: "Lična karta Petar" },
+          },
+          { role: "defendant", name: "Alfa d.o.o.", address: null, idNumber: null },
+        ],
+        fields: [],
+        legalBasis: [],
+        factualDescription: null,
+        evidence: [],
+        missingFields: [],
+        confidence: 0.6,
+        warnings: [],
+      },
+      appliedCaseId: null,
+      appliedTaskKeys: [],
+    });
+
+    const preview = await service.previewBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+    });
+
+    const source = { ref: "doc:lk-1", title: "Lična karta Petar" };
+    expect(preview.clientPartySource).toEqual(source);
+    expect(preview.opposingPartySource).toBeNull();
+    expect(preview.parties[0].source).toEqual(source);
+    expect(preview.parties[1].source).toBeNull();
+
+    const switched = await service.previewBrief({
+      workspaceId,
+      userId,
+      sessionId: "session-1",
+      briefId: "brief-1",
+      clientRole: "defendant",
+    });
+    expect(switched.clientPartySource).toBeNull();
+    expect(switched.opposingPartySource).toEqual(source);
+  });
+
   it("previews a single-party company decision without an opposing party", async () => {
     const { service, prisma } = harness();
     prisma.briefExtractionResult.findFirst.mockResolvedValue({
