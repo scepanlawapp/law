@@ -160,6 +160,7 @@ export class QuickCaptureDialogComponent {
   readonly dialogRef = inject(BrnDialogRef<unknown>);
 
   readonly mode = this.context.mode;
+  readonly canFinishWithoutNewWork = Boolean(this.context.finishWithoutNewWork);
   /** Source confirmations take client, case and treatment from the source. */
   readonly fromSource = this.mode === "confirm-source";
   readonly minuteChips = [15, 30, 60, 120] as const;
@@ -699,21 +700,26 @@ export class QuickCaptureDialogComponent {
       this.form.markAllAsTouched();
       return;
     }
+    this.persist(this.save(), "time.capture.saved");
+  }
+
+  finishWithoutNewWork(): void {
+    if (this.saving() || !this.context.finishWithoutNewWork) return;
+    this.persist(this.context.finishWithoutNewWork(), "work.taskFinished");
+  }
+
+  private persist(operation: Observable<unknown>, successKey: string): void {
     this.saving.set(true);
-    this.save()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (entry) => {
-          this.toast.success(this.localization.translate("time.capture.saved"));
-          this.dialogRef.close(entry);
-        },
-        error: () => {
-          this.toast.error(
-            this.localization.translate("time.capture.saveError"),
-          );
-          this.saving.set(false);
-        },
-      });
+    operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+      next: (entry) => {
+        this.toast.success(this.localization.translate(successKey));
+        this.dialogRef.close(entry);
+      },
+      error: () => {
+        this.toast.error(this.localization.translate("time.capture.saveError"));
+        this.saving.set(false);
+      },
+    });
   }
 
   private save(): Observable<unknown> {
@@ -723,6 +729,7 @@ export class QuickCaptureDialogComponent {
     const title = value.title.trim();
     const description = value.description.trim();
     const fields = {
+      taskId: this.context.taskId,
       clientId: value.clientId,
       // The update contract cannot clear a case or category, only set them.
       caseId: value.caseId || undefined,

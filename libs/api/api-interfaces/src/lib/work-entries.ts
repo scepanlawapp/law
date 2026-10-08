@@ -34,6 +34,8 @@ export type WorkEntrySourceType =
 export type RetainerRule = "HOURLY" | "AT" | "ABSORBED";
 
 export interface WorkEntry {
+  /** Task this work belongs to; multiple entries can share a task. */
+  taskId?: string | null;
   id: string;
   user: UserReference;
   client: ClientReference;
@@ -59,6 +61,7 @@ export interface WorkEntry {
 }
 
 export interface CreateWorkEntryRequest {
+  taskId?: string;
   clientId: string;
   caseId?: string;
   workDate: string;
@@ -72,9 +75,12 @@ export interface CreateWorkEntryRequest {
   aiParsed?: boolean;
 }
 
-export type UpdateWorkEntryRequest = Partial<CreateWorkEntryRequest>;
+export type UpdateWorkEntryRequest = Partial<
+  Omit<CreateWorkEntryRequest, "taskId">
+>;
 
 export interface WorkEntryQuery {
+  taskId?: string;
   userIds?: string[];
   clientIds?: string[];
   caseId?: string;

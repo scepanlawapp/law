@@ -151,6 +151,7 @@ export class DeadlineListQueryDto extends PaginationQueryDto {
 }
 
 export class CreateTaskDto extends DueTargetDto {
+  @IsOptional() @IsBoolean() finishWithoutNewWork?: boolean;
   @IsOptional()
   @ValidateNested()
   @Type(() => CreateWorkEntryDto)

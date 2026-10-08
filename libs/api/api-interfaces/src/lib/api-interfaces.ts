@@ -1708,6 +1708,8 @@ export type InvoiceProposalResponse = {
 };
 
 export interface TaskRequest {
+  /** Complete using already linked work, without inserting another entry. */
+  finishWithoutNewWork?: boolean;
   title: string;
   description?: string;
   status?: TaskStatus;

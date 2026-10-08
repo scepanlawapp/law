@@ -62,6 +62,9 @@ const toBoolean = ({ value }: { value: unknown }): boolean | undefined =>
   value === undefined ? undefined : value === true || value === "true";
 
 export class CreateWorkEntryDto implements CreateWorkEntryRequest {
+  @IsOptional()
+  @IsUUID()
+  taskId?: string;
   @IsUUID()
   clientId!: string;
 
@@ -196,6 +199,9 @@ export class WorkEntryQueryDto
   extends PaginationQueryDto
   implements WorkEntryQuery
 {
+  @IsOptional()
+  @IsUUID()
+  taskId?: string;
   @IsOptional()
   @Transform(toArray)
   @IsArray()

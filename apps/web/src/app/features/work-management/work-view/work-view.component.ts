@@ -466,6 +466,13 @@ export class WorkViewComponent {
     );
   }
 
+  openQuickCapture(item: WorkItem): void {
+    this.taskCompletion
+      .openQuickCapture(item.raw as TaskDetail)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe();
+  }
+
   complete(item: WorkItem): void {
     this.runTransition(item, "task-complete", "DONE");
   }

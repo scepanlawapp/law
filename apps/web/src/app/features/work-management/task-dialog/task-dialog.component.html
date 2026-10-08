@@ -269,6 +269,9 @@
         }
       </div>
     </div>
+    @if (task) {
+      <law-task-work-entries [task]="task" [disabled]="saving()" />
+    }
   </div>
   <hlm-dialog-footer class="flex justify-end gap-2">
     <button

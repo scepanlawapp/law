@@ -128,7 +128,10 @@ describe("WorkEntrySourcesService", () => {
       expect(second).toBe(entryId);
       expect(tx.workEntry.createMany).toHaveBeenCalledTimes(1);
       expect(tx.workEntry.findFirst).toHaveBeenLastCalledWith({
-        where: { workspaceId, sourceType: "TASK", sourceId },
+        where: {
+          workspaceId,
+          OR: [{ taskId: sourceId }, { sourceType: "TASK", sourceId }],
+        },
         select: { id: true },
       });
     });

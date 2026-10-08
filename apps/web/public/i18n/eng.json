@@ -2401,5 +2401,13 @@
   "documents.upload.preparingFolders": "Preparing folders…",
   "documents.upload.folderError": "Could not prepare the folders. Check the folder names and try again.",
   "documents.upload.folderDropUnsupported": "This browser could not read the dropped folder. Use Select folder.",
-  "documents.upload.versionFolderError": "Select one file to add a document version. Folder import is available for new documents."
+  "documents.upload.versionFolderError": "Select one file to add a document version. Folder import is available for new documents.",
+  "work.addWork": "Add work",
+  "work.entries.title": "Work on this task",
+  "work.entries.loading": "Loading work entries",
+  "work.entries.error": "Work entries could not be loaded.",
+  "work.entries.empty": "No work entries available for this task.",
+  "work.finishWithoutNewWork": "Finish task without new work",
+  "work.taskFinished": "Task completed.",
+  "work.entries.untimed": "Untimed"
 }

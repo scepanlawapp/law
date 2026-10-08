@@ -100,8 +100,14 @@ export class WorkEntrySourcesService {
     const existing = await tx.workEntry.findFirst({
       where: {
         workspaceId: input.workspaceId,
-        sourceType: input.sourceType,
-        sourceId: input.sourceId,
+        ...(input.sourceType === "TASK"
+          ? {
+              OR: [
+                { taskId: input.sourceId },
+                { sourceType: "TASK", sourceId: input.sourceId },
+              ],
+            }
+          : { sourceType: input.sourceType, sourceId: input.sourceId }),
       },
       select: { id: true },
     });
@@ -140,6 +146,7 @@ export class WorkEntrySourcesService {
           source: SOURCE_BY_TYPE[input.sourceType],
           sourceType: input.sourceType,
           sourceId: input.sourceId,
+          taskId: input.sourceType === "TASK" ? input.sourceId : null,
           createdByUserId: input.actorUserId,
           updatedByUserId: input.actorUserId,
         },

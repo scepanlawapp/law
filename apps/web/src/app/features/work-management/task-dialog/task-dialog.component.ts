@@ -53,6 +53,7 @@ import {
   DueTargetMode,
   taskDueMode,
 } from "../work-management-utils";
+import { TaskWorkEntriesComponent } from "../task-work-entries.component";
 import { TaskCompletionService } from "../task-completion.service";
 import { TaskDialogContext } from "./task-dialog.models";
 import {
@@ -66,6 +67,7 @@ import {
   standalone: true,
   templateUrl: "./task-dialog.component.html",
   imports: [
+    TaskWorkEntriesComponent,
     ReactiveFormsModule,
     HlmButton,
     HlmCombobox,
@@ -108,6 +110,7 @@ export class TaskDialogComponent {
   readonly cases = signal<CaseSummary[]>([]);
   readonly clients = signal<ClientSummary[]>([]);
   readonly saving = signal(false);
+  readonly task = this.context.task;
   readonly editing = Boolean(this.context.task);
   readonly priorities: CasePriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
   readonly statuses: TaskStatus[] = [

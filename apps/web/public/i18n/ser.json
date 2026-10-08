@@ -2401,5 +2401,13 @@
   "documents.upload.preparingFolders": "Priprema fascikli…",
   "documents.upload.folderError": "Priprema fascikli nije uspela. Proverite nazive fascikli i pokušajte ponovo.",
   "documents.upload.folderDropUnsupported": "Pregledač ne može da pročita prevučenu fasciklu. Koristite Izaberite fasciklu.",
-  "documents.upload.versionFolderError": "Izaberite jedan fajl za novu verziju dokumenta. Uvoz fascikle je dostupan za nove dokumente."
+  "documents.upload.versionFolderError": "Izaberite jedan fajl za novu verziju dokumenta. Uvoz fascikle je dostupan za nove dokumente.",
+  "work.addWork": "Dodaj rad",
+  "work.entries.title": "Rad na ovom zadatku",
+  "work.entries.loading": "Učitavanje rada",
+  "work.entries.error": "Nije moguće učitati zabeleženi rad.",
+  "work.entries.empty": "Nema dostupnog rada za ovaj zadatak.",
+  "work.finishWithoutNewWork": "Završi zadatak bez novog rada",
+  "work.taskFinished": "Zadatak je završen.",
+  "work.entries.untimed": "Bez trajanja"
 }

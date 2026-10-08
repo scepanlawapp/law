@@ -1,5 +1,8 @@
 import { TestBed } from "@angular/core/testing";
-import { WorkManagementApiClient } from "@law/api-clients";
+import {
+  WorkEntriesApiClient,
+  WorkManagementApiClient,
+} from "@law/api-clients";
 import {
   CreateWorkEntryRequest,
   TaskDetail,
@@ -12,6 +15,7 @@ import { TaskCompletionService } from "./task-completion.service";
 
 describe("TaskCompletionService", () => {
   const api = { updateTask: jest.fn(), createTask: jest.fn() };
+  const entries = { list: jest.fn() };
   const capture = { open: jest.fn() };
   const request: TaskRequest = {
     title: "Pregled",
@@ -33,11 +37,13 @@ describe("TaskCompletionService", () => {
     jest.resetAllMocks();
     closed = new Subject();
     capture.open.mockReturnValue(closed);
+    entries.list.mockReturnValue(of({ items: [], meta: { totalItems: 0 } }));
     api.updateTask.mockReturnValue(of({ id: "task", status: "DONE" }));
     api.createTask.mockReturnValue(of({ id: "new-task", status: "DONE" }));
     TestBed.configureTestingModule({
       providers: [
         { provide: WorkManagementApiClient, useValue: api },
+        { provide: WorkEntriesApiClient, useValue: entries },
         { provide: QuickCaptureDialogService, useValue: capture },
       ],
     });
@@ -73,12 +79,58 @@ describe("TaskCompletionService", () => {
         expect(api.updateTask).toHaveBeenCalledWith(id, {
           ...request,
           workEntry: entry,
+          finishWithoutNewWork: false,
         });
       else
         expect(api.createTask).toHaveBeenCalledWith({
           ...request,
           workEntry: entry,
+          finishWithoutNewWork: false,
         });
     },
   );
+  it("offers completion without new work only when linked work exists", () => {
+    entries.list.mockReturnValue(
+      of({ items: [{ id: "entry" }], meta: { totalItems: 1 } }),
+    );
+    service.complete(request, "task").subscribe();
+    const context = capture.open.mock
+      .calls[0][0] as QuickCaptureInput<TaskDetail>;
+    expect(entries.list).toHaveBeenCalledWith({
+      taskId: "task",
+      page: 1,
+      pageSize: 1,
+    });
+    if (!context.finishWithoutNewWork) throw new Error("Missing alternative");
+    context.finishWithoutNewWork().subscribe();
+    expect(api.updateTask).toHaveBeenCalledWith("task", {
+      ...request,
+      workEntry: undefined,
+      finishWithoutNewWork: true,
+    });
+  });
+  it("does not offer skip for tasks without work", () => {
+    service.complete(request, "task").subscribe();
+    expect(capture.open.mock.calls[0][0].finishWithoutNewWork).toBeUndefined();
+  });
+  it("opens independent capture with a task link and does not complete the task", () => {
+    service
+      .openQuickCapture({
+        id: "task",
+        title: "Review",
+        description: "Notes",
+      } as TaskDetail)
+      .subscribe();
+    expect(capture.open).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "create",
+        taskId: "task",
+        title: "Review",
+        description: "Notes",
+      }),
+    );
+    expect(api.updateTask).not.toHaveBeenCalled();
+    closed.next(null);
+    expect(service.workRevision()).toBe(0);
+  });
 });

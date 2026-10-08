@@ -758,6 +758,8 @@ export class ActivitiesTasksDeadlinesService {
     return this.task(item);
   }
   async createTask(input: CreateTaskDto): Promise<TaskDetail> {
+    if (input.finishWithoutNewWork)
+      throw new BadRequestException("A new task has no existing work");
     if (input.workEntry && input.status !== "DONE") {
       throw new BadRequestException("Work capture requires task completion");
     }
@@ -844,6 +846,14 @@ export class ActivitiesTasksDeadlinesService {
     return this.task(item);
   }
   async updateTask(id: string, input: UpdateTaskDto): Promise<TaskDetail> {
+    if (
+      input.finishWithoutNewWork &&
+      (input.status !== "DONE" || input.workEntry)
+    ) {
+      throw new BadRequestException(
+        "Choose either new work or completion with existing work",
+      );
+    }
     if (input.workEntry && input.status !== "DONE") {
       throw new BadRequestException("Work capture requires task completion");
     }
@@ -855,6 +865,11 @@ export class ActivitiesTasksDeadlinesService {
       userIds: [input.assigneeUserId],
     });
     const item = await this.db.$transaction(async (tx) => {
+      // Serialize explicit completions before reading the previous status.
+      // A retried/concurrent DONE request must not insert a second entry.
+      if (input.workEntry) {
+        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${id} AND "workspaceId" = ${this.context.workspaceId} FOR UPDATE`;
+      }
       const existing = await tx.task.findFirst({
         where: { id, workspaceId: this.context.workspaceId },
       });
@@ -883,6 +898,13 @@ export class ActivitiesTasksDeadlinesService {
         },
         include: this.taskInclude(),
       });
+      if (input.finishWithoutNewWork) {
+        const work = await tx.workEntry.findFirst({
+          where: { workspaceId: this.context.workspaceId, taskId: id },
+          select: { id: true },
+        });
+        if (!work) throw new BadRequestException("Task has no existing work");
+      }
       await this.log(tx, {
         action:
           existing.status !== "DONE" && task.status === "DONE"
@@ -900,7 +922,7 @@ export class ActivitiesTasksDeadlinesService {
             task,
             input.workEntry,
           );
-        } else {
+        } else if (!input.finishWithoutNewWork) {
           await this.proposeEntryForTaskOrDeadline(tx, {
             sourceType: "TASK",
             record: task,
