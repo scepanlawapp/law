@@ -83,7 +83,10 @@ export interface CreateWorkEntryRequest {
 
 export type UpdateWorkEntryRequest = Partial<
   Omit<CreateWorkEntryRequest, "taskId">
->;
+> & {
+  /** Restore written-off work to confirmed in the same transaction as edits. */
+  status?: "CONFIRMED";
+};
 
 export interface WorkEntryQuery {
   taskId?: string;

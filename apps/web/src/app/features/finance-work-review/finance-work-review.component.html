@@ -10,6 +10,42 @@
 
   <div class="flex flex-wrap items-end gap-3">
     <div class="flex w-56 max-w-full flex-col gap-1">
+      <label class="text-sm font-medium" for="work-review-status">
+        {{ "work.entries.status" | translate }}
+      </label>
+      <hlm-select
+        [value]="status()"
+        (valueChange)="setStatus($event ?? '')"
+        [itemToString]="statusItemToString"
+      >
+        <hlm-select-trigger
+          buttonId="work-review-status"
+          class="w-full min-w-0 max-w-full"
+        >
+          <span data-slot="select-value" class="min-w-0 truncate">
+            <span [class]="statusBadgeBase + ' ' + statusBadgeClass(status())">
+              {{ statusItemToString(status()) }}
+            </span>
+          </span>
+        </hlm-select-trigger>
+        <hlm-select-content *hlmSelectPortal>
+          <hlm-select-group>
+            @for (option of statusOptions; track option.value) {
+              <hlm-select-item [value]="option.value">
+                <span
+                  [class]="
+                    statusBadgeBase + ' ' + statusBadgeClass(option.value)
+                  "
+                >
+                  {{ option.label | translate }}
+                </span>
+              </hlm-select-item>
+            }
+          </hlm-select-group>
+        </hlm-select-content>
+      </hlm-select>
+    </div>
+    <div class="flex w-56 max-w-full flex-col gap-1">
       <label class="text-sm font-medium" for="unbilled-clients">
         {{ "time.team.client" | translate }}
       </label>
@@ -208,6 +244,8 @@
           <th hlmTh>{{ "time.team.person" | translate }}</th>
           <th hlmTh>{{ "time.capture.duration" | translate }}</th>
           <th hlmTh>{{ "time.capture.treatment" | translate }}</th>
+          <th hlmTh>{{ "work.entries.status" | translate }}</th>
+          <th hlmTh>{{ "work.entries.view" | translate }}</th>
           <th hlmTh>
             <span class="sr-only">{{ "finance.actions" | translate }}</span>
           </th>
@@ -226,6 +264,7 @@
                 type="checkbox"
                 class="h-4 w-4 accent-primary"
                 [checked]="isSelected(entry)"
+                [disabled]="!canInvoice(entry)"
                 (change)="toggle(entry)"
                 [attr.aria-label]="entry.title"
               />
@@ -256,26 +295,46 @@
               }
             </td>
             <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
-            <td hlmTd class="text-end whitespace-nowrap">
-              <button
-                hlmBtn
-                type="button"
-                size="sm"
-                [disabled]="busyEntryId() === entry.id || selected().size > 0"
-                (click)="newStatementFor(entry)"
+            <td hlmTd>
+              <span
+                [class]="statusBadgeBase + ' ' + statusBadgeClass(entry.status)"
               >
-                {{ "finance.newStatementFromWork" | translate }}
-              </button>
+                {{ statusLabelKeys[entry.status] | translate }}
+              </span>
+            </td>
+            <td hlmTd>
               <button
                 hlmBtn
                 type="button"
                 size="sm"
                 variant="outline"
-                [disabled]="busyEntryId() !== null"
-                (click)="writeOff(entry)"
+                (click)="view(entry)"
               >
-                {{ "time.review.writeOff" | translate }}
+                {{ "work.entries.view" | translate }}
               </button>
+            </td>
+            <td hlmTd class="text-end whitespace-nowrap">
+              @if (canInvoice(entry)) {
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  [disabled]="busyEntryId() === entry.id || selected().size > 0"
+                  (click)="newStatementFor(entry)"
+                >
+                  {{ "finance.newStatementFromWork" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  [disabled]="busyEntryId() !== null"
+                  (click)="writeOff(entry)"
+                >
+                  {{ "time.review.writeOff" | translate }}
+                </button>
+              }
             </td>
           </tr>
         }
@@ -289,7 +348,7 @@
     </div>
   } @else if (!entries().length && !error()) {
     <p class="rounded-lg bg-muted p-4 text-muted-foreground text-sm">
-      {{ "finance.noUnbilledWork" | translate }}
+      {{ "finance.noWorkMatchingFilters" | translate }}
     </p>
   }
 

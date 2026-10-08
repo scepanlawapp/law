@@ -1,3 +1,4 @@
+import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { Router } from "@angular/router";
 import {
@@ -52,6 +53,7 @@ const page = (items: WorkEntry[]) => ({
 });
 
 describe("FinanceWorkReviewComponent (unbilled work)", () => {
+  const capture = { open: jest.fn(() => of(null)) };
   const entries = { list: jest.fn(), writeOff: jest.fn() };
   const router = { navigate: jest.fn() };
   const toast = { success: jest.fn(), error: jest.fn() };
@@ -111,6 +113,7 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
         },
         { provide: Router, useValue: router },
         { provide: ToastService, useValue: toast },
+        { provide: QuickCaptureDialogService, useValue: capture },
         { provide: WriteOffDialogService, useValue: writeOffDialog },
         {
           provide: LocalizationService,
@@ -193,6 +196,9 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
     );
     const fixture = create();
 
+    entries.list.mockReturnValue(
+      of(page(fixture.componentInstance.entries().slice(1))),
+    );
     fixture.componentInstance.writeOff(fixture.componentInstance.entries()[0]);
 
     expect(entries.writeOff).toHaveBeenCalledWith("e1", {
@@ -203,5 +209,41 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
       "e3",
     ]);
     expect(toast.success).toHaveBeenCalledWith("time.writeOff.done");
+  });
+  it("shows billed and all statuses without the unbilled-only restriction", () => {
+    const fixture = create();
+    fixture.componentInstance.setStatus("BILLED");
+    expect(entries.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        statuses: ["BILLED"],
+        unbilledOnly: undefined,
+        page: 1,
+      }),
+    );
+    fixture.componentInstance.setStatus("");
+    expect(entries.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ statuses: undefined, unbilledOnly: undefined }),
+    );
+  });
+
+  it.each([
+    ["WRITTEN_OFF", "edit"],
+    ["CONFIRMED", "edit"],
+    ["BILLED", "view"],
+  ] as const)("opens %s in %s mode", (status, mode) => {
+    const fixture = create();
+    fixture.componentInstance.view({ ...entry("e1", "c1", "Client"), status });
+    expect(capture.open).toHaveBeenCalledWith({ mode, entryId: "e1" });
+  });
+
+  it("does not invoice billed, proposed or written-off work", () => {
+    const fixture = create();
+    for (const status of ["BILLED", "PROPOSED", "WRITTEN_OFF"] as const) {
+      const item = { ...entry("closed", "c1", "Client"), status };
+      fixture.componentInstance.toggle(item);
+      fixture.componentInstance.newStatementFor(item);
+    }
+    expect(fixture.componentInstance.selectedCount()).toBe(0);
+    expect(router.navigate).not.toHaveBeenCalled();
   });
 });

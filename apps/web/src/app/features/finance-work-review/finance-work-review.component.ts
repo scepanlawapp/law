@@ -20,6 +20,7 @@ import {
   ClientSummary,
   WorkEntry,
   WorkEntryQuery,
+  WorkEntryStatus,
   WorkEntryTreatment,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -42,11 +43,20 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import {
   TREATMENT_LABEL_KEYS,
+  STATUS_LABEL_KEYS,
   formatMinutes,
   formatWorkDate,
   isIsoDate,
 } from "../time/time-utils";
 import { WriteOffDialogService } from "../time/write-off-dialog/write-off-dialog.service";
+
+import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
+import { createSelectItemToString } from "../../shared/utils";
+
+import {
+  STATUS_BADGE_BASE_CLASSES,
+  statusBadgeClass,
+} from "../../shared/status-badge";
 
 const PAGE_SIZE = 25;
 const OPTION_PAGE_SIZE = 100;
@@ -55,7 +65,7 @@ const TREATMENT_VALUES = Object.keys(
   TREATMENT_LABEL_KEYS,
 ) as WorkEntryTreatment[];
 
-/** "Neobračunat rad": confirmed work entries that no invoice bills yet. */
+/** Work review defaults to confirmed, unbilled work and can inspect every status. */
 @Component({
   selector: "law-finance-work-review",
   standalone: true,
@@ -80,6 +90,7 @@ const TREATMENT_VALUES = Object.keys(
   ],
 })
 export class FinanceWorkReviewComponent {
+  private readonly capture = inject(QuickCaptureDialogService);
   private readonly api = inject(WorkEntriesApiClient);
   private readonly usersApi = inject(ReferencesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
@@ -90,6 +101,44 @@ export class FinanceWorkReviewComponent {
   private readonly localization = inject(LocalizationService);
   private readonly writeOffDialog = inject(WriteOffDialogService);
   private requestId = 0;
+
+  readonly status = signal<WorkEntryStatus | "">("CONFIRMED");
+  readonly statusLabelKeys = STATUS_LABEL_KEYS;
+  readonly statusBadgeBase = STATUS_BADGE_BASE_CLASSES;
+  readonly statusBadgeClass = statusBadgeClass;
+  readonly statusOptions = [
+    { value: "", label: "time.team.allStatuses" },
+    ...Object.entries(STATUS_LABEL_KEYS).map(([value, label]) => ({
+      value: value as WorkEntryStatus,
+      label,
+    })),
+  ];
+  readonly statusItemToString = createSelectItemToString(
+    this.statusOptions,
+    (key) => this.localization.translate(key),
+  );
+  setStatus(status: string): void {
+    if (status && !(status in STATUS_LABEL_KEYS)) return;
+    this.status.set(status as WorkEntryStatus | "");
+    this.reload();
+  }
+  canInvoice(entry: WorkEntry): boolean {
+    return entry.status === "CONFIRMED" && !entry.invoiceId;
+  }
+  view(entry: WorkEntry): void {
+    this.capture
+      .open({
+        mode:
+          entry.status === "BILLED" || entry.status === "RUNNING"
+            ? "view"
+            : "edit",
+        entryId: entry.id,
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((saved) => {
+        if (saved) this.reload();
+      });
+  }
 
   readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
   readonly treatmentOptions = TREATMENT_VALUES;
@@ -226,6 +275,7 @@ export class FinanceWorkReviewComponent {
   }
 
   toggle(entry: WorkEntry): void {
+    if (!this.canInvoice(entry)) return;
     const selected = new Map(this.selected());
     if (selected.has(entry.id)) {
       selected.delete(entry.id);
@@ -275,14 +325,7 @@ export class FinanceWorkReviewComponent {
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: () => {
-              this.entries.update((items) =>
-                items.filter((item) => item.id !== entry.id),
-              );
-              this.selected.update((selected) => {
-                const next = new Map(selected);
-                next.delete(entry.id);
-                return next;
-              });
+              this.reload();
               this.busyEntryId.set(null);
               this.toast.success(
                 this.localization.translate("time.writeOff.done"),
@@ -303,7 +346,8 @@ export class FinanceWorkReviewComponent {
   }
 
   private navigateToStatement(entries: WorkEntry[]): void {
-    if (!entries.length) return;
+    if (!entries.length || entries.some((entry) => !this.canInvoice(entry)))
+      return;
     const clientIds = new Set(entries.map((entry) => entry.client.id));
     if (clientIds.size !== 1) {
       this.toast.error(
@@ -325,8 +369,8 @@ export class FinanceWorkReviewComponent {
     return {
       page,
       pageSize: PAGE_SIZE,
-      statuses: ["CONFIRMED"],
-      unbilledOnly: true,
+      statuses: this.status() ? [this.status() as WorkEntryStatus] : undefined,
+      unbilledOnly: this.status() === "CONFIRMED" ? true : undefined,
       userIds: this.peopleIds().length ? this.peopleIds() : undefined,
       clientIds: this.clientIds().length ? this.clientIds() : undefined,
       caseId: this.caseId() || undefined,

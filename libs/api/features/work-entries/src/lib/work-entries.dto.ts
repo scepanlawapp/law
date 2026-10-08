@@ -108,6 +108,7 @@ export class CreateWorkEntryDto implements CreateWorkEntryRequest {
 }
 
 export class UpdateWorkEntryDto implements UpdateWorkEntryRequest {
+  @IsOptional() @IsIn(["CONFIRMED"]) status?: "CONFIRMED";
   @IsOptional()
   @IsUUID()
   clientId?: string;

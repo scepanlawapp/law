@@ -224,6 +224,18 @@ export class QuickCaptureDialogComponent {
   );
   readonly entryActions = signal<WorkEntryActions | null>(null);
   readonly entryLoadFailed = signal(false);
+  readonly restoredStatus = new FormControl<"WRITTEN_OFF" | "CONFIRMED">(
+    "WRITTEN_OFF",
+    { nonNullable: true },
+  );
+  readonly restoreStatusOptions = [
+    { value: "WRITTEN_OFF", label: "time.status.writtenOff" },
+    { value: "CONFIRMED", label: "time.status.confirmed" },
+  ];
+  readonly restoreStatusItemToString = createSelectItemToString(
+    this.restoreStatusOptions,
+    (key) => this.localization.translate(key),
+  );
   readonly loadedEntry = signal<WorkEntry | null>(null);
   readonly statusLabelKeys = STATUS_LABEL_KEYS;
   readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
@@ -231,9 +243,7 @@ export class QuickCaptureDialogComponent {
   readonly readOnly = computed(
     () =>
       this.context.mode === "view" ||
-      ["BILLED", "WRITTEN_OFF", "RUNNING"].includes(
-        this.loadedEntry()?.status ?? "",
-      ) ||
+      ["BILLED", "RUNNING"].includes(this.loadedEntry()?.status ?? "") ||
       (this.managingEntry && !this.entryActions()?.canEdit),
   );
   readonly deletionInfoKey = computed(() => {
@@ -972,6 +982,10 @@ export class QuickCaptureDialogComponent {
       case "edit":
         return this.entriesApi.update(this.requiredEntryId(), {
           ...fields,
+          ...(this.loadedEntry()?.status === "WRITTEN_OFF" &&
+          this.restoredStatus.value === "CONFIRMED"
+            ? { status: "CONFIRMED" as const }
+            : {}),
           ...(aiParsed ? { aiParsed } : {}),
         });
     }

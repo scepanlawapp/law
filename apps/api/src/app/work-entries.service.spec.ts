@@ -418,6 +418,48 @@ describe("WorkEntriesService", () => {
   });
 
   describe("update", () => {
+    it("restores written-off work and edits it atomically", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "WRITTEN_OFF", writeOffReason: "Mistake" }),
+      );
+      db.workEntry.findUniqueOrThrow.mockResolvedValue(
+        entryRecord({ status: "CONFIRMED", writeOffReason: null }),
+      );
+      await as(WorkspaceRole.LAWYER, () =>
+        service.update(entryId, {
+          status: "CONFIRMED",
+          title: "Corrected work",
+        }),
+      );
+      expect(db.workEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId,
+            status: { in: ["WRITTEN_OFF"] },
+          }),
+          data: expect.objectContaining({
+            status: "CONFIRMED",
+            writeOffReason: null,
+            title: "Corrected work",
+          }),
+        }),
+      );
+      expect(db.activityLog.create).toHaveBeenCalled();
+    });
+
+    it.each(["BILLED", "PROPOSED", "RUNNING", "CONFIRMED"] as const)(
+      "rejects restoration from %s",
+      async (status) => {
+        db.workEntry.findFirst.mockResolvedValue(entryRecord({ status }));
+        await expect(
+          as(WorkspaceRole.LAWYER, () =>
+            service.update(entryId, { status: "CONFIRMED" }),
+          ),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+      },
+    );
+
     it("rejects changes to a BILLED entry with 409", async () => {
       db.workEntry.findFirst.mockResolvedValue(
         entryRecord({ status: "BILLED" }),
