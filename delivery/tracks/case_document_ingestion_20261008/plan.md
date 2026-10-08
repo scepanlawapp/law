@@ -305,11 +305,11 @@
   - `execute`: re-reads the client; writes only fields still empty (identification document → creates `ClientIdentificationDocument` only if none with that number exists; address → creates a `ClientAddress` only if the client has none); writes activity log with `AI_SOURCE` metadata; result lists applied and skipped fields.
   - Context builder: when the session's case client has empty fill fields and readable `READY` documents have a matching subject, add one line "Dokumenti predmeta sadrže podatke koji mogu dopuniti klijenta (propose_client_update_from_document)."
 
-- [ ] **Step 1: Write failing tests:** match by name with diacritics/script differences; no match for opposing party; empty `jmbg` → in `fill`; existing different `jmbg` → in `conflicts`, not `fill`; proposal on an off document → `InvalidProposal`; document linked to two clients → `InvalidProposal`; execute skips a field filled between proposal and approval; context hint appears only when there is something to fill.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern="client-fact-match|assistant-actions|assistant-context"`. Expected: FAIL.
-- [ ] **Step 3:** Implement; render the approval card with the existing pending-action UI (details lines only — no new component).
-- [ ] **Step 4:** Rerun. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(assistant): propose client updates from document facts`.
+- [x] **Step 1: Write failing tests:** match by name with diacritics/script differences; no match for opposing party; empty `jmbg` → in `fill`; existing different `jmbg` → in `conflicts`, not `fill`; proposal on an off document → `InvalidProposal`; document linked to two clients → `InvalidProposal`; execute skips a field filled between proposal and approval; context hint appears only when there is something to fill.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern="client-fact-match|assistant-actions|assistant-context"`. Expected: FAIL.
+- [x] **Step 3:** Implement; render the approval card with the existing pending-action UI (details lines only — no new component).
+- [x] **Step 4:** Rerun. Expected: PASS.
+- [x] **Step 5:** Commit `feat(assistant): propose client updates from document facts`.
 
 ## Phase E — Data migration
 

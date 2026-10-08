@@ -441,7 +441,14 @@ export type AssistantActionRequest =
       description?: string;
       caseReference?: string;
     }
-  | { type: "create_tasks_from_brief"; briefId?: string };
+  | { type: "create_tasks_from_brief"; briefId?: string }
+  | {
+      type: "update_client_from_document";
+      /** `doc:<id>` of a document filed for exactly one client. */
+      documentRef: string;
+      /** `subjectKey` of a subject from get_document_facts. */
+      subjectKey: string;
+    };
 
 export type ActionProposalResult =
   | {

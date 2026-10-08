@@ -535,7 +535,8 @@ export type PendingActionStatus =
 export type PendingActionType =
   | "link_case"
   | "create_deadline"
-  | "create_tasks_from_brief";
+  | "create_tasks_from_brief"
+  | "update_client_from_document";
 
 /** A record change proposed by the assistant, awaiting the user's decision. */
 export interface PendingActionSummary {

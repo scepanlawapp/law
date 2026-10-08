@@ -27,6 +27,7 @@ export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   create_deadline: "confirm",
   detect_deadlines: "confirm",
   create_tasks_from_brief: "confirm",
+  propose_client_update_from_document: "confirm",
 } as const;
 
 export type AssistantToolName = keyof typeof ASSISTANT_TOOL_SIDE_EFFECTS;

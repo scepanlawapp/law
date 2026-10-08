@@ -25,6 +25,7 @@ import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createSearchDocumentsTool } from "./tools/search-documents.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import { createSummarizeCaseDocumentsTool } from "./tools/summarize-case-documents.tool";
+import { createProposeClientUpdateTool } from "./tools/propose-client-update.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
 
 export const LEGAL_ASSISTANT_AGENT_ID = "legal-assistant";
@@ -77,6 +78,9 @@ export function createLegalAssistantAgent(options: {
       link_case: createLinkCaseTool(options.deps),
       create_deadline: createCreateDeadlineTool(options.deps),
       create_tasks_from_brief: createCreateTasksFromBriefTool(options.deps),
+      propose_client_update_from_document: createProposeClientUpdateTool(
+        options.deps,
+      ),
     },
   });
 }

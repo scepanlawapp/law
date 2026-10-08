@@ -130,6 +130,12 @@ function datesIn(text: string): Set<string> {
   return found;
 }
 
+/** The one calendar date written in `text` as YYYY-MM-DD, or null. */
+export function singleIsoDate(text: string): string | null {
+  const dates = datesIn(text);
+  return dates.size === 1 ? [...dates][0] : null;
+}
+
 const SEPARATORS = new Set([" ", "\u00a0", ".", "-", "/"]);
 
 /**

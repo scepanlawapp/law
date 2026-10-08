@@ -12,6 +12,7 @@ import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.
 import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
+import { createProposeClientUpdateTool } from "./tools/propose-client-update.tool";
 import { ASSISTANT_TOOL_SIDE_EFFECTS } from "./tools/side-effects";
 import { createGetAgendaTool } from "./tools/get-agenda.tool";
 import { createGetCaseTool } from "./tools/get-case.tool";
@@ -397,6 +398,28 @@ describe("assistant tools", () => {
     });
   });
 
+  it("proposes a client update from a document subject", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+    const tool = createProposeClientUpdateTool(toolDeps);
+
+    await tool.execute?.(
+      { documentRef: "doc:doc-1", subjectKey: "s1" },
+      context,
+    );
+
+    expect(toolDeps.proposeAction).toHaveBeenCalledWith(turn, {
+      type: "update_client_from_document",
+      documentRef: "doc:doc-1",
+      subjectKey: "s1",
+    });
+    const schema = tool.inputSchema as unknown as ZodTypeAny;
+    expect(schema.safeParse({ documentRef: "doc:1" }).success).toBe(false);
+    expect(schema.safeParse({ documentRef: "", subjectKey: "s" }).success).toBe(
+      false,
+    );
+  });
+
   it("declares a side-effect level for every agent tool", async () => {
     const agent = createLegalAssistantAgent({
       model: createScriptedModel([{ text: "ok" }]).model as never,
@@ -417,6 +440,7 @@ describe("assistant tools", () => {
       "create_tasks_from_brief",
       "detect_deadlines",
       "link_case",
+      "propose_client_update_from_document",
     ]);
   });
 

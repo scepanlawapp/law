@@ -1,6 +1,10 @@
-import { Injectable, Optional } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
 import { PlatformPrismaService } from "@law/core";
 import { toLatin } from "@law/transliteration";
+import {
+  AssistantActionsService,
+  CLIENT_UPDATE_HINT,
+} from "./assistant-actions.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
 import { ChatRuntimeConfig } from "./chat.config";
 import { MatterLinkService } from "./matter-link.service";
@@ -31,11 +35,14 @@ const TRIAGE_HISTORY_MESSAGES = 6;
  */
 @Injectable()
 export class AssistantContextBuilder {
+  private readonly logger = new Logger(AssistantContextBuilder.name);
+
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly config: ChatRuntimeConfig,
     private readonly matterLink: MatterLinkService,
     @Optional() private readonly drafting?: AssistantDraftingService,
+    @Optional() private readonly actions?: AssistantActionsService,
   ) {}
 
   async build(input: {
@@ -66,10 +73,15 @@ export class AssistantContextBuilder {
         this.drafting?.workspaceState(input.workspaceId, input.sessionId) ??
           null,
       ]);
+    const hint = caseContext
+      ? await this.clientUpdateHint(input.workspaceId, input.sessionId)
+      : null;
     return {
       messages,
       sessionCaseId,
-      caseContext: caseContext ? toLatin(caseContext) : null,
+      caseContext: caseContext
+        ? [toLatin(caseContext), hint].filter(Boolean).join("\n")
+        : null,
       workspaceState,
       conversationSummary: session?.summary?.trim()
         ? toLatin(session.summary)
@@ -85,6 +97,29 @@ export class AssistantContextBuilder {
           }
         : null,
     };
+  }
+
+  /**
+   * Tells the agent that documents of the case can fill empty client fields.
+   * Best effort: a failing check never breaks the turn.
+   */
+  private async clientUpdateHint(
+    workspaceId: string,
+    sessionId: string,
+  ): Promise<string | null> {
+    if (!this.actions) return null;
+    try {
+      return (await this.actions.clientUpdateHint(workspaceId, sessionId))
+        ? CLIENT_UPDATE_HINT
+        : null;
+    } catch (error) {
+      this.logger.warn(
+        `Client update hint was skipped: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
   }
 
   /** Recent turns before the triggering message, for the Portir guardrail. */

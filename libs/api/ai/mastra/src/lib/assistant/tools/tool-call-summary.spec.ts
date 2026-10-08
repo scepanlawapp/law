@@ -162,3 +162,14 @@ describe("tool call summary for case-document tools", () => {
     );
   });
 });
+
+describe("tool call summary for propose_client_update_from_document", () => {
+  it("labels the call with the document ref", () => {
+    expect(
+      describeToolCall("propose_client_update_from_document", {
+        documentRef: " doc:abc ",
+        subjectKey: "s1",
+      }),
+    ).toBe("doc:abc");
+  });
+});

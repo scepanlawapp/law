@@ -16,6 +16,7 @@ import { LIST_ACTIVITY_TOOL_ID } from "./list-activity.tool";
 import { LIST_DOCUMENTS_TOOL_ID } from "./list-documents.tool";
 import { LIST_DRAFTS_TOOL_ID } from "./list-drafts.tool";
 import { LIST_WORK_ITEMS_TOOL_ID } from "./list-work-items.tool";
+import { PROPOSE_CLIENT_UPDATE_TOOL_ID } from "./propose-client-update.tool";
 import { READ_DOCUMENT_TOOL_ID } from "./read-document.tool";
 import { REVIEW_CONTRACT_TOOL_ID } from "./review-contract.tool";
 import { REVISE_DRAFT_TOOL_ID } from "./revise-draft.tool";
@@ -98,6 +99,8 @@ export function describeToolCall(
       return clip(args?.["serviceDate"]);
     case LINK_CASE_TOOL_ID:
       return clip(args?.["caseReference"]);
+    case PROPOSE_CLIENT_UPDATE_TOOL_ID:
+      return clip(args?.["documentRef"]);
     case CREATE_DEADLINE_TOOL_ID:
       return clip(
         [args?.["title"], args?.["dueDate"]].filter(Boolean).join(" · "),
