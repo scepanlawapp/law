@@ -72,10 +72,17 @@ export interface ClientFieldConflict {
   found: string;
 }
 
+/** A field the document could fill but that is not proposed, with the reason. */
+export interface ClientFieldSkip {
+  field: ClientFillField;
+  reason: string;
+}
+
 export interface ClientFieldMatch {
   matched: boolean;
   fill: ClientFillItem[];
   conflicts: ClientFieldConflict[];
+  skipped: ClientFieldSkip[];
 }
 
 /** Stored codes of `ClientIdentificationDocument.type` (see the demo seeds). */
@@ -87,23 +94,75 @@ const DEFAULT_COUNTRY = "RS";
 const ADDRESS_TYPE = "REGISTERED";
 const POSTAL_CODE = /(?<!\d)\d{5}(?!\d)/;
 
-/** Folded nationality prefixes that clearly name a country (ISO 3166-1 alpha-2). */
-const NATIONALITY_COUNTRIES: ReadonlyArray<readonly [RegExp, string]> = [
-  [/^(srb|srp|serb|rs$|republikasrbija|republicofserbia)/, "RS"],
-  [/^(hrvat|croat|hr$)/, "HR"],
-  [/^(bosan|bih|bosnia|ba$)/, "BA"],
-  [/^(crnogor|montenegr|me$)/, "ME"],
-  [/^(makedon|macedon|northmacedonia|mk$)/, "MK"],
-  [/^(sloven|slovenia|si$)/, "SI"],
-  [/^(madjar|mad.ar|hungar|hu$)/, "HU"],
-  [/^(rumun|romania|ro$)/, "RO"],
-  [/^(bugar|bulgar|bg$)/, "BG"],
-  [/^(nemac|nemack|german|de$)/, "DE"],
-  [/^(austrij|austria|at$)/, "AT"],
-  [/^(ital|it$)/, "IT"],
-  [/^(rusk|rus$|russia|ru$)/, "RU"],
-  [/^(americ|usa|unitedstates|us$)/, "US"],
+/**
+ * Countries a nationality fact can name: ISO 3166-1 alpha-2/alpha-3 codes match
+ * exactly, words (folded, spaces removed) match by prefix so adjectives and
+ * country names both work ("srpsko", "Srbija"). Anything else stays unmapped.
+ */
+const COUNTRIES: ReadonlyArray<{
+  code: string;
+  iso3: string;
+  words: readonly string[];
+}> = [
+  {
+    code: "RS",
+    iso3: "srb",
+    words: ["srb", "srp", "serb", "republikasrbij", "republicofserbia"],
+  },
+  { code: "HR", iso3: "hrv", words: ["hrvat", "croat"] },
+  { code: "BA", iso3: "bih", words: ["bosn", "hercegov", "herzegov"] },
+  { code: "ME", iso3: "mne", words: ["crnogor", "crnagor", "montenegr"] },
+  {
+    code: "MK",
+    iso3: "mkd",
+    words: [
+      "makedon",
+      "macedon",
+      "severnamakedon",
+      "northmacedon",
+      "northernmacedon",
+    ],
+  },
+  { code: "SI", iso3: "svn", words: ["sloven"] },
+  { code: "SK", iso3: "svk", words: ["slovac", "slovak"] },
+  { code: "HU", iso3: "hun", words: ["madjar", "madar", "hungar"] },
+  { code: "RO", iso3: "rou", words: ["rumun", "romani"] },
+  { code: "BG", iso3: "bgr", words: ["bugar", "bulgar"] },
+  { code: "DE", iso3: "deu", words: ["nemac", "nemack", "njemac", "german"] },
+  { code: "AT", iso3: "aut", words: ["austrij", "austria"] },
+  { code: "IT", iso3: "ita", words: ["ital"] },
+  { code: "RU", iso3: "rus", words: ["rus", "rusij", "russia"] },
+  { code: "US", iso3: "usa", words: ["americ", "unitedstates"] },
+  { code: "TR", iso3: "tur", words: ["turs", "turk"] },
+  { code: "UA", iso3: "ukr", words: ["ukrajin", "ukrain"] },
+  { code: "PL", iso3: "pol", words: ["poljs", "poland", "polish"] },
+  {
+    code: "GB",
+    iso3: "gbr",
+    words: [
+      "britan",
+      "engles",
+      "ujedinjenokraljevstvo",
+      "unitedkingdom",
+      "greatbritain",
+      "velikabritanij",
+    ],
+  },
+  { code: "FR", iso3: "fra", words: ["francus", "franc"] },
+  { code: "ES", iso3: "esp", words: ["spans", "spain", "spanish", "spanij"] },
+  { code: "CH", iso3: "che", words: ["svajcar", "swiss", "switzerland"] },
+  { code: "GR", iso3: "grc", words: ["grck", "greek", "greece"] },
+  { code: "AL", iso3: "alb", words: ["alban"] },
+  { code: "CZ", iso3: "cze", words: ["cesk", "czech"] },
+  { code: "CN", iso3: "chn", words: ["kines", "chin"] },
+  { code: "CA", iso3: "can", words: ["kanad", "canad"] },
+  { code: "BE", iso3: "bel", words: ["belgij", "belgi"] },
+  { code: "NL", iso3: "nld", words: ["holand", "nizozem", "dutch", "netherl"] },
+  { code: "SE", iso3: "swe", words: ["svedsk", "swed"] },
+  { code: "NO", iso3: "nor", words: ["norves", "norw"] },
+  { code: "DK", iso3: "dnk", words: ["dansk", "danish", "denmark"] },
 ];
+const EXACT_ALIASES: Readonly<Record<string, string>> = { sad: "US", uk: "GB" };
 
 const ALL_FIELDS: readonly ClientFillField[] = [
   "jmbg",
@@ -197,14 +256,27 @@ export function parseAddress(value: string): ClientAddressFill | null {
   };
 }
 
-function countryOf(nationality: string | undefined): string {
+/**
+ * Country of a new identification document. No nationality fact: Serbia, the
+ * office's default. A nationality that names no known country: null, so the
+ * document is not proposed rather than stored with a guessed country.
+ */
+function countryOf(nationality: string | undefined): string | null {
   const folded = nationality
     ? foldForMatch(nationality).replace(/\s+/g, "")
     : "";
   if (!folded) return DEFAULT_COUNTRY;
+  const exact =
+    EXACT_ALIASES[folded] ??
+    COUNTRIES.find(
+      (country) =>
+        folded === country.code.toLowerCase() || folded === country.iso3,
+    )?.code;
+  if (exact) return exact;
   return (
-    NATIONALITY_COUNTRIES.find(([pattern]) => pattern.test(folded))?.[1] ??
-    DEFAULT_COUNTRY
+    COUNTRIES.find((country) =>
+      country.words.some((word) => folded.startsWith(word)),
+    )?.code ?? null
   );
 }
 
@@ -267,9 +339,10 @@ function matchPerson(
       current: client.jmbg?.trim() ?? clientJmbg,
       found: foundJmbg,
     });
-    return { matched: false, fill: [], conflicts };
+    return { matched: false, fill: [], conflicts, skipped: [] };
   }
-  if (!nameMatch && !jmbgMatch) return { matched: false, fill: [], conflicts };
+  if (!nameMatch && !jmbgMatch)
+    return { matched: false, fill: [], conflicts, skipped: [] };
 
   const fill: ClientFillItem[] = [];
   if (jmbgFact && foundJmbg && blank(client.jmbg)) {
@@ -295,6 +368,8 @@ function matchPerson(
   }
   const numberFact = bestFact(facts, "documentNumber");
   const type = IDENTIFICATION_TYPES[subject.documentKind ?? ""];
+  const skipped: ClientFieldSkip[] = [];
+  const country = countryOf(bestFact(facts, "nationality")?.value);
   if (
     numberFact &&
     type &&
@@ -302,24 +377,31 @@ function matchPerson(
       sameNumber(number, numberFact.value),
     )
   ) {
-    fill.push({
-      field: "identificationDocument",
-      value: numberFact.value.trim(),
-      quote: numberFact.quote,
-      identificationDocument: {
-        type,
-        number: numberFact.value.trim(),
-        issuedDate: isoDate(
-          bestFact(facts, "issuedDate")?.normalizedValue ?? null,
-        ),
-        expiredDate: isoDate(
-          bestFact(facts, "expiryDate")?.normalizedValue ?? null,
-        ),
-        country: countryOf(bestFact(facts, "nationality")?.value),
-      },
-    });
+    if (country === null) {
+      skipped.push({
+        field: "identificationDocument",
+        reason: "nepoznato državljanstvo",
+      });
+    } else {
+      fill.push({
+        field: "identificationDocument",
+        value: numberFact.value.trim(),
+        quote: numberFact.quote,
+        identificationDocument: {
+          type,
+          number: numberFact.value.trim(),
+          issuedDate: isoDate(
+            bestFact(facts, "issuedDate")?.normalizedValue ?? null,
+          ),
+          expiredDate: isoDate(
+            bestFact(facts, "expiryDate")?.normalizedValue ?? null,
+          ),
+          country,
+        },
+      });
+    }
   }
-  return { matched: true, fill: sortFill(fill), conflicts };
+  return { matched: true, fill: sortFill(fill), conflicts, skipped };
 }
 
 function matchCompany(
@@ -349,13 +431,13 @@ function matchCompany(
   }
   // The name of a company is never a match: only MB or PIB identify it.
   if (!matched || conflicts.length) {
-    return { matched: false, fill: [], conflicts };
+    return { matched: false, fill: [], conflicts, skipped: [] };
   }
   if (client.addressCount === 0) {
     const item = addressItem(subject, "seatAddress");
     if (item) fill.push(item);
   }
-  return { matched: true, fill: sortFill(fill), conflicts };
+  return { matched: true, fill: sortFill(fill), conflicts, skipped: [] };
 }
 
 function sortFill(fill: ClientFillItem[]): ClientFillItem[] {
@@ -382,5 +464,5 @@ export function matchClientFields(
   if (subject.subjectType === "COMPANY" && client.type === "ORGANIZATION") {
     return matchCompany(client, subject);
   }
-  return { matched: false, fill: [], conflicts: [] };
+  return { matched: false, fill: [], conflicts: [], skipped: [] };
 }

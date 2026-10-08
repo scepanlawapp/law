@@ -232,6 +232,7 @@ describe("AssistantContextBuilder", () => {
       expect(actions.clientUpdateHint).toHaveBeenCalledWith(
         "workspace-1",
         "session-1",
+        "case-1",
       );
       expect(context.caseContext).toContain("Spor o zaradama");
       expect(context.caseContext?.split("\n").at(-1)).toBe(hint);

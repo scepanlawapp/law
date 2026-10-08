@@ -222,7 +222,15 @@ function prismaMock() {
     },
     client: {
       findFirst: jest.fn().mockResolvedValue(clientRow()),
-      update: jest.fn().mockResolvedValue({}),
+      updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+    },
+    document: {
+      count: jest.fn().mockResolvedValue(1),
+      findFirst: jest.fn().mockResolvedValue({
+        archivedAt: null,
+        aiAccess: true,
+        clients: [{ clientId: "client-1" }],
+      }),
     },
     clientAddress: { create: jest.fn().mockResolvedValue({}) },
     clientIdentificationDocument: { create: jest.fn().mockResolvedValue({}) },
@@ -642,7 +650,7 @@ describe("AssistantActionsService client updates from document facts", () => {
         ],
       },
     });
-    expect(prisma.client.update).not.toHaveBeenCalled();
+    expect(prisma.client.updateMany).not.toHaveBeenCalled();
     expect(prisma.clientAddress.create).not.toHaveBeenCalled();
     expect(prisma.documentClient.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -769,8 +777,12 @@ describe("AssistantActionsService client updates from document facts", () => {
     const decided = await approve(service);
 
     expect(decided.status).toBe("APPROVED");
-    expect(prisma.client.update).toHaveBeenCalledWith({
-      where: { id: "client-1" },
+    expect(prisma.client.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "client-1",
+        workspaceId: "workspace-1",
+        OR: [{ jmbg: null }, { jmbg: "" }],
+      },
       data: { jmbg: JMBG, updatedByUserId: "user-approver" },
     });
     expect(prisma.clientAddress.create).toHaveBeenCalledWith({
@@ -829,7 +841,7 @@ describe("AssistantActionsService client updates from document facts", () => {
     })) as never as { status: string };
 
     expect(decided.status).toBe("APPROVED");
-    expect(prisma.client.update).not.toHaveBeenCalled();
+    expect(prisma.client.updateMany).not.toHaveBeenCalled();
     expect(prisma.clientAddress.create).not.toHaveBeenCalled();
     expect(prisma.activityLog.create).not.toHaveBeenCalled();
     expect(prisma.actions.get("action-1")?.["result"]).toMatchObject({
@@ -916,6 +928,151 @@ describe("AssistantActionsService client updates from document facts", () => {
     });
   });
 
+  it("skips a field whose compare-and-set matched no row and logs only what was applied", async () => {
+    const { service, prisma } = setup();
+    await service.propose(scope, request);
+    // Another request filled the JMBG after the re-read.
+    prisma.client.updateMany.mockImplementation(
+      ({ where }: { where: { OR?: unknown[] } }) =>
+        Promise.resolve({ count: where.OR ? 0 : 1 }),
+    );
+
+    const decided = await service.decide({
+      workspaceId: "workspace-1",
+      userId: "user-approver",
+      actionId: "action-1",
+      decision: "APPROVE",
+    });
+
+    expect(decided.status).toBe("APPROVED");
+    expect(prisma.actions.get("action-1")?.["result"]).toMatchObject({
+      applied: ["address"],
+      skipped: ["jmbg"],
+    });
+    expect(prisma.activityLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        metadata: expect.objectContaining({
+          applied: ["address"],
+          skipped: ["jmbg"],
+        }),
+      }),
+    });
+  });
+
+  it("writes no activity when every compare-and-set failed", async () => {
+    const { service, prisma } = setup();
+    prisma.client.findFirst.mockResolvedValue(
+      clientRow({ addresses: [{ id: "a1" }] }),
+    );
+    await service.propose(scope, request);
+    prisma.client.updateMany.mockResolvedValue({ count: 0 });
+
+    const decided = await service.decide({
+      workspaceId: "workspace-1",
+      userId: "user-approver",
+      actionId: "action-1",
+      decision: "APPROVE",
+    });
+
+    expect(decided.status).toBe("APPROVED");
+    expect(decided.resultMessage).toContain("ništa nije promenjeno");
+    expect(prisma.activityLog.create).not.toHaveBeenCalled();
+    expect(prisma.clientActivity.create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [
+      "AI access was turned off",
+      {
+        archivedAt: null,
+        aiAccess: false,
+        clients: [{ clientId: "client-1" }],
+      },
+    ],
+    [
+      "it was re-linked to another client",
+      {
+        archivedAt: null,
+        aiAccess: true,
+        clients: [{ clientId: "client-2" }],
+      },
+    ],
+    [
+      "it was linked to a second client",
+      {
+        archivedAt: null,
+        aiAccess: true,
+        clients: [{ clientId: "client-1" }, { clientId: "client-2" }],
+      },
+    ],
+    [
+      "it was archived",
+      {
+        archivedAt: new Date(),
+        aiAccess: true,
+        clients: [{ clientId: "client-1" }],
+      },
+    ],
+    ["it was deleted", null],
+  ])("applies nothing and fails when %s after the proposal", async (_, row) => {
+    const { service, prisma } = setup();
+    await service.propose(scope, request);
+    prisma.document.findFirst.mockResolvedValue(row);
+
+    const decided = await service.decide({
+      workspaceId: "workspace-1",
+      userId: "user-approver",
+      actionId: "action-1",
+      decision: "APPROVE",
+    });
+
+    expect(decided.status).toBe("FAILED");
+    expect(decided.errorMessage).toBe(
+      "Dokument više nije dostupan asistentu ili nije povezan sa klijentom.",
+    );
+    expect(prisma.document.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "doc-1", workspaceId: "workspace-1" },
+      }),
+    );
+    expect(prisma.client.updateMany).not.toHaveBeenCalled();
+    expect(prisma.clientAddress.create).not.toHaveBeenCalled();
+    expect(prisma.activityLog.create).not.toHaveBeenCalled();
+  });
+
+  it("lists an identification document with an unknown nationality as skipped", async () => {
+    const { service, prisma, documents } = setup();
+    documents.getDocumentFacts.mockResolvedValue(
+      factsResult([
+        {
+          field: "documentNumber",
+          value: "P1234567",
+          quote: "Br. P1234567",
+          confidence: 0.9,
+        },
+        {
+          field: "nationality",
+          value: "Atlantida",
+          quote: "Državljanstvo Atlantida",
+          confidence: 0.9,
+        },
+      ]),
+    );
+
+    const result = await service.propose(scope, request);
+
+    const details = (result as { details: string[] }).details;
+    expect(details).toContain(
+      "Preskočeno: Identifikaciona isprava (nepoznato državljanstvo).",
+    );
+    const fill = (
+      prisma.actions.get("action-1")?.["payload"] as {
+        fill: Array<{ field: string }>;
+      }
+    ).fill;
+    expect(fill.map((item) => item.field)).toEqual(["jmbg", "address"]);
+  });
+
   it("fails the action when the client is gone", async () => {
     const { service, prisma } = setup();
     await service.propose(scope, request);
@@ -937,7 +1094,7 @@ describe("AssistantActionsService.clientUpdateHint", () => {
     const { service, documents, prisma } = setup();
 
     await expect(
-      service.clientUpdateHint("workspace-1", "session-1"),
+      service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(true);
     expect(documents.getDocumentFacts).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -953,14 +1110,32 @@ describe("AssistantActionsService.clientUpdateHint", () => {
     );
   });
 
-  it("does not read documents when the conversation has no case", async () => {
-    const { service, matterLink, documents } = setup();
-    matterLink.sessionCaseId.mockResolvedValue(null);
+  it("does not read facts or the client when the case has no processed readable document", async () => {
+    const { service, prisma, documents } = setup();
+    prisma.document.count.mockResolvedValue(0);
 
     await expect(
-      service.clientUpdateHint("workspace-1", "session-1"),
+      service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(false);
+    expect(prisma.document.count).toHaveBeenCalledWith({
+      where: {
+        workspaceId: "workspace-1",
+        archivedAt: null,
+        aiAccess: true,
+        cases: { some: { caseId: "case-21" } },
+        currentVersion: { content: { status: "READY" } },
+      },
+    });
+    expect(prisma.client.findFirst).not.toHaveBeenCalled();
     expect(documents.getDocumentFacts).not.toHaveBeenCalled();
+  });
+
+  it("does not look up the session case again", async () => {
+    const { service, matterLink } = setup();
+
+    await service.clientUpdateHint("workspace-1", "session-1", "case-21");
+
+    expect(matterLink.sessionCaseId).not.toHaveBeenCalled();
   });
 
   it("does not read documents when the client has nothing empty", async () => {
@@ -974,7 +1149,7 @@ describe("AssistantActionsService.clientUpdateHint", () => {
     );
 
     await expect(
-      service.clientUpdateHint("workspace-1", "session-1"),
+      service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(false);
     expect(documents.getDocumentFacts).not.toHaveBeenCalled();
   });
@@ -987,7 +1162,7 @@ describe("AssistantActionsService.clientUpdateHint", () => {
     prisma.client.findFirst.mockResolvedValue(clientRow(overrides));
 
     await expect(
-      service.clientUpdateHint("workspace-1", "session-1"),
+      service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(false);
   });
 
@@ -998,7 +1173,7 @@ describe("AssistantActionsService.clientUpdateHint", () => {
       message: "x",
     });
     await expect(
-      service.clientUpdateHint("workspace-1", "session-1"),
+      service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(false);
 
     prisma.documentClient.findMany.mockResolvedValue([
@@ -1006,7 +1181,7 @@ describe("AssistantActionsService.clientUpdateHint", () => {
       { documentId: "doc-1", clientId: "client-2" },
     ]);
     await expect(
-      service.clientUpdateHint("workspace-1", "session-1"),
+      service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(false);
   });
 
@@ -1017,7 +1192,7 @@ describe("AssistantActionsService.clientUpdateHint", () => {
     );
 
     await expect(
-      service.clientUpdateHint("workspace-1", "session-1"),
+      service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(false);
   });
 });

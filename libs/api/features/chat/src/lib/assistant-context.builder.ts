@@ -73,9 +73,14 @@ export class AssistantContextBuilder {
         this.drafting?.workspaceState(input.workspaceId, input.sessionId) ??
           null,
       ]);
-    const hint = caseContext
-      ? await this.clientUpdateHint(input.workspaceId, input.sessionId)
-      : null;
+    const hint =
+      caseContext && sessionCaseId
+        ? await this.clientUpdateHint(
+            input.workspaceId,
+            input.sessionId,
+            sessionCaseId,
+          )
+        : null;
     return {
       messages,
       sessionCaseId,
@@ -106,10 +111,15 @@ export class AssistantContextBuilder {
   private async clientUpdateHint(
     workspaceId: string,
     sessionId: string,
+    caseId: string,
   ): Promise<string | null> {
     if (!this.actions) return null;
     try {
-      return (await this.actions.clientUpdateHint(workspaceId, sessionId))
+      return (await this.actions.clientUpdateHint(
+        workspaceId,
+        sessionId,
+        caseId,
+      ))
         ? CLIENT_UPDATE_HINT
         : null;
     } catch (error) {

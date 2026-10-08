@@ -29,6 +29,7 @@ import {
   matchClientFields,
   type ClientFactInput,
   type ClientFieldConflict,
+  type ClientFieldSkip,
   type ClientFieldSnapshot,
   type ClientFillField,
   type ClientFillItem,
@@ -108,6 +109,8 @@ const IDENTIFICATION_LABELS: Record<string, string> = {
   LICNA_KARTA: "Lična karta",
   PASSPORT: "Pasoš",
 };
+const SOURCE_UNAVAILABLE_MESSAGE =
+  "Dokument više nije dostupan asistentu ili nije povezan sa klijentom.";
 const DOC_REF_PREFIX = "doc:";
 const ATTACHMENT_REF_PREFIX = "att:";
 
@@ -173,6 +176,13 @@ function conflictWarnings(
   return conflicts.map(
     (conflict) =>
       `Upozorenje: ${CLIENT_FIELD_LABELS[conflict.field]} u dokumentu (${conflict.found}) razlikuje se od upisanog (${conflict.current}); ${documentSide}`,
+  );
+}
+
+function skippedNotes(skipped: ClientFieldSkip[]): string[] {
+  return skipped.map(
+    (item) =>
+      `Preskočeno: ${CLIENT_FIELD_LABELS[item.field]} (${item.reason}).`,
   );
 }
 
@@ -549,6 +559,7 @@ export class AssistantActionsService {
       throw new InvalidProposal(
         [
           `Klijent ${client.displayName} nema praznih polja koja ovaj dokument može da dopuni.`,
+          ...skippedNotes(match.skipped),
           ...conflictWarnings(match.conflicts, "upisana vrednost se ne menja."),
         ].join(" "),
       );
@@ -563,6 +574,7 @@ export class AssistantActionsService {
       summary: `Dopuna podataka klijenta ${client.displayName} iz dokumenta „${subject.title}"`,
       details: [
         ...match.fill.map(fillDetail),
+        ...skippedNotes(match.skipped),
         ...conflictWarnings(match.conflicts, "upisana vrednost se ne menja."),
       ],
     };
@@ -571,15 +583,25 @@ export class AssistantActionsService {
   /**
    * True when a readable case document filed for the conversation's client has
    * a matching subject whose facts could fill an empty client field. Cheap
-   * checks first: no case, or nothing empty, costs one query.
+   * checks first: no processed (READY) readable document on the case, or
+   * nothing empty on the client, ends it before any facts are read.
    */
   async clientUpdateHint(
     workspaceId: string,
     sessionId: string,
+    caseId: string,
   ): Promise<boolean> {
     if (!this.documents) return false;
-    const caseId = await this.matterLink.sessionCaseId(workspaceId, sessionId);
-    if (!caseId) return false;
+    const ready = await this.prisma.document.count({
+      where: {
+        workspaceId,
+        archivedAt: null,
+        aiAccess: true,
+        cases: { some: { caseId } },
+        currentVersion: { content: { status: "READY" } },
+      },
+    });
+    if (!ready) return false;
     const linked = await this.prisma.case.findFirst({
       where: { id: caseId, workspaceId },
       select: { clientId: true },
@@ -646,6 +668,25 @@ export class AssistantActionsService {
       fill: ClientFillItem[];
     };
     return this.prisma.$transaction(async (tx) => {
+      // The source must still be readable by the assistant and filed for this
+      // client only; anything else means the approval no longer holds.
+      const source = await tx.document.findFirst({
+        where: { id: payload.documentId, workspaceId: action.workspaceId },
+        select: {
+          archivedAt: true,
+          aiAccess: true,
+          clients: { select: { clientId: true } },
+        },
+      });
+      if (
+        !source ||
+        source.archivedAt ||
+        !source.aiAccess ||
+        source.clients.length !== 1 ||
+        source.clients[0].clientId !== payload.clientId
+      ) {
+        throw new Error(SOURCE_UNAVAILABLE_MESSAGE);
+      }
       const client = (await tx.client.findFirst({
         where: { id: payload.clientId, workspaceId: action.workspaceId },
         select: CLIENT_SNAPSHOT_SELECT,
@@ -653,12 +694,20 @@ export class AssistantActionsService {
       if (!client) throw new Error("Klijent više ne postoji.");
       const applied: ClientFillField[] = [];
       const skipped: ClientFillField[] = [];
-      const scalar: Record<string, string> = {};
       for (const item of payload.fill) {
         if (item.field === "address") {
-          if (client.addresses.length === 0 && item.address) {
+          const address = item.address;
+          if (client.addresses.length === 0 && address) {
             await tx.clientAddress.create({
-              data: { clientId: client.id, ...item.address, isPrimary: true },
+              data: {
+                addressType: address.addressType,
+                street: address.street,
+                city: address.city,
+                postalCode: address.postalCode,
+                country: address.country,
+                isPrimary: true,
+                clientId: client.id,
+              },
             });
             applied.push(item.field);
           } else skipped.push(item.field);
@@ -670,7 +719,6 @@ export class AssistantActionsService {
           if (!known && document) {
             await tx.clientIdentificationDocument.create({
               data: {
-                clientId: client.id,
                 type: document.type,
                 number: document.number,
                 issuedDate: document.issuedDate
@@ -680,26 +728,39 @@ export class AssistantActionsService {
                   ? new Date(document.expiredDate)
                   : null,
                 country: document.country,
+                clientId: client.id,
               },
             });
             applied.push(item.field);
           } else skipped.push(item.field);
         } else if (SCALAR_CLIENT_FIELDS.has(item.field)) {
+          // Compare-and-set: the write itself only matches while the field is
+          // still empty, so a concurrent edit is never overwritten.
           const current = client[item.field as keyof ClientRow] as
             | string
             | null;
-          if (!current?.trim()) {
-            scalar[item.field] = item.value;
-            applied.push(item.field);
-          } else skipped.push(item.field);
+          if (current?.trim()) {
+            skipped.push(item.field);
+            continue;
+          }
+          const written = await tx.client.updateMany({
+            where: {
+              id: client.id,
+              workspaceId: action.workspaceId,
+              OR: [{ [item.field]: null }, { [item.field]: "" }],
+            },
+            data: { [item.field]: item.value, updatedByUserId: userId },
+          });
+          if (written.count === 1) applied.push(item.field);
+          else skipped.push(item.field);
         }
       }
       const labels = (fields: ClientFillField[]) =>
         fields.map((field) => CLIENT_FIELD_LABELS[field]).join(", ");
       if (applied.length) {
-        await tx.client.update({
-          where: { id: client.id },
-          data: { ...scalar, updatedByUserId: userId },
+        await tx.client.updateMany({
+          where: { id: client.id, workspaceId: action.workspaceId },
+          data: { updatedByUserId: userId },
         });
         await tx.clientActivity.create({
           data: {

@@ -74,7 +74,12 @@ describe("matchClientFields", () => {
         { field: "jmbg", value: JMBG, normalizedValue: JMBG },
       ]),
     );
-    expect(result).toEqual({ matched: false, fill: [], conflicts: [] });
+    expect(result).toEqual({
+      matched: false,
+      fill: [],
+      conflicts: [],
+      skipped: [],
+    });
   });
 
   it("matches by an existing JMBG even when the name differs", () => {
@@ -301,6 +306,74 @@ describe("matchClientFields", () => {
       ),
     );
     expect(result.fill[0].identificationDocument?.country).toBe("HR");
+  });
+
+  it.each([
+    ["Crna Gora", "ME"],
+    ["Bosna i Hercegovina", "BA"],
+    ["Severna Makedonija", "MK"],
+    ["Mađarsko", "HU"],
+    ["Turska", "TR"],
+    ["Ukrajina", "UA"],
+    ["Poljska", "PL"],
+    ["Slovačka", "SK"],
+    ["Slovenija", "SI"],
+    ["Britansko", "GB"],
+    ["Republika Srbija / Republic of Serbia", "RS"],
+    ["Srpsko", "RS"],
+    ["SRB", "RS"],
+    ["BIH", "BA"],
+    ["MNE", "ME"],
+    ["HR", "HR"],
+  ])("maps the nationality %s to %s", (nationality, code) => {
+    const result = matchClientFields(
+      person(),
+      subject(
+        "PERSON",
+        [
+          { field: "fullName", value: "Petar Petrović" },
+          { field: "documentNumber", value: "P1234567" },
+          { field: "nationality", value: nationality },
+        ],
+        "PASSPORT",
+      ),
+    );
+    expect(result.fill[0].identificationDocument?.country).toBe(code);
+  });
+
+  it("does not propose an identification document with an unmapped nationality", () => {
+    const result = matchClientFields(
+      person({ jmbg: JMBG }),
+      subject(
+        "PERSON",
+        [
+          { field: "fullName", value: "Petar Petrović" },
+          { field: "documentNumber", value: "P1234567" },
+          { field: "nationality", value: "Atlantida" },
+        ],
+        "PASSPORT",
+      ),
+    );
+    expect(result.matched).toBe(true);
+    expect(result.fill).toEqual([]);
+    expect(result.skipped).toEqual([
+      {
+        field: "identificationDocument",
+        reason: "nepoznato državljanstvo",
+      },
+    ]);
+  });
+
+  it("defaults to RS only when there is no nationality fact", () => {
+    const result = matchClientFields(
+      person(),
+      subject("PERSON", [
+        { field: "fullName", value: "Petar Petrović" },
+        { field: "documentNumber", value: "012345678" },
+      ]),
+    );
+    expect(result.fill[0].identificationDocument?.country).toBe("RS");
+    expect(result.skipped).toEqual([]);
   });
 
   it("skips an identification document the client already has (by number)", () => {
