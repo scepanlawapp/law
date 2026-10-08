@@ -60,13 +60,18 @@ describe("WorkEntrySourcesService", () => {
   });
 
   describe("ensureForSource", () => {
-    it("does not propose work for an explicitly written-off event", async () => {
-      tx.event.findFirst.mockResolvedValue({
-        workWriteOffReason: "Not billable",
-      });
+    it("does not propose duplicate work when event work already exists", async () => {
+      tx.workEntry.findFirst.mockReset().mockResolvedValue({ id: entryId });
       await expect(
         service.ensureForSource(tx as never, input({ sourceType: "EVENT" })),
-      ).resolves.toBeNull();
+      ).resolves.toBe(entryId);
+      expect(tx.workEntry.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([{ eventId: input().sourceId }]),
+          }),
+        }),
+      );
       expect(tx.workEntry.createMany).not.toHaveBeenCalled();
     });
 

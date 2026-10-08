@@ -343,9 +343,12 @@ export class QuickCaptureDialogComponent {
       nonNullable: true,
     }),
     serviceCategoryId: new FormControl("", { nonNullable: true }),
-    treatment: new FormControl<WorkEntryTreatment>("UNDECIDED", {
-      nonNullable: true,
-    }),
+    treatment: new FormControl<WorkEntryTreatment>(
+      this.context.treatment ?? "UNDECIDED",
+      {
+        nonNullable: true,
+      },
+    ),
   });
   readonly saving = signal(false);
   readonly loadingEntry = signal(false);
@@ -368,7 +371,9 @@ export class QuickCaptureDialogComponent {
   /** True while a loaded entry's own values are applied to the form. */
   private hydrating = false;
   /** An existing entry keeps its treatment until client, date or category change. */
-  private keepTreatment = Boolean(this.context.entryId);
+  private keepTreatment = Boolean(
+    this.context.entryId || this.context.treatment,
+  );
   private applyingCase = false;
   private micBaseText = "";
 
@@ -471,13 +476,14 @@ export class QuickCaptureDialogComponent {
         if (!this.applyingCase && caseId.value) {
           caseId.setValue("", { emitEvent: false });
         }
-        if (!this.hydrating) this.keepTreatment = false;
+        if (!this.hydrating && !this.context.treatment)
+          this.keepTreatment = false;
       });
     for (const control of [workDate, serviceCategoryId]) {
       control.valueChanges
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => {
-          if (this.hydrating) return;
+          if (this.hydrating || this.context.treatment) return;
           this.keepTreatment = false;
           this.applyDefaultTreatment();
         });
@@ -802,7 +808,7 @@ export class QuickCaptureDialogComponent {
   /** What to send: a deliberate pick, or the default shown; else let the API decide. */
   private treatmentToSend(): WorkEntryTreatment | undefined {
     const { treatment } = this.form.controls;
-    if (treatment.dirty) return treatment.value;
+    if (treatment.dirty || this.context.treatment) return treatment.value;
     if (this.keepTreatment || this.agreements() === null) return undefined;
     return treatment.value;
   }
@@ -833,6 +839,7 @@ export class QuickCaptureDialogComponent {
           this.loadedEntry.set(entry);
           this.linkedEventId.set(
             this.context.eventId ??
+              entry.eventId ??
               (entry.sourceType === "EVENT"
                 ? (entry.sourceId ?? undefined)
                 : undefined),

@@ -50,7 +50,7 @@
             [attr.aria-expanded]="expanded()"
             (click)="expanded.set(false)"
           >
-            Shrink
+            {{ "time.events.shrink" | translate }}
           </button>
         }
       </div>
@@ -83,8 +83,8 @@
             <h3 class="min-w-0 break-words text-base font-semibold">
               {{ event.title }}
             </h3>
-            <span [class]="badgeBase + ' ' + statusBadgeClass(status(event))">
-              {{ statusLabel(event) | translate }}
+            <span [class]="badgeBase + ' ' + statusBadgeClass('PROPOSED')">
+              {{ "time.events.unlogged" | translate }}
             </span>
           </div>
           <p class="text-sm text-muted-foreground">
@@ -98,11 +98,6 @@
           <p class="text-sm text-muted-foreground">
             {{ eventTime(event) }}
           </p>
-          @if (event.writeOffReason) {
-            <p class="text-sm text-muted-foreground">
-              {{ event.writeOffReason }}
-            </p>
-          }
           <div class="mt-auto flex flex-wrap justify-end gap-2">
             <ng-container
               *ngTemplateOutlet="actions; context: { $implicit: event }"
@@ -173,17 +168,6 @@
       (click)="logWork(event)"
     >
       {{ "time.capture.open" | translate }}
-    </button>
-  }
-  @if (event.workEntry?.canManage && !canLog(event)) {
-    <button
-      hlmBtn
-      type="button"
-      variant="outline"
-      [disabled]="busy() !== null"
-      (click)="viewWork(event)"
-    >
-      {{ "work.entries.viewTitle" | translate }}
     </button>
   }
 </ng-template>

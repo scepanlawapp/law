@@ -2185,10 +2185,10 @@ export class WorkEntriesApiClient {
       { withCredentials: true, params: queryParams({ page, pageSize }) },
     );
   }
-  writeOffEvent(id: string, body: WriteOffWorkEntryRequest): Observable<void> {
-    return this.http.post<void>(
+  writeOffEvent(id: string): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(
       this.endpoint(`/work-entries/events/${id}/write-off`),
-      body,
+      {},
       { withCredentials: true },
     );
   }

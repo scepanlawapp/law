@@ -1013,6 +1013,7 @@ export interface CaseReference {
 }
 
 export interface EventSummary {
+  hasWorkEntry: boolean;
   id: string;
   type: EventType;
   title: string;

@@ -1,6 +1,8 @@
 <hlm-sidebar collapsible="icon">
   <hlm-sidebar-header>
-    <div class="flex justify-between items-center">
+    <div
+      class="flex items-center justify-between group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:gap-2"
+    >
       <div>
         <a
           class="flex items-center gap-2 px-2 py-1"
@@ -21,6 +23,7 @@
       <button
         hlmSidebarTrigger
         type="button"
+        class="shrink-0 group-data-[collapsible=icon]:order-first mb-4"
         [srOnlyText]="'nav.toggleSidebar' | translate"
       ></button>
     </div>

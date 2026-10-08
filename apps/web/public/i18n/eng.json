@@ -2441,7 +2441,7 @@
   "work.entries.restoreHint": "Select Confirmed and save to restore written-off work. Its write-off reason will be cleared.",
   "time.team.allStatuses": "All statuses",
   "time.events.title": "Past events",
-  "time.events.description": "Events you organize or are assigned to that have ended, across all dates.",
+  "time.events.description": "Ended events you organize or are assigned to, without any work entries.",
   "time.events.loading": "Loading events…",
   "time.events.loadError": "Events could not be loaded. Please retry.",
   "time.events.actionError": "Could not complete the action. Refresh the list and retry.",
@@ -2449,7 +2449,8 @@
   "time.events.event": "Event",
   "time.events.view": "View",
   "time.events.view.event": "View Event",
-  "time.events.empty": "No past events.",
+  "time.events.empty": "No past events without work entries.",
   "time.events.previous": "Previous page",
+  "time.events.shrink": "Shrink",
   "time.events.next": "Next page"
 }
