@@ -1,7 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
-import type { DocumentContentStatus } from "@prisma/client";
+import { Prisma, type DocumentContentStatus } from "@prisma/client";
 import { ContentBytesReader } from "./content-bytes.reader";
 import { DocumentIngestionQueue } from "./document-ingestion.queue";
 import {
@@ -33,13 +33,30 @@ export class DocumentContentService {
     pipelineVersion: number;
   }> {
     const { workspaceId, sha256, mimeType, sizeBytes } = input;
-    const row = await this.prisma.documentContent.upsert({
-      where: { workspaceId_sha256: { workspaceId, sha256 } },
-      update: {},
-      create: { workspaceId, sha256, mimeType, sizeBytes },
-      select: { id: true, status: true, pipelineVersion: true },
-    });
-    return row;
+    const key = { workspaceId_sha256: { workspaceId, sha256 } };
+    const select = { id: true, status: true, pipelineVersion: true } as const;
+    try {
+      return await this.prisma.documentContent.upsert({
+        where: key,
+        update: {},
+        create: { workspaceId, sha256, mimeType, sizeBytes },
+        select,
+      });
+    } catch (error) {
+      // Prisma may emulate upsert as find-then-create; a concurrent identical
+      // upload then loses the race with a unique violation. The winner's row
+      // is the one both callers want.
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        error.code === "P2002"
+      ) {
+        return this.prisma.documentContent.findUniqueOrThrow({
+          where: key,
+          select,
+        });
+      }
+      throw error;
+    }
   }
 
   /** Enqueue ingestion unless the content is already READY on this pipeline version. */
@@ -92,8 +109,8 @@ export class DocumentContentService {
 
     if (result.status === "COMPLETED") {
       const text = result.text ?? "";
-      await this.prisma.documentContent.update({
-        where: { id: content.id },
+      await this.prisma.documentContent.updateMany({
+        where: { id: content.id, workspaceId },
         data: {
           extractedText: text,
           sourceScript: result.sourceScript ?? null,
@@ -102,14 +119,14 @@ export class DocumentContentService {
       return { status: "COMPLETED", text };
     }
     if (result.status === "UNSUPPORTED") {
-      await this.prisma.documentContent.update({
-        where: { id: content.id },
+      await this.prisma.documentContent.updateMany({
+        where: { id: content.id, workspaceId },
         data: { status: "UNSUPPORTED", error: result.error ?? null },
       });
       return { status: "UNSUPPORTED", text: null };
     }
-    await this.prisma.documentContent.update({
-      where: { id: content.id },
+    await this.prisma.documentContent.updateMany({
+      where: { id: content.id, workspaceId },
       data: { error: result.error ?? null },
     });
     return { status: "FAILED", text: null };

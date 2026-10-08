@@ -22,11 +22,22 @@ export class DocumentIngestionQueue {
   ) {}
 
   async enqueue(workspaceId: string, contentId: string): Promise<void> {
+    const jobId = documentIngestJobId(contentId);
+    // A finished job keeps its id in Redis (removeOnFail is false), and
+    // `add` with an existing id is a silent no-op. Clear it so a failed
+    // content can be retried; waiting, active and delayed jobs stay put and
+    // absorb the duplicate request without a second add.
+    const existing = await this.queue.getJob(jobId);
+    if (existing) {
+      const state = await existing.getState();
+      if (state !== "failed" && state !== "completed") return;
+      await existing.remove();
+    }
     await this.queue.add(
       "ingest",
       { workspaceId, contentId },
       {
-        jobId: documentIngestJobId(contentId),
+        jobId,
         ...DOCUMENT_INGEST_JOB_OPTIONS,
         backoff: { ...DOCUMENT_INGEST_JOB_OPTIONS.backoff },
       },

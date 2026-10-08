@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { PlatformPrismaService } from "@law/core";
 import { ChatAttachmentStorage, FileService } from "@law/file-storage";
 import type { Readable } from "node:stream";
@@ -10,6 +10,8 @@ import type { Readable } from "node:stream";
  */
 @Injectable()
 export class ContentBytesReader {
+  private readonly logger = new Logger(ContentBytesReader.name);
+
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly files: FileService,
@@ -26,14 +28,20 @@ export class ContentBytesReader {
       orderBy: { createdAt: "desc" },
     });
     if (version) {
-      const download = await this.files.openDownload({
-        workspaceId,
-        storedFileId: version.storedFileId,
-      });
-      return {
-        buffer: await readAll(download.stream),
-        mimeType: download.mimeType,
-      };
+      try {
+        const download = await this.files.openDownload({
+          workspaceId,
+          storedFileId: version.storedFileId,
+        });
+        return {
+          buffer: await readAll(download.stream),
+          mimeType: download.mimeType,
+        };
+      } catch (error) {
+        this.logger.warn(
+          `Stored file for content ${contentId} is unreadable: ${errorMessage(error)}`,
+        );
+      }
     }
 
     const attachment = await this.prisma.chatAttachment.findFirst({
@@ -42,12 +50,18 @@ export class ContentBytesReader {
       orderBy: { createdAt: "desc" },
     });
     if (attachment) {
-      const buffer = await this.chatStorage.read({
-        workspaceId,
-        sessionId: attachment.sessionId,
-        storedName: attachment.storedName,
-      });
-      return { buffer, mimeType: attachment.mimeType };
+      try {
+        const buffer = await this.chatStorage.read({
+          workspaceId,
+          sessionId: attachment.sessionId,
+          storedName: attachment.storedName,
+        });
+        return { buffer, mimeType: attachment.mimeType };
+      } catch (error) {
+        this.logger.warn(
+          `Chat attachment for content ${contentId} is unreadable: ${errorMessage(error)}`,
+        );
+      }
     }
     return null;
   }
@@ -59,4 +73,8 @@ async function readAll(stream: Readable): Promise<Buffer> {
     chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   }
   return Buffer.concat(chunks);
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : "unknown error";
 }

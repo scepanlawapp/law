@@ -1,4 +1,5 @@
 import { Readable } from "node:stream";
+import { Prisma } from "@prisma/client";
 import {
   ContentBytesReader,
   DocumentContentService,
@@ -25,7 +26,12 @@ function setup(options: { row?: Row | null; bytes?: unknown } = {}) {
         pipelineVersion: 0,
       })),
       findFirst: jest.fn(async () => options.row ?? null),
-      update: jest.fn(async () => ({})),
+      updateMany: jest.fn(async () => ({ count: 1 })),
+      findUniqueOrThrow: jest.fn(async () => ({
+        id: "content-1",
+        status: "READY",
+        pipelineVersion: 1,
+      })),
     },
   };
   const queue = { enqueue: jest.fn(async () => undefined) };
@@ -78,6 +84,45 @@ describe("DocumentContentService", () => {
         status: "PENDING",
         pipelineVersion: 0,
       });
+    });
+
+    it("returns the existing row when a concurrent upload wins the race", async () => {
+      const { service, prisma } = setup();
+      prisma.documentContent.upsert.mockRejectedValueOnce(
+        new Prisma.PrismaClientKnownRequestError("Unique constraint failed", {
+          code: "P2002",
+          clientVersion: "test",
+        }),
+      );
+      const result = await service.findOrCreate({
+        workspaceId: "ws-1",
+        sha256: "abc",
+        mimeType: "application/pdf",
+        sizeBytes: 10,
+      });
+      expect(prisma.documentContent.findUniqueOrThrow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { workspaceId_sha256: { workspaceId: "ws-1", sha256: "abc" } },
+        }),
+      );
+      expect(result).toEqual({
+        id: "content-1",
+        status: "READY",
+        pipelineVersion: 1,
+      });
+    });
+
+    it("rethrows other upsert errors", async () => {
+      const { service, prisma } = setup();
+      prisma.documentContent.upsert.mockRejectedValueOnce(new Error("down"));
+      await expect(
+        service.findOrCreate({
+          workspaceId: "ws-1",
+          sha256: "abc",
+          mimeType: "application/pdf",
+          sizeBytes: 10,
+        }),
+      ).rejects.toThrow("down");
     });
 
     it("resolves concurrent calls for the same hash to the same id", async () => {
@@ -183,7 +228,7 @@ describe("DocumentContentService", () => {
         status: "UNAVAILABLE",
         text: null,
       });
-      expect(prisma.documentContent.update).not.toHaveBeenCalled();
+      expect(prisma.documentContent.updateMany).not.toHaveBeenCalled();
     });
 
     it("extracts from bytes and stores text and script, keeping status", async () => {
@@ -205,8 +250,8 @@ describe("DocumentContentService", () => {
         mimeType: "application/pdf",
         buffer: Buffer.from("x"),
       });
-      expect(prisma.documentContent.update).toHaveBeenCalledWith({
-        where: { id: "content-1" },
+      expect(prisma.documentContent.updateMany).toHaveBeenCalledWith({
+        where: { id: "content-1", workspaceId: "ws-1" },
         data: { extractedText: "Izvucen tekst", sourceScript: "LATIN" },
       });
     });
@@ -221,8 +266,8 @@ describe("DocumentContentService", () => {
         status: "UNSUPPORTED",
         text: null,
       });
-      expect(prisma.documentContent.update).toHaveBeenCalledWith({
-        where: { id: "content-1" },
+      expect(prisma.documentContent.updateMany).toHaveBeenCalledWith({
+        where: { id: "content-1", workspaceId: "ws-1" },
         data: { status: "UNSUPPORTED", error: "no" },
       });
     });
@@ -237,8 +282,8 @@ describe("DocumentContentService", () => {
         status: "FAILED",
         text: null,
       });
-      expect(prisma.documentContent.update).toHaveBeenCalledWith({
-        where: { id: "content-1" },
+      expect(prisma.documentContent.updateMany).toHaveBeenCalledWith({
+        where: { id: "content-1", workspaceId: "ws-1" },
         data: { error: "boom" },
       });
     });
@@ -246,21 +291,62 @@ describe("DocumentContentService", () => {
 });
 
 describe("DocumentIngestionQueue", () => {
-  it("adds a deduplicated ingest job with retry options", async () => {
+  const options = {
+    jobId: "content:c-1",
+    attempts: 3,
+    backoff: { type: "exponential", delay: 2000 },
+    removeOnComplete: true,
+    removeOnFail: false,
+  };
+
+  function queueWith(job: { state: string } | null) {
+    const remove = jest.fn(async () => undefined);
     const add = jest.fn(async () => undefined);
-    await new DocumentIngestionQueue({ add } as never).enqueue("ws-1", "c-1");
+    const getJob = jest.fn(async () =>
+      job ? { getState: async () => job.state, remove } : undefined,
+    );
+    return {
+      add,
+      remove,
+      getJob,
+      queue: new DocumentIngestionQueue({ add, getJob } as never),
+    };
+  }
+
+  it("adds a deduplicated ingest job with retry options", async () => {
+    const { queue, add, getJob, remove } = queueWith(null);
+    await queue.enqueue("ws-1", "c-1");
+    expect(getJob).toHaveBeenCalledWith("content:c-1");
+    expect(remove).not.toHaveBeenCalled();
     expect(add).toHaveBeenCalledWith(
       "ingest",
       { workspaceId: "ws-1", contentId: "c-1" },
-      {
-        jobId: "content:c-1",
-        attempts: 3,
-        backoff: { type: "exponential", delay: 2000 },
-        removeOnComplete: true,
-        removeOnFail: false,
-      },
+      options,
     );
   });
+
+  it.each(["failed", "completed"])(
+    "removes a %s job before re-adding it",
+    async (state) => {
+      const { queue, add, remove } = queueWith({ state });
+      await queue.enqueue("ws-1", "c-1");
+      expect(remove).toHaveBeenCalledTimes(1);
+      expect(remove.mock.invocationCallOrder[0]).toBeLessThan(
+        add.mock.invocationCallOrder[0],
+      );
+      expect(add).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each(["waiting", "active", "delayed"])(
+    "leaves a %s job alone and does not add a duplicate",
+    async (state) => {
+      const { queue, add, remove } = queueWith({ state });
+      await queue.enqueue("ws-1", "c-1");
+      expect(remove).not.toHaveBeenCalled();
+      expect(add).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("ContentBytesReader", () => {
@@ -346,6 +432,45 @@ describe("ContentBytesReader", () => {
       sessionId: "s-1",
       storedName: "att-1",
     });
+  });
+
+  it("falls through to the chat attachment when the stored file is unreadable", async () => {
+    const {
+      reader: r,
+      files,
+      chatStorage,
+    } = reader({
+      version: { storedFileId: "file-1" },
+      attachment: {
+        sessionId: "s-1",
+        storedName: "att-1",
+        mimeType: "text/plain",
+      },
+    });
+    files.openDownload.mockRejectedValueOnce(new Error("gone"));
+    expect(await r.read("ws-1", "c-1")).toEqual({
+      buffer: Buffer.from("chat"),
+      mimeType: "text/plain",
+    });
+    expect(chatStorage.read).toHaveBeenCalled();
+  });
+
+  it("returns null when every source is unreadable", async () => {
+    const {
+      reader: r,
+      files,
+      chatStorage,
+    } = reader({
+      version: { storedFileId: "file-1" },
+      attachment: {
+        sessionId: "s-1",
+        storedName: "att-1",
+        mimeType: "text/plain",
+      },
+    });
+    files.openDownload.mockRejectedValueOnce(new Error("gone"));
+    chatStorage.read.mockRejectedValueOnce(new Error("ENOENT"));
+    expect(await r.read("ws-1", "c-1")).toBeNull();
   });
 
   it("returns null when nothing references the content", async () => {
