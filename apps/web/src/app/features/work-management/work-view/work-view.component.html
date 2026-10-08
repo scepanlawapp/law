@@ -207,10 +207,7 @@
                   {{ "work.status" | translate }}
                 </label>
                 <hlm-select
-                  [value]="item.presentationStatus"
-                  (valueChange)="
-                    onStatusSelect(item, $event ?? item.presentationStatus)
-                  "
+                  [formControl]="statusControlFor(item)"
                   [itemToString]="statusItemToString"
                 >
                   <hlm-select-trigger

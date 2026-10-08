@@ -1,3 +1,4 @@
+import type { CreateWorkEntryRequest } from "./work-entries";
 export enum WorkspaceRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
@@ -1705,3 +1706,18 @@ export type InvoiceProposalResponse = {
   questions: string[];
   warnings: string[];
 };
+
+export interface TaskRequest {
+  title: string;
+  description?: string;
+  status?: TaskStatus;
+  priority?: CasePriority;
+  assigneeUserId: string;
+  dueDate?: string;
+  dueAt?: string;
+  caseId?: string;
+  clientId?: string;
+  deadlineId?: string;
+  /** Confirmed capture saved atomically when status becomes DONE. */
+  workEntry?: CreateWorkEntryRequest;
+}

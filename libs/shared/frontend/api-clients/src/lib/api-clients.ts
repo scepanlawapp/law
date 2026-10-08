@@ -1,3 +1,4 @@
+import type { TaskRequest } from "@law/api-interfaces";
 import { inject, Injectable } from "@angular/core";
 import {
   HttpClient,
@@ -199,18 +200,7 @@ export interface TaskListQuery {
   deadlineId?: string;
 }
 
-export interface TaskRequest {
-  title: string;
-  description?: string;
-  status?: TaskStatus;
-  priority?: CasePriority;
-  assigneeUserId: string;
-  dueDate?: string;
-  dueAt?: string;
-  caseId?: string;
-  clientId?: string;
-  deadlineId?: string;
-}
+export type { TaskRequest } from "@law/api-interfaces";
 
 export interface DeadlineListQuery {
   page?: number;

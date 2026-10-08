@@ -13,20 +13,20 @@ export class QuickCaptureDialogService {
   private isOpen = false;
 
   /** Emits the saved entry, or `null` when the dialog is dismissed. */
-  open(
-    input: QuickCaptureInput = { mode: "create" },
-  ): Observable<WorkEntry | null> {
+  open<TResult = WorkEntry>(
+    input: QuickCaptureInput<TResult> = { mode: "create" },
+  ): Observable<TResult | null> {
     // The Alt+W shortcut and the header button must not stack dialogs.
     if (this.isOpen) return of(null);
     this.isOpen = true;
-    const closed$ = this.dialog.open<WorkEntry | undefined, QuickCaptureInput>(
-      QuickCaptureDialogComponent,
-      {
-        context: input,
-        contentClass:
-          "sm:max-w-2xl max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden",
-      },
-    ).closed$;
+    const closed$ = this.dialog.open<
+      TResult | undefined,
+      QuickCaptureInput<TResult>
+    >(QuickCaptureDialogComponent, {
+      context: input,
+      contentClass:
+        "sm:max-w-2xl max-h-[calc(100dvh-2rem)] flex flex-col overflow-hidden",
+    }).closed$;
     closed$.pipe(take(1)).subscribe(() => (this.isOpen = false));
     return closed$.pipe(map((entry) => entry ?? null));
   }

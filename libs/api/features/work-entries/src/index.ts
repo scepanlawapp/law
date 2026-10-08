@@ -10,3 +10,4 @@ export * from "./lib/retainer-usage.service";
 export * from "./lib/billing-run.module";
 export * from "./lib/month-end-run.service";
 export * from "./lib/profitability.service";
+export { CreateWorkEntryDto } from "./lib/work-entries.dto";
