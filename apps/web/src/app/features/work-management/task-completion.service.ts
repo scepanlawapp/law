@@ -60,6 +60,7 @@ export class TaskCompletionService {
       switchMap((existingWork) =>
         this.capture.open<TaskDetail>({
           mode: "create",
+          taskId,
           title: request.title.slice(0, 200),
           description: request.description,
           clientId: request.clientId,

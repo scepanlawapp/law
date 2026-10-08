@@ -1212,6 +1212,7 @@ async function ensureRatesAndRetainers(
     create: {
       workspaceId,
       displayName: "Demo advokatska kancelarija",
+      caseNumberPattern: "{YYYY}-{SEQ}",
       countryCode: "RS",
       availableVatRates: [0, 10, 20],
       allowedCurrencyCodes: ["RSD", "EUR"],

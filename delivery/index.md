@@ -127,3 +127,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Task Work Entries](./tracks/task_work_entries_20261008/index.md)
 
 - [Task Work Entry Deletion](./tracks/task_work_entry_deletion_20261008/index.md)
+
+- [Company numbering and quick capture](tracks/company_numbering_capture_20261008/index.md)

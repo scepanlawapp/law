@@ -20,6 +20,7 @@ import {
   CurrencySettingsComponent,
   InvoiceDefaultsSettingsComponent,
   InvoiceNumberingSettingsComponent,
+  OtherOrganizationSettingsComponent,
   PaymentSettingsComponent,
   InvoicePaymentQrSettingsComponent,
   SefSettingsComponent,
@@ -180,6 +181,7 @@ export const appRoutes: Route[] = [
                 path: "numbering",
                 component: InvoiceNumberingSettingsComponent,
               },
+              { path: "other", component: OtherOrganizationSettingsComponent },
               { path: "payments", component: PaymentSettingsComponent },
               { path: "currencies", component: CurrencySettingsComponent },
               {

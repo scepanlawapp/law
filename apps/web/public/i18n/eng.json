@@ -2167,7 +2167,7 @@
   "settings.organization.tabs.company": "Company",
   "settings.organization.tabs.tax": "Tax",
   "settings.organization.tabs.sef": "SEF",
-  "settings.organization.tabs.numbering": "Numbering",
+  "settings.organization.tabs.numbering": "Invoice numbering",
   "settings.organization.tabs.payments": "Payments",
   "settings.organization.tabs.currencies": "Currencies",
   "settings.organization.tabs.invoiceDefaults": "Invoice defaults",
@@ -2236,6 +2236,7 @@
   "settings.organization.numbering.incrementBy": "Increment",
   "settings.organization.numbering.manualOverride": "Allow invoice number to be manually changed",
   "settings.organization.numbering.preview": "Current invoice number appearance",
+  "settings.organization.numbering.preview.case": "Current case number appearance",
   "settings.organization.payment.title": "Payments",
   "settings.organization.payment.termDays": "Default payment term (days)",
   "settings.organization.payment.method": "Default payment method",
@@ -2419,5 +2420,14 @@
   "work.entries.deleted": "Work entry deleted.",
   "work.entries.deleteError": "The work entry could not be deleted. Try again.",
   "work.entries.loadEntryError": "The work entry could not be loaded. Try again.",
-  "common.delete": "Delete"
+  "common.delete": "Delete",
+  "settings.organization.tabs.other": "Other settings",
+  "settings.organization.other.title": "Case numbering",
+  "settings.organization.other.description": "Set the pattern used to suggest numbers for new cases. Existing numbers remain unchanged.",
+  "settings.organization.other.caseNumberPattern": "Case number pattern",
+  "settings.organization.other.patternHint": "Use date tokens and exactly one {SEQ} or {SEQ:n}. The preview uses sequence 1; suggestions continue the existing case sequence. Use letters A–Z, digits, /, . or -. Numbers may have up to 40 characters; allow room for the sequence to grow.",
+  "settings.organization.other.invalidPattern": "Enter a valid pattern with one {SEQ} or {SEQ:n} token (1–12 digits). Only letters A–Z, digits, /, . and - are allowed; leave room for a 12-digit sequence within 40 characters.",
+  "settings.organization.other.loadError": "Settings could not be loaded. Please retry.",
+  "time.capture.openTask": "Open linked task",
+  "time.capture.taskLoadError": "Could not open the linked task. Please retry."
 }

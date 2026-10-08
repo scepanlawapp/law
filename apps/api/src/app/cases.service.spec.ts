@@ -40,6 +40,7 @@ describe("CasesService", () => {
       if (Array.isArray(arg)) return Promise.all(arg);
       return arg;
     }),
+    organizationSettings: { findUnique: jest.fn() },
     workspaceMember: { findUnique: jest.fn() },
     user: { findMany: jest.fn() },
     case: {
@@ -157,6 +158,50 @@ describe("CasesService", () => {
       });
     },
   );
+
+  it("uses the saved case pattern with date tokens and skips used sequences", async () => {
+    db.organizationSettings.findUnique.mockResolvedValue({
+      caseNumberPattern: "P.{YYYY}/{MM}/{SEQ:4}",
+    });
+    db.case.findMany.mockResolvedValue([
+      { caseNumber: "P.2026/09/0042" },
+      { caseNumber: "legacy-99" },
+    ]);
+    await WorkspaceContextService.run(context as never, async () => {
+      await expect(service.nextNumberSuggestion()).resolves.toEqual({
+        caseNumber: "P.2026/09/0043",
+      });
+    });
+    expect(db.organizationSettings.findUnique).toHaveBeenCalledWith({
+      where: { workspaceId },
+      select: { caseNumberPattern: true },
+    });
+    expect(db.case.findMany).toHaveBeenCalledWith({
+      where: { workspaceId },
+      select: { caseNumber: true },
+    });
+  });
+
+  it("keeps the legacy default when no settings have been saved", async () => {
+    db.organizationSettings.findUnique.mockResolvedValue(null);
+    db.case.findMany.mockResolvedValue([{ caseNumber: "2026-8" }]);
+    await WorkspaceContextService.run(context as never, async () => {
+      await expect(service.nextNumberSuggestion()).resolves.toEqual({
+        caseNumber: "2026-9",
+      });
+    });
+  });
+
+  it("does not silently replace the configured pattern on a database failure", async () => {
+    db.organizationSettings.findUnique.mockRejectedValueOnce(
+      new Error("database unavailable"),
+    );
+    await WorkspaceContextService.run(context as never, async () => {
+      await expect(service.nextNumberSuggestion()).rejects.toThrow(
+        "database unavailable",
+      );
+    });
+  });
 
   it("continues the sequence when the workspace changes number format", async () => {
     db.case.findMany.mockResolvedValue([{ caseNumber: "CA-000001" }]);

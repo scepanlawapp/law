@@ -15,6 +15,7 @@ import {
   CurrencySettingsDto,
   InvoiceDefaultsSettingsDto,
   InvoiceNumberingSettingsDto,
+  OtherOrganizationSettingsDto,
   InvoicePaymentQrSettingsDto,
   PaymentSettingsDto,
   SefAttachmentSettingsDto,
@@ -93,6 +94,7 @@ export class OrganizationSettingsService {
         hasApiKey: Boolean(settings.sefApiKeyCiphertext),
         maskedApiKey: settings.sefApiKeyCiphertext ? "••••••••••••" : null,
       },
+      other: { caseNumberPattern: settings.caseNumberPattern },
       invoiceNumbering: {
         pattern: settings.invoiceNumberPattern,
         startingSequence: settings.invoiceNumberStartingSequence,
@@ -235,6 +237,22 @@ export class OrganizationSettingsService {
       invoiceNumberAllowManualOverride: input.allowManualOverride,
     });
     return (await this.get()).invoiceNumbering;
+  }
+
+  async updateOther(input: OtherOrganizationSettingsDto) {
+    this.numbering.validatePattern(input.caseNumberPattern);
+    const example = this.numbering.renderPattern(
+      input.caseNumberPattern,
+      new Date(),
+      999999999999,
+    );
+    if (example.length > 40 || !/^[A-Za-z0-9/.-]+$/.test(example)) {
+      throw new BadRequestException(
+        "Case numbers must fit 40 characters and contain only letters, digits, slash, dot or hyphen",
+      );
+    }
+    await this.upsert({ caseNumberPattern: input.caseNumberPattern });
+    return (await this.get()).other;
   }
 
   async updatePayment(input: PaymentSettingsDto) {

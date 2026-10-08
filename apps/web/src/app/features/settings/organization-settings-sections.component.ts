@@ -25,7 +25,7 @@ import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
-import { Observable, finalize } from "rxjs";
+import { Observable, finalize, tap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import {
@@ -382,6 +382,41 @@ export class TaxSettingsComponent extends SectionBase {
   }
 }
 
+const NUMBER_PATTERN_TOKENS = [
+  {
+    token: "{YYYY}",
+    description: "settings.organization.numbering.tokenDescriptions.YYYY",
+  },
+  {
+    token: "{YY}",
+    description: "settings.organization.numbering.tokenDescriptions.YY",
+  },
+  {
+    token: "{MM}",
+    description: "settings.organization.numbering.tokenDescriptions.MM",
+  },
+  {
+    token: "{M}",
+    description: "settings.organization.numbering.tokenDescriptions.M",
+  },
+  {
+    token: "{DD}",
+    description: "settings.organization.numbering.tokenDescriptions.DD",
+  },
+  {
+    token: "{D}",
+    description: "settings.organization.numbering.tokenDescriptions.D",
+  },
+  {
+    token: "{SEQ}",
+    description: "settings.organization.numbering.tokenDescriptions.SEQ",
+  },
+  {
+    token: "{SEQ:6}",
+    description: "settings.organization.numbering.tokenDescriptions.SEQ6",
+  },
+];
+
 @Component({
   selector: "law-numbering-settings",
   standalone: true,
@@ -402,6 +437,14 @@ export class TaxSettingsComponent extends SectionBase {
           [formGroup]="form"
           (ngSubmit)="save()"
         >
+          <div class="rounded-lg border border-border bg-muted p-4">
+            <p class="text-sm text-muted-foreground">
+              {{ "settings.organization.numbering.preview" | translate }}
+            </p>
+            <strong class="mt-1 block break-all font-mono text-base">
+              {{ preview() }}
+            </strong>
+          </div>
           <div hlmField>
             <label hlmFieldLabel for="number-pattern">
               {{ "settings.organization.numbering.pattern" | translate }}
@@ -498,14 +541,6 @@ export class TaxSettingsComponent extends SectionBase {
               formControlName="allowManualOverride"
             />
           </div>
-          <div class="rounded-lg border border-border bg-muted p-4">
-            <p class="text-sm text-muted-foreground">
-              {{ "settings.organization.numbering.preview" | translate }}
-            </p>
-            <strong class="mt-1 block break-all font-mono text-base">
-              {{ preview() }}
-            </strong>
-          </div>
           <div class="flex justify-end">
             <button
               hlmBtn
@@ -524,40 +559,7 @@ export class TaxSettingsComponent extends SectionBase {
   `,
 })
 export class InvoiceNumberingSettingsComponent extends SectionBase {
-  readonly tokens = [
-    {
-      token: "{YYYY}",
-      description: "settings.organization.numbering.tokenDescriptions.YYYY",
-    },
-    {
-      token: "{YY}",
-      description: "settings.organization.numbering.tokenDescriptions.YY",
-    },
-    {
-      token: "{MM}",
-      description: "settings.organization.numbering.tokenDescriptions.MM",
-    },
-    {
-      token: "{M}",
-      description: "settings.organization.numbering.tokenDescriptions.M",
-    },
-    {
-      token: "{DD}",
-      description: "settings.organization.numbering.tokenDescriptions.DD",
-    },
-    {
-      token: "{D}",
-      description: "settings.organization.numbering.tokenDescriptions.D",
-    },
-    {
-      token: "{SEQ}",
-      description: "settings.organization.numbering.tokenDescriptions.SEQ",
-    },
-    {
-      token: "{SEQ:6}",
-      description: "settings.organization.numbering.tokenDescriptions.SEQ6",
-    },
-  ];
+  readonly tokens = NUMBER_PATTERN_TOKENS;
   readonly revision = signal(0);
   readonly form = new FormGroup({
     pattern: new FormControl("{YYYY}-{SEQ:6}", {
@@ -597,18 +599,20 @@ export class InvoiceNumberingSettingsComponent extends SectionBase {
     });
   }
   append(token: string) {
+    this.form.controls.pattern.markAsDirty();
     this.form.controls.pattern.setValue(
       this.form.controls.pattern.value + token,
     );
   }
   save() {
+    if (this.saving() || this.form.invalid) return;
     this.persist(
       this.store
         .update(
           "invoiceNumbering",
           this.api.updateInvoiceNumbering(this.form.getRawValue()),
         )
-        .pipe(finalize(() => this.form.markAsPristine())),
+        .pipe(tap(() => this.form.markAsPristine())),
     );
   }
 }
@@ -627,7 +631,7 @@ export function renderInvoiceNumberPreview(
     .replace(/\{DD\}/g, String(date.getDate()).padStart(2, "0"))
     .replace(/\{D\}/g, String(date.getDate()))
     .replace(/\{SEQ(?::(\d+))?\}/g, (_m, n) =>
-      n ? seq.padStart(Number(n), "0") : seq,
+      n ? seq.padStart(Math.min(12, Number(n)), "0") : seq,
     );
 }
 
@@ -1921,6 +1925,196 @@ export class InvoiceDefaultsSettingsComponent extends SectionBase {
       this.store
         .update("invoiceDefaults", this.api.updateInvoiceDefaults(value))
         .pipe(finalize(() => this.form.markAsPristine())),
+    );
+  }
+}
+
+@Component({
+  selector: "law-other-organization-settings",
+  standalone: true,
+  imports: [...baseImports, HlmFieldDescription],
+  template: `
+    <section class="py-6">
+      <h3 class="text-base font-semibold">
+        {{ "settings.organization.other.title" | translate }}
+      </h3>
+      <p class="mt-1 text-sm text-muted-foreground">
+        {{ "settings.organization.other.description" | translate }}
+      </p>
+      @if (loading()) {
+        <hlm-spinner class="mt-6" />
+      } @else if (loadError()) {
+        <p role="alert" class="mt-6 text-sm text-destructive">
+          {{ "settings.organization.other.loadError" | translate }}
+        </p>
+        <button hlmBtn type="button" variant="outline" (click)="retry()">
+          {{ "work.retry" | translate }}
+        </button>
+      } @else {
+        <form
+          class="mt-6 flex flex-col gap-5"
+          [formGroup]="form"
+          (ngSubmit)="save()"
+        >
+          <div
+            class="rounded-lg border border-border bg-muted p-4"
+            aria-live="polite"
+          >
+            <p class="text-sm text-muted-foreground">
+              {{ "settings.organization.numbering.preview.case" | translate }}
+            </p>
+            <strong class="mt-1 block break-all font-mono text-base">
+              {{ preview() }}
+            </strong>
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="case-number-pattern">
+              {{ "settings.organization.other.caseNumberPattern" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="case-number-pattern"
+              formControlName="caseNumberPattern"
+              maxlength="120"
+              aria-describedby="case-number-hint"
+            />
+            <p hlmFieldDescription id="case-number-hint">
+              {{ "settings.organization.other.patternHint" | translate }}
+            </p>
+            @if (
+              form.controls.caseNumberPattern.invalid &&
+              form.controls.caseNumberPattern.dirty
+            ) {
+              <p role="alert" class="text-sm text-destructive">
+                {{ "settings.organization.other.invalidPattern" | translate }}
+              </p>
+            }
+          </div>
+          <p class="text-sm text-muted-foreground">
+            {{ "settings.organization.numbering.tokensHint" | translate }}
+          </p>
+          <div class="flex flex-col gap-2">
+            @for (item of tokens; track item.token) {
+              <div
+                class="flex items-start gap-3 rounded-lg border border-border p-3"
+              >
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  class="shrink-0 font-mono"
+                  [disabled]="saving()"
+                  (click)="append(item.token)"
+                >
+                  {{ item.token }}
+                </button>
+                <p class="pt-1 text-sm leading-snug text-muted-foreground">
+                  {{ item.description | translate }}
+                </p>
+              </div>
+            }
+          </div>
+          <div class="flex justify-end">
+            <button
+              hlmBtn
+              type="submit"
+              [disabled]="saving() || form.invalid || form.pristine"
+            >
+              @if (saving()) {
+                <hlm-spinner />
+              }
+              {{
+                (saving() ? "settings.saving" : "settings.saveChanges")
+                  | translate
+              }}
+            </button>
+          </div>
+        </form>
+      }
+    </section>
+  `,
+})
+export class OtherOrganizationSettingsComponent extends SectionBase {
+  readonly tokens = NUMBER_PATTERN_TOKENS;
+  readonly revision = signal(0);
+  readonly form = new FormGroup({
+    caseNumberPattern: new FormControl("{YYYY}-{SEQ}", {
+      nonNullable: true,
+      validators: [
+        Validators.required,
+        Validators.maxLength(120),
+        (control) => {
+          const pattern = String(control.value);
+          const sequences = [...pattern.matchAll(/\{SEQ(?::(\d+))?\}/g)];
+          const unknown = /[{}]/.test(
+            pattern.replace(/\{(?:YYYY|YY|MM|M|DD|D|SEQ(?::\d+)?)\}/g, ""),
+          );
+          const padding = sequences[0]?.[1];
+          const example = renderInvoiceNumberPreview(
+            pattern,
+            new Date(),
+            999999999999,
+          );
+          const invalidCaseNumber =
+            example.length > 40 || !/^[A-Za-z0-9/.-]+$/.test(example);
+          return invalidCaseNumber ||
+            unknown ||
+            sequences.length !== 1 ||
+            (padding !== undefined &&
+              (Number(padding) < 1 || Number(padding) > 12))
+            ? { pattern: true }
+            : null;
+        },
+      ],
+    }),
+  });
+  readonly preview = computed(() => {
+    this.revision();
+    return renderInvoiceNumberPreview(
+      this.form.controls.caseNumberPattern.value,
+      new Date(),
+      1,
+    );
+  });
+  constructor() {
+    super();
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.revision.update((n) => n + 1));
+    effect(() => {
+      const value = this.store.settings()?.other;
+      if (value && this.form.pristine) this.form.patchValue(value);
+    });
+  }
+  retry(): void {
+    this.store.refresh();
+  }
+  append(token: string): void {
+    this.form.controls.caseNumberPattern.markAsDirty();
+    this.form.controls.caseNumberPattern.setValue(
+      this.form.controls.caseNumberPattern.value + token,
+    );
+  }
+  save(): void {
+    if (
+      this.saving() ||
+      this.loading() ||
+      this.loadError() ||
+      this.form.invalid
+    )
+      return;
+    const value = this.form.getRawValue();
+    this.persist(
+      this.store.update("other", this.api.updateOther(value)).pipe(
+        tap(() => {
+          if (
+            this.form.controls.caseNumberPattern.value ===
+            value.caseNumberPattern
+          )
+            this.form.markAsPristine();
+        }),
+      ),
     );
   }
 }
