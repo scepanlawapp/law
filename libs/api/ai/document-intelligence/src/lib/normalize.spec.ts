@@ -350,4 +350,85 @@ describe("normalizeFacts", () => {
       ),
     ).toHaveLength(1);
   });
+
+  describe("month names", () => {
+    const months: [string, string, string][] = [
+      ["januara", "1", "01"],
+      ["februara", "2", "02"],
+      ["marta", "3", "03"],
+      ["aprila", "4", "04"],
+      ["maja", "5", "05"],
+      ["juna", "6", "06"],
+      ["jula", "7", "07"],
+      ["avgusta", "8", "08"],
+      ["septembra", "9", "09"],
+      ["oktobra", "10", "10"],
+      ["novembra", "11", "11"],
+      ["decembra", "12", "12"],
+      ["januar", "1", "01"],
+      ["septembar", "9", "09"],
+      ["oktobar", "10", "10"],
+      ["novembar", "11", "11"],
+      ["decembar", "12", "12"],
+      ["mart", "3", "03"],
+      ["maj", "5", "05"],
+      ["jun", "6", "06"],
+      ["jul", "7", "07"],
+    ];
+
+    it.each(months)("reads '%s' in a decision date", (name, _n, mm) => {
+      const quote = `Doneto dana 15. ${name} 2026. godine`;
+      const [fact] = normalizeFacts(
+        [
+          raw({
+            subjectKey: "d1",
+            subjectType: "DECISION",
+            field: "decisionDate",
+            value: `2026-${mm}-15`,
+            quote,
+          }),
+        ],
+        quote,
+        "COURT_DECISION",
+      );
+      expect(fact?.normalizedValue).toBe(`2026-${mm}-15`);
+    });
+
+    it("reads capitalised and Cyrillic month names", () => {
+      const quote = "Решење од 1. Октобра 1990. године";
+      const [fact] = normalizeFacts(
+        [
+          raw({
+            subjectKey: "d1",
+            subjectType: "DECISION",
+            field: "decisionDate",
+            value: "01.10.1990.",
+            quote,
+          }),
+        ],
+        quote,
+        "COURT_DECISION",
+      );
+      expect(fact?.normalizedValue).toBe("1990-10-01");
+    });
+
+    it("rejects the wrong month", () => {
+      const quote = "Doneto 1. oktobra 1990.";
+      expect(
+        normalizeFacts(
+          [
+            raw({
+              subjectKey: "d1",
+              subjectType: "DECISION",
+              field: "decisionDate",
+              value: "1990-11-01",
+              quote,
+            }),
+          ],
+          quote,
+          "COURT_DECISION",
+        ),
+      ).toEqual([]);
+    });
+  });
 });

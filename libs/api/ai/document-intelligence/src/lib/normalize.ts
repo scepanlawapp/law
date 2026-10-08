@@ -70,21 +70,33 @@ function iso(year: number, month: number, day: number): string | null {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
-// Folded (Latin, lower-case) month stems; genitive "januara" matches the stem.
-const MONTH_STEMS = [
-  "januar",
-  "februar",
-  "mart",
-  "april",
-  "maj",
-  "jun",
-  "jul",
-  "avgust",
-  "septembar",
-  "oktobar",
-  "novembar",
-  "decembar",
+// Folded (Latin, lower-case) month names: nominative, then genitive. The
+// genitive of some months drops a vowel ("septembar" -> "septembra").
+const MONTH_FORMS: readonly (readonly [string, string])[] = [
+  ["januar", "januara"],
+  ["februar", "februara"],
+  ["mart", "marta"],
+  ["april", "aprila"],
+  ["maj", "maja"],
+  ["jun", "juna"],
+  ["jul", "jula"],
+  ["avgust", "avgusta"],
+  ["septembar", "septembra"],
+  ["oktobar", "oktobra"],
+  ["novembar", "novembra"],
+  ["decembar", "decembra"],
 ];
+
+const MONTH_NUMBER = new Map<string, number>(
+  MONTH_FORMS.flatMap((forms, index) =>
+    forms.map((form): [string, number] => [form, index + 1]),
+  ),
+);
+
+// Longest first, so "marta" is not cut short to "mart".
+const MONTH_PATTERN = [...MONTH_NUMBER.keys()]
+  .sort((a, b) => b.length - a.length)
+  .join("|");
 
 /**
  * Every calendar date written in `text` as ISO strings. Understands
@@ -109,11 +121,11 @@ function datesIn(text: string): Set<string> {
     add(m[1], Number(m[2]), m[3]);
   }
   const named = new RegExp(
-    `(?<!\\d)(\\d{1,2}) ?\\.? ?(${MONTH_STEMS.join("|")})a? ?(\\d{4})(?!\\d)`,
+    `(?<!\\d)(\\d{1,2}) ?\\.? ?(${MONTH_PATTERN}) ?(\\d{4})(?!\\d)`,
     "g",
   );
   for (const m of folded.matchAll(named)) {
-    add(m[3], MONTH_STEMS.indexOf(m[2]) + 1, m[1]);
+    add(m[3], MONTH_NUMBER.get(m[2]) as number, m[1]);
   }
   return found;
 }

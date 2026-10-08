@@ -65,15 +65,6 @@ export const FACT_FIELDS: Record<FactKind, readonly string[]> = {
   ADMIN_DECISION: DECISION_FIELDS,
 };
 
-/** Fields whose value is a date and is normalized to YYYY-MM-DD. */
-export const DATE_FIELDS: ReadonlySet<string> = new Set([
-  "dateOfBirth",
-  "issuedDate",
-  "expiryDate",
-  "decisionDate",
-  "servedDate",
-]);
-
 export function isFactKind(kind: string): kind is FactKind {
   return (FACT_KINDS as readonly string[]).includes(kind);
 }
