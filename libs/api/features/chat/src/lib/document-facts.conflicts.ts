@@ -22,6 +22,26 @@ const IDENTIFIER_FIELDS: Record<string, string> = {
   COMPANY: "registrationNumber",
 };
 
+/**
+ * Fields that identify who or what a subject is and so must agree across
+ * documents. Document-specific fields (document number, issue and expiry dates,
+ * issuing authority) and addresses (people move) are deliberately absent.
+ */
+export const CONFLICT_FIELDS: ReadonlySet<string> = new Set([
+  "fullName",
+  "firstName",
+  "lastName",
+  "jmbg",
+  "dateOfBirth",
+  "placeOfBirth",
+  "nationality",
+  "companyName",
+  "registrationNumber",
+  "taxNumber",
+  "legalForm",
+  "seatAddress",
+]);
+
 type Entity = {
   type: string;
   contentId: string;
@@ -34,11 +54,23 @@ function comparable(fact: SourcedFact): string {
   return foldForMatch(fact.normalizedValue ?? fact.value);
 }
 
+/** True when two facts from different documents carry different values. */
+function differsAcrossDocuments(facts: SourcedFact[]): boolean {
+  return facts.some((first) =>
+    facts.some(
+      (second) =>
+        first.contentId !== second.contentId &&
+        comparable(first) !== comparable(second),
+    ),
+  );
+}
+
 /**
  * Facts that two documents report differently for the same person or company.
  * Subjects are the same entity when they share a subject type and either a
  * folded name or an identifier (JMBG / matični broj). Decisions have no
- * identity and are never compared. Within one entity a field conflicts when
+ * identity and are never compared. Only `CONFLICT_FIELDS` are compared: within
+ * one entity a field conflicts when
  * different documents carry different `normalizedValue ?? value`.
  */
 export function findFactConflicts(
@@ -107,10 +139,11 @@ export function findFactConflicts(
     if (new Set(group.map((entity) => entity.contentId)).size < 2) continue;
     const fields = new Map<string, SourcedFact[]>();
     for (const fact of group.flatMap((entity) => entity.facts)) {
+      if (!CONFLICT_FIELDS.has(fact.field)) continue;
       fields.set(fact.field, [...(fields.get(fact.field) ?? []), fact]);
     }
     for (const [field, fieldFacts] of fields) {
-      if (new Set(fieldFacts.map(comparable)).size < 2) continue;
+      if (!differsAcrossDocuments(fieldFacts)) continue;
       const seen = new Set<string>();
       const values: Array<{ value: string; ref: string }> = [];
       for (const fact of fieldFacts) {

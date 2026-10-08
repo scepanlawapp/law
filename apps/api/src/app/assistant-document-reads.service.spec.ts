@@ -1127,6 +1127,115 @@ describe("AssistantDocumentReadsService semantic search and facts", () => {
       ]);
     });
 
+    it("does not report document-specific fields or addresses as conflicts", async () => {
+      const { service } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          PERSON_DOC("doc-3", "Pasoš", "content-3"),
+        ],
+        contents: [
+          ready("content-1", "ID_CARD"),
+          ready("content-3", "PASSPORT"),
+        ],
+        facts: [
+          fact("content-1", "jmbg", "0101990710006"),
+          fact("content-1", "documentNumber", "001234567"),
+          fact("content-1", "issuedDate", "2020-01-01"),
+          fact("content-1", "expiryDate", "2030-01-01"),
+          fact("content-1", "issuingAuthority", "PU Beograd"),
+          fact("content-1", "address", "Knez Mihailova 1"),
+          fact("content-3", "jmbg", "0101990710006"),
+          fact("content-3", "documentNumber", "987654321"),
+          fact("content-3", "issuedDate", "2024-05-05"),
+          fact("content-3", "expiryDate", "2034-05-05"),
+          fact("content-3", "issuingAuthority", "PU Niš"),
+          fact("content-3", "address", "Bulevar 5"),
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      if (result.status !== "OK") throw new Error("expected OK");
+      expect(result.conflicts).toEqual([]);
+    });
+
+    it("does not report values that differ only inside one document", async () => {
+      const { service } = setupSemantic({
+        documents: [
+          PERSON_DOC("doc-1", "Lična karta", "content-1"),
+          PERSON_DOC("doc-3", "Pasoš", "content-3"),
+        ],
+        contents: [
+          ready("content-1", "ID_CARD"),
+          ready("content-3", "PASSPORT"),
+        ],
+        facts: [
+          fact("content-1", "fullName", "Petar Petrović"),
+          fact("content-1", "placeOfBirth", "Niš"),
+          fact("content-1", "fullName", "Petar Petrović", {
+            subjectKey: "rep1",
+          }),
+          fact("content-1", "placeOfBirth", "Beograd", { subjectKey: "rep1" }),
+          fact("content-3", "fullName", "Petar Petrović"),
+          fact("content-3", "nationality", "srpsko"),
+        ],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      if (result.status !== "OK") throw new Error("expected OK");
+      expect(result.conflicts).toEqual([]);
+    });
+
+    it("attributes content shared with an off document to the readable one only", async () => {
+      const { service, search } = setupSemantic({
+        documents: [
+          doc("doc-a", "Kopija A", "content-1", false),
+          doc("doc-b", "Original B", "content-1"),
+        ],
+        contents: [ready("content-1", "ID_CARD")],
+        facts: [fact("content-1", "jmbg", "0101990710006")],
+        chunks: [
+          {
+            contentId: "content-1",
+            ordinal: 0,
+            text: "Zakupnina iznosi 500 evra.",
+            charStart: 0,
+            charEnd: 26,
+            score: 0.9,
+          },
+        ],
+      });
+
+      const found = await service.searchCaseDocuments(scope, {
+        query: "zakup",
+      });
+      const facts = await service.getDocumentFacts(scope, {});
+
+      expect(search.searchChunks).toHaveBeenCalledWith(
+        "workspace-1",
+        ["content-1"],
+        "zakup",
+        8,
+      );
+      expect(found).toMatchObject({
+        status: "OK",
+        hits: [{ n: 1, ref: "doc:doc-b", title: "Original B" }],
+        aiAccessOff: ["Kopija A"],
+      });
+      expect(facts).toMatchObject({
+        status: "OK",
+        subjects: [{ ref: "doc:doc-b", title: "Original B" }],
+        aiAccessOff: ["Kopija A"],
+      });
+      expect(JSON.stringify([found, facts])).not.toContain("doc:doc-a");
+      const withoutOffList = [found, facts].map((result) => ({
+        ...result,
+        aiAccessOff: undefined,
+      }));
+      expect(JSON.stringify(withoutOffList)).not.toContain("Kopija A");
+    });
+
     it("does not treat different people or different subject types as conflicting", async () => {
       const { service } = setupSemantic({
         documents: [
