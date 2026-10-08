@@ -2436,5 +2436,8 @@
   "work.entries.viewDescription": "Pregled zabeleženog rada.",
   "work.entries.performer": "Izvršilac",
   "work.entries.status": "Status",
-  "work.entries.writeOffReason": "Razlog otpisa"
+  "work.entries.writeOffReason": "Razlog otpisa",
+  "finance.noWorkMatchingFilters": "Nema rada za izabrane filtere.",
+  "work.entries.restoreHint": "Izaberite Potvrđeno i sačuvajte da vratite otpisani rad. Razlog otpisa će biti uklonjen.",
+  "time.team.allStatuses": "Svi statusi"
 }

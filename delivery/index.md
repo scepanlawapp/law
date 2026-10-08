@@ -132,3 +132,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Company numbering and quick capture](tracks/company_numbering_capture_20261008/index.md)
 
 - [Work entry view dialog](tracks/work_entry_view_dialog_20261008/index.md)
+
+- [Work review statuses](tracks/work_review_statuses_20261008/index.md)

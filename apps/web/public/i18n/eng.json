@@ -2436,5 +2436,8 @@
   "work.entries.viewDescription": "Details of the recorded work.",
   "work.entries.performer": "Performed by",
   "work.entries.status": "Status",
-  "work.entries.writeOffReason": "Write-off reason"
+  "work.entries.writeOffReason": "Write-off reason",
+  "finance.noWorkMatchingFilters": "No work entries match these filters.",
+  "work.entries.restoreHint": "Select Confirmed and save to restore written-off work. Its write-off reason will be cleared.",
+  "time.team.allStatuses": "All statuses"
 }

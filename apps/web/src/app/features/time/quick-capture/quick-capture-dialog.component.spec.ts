@@ -808,6 +808,35 @@ describe("QuickCaptureDialogComponent", () => {
     });
   });
 
+  it("edits written-off work and restores it only when Confirmed is selected", () => {
+    context = { mode: "edit", entryId: "written-off" };
+    entries.get.mockReturnValue(
+      of({
+        id: "written-off",
+        status: "WRITTEN_OFF",
+        client: clientRef("client-1", "Client"),
+        case: null,
+        minutes: 30,
+        title: "Written off",
+        description: "Notes",
+        workDate: "2026-10-08",
+        serviceCategory: null,
+        treatment: "HOURLY",
+      }),
+    );
+    const fixture = render();
+    expect(fixture.componentInstance.readOnly()).toBe(false);
+    expect(
+      fixture.nativeElement.querySelector("#capture-restore-status"),
+    ).not.toBeNull();
+    fixture.componentInstance.restoredStatus.setValue("CONFIRMED");
+    fixture.componentInstance.submit();
+    expect(entries.update).toHaveBeenCalledWith(
+      "written-off",
+      expect.objectContaining({ status: "CONFIRMED", title: "Written off" }),
+    );
+  });
+
   describe("save", () => {
     it("creates a MANUAL entry when nothing was parsed", () => {
       const { componentInstance: component } = render();

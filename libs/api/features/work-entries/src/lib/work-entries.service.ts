@@ -512,6 +512,14 @@ export class WorkEntriesService {
   async update(id: string, input: UpdateWorkEntryRequest): Promise<WorkEntry> {
     const current = await this.loadForMutation(id);
     this.assertNotBilled(current);
+    if (
+      input.status !== undefined &&
+      (input.status !== "CONFIRMED" || current.status !== "WRITTEN_OFF")
+    ) {
+      throw new ConflictException(
+        "Only written-off work can be restored to confirmed",
+      );
+    }
     if (input.minutes !== undefined) this.assertMinutes(input.minutes);
     if (input.minutes === null && current.status === "RUNNING") {
       throw new BadRequestException("A running timer needs its minutes");
@@ -565,16 +573,27 @@ export class WorkEntriesService {
     if (input.description !== undefined) {
       data.description = this.optionalText(input.description);
     }
+    if (input.status === "CONFIRMED") {
+      data.status = "CONFIRMED";
+      data.writeOffReason = null;
+    }
     if (input.source !== undefined) data.source = input.source;
     if (input.aiParsed !== undefined) data.aiParsed = input.aiParsed;
 
     const row = await this.applyChange(
       current,
       data,
-      MUTABLE_STATUSES.concat("WRITTEN_OFF"),
+      input.status ? ["WRITTEN_OFF"] : MUTABLE_STATUSES.concat("WRITTEN_OFF"),
       (tx, updated) =>
         this.log(tx, "WORK_ENTRY_UPDATED", updated, {
           fields: Object.keys(input).sort(),
+          ...(input.status
+            ? {
+                previousStatus: current.status,
+                status: input.status,
+                previousWriteOffReason: current.writeOffReason,
+              }
+            : {}),
           source: updated.aiParsed ? "AI_ASSISTED" : undefined,
         }),
     );
