@@ -2447,7 +2447,8 @@
   "time.events.actionError": "Radnju nije moguće izvršiti. Osvežite listu i pokušajte ponovo.",
   "time.events.unlogged": "Rad nije zabeležen",
   "time.events.event": "Događaj",
-  "time.events.view": "Prikaži događaj",
+  "time.events.view": "Prikaži",
+  "time.events.view.event": "Prikaži događaj",
   "time.events.empty": "Nema prošlih događaja.",
   "time.events.previous": "Prethodna strana",
   "time.events.next": "Sledeća strana"
