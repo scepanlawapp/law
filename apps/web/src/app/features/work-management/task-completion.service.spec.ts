@@ -7,6 +7,7 @@ import {
   CreateWorkEntryRequest,
   TaskDetail,
   TaskRequest,
+  WorkEntry,
 } from "@law/api-interfaces";
 import { of, Subject } from "rxjs";
 import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
@@ -132,5 +133,19 @@ describe("TaskCompletionService", () => {
     expect(api.updateTask).not.toHaveBeenCalled();
     closed.next(null);
     expect(service.workRevision()).toBe(0);
+  });
+  it("refreshes task work after deletion without returning a deleted entry as a save", () => {
+    const result = jest.fn();
+    service.openWorkEntry({ id: "entry-1" } as WorkEntry).subscribe(result);
+    const context = capture.open.mock.calls[0][0] as QuickCaptureInput;
+    expect(context).toMatchObject({
+      mode: "edit",
+      entryId: "entry-1",
+      manageEntry: true,
+    });
+    context.onDeleted?.();
+    closed.next(null);
+    expect(service.workRevision()).toBe(1);
+    expect(result).toHaveBeenCalledWith(null);
   });
 });

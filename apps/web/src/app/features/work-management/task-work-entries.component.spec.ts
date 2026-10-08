@@ -10,7 +10,11 @@ import { TaskWorkEntriesComponent } from "./task-work-entries.component";
 describe("TaskWorkEntriesComponent", () => {
   const api = { list: jest.fn() };
   const revision = signal(0);
-  const capture = { workRevision: revision, openQuickCapture: jest.fn() };
+  const capture = {
+    workRevision: revision,
+    openQuickCapture: jest.fn(),
+    openWorkEntry: jest.fn(),
+  };
   const task = {
     id: "task-1",
     title: "Review",
@@ -29,8 +33,11 @@ describe("TaskWorkEntriesComponent", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     revision.set(0);
-    api.list.mockReturnValue(of({ items: [entry("1")], meta: { totalItems: 1 } }));
+    api.list.mockReturnValue(
+      of({ items: [entry("1")], meta: { totalItems: 1 } }),
+    );
     capture.openQuickCapture.mockReturnValue(of(null));
+    capture.openWorkEntry.mockReturnValue(of(null));
     TestBed.configureTestingModule({
       imports: [TaskWorkEntriesComponent],
       providers: [
@@ -107,5 +114,15 @@ describe("TaskWorkEntriesComponent", () => {
     closed.next(null);
     expect(fixture.componentInstance.opening()).toBe(false);
     expect(task.status).toBe("IN_PROGRESS");
+  });
+  it("opens an entry from the list with a keyboard-accessible button", () => {
+    const fixture = render();
+    const button = fixture.nativeElement.querySelector(
+      "li button",
+    ) as HTMLButtonElement;
+    button.click();
+    expect(capture.openWorkEntry).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "1" }),
+    );
   });
 });

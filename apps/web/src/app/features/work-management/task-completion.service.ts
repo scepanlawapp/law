@@ -32,6 +32,21 @@ export class TaskCompletionService {
       );
   }
 
+  openWorkEntry(entry: WorkEntry): Observable<WorkEntry | null> {
+    return this.capture
+      .open({
+        mode: "edit",
+        entryId: entry.id,
+        manageEntry: true,
+        onDeleted: () => this.revision.update((value) => value + 1),
+      })
+      .pipe(
+        tap((saved) => {
+          if (saved) this.revision.update((value) => value + 1);
+        }),
+      );
+  }
+
   complete(
     request: TaskRequest,
     taskId?: string,

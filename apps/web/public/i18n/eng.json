@@ -2409,5 +2409,15 @@
   "work.entries.empty": "No work entries available for this task.",
   "work.finishWithoutNewWork": "Finish task without new work",
   "work.taskFinished": "Task completed.",
-  "work.entries.untimed": "Untimed"
+  "work.entries.untimed": "Untimed",
+  "work.entries.viewTitle": "Work entry",
+  "work.entries.lastEntryInfo": "This is the only work entry linked to this task. Add another work entry before deleting this one.",
+  "work.entries.billedInfo": "Billed work entries cannot be edited or deleted.",
+  "work.entries.deleteNotAllowed": "You do not have permission to delete this work entry.",
+  "work.entries.deleteTitle": "Delete work entry?",
+  "work.entries.deleteConfirm": "This work entry will be permanently deleted. This action cannot be undone.",
+  "work.entries.deleted": "Work entry deleted.",
+  "work.entries.deleteError": "The work entry could not be deleted. Try again.",
+  "work.entries.loadEntryError": "The work entry could not be loaded. Try again.",
+  "common.delete": "Delete"
 }

@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from "@angular/common/http";
 import {
   Component,
   computed,
@@ -26,6 +27,7 @@ import {
   WorkCaptureParseResponse,
   WorkEntry,
   WorkEntryTreatment,
+  WorkEntryActions,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { NgIcon, provideIcons } from "@ng-icons/core";
@@ -59,6 +61,8 @@ import {
   debounceTime,
   distinctUntilChanged,
   finalize,
+  filter,
+  forkJoin,
   map,
   Observable,
   of,
@@ -71,6 +75,7 @@ import {
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../../core/speech/speech-recognition.service";
+import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { createSelectItemToString, SelectOption } from "../../../shared/utils";
 import {
@@ -147,6 +152,7 @@ function today(): string {
 })
 export class QuickCaptureDialogComponent {
   private readonly entriesApi = inject(WorkEntriesApiClient);
+  private readonly confirm = inject(ConfirmDialogService);
   private readonly billingApi = inject(BillingSetupApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly casesApi = inject(CasesApiClient);
@@ -159,6 +165,26 @@ export class QuickCaptureDialogComponent {
   protected readonly speech = inject(SpeechRecognitionService);
   readonly dialogRef = inject(BrnDialogRef<unknown>);
 
+  readonly managingEntry = Boolean(
+    this.context.manageEntry && this.context.entryId,
+  );
+  readonly entryActions = signal<WorkEntryActions | null>(null);
+  readonly entryLoadFailed = signal(false);
+  readonly readOnly = computed(
+    () => this.managingEntry && !this.entryActions()?.canEdit,
+  );
+  readonly deletionInfoKey = computed(() => {
+    switch (this.entryActions()?.deleteBlockedReason) {
+      case "LAST_TASK_ENTRY":
+        return "work.entries.lastEntryInfo";
+      case "BILLED":
+        return "work.entries.billedInfo";
+      case "NOT_ALLOWED":
+        return "work.entries.deleteNotAllowed";
+      default:
+        return null;
+    }
+  });
   readonly mode = this.context.mode;
   readonly canFinishWithoutNewWork = Boolean(this.context.finishWithoutNewWork);
   /** Source confirmations take client, case and treatment from the source. */
@@ -463,6 +489,7 @@ export class QuickCaptureDialogComponent {
   }
 
   toggleMic(): void {
+    if (this.readOnly() || this.saving()) return;
     if (!this.speech.isListening()) {
       this.micBaseText = this.form.controls.title.value.trimEnd();
       this.speech.setLanguage(
@@ -475,6 +502,7 @@ export class QuickCaptureDialogComponent {
   // ------------------------------------------------------------ AI fill
 
   fillFromText(): void {
+    if (this.readOnly() || this.saving()) return;
     const text = this.form.controls.title.value.trim();
     if (!text || this.parsing()) return;
     if (this.speech.isListening()) this.speech.stop();
@@ -649,17 +677,92 @@ export class QuickCaptureDialogComponent {
 
   // ------------------------------------------------------------- editing
 
+  retryLoadEntry(): void {
+    if (!this.loadingEntry()) this.hydrateFromEntry(this.requiredEntryId());
+  }
+
   private hydrateFromEntry(entryId: string): void {
     this.loadingEntry.set(true);
-    this.entriesApi
-      .get(entryId)
+    this.entryLoadFailed.set(false);
+    forkJoin({
+      entry: this.entriesApi.get(entryId),
+      actions: this.managingEntry ? this.entriesApi.actions(entryId) : of(null),
+    })
       .pipe(
         finalize(() => this.loadingEntry.set(false)),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
-        next: (entry) => this.hydrate(entry),
-        error: () => undefined,
+        next: ({ entry, actions }) => {
+          this.entryActions.set(actions);
+          this.hydrate(entry);
+          if (this.readOnly()) this.form.disable({ emitEvent: false });
+        },
+        error: () => this.entryLoadFailed.set(true),
+      });
+  }
+
+  deleteEntry(): void {
+    if (
+      !this.managingEntry ||
+      this.saving() ||
+      this.loadingEntry() ||
+      !this.entryActions()?.canDelete
+    )
+      return;
+    this.saving.set(true);
+    const id = this.requiredEntryId();
+    this.entriesApi
+      .actions(id)
+      .pipe(
+        switchMap((actions) => {
+          this.entryActions.set(actions);
+          if (!actions.canDelete) {
+            this.toast.info(
+              this.localization.translate(
+                this.deletionInfoKey() ?? "work.entries.deleteNotAllowed",
+              ),
+            );
+            return of(false);
+          }
+          return this.confirm.confirm({
+            title: this.localization.translate("work.entries.deleteTitle"),
+            message: this.localization.translate("work.entries.deleteConfirm"),
+            confirmText: "common.delete",
+            variant: "danger",
+          });
+        }),
+        filter((confirmed) => confirmed),
+        switchMap(() => this.entriesApi.remove(id)),
+        finalize(() => this.saving.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.toast.success(
+            this.localization.translate("work.entries.deleted"),
+          );
+          this.context.onDeleted?.();
+          this.dialogRef.close();
+        },
+        error: (error: HttpErrorResponse) => {
+          if (error.error?.code === "LAST_TASK_WORK_ENTRY") {
+            const current = this.entryActions();
+            if (current)
+              this.entryActions.set({
+                ...current,
+                canDelete: false,
+                deleteBlockedReason: "LAST_TASK_ENTRY",
+              });
+            this.toast.info(
+              this.localization.translate("work.entries.lastEntryInfo"),
+            );
+          } else {
+            this.toast.error(
+              this.localization.translate("work.entries.deleteError"),
+            );
+          }
+        },
       });
   }
 
@@ -695,7 +798,7 @@ export class QuickCaptureDialogComponent {
   // ---------------------------------------------------------------- save
 
   submit(): void {
-    if (this.saving()) return;
+    if (this.saving() || this.readOnly() || this.entryLoadFailed()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;

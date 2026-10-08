@@ -72,34 +72,41 @@ import { TaskCompletionService } from "./task-completion.service";
       }
       <ul class="grid gap-3">
         @for (entry of entries(); track entry.id) {
-          <li class="grid gap-1 rounded-md border border-border p-3">
-            <span class="text-sm font-medium break-words">
-              {{ entry.title }}
-            </span>
-            <span class="text-sm text-muted-foreground">
-              {{ dateLabel(entry.workDate) }} · {{ entry.user.displayName }}
-            </span>
-            <div class="flex flex-wrap items-center gap-2 text-sm">
-              <span>
-                {{
-                  entry.minutes === null
-                    ? ("work.entries.untimed" | translate)
-                    : formatMinutes(entry.minutes)
-                }}
+          <li>
+            <button
+              type="button"
+              class="grid w-full gap-1 rounded-md border border-border p-3 text-start hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50"
+              [disabled]="disabled() || opening()"
+              (click)="openWorkEntry(entry)"
+            >
+              <span class="text-sm font-medium break-words">
+                {{ entry.title }}
               </span>
-              <span
-                [class]="badgeClasses + ' ' + statusBadgeClass(entry.status)"
-              >
-                {{ statusLabels[entry.status] | translate }}
+              <span class="text-sm text-muted-foreground">
+                {{ dateLabel(entry.workDate) }} · {{ entry.user.displayName }}
               </span>
-            </div>
-            @if (entry.description) {
-              <p
-                class="text-sm text-muted-foreground whitespace-pre-wrap break-words"
-              >
-                {{ entry.description }}
-              </p>
-            }
+              <span class="flex flex-wrap items-center gap-2 text-sm">
+                <span>
+                  {{
+                    entry.minutes === null
+                      ? ("work.entries.untimed" | translate)
+                      : formatMinutes(entry.minutes)
+                  }}
+                </span>
+                <span
+                  [class]="badgeClasses + ' ' + statusBadgeClass(entry.status)"
+                >
+                  {{ statusLabels[entry.status] | translate }}
+                </span>
+              </span>
+              @if (entry.description) {
+                <span
+                  class="text-sm text-muted-foreground whitespace-pre-wrap break-words"
+                >
+                  {{ entry.description }}
+                </span>
+              }
+            </button>
           </li>
         }
       </ul>
@@ -175,6 +182,21 @@ export class TaskWorkEntriesComponent {
         error: () => {
           this.error.set(true);
           this.loading.set(false);
+        },
+      });
+  }
+
+  openWorkEntry(entry: WorkEntry): void {
+    if (this.opening() || this.disabled()) return;
+    this.opening.set(true);
+    this.capture
+      .openWorkEntry(entry)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: () => this.opening.set(false),
+        error: () => {
+          this.opening.set(false);
+          this.error.set(true);
         },
       });
   }

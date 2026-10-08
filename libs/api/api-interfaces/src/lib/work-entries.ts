@@ -60,6 +60,12 @@ export interface WorkEntry {
   updatedAt: string;
 }
 
+export interface WorkEntryActions {
+  canEdit: boolean;
+  canDelete: boolean;
+  deleteBlockedReason: "LAST_TASK_ENTRY" | "BILLED" | "NOT_ALLOWED" | null;
+}
+
 export interface CreateWorkEntryRequest {
   taskId?: string;
   clientId: string;

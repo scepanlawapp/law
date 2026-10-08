@@ -1,0 +1,13 @@
+{
+  "track_id": "task_work_entry_deletion_20261008",
+  "parent_track_id": "task_work_entries_20261008",
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-10-08",
+  "updated_at": "2026-10-08",
+  "keywords": [
+    "tasks",
+    "work-entries",
+    "deletion"
+  ]
+}

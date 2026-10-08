@@ -75,6 +75,11 @@ export class WorkEntriesController {
     return this.capture.parse(body.text);
   }
 
+  @Get(":id/actions")
+  actions(@Param("id") id: string) {
+    return this.workEntries.actions(id);
+  }
+
   @Get(":id")
   get(@Param("id") id: string) {
     return this.workEntries.get(id);

@@ -15,6 +15,7 @@ import { AuthState } from "@law/security";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { NEVER, of, Subject, throwError } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
+import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { QuickCaptureDialogComponent } from "./quick-capture-dialog.component";
 import { QuickCaptureInput } from "./quick-capture.models";
@@ -69,7 +70,10 @@ describe("QuickCaptureDialogComponent", () => {
   });
 
   const dialogRef = { close: jest.fn() };
+  const confirmation = { confirm: jest.fn() };
   const entries = {
+    actions: jest.fn(),
+    remove: jest.fn(),
     list: jest.fn(),
     get: jest.fn(),
     parse: jest.fn(),
@@ -81,13 +85,14 @@ describe("QuickCaptureDialogComponent", () => {
   const billing = { listRetainers: jest.fn(), listCategories: jest.fn() };
   const clients = { list: jest.fn(), get: jest.fn() };
   const cases = { list: jest.fn(), get: jest.fn() };
-  const toast = { success: jest.fn(), error: jest.fn() };
+  const toast = { success: jest.fn(), error: jest.fn(), info: jest.fn() };
 
   function render() {
     TestBed.configureTestingModule({
       imports: [QuickCaptureDialogComponent],
       providers: [
         { provide: BrnDialogRef, useValue: dialogRef },
+        { provide: ConfirmDialogService, useValue: confirmation },
         { provide: WorkEntriesApiClient, useValue: entries },
         { provide: BillingSetupApiClient, useValue: billing },
         { provide: ClientsApiClient, useValue: clients },
@@ -563,6 +568,126 @@ describe("QuickCaptureDialogComponent", () => {
     expect(entries.create).toHaveBeenCalledWith(
       expect.objectContaining({ taskId: "task-1" }),
     );
+  });
+
+  describe("task entry deletion", () => {
+    const editable = {
+      canEdit: true,
+      canDelete: true,
+      deleteBlockedReason: null,
+    };
+    const last = {
+      ...editable,
+      canDelete: false,
+      deleteBlockedReason: "LAST_TASK_ENTRY",
+    };
+    beforeEach(() => {
+      context = {
+        mode: "edit",
+        entryId: "entry-1",
+        manageEntry: true,
+        onDeleted: jest.fn(),
+      };
+      entries.get.mockReturnValue(
+        of({
+          ...savedEntry,
+          client: clientRef("client-1", "Client"),
+          case: null,
+          minutes: null,
+          title: "Existing work",
+          description: "Notes",
+          workDate: "2026-10-08",
+          serviceCategory: null,
+          treatment: "UNDECIDED",
+        }),
+      );
+      entries.actions.mockReturnValue(of(editable));
+      entries.remove.mockReturnValue(of(undefined));
+      confirmation.confirm.mockReturnValue(of(true));
+    });
+    it("disables delete and explains how to remove the last task entry", () => {
+      entries.actions.mockReturnValue(of(last));
+      const fixture = render();
+      const button = buttonWithText(fixture.nativeElement, "common.delete");
+      expect(button?.disabled).toBe(true);
+      expect(fixture.nativeElement.textContent).toContain(
+        "work.entries.lastEntryInfo",
+      );
+      fixture.componentInstance.deleteEntry();
+      expect(confirmation.confirm).not.toHaveBeenCalled();
+      expect(entries.remove).not.toHaveBeenCalled();
+    });
+    it("does not delete if confirmation is cancelled", () => {
+      confirmation.confirm.mockReturnValue(of(false));
+      const fixture = render();
+      fixture.componentInstance.deleteEntry();
+      expect(confirmation.confirm).toHaveBeenCalledWith(
+        expect.objectContaining({ variant: "danger" }),
+      );
+      expect(entries.remove).not.toHaveBeenCalled();
+      expect(context.onDeleted).not.toHaveBeenCalled();
+      expect(dialogRef.close).not.toHaveBeenCalled();
+      expect(fixture.componentInstance.saving()).toBe(false);
+    });
+    it("checks again before confirming, deletes once and refreshes the caller", () => {
+      const pending = new Subject<void>();
+      entries.remove.mockReturnValue(pending);
+      const fixture = render();
+      fixture.componentInstance.deleteEntry();
+      fixture.componentInstance.deleteEntry();
+      expect(entries.actions).toHaveBeenCalledTimes(2);
+      expect(entries.remove).toHaveBeenCalledTimes(1);
+      expect(dialogRef.close).not.toHaveBeenCalled();
+      pending.next();
+      pending.complete();
+      expect(context.onDeleted).toHaveBeenCalledTimes(1);
+      expect(dialogRef.close).toHaveBeenCalledWith();
+    });
+    it("stops deletion when the pre-confirmation check finds only one entry", () => {
+      const fixture = render();
+      entries.actions.mockReturnValue(of(last));
+      fixture.componentInstance.deleteEntry();
+      expect(confirmation.confirm).not.toHaveBeenCalled();
+      expect(entries.remove).not.toHaveBeenCalled();
+      expect(toast.info).toHaveBeenCalledWith("work.entries.lastEntryInfo");
+    });
+    it("shows the last-entry message if another deletion wins the race", () => {
+      entries.remove.mockReturnValue(
+        throwError(() => ({ error: { code: "LAST_TASK_WORK_ENTRY" } })),
+      );
+      const fixture = render();
+      fixture.componentInstance.deleteEntry();
+      expect(fixture.componentInstance.entryActions()?.canDelete).toBe(false);
+      expect(toast.info).toHaveBeenCalledWith("work.entries.lastEntryInfo");
+      expect(context.onDeleted).not.toHaveBeenCalled();
+      expect(dialogRef.close).not.toHaveBeenCalled();
+    });
+    it("keeps entered data and allows retry after a deletion error", () => {
+      entries.remove.mockReturnValue(throwError(() => new Error("Offline")));
+      const fixture = render();
+      fixture.componentInstance.deleteEntry();
+      expect(fixture.componentInstance.saving()).toBe(false);
+      expect(fixture.componentInstance.form.controls.title.value).toBe(
+        "Existing work",
+      );
+      expect(toast.error).toHaveBeenCalledWith("work.entries.deleteError");
+      expect(dialogRef.close).not.toHaveBeenCalled();
+    });
+    it("opens billed entries for viewing with no save action", () => {
+      entries.actions.mockReturnValue(
+        of({ canEdit: false, canDelete: false, deleteBlockedReason: "BILLED" }),
+      );
+      const fixture = render();
+      expect(fixture.componentInstance.form.disabled).toBe(true);
+      expect(
+        buttonWithText(fixture.nativeElement, "common.save"),
+      ).toBeUndefined();
+      expect(
+        buttonWithText(fixture.nativeElement, "common.delete")?.disabled,
+      ).toBe(true);
+      fixture.componentInstance.submit();
+      expect(entries.update).not.toHaveBeenCalled();
+    });
   });
 
   describe("save", () => {

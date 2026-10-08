@@ -2409,5 +2409,15 @@
   "work.entries.empty": "Nema dostupnog rada za ovaj zadatak.",
   "work.finishWithoutNewWork": "Završi zadatak bez novog rada",
   "work.taskFinished": "Zadatak je završen.",
-  "work.entries.untimed": "Bez trajanja"
+  "work.entries.untimed": "Bez trajanja",
+  "work.entries.viewTitle": "Zabeleženi rad",
+  "work.entries.lastEntryInfo": "Ovo je jedini zabeleženi rad za ovaj zadatak. Dodajte još jedan rad pre nego što obrišete ovaj.",
+  "work.entries.billedInfo": "Fakturisani rad nije moguće menjati niti brisati.",
+  "work.entries.deleteNotAllowed": "Nemate dozvolu da obrišete ovaj rad.",
+  "work.entries.deleteTitle": "Obrisati zabeleženi rad?",
+  "work.entries.deleteConfirm": "Ovaj rad će biti trajno obrisan. Ovu radnju nije moguće poništiti.",
+  "work.entries.deleted": "Rad je obrisan.",
+  "work.entries.deleteError": "Nije moguće obrisati rad. Pokušajte ponovo.",
+  "work.entries.loadEntryError": "Nije moguće učitati rad. Pokušajte ponovo.",
+  "common.delete": "Obriši"
 }

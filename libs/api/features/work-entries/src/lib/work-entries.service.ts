@@ -19,6 +19,7 @@ import {
   UserReference,
   WorkEntry,
   WorkEntryQuery,
+  WorkEntryActions,
   WorkEntrySource,
   WorkEntrySourceType,
   WorkEntryStatus,
@@ -653,6 +654,29 @@ export class WorkEntriesService {
     return this.toEntry(row);
   }
 
+  async actions(id: string): Promise<WorkEntryActions> {
+    const row = await this.db.workEntry.findFirst({
+      where: { id, workspaceId: this.workspaceId },
+      include: entryInclude,
+    });
+    if (!row || !(await this.canRead(row)))
+      throw new NotFoundException("Work entry not found");
+    const owns = this.isManager() || row.userId === this.userId;
+    const canEdit = owns && row.status !== "BILLED";
+    let reason: WorkEntryActions["deleteBlockedReason"] = null;
+    if (!owns || (row.status === "WRITTEN_OFF" && !this.isManager()))
+      reason = "NOT_ALLOWED";
+    else if (row.status === "BILLED") reason = "BILLED";
+    else if (
+      row.taskId &&
+      (await this.db.workEntry.count({
+        where: { workspaceId: this.workspaceId, taskId: row.taskId },
+      })) <= 1
+    )
+      reason = "LAST_TASK_ENTRY";
+    return { canEdit, canDelete: reason === null, deleteBlockedReason: reason };
+  }
+
   async remove(id: string): Promise<void> {
     const current = await this.loadForMutation(id);
     this.assertNotBilled(current);
@@ -664,6 +688,21 @@ export class WorkEntriesService {
       throw new ConflictException("Work entry can no longer be removed");
     }
     await this.db.$transaction(async (tx) => {
+      if (current.taskId) {
+        // All deletions for a task use the same lock, so two requests cannot
+        // each see the other's entry and together remove the last two.
+        await tx.$queryRaw`SELECT "id" FROM "Task" WHERE "id" = ${current.taskId} AND "workspaceId" = ${this.workspaceId} FOR UPDATE`;
+        const remaining = await tx.workEntry.count({
+          where: { workspaceId: this.workspaceId, taskId: current.taskId },
+        });
+        if (remaining <= 1) {
+          throw new ConflictException({
+            code: "LAST_TASK_WORK_ENTRY",
+            message:
+              "Add another work entry before deleting the task's only work entry",
+          });
+        }
+      }
       const deleted = await tx.workEntry.deleteMany({
         where: {
           id,
