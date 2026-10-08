@@ -9,7 +9,7 @@ export const DOCUMENT_INGEST_JOB_OPTIONS = {
 } as const;
 
 export function documentIngestJobId(contentId: string): string {
-  return `content:${contentId}`;
+  return `content-${contentId}`;
 }
 
 /** Env-driven ingestion thresholds. */

@@ -11,7 +11,9 @@ import { BullModule } from "@nestjs/bullmq";
   imports: [
     BullModule.forRootAsync({
       useFactory: () => {
-        const url = new URL(process.env.REDIS_URL ?? "redis://localhost:6379");
+        const url = new URL(
+          process.env["REDIS_URL"] ?? "redis://localhost:6379",
+        );
         return {
           connection: {
             host: url.hostname,

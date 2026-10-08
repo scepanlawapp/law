@@ -292,7 +292,7 @@ describe("DocumentContentService", () => {
 
 describe("DocumentIngestionQueue", () => {
   const options = {
-    jobId: "content:c-1",
+    jobId: "content-c-1",
     attempts: 3,
     backoff: { type: "exponential", delay: 2000 },
     removeOnComplete: true,
@@ -316,7 +316,7 @@ describe("DocumentIngestionQueue", () => {
   it("adds a deduplicated ingest job with retry options", async () => {
     const { queue, add, getJob, remove } = queueWith(null);
     await queue.enqueue("ws-1", "c-1");
-    expect(getJob).toHaveBeenCalledWith("content:c-1");
+    expect(getJob).toHaveBeenCalledWith("content-c-1");
     expect(remove).not.toHaveBeenCalled();
     expect(add).toHaveBeenCalledWith(
       "ingest",
