@@ -66,7 +66,7 @@ Document (existing)          + aiAccess Boolean @default(false), aiAccessChanged
 
 ## Ingestion pipeline
 
-BullMQ job `document-ingest` on the `workflow` queue, `jobId = content:<contentId>` (duplicate triggers collapse).
+BullMQ job `document-ingest` on the `workflow` queue, `jobId = content-<contentId>` (duplicate triggers collapse).
 
 Triggers:
 

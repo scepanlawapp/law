@@ -29,7 +29,7 @@
 
 ## Deviations from the spec (found while mapping the code)
 
-1. **Separate queue.** The `workflow` queue payload is session-bound (`WorkflowJobPayload.sessionId`/`jobId` → `WorkflowJob` row). Ingestion uses its own BullMQ queue `document-ingest` (same Redis, processor in the API process), `jobId = content:<contentId>`.
+1. **Separate queue.** The `workflow` queue payload is session-bound (`WorkflowJobPayload.sessionId`/`jobId` → `WorkflowJob` row). Ingestion uses its own BullMQ queue `document-ingest` (same Redis, processor in the API process), `jobId = content-<contentId>`.
 2. **Status refresh in the documents UI is polling.** There is no workspace-level SSE stream; the documents UI polls detail/list every 5 s while any visible row is `QUEUED`/`PROCESSING`. Chat sessions still receive SSE `document.content.updated` for their attachments.
 3. **Client proposals are agent-driven only.** `PendingAction` requires a `WorkflowJob` (`jobId`), so proposals cannot be created outside an agent turn. Instead, the context builder tells the agent when case documents have facts that could fill empty client fields, and the agent calls `propose_client_update_from_document`.
 
@@ -57,11 +57,11 @@
 - Produces (Prisma): enums `DocumentContentStatus { PENDING EXTRACTING EMBEDDING CLASSIFYING READY FAILED UNSUPPORTED }`, `DocumentKind { ID_CARD PASSPORT APR_EXCERPT COURT_DECISION ADMIN_DECISION OTHER }`, `DocumentFactSubjectType { PERSON COMPANY DECISION }`; models `DocumentContent`, `DocumentContentChunk`, `DocumentFact` exactly as in the spec's data model; `DocumentVersion.contentId?`, `ChatAttachment.sha256?` + `contentId?`, `Document.aiAccess Boolean @default(false)`, `aiAccessChangedAt DateTime?`, `aiAccessChangedByUserId String?`; `StoredFile @@index([workspaceId, sha256])`.
 - Produces (api-interfaces): `type DocumentAiStatus = "OFF" | "QUEUED" | "PROCESSING" | "READY" | "FAILED" | "UNSUPPORTED"`; `type DocumentKind = "ID_CARD" | "PASSPORT" | "APR_EXCERPT" | "COURT_DECISION" | "ADMIN_DECISION" | "OTHER"`; `DocumentSummary` gains `aiAccess: boolean; aiStatus: DocumentAiStatus; documentKind: DocumentKind | null; fromAssistantChat: boolean`; `interface BulkDocumentAiAccessRequest { documentIds: string[]; aiAccess: boolean }`; `interface BulkDocumentAiAccessResponse { updated: number }`.
 
-- [ ] **Step 1:** Add the enums, models, and columns to `schema.prisma`. `DocumentContentChunk.embedding` is `Unsupported("vector(1024)")?`; `DocumentContent` has `@@unique([workspaceId, sha256])`; `DocumentFact` has `@@index([workspaceId, contentId])`; relations cascade from `DocumentContent` to chunks and facts; `DocumentVersion.contentId`/`ChatAttachment.contentId` are `onDelete: SetNull`.
-- [ ] **Step 2:** Run `npx prisma migrate dev --create-only --name document_content --schema apps/api/prisma/schema.prisma`, rename the folder to `20261009090000_document_content`, and append: `CREATE INDEX "DocumentContentChunk_embedding_hnsw" ON "DocumentContentChunk" USING hnsw ("embedding" vector_cosine_ops);`
-- [ ] **Step 3:** Run `npm run db:migrate`. Expected: "Your database is now in sync with your schema."
-- [ ] **Step 4:** Add the api-interfaces types above. Run `npx tsc -p libs/api/api-interfaces/tsconfig.lib.json --noEmit`. Expected: no errors (the API build will fail until Task 7 maps the new fields — that is expected; keep this task's commit compiling by giving the mapper temporary values `aiAccess: false, aiStatus: "OFF", documentKind: null, fromAssistantChat: false` in `documents.service.ts`'s summary mapper).
-- [ ] **Step 5:** Commit `feat(documents): document content schema and shared types`.
+- [x] **Step 1:** Add the enums, models, and columns to `schema.prisma`. `DocumentContentChunk.embedding` is `Unsupported("vector(1024)")?`; `DocumentContent` has `@@unique([workspaceId, sha256])`; `DocumentFact` has `@@index([workspaceId, contentId])`; relations cascade from `DocumentContent` to chunks and facts; `DocumentVersion.contentId`/`ChatAttachment.contentId` are `onDelete: SetNull`.
+- [x] **Step 2:** Run `npx prisma migrate dev --create-only --name document_content --schema apps/api/prisma/schema.prisma`, rename the folder to `20261009090000_document_content`, and append: `CREATE INDEX "DocumentContentChunk_embedding_hnsw" ON "DocumentContentChunk" USING hnsw ("embedding" vector_cosine_ops);` _Done: the HNSW index was dropped (controller ruling; Prisma cannot represent it), so no index is appended._
+- [x] **Step 3:** Run `npm run db:migrate`. Expected: "Your database is now in sync with your schema."
+- [x] **Step 4:** Add the api-interfaces types above. Run `npx tsc -p libs/api/api-interfaces/tsconfig.lib.json --noEmit`. Expected: no errors (the API build will fail until Task 7 maps the new fields — that is expected; keep this task's commit compiling by giving the mapper temporary values `aiAccess: false, aiStatus: "OFF", documentKind: null, fromAssistantChat: false` in `documents.service.ts`'s summary mapper).
+- [x] **Step 5:** Commit `feat(documents): document content schema and shared types`.
 
 ### Task 2: `@law/document-intelligence` — chunker and identifier validators
 
@@ -73,16 +73,16 @@
 **Interfaces:**
 - Produces: `interface TextChunk { ordinal: number; text: string; charStart: number; charEnd: number }`; `chunkText(text: string, options?: { size?: number; overlap?: number }): TextChunk[]` (defaults 1500/200); `isValidJmbg(value: string): boolean`; `jmbgBirthDate(value: string): string | null` (ISO `YYYY-MM-DD`); `isValidPib(value: string): boolean`; `isValidMb(value: string): boolean`; `digitsOnly(value: string): string`.
 
-- [ ] **Step 1: Write failing tests.**
+- [x] **Step 1: Write failing tests.**
   - `chunkText`: empty → `[]`; text ≤ 1500 → one chunk `{ ordinal: 0, charStart: 0, charEnd: text.length }`; a 4,000-char text of paragraphs → every chunk ≤ 1500 chars, `text === source.slice(charStart, charEnd)`, consecutive chunks overlap by ≥ 1 and ≤ 200 chars, last `charEnd === text.length`; a chunk boundary falls on `\n\n` when one exists in the last 300 chars of the window.
   - `isValidJmbg("0101990710006")` true (compute a valid fixture with the mod-11 rule in the test helper); one digit changed → false; 12 digits → false; date part `3102...` → false.
   - `jmbgBirthDate` of a valid `DDMMYYY` with `YYY = 990` → `"1990-01-01"`; `YYY = 005` → `"2005-..."`.
   - `isValidPib`: valid 9-digit (ISO 7064 MOD 11,10 check digit) true; changed check digit false.
   - `isValidMb("12345678")` true; `"1234567"` false; letters false.
-- [ ] **Step 2:** Run `npx nx test document-intelligence`. Expected: FAIL (modules not found).
-- [ ] **Step 3:** Implement. JMBG: 13 digits `DDMMYYYRRBBBK`; `m = 11 - ((7(a1+a7)+6(a2+a8)+5(a3+a9)+4(a4+a10)+3(a5+a11)+2(a6+a12)) % 11)`; `K = m > 9 ? 0 : m`; year = `YYY < 800 ? 2000 + YYY : 1000 + YYY`; date must be a real calendar date. PIB: ISO 7064 MOD 11,10 over the first 8 digits.
-- [ ] **Step 4:** Run `npx nx test document-intelligence`. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(document-intelligence): chunker and Serbian identifier validators`.
+- [x] **Step 2:** Run `npx nx test document-intelligence`. Expected: FAIL (modules not found).
+- [x] **Step 3:** Implement. JMBG: 13 digits `DDMMYYYRRBBBK`; `m = 11 - ((7(a1+a7)+6(a2+a8)+5(a3+a9)+4(a4+a10)+3(a5+a11)+2(a6+a12)) % 11)`; `K = m > 9 ? 0 : m`; year = `YYY < 800 ? 2000 + YYY : 1000 + YYY`; date must be a real calendar date. PIB: ISO 7064 MOD 11,10 over the first 8 digits.
+- [x] **Step 4:** Run `npx nx test document-intelligence`. Expected: PASS.
+- [x] **Step 5:** Commit `feat(document-intelligence): chunker and Serbian identifier validators`.
 
 ### Task 3: `@law/document-intelligence` — classification and fact extraction
 
@@ -100,15 +100,15 @@
   - `normalizeFacts(raw: RawFact[], text: string): ExtractedFact[]` — drops facts whose quote is not in the text (`locateQuote`), drops invalid identifiers, normalizes values; `field` must be in `FACT_FIELDS[kind]` plus `role` for subjects.
   - `locateQuote(text: string, quote: string): number | null` — offset in the original text or null.
 
-- [ ] **Step 1: Write failing tests.**
+- [x] **Step 1: Write failing tests.**
   - `locateQuote("Ime: Петар\nPetrović", "ime: petar petrovic")` → `0`; absent quote → `null`.
   - `normalizeFacts`: a `jmbg` fact with a bad checksum is dropped; a `jmbg` fact with valid checksum keeps `normalizedValue` = 13 digits; a `pib` with spaces normalizes to 9 digits; `dateOfBirth` `"01.01.1990."` → normalizedValue `"1990-01-01"`; an unknown field is dropped; a fact whose quote is absent is dropped; a `jmbg` whose birth date disagrees with a `dateOfBirth` fact for the same subject drops the `jmbg`.
   - `classifyDocument` with `FakeChatModelProvider({ kind: "ID_CARD", confidence: 0.4 })` and threshold 0.6 → `{ kind: "OTHER", confidence: 0.4 }`; with 0.9 → `ID_CARD`; the prompt user message length ≤ 4,000 chars of document text.
   - `extractFacts` with a fake returning one valid and one fabricated-quote fact → one fact.
-- [ ] **Step 2:** Run `npx nx test document-intelligence`. Expected: FAIL.
-- [ ] **Step 3:** Implement schemas (zod) and prompts in Serbian Latin following `libs/api/ai/workflows/case-timeline/src/lib/{schema,prompts,runner}.ts`. The prompt instructs: copy quotes verbatim, never infer values not printed, `servedDate` only if printed.
-- [ ] **Step 4:** Run `npx nx test document-intelligence`. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(document-intelligence): document classification and verified fact extraction`.
+- [x] **Step 2:** Run `npx nx test document-intelligence`. Expected: FAIL.
+- [x] **Step 3:** Implement schemas (zod) and prompts in Serbian Latin following `libs/api/ai/workflows/case-timeline/src/lib/{schema,prompts,runner}.ts`. The prompt instructs: copy quotes verbatim, never infer values not printed, `servedDate` only if printed.
+- [x] **Step 4:** Run `npx nx test document-intelligence`. Expected: PASS.
+- [x] **Step 5:** Commit `feat(document-intelligence): document classification and verified fact extraction`.
 
 ## Phase B — Storage, content rows, ingestion
 
@@ -141,7 +141,7 @@
 **Interfaces:**
 - Produces:
   - `const DOCUMENT_INGEST_QUEUE = "document-ingest"`; `interface DocumentIngestPayload { workspaceId: string; contentId: string }`
-  - `DocumentIngestionQueue.enqueue(workspaceId: string, contentId: string): Promise<void>` — `queue.add("ingest", payload, { jobId: \`content:${contentId}\`, attempts: 3, backoff: { type: "exponential", delay: 2000 }, removeOnComplete: true, removeOnFail: false })`.
+  - `DocumentIngestionQueue.enqueue(workspaceId: string, contentId: string): Promise<void>` — `queue.add("ingest", payload, { jobId: \`content-${contentId}\`, attempts: 3, backoff: { type: "exponential", delay: 2000 }, removeOnComplete: true, removeOnFail: false })`.
   - `DocumentContentService.findOrCreate(input: { workspaceId: string; sha256: string; mimeType: string; sizeBytes: number }): Promise<{ id: string; status: DocumentContentStatus; pipelineVersion: number }>` — `upsert` on `workspaceId_sha256`, `update: {}`.
   - `DocumentContentService.requestIngestion(workspaceId: string, contentId: string): Promise<void>` — enqueue unless `READY` on `CURRENT_PIPELINE_VERSION`.
   - `DocumentContentService.ensureText(workspaceId: string, contentId: string): Promise<{ status: "COMPLETED" | "FAILED" | "UNSUPPORTED" | "UNAVAILABLE"; text: string | null }>` — returns stored text; when missing, extracts synchronously from bytes (Task 6's `readContentBytes`) and stores `extractedText`/`sourceScript`, leaving `status` for the pipeline.
@@ -169,17 +169,17 @@
   - `DocumentContentEvents` — `@Injectable` wrapping an rxjs `Subject<{ workspaceId: string; contentId: string; status: DocumentContentStatus }>` with `emit()` and `stream$`.
   - Processor `@Processor(DOCUMENT_INGEST_QUEUE)` runs the pipeline inside `WorkspaceContextService.run` with a system context (same pattern as `WorkflowProcessor`); on final failure sets `status: FAILED`, `failedStep`, `error` and emits.
 
-- [ ] **Step 1: Write failing tests** with mocked prisma, fake embedding provider (returns 1024-length vectors), `FakeChatModelProvider`:
+- [x] **Step 1: Write failing tests** with mocked prisma, fake embedding provider (returns 1024-length vectors), `FakeChatModelProvider`:
   - Happy path for an ID card: status transitions `EXTRACTING → EMBEDDING → CLASSIFYING → READY`; chunks inserted with `$executeRaw` vector literal; facts created; event emitted with `READY`.
   - Unsupported MIME → `UNSUPPORTED`, no embedding or model calls.
   - Embedding throws → error propagates (BullMQ retries); second run with `extractedText` present does not call `extractAttachmentText` again.
   - Classification throws → `READY` with no facts, warning logged.
   - Kind `OTHER` → no fact-extraction call.
   - Text longer than `DOCUMENT_EMBED_MAX_CHARS` → only the first N chars chunked, `truncated: true`.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern=document-ingestion.pipeline.spec`. Expected: FAIL.
-- [ ] **Step 3:** Implement. Embed in batches of 32. Insert chunks with `Prisma.sql` and `::vector` like `legal-knowledge.service.ts`. Replace chunks/facts in a transaction per step (delete-then-insert for the content id) so retries are idempotent.
-- [ ] **Step 4:** Run the spec. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(document-ingestion): ingestion pipeline with resumable steps`.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern=document-ingestion.pipeline.spec`. Expected: FAIL.
+- [x] **Step 3:** Implement. Embed in batches of 32. Insert chunks with `Prisma.sql` and `::vector` like `legal-knowledge.service.ts`. Replace chunks/facts in a transaction per step (delete-then-insert for the content id) so retries are idempotent.
+- [x] **Step 4:** Run the spec. Expected: PASS.
+- [x] **Step 5:** Commit `feat(document-ingestion): ingestion pipeline with resumable steps`.
 
 ## Phase C — Wiring documents and chat to content
 
@@ -199,11 +199,11 @@
   - Routes: `PATCH /documents/ai-access` (declared before `PATCH /documents/:id`), `POST /documents/:id/ai-reprocess`; `aiAccess` multipart field (`"true"`/`"false"`) on `POST /documents`; `aiAccess` in `UpdateDocumentDto`.
   - Summary mapper: `aiStatus` = `OFF` if `!aiAccess`; else from current version's content: `PENDING`→`QUEUED`, `EXTRACTING|EMBEDDING|CLASSIFYING`→`PROCESSING`, others same name; no content → `QUEUED`. `documentKind` from content. `fromAssistantChat` = any `chatAttachments`.
 
-- [ ] **Step 1: Write failing tests:** upload with `aiAccess: true` links content and enqueues; upload without it links content and does not enqueue; identical second upload reuses the same `contentId`; `setAiAccess(true)` on a `READY` content writes `DOCUMENT_AI_ACCESS_ENABLED` and does not enqueue; `setAiAccess(false)` writes `DOCUMENT_AI_ACCESS_DISABLED`; bulk skips archived and counts updated; `addVersion` on an opted-in document links new content, enqueues, and the summary's `aiStatus` reflects the new version (Review Focus 3); `reprocess` on non-failed → `ConflictException`; status mapping table.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern=documents.service.spec`. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `npx nx test api --testPathPattern="documents|document-folders"`. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(documents): per-document AI access and ingestion status`.
+- [x] **Step 1: Write failing tests:** upload with `aiAccess: true` links content and enqueues; upload without it links content and does not enqueue; identical second upload reuses the same `contentId`; `setAiAccess(true)` on a `READY` content writes `DOCUMENT_AI_ACCESS_ENABLED` and does not enqueue; `setAiAccess(false)` writes `DOCUMENT_AI_ACCESS_DISABLED`; bulk skips archived and counts updated; `addVersion` on an opted-in document links new content, enqueues, and the summary's `aiStatus` reflects the new version (Review Focus 3); `reprocess` on non-failed → `ConflictException`; status mapping table.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern=documents.service.spec`. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `npx nx test api --testPathPattern="documents|document-folders"`. Expected: PASS.
+- [x] **Step 5:** Commit `feat(documents): per-document AI access and ingestion status`.
 
 ### Task 8: Chat attachments — hash, content, promotion
 
@@ -246,13 +246,13 @@
   - `Source` gains `contentId` and `access: AccessDecision`; `textOf` reads via `DocumentContentService.ensureText`; `documentsByRef`, `documentsForTimeline`, `searchDocuments`, `readDocument` skip or refuse non-readable sources with `AI_ACCESS_OFF_MESSAGE`; `listDocuments` still lists them with `aiAccess: "off"`.
   - Prompt line: "Ako alat vrati AI_ACCESS_OFF, prenesi poruku korisniku i ne nagađaj sadržaj."
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - Policy matrix: doc on → readable; doc off → `AI_ACCESS_OFF`; doc archived + on → `ARCHIVED` (Review Focus 5); unfiled attachment → readable; filed attachment whose document is off → `AI_ACCESS_OFF`.
   - Reads: `readDocument` on an off doc returns `status: "AI_ACCESS_OFF"` and never calls `ensureText`; `listDocuments` includes it with `aiAccess: "off"`; two documents share one `contentId`, one on and one off — reading the off one refuses while the on one returns text (Review Focus 1); `documentsByRef` omits off docs and reports them as `NO_TEXT` with the off message; explicit `doc:<id>` of an off document refuses.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern="document-access.policy|assistant-document-reads"`. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run `npx nx test api --testPathPattern="assistant-"` and `npx nx test mastra`. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(assistant): strict per-document AI access for document reads`.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern="document-access.policy|assistant-document-reads"`. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run `npx nx test api --testPathPattern="assistant-"` and `npx nx test mastra`. Expected: PASS.
+- [x] **Step 5:** Commit `feat(assistant): strict per-document AI access for document reads`.
 
 ### Task 10: `search_case_documents` and `get_document_facts` tools
 
@@ -269,11 +269,11 @@
   - Conflict rule: same `subjectType` and folded name (or same `jmbg`/`mb`) across documents with different `normalizedValue ?? value` for one field.
   - Prompt routing: "Pitanja o sadržaju → search_case_documents; tačan broj, naziv ili citat → search_documents; lični i matični podaci stranaka → get_document_facts."
 
-- [ ] **Step 1: Write failing tests:** search only receives `contentIds` of readable sources; a hit maps back to the right `ref` and gets `n` numbering; contents not `READY` are listed in `notIndexed`; facts grouped by subject; two documents for the same person with different JMBGs → one `conflicts` entry with both values; off documents never reach `factsFor`.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern="document-content.search|assistant-document-reads"`. Expected: FAIL.
-- [ ] **Step 3:** Implement and register both tools on the agent.
-- [ ] **Step 4:** Run `npx nx test api --testPathPattern="assistant-|document-content"` and `npx nx test mastra`. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(assistant): semantic case-document search and document facts tools`.
+- [x] **Step 1: Write failing tests:** search only receives `contentIds` of readable sources; a hit maps back to the right `ref` and gets `n` numbering; contents not `READY` are listed in `notIndexed`; facts grouped by subject; two documents for the same person with different JMBGs → one `conflicts` entry with both values; off documents never reach `factsFor`.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern="document-content.search|assistant-document-reads"`. Expected: FAIL.
+- [x] **Step 3:** Implement and register both tools on the agent.
+- [x] **Step 4:** Run `npx nx test api --testPathPattern="assistant-|document-content"` and `npx nx test mastra`. Expected: PASS.
+- [x] **Step 5:** Commit `feat(assistant): semantic case-document search and document facts tools`.
 
 ### Task 11: Facts in drafting
 
@@ -343,11 +343,11 @@
 **Interfaces:**
 - Produces: `DocumentsApiClient.setAiAccess(id: string, aiAccess: boolean): Observable<DocumentDetail>`, `setAiAccessBulk(body: BulkDocumentAiAccessRequest): Observable<BulkDocumentAiAccessResponse>`, `reprocessAi(id: string): Observable<DocumentDetail>`; `DocumentUploadRow.aiAccess: boolean`; queue `setAiAccess(id, value)` and `setAllAiAccess(value)`; translation keys `documents.ai.access`, `documents.ai.accessTooltip`, `documents.ai.status.{OFF,QUEUED,PROCESSING,READY,FAILED,UNSUPPORTED}`, `documents.ai.kind.{ID_CARD,PASSPORT,APR_EXCERPT,COURT_DECISION,ADMIN_DECISION,OTHER}`, `documents.ai.enableSelected`, `documents.ai.disableSelected`, `documents.ai.confirmDisable`, `documents.ai.fromChat`, `documents.ai.reprocess`.
 
-- [ ] **Step 1: Write failing tests:** `createBody` appends `aiAccess` = `"true"` when the row is on and `"false"` otherwise; new rows default to the dialog-level value which defaults to `false`; `setAllAiAccess(true)` updates every non-uploaded row; frozen retry payload keeps the original value.
-- [ ] **Step 2:** Run `npx nx test web --testPathPattern=document-upload`. Expected: FAIL.
-- [ ] **Step 3:** Implement: dialog header `HlmSwitch` labeled `documents.ai.access` with `HlmTooltip` showing `documents.ai.accessTooltip`; per-row switch in each row.
-- [ ] **Step 4:** Rerun. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(web): AI access switch in the upload dialog`.
+- [x] **Step 1: Write failing tests:** `createBody` appends `aiAccess` = `"true"` when the row is on and `"false"` otherwise; new rows default to the dialog-level value which defaults to `false`; `setAllAiAccess(true)` updates every non-uploaded row; frozen retry payload keeps the original value.
+- [x] **Step 2:** Run `npx nx test web --testPathPattern=document-upload`. Expected: FAIL.
+- [x] **Step 3:** Implement: dialog header `HlmSwitch` labeled `documents.ai.access` with `HlmTooltip` showing `documents.ai.accessTooltip`; per-row switch in each row.
+- [x] **Step 4:** Rerun. Expected: PASS.
+- [x] **Step 5:** Commit `feat(web): AI access switch in the upload dialog`.
 
 ### Task 15: Documents list, detail, bulk actions
 
@@ -387,8 +387,8 @@
 **Files:**
 - Modify: `.github/bussiness-logic-done-so-far.md` (Workspace documents, Assistant document tools — remove "There are no embeddings over office documents."), `delivery/tracks/case_document_ingestion_20261008/{plan.md,metadata.json,index.md}`, `.env.example` (`DOCUMENT_KIND_MIN_CONFIDENCE`, `DOCUMENT_EMBED_MAX_CHARS`)
 
-- [ ] **Step 1:** Run `npx nx run-many -t lint -p api web document-intelligence mastra brief-extraction`. Expected: no errors.
-- [ ] **Step 2:** Run `npx nx run-many -t test -p api web document-intelligence mastra brief-extraction`. Expected: PASS.
-- [ ] **Step 3:** Run `npx nx run-many -t build -p api web`. Expected: success.
-- [ ] **Step 4:** Manual check with `npm run services:up`, `api:serve`, `web:serve`: upload the same ID-card image twice with AI on (one `DocumentContent`, one `StoredFile` with bytes); turn one off and ask the assistant for the JMBG — it refuses for that document; ask for a tužba draft on the case — party JMBG filled with "Izvor".
-- [ ] **Step 5:** Update the business-logic doc and `.env.example`, tick every box in this plan, set `metadata.json` `status: "completed"` and `updated_at`, link the plan in `index.md`. Commit `docs: case document ingestion done`.
+- [x] **Step 1:** Run `npx nx run-many -t lint -p api web document-intelligence mastra brief-extraction`. Expected: no errors. _Done: `document-intelligence`, `mastra`, `brief-extraction`, `api` lint clean. Remaining errors are pre-existing on the merge base: `web` (matter-link selector, sidebar button content) and `api-clients` (package.json dependency-checks)._
+- [x] **Step 2:** Run `npx nx run-many -t test -p api web document-intelligence mastra brief-extraction`. Expected: PASS. _Done: all pass except pre-existing base failures: api `config.validation.spec` and `sef-invoice-validator.spec`; web `calendar.component.spec` and `finance-statement-create.component.spec` (7 tests, identical on the merge base)._
+- [x] **Step 3:** Run `npx nx run-many -t build -p api web`. Expected: success. _Done: `nx build api` and `nx build web -c development` succeed. The production web build fails the pre-existing initial-bundle budget (2.27 MB vs 1.75 MB error limit; 2.26 MB on the base)._
+- [ ] **Step 4:** Manual check with `npm run services:up`, `api:serve`, `web:serve`: upload the same ID-card image twice with AI on (one `DocumentContent`, one `StoredFile` with bytes); turn one off and ask the assistant for the JMBG — it refuses for that document; ask for a tužba draft on the case — party JMBG filled with "Izvor". _Partly done, left open: verified through the API with a text fixture (two identical uploads with AI on gave one `DocumentContent` and one `AVAILABLE` `StoredFile`; the status reached `READY` as `ID_CARD`; with one document turned off the assistant read the other and refused the off one with `AI_ACCESS_OFF`). Not run: the browser UI and the tužba draft with a party JMBG and "Izvor" (unit-tested in Tasks 11 and 12)._
+- [x] **Step 5:** Update the business-logic doc and `.env.example`, tick every box in this plan, set `metadata.json` `status: "completed"` and `updated_at`, link the plan in `index.md`. Commit `docs: case document ingestion done`.

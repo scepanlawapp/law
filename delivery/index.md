@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Case Document Ingestion (epic)](./tracks/case_document_ingestion_20261008/index.md)
 - [Case Assistant Tab Links](./tracks/case_assistant_tab_links_20261007/index.md)
 - [Invoice Payment Method Localization](./tracks/payment_method_translation_20261007/index.md)
 - [Documents in Case and Client Details](./tracks/documents_detail_context_20261006/index.md)
@@ -72,7 +73,6 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
-- [Case Document Ingestion (epic)](./tracks/case_document_ingestion_20261008/index.md)
 - [Assistant Conversation Organizer](./tracks/assistant_conversation_organizer_20261007/index.md)
 - [Assistant Capabilities (epic)](./tracks/assistant_capabilities_20261007/index.md)
 - [Assistant Drafting Document Types](./tracks/assistant_drafting_document_types_20261007/index.md)
