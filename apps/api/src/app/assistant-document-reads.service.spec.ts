@@ -1,4 +1,8 @@
-import { AssistantDocumentReadsService, fold } from "@law/chat";
+import {
+  AI_ACCESS_OFF_MESSAGE,
+  AssistantDocumentReadsService,
+  fold,
+} from "@law/chat";
 import type { AssistantTurnScope } from "@law/mastra";
 
 jest.mock("@law/extraction", () => ({
@@ -25,8 +29,17 @@ const LEASE =
   "Mesečna   zakupnina iznosi 500 evra.\n" +
   "Zakupnina se plaća do petog u mesecu.";
 
-function setup(options: { caseLinked?: boolean } = {}) {
+function setup(
+  options: {
+    caseLinked?: boolean;
+    aiAccess?: boolean;
+    contentId?: string | null;
+  } = {},
+) {
   const caseLinked = options.caseLinked ?? true;
+  const aiAccess = options.aiAccess ?? true;
+  const contentId =
+    options.contentId === undefined ? "content-1" : options.contentId;
   const prisma = {
     chatSession: {
       findFirst: jest.fn(async () => ({
@@ -39,14 +52,25 @@ function setup(options: { caseLinked?: boolean } = {}) {
           id: "doc-1",
           title: "Ugovor o zakupu",
           createdAt: new Date("2026-09-20T10:00:00Z"),
+          aiAccess,
+          archivedAt: null,
           currentVersion: {
             id: "version-1",
             originalFilename: "ugovor.pdf",
             extractionStatus: "PENDING",
+            contentId,
           },
         },
       ]),
       findFirst: jest.fn(async (): Promise<unknown> => null),
+    },
+    documentVersion: {
+      findFirst: jest.fn(
+        async (): Promise<unknown> => ({
+          extractionStatus: "COMPLETED",
+          extractedText: LEASE,
+        }),
+      ),
     },
     chatAttachment: {
       findMany: jest.fn(async () => [
@@ -55,6 +79,8 @@ function setup(options: { caseLinked?: boolean } = {}) {
           originalName: "ugovor.pdf",
           extractionStatus: "COMPLETED",
           documentId: "doc-1",
+          contentId: "content-1",
+          document: { archivedAt: null, aiAccess },
           createdAt: new Date("2026-09-20T09:00:00Z"),
         },
         {
@@ -62,6 +88,8 @@ function setup(options: { caseLinked?: boolean } = {}) {
           originalName: "punomoćje.pdf",
           extractionStatus: "PENDING",
           documentId: null,
+          contentId: null,
+          document: null,
           createdAt: new Date("2026-09-21T09:00:00Z"),
         },
       ]),
@@ -109,6 +137,7 @@ describe("AssistantDocumentReadsService", () => {
           fileName: "ugovor.pdf",
           origin: "CASE",
           textStatus: "PENDING",
+          aiAccess: "on",
           addedAt: "2026-09-20",
         },
         expect.objectContaining({ ref: "att:att-2", origin: "CHAT" }),
@@ -156,7 +185,7 @@ describe("AssistantDocumentReadsService", () => {
 
     expect(documentText.ensureText).toHaveBeenCalledWith(
       "workspace-1",
-      "version-1",
+      "content-1",
     );
     expect(first).toMatchObject({
       status: "OK",
@@ -223,10 +252,13 @@ describe("AssistantDocumentReadsService", () => {
       id: "doc-9",
       title: "Ugovor o zakupu",
       createdAt: new Date("2026-09-20T10:00:00Z"),
+      aiAccess: true,
+      archivedAt: null,
       currentVersion: {
         id: "version-9",
         originalFilename: "zakup.pdf",
         extractionStatus: "COMPLETED",
+        contentId: "content-9",
       },
     });
 
@@ -238,7 +270,7 @@ describe("AssistantDocumentReadsService", () => {
 
     expect(documentText.ensureText).toHaveBeenCalledWith(
       "workspace-1",
-      "version-9",
+      "content-9",
     );
     expect(read).toMatchObject({ status: "OK", ref: "doc:doc-9", text: LEASE });
     expect(search).toMatchObject({ status: "OK", searched: 1 });
@@ -284,6 +316,7 @@ describe("AssistantDocumentReadsService", () => {
       query: "zakup",
       searched: 0,
       unreadable: ["Ugovor o zakupu"],
+      aiAccessOff: [],
       matches: [],
     });
   });
@@ -308,7 +341,7 @@ describe("AssistantDocumentReadsService", () => {
     });
     expect(documentText.ensureText).toHaveBeenCalledWith(
       "workspace-1",
-      "version-1",
+      "content-1",
     );
   });
 
@@ -336,6 +369,200 @@ describe("AssistantDocumentReadsService", () => {
 
     expect(result.documents.map((doc) => doc.ref)).toEqual(["doc:doc-1"]);
     expect(result.skipped).toEqual([]);
+  });
+});
+
+describe("AssistantDocumentReadsService AI access", () => {
+  const OFF = AI_ACCESS_OFF_MESSAGE("Ugovor o zakupu");
+
+  it("refuses to read a document with AI access off and never touches its text", async () => {
+    const { service, documentText, prisma } = setup({ aiAccess: false });
+
+    const result = await service.readDocument(scope, { ref: "doc:doc-1" });
+
+    expect(result).toEqual({ status: "AI_ACCESS_OFF", message: OFF });
+    expect(documentText.ensureText).not.toHaveBeenCalled();
+    expect(prisma.documentVersion.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("still lists a document with AI access off, marked off", async () => {
+    const { service } = setup({ aiAccess: false });
+
+    const result = await service.listDocuments(scope);
+
+    expect(result).toMatchObject({
+      status: "OK",
+      items: [
+        { ref: "doc:doc-1", aiAccess: "off" },
+        { ref: "att:att-2", aiAccess: "on" },
+      ],
+    });
+  });
+
+  it("refuses the off document but reads the on one when both share a content row", async () => {
+    const { service, prisma, documentText } = setup({ aiAccess: false });
+    prisma.document.findFirst.mockResolvedValue({
+      id: "doc-2",
+      title: "Kopija ugovora",
+      createdAt: new Date("2026-09-22T10:00:00Z"),
+      aiAccess: true,
+      archivedAt: null,
+      currentVersion: {
+        id: "version-2",
+        originalFilename: "kopija.pdf",
+        extractionStatus: "COMPLETED",
+        contentId: "content-1",
+      },
+    });
+
+    const off = await service.readDocument(scope, { ref: "doc:doc-1" });
+    const on = await service.readDocument(scope, { ref: "doc:doc-2" });
+
+    expect(off.status).toBe("AI_ACCESS_OFF");
+    expect(on).toMatchObject({ status: "OK", text: LEASE });
+    expect(documentText.ensureText).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses an explicitly named document with AI access off", async () => {
+    const { service, prisma, documentText } = setup({ caseLinked: false });
+    prisma.document.findFirst.mockResolvedValue({
+      id: "doc-9",
+      title: "Tajni ugovor",
+      createdAt: new Date("2026-09-20T10:00:00Z"),
+      aiAccess: false,
+      archivedAt: null,
+      currentVersion: {
+        id: "version-9",
+        originalFilename: "tajni.pdf",
+        extractionStatus: "COMPLETED",
+        contentId: "content-9",
+      },
+    });
+
+    const read = await service.readDocument(scope, { ref: "doc:doc-9" });
+    const search = await service.searchDocuments(scope, {
+      query: "zakup",
+      ref: "doc:doc-9",
+    });
+
+    expect(read).toEqual({
+      status: "AI_ACCESS_OFF",
+      message: AI_ACCESS_OFF_MESSAGE("Tajni ugovor"),
+    });
+    expect(search).toEqual({
+      status: "AI_ACCESS_OFF",
+      message: AI_ACCESS_OFF_MESSAGE("Tajni ugovor"),
+    });
+    expect(documentText.ensureText).not.toHaveBeenCalled();
+  });
+
+  it("treats an explicitly named archived document as not found", async () => {
+    const { service, prisma, documentText } = setup({ caseLinked: false });
+    prisma.document.findFirst.mockResolvedValue({
+      id: "doc-9",
+      title: "Arhivirano",
+      createdAt: new Date("2026-09-20T10:00:00Z"),
+      aiAccess: true,
+      archivedAt: new Date("2026-10-01T00:00:00Z"),
+      currentVersion: {
+        id: "version-9",
+        originalFilename: "a.pdf",
+        extractionStatus: "COMPLETED",
+        contentId: "content-9",
+      },
+    });
+
+    const read = await service.readDocument(scope, { ref: "doc:doc-9" });
+
+    expect(read.status).toBe("NOT_FOUND");
+    expect(documentText.ensureText).not.toHaveBeenCalled();
+  });
+
+  it("refuses an attachment that was filed as a document with AI access off", async () => {
+    const { service, documentText, storage } = setup({
+      caseLinked: false,
+      aiAccess: false,
+    });
+
+    const result = await service.readDocument(scope, { ref: "att:att-filed" });
+
+    expect(result).toEqual({
+      status: "AI_ACCESS_OFF",
+      message: AI_ACCESS_OFF_MESSAGE("ugovor.pdf"),
+    });
+    expect(documentText.ensureText).not.toHaveBeenCalled();
+    expect(storage.read).not.toHaveBeenCalled();
+  });
+
+  it("does not search sources with AI access off and lists them as off", async () => {
+    const { service, documentText } = setup({ aiAccess: false });
+
+    const result = await service.searchDocuments(scope, { query: "zakupnina" });
+
+    expect(result).toMatchObject({
+      status: "OK",
+      searched: 1,
+      aiAccessOff: ["Ugovor o zakupu"],
+      matches: [],
+    });
+    expect(documentText.ensureText).not.toHaveBeenCalled();
+  });
+
+  it("gives drafting, review and timeline no text of an off document", async () => {
+    const { service, documentText } = setup({ aiAccess: false });
+
+    const byRef = await service.documentsByRef(scope, ["doc:doc-1"]);
+    const timeline = await service.documentsForTimeline(scope, { limit: 5 });
+    const named = await service.documentsForTimeline(scope, {
+      refs: ["doc:doc-1"],
+      limit: 5,
+    });
+
+    expect(byRef).toEqual([
+      {
+        id: "doc:doc-1",
+        name: "Ugovor o zakupu",
+        mimeType: "ugovor.pdf",
+        status: "FAILED",
+        note: OFF,
+      },
+    ]);
+    expect(timeline.documents[0]).toEqual({
+      ref: "doc:doc-1",
+      title: "Ugovor o zakupu",
+      status: "FAILED",
+      note: OFF,
+    });
+    expect(named.documents[0]).toMatchObject({
+      ref: "doc:doc-1",
+      status: "FAILED",
+      note: OFF,
+    });
+    expect(named.documents[0].text).toBeUndefined();
+    expect(documentText.ensureText).not.toHaveBeenCalled();
+  });
+
+  it("reads a version that has no content row yet from its stored text, after the policy", async () => {
+    const { service, documentText, prisma } = setup({ contentId: null });
+
+    const result = await service.readDocument(scope, { ref: "doc:doc-1" });
+
+    expect(result).toMatchObject({ status: "OK", text: LEASE });
+    expect(documentText.ensureText).not.toHaveBeenCalled();
+    expect(prisma.documentVersion.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: "version-1", workspaceId: "workspace-1" },
+      }),
+    );
+  });
+
+  it("does not read the stored text of an off document that has no content row", async () => {
+    const { service, prisma } = setup({ contentId: null, aiAccess: false });
+
+    const result = await service.readDocument(scope, { ref: "doc:doc-1" });
+
+    expect(result.status).toBe("AI_ACCESS_OFF");
+    expect(prisma.documentVersion.findFirst).not.toHaveBeenCalled();
   });
 });
 

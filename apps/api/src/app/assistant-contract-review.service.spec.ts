@@ -2,6 +2,7 @@ import type { ChatStreamEvent } from "@law/api-interfaces";
 import { FakeChatModelProvider } from "@law/llm";
 import type { AssistantTurnScope } from "@law/mastra";
 import {
+  AI_ACCESS_OFF_MESSAGE,
   AssistantContractReviewService,
   ChatEventBus,
   ChatRuntimeConfig,
@@ -245,6 +246,31 @@ describe("AssistantContractReviewService", () => {
     ).resolves.toMatchObject({
       status: "NO_TEXT",
       message: expect.stringContaining("Sken"),
+    });
+    expect(completeStructured).not.toHaveBeenCalled();
+  });
+
+  it("relays the AI-access-off message instead of reviewing", async () => {
+    const { service, completeStructured } = setup({
+      documents: [
+        {
+          id: "doc:tajni",
+          name: "Tajni ugovor",
+          mimeType: "tajni.pdf",
+          status: "FAILED",
+          note: AI_ACCESS_OFF_MESSAGE("Tajni ugovor"),
+        },
+      ],
+    });
+
+    await expect(
+      service.reviewContract(scope, {
+        documentRef: "doc:tajni",
+        contractType: "NDA",
+      }),
+    ).resolves.toEqual({
+      status: "AI_ACCESS_OFF",
+      message: AI_ACCESS_OFF_MESSAGE("Tajni ugovor"),
     });
     expect(completeStructured).not.toHaveBeenCalled();
   });

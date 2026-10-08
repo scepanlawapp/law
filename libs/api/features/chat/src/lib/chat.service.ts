@@ -47,6 +47,7 @@ import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { ChatAttachmentStorage } from "@law/file-storage";
 import { DocumentContentService } from "@law/document-ingestion";
+import { DocumentAccessPolicy } from "./document-access.policy";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
 import {
@@ -1439,11 +1440,16 @@ export class ChatService {
   }): Promise<void> {
     const attachments = params.attachmentIds.length
       ? await this.db.chatAttachment.findMany({
-          where: { id: { in: params.attachmentIds } },
+          where: {
+            id: { in: params.attachmentIds },
+            workspaceId: params.workspaceId,
+          },
           select: {
             originalName: true,
             mimeType: true,
             extractedText: true,
+            contentId: true,
+            document: { select: { aiAccess: true, archivedAt: true } },
           },
         })
       : [];
@@ -1453,7 +1459,13 @@ export class ChatService {
       attachments: attachments.map((attachment) => ({
         originalName: attachment.originalName,
         mimeType: attachment.mimeType,
-        text: attachment.extractedText ?? "",
+        // Text of an attachment filed as an AI-off document never reaches the model.
+        text: DocumentAccessPolicy.forAttachment({
+          contentId: attachment.contentId ?? null,
+          document: attachment.document ?? null,
+        }).readable
+          ? (attachment.extractedText ?? "")
+          : "",
       })),
       perAttachmentMaxChars: this.config.titleContentMaxChars,
     });

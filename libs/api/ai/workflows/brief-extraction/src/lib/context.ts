@@ -6,6 +6,8 @@ export interface BriefDocumentInput {
   mimeType: string;
   status: BriefDocumentStatus;
   text?: string;
+  /** Why there is no text, when the user should hear it (for example AI access off). */
+  note?: string;
 }
 
 export interface BriefContextInput {

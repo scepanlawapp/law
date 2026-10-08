@@ -106,6 +106,14 @@ export const ATTACHMENT_WITH_CONTENT = {
   include: { content: { select: { status: true } } },
 } as const;
 
+/** Attachments plus what the assistant policy needs to decide whether it may read them. */
+export const ATTACHMENT_WITH_ACCESS = {
+  include: {
+    content: { select: { status: true } },
+    document: { select: { aiAccess: true, archivedAt: true } },
+  },
+} as const;
+
 export function toAttachment(attachment: {
   id: string;
   originalName: string;

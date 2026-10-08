@@ -185,7 +185,10 @@ export type ContractReviewToolResult =
       citationCount: number;
       truncated: boolean;
     }
-  | { status: "NOT_FOUND" | "NO_TEXT" | "FAILED"; message: string };
+  | {
+      status: "NOT_FOUND" | "NO_TEXT" | "AI_ACCESS_OFF" | "FAILED";
+      message: string;
+    };
 
 export type CaseTimelineToolResult =
   | {
@@ -253,7 +256,7 @@ export type DeadlineToolResult =
       warnings: string[];
     }
   | {
-      status: "NOT_FOUND" | "NO_TEXT" | "INVALID" | "FAILED";
+      status: "NOT_FOUND" | "NO_TEXT" | "AI_ACCESS_OFF" | "INVALID" | "FAILED";
       message: string;
     };
 
@@ -292,6 +295,8 @@ export interface AssistantDocumentEntry {
   origin: "CASE" | "CHAT";
   /** PENDING: text not extracted yet (read_document extracts it). */
   textStatus: "READY" | "PENDING" | "FAILED" | "UNSUPPORTED";
+  /** off: the user disabled AI access; read_document and search_documents refuse it. */
+  aiAccess: "on" | "off";
   /** YYYY-MM-DD */
   addedAt: string;
 }
@@ -319,7 +324,7 @@ export type AssistantDocumentRead =
       text: string;
     }
   | {
-      status: "NOT_FOUND" | "NO_TEXT" | "UNAVAILABLE";
+      status: "NOT_FOUND" | "NO_TEXT" | "UNAVAILABLE" | "AI_ACCESS_OFF";
       message: string;
     };
 
@@ -339,9 +344,11 @@ export type AssistantDocumentSearch =
       searched: number;
       /** Titles of documents without readable text. */
       unreadable: string[];
+      /** Titles of documents skipped because AI access is off. */
+      aiAccessOff: string[];
       matches: AssistantDocumentMatch[];
     }
-  | { status: "NOT_FOUND" | "UNAVAILABLE"; message: string };
+  | { status: "NOT_FOUND" | "UNAVAILABLE" | "AI_ACCESS_OFF"; message: string };
 
 export const ASSISTANT_DEADLINE_TYPES = [
   "COURT",

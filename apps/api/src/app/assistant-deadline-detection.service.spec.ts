@@ -1,6 +1,7 @@
 import { FakeChatModelProvider } from "@law/llm";
 import type { AssistantTurnScope } from "@law/mastra";
 import {
+  AI_ACCESS_OFF_MESSAGE,
   AssistantDeadlineDetectionService,
   ChatRuntimeConfig,
 } from "@law/chat";
@@ -202,6 +203,21 @@ describe("AssistantDeadlineDetectionService", () => {
         documents: [{ id: "doc:x", name: "Sken", status: "FAILED" }],
       }).service.detectDeadlines(scope, { documentRef: "doc:x" }),
     ).resolves.toMatchObject({ status: "NO_TEXT" });
+    await expect(
+      setup({
+        documents: [
+          {
+            id: "doc:x",
+            name: "Tajni",
+            status: "FAILED",
+            note: AI_ACCESS_OFF_MESSAGE("Tajni"),
+          },
+        ],
+      }).service.detectDeadlines(scope, { documentRef: "doc:x" }),
+    ).resolves.toEqual({
+      status: "AI_ACCESS_OFF",
+      message: AI_ACCESS_OFF_MESSAGE("Tajni"),
+    });
     await expect(
       setup({ output: { warnings: 3 } }).service.detectDeadlines(scope, {
         documentRef: "att:presuda",

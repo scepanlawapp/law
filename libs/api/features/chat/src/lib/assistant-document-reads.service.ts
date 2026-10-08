@@ -1,4 +1,4 @@
-import { Injectable, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type { BriefDocumentInput } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
@@ -11,8 +11,13 @@ import type {
   AssistantTurnScope,
 } from "@law/mastra";
 import { toLatin } from "@law/transliteration";
-import { DocumentTextService } from "@law/workspace-documents";
+import { DocumentContentService } from "@law/document-ingestion";
 import { ChatAttachmentStorage } from "@law/file-storage";
+import {
+  type AccessDecision,
+  DocumentAccessPolicy,
+  accessRefusalMessage,
+} from "./document-access.policy";
 
 const DOCUMENT_LIMIT = 30;
 const READ_WINDOW_CHARS = 12_000;
@@ -21,25 +26,21 @@ const HITS_PER_DOCUMENT = 10;
 const DOC_PREFIX = "doc:";
 const ATTACHMENT_PREFIX = "att:";
 
+type SourceBase = {
+  ref: string;
+  title: string;
+  fileName: string;
+  status: string;
+  addedAt: Date;
+  /** Null for data created before ingestion (legacy text columns apply). */
+  contentId: string | null;
+  /** Decided before any text is read; `readable: false` sources never reach a text source. */
+  access: AccessDecision;
+};
+
 type Source =
-  | {
-      kind: "document";
-      ref: string;
-      title: string;
-      fileName: string;
-      versionId: string;
-      status: string;
-      addedAt: Date;
-    }
-  | {
-      kind: "attachment";
-      ref: string;
-      title: string;
-      fileName: string;
-      attachmentId: string;
-      status: string;
-      addedAt: Date;
-    };
+  | (SourceBase & { kind: "document"; versionId: string })
+  | (SourceBase & { kind: "attachment"; attachmentId: string });
 
 type SourceText = { status: string; text: string | null };
 
@@ -49,6 +50,8 @@ export interface TimelineDocumentInput {
   status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
   /** Latin script. */
   text?: string;
+  /** Why there is no text, when the user should hear it (AI access off). */
+  note?: string;
 }
 
 /**
@@ -65,7 +68,9 @@ export class AssistantDocumentReadsService {
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly storage: ChatAttachmentStorage,
-    @Optional() private readonly documentText?: DocumentTextService,
+    @Optional()
+    @Inject(DocumentContentService)
+    private readonly content?: DocumentContentService,
   ) {}
 
   async listDocuments(
@@ -95,6 +100,8 @@ export class AssistantDocumentReadsService {
         message: `Dokument "${args.ref}" nije pronađen. Koristite list_documents.`,
       };
     }
+    const refusal = refuse(source, args.ref);
+    if (refusal) return refusal;
     const { status, text } = await this.textOf(scope, source);
     if (text === null) {
       return {
@@ -132,13 +139,19 @@ export class AssistantDocumentReadsService {
         sources.find((item) => item.ref === ref) ??
         (await this.namedDocument(scope, ref));
       if (!source) continue;
-      const { status, text } = await this.textOf(scope, source);
       // The prompt shows "title (file name)".
       const base = {
         id: source.ref,
         name: source.title,
         mimeType: source.fileName,
       };
+      if (!source.access.readable) {
+        const note = accessRefusalMessage(source.access, source.title);
+        if (!note) continue;
+        documents.push({ ...base, status: "FAILED", note });
+        continue;
+      }
+      const { status, text } = await this.textOf(scope, source);
       if (text !== null && text.trim()) {
         documents.push({ ...base, status: "COMPLETED", text: toLatin(text) });
       } else {
@@ -176,6 +189,7 @@ export class AssistantDocumentReadsService {
           title: doc.name,
           status: doc.status,
           text: doc.text,
+          ...(doc.note ? { note: doc.note } : {}),
         })),
         skipped: named
           .slice(args.limit)
@@ -184,6 +198,15 @@ export class AssistantDocumentReadsService {
     }
     const documents: TimelineDocumentInput[] = [];
     for (const source of sources.slice(0, args.limit)) {
+      if (!source.access.readable) {
+        documents.push({
+          ref: source.ref,
+          title: source.title,
+          status: "FAILED",
+          note: accessRefusalMessage(source.access, source.title) ?? undefined,
+        });
+        continue;
+      }
       const { status, text } = await this.textOf(scope, source);
       documents.push(
         text !== null && text.trim()
@@ -229,11 +252,26 @@ export class AssistantDocumentReadsService {
           : "Nema dokumenata u razgovoru ni na povezanom predmetu.",
       };
     }
+    if (ref && selected.length === 1 && !selected[0].access.readable) {
+      const refusal = refuse(selected[0], args.ref ?? ref);
+      if (refusal) {
+        return {
+          status:
+            refusal.status === "AI_ACCESS_OFF" ? "AI_ACCESS_OFF" : "NOT_FOUND",
+          message: refusal.message,
+        };
+      }
+    }
     const needle = fold(toLatin(args.query)).text.trim();
     const unreadable: string[] = [];
+    const aiAccessOff: string[] = [];
     const matches: AssistantDocumentMatch[] = [];
     let searched = 0;
     for (const source of selected) {
+      if (!source.access.readable) {
+        aiAccessOff.push(source.title);
+        continue;
+      }
       const { text } = await this.textOf(scope, source);
       if (text === null) {
         unreadable.push(source.title);
@@ -248,6 +286,7 @@ export class AssistantDocumentReadsService {
       query: args.query,
       searched,
       unreadable,
+      aiAccessOff,
       matches,
     };
   }
@@ -280,11 +319,14 @@ export class AssistantDocumentReadsService {
               id: true,
               title: true,
               createdAt: true,
+              aiAccess: true,
+              archivedAt: true,
               currentVersion: {
                 select: {
                   id: true,
                   originalFilename: true,
                   extractionStatus: true,
+                  contentId: true,
                 },
               },
             },
@@ -299,7 +341,9 @@ export class AssistantDocumentReadsService {
           originalName: true,
           extractionStatus: true,
           documentId: true,
+          contentId: true,
           createdAt: true,
+          document: { select: { aiAccess: true, archivedAt: true } },
         },
       }),
     ]);
@@ -309,6 +353,8 @@ export class AssistantDocumentReadsService {
     for (const document of documents.slice(0, DOCUMENT_LIMIT)) {
       if (!document.currentVersion) continue;
       filed.add(document.id);
+      const access = DocumentAccessPolicy.forDocument(document);
+      if (hiddenFromAssistant(access)) continue;
       sources.push({
         kind: "document",
         ref: `${DOC_PREFIX}${document.id}`,
@@ -317,10 +363,18 @@ export class AssistantDocumentReadsService {
         versionId: document.currentVersion.id,
         status: document.currentVersion.extractionStatus,
         addedAt: document.createdAt,
+        contentId: document.currentVersion.contentId,
+        access,
       });
     }
     for (const attachment of attachments) {
       if (attachment.documentId && filed.has(attachment.documentId)) continue;
+      const access = DocumentAccessPolicy.forAttachment({
+        contentId: attachment.contentId,
+        document: attachment.document,
+      });
+      // An attachment filed as an archived document is gone for the assistant.
+      if (hiddenFromAssistant(access)) continue;
       sources.push({
         kind: "attachment",
         ref: `${ATTACHMENT_PREFIX}${attachment.id}`,
@@ -329,6 +383,8 @@ export class AssistantDocumentReadsService {
         attachmentId: attachment.id,
         status: attachment.extractionStatus,
         addedAt: attachment.createdAt,
+        contentId: attachment.contentId,
+        access,
       });
     }
     return {
@@ -339,7 +395,10 @@ export class AssistantDocumentReadsService {
     };
   }
 
-  /** A non-archived workspace document named explicitly by its `doc:<id>` ref. */
+  /**
+   * A non-archived workspace document named explicitly by its `doc:<id>` ref.
+   * One with AI access off is returned so the caller can refuse it by name.
+   */
   private async namedDocument(
     scope: AssistantTurnScope,
     ref: string,
@@ -356,12 +415,21 @@ export class AssistantDocumentReadsService {
         id: true,
         title: true,
         createdAt: true,
+        aiAccess: true,
+        archivedAt: true,
         currentVersion: {
-          select: { id: true, originalFilename: true, extractionStatus: true },
+          select: {
+            id: true,
+            originalFilename: true,
+            extractionStatus: true,
+            contentId: true,
+          },
         },
       },
     });
     if (!document?.currentVersion) return null;
+    const access = DocumentAccessPolicy.forDocument(document);
+    if (hiddenFromAssistant(access)) return null;
     return {
       kind: "document",
       ref: `${DOC_PREFIX}${document.id}`,
@@ -370,18 +438,59 @@ export class AssistantDocumentReadsService {
       versionId: document.currentVersion.id,
       status: document.currentVersion.extractionStatus,
       addedAt: document.createdAt,
+      contentId: document.currentVersion.contentId,
+      access,
     };
   }
 
+  /**
+   * Text of a readable source. The caller has checked `source.access`; this
+   * refuses again so a missed check cannot leak text.
+   */
   private async textOf(
     scope: AssistantTurnScope,
     source: Source,
   ): Promise<SourceText> {
+    if (!source.access.readable) return { status: "UNAVAILABLE", text: null };
+    if (source.contentId) {
+      if (!this.content) return { status: "UNAVAILABLE", text: null };
+      try {
+        return await this.content.ensureText(
+          scope.workspaceId,
+          source.contentId,
+        );
+      } catch (error) {
+        this.logger.warn(
+          `Text of content ${source.contentId} was not read: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        return { status: "FAILED", text: null };
+      }
+    }
+    // Created before ingestion and not backfilled yet: the legacy columns.
     if (source.kind === "document") {
-      if (!this.documentText) return { status: "UNAVAILABLE", text: null };
-      return this.documentText.ensureText(scope.workspaceId, source.versionId);
+      return this.legacyVersionText(scope.workspaceId, source.versionId);
     }
     return this.attachmentText(scope.workspaceId, source.attachmentId);
+  }
+
+  private async legacyVersionText(
+    workspaceId: string,
+    versionId: string,
+  ): Promise<SourceText> {
+    const version = await this.prisma.documentVersion.findFirst({
+      where: { id: versionId, workspaceId },
+      select: { extractionStatus: true, extractedText: true },
+    });
+    if (!version) return { status: "UNAVAILABLE", text: null };
+    if (version.extractionStatus === "COMPLETED") {
+      return { status: "COMPLETED", text: version.extractedText ?? "" };
+    }
+    if (version.extractionStatus === "UNSUPPORTED") {
+      return { status: "UNSUPPORTED", text: null };
+    }
+    return { status: "UNAVAILABLE", text: null };
   }
 
   /** Reuses the chat extraction; extracts and stores it when still pending. */
@@ -432,6 +541,26 @@ export class AssistantDocumentReadsService {
   }
 }
 
+/** Archived or unknown: the assistant does not see these at all. */
+function hiddenFromAssistant(access: AccessDecision): boolean {
+  return access.readable === false && access.reason !== "AI_ACCESS_OFF";
+}
+
+/** The tool answer for a source the assistant may not read, or null when readable. */
+function refuse(
+  source: Source,
+  ref: string,
+): { status: "AI_ACCESS_OFF" | "NOT_FOUND"; message: string } | null {
+  if (source.access.readable) return null;
+  const message = accessRefusalMessage(source.access, source.title);
+  return message
+    ? { status: "AI_ACCESS_OFF", message }
+    : {
+        status: "NOT_FOUND",
+        message: `Dokument "${ref}" nije pronađen. Koristite list_documents.`,
+      };
+}
+
 function toEntry(source: Source): AssistantDocumentEntry {
   return {
     ref: source.ref,
@@ -446,6 +575,7 @@ function toEntry(source: Source): AssistantDocumentEntry {
           : source.status === "UNSUPPORTED"
             ? "UNSUPPORTED"
             : "PENDING",
+    aiAccess: source.access.readable ? "on" : "off",
     addedAt: source.addedAt.toISOString().slice(0, 10),
   };
 }

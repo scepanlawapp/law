@@ -945,6 +945,62 @@ describe("ChatService", () => {
     );
   });
 
+  it("keeps the text of an attachment filed as an AI-off document out of the title prompt", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    prisma.chatSession.update.mockImplementation(
+      ({ data }: { data: Record<string, unknown> }) =>
+        Promise.resolve({ ...session, ...data }),
+    );
+    prisma.chatAttachment.findMany.mockResolvedValue([
+      {
+        originalName: "tajni.pdf",
+        mimeType: "application/pdf",
+        extractedText: "POVERLJIV SADRŽAJ",
+        documentId: "doc-1",
+        document: { aiAccess: false, archivedAt: null },
+      },
+      {
+        originalName: "javni.pdf",
+        mimeType: "application/pdf",
+        extractedText: "JAVNI SADRŽAJ",
+        documentId: null,
+        document: null,
+      },
+    ]);
+    const provider = new FakeChatModelProvider([{ title: "Naslov" }]);
+    const completeStructured = jest.spyOn(provider, "completeStructured");
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      provider,
+    );
+
+    await (
+      service as unknown as {
+        runTitleGeneration(params: unknown): Promise<void>;
+      }
+    ).runTitleGeneration({
+      workspaceId: session.workspaceId,
+      sessionId: session.id,
+      content: "Pogledaj priloge",
+      attachmentIds: ["a-1", "a-2"],
+    });
+
+    const prompt = JSON.stringify(completeStructured.mock.calls[0][0]);
+    expect(prompt).not.toContain("POVERLJIV");
+    expect(prompt).toContain("JAVNI SADRŽAJ");
+    expect(prisma.chatAttachment.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          workspaceId: session.workspaceId,
+        }),
+      }),
+    );
+  });
+
   it("does not auto-generate a title when the session already has one", async () => {
     const customSession = { ...session, title: "Prvi predmet" };
     const prisma = prismaMock();

@@ -36,7 +36,11 @@ import { ChatEventBus } from "./chat.events";
 import { resolveChatModelProvider } from "./chat-model.util";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import {
-  ATTACHMENT_WITH_CONTENT,
+  DocumentAccessPolicy,
+  accessRefusalMessage,
+} from "./document-access.policy";
+import {
+  ATTACHMENT_WITH_ACCESS,
   toDraft,
   toJob,
   toMessage,
@@ -157,7 +161,7 @@ export class AssistantDraftingService {
             workspaceId: job.workspaceId,
             sessionId: job.sessionId,
           },
-          ...ATTACHMENT_WITH_CONTENT,
+          ...ATTACHMENT_WITH_ACCESS,
         })
       : [];
     const userText =
@@ -199,6 +203,9 @@ export class AssistantDraftingService {
         ),
       )),
     ];
+    const accessNotes = documents.flatMap((doc) =>
+      doc.note ? [doc.note] : [],
+    );
     const hasContext =
       userText.trim().length > 0 ||
       documents.some((doc) => doc.status === "COMPLETED" && !!doc.text);
@@ -210,7 +217,10 @@ export class AssistantDraftingService {
       });
       return {
         status: "NO_CONTEXT",
-        message: "Nema dovoljno čitljivih činjenica ni priloga za nacrt.",
+        message: [
+          "Nema dovoljno čitljivih činjenica ni priloga za nacrt.",
+          ...accessNotes,
+        ].join(" "),
       };
     }
 
@@ -290,7 +300,10 @@ export class AssistantDraftingService {
     if (!draftJob || !briefId) {
       return { status: "FAILED", message: "Izrada nacrta nije uspela." };
     }
-    return this.saveDraft(scope, draftJob, briefId, outcome, null);
+    const saved = await this.saveDraft(scope, draftJob, briefId, outcome, null);
+    return saved.status === "DRAFT_READY" && accessNotes.length
+      ? { ...saved, warnings: [...accessNotes, ...saved.warnings] }
+      : saved;
   }
 
   async reviseDraft(
@@ -574,7 +587,7 @@ export class AssistantDraftingService {
         role: "USER",
         ...(trigger ? { createdAt: { lte: trigger.createdAt } } : {}),
       },
-      include: { attachments: ATTACHMENT_WITH_CONTENT },
+      include: { attachments: ATTACHMENT_WITH_ACCESS },
       orderBy: { createdAt: "desc" },
       take: CONVERSATION_USER_MESSAGES,
     });
@@ -614,6 +627,16 @@ export class AssistantDraftingService {
         name: attachment.originalName,
         mimeType: attachment.mimeType,
       };
+      const access = DocumentAccessPolicy.forAttachment({
+        contentId: attachment.contentId ?? null,
+        document: attachment.document ?? null,
+      });
+      if (access.readable === false) {
+        // No text source is touched for an attachment the policy refuses.
+        const note = accessRefusalMessage(access, attachment.originalName);
+        if (note) documents.push({ ...base, status: "FAILED", note });
+        continue;
+      }
       if (attachment.contentId && this.content) {
         const result = await this.readContent(
           scope,
@@ -951,6 +974,8 @@ type AttachmentRow = {
   documentId?: string | null;
   contentId?: string | null;
   content?: { status: string } | null;
+  /** The document the attachment was filed as; its AI access applies. */
+  document?: { aiAccess: boolean; archivedAt: Date | null } | null;
 };
 
 function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
