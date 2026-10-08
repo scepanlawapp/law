@@ -476,6 +476,7 @@ model OrganizationSettings {
   sefApiKeyCiphertext                String?
   sefApiKeyIv                        String?
   sefApiKeyAuthTag                   String?
+  caseNumberPattern                  String                   @default("{YYYY}-{SEQ}")
   invoiceNumberPattern               String                   @default("{YYYY}-{SEQ:6}")
   invoiceNumberStartingSequence      Int                      @default(1)
   invoiceNumberIncrementBy           Int                      @default(1)

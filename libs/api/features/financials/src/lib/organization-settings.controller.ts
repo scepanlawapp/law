@@ -17,6 +17,7 @@ import {
   CurrencySettingsDto,
   InvoiceDefaultsSettingsDto,
   InvoiceNumberingSettingsDto,
+  OtherOrganizationSettingsDto,
   InvoicePaymentQrSettingsDto,
   PaymentSettingsDto,
   SefApiKeyDto,
@@ -53,6 +54,9 @@ export class OrganizationSettingsController {
     @Body() body: InvoiceNumberingSettingsDto,
   ) {
     return this.settings.updateInvoiceNumbering(body);
+  }
+  @Put("other") other(@Body() body: OtherOrganizationSettingsDto) {
+    return this.settings.updateOther(body);
   }
   @Put("payment") payment(@Body() body: PaymentSettingsDto) {
     return this.settings.updatePayment(body);

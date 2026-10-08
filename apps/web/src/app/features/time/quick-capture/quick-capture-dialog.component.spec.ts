@@ -5,6 +5,7 @@ import {
   CasesApiClient,
   ClientsApiClient,
   WorkEntriesApiClient,
+  WorkManagementApiClient,
 } from "@law/api-clients";
 import {
   RetainerAgreement,
@@ -19,6 +20,12 @@ import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { QuickCaptureDialogComponent } from "./quick-capture-dialog.component";
 import { QuickCaptureInput } from "./quick-capture.models";
+
+import { TaskDialogService } from "../../work-management/task-dialog/task-dialog.service";
+
+jest.mock("../../work-management/task-dialog/task-dialog.service", () => ({
+  TaskDialogService: class TaskDialogService {},
+}));
 
 let context: QuickCaptureInput = { mode: "create" };
 
@@ -69,6 +76,10 @@ describe("QuickCaptureDialogComponent", () => {
     };
   });
 
+  const taskDialog = { open: jest.fn(() => of(undefined)) };
+  const tasks = {
+    getTask: jest.fn(() => of({ id: "task-1", title: "Prepare submission" })),
+  };
   const dialogRef = { close: jest.fn() };
   const confirmation = { confirm: jest.fn() };
   const entries = {
@@ -93,6 +104,8 @@ describe("QuickCaptureDialogComponent", () => {
       providers: [
         { provide: BrnDialogRef, useValue: dialogRef },
         { provide: ConfirmDialogService, useValue: confirmation },
+        { provide: TaskDialogService, useValue: taskDialog },
+        { provide: WorkManagementApiClient, useValue: tasks },
         { provide: WorkEntriesApiClient, useValue: entries },
         { provide: BillingSetupApiClient, useValue: billing },
         { provide: ClientsApiClient, useValue: clients },
@@ -680,6 +693,11 @@ describe("QuickCaptureDialogComponent", () => {
       const fixture = render();
       expect(fixture.componentInstance.form.disabled).toBe(true);
       expect(
+        [
+          ...fixture.nativeElement.querySelectorAll('input[type="radio"]'),
+        ].every((radio) => (radio as HTMLInputElement).disabled),
+      ).toBe(true);
+      expect(
         buttonWithText(fixture.nativeElement, "common.save"),
       ).toBeUndefined();
       expect(
@@ -688,6 +706,44 @@ describe("QuickCaptureDialogComponent", () => {
       fixture.componentInstance.submit();
       expect(entries.update).not.toHaveBeenCalled();
     });
+  });
+
+  it("shows the linked task and opens its details without closing capture", async () => {
+    context = { mode: "create", taskId: "task-1" };
+    const fixture = render();
+    const button = buttonWithText(fixture.nativeElement, "Prepare submission");
+    expect(button).toBeDefined();
+    button?.click();
+    await fixture.whenStable();
+    expect(taskDialog.open).toHaveBeenCalledWith({
+      task: { id: "task-1", title: "Prepare submission" },
+    });
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it("keeps capture usable when opening the task fails", () => {
+    context = { mode: "create", taskId: "task-1" };
+    const fixture = render();
+    tasks.getTask.mockReturnValueOnce(throwError(() => new Error("offline")));
+    fixture.componentInstance.openLinkedTask();
+    expect(toast.error).toHaveBeenCalledWith("time.capture.taskLoadError");
+    expect(fixture.componentInstance.openingTask()).toBe(false);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it("selects treatment through radios and disables them during save", () => {
+    const fixture = render();
+    const hourly = fixture.nativeElement.querySelector(
+      'input[type="radio"][value="HOURLY"]',
+    ) as HTMLInputElement;
+    hourly.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.form.controls.treatment.value).toBe(
+      "HOURLY",
+    );
+    fixture.componentInstance.saving.set(true);
+    fixture.detectChanges();
+    expect(hourly.disabled).toBe(true);
   });
 
   describe("save", () => {

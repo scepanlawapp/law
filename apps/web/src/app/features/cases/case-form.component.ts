@@ -219,9 +219,8 @@ export class CaseFormComponent {
       if (currentUserId) {
         this.form.controls.responsibleUserId.setValue(currentUserId);
       }
-      const format = this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
       this.api
-        .nextNumber(format)
+        .nextNumber()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (value) => {
@@ -314,9 +313,8 @@ export class CaseFormComponent {
     if (current.trim() && this.form.controls.caseNumber.dirty) {
       return;
     }
-    const format = this.auth.activeWorkspace()?.caseNumberFormat ?? "YYYY-N";
     this.api
-      .nextNumber(format)
+      .nextNumber()
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (value) =>

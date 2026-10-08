@@ -6,6 +6,7 @@ import {
 import { ActivityType, Case, Prisma } from "@prisma/client";
 import {
   PlatformPrismaService,
+  NumberPatternFormatter,
   paginationMeta,
   parseSort,
   WorkspaceContextService,
@@ -207,9 +208,40 @@ export class CasesService {
   }
 
   async nextNumberSuggestion(
-    format: CaseNumberFormat = "YYYY-N",
+    format?: CaseNumberFormat,
   ): Promise<{ caseNumber: string }> {
-    return { caseNumber: await this.nextNumber(format) };
+    if (format) return { caseNumber: await this.nextNumber(format) };
+    const settings = await this.db.organizationSettings.findUnique({
+      where: { workspaceId: this.context.workspaceId },
+      select: { caseNumberPattern: true },
+    });
+    const pattern = settings?.caseNumberPattern ?? "{YYYY}-{SEQ}";
+    const formatter = new NumberPatternFormatter();
+    const date = new Date();
+    formatter.validatePattern(pattern);
+    const cases = await this.db.case.findMany({
+      where: { workspaceId: this.context.workspaceId },
+      select: { caseNumber: true },
+    });
+    const highest = cases.reduce(
+      (max, item) =>
+        Math.max(
+          max,
+          formatter.parsePattern(pattern, item.caseNumber, date) ?? 0,
+        ),
+      0,
+    );
+    // Preserve the existing continuous sequence when the office changes pattern.
+    const sequence = Math.max(highest, cases.length) + 1;
+    if (!Number.isSafeInteger(sequence))
+      throw new BadRequestException("Case number sequence exhausted");
+    const caseNumber = formatter.renderPattern(pattern, date, sequence);
+    if (caseNumber.length > 40 || !/^[A-Za-z0-9/.-]+$/.test(caseNumber)) {
+      throw new BadRequestException(
+        "Configured case number exceeds the allowed format",
+      );
+    }
+    return { caseNumber };
   }
 
   private clientReference(client: CaseClientRow): ClientReference {

@@ -9,7 +9,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
   host: { class: "block min-w-0" },
   template: `
     <div class="px-4 py-6 md:px-8">
-      <header class="max-w-4xl">
+      <header>
         <h2 class="text-base font-semibold">
           {{ "settings.company" | translate }}
         </h2>
@@ -18,7 +18,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
         </p>
       </header>
       <nav
-        class="mt-5 max-w-4xl overflow-x-auto border-b border-border"
+        class="mt-5 overflow-x-auto border-b border-border"
         [attr.aria-label]="'settings.organization.navigation' | translate"
       >
         <div class="flex min-w-max gap-1">
@@ -41,7 +41,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
           }
         </div>
       </nav>
-      <div class="max-w-4xl"><router-outlet /></div>
+      <div><router-outlet /></div>
     </div>
   `,
 })
@@ -58,5 +58,6 @@ export class CompanySettingsLayoutComponent {
       label: "settings.organization.tabs.invoiceDefaults",
     },
     { path: "payment-qr", label: "settings.organization.tabs.paymentQr" },
+    { path: "other", label: "settings.organization.tabs.other" },
   ];
 }

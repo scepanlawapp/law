@@ -1,5 +1,5 @@
 import { WorkspaceRole } from "@law/api-interfaces";
-import { WorkspaceContextService } from "@law/core";
+import { NumberPatternFormatter, WorkspaceContextService } from "@law/core";
 import { OrganizationSettingsService } from "@law/financials";
 
 describe("OrganizationSettingsService", () => {
@@ -30,6 +30,7 @@ describe("OrganizationSettingsService", () => {
     sefApiKeyCiphertext: null as string | null,
     sefApiKeyIv: null as string | null,
     sefApiKeyAuthTag: null as string | null,
+    caseNumberPattern: "{YYYY}-{SEQ}",
     invoiceNumberPattern: "{YYYY}-{SEQ:6}",
     invoiceNumberStartingSequence: 1,
     invoiceNumberIncrementBy: 1,
@@ -86,7 +87,12 @@ describe("OrganizationSettingsService", () => {
   const config = {
     get: jest.fn(() => "a-secure-test-key-with-at-least-32-characters"),
   };
-  const numbering = { validatePattern: jest.fn() };
+  const formatter = new NumberPatternFormatter();
+  const numbering = {
+    validatePattern: jest.fn((pattern) => formatter.validatePattern(pattern)),
+    renderPattern: (pattern: string, date: Date, seq: number) =>
+      formatter.renderPattern(pattern, date, seq),
+  };
   const service = new OrganizationSettingsService(
     db as never,
     config as never,
@@ -101,6 +107,30 @@ describe("OrganizationSettingsService", () => {
   beforeEach(() => {
     record = { ...base };
     jest.clearAllMocks();
+  });
+
+  it("validates and persists the workspace case numbering pattern", async () => {
+    const value = { caseNumberPattern: "P/{YY}/{SEQ:4}" };
+    await expect(run(() => service.updateOther(value))).resolves.toEqual(value);
+    expect(numbering.validatePattern).toHaveBeenCalledWith(
+      value.caseNumberPattern,
+    );
+    expect(db.organizationSettings.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { workspaceId: "ws-1" },
+        update: value,
+      }),
+    );
+  });
+
+  it("does not persist an invalid case pattern", async () => {
+    numbering.validatePattern.mockImplementationOnce(() => {
+      throw new Error("invalid pattern");
+    });
+    await expect(
+      run(() => service.updateOther({ caseNumberPattern: "{BAD}" })),
+    ).rejects.toThrow("invalid pattern");
+    expect(db.organizationSettings.upsert).not.toHaveBeenCalled();
   });
 
   it("lazily returns workspace defaults scoped by workspace id", async () => {

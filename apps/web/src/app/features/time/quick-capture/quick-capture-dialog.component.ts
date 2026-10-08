@@ -5,6 +5,7 @@ import {
   DestroyRef,
   effect,
   inject,
+  Injector,
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
@@ -19,9 +20,11 @@ import {
   CasesApiClient,
   ClientsApiClient,
   WorkEntriesApiClient,
+  WorkManagementApiClient,
 } from "@law/api-clients";
 import {
   CaseReference,
+  TaskDetail,
   ClientReference,
   ServiceCategory,
   WorkCaptureParseResponse,
@@ -54,6 +57,8 @@ import {
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
@@ -63,6 +68,7 @@ import {
   finalize,
   filter,
   forkJoin,
+  from,
   map,
   Observable,
   of,
@@ -145,12 +151,16 @@ function today(): string {
     HlmInput,
     HlmSelectImports,
     HlmSpinner,
+    HlmRadioGroupImports,
+    HlmTooltip,
     HlmTextarea,
     TranslatePipe,
   ],
   providers: [provideIcons({ lucideMic, lucideMicOff })],
 })
 export class QuickCaptureDialogComponent {
+  private readonly injector = inject(Injector);
+  private readonly tasksApi = inject(WorkManagementApiClient);
   private readonly entriesApi = inject(WorkEntriesApiClient);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly billingApi = inject(BillingSetupApiClient);
@@ -164,6 +174,42 @@ export class QuickCaptureDialogComponent {
     injectBrnDialogContext<QuickCaptureInput<unknown>>();
   protected readonly speech = inject(SpeechRecognitionService);
   readonly dialogRef = inject(BrnDialogRef<unknown>);
+
+  readonly linkedTaskId = signal(this.context.taskId);
+  readonly linkedTask = signal<TaskDetail | null>(null);
+  readonly openingTask = signal(false);
+
+  openLinkedTask(): void {
+    const id = this.linkedTaskId();
+    if (!id || this.openingTask() || this.saving()) return;
+    this.openingTask.set(true);
+    this.tasksApi
+      .getTask(id)
+      .pipe(
+        tap((task) => this.linkedTask.set(task)),
+        // Lazy loading avoids the task-dialog -> quick-capture -> task-dialog cycle.
+        switchMap((task) =>
+          from(
+            import("../../work-management/task-dialog/task-dialog.service"),
+          ).pipe(
+            switchMap(({ TaskDialogService }) =>
+              this.injector.get(TaskDialogService).open({ task }),
+            ),
+          ),
+        ),
+        finalize(() => this.openingTask.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (task) => {
+          if (task) this.linkedTask.set(task);
+        },
+        error: () =>
+          this.toast.error(
+            this.localization.translate("time.capture.taskLoadError"),
+          ),
+      });
+  }
 
   readonly managingEntry = Boolean(
     this.context.manageEntry && this.context.entryId,
@@ -197,11 +243,6 @@ export class QuickCaptureDialogComponent {
     { value: "NON_BILLABLE", label: "time.treatment.nonBillable" },
     { value: "UNDECIDED", label: "time.treatment.undecided" },
   ];
-  readonly treatmentItemToString = createSelectItemToString(
-    this.treatmentOptions,
-    (key) => this.localization.translate(key),
-  );
-
   readonly form = new FormGroup({
     clientId: new FormControl(this.context.clientId ?? "", {
       nonNullable: true,
@@ -329,6 +370,16 @@ export class QuickCaptureDialogComponent {
     )(value);
 
   constructor() {
+    effect((onCleanup) => {
+      const id = this.linkedTaskId();
+      if (!id) return;
+      const subscription = this.tasksApi.getTask(id).subscribe({
+        next: (task) => this.linkedTask.set(task),
+        // The header button remains available to retry the task lookup.
+        error: () => this.linkedTask.set(null),
+      });
+      onCleanup(() => subscription.unsubscribe());
+    });
     const { clientId, caseId, workDate, serviceCategoryId } =
       this.form.controls;
 
@@ -767,6 +818,7 @@ export class QuickCaptureDialogComponent {
   }
 
   private hydrate(entry: WorkEntry): void {
+    this.linkedTaskId.set(this.context.taskId ?? entry.taskId ?? undefined);
     const controls = this.form.controls;
     this.hydrating = true;
     // Values the caller passed in win over the stored ones.

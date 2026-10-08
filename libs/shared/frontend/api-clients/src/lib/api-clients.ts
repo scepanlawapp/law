@@ -105,6 +105,7 @@ import {
   WorkEntryQuery,
   WorkspaceBillingConfig,
   OrganizationSettings,
+  OtherOrganizationSettings,
   CompanySettings,
   TaxSettings,
   SefSettings,
@@ -846,6 +847,11 @@ export class OrganizationSettingsApiClient {
   ): Observable<InvoiceNumberingSettings> {
     return this.put("/invoice-numbering", body);
   }
+  updateOther(
+    body: OtherOrganizationSettings,
+  ): Observable<OtherOrganizationSettings> {
+    return this.put("/other", body);
+  }
   updatePayment(body: PaymentSettings): Observable<PaymentSettings> {
     return this.put("/payment", body);
   }
@@ -1585,12 +1591,14 @@ export class CasesApiClient {
     });
   }
 
-  nextNumber(format: CaseNumberFormat): Observable<CaseNextNumberResponse> {
+  nextNumber(format?: CaseNumberFormat): Observable<CaseNextNumberResponse> {
     return this.http.get<CaseNextNumberResponse>(
       this.endpoint("/cases/next-number"),
       {
         withCredentials: true,
-        params: new HttpParams().set("format", format),
+        params: format
+          ? new HttpParams().set("format", format)
+          : new HttpParams(),
       },
     );
   }

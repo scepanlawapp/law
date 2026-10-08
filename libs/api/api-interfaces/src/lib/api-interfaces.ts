@@ -1578,7 +1578,12 @@ export interface BankAccount {
 
 export type BankAccountRequest = Omit<BankAccount, "id">;
 
+export interface OtherOrganizationSettings {
+  caseNumberPattern: string;
+}
+
 export interface OrganizationSettings {
+  other: OtherOrganizationSettings;
   company: CompanySettings;
   tax: TaxSettings;
   sef: SefSettings;

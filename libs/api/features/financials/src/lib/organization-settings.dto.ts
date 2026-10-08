@@ -77,6 +77,10 @@ export class SefApiKeyDto {
   @IsString() @MaxLength(4096) @Matches(/\S/) apiKey!: string;
 }
 
+export class OtherOrganizationSettingsDto {
+  @IsString() @MaxLength(120) caseNumberPattern!: string;
+}
+
 export class InvoiceNumberingSettingsDto {
   @IsString() @MaxLength(120) pattern!: string;
   @Type(() => Number)

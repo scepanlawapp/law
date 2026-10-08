@@ -1,7 +1,35 @@
 <hlm-dialog-header>
-  <h2 hlmDialogTitle>
-    {{ (readOnly() ? "work.entries.viewTitle" : titleKey) | translate }}
-  </h2>
+  <div class="flex min-w-0 flex-wrap items-start justify-between gap-3 pe-6">
+    <h2 hlmDialogTitle>
+      {{ (readOnly() ? "work.entries.viewTitle" : titleKey) | translate }}
+    </h2>
+    @if (linkedTaskId()) {
+      <button
+        hlmBtn
+        type="button"
+        variant="outline"
+        size="sm"
+        class="w-56 max-w-full justify-start"
+        [hlmTooltip]="
+          linkedTask()?.title || ('time.capture.openTask' | translate)
+        "
+        [attr.aria-label]="
+          ('time.capture.openTask' | translate) +
+          ': ' +
+          (linkedTask()?.title || '')
+        "
+        [disabled]="openingTask() || saving()"
+        (click)="openLinkedTask()"
+      >
+        @if (openingTask()) {
+          <hlm-spinner />
+        }
+        <span class="min-w-0 truncate">
+          {{ linkedTask()?.title || ("time.capture.openTask" | translate) }}
+        </span>
+      </button>
+    }
+  </div>
   <p hlmDialogDescription>{{ "time.capture.description" | translate }}</p>
 </hlm-dialog-header>
 
@@ -302,28 +330,30 @@
                 </hlm-select-content>
               </hlm-select>
             </div>
-            <div hlmField>
-              <label hlmFieldLabel for="capture-treatment">
+            <fieldset class="grid gap-3 sm:col-span-2">
+              <legend class="mb-3 text-sm font-medium">
                 {{ "time.capture.treatment" | translate }}
-              </label>
-              <hlm-select
+              </legend>
+              <hlm-radio-group
                 formControlName="treatment"
-                [itemToString]="treatmentItemToString"
+                [attr.aria-label]="'time.capture.treatment' | translate"
+                class="grid gap-3 sm:grid-cols-2"
               >
-                <hlm-select-trigger buttonId="capture-treatment" class="w-full">
-                  <hlm-select-value />
-                </hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal width="content">
-                  <hlm-select-group>
-                    @for (option of treatmentOptions; track option.value) {
-                      <hlm-select-item [value]="option.value">
-                        {{ option.label | translate }}
-                      </hlm-select-item>
-                    }
-                  </hlm-select-group>
-                </hlm-select-content>
-              </hlm-select>
-            </div>
+                @for (option of treatmentOptions; track option.value) {
+                  <hlm-radio
+                    [value]="option.value"
+                    [disabled]="saving() || readOnly()"
+                    [aria-label]="option.label | translate"
+                    [inputId]="option.value"
+                  >
+                    <hlm-radio-indicator indicator />
+                    <label hlmLabel [for]="option.value" class="text-sm">
+                      {{ option.label | translate }}
+                    </label>
+                  </hlm-radio>
+                }
+              </hlm-radio-group>
+            </fieldset>
           </div>
         }
       </fieldset>
