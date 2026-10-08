@@ -34,6 +34,7 @@ export type WorkEntrySourceType =
 export type RetainerRule = "HOURLY" | "AT" | "ABSORBED";
 
 export interface WorkEntry {
+  eventId?: string | null;
   /** Task this work belongs to; multiple entries can share a task. */
   taskId?: string | null;
   id: string;
@@ -91,6 +92,7 @@ export type UpdateWorkEntryRequest = Partial<
 };
 
 export interface WorkEntryQuery {
+  eventId?: string;
   taskId?: string;
   userIds?: string[];
   clientIds?: string[];
@@ -285,6 +287,7 @@ export interface ProfitabilityReport {
 }
 
 export interface PastWorkEvent {
+  hasWorkEntry: boolean;
   id: string;
   title: string;
   description: string | null;

@@ -95,11 +95,6 @@ export class WorkEntrySourcesService {
   ): Promise<string | null> {
     if (input.sourceType === "EVENT") {
       await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${input.sourceId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
-      const event = await tx.event.findFirst({
-        where: { id: input.sourceId, workspaceId: input.workspaceId },
-        select: { workWriteOffReason: true },
-      });
-      if (event?.workWriteOffReason) return null;
     }
     const clientIds = [...new Set(input.clientIds)];
     if (clientIds.length !== 1) return null;
@@ -108,11 +103,13 @@ export class WorkEntrySourcesService {
     const existing = await tx.workEntry.findFirst({
       where: {
         workspaceId: input.workspaceId,
-        ...(input.sourceType === "TASK"
+        ...(input.sourceType === "TASK" || input.sourceType === "EVENT"
           ? {
               OR: [
-                { taskId: input.sourceId },
-                { sourceType: "TASK", sourceId: input.sourceId },
+                input.sourceType === "TASK"
+                  ? { taskId: input.sourceId }
+                  : { eventId: input.sourceId },
+                { sourceType: input.sourceType, sourceId: input.sourceId },
               ],
             }
           : { sourceType: input.sourceType, sourceId: input.sourceId }),
@@ -155,6 +152,7 @@ export class WorkEntrySourcesService {
           sourceType: input.sourceType,
           sourceId: input.sourceId,
           taskId: input.sourceType === "TASK" ? input.sourceId : null,
+          eventId: input.sourceType === "EVENT" ? input.sourceId : null,
           createdByUserId: input.actorUserId,
           updatedByUserId: input.actorUserId,
         },

@@ -167,6 +167,7 @@ export class WorkEntriesService {
       and.push({ clientId: { in: query.clientIds } });
     if (query.caseId) and.push({ caseId: query.caseId });
     if (query.taskId) and.push({ taskId: query.taskId });
+    if (query.eventId) and.push({ eventId: query.eventId });
     if (query.statuses?.length) and.push({ status: { in: query.statuses } });
     if (query.treatments?.length) {
       and.push({ treatment: { in: query.treatments } });
@@ -275,7 +276,6 @@ export class WorkEntriesService {
             workspaceId,
             status: { not: "CANCELLED" },
             startsAt: range,
-            workWriteOffReason: null,
             OR: [
               { organizerUserId: userId },
               { assignees: { some: { userId } } },
@@ -318,13 +318,12 @@ export class WorkEntriesService {
       ? await this.db.workEntry.findMany({
           where: {
             workspaceId,
-            sourceType: "EVENT",
-            sourceId: { in: events.map((event) => event.id) },
+            eventId: { in: events.map((event) => event.id) },
           },
-          select: { sourceId: true },
+          select: { eventId: true },
         })
       : [];
-    const loggedEventIds = new Set(sourced.map((row) => row.sourceId));
+    const loggedEventIds = new Set(sourced.map((row) => row.eventId));
     const missingEvents = events
       .filter((event) => !loggedEventIds.has(event.id))
       .map((event) => ({
@@ -419,6 +418,7 @@ export class WorkEntriesService {
       ...this.eventScope(),
       status: { not: "CANCELLED" },
       endsAt: { lte: new Date() },
+      workEntries: { none: {} },
     };
     const [total, events] = await Promise.all([
       this.db.event.count({ where }),
@@ -430,19 +430,8 @@ export class WorkEntriesService {
         take: pageSize,
       }),
     ]);
-    const entries = events.length
-      ? await this.db.workEntry.findMany({
-          where: {
-            workspaceId: this.workspaceId,
-            sourceType: "EVENT",
-            sourceId: { in: events.map((event) => event.id) },
-          },
-          select: { id: true, sourceId: true, status: true, userId: true },
-        })
-      : [];
     return {
       items: events.map((event) => {
-        const entry = entries.find((entry) => entry.sourceId === event.id);
         return {
           id: event.id,
           type: event.type,
@@ -455,14 +444,9 @@ export class WorkEntriesService {
             this.clientReference(link.client),
           ),
           case: this.caseReference(event.case),
-          writeOffReason: event.workWriteOffReason,
-          workEntry: entry
-            ? {
-                id: entry.id,
-                status: entry.status,
-                canManage: this.isManager() || entry.userId === this.userId,
-              }
-            : null,
+          hasWorkEntry: false,
+          writeOffReason: null,
+          workEntry: null,
         };
       }),
       meta: paginationMeta(page, pageSize, total, [
@@ -475,6 +459,7 @@ export class WorkEntriesService {
     await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${id} AND "workspaceId" = ${this.workspaceId} FOR UPDATE`;
     const event = await tx.event.findFirst({
       where: { ...this.eventScope(), id },
+      include: { clients: true, case: true },
     });
     if (!event) throw new NotFoundException("Event not found");
     if (event.status === "CANCELLED" || event.endsAt > new Date())
@@ -482,61 +467,63 @@ export class WorkEntriesService {
     return event;
   }
 
-  async writeOffEvent(id: string, reason: string): Promise<void> {
-    const writeOffReason = this.requiredText(reason, "Write-off reason");
-    await this.db.$transaction(async (tx) => {
-      await this.lockPastEvent(tx, id);
-      const entry = await tx.workEntry.findFirst({
-        where: {
+  async writeOffEvent(id: string): Promise<WorkEntry> {
+    const row = await this.db.$transaction(async (tx) => {
+      const event = await this.lockPastEvent(tx, id);
+      // The event lock serializes double clicks and concurrent captures.
+      const existing = await tx.workEntry.findFirst({
+        where: { workspaceId: this.workspaceId, eventId: id },
+        include: entryInclude,
+      });
+      if (existing)
+        throw new ConflictException("Event already has recorded work");
+      const clientIds = [
+        ...new Set(event.clients.map((link) => link.clientId)),
+      ];
+      const clientId =
+        event.case?.clientId ??
+        (clientIds.length === 1 ? clientIds[0] : undefined);
+      if (!clientId)
+        throw new BadRequestException(
+          "Choose a client when recording non-billable event work",
+        );
+      await this.assertClientAndCase(clientId, event.caseId ?? undefined, tx);
+      const duration = Math.round(
+        (event.endsAt.getTime() - event.startsAt.getTime()) / 60000,
+      );
+      const workDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Belgrade",
+      }).format(event.startsAt);
+      const created = await tx.workEntry.create({
+        data: {
           workspaceId: this.workspaceId,
-          sourceType: "EVENT",
-          sourceId: id,
+          userId: this.userId,
+          clientId,
+          caseId: event.caseId,
+          eventId: id,
+          workDate: this.toWorkDate(workDate),
+          minutes:
+            !event.isAllDay && duration >= 1 && duration <= 1440
+              ? duration
+              : null,
+          title: this.titleText(event.title.slice(0, 200)),
+          description: this.optionalText(event.description ?? undefined),
+          status: "CONFIRMED",
+          treatment: "NON_BILLABLE",
+          source: "EVENT",
+          createdByUserId: this.userId,
+          updatedByUserId: this.userId,
         },
         include: entryInclude,
       });
-      if (entry) {
-        if (!this.isManager() && entry.userId !== this.userId)
-          throw new ForbiddenException(
-            "You can only change your own work entries",
-          );
-        this.assertNotBilled(entry);
-        if (entry.status === "WRITTEN_OFF") return;
-        const result = await tx.workEntry.updateMany({
-          where: {
-            id: entry.id,
-            workspaceId: this.workspaceId,
-            status: { in: MUTABLE_STATUSES },
-          },
-          data: {
-            status: "WRITTEN_OFF",
-            writeOffReason,
-            timerStartedAt: null,
-            updatedByUserId: this.userId,
-          },
-        });
-        if (!result.count)
-          throw new ConflictException("Work entry was changed concurrently");
-        await this.log(tx, "WORK_ENTRY_WRITTEN_OFF", entry, {
-          reason: writeOffReason,
-          source: "EVENT",
-        });
-      } else {
-        await tx.event.update({
-          where: { id, workspaceId: this.workspaceId },
-          data: { workWriteOffReason: writeOffReason },
-        });
-        await tx.activityLog.create({
-          data: {
-            workspaceId: this.workspaceId,
-            actorUserId: this.userId,
-            entityType: "EVENT",
-            entityId: id,
-            action: "EVENT_WORK_WRITTEN_OFF",
-            metadata: { reason: writeOffReason },
-          },
-        });
-      }
+      await this.log(tx, "WORK_ENTRY_CREATED", created, {
+        source: "EVENT",
+        treatment: "NON_BILLABLE",
+        status: "CONFIRMED",
+      });
+      return created;
     });
+    return this.toEntry(row);
   }
 
   // --------------------------------------------------------------- writes
@@ -613,57 +600,7 @@ export class WorkEntriesService {
       ));
 
     const row = await this.db.$transaction(async (tx) => {
-      if (input.eventId) {
-        const event = await this.lockPastEvent(tx, input.eventId);
-        if (event.workWriteOffReason)
-          throw new ConflictException("Event work has been written off");
-        const existing = await tx.workEntry.findFirst({
-          where: {
-            workspaceId: this.workspaceId,
-            sourceType: "EVENT",
-            sourceId: input.eventId,
-          },
-          include: entryInclude,
-        });
-        if (existing) {
-          if (!this.isManager() && existing.userId !== this.userId)
-            throw new ForbiddenException(
-              "You can only change your own work entries",
-            );
-          if (existing.status !== "PROPOSED")
-            throw new ConflictException("Event already has recorded work");
-          const updated = await tx.workEntry.updateMany({
-            where: {
-              id: existing.id,
-              workspaceId: this.workspaceId,
-              status: "PROPOSED",
-            },
-            data: {
-              clientId: input.clientId,
-              caseId: input.caseId ?? null,
-              title,
-              description,
-              minutes,
-              workDate,
-              treatment,
-              serviceCategoryId: input.serviceCategoryId ?? null,
-              status: "CONFIRMED",
-              updatedByUserId: this.userId,
-            },
-          });
-          if (!updated.count)
-            throw new ConflictException("Event work changed concurrently");
-          const confirmed = await tx.workEntry.findUniqueOrThrow({
-            where: { id: existing.id, workspaceId: this.workspaceId },
-            include: entryInclude,
-          });
-          await this.log(tx, "WORK_ENTRY_CONFIRMED", confirmed, {
-            source: "EVENT",
-            minutes,
-          });
-          return confirmed;
-        }
-      }
+      if (input.eventId) await this.lockPastEvent(tx, input.eventId);
       if (input.taskId) {
         const task = await tx.task.findFirst({
           where: { id: input.taskId, workspaceId: this.workspaceId },
@@ -690,8 +627,7 @@ export class WorkEntriesService {
             : input.taskId
               ? "TASK"
               : (input.source ?? "MANUAL"),
-          sourceType: input.eventId ? "EVENT" : null,
-          sourceId: input.eventId ?? null,
+          eventId: input.eventId ?? null,
           aiParsed: input.aiParsed ?? false,
           createdByUserId: this.userId,
           updatedByUserId: this.userId,
@@ -1272,6 +1208,7 @@ export class WorkEntriesService {
       sourceType: row.sourceType as WorkEntrySourceType | null,
       sourceId: row.sourceId,
       taskId: row.taskId ?? null,
+      eventId: row.eventId ?? null,
       invoiceId: row.invoiceLine?.invoiceId ?? null,
       aiParsed: row.aiParsed,
       createdAt: row.createdAt.toISOString(),

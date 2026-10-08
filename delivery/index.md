@@ -136,3 +136,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Work review statuses](tracks/work_review_statuses_20261008/index.md)
 
 - [Work / Time events and views](tracks/time_event_capture_20261008/index.md)
+
+- [Event work entries](tracks/event_work_entries_20261009/index.md)

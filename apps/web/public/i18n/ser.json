@@ -2441,7 +2441,7 @@
   "work.entries.restoreHint": "Izaberite Potvrđeno i sačuvajte da vratite otpisani rad. Razlog otpisa će biti uklonjen.",
   "time.team.allStatuses": "Svi statusi",
   "time.events.title": "Prošli događaji",
-  "time.events.description": "Završeni događaji koje organizujete ili kojima ste dodeljeni, iz svih perioda.",
+  "time.events.description": "Završeni događaji koje organizujete ili kojima ste dodeljeni, bez unosa rada.",
   "time.events.loading": "Učitavanje događaja…",
   "time.events.loadError": "Događaji nisu učitani. Pokušajte ponovo.",
   "time.events.actionError": "Radnju nije moguće izvršiti. Osvežite listu i pokušajte ponovo.",
@@ -2449,7 +2449,8 @@
   "time.events.event": "Događaj",
   "time.events.view": "Prikaži",
   "time.events.view.event": "Prikaži događaj",
-  "time.events.empty": "Nema prošlih događaja.",
+  "time.events.empty": "Nema prošlih događaja bez unosa rada.",
   "time.events.previous": "Prethodna strana",
+  "time.events.shrink": "Smanji",
   "time.events.next": "Sledeća strana"
 }

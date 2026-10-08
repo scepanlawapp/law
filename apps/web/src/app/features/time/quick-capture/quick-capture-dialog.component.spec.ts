@@ -851,6 +851,27 @@ describe("QuickCaptureDialogComponent", () => {
     );
   });
 
+  it("keeps explicit non-billable treatment when selecting a client and submits it", () => {
+    context = {
+      mode: "create",
+      eventId: "event-1",
+      title: "Internal meeting",
+      treatment: "NON_BILLABLE",
+    };
+    const fixture = render();
+    const component = fixture.componentInstance;
+    component.form.controls.clientId.setValue("client-1");
+    fixture.detectChanges();
+    expect(component.form.controls.treatment.value).toBe("NON_BILLABLE");
+    component.submit();
+    expect(entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: "event-1",
+        treatment: "NON_BILLABLE",
+      }),
+    );
+  });
+
   it("persists the event link and opens the event from the capture header", async () => {
     context = {
       mode: "create",

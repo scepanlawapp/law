@@ -52,11 +52,8 @@ export class WorkEntriesController {
   }
 
   @Post("events/:eventId/write-off")
-  writeOffEvent(
-    @Param("eventId") eventId: string,
-    @Body() body: WriteOffWorkEntryDto,
-  ) {
-    return this.workEntries.writeOffEvent(eventId, body.reason);
+  writeOffEvent(@Param("eventId") eventId: string) {
+    return this.workEntries.writeOffEvent(eventId);
   }
 
   @Get("timer")

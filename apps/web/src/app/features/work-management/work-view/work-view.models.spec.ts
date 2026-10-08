@@ -75,6 +75,7 @@ function makeDeadline(overrides: Partial<DeadlineDetail> = {}): DeadlineDetail {
 
 function makeEvent(overrides: Partial<EventDetail> = {}): EventDetail {
   return {
+    hasWorkEntry: false,
     id: "event-1",
     type: "MEETING",
     title: "Client call",

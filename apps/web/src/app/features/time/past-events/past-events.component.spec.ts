@@ -10,6 +10,7 @@ import { WriteOffDialogService } from "../write-off-dialog/write-off-dialog.serv
 import { PastEventsComponent } from "./past-events.component";
 
 const event: PastWorkEvent = {
+  hasWorkEntry: false,
   id: "event-1",
   type: "HEARING",
   title: "Hearing – Petrović",
@@ -115,21 +116,27 @@ describe("PastEventsComponent", () => {
     expect(events.get).toHaveBeenCalledWith("event-1");
     expect(dialog.open).toHaveBeenCalledWith({ event });
   });
-  it("writes off only after the user provides a reason", () => {
+  it("writes off directly without a reason dialog", () => {
     const fixture = render();
     fixture.componentInstance.writeOff(event);
-    expect(api.writeOffEvent).not.toHaveBeenCalled();
-    writeOff.open.mockReturnValue(of("Internal"));
-    fixture.componentInstance.writeOff(event);
-    expect(api.writeOffEvent).toHaveBeenCalledWith("event-1", {
-      reason: "Internal",
-    });
+    expect(api.writeOffEvent).toHaveBeenCalledWith("event-1");
+    expect(writeOff.open).not.toHaveBeenCalled();
     expect(api.pastEvents).toHaveBeenCalledTimes(2);
+  });
+  it("asks only for missing client data with non-billable capture preselected", () => {
+    const fixture = render();
+    fixture.componentInstance.writeOff({ ...event, case: null, clients: [] });
+    expect(capture.open).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: event.id, treatment: "NON_BILLABLE" }),
+    );
+    expect(writeOff.open).not.toHaveBeenCalled();
+    expect(api.writeOffEvent).not.toHaveBeenCalled();
   });
   it("does not allow duplicate capture or writing off billed work", () => {
     const fixture = render();
     const billed: PastWorkEvent = {
       ...event,
+      hasWorkEntry: true,
       workEntry: { id: "entry-1", status: "BILLED", canManage: true },
     };
     fixture.componentInstance.logWork(billed);
@@ -137,11 +144,10 @@ describe("PastEventsComponent", () => {
     expect(capture.open).not.toHaveBeenCalled();
     expect(writeOff.open).not.toHaveBeenCalled();
   });
-  it("uses a table in list presentation and paginates", () => {
+  it("shows event cards and paginates", () => {
     const fixture = render();
-    fixture.componentRef.setInput("presentation", "list");
     fixture.detectChanges();
-    expect(fixture.nativeElement.querySelector("table")).not.toBeNull();
+    expect(fixture.nativeElement.querySelector("article")).not.toBeNull();
     fixture.componentInstance.load(2);
     expect(api.pastEvents).toHaveBeenLastCalledWith(2, 20);
   });

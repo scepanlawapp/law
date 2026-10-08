@@ -203,6 +203,9 @@ export class WorkEntryQueryDto
 {
   @IsOptional()
   @IsUUID()
+  eventId?: string;
+  @IsOptional()
+  @IsUUID()
   taskId?: string;
   @IsOptional()
   @Transform(toArray)
