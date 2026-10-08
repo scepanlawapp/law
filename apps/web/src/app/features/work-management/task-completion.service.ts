@@ -5,6 +5,7 @@ import {
 } from "@law/api-clients";
 import { TaskDetail, TaskRequest, WorkEntry } from "@law/api-interfaces";
 import { map, Observable, of, switchMap, tap } from "rxjs";
+import { isEditable } from "../time/time-utils";
 import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
 
 @Injectable({ providedIn: "root" })
@@ -35,7 +36,7 @@ export class TaskCompletionService {
   openWorkEntry(entry: WorkEntry): Observable<WorkEntry | null> {
     return this.capture
       .open({
-        mode: "edit",
+        mode: isEditable(entry) ? "edit" : "view",
         entryId: entry.id,
         manageEntry: true,
         onDeleted: () => this.revision.update((value) => value + 1),

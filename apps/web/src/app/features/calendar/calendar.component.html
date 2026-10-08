@@ -51,16 +51,7 @@
         size="lg"
         (click)="openCreateEvent(selectedDay() ?? today)"
       >
-        {{ "calendar.createObligation" | translate }}
-      </button>
-      <button
-        hlmBtn
-        type="button"
-        variant="outline"
-        size="lg"
-        (click)="openCreateDeadline(selectedDay() ?? today)"
-      >
-        {{ "calendar.createDeadline" | translate }}
+        {{ "calendar.createEvent" | translate }}
       </button>
     </div>
   </header>
@@ -287,11 +278,34 @@
               [attr.data-obligations-empty]="
                 weekHasObligationItems() ? 'false' : 'true'
               "
+              [attr.data-obligations-collapsed]="!obligationsExpanded()"
             >
               <div
-                class="calendar-week-header-cell border-b border-r border-border bg-muted p-2"
-                aria-hidden="true"
-              ></div>
+                class="calendar-week-header-cell flex items-center justify-center border-b border-r border-border bg-muted"
+              >
+                @if (weekHasObligationItems()) {
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    [attr.aria-expanded]="obligationsExpanded()"
+                    [attr.aria-label]="obligationsToggleLabel() | translate"
+                    [attr.aria-controls]="obligationsRowIds()"
+                    [hlmTooltip]="obligationsToggleLabel() | translate"
+                    (click)="toggleObligations()"
+                  >
+                    <ng-icon
+                      [name]="
+                        obligationsExpanded()
+                          ? 'lucideChevronUp'
+                          : 'lucideChevronDown'
+                      "
+                      aria-hidden="true"
+                    />
+                  </button>
+                }
+              </div>
               @for (day of weekDays(); track day.date) {
                 <div
                   class="calendar-week-header-cell border-b border-r border-border bg-muted p-2 text-left text-sm font-medium"
@@ -306,6 +320,8 @@
               @for (day of weekDays(); track day.date) {
                 <div
                   class="calendar-day-obligations border-b border-r border-border bg-background"
+                  [id]="'calendar-obligations-' + day.date"
+                  [attr.inert]="obligationsExpanded() ? null : ''"
                 >
                   @for (
                     item of obligationItemsForDay(day.date);

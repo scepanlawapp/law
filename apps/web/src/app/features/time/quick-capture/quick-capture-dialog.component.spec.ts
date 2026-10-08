@@ -608,6 +608,8 @@ describe("QuickCaptureDialogComponent", () => {
           case: null,
           minutes: null,
           title: "Existing work",
+          status: "CONFIRMED",
+          user: { id: "user-1", displayName: "Ana" },
           description: "Notes",
           workDate: "2026-10-08",
           serviceCategory: null,
@@ -701,8 +703,8 @@ describe("QuickCaptureDialogComponent", () => {
         buttonWithText(fixture.nativeElement, "common.save"),
       ).toBeUndefined();
       expect(
-        buttonWithText(fixture.nativeElement, "common.delete")?.disabled,
-      ).toBe(true);
+        buttonWithText(fixture.nativeElement, "common.delete"),
+      ).toBeUndefined();
       fixture.componentInstance.submit();
       expect(entries.update).not.toHaveBeenCalled();
     });
@@ -744,6 +746,66 @@ describe("QuickCaptureDialogComponent", () => {
     fixture.componentInstance.saving.set(true);
     fixture.detectChanges();
     expect(hourly.disabled).toBe(true);
+  });
+
+  describe("view mode", () => {
+    const entry = {
+      id: "view-1",
+      taskId: "task-1",
+      title: "Filed appeal",
+      description: "Detailed notes",
+      status: "BILLED",
+      client: clientRef("client-1", "Client"),
+      case: { id: "case-1", caseNumber: "2026-1", name: "Case" },
+      user: { id: "user-1", displayName: "Ana" },
+      workDate: "2026-10-08",
+      minutes: 45,
+      treatment: "HOURLY",
+      serviceCategory: { id: "cat-1", name: "Research" },
+    };
+    beforeEach(() => {
+      context = { mode: "view", entryId: "view-1", manageEntry: true };
+      entries.get.mockReturnValue(of(entry));
+    });
+    it("shows saved details with only navigation and close actions", () => {
+      const fixture = render();
+      const root = fixture.nativeElement as HTMLElement;
+      expect(root.textContent).toContain("Filed appeal");
+      expect(root.textContent).toContain("Detailed notes");
+      expect(root.textContent).toContain("Research");
+      expect(root.textContent).toContain("time.status.billed");
+      expect(root.querySelector("input, textarea, select, form")).toBeNull();
+      expect(buttonWithText(root, "time.capture.fill")).toBeUndefined();
+      expect(buttonWithText(root, "common.delete")).toBeUndefined();
+      expect(buttonWithText(root, "common.save")).toBeUndefined();
+      expect(buttonWithText(root, "Prepare submission")).toBeDefined();
+      expect(clients.list).not.toHaveBeenCalled();
+      expect(billing.listCategories).not.toHaveBeenCalled();
+      expect(entries.actions).not.toHaveBeenCalled();
+      fixture.componentInstance.submit();
+      fixture.componentInstance.deleteEntry();
+      expect(entries.update).not.toHaveBeenCalled();
+      expect(entries.remove).not.toHaveBeenCalled();
+      buttonWithText(root, "common.close")?.click();
+      expect(dialogRef.close).toHaveBeenCalled();
+    });
+    it("keeps a failed load retryable", () => {
+      entries.get.mockReturnValueOnce(throwError(() => new Error("offline")));
+      const fixture = render();
+      expect(fixture.nativeElement.textContent).toContain(
+        "work.entries.loadEntryError",
+      );
+      buttonWithText(fixture.nativeElement, "work.retry")?.click();
+      fixture.detectChanges();
+      expect(fixture.nativeElement.textContent).toContain("Filed appeal");
+    });
+    it("switches a stale edit request to view when the server returns a billed entry", () => {
+      context = { mode: "edit", entryId: "view-1" };
+      const fixture = render();
+      expect(fixture.componentInstance.readOnly()).toBe(true);
+      expect(fixture.nativeElement.querySelector("form")).toBeNull();
+      expect(fixture.nativeElement.textContent).toContain("Filed appeal");
+    });
   });
 
   describe("save", () => {

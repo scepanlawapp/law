@@ -85,27 +85,16 @@
           </header>
 
           @for (entry of day.entries; track entry.id) {
-            @if (isEditable(entry)) {
-              <button
-                type="button"
-                class="border-border hover:bg-accent focus-visible:ring-ring/40 flex min-w-0 flex-col gap-1 rounded-lg border p-2 text-start focus-visible:ring-3 focus-visible:outline-none"
-                data-testid="entry"
-                (click)="edit(entry)"
-              >
-                <ng-container
-                  *ngTemplateOutlet="entryBody; context: { $implicit: entry }"
-                />
-              </button>
-            } @else {
-              <div
-                class="border-border flex min-w-0 flex-col gap-1 rounded-lg border p-2"
-                data-testid="entry"
-              >
-                <ng-container
-                  *ngTemplateOutlet="entryBody; context: { $implicit: entry }"
-                />
-              </div>
-            }
+            <button
+              type="button"
+              class="border-border hover:bg-accent focus-visible:ring-ring/40 flex min-w-0 flex-col gap-1 rounded-lg border p-2 text-start focus-visible:ring-3 focus-visible:outline-none"
+              data-testid="entry"
+              (click)="edit(entry)"
+            >
+              <ng-container
+                *ngTemplateOutlet="entryBody; context: { $implicit: entry }"
+              />
+            </button>
           } @empty {
             <p class="text-muted-foreground text-xs">
               {{ "time.my.emptyDay" | translate }}

@@ -136,7 +136,9 @@ describe("TaskCompletionService", () => {
   });
   it("refreshes task work after deletion without returning a deleted entry as a save", () => {
     const result = jest.fn();
-    service.openWorkEntry({ id: "entry-1" } as WorkEntry).subscribe(result);
+    service
+      .openWorkEntry({ id: "entry-1", status: "CONFIRMED" } as WorkEntry)
+      .subscribe(result);
     const context = capture.open.mock.calls[0][0] as QuickCaptureInput;
     expect(context).toMatchObject({
       mode: "edit",
@@ -148,4 +150,13 @@ describe("TaskCompletionService", () => {
     expect(service.workRevision()).toBe(1);
     expect(result).toHaveBeenCalledWith(null);
   });
+  it.each(["BILLED", "WRITTEN_OFF", "RUNNING"] as const)(
+    "opens %s task work in view mode",
+    (status) => {
+      service.openWorkEntry({ id: "entry-1", status } as WorkEntry).subscribe();
+      expect(capture.open).toHaveBeenCalledWith(
+        expect.objectContaining({ mode: "view", entryId: "entry-1" }),
+      );
+    },
+  );
 });

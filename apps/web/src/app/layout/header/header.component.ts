@@ -16,6 +16,7 @@ import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { BottomReachedDirective } from "../../core/directives/bottom-reached.directive";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { NotificationsStore } from "../../core/notifications/notifications.store";
 import { notificationTarget } from "../../core/notifications/notification-navigation";
@@ -60,6 +61,7 @@ const notificationIcon: Record<NotificationType, string> = {
     HlmButton,
     HlmInputGroupImports,
     HlmSpinner,
+    BottomReachedDirective,
     HeaderTimerComponent,
     TranslatePipe,
   ],

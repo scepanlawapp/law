@@ -222,19 +222,19 @@ describe("TeamTimeComponent", () => {
       rows(fixture).map(buttons);
     expect(proposed).toEqual(["common.edit", "time.review.writeOff"]);
     expect(confirmed).toEqual(["common.edit", "time.review.writeOff"]);
-    expect(billed).toEqual([]);
-    expect(writtenOff).toEqual([]);
-    expect(running).toEqual([]);
+    expect(billed).toEqual(["work.entries.view"]);
+    expect(writtenOff).toEqual(["work.entries.view"]);
+    expect(running).toEqual(["work.entries.view"]);
   });
 
-  it("does not act on non-editable entries even when called directly", () => {
+  it("opens non-editable entries for viewing without allowing write-off", () => {
     const fixture = create();
     const billed = entry("b", "BILLED");
 
     fixture.componentInstance.edit(billed);
     fixture.componentInstance.writeOff(billed);
 
-    expect(capture.open).not.toHaveBeenCalled();
+    expect(capture.open).toHaveBeenCalledWith({ mode: "view", entryId: "b" });
     expect(writeOffDialog.open).not.toHaveBeenCalled();
   });
 
@@ -252,7 +252,7 @@ describe("TeamTimeComponent", () => {
       reason: "Greška u unosu",
     });
     expect(fixture.componentInstance.entries()[0].status).toBe("WRITTEN_OFF");
-    expect(buttons(rows(fixture)[0])).toEqual([]);
+    expect(buttons(rows(fixture)[0])).toEqual(["work.entries.view"]);
   });
 
   it("does not write off when the reason dialog is dismissed", () => {

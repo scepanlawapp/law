@@ -181,11 +181,14 @@ describe("MyTimeComponent", () => {
       row.textContent?.includes("time.status.billed"),
     );
 
-    expect(billed?.tagName).toBe("DIV");
-    expect(rows.filter((row) => row.tagName === "BUTTON")).toHaveLength(3);
+    expect(billed?.tagName).toBe("BUTTON");
+    expect(rows.filter((row) => row.tagName === "BUTTON")).toHaveLength(4);
 
-    fixture.componentInstance.edit(entries[3]);
-    expect(capture.open).not.toHaveBeenCalled();
+    (billed as HTMLButtonElement).click();
+    expect(capture.open).toHaveBeenCalledWith({
+      mode: "view",
+      entryId: entries[3].id,
+    });
   });
 
   it("navigates between weeks and back to today", () => {

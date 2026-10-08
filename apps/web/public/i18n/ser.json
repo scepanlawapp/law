@@ -93,6 +93,8 @@
   "calendar.emptyDescription": "U ovom periodu nema događaja, zadataka ni rokova koji odgovaraju filterima.",
   "calendar.dateOnly": "Samo datum",
   "calendar.allDay": "Ceo dan",
+  "calendar.collapseObligations": "Skupi obaveze",
+  "calendar.expandObligations": "Proširi obaveze",
   "calendar.more": "još",
   "calendar.close": "Zatvori",
   "calendar.date": "Datum",
@@ -2429,5 +2431,10 @@
   "settings.organization.other.invalidPattern": "Unesite ispravan obrazac sa jednim {SEQ} ili {SEQ:n} tokenom (1–12 cifara). Dozvoljena su slova A–Z, cifre, /, . i -; ostavite prostor za redni broj do 12 cifara unutar 40 znakova.",
   "settings.organization.other.loadError": "Podešavanja nisu učitana. Pokušajte ponovo.",
   "time.capture.openTask": "Otvori povezani zadatak",
-  "time.capture.taskLoadError": "Povezani zadatak nije moguće otvoriti. Pokušajte ponovo."
+  "time.capture.taskLoadError": "Povezani zadatak nije moguće otvoriti. Pokušajte ponovo.",
+  "work.entries.view": "Prikaži",
+  "work.entries.viewDescription": "Pregled zabeleženog rada.",
+  "work.entries.performer": "Izvršilac",
+  "work.entries.status": "Status",
+  "work.entries.writeOffReason": "Razlog otpisa"
 }

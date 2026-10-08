@@ -68,9 +68,88 @@ describe("CalendarComponent", () => {
         },
         { provide: Router, useValue: { navigate: jest.fn() } },
       ],
-    })
-      .overrideComponent(CalendarComponent, { set: { template: "" } })
-      .compileComponents();
+    }).compileComponents();
+  });
+
+  it("only offers the sticky obligations toggle when needed and restores entries", () => {
+    const fixture = TestBed.createComponent(CalendarComponent);
+    const component = fixture.componentInstance;
+    const root: HTMLElement = fixture.nativeElement;
+    fixture.detectChanges();
+
+    expect(
+      root.querySelector("button[aria-controls^='calendar-obligations-']"),
+    ).toBeNull();
+
+    const task: CalendarItem = {
+      calendarId: "TASK:task-1",
+      sourceType: "TASK",
+      sourceId: "task-1",
+      title: "Predati podnesak",
+      status: "TODO",
+      startsAt: null,
+      endsAt: null,
+      date: "2026-09-28",
+      timeZone: null,
+      case: null,
+      client: null,
+      responsibleUser: null,
+      assigneeUsers: [],
+    };
+    const event: CalendarItem = {
+      ...task,
+      calendarId: "EVENT:event-1",
+      sourceType: "EVENT",
+      sourceId: "event-1",
+      title: "Sastanak",
+      startsAt: "2026-09-28T08:00:00.000Z",
+      endsAt: "2026-09-28T09:00:00.000Z",
+      date: null,
+      timeZone: "Europe/Belgrade",
+    };
+    component.items.set([task, event]);
+    fixture.detectChanges();
+
+    const toggle = root.querySelector<HTMLButtonElement>(
+      "button[aria-controls^='calendar-obligations-']",
+    );
+    const obligations = root.querySelector<HTMLElement>(
+      "#calendar-obligations-2026-09-28",
+    );
+    const obligation = obligations?.querySelector("button");
+    const timedEvent = root.querySelector<HTMLElement>(".calendar-week-event");
+    const eventPosition = timedEvent?.getAttribute("style");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(toggle?.getAttribute("aria-label")).toBe(
+      "calendar.collapseObligations",
+    );
+    expect(obligation?.textContent).toContain(task.title);
+    expect(timedEvent?.textContent).toContain(event.title);
+
+    toggle?.click();
+    fixture.detectChanges();
+
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(toggle?.getAttribute("aria-label")).toBe(
+      "calendar.expandObligations",
+    );
+    expect(obligations?.hasAttribute("inert")).toBe(true);
+    expect(obligations?.querySelector("button")).toBe(obligation);
+    expect(timedEvent?.getAttribute("style")).toBe(eventPosition);
+
+    toggle?.click();
+    fixture.detectChanges();
+
+    expect(toggle?.getAttribute("aria-expanded")).toBe("true");
+    expect(obligations?.hasAttribute("inert")).toBe(false);
+    expect(obligations?.querySelector("button")).toBe(obligation);
+    expect(timedEvent?.getAttribute("style")).toBe(eventPosition);
+
+    component.items.set([event]);
+    fixture.detectChanges();
+    expect(
+      root.querySelector("button[aria-controls^='calendar-obligations-']"),
+    ).toBeNull();
   });
 
   it("requests events, tasks, and deadlines for the visible range", () => {
@@ -142,6 +221,32 @@ describe("CalendarComponent", () => {
     ]);
     expect(component.weekEventSegments()).toEqual([]);
     expect(component.itemTime(deadline)).toContain("10:00");
+    expect(component.weekHasObligationItems()).toBe(true);
+    expect(component.obligationsExpanded()).toBe(true);
+    expect(component.obligationsToggleLabel()).toBe(
+      "calendar.collapseObligations",
+    );
+
+    component.toggleObligations();
+
+    expect(component.obligationsExpanded()).toBe(false);
+    expect(component.obligationsToggleLabel()).toBe(
+      "calendar.expandObligations",
+    );
+    expect(component.obligationItemsForDay("2026-09-28")).toEqual([
+      task,
+      deadline,
+    ]);
+    expect(component.weekHasObligationItems()).toBe(true);
+    expect(component.weekEventSegments()).toEqual([]);
+
+    component.toggleObligations();
+
+    expect(component.obligationsExpanded()).toBe(true);
+    expect(component.obligationItemsForDay("2026-09-28")).toEqual([
+      task,
+      deadline,
+    ]);
   });
 
   it("opens deadline creation for the selected date and refreshes after save", () => {

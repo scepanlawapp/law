@@ -32,6 +32,7 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Direct Statement Source Billing](./tracks/direct_statement_source_billing_20260929/index.md)
 - [Calendar Deadline Edit](./tracks/calendar_deadline_edit_20260929/index.md)
 - [In-App Notifications](./tracks/notifications_20260929/index.md)
+- [Notification Scroll Pagination](./tracks/notification_scroll_pagination_20261008/index.md)
 - [Billing Statement Basic Detail UI](./tracks/billing_statement_detail_ui_20260929/index.md)
 - [Billing Statement Edit, Delete, and Detail Routing](./tracks/billing_statement_crud_ui_20260929/index.md)
 - [Finance Statements UX Refactor](./tracks/finance_statements_ux_refactor_20260929/index.md)
@@ -129,3 +130,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Task Work Entry Deletion](./tracks/task_work_entry_deletion_20261008/index.md)
 
 - [Company numbering and quick capture](tracks/company_numbering_capture_20261008/index.md)
+
+- [Work entry view dialog](tracks/work_entry_view_dialog_20261008/index.md)
