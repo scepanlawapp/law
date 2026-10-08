@@ -67,6 +67,9 @@
       "@law/transliteration": ["./libs/api/ai/transliteration/src/index.ts"],
       "@law/knowledge": ["./libs/api/ai/knowledge/src/index.ts"],
       "@law/documents": ["./libs/api/ai/documents/src/index.ts"],
+      "@law/document-intelligence": [
+        "./libs/api/ai/document-intelligence/src/index.ts"
+      ],
       "@spartan-ng/helm/button": [
         "./libs/shared/frontend/ui/button/src/index.ts"
       ],
