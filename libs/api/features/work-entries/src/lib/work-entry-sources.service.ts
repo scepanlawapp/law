@@ -2,6 +2,7 @@ import { Injectable, Logger, NotFoundException } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import {
   ConfirmSourceEntryRequest,
+  CreateWorkEntryRequest,
   WorkEntry,
   WorkEntrySource,
   WorkEntrySourceType,
@@ -174,6 +175,15 @@ export class WorkEntrySourcesService {
       },
     });
     return entry.id;
+  }
+
+  /** Save explicit task capture inside the task's transaction. */
+  saveTaskCapture(
+    tx: Prisma.TransactionClient,
+    task: { id: string; assigneeUserId: string },
+    input: CreateWorkEntryRequest,
+  ): Promise<void> {
+    return this.workEntries.saveTaskCapture(tx, task, input);
   }
 
   /**

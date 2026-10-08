@@ -121,3 +121,5 @@ Tracks are organized by implementation area and updated as work progresses.
 
 - [Document folders](tracks/document_folders_20261006/index.md) — completed
 - [Documents Drive Actions](tracks/documents_drive_actions_20261006/index.md)
+
+- [Task Completion Work Entry](./tracks/task_completion_work_entry_20261008/index.md)

@@ -53,6 +53,7 @@ import {
   DueTargetMode,
   taskDueMode,
 } from "../work-management-utils";
+import { TaskCompletionService } from "../task-completion.service";
 import { TaskDialogContext } from "./task-dialog.models";
 import {
   STATUS_BADGE_BASE_CLASSES,
@@ -94,6 +95,7 @@ export class TaskDialogComponent {
   readonly statusBadgeClass = statusBadgeClass;
   readonly priorityBadgeClass = priorityBadgeClass;
   private readonly api = inject(WorkManagementApiClient);
+  private readonly taskCompletion = inject(TaskCompletionService);
   private readonly casesApi = inject(CasesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
@@ -242,6 +244,7 @@ export class TaskDialogComponent {
   }
 
   submit(): void {
+    if (this.saving()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -272,11 +275,22 @@ export class TaskDialogComponent {
       return;
     }
     this.saving.set(true);
-    const operation = this.context.task
-      ? this.api.updateTask(this.context.task.id, request)
-      : this.api.createTask(request);
+    const completing =
+      value.status === "DONE" && this.context.task?.status !== "DONE";
+    const operation = completing
+      ? this.taskCompletion.complete(request, this.context.task?.id)
+      : this.context.task
+        ? this.api.updateTask(this.context.task.id, request)
+        : this.api.createTask(request);
     operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: (task) => this.dialogRef.close(task),
+      next: (task) => {
+        this.saving.set(false);
+        if (task) this.dialogRef.close(task);
+        else
+          this.form.controls.status.setValue(
+            this.context.task?.status ?? "TODO",
+          );
+      },
       error: () => this.saving.set(false),
     });
   }

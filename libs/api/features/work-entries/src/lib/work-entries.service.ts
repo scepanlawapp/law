@@ -397,6 +397,80 @@ export class WorkEntriesService {
 
   // --------------------------------------------------------------- writes
 
+  /** Task update holds the task row lock, serializing repeated completions. */
+  async saveTaskCapture(
+    tx: Prisma.TransactionClient,
+    task: { id: string; assigneeUserId: string },
+    input: CreateWorkEntryRequest,
+  ): Promise<void> {
+    const minutes = input.minutes ?? null;
+    this.assertMinutes(minutes);
+    const title = this.titleText(input.title);
+    const description = this.optionalText(input.description);
+    const workDate = this.toWorkDate(input.workDate);
+    await this.assertClientAndCase(input.clientId, input.caseId, tx);
+    await this.assertServiceCategory(input.serviceCategoryId, tx);
+    const existing = await tx.workEntry.findFirst({
+      where: {
+        workspaceId: this.workspaceId,
+        sourceType: "TASK",
+        sourceId: task.id,
+      },
+    });
+    // Reopening a task must never duplicate or overwrite previously settled work.
+    if (existing && existing.status !== "PROPOSED") return;
+    const treatment =
+      input.treatment ??
+      (await this.defaultTreatmentFor(
+        input.clientId,
+        workDate,
+        input.serviceCategoryId ?? null,
+        tx,
+      ));
+    const data = {
+      clientId: input.clientId,
+      caseId: input.caseId ?? null,
+      userId: task.assigneeUserId,
+      workDate,
+      minutes,
+      title,
+      description,
+      treatment,
+      serviceCategoryId: input.serviceCategoryId ?? null,
+      status: "CONFIRMED" as const,
+      aiParsed: input.aiParsed ?? false,
+      updatedByUserId: this.userId,
+    };
+    const row = existing
+      ? await tx.workEntry.update({
+          where: { id: existing.id },
+          data,
+          include: entryInclude,
+        })
+      : await tx.workEntry.create({
+          data: {
+            ...data,
+            workspaceId: this.workspaceId,
+            source: "TASK",
+            sourceType: "TASK",
+            sourceId: task.id,
+            createdByUserId: this.userId,
+          },
+          include: entryInclude,
+        });
+    await this.log(
+      tx,
+      existing ? "WORK_ENTRY_CONFIRMED" : "WORK_ENTRY_CREATED",
+      row,
+      {
+        source: "TASK",
+        minutes,
+        treatment,
+        status: "CONFIRMED",
+      },
+    );
+  }
+
   async create(input: CreateWorkEntryRequest): Promise<WorkEntry> {
     const minutes = input.minutes ?? null;
     this.assertMinutes(minutes);
@@ -878,14 +952,15 @@ export class WorkEntriesService {
   private async assertClientAndCase(
     clientId: string,
     caseId: string | undefined,
+    tx: Prisma.TransactionClient = this.db,
   ): Promise<void> {
-    const client = await this.db.client.findFirst({
+    const client = await tx.client.findFirst({
       where: { id: clientId, workspaceId: this.workspaceId },
       select: { id: true },
     });
     if (!client) throw new BadRequestException("Client not found");
     if (!caseId) return;
-    const caseRecord = await this.db.case.findFirst({
+    const caseRecord = await tx.case.findFirst({
       where: { id: caseId, workspaceId: this.workspaceId },
       select: { id: true, clientId: true },
     });
@@ -897,9 +972,10 @@ export class WorkEntriesService {
 
   private async assertServiceCategory(
     serviceCategoryId: string | undefined,
+    tx: Prisma.TransactionClient = this.db,
   ): Promise<void> {
     if (!serviceCategoryId) return;
-    const category = await this.db.serviceCategory.findFirst({
+    const category = await tx.serviceCategory.findFirst({
       where: { id: serviceCategoryId, workspaceId: this.workspaceId },
       select: { id: true },
     });

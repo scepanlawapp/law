@@ -9,9 +9,11 @@ import {
   IsUUID,
   MaxLength,
   Validate,
+  ValidateNested,
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from "class-validator";
+import { CreateWorkEntryDto } from "@law/work-entries";
 import { Transform, Type } from "class-transformer";
 import { CasePriority } from "@prisma/client";
 import { PaginationQueryDto } from "@law/core";
@@ -149,6 +151,10 @@ export class DeadlineListQueryDto extends PaginationQueryDto {
 }
 
 export class CreateTaskDto extends DueTargetDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CreateWorkEntryDto)
+  workEntry?: CreateWorkEntryDto;
   @IsString() @MaxLength(320) title!: string;
   @IsOptional() @IsString() @MaxLength(10000) description?: string;
   @IsOptional() @IsEnum(TaskStatus) status?: TaskStatus;

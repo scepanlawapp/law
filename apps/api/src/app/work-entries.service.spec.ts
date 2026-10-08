@@ -98,6 +98,7 @@ describe("WorkEntriesService", () => {
       findMany: jest.fn(),
       findUniqueOrThrow: jest.fn(),
       updateMany: jest.fn(),
+      update: jest.fn(),
     },
     activityLog: { create: jest.fn(), findMany: jest.fn() },
     $transaction: jest.fn(async (input: unknown) => {
@@ -142,6 +143,75 @@ describe("WorkEntriesService", () => {
     db.workEntry.findMany.mockResolvedValue([]);
     db.activityLog.create.mockResolvedValue({});
     service.afterConfirmed = async () => undefined;
+  });
+
+  describe("task capture", () => {
+    const task = { id: "task-1", assigneeUserId: otherUserId };
+    it("creates confirmed untimed work for the assignee with task linkage", async () => {
+      await as(WorkspaceRole.OWNER, () =>
+        service.saveTaskCapture(db as never, task, {
+          ...validCreate,
+          minutes: null,
+        }),
+      );
+      expect(db.workEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            workspaceId,
+            userId: otherUserId,
+            sourceType: "TASK",
+            sourceId: "task-1",
+            status: "CONFIRMED",
+            minutes: null,
+          }),
+        }),
+      );
+    });
+    it.each(["CONFIRMED", "BILLED", "WRITTEN_OFF"])(
+      "does not duplicate or overwrite %s work on recompletion",
+      async (status) => {
+        db.workEntry.findFirst.mockResolvedValue(entryRecord({ status }));
+        await as(WorkspaceRole.OWNER, () =>
+          service.saveTaskCapture(db as never, task, validCreate),
+        );
+        expect(db.workEntry.create).not.toHaveBeenCalled();
+        expect(db.workEntry.update).not.toHaveBeenCalled();
+      },
+    );
+    it("confirms an existing proposal using the edited capture", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "PROPOSED" }),
+      );
+      db.workEntry.update.mockResolvedValue(entryRecord());
+      await as(WorkspaceRole.OWNER, () =>
+        service.saveTaskCapture(db as never, task, validCreate),
+      );
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+      expect(db.workEntry.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: entryId },
+          data: expect.objectContaining({ status: "CONFIRMED", minutes: 45 }),
+        }),
+      );
+    });
+    it("rejects invalid client/case context before writing the entry", async () => {
+      db.case.findFirst.mockResolvedValue({
+        id: caseId,
+        clientId: "another-client",
+      });
+      await expect(
+        as(WorkspaceRole.OWNER, () =>
+          service.saveTaskCapture(db as never, task, {
+            ...validCreate,
+            caseId,
+          }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+      expect(db.client.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({ where: { id: clientId, workspaceId } }),
+      );
+    });
   });
 
   describe("create", () => {

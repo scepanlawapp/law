@@ -1,6 +1,13 @@
-import { WorkEntrySourceType } from "@law/api-interfaces";
+import { Observable } from "rxjs";
+import {
+  CreateWorkEntryRequest,
+  WorkEntry,
+  WorkEntrySourceType,
+} from "@law/api-interfaces";
 
-export interface QuickCaptureInput {
+export interface QuickCaptureInput<TResult = WorkEntry> {
+  /** Custom atomic save, used when capturing work also completes a task. */
+  save?: (request: CreateWorkEntryRequest) => Observable<TResult>;
   clientId?: string;
   caseId?: string;
   minutes?: number;

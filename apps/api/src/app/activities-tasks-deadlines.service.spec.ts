@@ -138,11 +138,13 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
     activityLog: { count: jest.fn(), findMany: jest.fn() },
   };
   const ensureForSource = jest.fn();
+  const saveTaskCapture = jest.fn();
+  const checkRetainerUsage = jest.fn();
   const notifications = { create: jest.fn() };
   const service = new ActivitiesTasksDeadlinesService(
     db as never,
     notifications as never,
-    { ensureForSource } as never,
+    { ensureForSource, saveTaskCapture, checkRetainerUsage } as never,
   );
   const run = <T>(callback: () => Promise<T>) =>
     WorkspaceContextService.run(
@@ -396,6 +398,44 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
       status: "DONE" as const,
       clientId,
     };
+
+    const workEntry = {
+      clientId,
+      title: "Pregled",
+      workDate: "2026-10-08",
+      minutes: null,
+    };
+    it("captures work inside the same transaction as DONE", async () => {
+      tx.task.findFirst.mockResolvedValue(
+        taskRow({ clientId, status: "IN_PROGRESS" }),
+      );
+      tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      await run(() => service.updateTask(taskId, { ...update, workEntry }));
+      expect(saveTaskCapture).toHaveBeenCalledWith(
+        tx,
+        expect.objectContaining({ id: taskId, status: "DONE" }),
+        workEntry,
+      );
+      expect(ensureForSource).not.toHaveBeenCalled();
+      expect(tx.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            status: "DONE",
+            completedByUserId: userId,
+            completedAt: expect.any(Date),
+          }),
+        }),
+      );
+    });
+    it("propagates capture failure out of the transaction for rollback", async () => {
+      tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));
+      tx.task.update.mockResolvedValue(taskRow({ clientId, status: "DONE" }));
+      saveTaskCapture.mockRejectedValue(new Error("Capture failed"));
+      await expect(
+        run(() => service.updateTask(taskId, { ...update, workEntry })),
+      ).rejects.toThrow("Capture failed");
+      expect(checkRetainerUsage).not.toHaveBeenCalled();
+    });
 
     it("proposes an entry when the status becomes DONE", async () => {
       tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));

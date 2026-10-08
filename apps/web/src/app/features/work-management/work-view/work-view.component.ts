@@ -49,6 +49,7 @@ import {
   priorityBadgeClass,
   statusBadgeClass,
 } from "../../../shared/status-badge";
+import { TaskCompletionService } from "../task-completion.service";
 import { TaskDialogComponent } from "../task-dialog/task-dialog.component";
 import { TaskDialogContext } from "../task-dialog/task-dialog.models";
 import { TaskDialogService } from "../task-dialog/task-dialog.service";
@@ -146,6 +147,7 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
   ],
 })
 export class WorkViewComponent {
+  private readonly taskCompletion = inject(TaskCompletionService);
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly priorityBadgeClass = priorityBadgeClass;
   readonly statusBadgeClass = statusBadgeClass;
@@ -502,6 +504,32 @@ export class WorkViewComponent {
     );
   }
 
+  private readonly statusControls = new Map<
+    string,
+    FormControl<PresentationStatus>
+  >();
+
+  statusControlFor(item: WorkItem): FormControl<PresentationStatus> {
+    let control = this.statusControls.get(item.id);
+    if (!control) {
+      control = new FormControl(item.presentationStatus, { nonNullable: true });
+      control.valueChanges
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe((value) => {
+          const current = this.workItems().find(
+            (candidate) => candidate.id === item.id,
+          );
+          if (current) this.onStatusSelect(current, value);
+        });
+      this.statusControls.set(item.id, control);
+    }
+    // The stored status remains authoritative until capture and save succeed.
+    if (control.value !== item.presentationStatus) {
+      control.setValue(item.presentationStatus, { emitEvent: false });
+    }
+    return control;
+  }
+
   onStatusSelect(item: WorkItem, value: string): void {
     const target = value as BoardColumnKey;
 
@@ -529,9 +557,8 @@ export class WorkViewComponent {
     if (!call) return;
 
     call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
-      next: () => {
-        // Completing a task proposes a work entry on the server; it shows up
-        // in time review without interrupting the user here.
+      next: (result) => {
+        if (!result) return;
         this.updateTaskStatusLocally(item.id, target as TaskStatus);
       },
       error: () => {
@@ -556,7 +583,10 @@ export class WorkViewComponent {
           toTaskRequest(item.raw as TaskDetail, "IN_PROGRESS"),
         );
       case "task-complete":
-        return this.workApi.completeTask(item.id);
+        return this.taskCompletion.complete(
+          toTaskRequest(item.raw as TaskDetail, "DONE"),
+          item.id,
+        );
       case "task-reopen":
         return this.workApi.reopenTask(item.id);
       default:

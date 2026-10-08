@@ -518,6 +518,25 @@ describe("QuickCaptureDialogComponent", () => {
     });
   });
 
+  it("keeps capture open after atomic save failure and prevents duplicate submits", () => {
+    const pending = new Subject<WorkEntry>();
+    const save = jest.fn(() => pending);
+    context = { mode: "create", clientId: "client-1", title: "Pregled", save };
+    const { componentInstance: component } = render();
+    component.submit();
+    component.submit();
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(entries.create).not.toHaveBeenCalled();
+    expect(dialogRef.close).not.toHaveBeenCalled();
+    pending.error(new Error("Failed"));
+    expect(component.saving()).toBe(false);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+    expect(component.form.controls.title.value).toBe("Pregled");
+    save.mockReturnValue(of(savedEntry) as Subject<WorkEntry>);
+    component.submit();
+    expect(dialogRef.close).toHaveBeenCalledWith(savedEntry);
+  });
+
   describe("save", () => {
     it("creates a MANUAL entry when nothing was parsed", () => {
       const { componentInstance: component } = render();

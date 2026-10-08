@@ -154,9 +154,10 @@ export class QuickCaptureDialogComponent {
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
-  private readonly context = injectBrnDialogContext<QuickCaptureInput>();
+  private readonly context =
+    injectBrnDialogContext<QuickCaptureInput<unknown>>();
   protected readonly speech = inject(SpeechRecognitionService);
-  readonly dialogRef = inject(BrnDialogRef<WorkEntry | undefined>);
+  readonly dialogRef = inject(BrnDialogRef<unknown>);
 
   readonly mode = this.context.mode;
   /** Source confirmations take client, case and treatment from the source. */
@@ -411,6 +412,8 @@ export class QuickCaptureDialogComponent {
         });
     }
     if (clientId.value) this.ensureClientKnown(clientId.value);
+    if (caseId.value)
+      this.applyCaseById(caseId.value, clientId.value || null, false);
     if (this.context.entryId) this.hydrateFromEntry(this.context.entryId);
 
     effect(() => {
@@ -551,20 +554,27 @@ export class QuickCaptureDialogComponent {
   }
 
   /** Loads the case, derives the client from it when the client is unknown. */
-  private applyCaseById(caseId: string, expectedClientId: string | null): void {
+  private applyCaseById(
+    caseId: string,
+    expectedClientId: string | null,
+    parsed = true,
+  ): void {
     this.casesApi
       .get(caseId)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (detail) => {
+          if (!parsed && this.form.controls.caseId.value !== caseId) return;
           if (expectedClientId && detail.client.id !== expectedClientId) {
-            this.caseLookupFailed();
+            if (parsed) this.caseLookupFailed();
             return;
           }
           this.selectCase(detail);
-          this.aiParsed.set(true);
+          if (parsed) this.aiParsed.set(true);
         },
-        error: () => this.caseLookupFailed(),
+        error: () => {
+          if (parsed) this.caseLookupFailed();
+        },
       });
   }
 
@@ -684,6 +694,7 @@ export class QuickCaptureDialogComponent {
   // ---------------------------------------------------------------- save
 
   submit(): void {
+    if (this.saving()) return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -705,7 +716,7 @@ export class QuickCaptureDialogComponent {
       });
   }
 
-  private save(): Observable<WorkEntry> {
+  private save(): Observable<unknown> {
     const value = this.form.getRawValue();
     // Empty means untimed; null also clears time on an existing entry.
     const minutes = value.minutes ?? null;
@@ -723,6 +734,10 @@ export class QuickCaptureDialogComponent {
       treatment: this.treatmentToSend(),
     };
     const aiParsed = this.aiParsed();
+
+    if (this.context.save) {
+      return this.context.save({ ...fields, aiParsed });
+    }
 
     switch (this.mode) {
       case "create":

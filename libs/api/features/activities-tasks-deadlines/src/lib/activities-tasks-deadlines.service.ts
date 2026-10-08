@@ -758,6 +758,9 @@ export class ActivitiesTasksDeadlinesService {
     return this.task(item);
   }
   async createTask(input: CreateTaskDto): Promise<TaskDetail> {
+    if (input.workEntry && input.status !== "DONE") {
+      throw new BadRequestException("Work capture requires task completion");
+    }
     this.dueTarget(input.dueDate, input.dueAt);
     await this.validateContext({
       caseId: input.caseId,
@@ -798,11 +801,19 @@ export class ActivitiesTasksDeadlinesService {
       });
       // Logging finished work must not drop it: same path as the transition.
       if (task.status === "DONE") {
-        await this.proposeEntryForTaskOrDeadline(tx, {
-          sourceType: "TASK",
-          record: task,
-          performerUserId: task.assigneeUserId,
-        });
+        if (input.workEntry) {
+          await this.workEntrySources.saveTaskCapture(
+            tx,
+            task,
+            input.workEntry,
+          );
+        } else {
+          await this.proposeEntryForTaskOrDeadline(tx, {
+            sourceType: "TASK",
+            record: task,
+            performerUserId: task.assigneeUserId,
+          });
+        }
       }
       if (task.assigneeUserId !== this.context.userId) {
         const content = buildNotificationContent(
@@ -824,9 +835,18 @@ export class ActivitiesTasksDeadlinesService {
       }
       return task;
     });
+    if (input.workEntry) {
+      await this.workEntrySources.checkRetainerUsage(
+        input.workEntry.clientId,
+        new Date(input.workEntry.workDate),
+      );
+    }
     return this.task(item);
   }
   async updateTask(id: string, input: UpdateTaskDto): Promise<TaskDetail> {
+    if (input.workEntry && input.status !== "DONE") {
+      throw new BadRequestException("Work capture requires task completion");
+    }
     this.dueTarget(input.dueDate, input.dueAt);
     await this.validateContext({
       caseId: input.caseId,
@@ -845,6 +865,12 @@ export class ActivitiesTasksDeadlinesService {
           title: input.title.trim(),
           description: input.description?.trim(),
           status: input.status,
+          ...(input.status &&
+            input.status !== existing.status && {
+              completedAt: input.status === "DONE" ? new Date() : null,
+              completedByUserId:
+                input.status === "DONE" ? this.context.userId : null,
+            }),
           priority: input.priority,
           assigneeUserId: input.assigneeUserId,
           dueDate: input.dueDate
@@ -858,18 +884,29 @@ export class ActivitiesTasksDeadlinesService {
         include: this.taskInclude(),
       });
       await this.log(tx, {
-        action: "TASK_UPDATED",
+        action:
+          existing.status !== "DONE" && task.status === "DONE"
+            ? "TASK_DONE"
+            : "TASK_UPDATED",
         entityType: "Task",
         entityId: id,
         caseId: task.caseId,
         clientId: task.clientId,
       });
       if (existing.status !== "DONE" && task.status === "DONE") {
-        await this.proposeEntryForTaskOrDeadline(tx, {
-          sourceType: "TASK",
-          record: task,
-          performerUserId: task.assigneeUserId,
-        });
+        if (input.workEntry) {
+          await this.workEntrySources.saveTaskCapture(
+            tx,
+            task,
+            input.workEntry,
+          );
+        } else {
+          await this.proposeEntryForTaskOrDeadline(tx, {
+            sourceType: "TASK",
+            record: task,
+            performerUserId: task.assigneeUserId,
+          });
+        }
       }
       if (
         existing.assigneeUserId !== task.assigneeUserId &&
@@ -894,6 +931,12 @@ export class ActivitiesTasksDeadlinesService {
       }
       return task;
     });
+    if (input.workEntry) {
+      await this.workEntrySources.checkRetainerUsage(
+        input.workEntry.clientId,
+        new Date(input.workEntry.workDate),
+      );
+    }
     return this.task(item);
   }
   async transitionTask(
