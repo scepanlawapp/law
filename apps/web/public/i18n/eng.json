@@ -2439,5 +2439,16 @@
   "work.entries.writeOffReason": "Write-off reason",
   "finance.noWorkMatchingFilters": "No work entries match these filters.",
   "work.entries.restoreHint": "Select Confirmed and save to restore written-off work. Its write-off reason will be cleared.",
-  "time.team.allStatuses": "All statuses"
+  "time.team.allStatuses": "All statuses",
+  "time.events.title": "Past events",
+  "time.events.description": "Events you organize or are assigned to that have ended, across all dates.",
+  "time.events.loading": "Loading events…",
+  "time.events.loadError": "Events could not be loaded. Please retry.",
+  "time.events.actionError": "Could not complete the action. Refresh the list and retry.",
+  "time.events.unlogged": "Unlogged",
+  "time.events.event": "Event",
+  "time.events.view": "View Event",
+  "time.events.empty": "No past events.",
+  "time.events.previous": "Previous page",
+  "time.events.next": "Next page"
 }

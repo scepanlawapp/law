@@ -13,6 +13,7 @@ import {
   ConfirmWorkEntryRequest,
   CreateWorkEntryRequest,
   PaginatedResponse,
+  PastWorkEvent,
   StartTimerRequest,
   TimeReviewResponse,
   UpdateWorkEntryRequest,
@@ -28,6 +29,7 @@ import {
 } from "@law/api-interfaces";
 import {
   DEFAULT_PAGE,
+  PaginationQueryDto,
   DEFAULT_PAGE_SIZE,
   PlatformPrismaService,
   WorkspaceContextService,
@@ -273,6 +275,7 @@ export class WorkEntriesService {
             workspaceId,
             status: { not: "CANCELLED" },
             startsAt: range,
+            workWriteOffReason: null,
             OR: [
               { organizerUserId: userId },
               { assignees: { some: { userId } } },
@@ -397,6 +400,145 @@ export class WorkEntriesService {
     return rows.map((row) => this.toEntry(row));
   }
 
+  private eventScope(): Prisma.EventWhereInput {
+    return {
+      workspaceId: this.workspaceId,
+      OR: [
+        { organizerUserId: this.userId },
+        { assignees: { some: { userId: this.userId } } },
+      ],
+    };
+  }
+
+  async pastEvents(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<PastWorkEvent>> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const where: Prisma.EventWhereInput = {
+      ...this.eventScope(),
+      status: { not: "CANCELLED" },
+      endsAt: { lte: new Date() },
+    };
+    const [total, events] = await Promise.all([
+      this.db.event.count({ where }),
+      this.db.event.findMany({
+        where,
+        include: { clients: { include: { client: true } }, case: true },
+        orderBy: [{ endsAt: "desc" }, { id: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    const entries = events.length
+      ? await this.db.workEntry.findMany({
+          where: {
+            workspaceId: this.workspaceId,
+            sourceType: "EVENT",
+            sourceId: { in: events.map((event) => event.id) },
+          },
+          select: { id: true, sourceId: true, status: true, userId: true },
+        })
+      : [];
+    return {
+      items: events.map((event) => {
+        const entry = entries.find((entry) => entry.sourceId === event.id);
+        return {
+          id: event.id,
+          type: event.type,
+          title: event.title,
+          description: event.description,
+          startsAt: event.startsAt.toISOString(),
+          endsAt: event.endsAt.toISOString(),
+          isAllDay: event.isAllDay,
+          clients: event.clients.map((link) =>
+            this.clientReference(link.client),
+          ),
+          case: this.caseReference(event.case),
+          writeOffReason: event.workWriteOffReason,
+          workEntry: entry
+            ? {
+                id: entry.id,
+                status: entry.status,
+                canManage: this.isManager() || entry.userId === this.userId,
+              }
+            : null,
+        };
+      }),
+      meta: paginationMeta(page, pageSize, total, [
+        { field: "endsAt", direction: "desc" },
+      ]),
+    };
+  }
+
+  private async lockPastEvent(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${id} AND "workspaceId" = ${this.workspaceId} FOR UPDATE`;
+    const event = await tx.event.findFirst({
+      where: { ...this.eventScope(), id },
+    });
+    if (!event) throw new NotFoundException("Event not found");
+    if (event.status === "CANCELLED" || event.endsAt > new Date())
+      throw new ConflictException("Event has not ended or is cancelled");
+    return event;
+  }
+
+  async writeOffEvent(id: string, reason: string): Promise<void> {
+    const writeOffReason = this.requiredText(reason, "Write-off reason");
+    await this.db.$transaction(async (tx) => {
+      await this.lockPastEvent(tx, id);
+      const entry = await tx.workEntry.findFirst({
+        where: {
+          workspaceId: this.workspaceId,
+          sourceType: "EVENT",
+          sourceId: id,
+        },
+        include: entryInclude,
+      });
+      if (entry) {
+        if (!this.isManager() && entry.userId !== this.userId)
+          throw new ForbiddenException(
+            "You can only change your own work entries",
+          );
+        this.assertNotBilled(entry);
+        if (entry.status === "WRITTEN_OFF") return;
+        const result = await tx.workEntry.updateMany({
+          where: {
+            id: entry.id,
+            workspaceId: this.workspaceId,
+            status: { in: MUTABLE_STATUSES },
+          },
+          data: {
+            status: "WRITTEN_OFF",
+            writeOffReason,
+            timerStartedAt: null,
+            updatedByUserId: this.userId,
+          },
+        });
+        if (!result.count)
+          throw new ConflictException("Work entry was changed concurrently");
+        await this.log(tx, "WORK_ENTRY_WRITTEN_OFF", entry, {
+          reason: writeOffReason,
+          source: "EVENT",
+        });
+      } else {
+        await tx.event.update({
+          where: { id, workspaceId: this.workspaceId },
+          data: { workWriteOffReason: writeOffReason },
+        });
+        await tx.activityLog.create({
+          data: {
+            workspaceId: this.workspaceId,
+            actorUserId: this.userId,
+            entityType: "EVENT",
+            entityId: id,
+            action: "EVENT_WORK_WRITTEN_OFF",
+            metadata: { reason: writeOffReason },
+          },
+        });
+      }
+    });
+  }
+
   // --------------------------------------------------------------- writes
 
   /** Task update holds the task row lock, serializing repeated completions. */
@@ -453,6 +595,8 @@ export class WorkEntriesService {
   }
 
   async create(input: CreateWorkEntryRequest): Promise<WorkEntry> {
+    if (input.eventId && input.taskId)
+      throw new BadRequestException("Choose either an event or a task");
     const minutes = input.minutes ?? null;
     this.assertMinutes(minutes);
     const title = this.titleText(input.title);
@@ -469,6 +613,57 @@ export class WorkEntriesService {
       ));
 
     const row = await this.db.$transaction(async (tx) => {
+      if (input.eventId) {
+        const event = await this.lockPastEvent(tx, input.eventId);
+        if (event.workWriteOffReason)
+          throw new ConflictException("Event work has been written off");
+        const existing = await tx.workEntry.findFirst({
+          where: {
+            workspaceId: this.workspaceId,
+            sourceType: "EVENT",
+            sourceId: input.eventId,
+          },
+          include: entryInclude,
+        });
+        if (existing) {
+          if (!this.isManager() && existing.userId !== this.userId)
+            throw new ForbiddenException(
+              "You can only change your own work entries",
+            );
+          if (existing.status !== "PROPOSED")
+            throw new ConflictException("Event already has recorded work");
+          const updated = await tx.workEntry.updateMany({
+            where: {
+              id: existing.id,
+              workspaceId: this.workspaceId,
+              status: "PROPOSED",
+            },
+            data: {
+              clientId: input.clientId,
+              caseId: input.caseId ?? null,
+              title,
+              description,
+              minutes,
+              workDate,
+              treatment,
+              serviceCategoryId: input.serviceCategoryId ?? null,
+              status: "CONFIRMED",
+              updatedByUserId: this.userId,
+            },
+          });
+          if (!updated.count)
+            throw new ConflictException("Event work changed concurrently");
+          const confirmed = await tx.workEntry.findUniqueOrThrow({
+            where: { id: existing.id, workspaceId: this.workspaceId },
+            include: entryInclude,
+          });
+          await this.log(tx, "WORK_ENTRY_CONFIRMED", confirmed, {
+            source: "EVENT",
+            minutes,
+          });
+          return confirmed;
+        }
+      }
       if (input.taskId) {
         const task = await tx.task.findFirst({
           where: { id: input.taskId, workspaceId: this.workspaceId },
@@ -490,7 +685,13 @@ export class WorkEntriesService {
           treatment,
           status: "CONFIRMED",
           taskId: input.taskId ?? null,
-          source: input.taskId ? "TASK" : (input.source ?? "MANUAL"),
+          source: input.eventId
+            ? "EVENT"
+            : input.taskId
+              ? "TASK"
+              : (input.source ?? "MANUAL"),
+          sourceType: input.eventId ? "EVENT" : null,
+          sourceId: input.eventId ?? null,
           aiParsed: input.aiParsed ?? false,
           createdByUserId: this.userId,
           updatedByUserId: this.userId,

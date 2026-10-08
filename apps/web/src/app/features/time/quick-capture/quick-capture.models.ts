@@ -14,6 +14,7 @@ export interface QuickCaptureInput<TResult = WorkEntry> {
   manageEntry?: boolean;
   onDeleted?: () => void;
   taskId?: string;
+  eventId?: string;
   clientId?: string;
   caseId?: string;
   minutes?: number;

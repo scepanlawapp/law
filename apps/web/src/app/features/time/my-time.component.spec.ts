@@ -1,4 +1,5 @@
-import { signal } from "@angular/core";
+import { PastEventsComponent } from "./past-events/past-events.component";
+import { Component, input, output, signal } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { provideRouter } from "@angular/router";
 import { WorkEntriesApiClient } from "@law/api-clients";
@@ -9,6 +10,12 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { MyTimeComponent } from "./my-time.component";
 import { QuickCaptureDialogService } from "./quick-capture/quick-capture-dialog.service";
 import { addDays, mondayOf, officeToday } from "./time-utils";
+
+@Component({ selector: "law-past-work-events", standalone: true, template: "" })
+class PastEventsStub {
+  readonly presentation = input("board");
+  readonly workChanged = output<void>();
+}
 
 const client = (id: string, displayName: string) => ({
   id,
@@ -90,6 +97,10 @@ describe("MyTimeComponent", () => {
     jest.clearAllMocks();
     api.list.mockReturnValue(of(page(entries)));
     capture.open.mockReturnValue(of(null));
+    TestBed.overrideComponent(MyTimeComponent, {
+      remove: { imports: [PastEventsComponent] },
+      add: { imports: [PastEventsStub] },
+    });
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -122,16 +133,14 @@ describe("MyTimeComponent", () => {
     });
   });
 
-  it("sums the week, each day and each client in minutes", () => {
+  it("sums the week and clients without day-summary totals", () => {
     const fixture = create();
 
     expect(fixture.componentInstance.weekMinutes()).toBe(180);
     expect(
       root(fixture).querySelector('[data-testid="week-total"]')?.textContent,
     ).toContain("3h");
-    expect(fixture.componentInstance.days().map((day) => day.minutes)).toEqual([
-      120, 0, 45, 0, 0, 0, 15,
-    ]);
+    expect(root(fixture).querySelector('[data-testid="day-total"]')).toBeNull();
     expect(
       fixture.componentInstance
         .clientTotals()
@@ -207,5 +216,20 @@ describe("MyTimeComponent", () => {
     fixture.componentInstance.goToToday();
     fixture.detectChanges();
     expect(fixture.componentInstance.weekStart()).toBe(WEEK);
+  });
+  it("switches the weekly work from board to list without losing entries", () => {
+    const fixture = create();
+    const button = root(fixture).querySelector(
+      '[aria-label="work.view.showList"]',
+    ) as HTMLButtonElement;
+    button.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.presentation()).toBe("list");
+    expect(
+      root(fixture).querySelectorAll('tr[data-testid="entry"]'),
+    ).toHaveLength(4);
+    expect(
+      root(fixture).querySelector('a[href="/work/time/review"]'),
+    ).toBeNull();
   });
 });

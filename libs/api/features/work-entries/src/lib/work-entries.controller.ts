@@ -11,7 +11,11 @@ import {
   UseGuards,
 } from "@nestjs/common";
 import { AuthGuard, CsrfOriginGuard } from "@law/auth";
-import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
+import {
+  PaginationQueryDto,
+  WorkspaceAccess,
+  WorkspaceAccessGuard,
+} from "@law/core";
 import {
   ConfirmSourceEntryDto,
   ConfirmWorkEntryDto,
@@ -42,6 +46,19 @@ export class WorkEntriesController {
   }
 
   // Fixed-path routes are declared before `:id` so they are never read as an id.
+  @Get("past-events")
+  pastEvents(@Query() query: PaginationQueryDto) {
+    return this.workEntries.pastEvents(query);
+  }
+
+  @Post("events/:eventId/write-off")
+  writeOffEvent(
+    @Param("eventId") eventId: string,
+    @Body() body: WriteOffWorkEntryDto,
+  ) {
+    return this.workEntries.writeOffEvent(eventId, body.reason);
+  }
+
   @Get("timer")
   runningTimer() {
     return this.workEntries.runningTimer();

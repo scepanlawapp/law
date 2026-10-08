@@ -50,7 +50,6 @@ import { WorkViewComponent } from "./features/work-management/work-view/work-vie
 import { MyTimeComponent } from "./features/time/my-time.component";
 import { TeamTimeComponent } from "./features/time/team-time.component";
 import { teamTimeGuard } from "./features/time/team-time.guard";
-import { TimeReviewComponent } from "./features/time/time-review.component";
 import { TasksDeadlinesRedirectComponent } from "./features/work-management/tasks-deadlines-redirect.component";
 
 export const appRoutes: Route[] = [
@@ -133,7 +132,7 @@ export const appRoutes: Route[] = [
         component: TeamTimeComponent,
         canActivate: [teamTimeGuard],
       },
-      { path: "work/time/review", component: TimeReviewComponent },
+      { path: "work/time/review", redirectTo: "work/time", pathMatch: "full" },
       { path: "work/:mode", component: WorkViewComponent },
       {
         path: "tasks-deadlines",
