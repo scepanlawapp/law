@@ -63,7 +63,8 @@
 }
 
 :host([data-sidebar="true"][data-expanded="false"])
-  .past-events-toggle:has(.has-items) .text-muted-foreground {
+  .past-events-toggle:has(.has-items)
+  .text-muted-foreground {
   color: inherit;
 }
 
@@ -117,7 +118,6 @@
     overscroll-behavior: contain;
     padding: 1rem;
   }
-
 }
 
 @keyframes past-events-pulse {
