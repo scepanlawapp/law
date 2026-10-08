@@ -1,8 +1,10 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { DocumentsService } from "@law/workspace-documents";
 import { ChatAttachmentStorage } from "@law/file-storage";
+import { DocumentContentService } from "@law/document-ingestion";
 
 /**
  * Turns a case-linked chat's attachments into workspace documents linked to
@@ -18,6 +20,7 @@ export class ChatDocumentPromotionService {
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly storage: ChatAttachmentStorage,
+    private readonly content: DocumentContentService,
     @Optional() private readonly documents?: DocumentsService,
   ) {}
 
@@ -62,9 +65,9 @@ export class ChatDocumentPromotionService {
       sessionId: string;
       originalName: string;
       storedName: string;
-      extractionStatus: string;
-      extractedText: string | null;
-      sourceScript: "LATIN" | "CYRILLIC" | "MIXED" | "NONE" | null;
+      mimeType: string;
+      sizeBytes: number;
+      contentId: string | null;
     },
     matter: { id: string; clientId: string },
   ): Promise<boolean> {
@@ -74,6 +77,10 @@ export class ChatDocumentPromotionService {
         sessionId: attachment.sessionId,
         storedName: attachment.storedName,
       });
+      // Attachments uploaded before content rows existed are hashed here from
+      // the bytes already read, so they share content like new uploads do.
+      const contentId =
+        attachment.contentId ?? (await this.linkContent(attachment, buffer));
       const document = await this.documents!.create({
         title: documentTitle(attachment.originalName),
         caseIds: [matter.id],
@@ -81,7 +88,8 @@ export class ChatDocumentPromotionService {
         originalFilename: attachment.originalName,
         stream: Readable.from(buffer),
         idempotencyKey: `chat-attachment:${attachment.id}`,
-        initialText: initialText(attachment),
+        contentId,
+        aiAccess: true,
         source: "CHAT_ATTACHMENT",
       });
       await this.prisma.chatAttachment.update({
@@ -96,29 +104,34 @@ export class ChatDocumentPromotionService {
       return false;
     }
   }
+
+  private async linkContent(
+    attachment: {
+      id: string;
+      workspaceId: string;
+      mimeType: string;
+      sizeBytes: number;
+    },
+    buffer: Buffer,
+  ): Promise<string> {
+    const sha256 = createHash("sha256").update(buffer).digest("hex");
+    const content = await this.content.findOrCreate({
+      workspaceId: attachment.workspaceId,
+      sha256,
+      mimeType: attachment.mimeType,
+      sizeBytes: attachment.sizeBytes,
+    });
+    await this.prisma.chatAttachment.update({
+      where: { id: attachment.id },
+      data: { sha256, contentId: content.id },
+    });
+    return content.id;
+  }
 }
 
 function documentTitle(originalName: string): string {
   const withoutExtension = originalName.replace(/\.[^./\\]{1,8}$/, "").trim();
   return (withoutExtension || originalName).slice(0, 320);
-}
-
-function initialText(attachment: {
-  extractionStatus: string;
-  extractedText: string | null;
-  sourceScript: "LATIN" | "CYRILLIC" | "MIXED" | "NONE" | null;
-}) {
-  if (attachment.extractionStatus === "COMPLETED" && attachment.extractedText) {
-    return {
-      status: "COMPLETED" as const,
-      text: attachment.extractedText,
-      sourceScript: attachment.sourceScript,
-    };
-  }
-  if (attachment.extractionStatus === "UNSUPPORTED") {
-    return { status: "UNSUPPORTED" as const, text: null, sourceScript: null };
-  }
-  return undefined;
 }
 
 function message(error: unknown): string {

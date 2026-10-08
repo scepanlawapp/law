@@ -11,7 +11,6 @@ import {
   BulkDocumentAiAccessResponse,
   CaseReference,
   ClientReference,
-  DocumentAiStatus,
   DocumentDetail,
   DocumentKind,
   DocumentStatistics,
@@ -26,7 +25,10 @@ import {
   PlatformPrismaService,
   WorkspaceContextService,
 } from "@law/core";
-import { DocumentContentService } from "@law/document-ingestion";
+import {
+  DocumentContentService,
+  documentAiStatus,
+} from "@law/document-ingestion";
 import { FileService, uploadFingerprint } from "@law/file-storage";
 import { Readable } from "node:stream";
 import {
@@ -39,12 +41,6 @@ import { sanitizeDownloadFilename } from "./documents.multipart";
 
 const TITLE_MAX = 320;
 const DOCUMENT_SORT = ["updatedAt", "createdAt", "title"] as const;
-
-export interface DocumentInitialText {
-  status: "COMPLETED" | "UNSUPPORTED";
-  text: string | null;
-  sourceScript: "LATIN" | "CYRILLIC" | "MIXED" | "NONE" | null;
-}
 
 @Injectable()
 export class DocumentsService {
@@ -73,8 +69,6 @@ export class DocumentsService {
     aiAccess?: boolean;
     /** Existing content row to link instead of deriving one from the bytes. */
     contentId?: string;
-    /** Text already extracted elsewhere (chat attachments), reused as-is. */
-    initialText?: DocumentInitialText;
     /** Origin recorded on the DOCUMENT_CREATED activity row. */
     source?: "CHAT_ATTACHMENT";
   }): Promise<DocumentDetail> {
@@ -127,9 +121,6 @@ export class DocumentsService {
     }
 
     const contentId = await this.resolveContent(ingest, input.contentId);
-    if (input.initialText) {
-      await this.seedContentText(contentId, input.initialText);
-    }
 
     const created = await this.prisma.$transaction(async (tx) => {
       if (input.folderId) {
@@ -166,14 +157,6 @@ export class DocumentsService {
           contentId,
           originalFilename: input.originalFilename,
           uploadedByUserId: this.context.userId,
-          ...(input.initialText
-            ? {
-                extractionStatus: input.initialText.status,
-                extractedText: input.initialText.text,
-                sourceScript: input.initialText.sourceScript,
-                extractedAt: new Date(),
-              }
-            : {}),
         },
       });
       await tx.document.update({
@@ -733,25 +716,6 @@ export class DocumentsService {
     return content.id;
   }
 
-  /** Text extracted elsewhere fills the content row only while it has none. */
-  private async seedContentText(
-    contentId: string,
-    initialText: DocumentInitialText,
-  ): Promise<void> {
-    if (initialText.status !== "COMPLETED" || initialText.text === null) return;
-    await this.prisma.documentContent.updateMany({
-      where: {
-        id: contentId,
-        workspaceId: this.context.workspaceId,
-        extractedText: null,
-      },
-      data: {
-        extractedText: initialText.text,
-        sourceScript: initialText.sourceScript,
-      },
-    });
-  }
-
   /**
    * Best effort: the database state is already correct, so a queue outage
    * must not fail the request. Unprocessed content stays PENDING (QUEUED) and
@@ -890,7 +854,7 @@ export class DocumentsService {
       archived: !!row.archivedAt,
       archivedAt: row.archivedAt?.toISOString() ?? null,
       aiAccess: row.aiAccess,
-      aiStatus: aiStatus(row.aiAccess, row.currentVersion?.content),
+      aiStatus: documentAiStatus(row.aiAccess, row.currentVersion?.content),
       documentKind:
         (row.currentVersion?.content?.documentKind as DocumentKind | null) ??
         null,
@@ -956,28 +920,6 @@ type VersionRow = {
     sha256: string | null;
   };
 };
-
-function aiStatus(
-  aiAccess: boolean,
-  content: { status: string } | null | undefined,
-): DocumentAiStatus {
-  if (!aiAccess) return "OFF";
-  switch (content?.status) {
-    case undefined:
-    case "PENDING":
-      return "QUEUED";
-    case "EXTRACTING":
-    case "EMBEDDING":
-    case "CLASSIFYING":
-      return "PROCESSING";
-    case "READY":
-    case "FAILED":
-    case "UNSUPPORTED":
-      return content.status;
-    default:
-      return "QUEUED";
-  }
-}
 
 function uniqueIds(values: string[]): string[] {
   return [...new Set(values.map((value) => value.trim()).filter(Boolean))];

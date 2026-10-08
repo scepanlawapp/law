@@ -15,6 +15,10 @@ import {
 } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
+import {
+  DocumentContentService,
+  contentAiStatus,
+} from "@law/document-ingestion";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
 import type { ChatModelProvider } from "@law/llm";
 import {
@@ -31,7 +35,12 @@ import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { resolveChatModelProvider } from "./chat-model.util";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
-import { toDraft, toJob, toMessage } from "./chat.mappers";
+import {
+  ATTACHMENT_WITH_CONTENT,
+  toDraft,
+  toJob,
+  toMessage,
+} from "./chat.mappers";
 import { ChatAttachmentStorage } from "@law/file-storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { MatterLinkService } from "./matter-link.service";
@@ -76,6 +85,7 @@ export class AssistantDraftingService {
     private readonly provider?: ChatModelProvider,
     @Optional() private readonly legalKnowledge?: LegalKnowledgeService,
     @Optional() private readonly documentReads?: AssistantDocumentReadsService,
+    @Optional() private readonly content?: DocumentContentService,
   ) {}
 
   async draftDocument(
@@ -147,6 +157,7 @@ export class AssistantDraftingService {
             workspaceId: job.workspaceId,
             sessionId: job.sessionId,
           },
+          ...ATTACHMENT_WITH_CONTENT,
         })
       : [];
     const userText =
@@ -183,7 +194,8 @@ export class AssistantDraftingService {
         scope,
         attachments.filter(
           (attachment) =>
-            !attachment.documentId || !named.has(`doc:${attachment.documentId}`),
+            !attachment.documentId ||
+            !named.has(`doc:${attachment.documentId}`),
         ),
       )),
     ];
@@ -562,7 +574,7 @@ export class AssistantDraftingService {
         role: "USER",
         ...(trigger ? { createdAt: { lte: trigger.createdAt } } : {}),
       },
-      include: { attachments: true },
+      include: { attachments: ATTACHMENT_WITH_CONTENT },
       orderBy: { createdAt: "desc" },
       take: CONVERSATION_USER_MESSAGES,
     });
@@ -602,6 +614,15 @@ export class AssistantDraftingService {
         name: attachment.originalName,
         mimeType: attachment.mimeType,
       };
+      if (attachment.contentId && this.content) {
+        const result = await this.readContent(
+          scope,
+          attachment,
+          attachment.contentId,
+        );
+        documents.push({ ...base, status: result.status, text: result.text });
+        continue;
+      }
       if (
         attachment.extractionStatus === "COMPLETED" &&
         attachment.extractedText
@@ -621,6 +642,46 @@ export class AssistantDraftingService {
       documents.push({ ...base, status: result.status, text: result.text });
     }
     return documents;
+  }
+
+  /** Text of an attachment that shares a content row; extracted once per content. */
+  private async readContent(
+    scope: AssistantTurnScope,
+    attachment: AttachmentRow,
+    contentId: string,
+  ): Promise<{
+    status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
+    text?: string;
+  }> {
+    const summary = toAttachmentSummary(attachment);
+    this.emit(scope, {
+      type: "attachment.updated",
+      createdAt: new Date().toISOString(),
+      attachment: { ...summary, extractionStatus: "RUNNING" },
+    });
+    const result = await this.content!.ensureText(
+      attachment.workspaceId,
+      contentId,
+    ).catch((error: unknown) => {
+      this.logger.warn(
+        `Text of content ${contentId} was not read: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return { status: "FAILED" as const, text: null };
+    });
+    const status =
+      result.status === "COMPLETED" || result.status === "UNSUPPORTED"
+        ? result.status
+        : "FAILED";
+    this.emit(scope, {
+      type: "attachment.updated",
+      createdAt: new Date().toISOString(),
+      attachment: { ...summary, extractionStatus: status },
+    });
+    return status === "COMPLETED"
+      ? { status, text: result.text ?? "" }
+      : { status };
   }
 
   private async extract(
@@ -888,6 +949,8 @@ type AttachmentRow = {
   extractedText: string | null;
   sourceScript: ChatAttachmentSummary["sourceScript"] | null;
   documentId?: string | null;
+  contentId?: string | null;
+  content?: { status: string } | null;
 };
 
 function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
@@ -899,6 +962,7 @@ function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
     createdAt: attachment.createdAt.toISOString(),
     extractionStatus: attachment.extractionStatus,
     sourceScript: attachment.sourceScript ?? null,
+    aiStatus: contentAiStatus(attachment.content),
   };
 }
 

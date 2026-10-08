@@ -21,3 +21,4 @@ export * from "./lib/assistant-office-reads.service";
 export * from "./lib/conversation-summary.service";
 export * from "./lib/assistant-document-reads.service";
 export * from "./lib/chat-document-promotion.service";
+export * from "./lib/document-content.listener";

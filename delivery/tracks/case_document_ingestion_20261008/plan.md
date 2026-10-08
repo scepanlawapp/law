@@ -221,11 +221,11 @@
   - Attachment summaries (`ChatAttachmentSummary`) gain `aiStatus: DocumentAiStatus`.
   - Drafting's attachment text path uses `DocumentContentService.ensureText`.
 
-- [ ] **Step 1: Write failing tests:** saving the same file twice in two sessions yields the same `contentId` and one `findOrCreate` result; promotion passes `contentId` and `aiAccess: true` and no `initialText`; listener emits `document.content.updated` only to sessions holding that content.
-- [ ] **Step 2:** Run `npx nx test api --testPathPattern="chat.service.spec|chat-document-promotion"`. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Run the same command. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(chat): attachments share hashed document content`.
+- [x] **Step 1: Write failing tests:** saving the same file twice in two sessions yields the same `contentId` and one `findOrCreate` result; promotion passes `contentId` and `aiAccess: true` and no `initialText`; listener emits `document.content.updated` only to sessions holding that content.
+- [x] **Step 2:** Run `npx nx test api --testPathPattern="chat.service.spec|chat-document-promotion"`. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Run the same command. Expected: PASS.
+- [x] **Step 5:** Commit `feat(chat): attachments share hashed document content`.
 
 ## Phase D — Assistant
 

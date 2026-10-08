@@ -704,24 +704,6 @@ describe("DocumentsService", () => {
       expect(files.commitAvailable).toHaveBeenCalled();
     });
 
-    it("keeps initialText working by writing it onto a content row without text", async () => {
-      await run(() =>
-        service.create(
-          upload({
-            initialText: {
-              status: "COMPLETED",
-              text: "Ugovor",
-              sourceScript: "LATIN",
-            },
-          }),
-        ),
-      );
-      expect(prisma.documentContent.updateMany).toHaveBeenCalledWith({
-        where: { id: "content-1", workspaceId, extractedText: null },
-        data: { extractedText: "Ugovor", sourceScript: "LATIN" },
-      });
-    });
-
     it("links a provided contentId after verifying it in the workspace", async () => {
       prisma.documentContent.findFirst.mockResolvedValue({ id: "content-9" });
       await run(() => service.create(upload({ contentId: "content-9" })));

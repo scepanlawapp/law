@@ -22,6 +22,7 @@ import {
   missingFieldKeys,
   normalizeMissingFields,
 } from "@law/brief-extraction";
+import { contentAiStatus } from "@law/document-ingestion";
 import { describeToolCall, toolResultCount } from "@law/mastra";
 
 /**
@@ -97,6 +98,14 @@ export function toSessionSummary(session: {
   };
 }
 
+/**
+ * Include for every query that builds attachment summaries: one join brings
+ * the shared content status along, so mapping never queries per attachment.
+ */
+export const ATTACHMENT_WITH_CONTENT = {
+  include: { content: { select: { status: true } } },
+} as const;
+
 export function toAttachment(attachment: {
   id: string;
   originalName: string;
@@ -105,6 +114,7 @@ export function toAttachment(attachment: {
   createdAt: Date;
   extractionStatus?: ChatAttachmentSummary["extractionStatus"];
   sourceScript?: ChatAttachmentSummary["sourceScript"];
+  content?: { status: string } | null;
 }): ChatAttachmentSummary {
   return {
     id: attachment.id,
@@ -114,6 +124,8 @@ export function toAttachment(attachment: {
     createdAt: attachment.createdAt.toISOString(),
     extractionStatus: attachment.extractionStatus,
     sourceScript: attachment.sourceScript ?? null,
+    // Unfiled attachments are always AI-readable; no content row yet is pending.
+    aiStatus: contentAiStatus(attachment.content),
   };
 }
 
@@ -133,6 +145,7 @@ export function toMessage(message: {
     mimeType: string;
     sizeBytes: number;
     createdAt: Date;
+    content?: { status: string } | null;
   }>;
 }): ChatMessageResponse {
   return {

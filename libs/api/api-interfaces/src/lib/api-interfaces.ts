@@ -283,6 +283,7 @@ export type ChatEventType =
   | "message.delta"
   | "message.updated"
   | "attachment.updated"
+  | "document.content.updated"
   | "triage.started"
   | "triage.completed"
   | "job.queued"
@@ -305,6 +306,11 @@ export interface ChatAttachmentSummary {
   createdAt: string;
   extractionStatus?: ChatAttachmentExtractionStatus;
   sourceScript?: ChatAttachmentSourceScript | null;
+  /**
+   * Whether the assistant can read this file yet. Unfiled chat attachments are
+   * always readable by the assistant, so this is never "OFF".
+   */
+  aiStatus: DocumentAiStatus;
 }
 
 export interface ChatMessageResponse {
@@ -563,6 +569,10 @@ export interface ChatStreamEvent {
   messageId?: string;
   delta?: string;
   attachment?: ChatAttachmentSummary;
+  /** `document.content.updated`: attachments of this session on that content. */
+  attachmentIds?: string[];
+  /** `document.content.updated`: the content's new AI status. */
+  status?: DocumentAiStatus;
   job?: WorkflowJobResponse;
   draft?: DraftResultResponse;
   analysis?: DocumentAnalysisResponse;

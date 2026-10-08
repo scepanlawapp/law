@@ -8,3 +8,4 @@ export * from "./lib/document-content.events";
 export * from "./lib/document-ingestion.providers";
 export * from "./lib/document-ingestion.pipeline";
 export * from "./lib/document-ingestion.processor";
+export * from "./lib/document-ai-status";

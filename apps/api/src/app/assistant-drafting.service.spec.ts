@@ -187,6 +187,7 @@ function prismaMock() {
 function setup(
   providerOutputs: unknown[],
   documentReads?: { documentsByRef: jest.Mock },
+  content?: { ensureText: jest.Mock },
 ) {
   const prisma = prismaMock();
   const events = new ChatEventBus();
@@ -235,6 +236,7 @@ function setup(
     provider,
     legalKnowledge as never,
     documentReads as never,
+    content as never,
   );
   return {
     service,
@@ -639,6 +641,7 @@ describe("AssistantDraftingService queued jobs", () => {
         workspaceId: "workspace-1",
         sessionId: "session-1",
       },
+      include: { content: { select: { status: true } } },
     });
     const prompt = completeStructured.mock.calls[0][0].messages[1].content;
     expect(prompt).toContain("Tužba protiv poslodavca.");
@@ -648,5 +651,67 @@ describe("AssistantDraftingService queued jobs", () => {
       output: expect.objectContaining({ briefResultId: "brief-1" }),
     });
     expect(prisma.briefs.get("brief-1")).toMatchObject({ jobId: "job-brief" });
+  });
+
+  it("reads attachments that share content through DocumentContentService.ensureText", async () => {
+    const content = {
+      ensureText: jest.fn().mockResolvedValue({
+        status: "COMPLETED",
+        text: "Zakupni ugovor, zakupnina 400 EUR.",
+      }),
+    };
+    const { service, prisma, storage, completeStructured } = setup(
+      [lawsuitBrief, draftOutput],
+      undefined,
+      content,
+    );
+    prisma.chatAttachment.findMany.mockResolvedValue([
+      attachment("zakup", { contentId: "content-7" }),
+      attachment("legacy", {
+        extractionStatus: "COMPLETED",
+        extractedText: "Stari ugovor, 10 EUR.",
+      }),
+    ]);
+    const job = queuedJob("job-brief-2", "brief-extraction", {
+      messageId: "message-2",
+      userText: "Tužba zbog zakupa.",
+      attachments: [{ id: "zakup" }, { id: "legacy" }],
+      language: "sr",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await service.runBriefJob(job as never);
+
+    expect(content.ensureText).toHaveBeenCalledTimes(1);
+    expect(content.ensureText).toHaveBeenCalledWith("workspace-1", "content-7");
+    expect(storage.read).not.toHaveBeenCalled();
+    const prompt = completeStructured.mock.calls[0][0].messages[1].content;
+    expect(prompt).toContain("Zakupni ugovor, zakupnina 400 EUR.");
+    expect(prompt).toContain("Stari ugovor, 10 EUR.");
+    expect(prisma.attachmentUpdates).not.toContainEqual(
+      expect.objectContaining({ extractedText: expect.anything() }),
+    );
+  });
+
+  it("falls back to the column-based path for attachments without content", async () => {
+    const content = { ensureText: jest.fn() };
+    const { service, prisma, storage } = setup(
+      [lawsuitBrief, draftOutput],
+      undefined,
+      content,
+    );
+    prisma.chatAttachment.findMany.mockResolvedValue([attachment("stari")]);
+    const job = queuedJob("job-brief-3", "brief-extraction", {
+      messageId: "message-2",
+      userText: "Tužba.",
+      attachments: [{ id: "stari" }],
+      language: "sr",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await service.runBriefJob(job as never);
+
+    expect(content.ensureText).not.toHaveBeenCalled();
+    expect(storage.read).toHaveBeenCalledTimes(1);
   });
 });

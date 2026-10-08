@@ -1,12 +1,17 @@
 import { WorkspaceRole } from "@law/api-interfaces";
 import { ChatDocumentPromotionService } from "@law/chat";
 import { WorkspaceContextService } from "@law/core";
+import { createHash } from "node:crypto";
 
 const context = {
   workspaceId: "workspace-1",
   userId: "user-1",
   role: WorkspaceRole.MEMBER,
 };
+
+const SHA_OF_PDF = createHash("sha256")
+  .update(Buffer.from("%PDF"))
+  .digest("hex");
 
 function setup(options: { caseLinked?: boolean } = {}) {
   const prisma = {
@@ -25,9 +30,10 @@ function setup(options: { caseLinked?: boolean } = {}) {
           sessionId: "session-1",
           originalName: "ugovor o zakupu.pdf",
           storedName: "att-1",
-          extractionStatus: "COMPLETED",
-          extractedText: "Ugovor o zakupu",
-          sourceScript: "LATIN",
+          mimeType: "application/pdf",
+          sizeBytes: 4,
+          sha256: "sha-1",
+          contentId: "content-1",
         },
         {
           id: "att-2",
@@ -35,15 +41,23 @@ function setup(options: { caseLinked?: boolean } = {}) {
           sessionId: "session-1",
           originalName: "slika.png",
           storedName: "att-2",
-          extractionStatus: "PENDING",
-          extractedText: null,
-          sourceScript: null,
+          mimeType: "image/png",
+          sizeBytes: 4,
+          sha256: null,
+          contentId: null,
         },
       ]),
       update: jest.fn(async () => ({})),
     },
   };
   const storage = { read: jest.fn(async () => Buffer.from("%PDF")) };
+  const content = {
+    findOrCreate: jest.fn(async () => ({
+      id: "content-legacy",
+      status: "PENDING",
+      pipelineVersion: 1,
+    })),
+  };
   const documents = {
     create: jest.fn(async (input: { idempotencyKey: string }) => ({
       id: `doc-${input.idempotencyKey.split(":")[1]}`,
@@ -53,9 +67,11 @@ function setup(options: { caseLinked?: boolean } = {}) {
     prisma,
     storage,
     documents,
+    content,
     service: new ChatDocumentPromotionService(
       prisma as never,
       storage as never,
+      content as never,
       documents as never,
     ),
   };
@@ -87,23 +103,42 @@ describe("ChatDocumentPromotionService", () => {
         originalFilename: "ugovor o zakupu.pdf",
         idempotencyKey: "chat-attachment:att-1",
         source: "CHAT_ATTACHMENT",
-        initialText: {
-          status: "COMPLETED",
-          text: "Ugovor o zakupu",
-          sourceScript: "LATIN",
-        },
+        contentId: "content-1",
+        aiAccess: true,
       }),
     );
-    expect(documents.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        idempotencyKey: "chat-attachment:att-2",
-        initialText: undefined,
-      }),
-    );
+    expect(documents.create.mock.calls[0][0]).not.toHaveProperty("initialText");
     expect(prisma.chatAttachment.update).toHaveBeenCalledWith({
       where: { id: "att-1" },
       data: { documentId: "doc-att-1" },
     });
+  });
+
+  it("hashes legacy attachments without content and links the shared row", async () => {
+    const { service, prisma, documents, content } = setup();
+
+    await WorkspaceContextService.run(context, () =>
+      service.promoteSession("workspace-1", "session-1"),
+    );
+
+    expect(content.findOrCreate).toHaveBeenCalledTimes(1);
+    expect(content.findOrCreate).toHaveBeenCalledWith({
+      workspaceId: "workspace-1",
+      sha256: SHA_OF_PDF,
+      mimeType: "image/png",
+      sizeBytes: 4,
+    });
+    expect(prisma.chatAttachment.update).toHaveBeenCalledWith({
+      where: { id: "att-2" },
+      data: { sha256: SHA_OF_PDF, contentId: "content-legacy" },
+    });
+    expect(documents.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        idempotencyKey: "chat-attachment:att-2",
+        contentId: "content-legacy",
+        aiAccess: true,
+      }),
+    );
   });
 
   it("does nothing without a linked case or outside the workspace context", async () => {
@@ -129,7 +164,7 @@ describe("ChatDocumentPromotionService", () => {
     );
 
     expect(count).toBe(1);
-    expect(prisma.chatAttachment.update).toHaveBeenCalledTimes(1);
+    expect(prisma.chatAttachment.update).toHaveBeenCalledTimes(2);
     expect(prisma.chatAttachment.update).toHaveBeenCalledWith({
       where: { id: "att-2" },
       data: { documentId: "doc-att-2" },

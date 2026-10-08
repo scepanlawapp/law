@@ -1,4 +1,5 @@
 import JSZip from "jszip";
+import { createHash } from "node:crypto";
 import { BadRequestException, NotFoundException } from "@nestjs/common";
 import { FakeChatModelProvider } from "@law/llm";
 import type { ChatStreamEvent } from "@law/api-interfaces";
@@ -260,6 +261,118 @@ describe("ChatService", () => {
       }),
     ).resolves.toMatchObject({
       userMessage: { attachments: [{ originalName: "budget.xlsx" }] },
+    });
+  });
+
+  describe("attachment content", () => {
+    const pdf = Buffer.from("%PDF-1.4 ugovor");
+    const sha256 = createHash("sha256").update(pdf).digest("hex");
+
+    function uploadSetup(options: { requestFails?: boolean } = {}) {
+      const prisma = prismaMock();
+      prisma.chatSession.findFirst.mockImplementation(
+        async ({ where }: { where: { id: string } }) => ({
+          ...session,
+          id: where.id,
+        }),
+      );
+      prisma.chatSession.update.mockResolvedValue(session);
+      prisma.chatMessage.create.mockResolvedValue({
+        id: "msg-user",
+        sessionId: session.id,
+        role: "USER",
+        content: "Ugovor",
+        status: "COMPLETED",
+        triageDecision: null,
+        correlationId: "corr-1",
+        createdAt: now,
+      });
+      prisma.chatAttachment.create.mockImplementation(
+        async ({ data }: { data: Record<string, unknown> }) => ({
+          createdAt: now,
+          content: { status: "PENDING" },
+          ...data,
+        }),
+      );
+      const content = {
+        findOrCreate: jest.fn(async () => ({
+          id: "content-1",
+          status: "PENDING",
+          pipelineVersion: 1,
+        })),
+        requestIngestion: options.requestFails
+          ? jest.fn().mockRejectedValue(new Error("redis down"))
+          : jest.fn().mockResolvedValue(undefined),
+      };
+      const service = new ChatService(
+        prisma as never,
+        new ChatEventBus(),
+        { save: jest.fn(async () => "stored"), read: jest.fn() } as never,
+        new ChatRuntimeConfig(),
+        new FakeChatModelProvider([
+          { decision: "NON_LEGAL", reason: "ok" },
+          { title: "Ugovor" },
+        ]),
+        undefined,
+        undefined,
+        undefined,
+        content as never,
+      );
+      const send = (sessionId: string) =>
+        service.sendMessage({
+          workspaceId: "workspace-1",
+          sessionId,
+          userId: "user-1",
+          content: "Ugovor",
+          files: [
+            {
+              originalname: "ugovor.pdf",
+              mimetype: "application/pdf",
+              size: pdf.length,
+              buffer: pdf,
+            },
+          ],
+        });
+      return { prisma, content, send };
+    }
+
+    it("hashes the upload and shares one content row across sessions", async () => {
+      const { prisma, content, send } = uploadSetup();
+
+      const first = await send("session-1");
+      const second = await send("session-2");
+
+      expect(content.findOrCreate).toHaveBeenCalledTimes(2);
+      expect(content.findOrCreate).toHaveBeenCalledWith({
+        workspaceId: "workspace-1",
+        sha256,
+        mimeType: "application/pdf",
+        sizeBytes: pdf.length,
+      });
+      const created = prisma.chatAttachment.create.mock.calls.map(
+        ([args]: [{ data: Record<string, unknown> }]) => args.data,
+      );
+      expect(created).toHaveLength(2);
+      expect(created[0]).toMatchObject({ sha256, contentId: "content-1" });
+      expect(created[1]).toMatchObject({ sha256, contentId: "content-1" });
+      expect(created[0].sessionId).not.toBe(created[1].sessionId);
+      expect(content.requestIngestion).toHaveBeenCalledWith(
+        "workspace-1",
+        "content-1",
+      );
+      expect(first.userMessage.attachments[0]).toMatchObject({
+        aiStatus: "QUEUED",
+      });
+      expect(second.userMessage.attachments).toHaveLength(1);
+    });
+
+    it("never fails the message when ingestion cannot be queued", async () => {
+      const { content, send } = uploadSetup({ requestFails: true });
+
+      await expect(send("session-1")).resolves.toMatchObject({
+        userMessage: { attachments: [{ originalName: "ugovor.pdf" }] },
+      });
+      expect(content.requestIngestion).toHaveBeenCalledTimes(1);
     });
   });
 
