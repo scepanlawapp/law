@@ -1,6 +1,6 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import { DocumentAiStatus } from "@law/api-interfaces";
-import { LocalizationService } from "../../core/localization/localization.service";
+import { LocalizationService } from "../../../core/localization/localization.service";
 import { DocumentAiStatusComponent } from "./document-ai-status.component";
 
 describe("DocumentAiStatusComponent", () => {

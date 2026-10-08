@@ -6,6 +6,8 @@ import { ChatApiClient, CasesApiClient } from "@law/api-clients";
 import {
   BriefApplyPreview,
   ChatMessageResponse,
+  ChatStreamEvent,
+  DocumentAiStatus,
   DocumentAnalysisResponse,
   DraftResultResponse,
 } from "@law/api-interfaces";
@@ -1204,6 +1206,97 @@ describe("AssistantComponent review state", () => {
       expect(
         starterCards(fixture).some((button) => button.dataset["pick"]),
       ).toBe(false);
+    });
+  });
+
+  describe("attachment ingestion status", () => {
+    const attachment = (id: string, aiStatus: DocumentAiStatus) => ({
+      id,
+      originalName: `${id}.pdf`,
+      mimeType: "application/pdf",
+      sizeBytes: 10,
+      createdAt: "2026-09-15T11:59:00.000Z",
+      aiStatus,
+    });
+    const message = (
+      id: string,
+      attachments: ChatMessageResponse["attachments"],
+    ): ChatMessageResponse => ({
+      id,
+      sessionId: "session-1",
+      role: "USER",
+      content: "See files",
+      status: "COMPLETED",
+      correlationId: `corr-${id}`,
+      createdAt: "2026-09-15T11:59:00.000Z",
+      attachments,
+    });
+    const contentUpdated = (
+      sessionId: string,
+      attachmentIds: string[],
+      status: DocumentAiStatus,
+    ): ChatStreamEvent => ({
+      type: "document.content.updated",
+      workspaceId: "workspace-1",
+      sessionId,
+      createdAt: "2026-09-15T12:00:00.000Z",
+      attachmentIds,
+      status,
+    });
+    const statuses = (component: AssistantComponent) =>
+      component["messages"]().flatMap((item) =>
+        item.attachments.map((file) => [file.id, file.aiStatus]),
+      );
+
+    it("shows the ingestion status next to each attachment name", () => {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      fixture.componentInstance["messages"].set([
+        message("m1", [attachment("a1", "QUEUED"), attachment("a2", "READY")]),
+      ]);
+      fixture.detectChanges();
+
+      const chips = fixture.nativeElement.querySelectorAll(
+        ".message-attachments li law-document-ai-status",
+      ) as NodeListOf<HTMLElement>;
+      expect(chips).toHaveLength(2);
+      expect(chips[0].querySelector('[role="img"]')).not.toBeNull();
+      expect(chips[0].textContent ?? "").not.toContain("a1.pdf");
+    });
+
+    it("updates matching attachments across messages from SSE without refetching", () => {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      const component = fixture.componentInstance;
+      component["selectedSessionId"].set("session-1");
+      component["messages"].set([
+        message("m1", [attachment("a1", "QUEUED"), attachment("a2", "QUEUED")]),
+        message("m2", [attachment("a1", "QUEUED"), attachment("a3", "FAILED")]),
+      ]);
+      chat.getSession.mockClear();
+
+      component["handleWorkspaceEvent"](
+        contentUpdated("session-1", ["a1", "unknown"], "READY"),
+      );
+
+      expect(statuses(component)).toEqual([
+        ["a1", "READY"],
+        ["a2", "QUEUED"],
+        ["a1", "READY"],
+        ["a3", "FAILED"],
+      ]);
+      expect(chat.getSession).not.toHaveBeenCalled();
+    });
+
+    it("ignores content updates for other sessions", () => {
+      const fixture = TestBed.createComponent(AssistantComponent);
+      const component = fixture.componentInstance;
+      component["selectedSessionId"].set("session-1");
+      component["messages"].set([message("m1", [attachment("a1", "QUEUED")])]);
+
+      component["handleWorkspaceEvent"](
+        contentUpdated("session-2", ["a1"], "READY"),
+      );
+
+      expect(statuses(component)).toEqual([["a1", "QUEUED"]]);
     });
   });
 });

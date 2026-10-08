@@ -16,7 +16,7 @@ import {
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { DocumentAiStatus } from "@law/api-interfaces";
-import { LocalizationService } from "../../core/localization/localization.service";
+import { LocalizationService } from "../../../core/localization/localization.service";
 
 const STATUS_ICONS: Record<DocumentAiStatus, string> = {
   OFF: "lucideEyeOff",

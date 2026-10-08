@@ -118,7 +118,7 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
 import { DocumentAssociationsDialogService } from "./document-associations/document-associations-dialog.service";
-import { DocumentAiStatusComponent } from "./document-ai-status.component";
+import { DocumentAiStatusComponent } from "../../shared/components/document-ai-status/document-ai-status.component";
 
 export type DocumentsViewMode = "list" | "grid";
 export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";

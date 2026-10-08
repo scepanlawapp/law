@@ -163,17 +163,20 @@
                     <ul class="message-attachments">
                       @for (file of message.attachments; track file.id) {
                         <li>
-                          <a
-                            [href]="attachmentUrl(file.id)"
-                            target="_blank"
-                            rel="noreferrer noopener"
-                          >
-                            <ng-icon
-                              name="lucidePaperclip"
-                              aria-hidden="true"
-                            />
-                            <span>{{ file.originalName }}</span>
-                          </a>
+                          <div class="attachment-name">
+                            <a
+                              [href]="attachmentUrl(file.id)"
+                              target="_blank"
+                              rel="noreferrer noopener"
+                            >
+                              <ng-icon
+                                name="lucidePaperclip"
+                                aria-hidden="true"
+                              />
+                              <span>{{ file.originalName }}</span>
+                            </a>
+                            <law-document-ai-status [status]="file.aiStatus" />
+                          </div>
                           @if (file.extractionStatus; as extractionStatus) {
                             <small [attr.data-status]="extractionStatus">
                               {{

@@ -374,11 +374,11 @@
 **Interfaces:**
 - Consumes: `ChatAttachmentSummary.aiStatus`, SSE `document.content.updated` (Task 8).
 
-- [ ] **Step 1: Write failing tests:** chip shows `DocumentAiStatusComponent` for its `aiStatus`; an SSE `document.content.updated` updates the matching attachments' status in the store without a refetch.
-- [ ] **Step 2:** Run `npx nx test web --testPathPattern=assistant`. Expected: FAIL.
-- [ ] **Step 3:** Implement.
-- [ ] **Step 4:** Rerun. Expected: PASS.
-- [ ] **Step 5:** Commit `feat(web): attachment ingestion status in chat`.
+- [x] **Step 1: Write failing tests:** chip shows `DocumentAiStatusComponent` for its `aiStatus`; an SSE `document.content.updated` updates the matching attachments' status in the store without a refetch.
+- [x] **Step 2:** Run `npx nx test web --testPathPattern=assistant`. Expected: FAIL.
+- [x] **Step 3:** Implement.
+- [x] **Step 4:** Rerun. Expected: PASS.
+- [x] **Step 5:** Commit `feat(web): attachment ingestion status in chat`.
 
 ## Phase G — Close-out
 
