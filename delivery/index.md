@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Client Detail Redesign](./tracks/client_detail_redesign_20261009/index.md)
 - [Case Assistant Tab Links](./tracks/case_assistant_tab_links_20261007/index.md)
 - [Invoice Payment Method Localization](./tracks/payment_method_translation_20261007/index.md)
 - [Documents in Case and Client Details](./tracks/documents_detail_context_20261006/index.md)

@@ -588,6 +588,7 @@ export class ClientsService {
   async createAddress(clientId: string, input: ClientAddressDto) {
     await this.requireClient(clientId);
     return this.db.$transaction(async (tx) => {
+      await this.lockClient(tx, clientId);
       if (input.isPrimary)
         await tx.clientAddress.updateMany({
           where: { clientId, isPrimary: true },
@@ -618,6 +619,7 @@ export class ClientsService {
   ) {
     await this.requireClient(clientId);
     return this.db.$transaction(async (tx) => {
+      await this.lockClient(tx, clientId);
       const address = await tx.clientAddress.findFirst({
         where: { id: addressId, clientId },
       });
@@ -652,10 +654,13 @@ export class ClientsService {
   async removeAddress(clientId: string, addressId: string): Promise<void> {
     await this.requireClient(clientId);
     await this.db.$transaction(async (tx) => {
+      await this.lockClient(tx, clientId);
       const address = await tx.clientAddress.findFirst({
         where: { id: addressId, clientId },
       });
       if (!address) throw new NotFoundException("Client address not found");
+      if (address.isPrimary)
+        throw new BadRequestException("Primary addresses cannot be deleted");
       await tx.clientAddress.delete({ where: { id: addressId } });
     });
   }
@@ -918,11 +923,12 @@ export class ClientsService {
         where: { id: contactId, clientId },
       });
       if (!existing) throw new NotFoundException("Client contact not found");
+      if (existing.isPrimary)
+        throw new BadRequestException("Primary contacts cannot be deleted");
       const contact = await tx.clientContact.update({
         where: { id: contactId },
         data: { status: "INACTIVE", isPrimary: false },
       });
-      if (existing.isPrimary) await this.syncPrimaryChannels(tx, clientId);
       return contact;
     });
   }

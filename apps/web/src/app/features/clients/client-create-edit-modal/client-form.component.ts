@@ -60,6 +60,7 @@ import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { ClientFormDialogContext } from "./client-form-dialog.models";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
@@ -110,6 +111,7 @@ const DEFAULT_COUNTRY_CODE = "RS";
     HlmSwitch,
     HlmDialogImports,
     HlmTextarea,
+    HlmTooltip,
     CountrySelectComponent,
     CollapsibleSectionComponent,
     TranslatePipe,
@@ -169,7 +171,9 @@ export class ClientFormComponent {
     this.createIdentificationDocumentForm(),
   ]);
   readonly contacts = new FormArray([this.createContactForm(undefined, true)]);
-  readonly activeSection = signal("basic");
+  readonly activeSection = signal<string>(
+    this.dialogContext.initialTab ?? "basic",
+  );
   readonly sections = [
     { id: "basic", label: "clients.basicInfo", icon: "lucideUserRound" },
     { id: "addresses", label: "clients.addresses", icon: "lucideMapPin" },
@@ -433,6 +437,8 @@ export class ClientFormComponent {
   }
 
   removeAddress(index: number): void {
+    if (this.saving() || this.addresses.at(index)?.controls.isPrimary.value)
+      return;
     this.addresses.removeAt(index);
   }
 
@@ -451,6 +457,7 @@ export class ClientFormComponent {
 
   removeContact(index: number): void {
     const contact = this.contacts.at(index);
+    if (!contact || this.saving() || contact.controls.isPrimary.value) return;
     if (contact.controls.id.value)
       this.removedContactIds.add(contact.controls.id.value);
     const wasPrimary = contact.controls.isPrimary.value;

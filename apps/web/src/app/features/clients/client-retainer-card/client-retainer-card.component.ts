@@ -25,6 +25,14 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmProgressImports } from "@spartan-ng/helm/progress";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideCoins,
+  lucideFileText,
+  lucidePencil,
+  lucidePlus,
+} from "@ng-icons/lucide";
 import { EMPTY, catchError, filter, switchMap, tap } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
@@ -49,12 +57,18 @@ import { RetainerAgreementDialogService } from "./retainer-agreement-dialog.serv
   selector: "law-client-retainer-card",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
+  host: { class: "block min-w-0" },
+  providers: [
+    provideIcons({ lucideCoins, lucideFileText, lucidePencil, lucidePlus }),
+  ],
   imports: [
+    NgIcon,
     ReactiveFormsModule,
     HlmButton,
     HlmInput,
     HlmProgressImports,
     HlmSpinner,
+    HlmTooltip,
     TranslatePipe,
   ],
   templateUrl: "./client-retainer-card.component.html",

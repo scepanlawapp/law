@@ -9,8 +9,9 @@ import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { ClientFormComponent } from "./client-form.component";
+import { ClientFormDialogContext } from "./client-form-dialog.models";
 
-let context: { clientId?: string } = {};
+let context: ClientFormDialogContext = {};
 jest.mock("@spartan-ng/brain/dialog", () => ({
   ...jest.requireActual("@spartan-ng/brain/dialog"),
   injectBrnDialogContext: () => context,
@@ -95,6 +96,25 @@ describe("ClientFormComponent primary contact", () => {
     fixture.detectChanges();
     return fixture;
   }
+  it.each([
+    "basic",
+    "addresses",
+    "contacts",
+    "identification",
+    "additional",
+  ] as const)("opens the requested %s edit tab", (initialTab) => {
+    context = { clientId: client.id, initialTab };
+    const fixture = render();
+    expect(fixture.componentInstance.activeSection()).toBe(initialTab);
+    expect(
+      fixture.nativeElement.querySelector('[role="tab"][aria-selected="true"]')
+        .textContent,
+    ).toContain(
+      fixture.componentInstance.sections.find(
+        (section) => section.id === initialTab,
+      )?.label,
+    );
+  });
   it("renders five accessible sections and keeps primary channels in basic information", () => {
     const fixture = render();
     expect(fixture.nativeElement.querySelectorAll('[role="tab"]').length).toBe(
@@ -149,6 +169,14 @@ describe("ClientFormComponent primary contact", () => {
         }),
       }),
     );
+  });
+  it("does not remove a primary contact or address through handlers", () => {
+    const { componentInstance: form } = render();
+    form.addAddress();
+    form.removeAddress(0);
+    form.removeContact(0);
+    expect(form.addresses.length).toBe(1);
+    expect(form.contacts.length).toBe(1);
   });
   it("retains legacy-only channels and other contacts when creating a primary", () => {
     context = { clientId: client.id };
