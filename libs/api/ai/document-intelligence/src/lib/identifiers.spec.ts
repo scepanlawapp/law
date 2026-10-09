@@ -1,5 +1,6 @@
 import {
   digitsOnly,
+  isCalendarDate,
   isValidJmbg,
   isValidMb,
   isValidPib,
@@ -99,5 +100,13 @@ describe("isValidMb", () => {
     expect(isValidMb("1234567")).toBe(false);
     expect(isValidMb("123456789")).toBe(false);
     expect(isValidMb("1234567a")).toBe(false);
+  });
+});
+
+describe("isCalendarDate", () => {
+  it("accepts real dates and rejects impossible ones", () => {
+    expect(isCalendarDate(2024, 2, 29)).toBe(true);
+    expect(isCalendarDate(2023, 2, 29)).toBe(false);
+    expect(isCalendarDate(1990, 13, 1)).toBe(false);
   });
 });

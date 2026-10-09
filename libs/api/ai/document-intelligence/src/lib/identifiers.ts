@@ -3,7 +3,8 @@ export function digitsOnly(value: string): string {
   return value.replace(/\D/g, "");
 }
 
-function isCalendarDate(year: number, month: number, day: number): boolean {
+/** True when year-month-day is a real calendar date. */
+export function isCalendarDate(year: number, month: number, day: number): boolean {
   const date = new Date(Date.UTC(year, month - 1, day));
   return (
     date.getUTCFullYear() === year &&

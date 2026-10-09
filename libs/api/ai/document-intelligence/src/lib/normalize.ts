@@ -7,6 +7,7 @@ import {
 } from "./kinds";
 import {
   digitsOnly,
+  isCalendarDate,
   isValidJmbg,
   isValidMb,
   isValidPib,
@@ -40,6 +41,10 @@ export interface ExtractedFact {
 
 /** A quote shorter than this cannot verify anything. */
 const MIN_QUOTE_CHARS = 3;
+/** A quote longer than this is a pasted passage, not evidence for one value. */
+const MAX_QUOTE_CHARS = 300;
+/** Facts kept per content; the most confident win. */
+export const MAX_FACTS_PER_CONTENT = 100;
 
 function isDateField(field: string): boolean {
   return field === "dateOfBirth" || field.endsWith("Date");
@@ -53,15 +58,6 @@ const IDENTIFIER_FIELDS: Record<
   taxNumber: { digits: 9, valid: isValidPib },
   registrationNumber: { digits: 8, valid: isValidMb },
 };
-
-function isCalendarDate(year: number, month: number, day: number): boolean {
-  const date = new Date(Date.UTC(year, month - 1, day));
-  return (
-    date.getUTCFullYear() === year &&
-    date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day
-  );
-}
 
 function iso(year: number, month: number, day: number): string | null {
   if (!isCalendarDate(year, month, day)) {
@@ -220,6 +216,7 @@ export function normalizeFacts(
       !allowed.has(item.field) ||
       !value ||
       !subjectKey ||
+      quote.length > MAX_QUOTE_CHARS ||
       !(SUBJECT_TYPES as readonly string[]).includes(item.subjectType)
     ) {
       continue;
@@ -282,7 +279,23 @@ export function normalizeFacts(
     });
   }
 
-  return dropJmbgContradictingBirthDate(facts);
+  return capByConfidence(dropJmbgContradictingBirthDate(facts));
+}
+
+/** At most `MAX_FACTS_PER_CONTENT` facts, the most confident, in original order. */
+function capByConfidence(facts: ExtractedFact[]): ExtractedFact[] {
+  if (facts.length <= MAX_FACTS_PER_CONTENT) {
+    return facts;
+  }
+  const keep = new Set(
+    facts
+      .map((fact, index) => ({ index, confidence: fact.confidence }))
+      // Array.prototype.sort is stable: ties keep their original order.
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, MAX_FACTS_PER_CONTENT)
+      .map((entry) => entry.index),
+  );
+  return facts.filter((_, index) => keep.has(index));
 }
 
 /** A JMBG encodes the birth date; if the same subject states another, drop it. */

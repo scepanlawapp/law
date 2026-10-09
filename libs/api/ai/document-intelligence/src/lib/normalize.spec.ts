@@ -431,4 +431,44 @@ describe("normalizeFacts", () => {
       ).toEqual([]);
     });
   });
+  describe("bounds", () => {
+    it("drops a fact whose quote is longer than 300 characters", () => {
+      const long = `Petar Petrović ${"x".repeat(290)}`;
+      const text = `${long}\nPetar Petrović`;
+      expect(
+        normalizeFacts([raw({ quote: long })], text, "ID_CARD"),
+      ).toEqual([]);
+      const ok = `Petar Petrović ${"x".repeat(285)}`;
+      expect(ok.length).toBeLessThanOrEqual(300);
+      expect(
+        normalizeFacts([raw({ quote: ok })], `${ok}\n`, "ID_CARD"),
+      ).toHaveLength(1);
+    });
+
+    it("measures the quote after trimming", () => {
+      const quote = `  Petar Petrović  ${" ".repeat(400)}`;
+      expect(
+        normalizeFacts([raw({ quote })], "Petar Petrović", "ID_CARD"),
+      ).toHaveLength(1);
+    });
+
+    it("keeps the 100 most confident facts, in their original order", () => {
+      const names = Array.from({ length: 150 }, (_, i) => `Osoba${i}`);
+      const text = names.join("\n");
+      const facts = normalizeFacts(
+        names.map((name, i) =>
+          raw({
+            subjectKey: `s${i}`,
+            value: name,
+            quote: name,
+            confidence: i / 200,
+          }),
+        ),
+        text,
+        "ID_CARD",
+      );
+      expect(facts).toHaveLength(100);
+      expect(facts.map((fact) => fact.value)).toEqual(names.slice(50));
+    });
+  });
 });
