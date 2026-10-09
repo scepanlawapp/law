@@ -400,3 +400,11 @@
 - [x] Pipeline start guard (no AI-readable source means no provider calls), `UNSUPPORTED` never re-enqueued, archived documents never enqueue on access change.
 - [x] `list_documents` `textStatus` derived from content status; shared `requestIngestionSafely`; unused `ChatRuntimeConfig.uploadDir` removed; NUL bytes stripped; job id test.
 - [x] Docs: queue wording, conflicts, re-run rule and deploy order in the business-logic doc.
+
+### PR #119 review fixes
+
+- [x] Content tools (`search_case_documents`, `get_document_facts`, brief facts, client update hint) select readable sources directly (newest 100 documents with AI access on, newest 30 unfiled attachments) instead of the oldest 30 before the access filter; both results carry `truncated`, one facts result holds at most 300 facts.
+- [x] Facts are bounded: quotes over 300 characters dropped, at most 100 facts per content (most confident kept).
+- [x] `clientUpdateHint` starts with one `documentFact.count` (person/company facts of readable current versions) and loads nothing else at zero.
+- [x] No document stays queued forever: content is linked for versions without a content row on access-on, reprocess and restore; `isContentRetryable(null)` is true; web polling stops after 120 unchanged polls or for retryable rows; `restore` requests ingestion.
+- [x] `requestIngestionSafely` waits at most 3 s; READY content from another embedding model is re-ingested (service, pipeline, reindex); the chat chip shows OFF for attachments filed as off/archived documents; reindex includes READY-with-marker and skips deleted chat sessions; backfill pages by 50 including the promoted-document opt-in; `DocumentsService.setAiAccess` removed and `isCalendarDate` shared.
