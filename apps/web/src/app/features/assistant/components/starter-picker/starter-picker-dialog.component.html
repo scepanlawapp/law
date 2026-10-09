@@ -8,7 +8,7 @@
 </hlm-dialog-header>
 
 <hlm-command
-  class="border border-border"
+  class="min-h-0 flex-1 overflow-hidden border border-border"
   [filter]="acceptAll"
   (searchChange)="onSearch($event)"
 >
@@ -16,7 +16,9 @@
     [placeholder]="'assistant.starter.picker.' + kind + '.search' | translate"
   />
   <hlm-command-list
-    [attr.aria-label]="'assistant.starter.picker.' + kind + '.title' | translate"
+    [attr.aria-label]="
+      'assistant.starter.picker.' + kind + '.title' | translate
+    "
     [attr.aria-busy]="loading()"
   >
     @if (loading()) {
@@ -56,7 +58,7 @@
   </hlm-command-list>
 </hlm-command>
 
-<div class="flex flex-wrap justify-end gap-2">
+<div class="flex shrink-0 flex-wrap justify-end gap-2">
   @if (kind === "document") {
     <button hlmBtn type="button" variant="outline" (click)="attachInstead()">
       {{ "assistant.starter.picker.attachInstead" | translate }}

@@ -108,6 +108,9 @@ export class PastEventsComponent {
       )
       .subscribe({
         next: (response) => {
+          if (this.totalItems() === null && response.items.length === 0) {
+            this.expanded.set(false);
+          }
           this.events.set(response.items);
           this.page.set(page);
           this.totalPages.set(response.meta.totalPages);

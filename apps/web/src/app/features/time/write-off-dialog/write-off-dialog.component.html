@@ -1,28 +1,33 @@
-<form (submit)="$event.preventDefault(); submit()" novalidate>
+<form
+  class="flex min-h-0 flex-1 flex-col"
+  (submit)="$event.preventDefault(); submit()"
+  novalidate
+>
   <hlm-dialog-header>
     <h2 hlmDialogTitle>{{ "time.writeOff.title" | translate }}</h2>
     <p hlmDialogDescription>{{ "time.writeOff.description" | translate }}</p>
   </hlm-dialog-header>
 
-  <div hlmField class="mt-4">
-    <label hlmFieldLabel for="write-off-reason">
-      {{ "time.writeOff.reason" | translate }}
-    </label>
-    <textarea
-      hlmTextarea
-      id="write-off-reason"
-      rows="3"
-      maxlength="500"
-      [formControl]="reason"
-      [attr.aria-invalid]="reason.touched && reason.invalid"
-    ></textarea>
-    @if (reason.touched && reason.invalid) {
-      <p class="text-destructive text-sm" role="alert">
-        {{ "time.writeOff.reasonRequired" | translate }}
-      </p>
-    }
+  <div class="min-h-0 flex-1 overflow-y-auto">
+    <div hlmField class="mt-4">
+      <label hlmFieldLabel for="write-off-reason">
+        {{ "time.writeOff.reason" | translate }}
+      </label>
+      <textarea
+        hlmTextarea
+        id="write-off-reason"
+        rows="3"
+        maxlength="500"
+        [formControl]="reason"
+        [attr.aria-invalid]="reason.touched && reason.invalid"
+      ></textarea>
+      @if (reason.touched && reason.invalid) {
+        <p class="text-destructive text-sm" role="alert">
+          {{ "time.writeOff.reasonRequired" | translate }}
+        </p>
+      }
+    </div>
   </div>
-
   <hlm-dialog-footer class="mt-4">
     <button hlmBtn type="button" variant="ghost" (click)="cancel()">
       {{ "common.cancel" | translate }}

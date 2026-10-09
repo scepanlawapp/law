@@ -6,6 +6,8 @@ import {
   HlmDialogTitle,
 } from "@spartan-ng/helm/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideImagePlus } from "@ng-icons/lucide";
 import { ImageCropperComponent } from "ngx-image-cropper";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
@@ -21,10 +23,12 @@ export type AvatarCropDialogResult = File | typeof REMOVE_PROFILE_IMAGE;
     HlmDialogTitle,
     HlmDialogDescription,
     HlmButton,
+    NgIcon,
     ImageCropperComponent,
     TranslatePipe,
   ],
   templateUrl: "./user-avatar-drop-dialog.component.html",
+  providers: [provideIcons({ lucideImagePlus })],
   host: {
     class: "flex min-w-0 flex-col gap-5",
   },
@@ -33,8 +37,10 @@ export class AvatarCropDialogComponent {
   private readonly dialogRef = inject(BrnDialogRef);
   private readonly localization = inject(LocalizationService);
   private readonly cropper = viewChild(ImageCropperComponent);
+  private dragDepth = 0;
 
   readonly imageFile = signal<File | null>(null);
+  readonly dragging = signal(false);
   readonly ready = signal(false);
   readonly cropping = signal(false);
   readonly error = signal("");
@@ -46,6 +52,38 @@ export class AvatarCropDialogComponent {
     // Allow selecting the same file again.
     input.value = "";
 
+    this.setImage(file);
+  }
+
+  dragEnter(event: DragEvent): void {
+    event.preventDefault();
+    if (this.cropping() || !event.dataTransfer?.types.includes("Files")) return;
+    this.dragDepth += 1;
+    this.dragging.set(true);
+  }
+
+  dragOver(event: DragEvent): void {
+    event.preventDefault();
+    if (event.dataTransfer) {
+      event.dataTransfer.dropEffect = this.cropping() ? "none" : "copy";
+    }
+  }
+
+  dragLeave(event: DragEvent): void {
+    event.preventDefault();
+    this.dragDepth = Math.max(0, this.dragDepth - 1);
+    if (this.dragDepth === 0) this.dragging.set(false);
+  }
+
+  dropImage(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.dragDepth = 0;
+    this.dragging.set(false);
+    this.setImage(event.dataTransfer?.files[0]);
+  }
+
+  private setImage(file: File | undefined): void {
     if (!file || this.cropping()) {
       return;
     }

@@ -28,6 +28,14 @@ type HlmDialogContentContext = {
   imports: [NgComponentOutlet, HlmButton, HlmDialogClose, NgIcon],
   providers: [provideIcons({ lucideX })],
   changeDetection: ChangeDetectionStrategy.OnPush,
+  styles: `
+    :host {
+      display: flex !important;
+      flex-direction: column;
+      max-height: 95dvh !important;
+      overflow: hidden !important;
+    }
+  `,
   host: {
     "data-slot": "dialog-content",
     "[attr.data-state]": "state()",

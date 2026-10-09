@@ -255,7 +255,8 @@ export class ProfileSettingsComponent {
     this.changingProfileImage.set(true);
 
     const dialogRef = this.dialogService.open(AvatarCropDialogComponent, {
-      contentClass: "w-[calc(100vw-2rem)] max-w-lg",
+      contentClass:
+        "w-[calc(100vw-2rem)] min-w-[min(42rem,calc(100vw-2rem))] max-w-2xl",
     });
 
     dialogRef.closed$

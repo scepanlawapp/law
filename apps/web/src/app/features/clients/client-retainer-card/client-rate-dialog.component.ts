@@ -65,6 +65,7 @@ export interface ClientRateDialogInput {
   ],
   template: `
     <form
+      class="flex min-h-0 flex-1 flex-col"
       [formGroup]="form"
       (submit)="$event.preventDefault(); submit()"
       novalidate
@@ -76,53 +77,58 @@ export interface ClientRateDialogInput {
         </p>
       </hlm-dialog-header>
 
-      <div class="mt-4 grid gap-4 sm:grid-cols-2">
-        <div hlmField>
-          <label hlmFieldLabel for="client-rate-value">
-            {{ "retainers.clientRate.amount" | translate }}
-          </label>
-          <input
-            hlmInput
-            id="client-rate-value"
-            inputmode="decimal"
-            formControlName="hourlyRate"
-            [attr.aria-invalid]="
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <div class="mt-4 grid gap-4 sm:grid-cols-2">
+          <div hlmField>
+            <label hlmFieldLabel for="client-rate-value">
+              {{ "retainers.clientRate.amount" | translate }}
+            </label>
+            <input
+              hlmInput
+              id="client-rate-value"
+              inputmode="decimal"
+              formControlName="hourlyRate"
+              [attr.aria-invalid]="
+                form.controls.hourlyRate.touched &&
+                form.controls.hourlyRate.invalid
+              "
+            />
+            @if (
               form.controls.hourlyRate.touched &&
               form.controls.hourlyRate.invalid
-            "
-          />
-          @if (
-            form.controls.hourlyRate.touched && form.controls.hourlyRate.invalid
-          ) {
-            <p class="text-destructive text-sm" role="alert">
-              {{ "billing.invalidAmount" | translate }}
-            </p>
-          }
-        </div>
-        <div hlmField>
-          <label hlmFieldLabel for="client-rate-currency">
-            {{ "retainers.form.currency" | translate }}
-          </label>
-          <hlm-select
-            formControlName="currency"
-            [itemToString]="currencyItemToString"
-          >
-            <hlm-select-trigger buttonId="client-rate-currency" class="w-full">
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal width="content">
-              <hlm-select-group>
-                @for (option of currencyOptions; track option.value) {
-                  <hlm-select-item [value]="option.value">
-                    {{ option.label | translate }}
-                  </hlm-select-item>
-                }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
+            ) {
+              <p class="text-destructive text-sm" role="alert">
+                {{ "billing.invalidAmount" | translate }}
+              </p>
+            }
+          </div>
+          <div hlmField>
+            <label hlmFieldLabel for="client-rate-currency">
+              {{ "retainers.form.currency" | translate }}
+            </label>
+            <hlm-select
+              formControlName="currency"
+              [itemToString]="currencyItemToString"
+            >
+              <hlm-select-trigger
+                buttonId="client-rate-currency"
+                class="w-full"
+              >
+                <hlm-select-value />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal width="content">
+                <hlm-select-group>
+                  @for (option of currencyOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ option.label | translate }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
         </div>
       </div>
-
       <hlm-dialog-footer class="mt-4">
         <button
           hlmBtn
