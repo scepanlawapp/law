@@ -1,3 +1,12 @@
+<ng-template #primaryDeleteTooltip>
+  <span class="text-sm">{{ "clients.primaryDeleteBlocked" | translate }}</span>
+</ng-template>
+<ng-template #addressActionsTooltip>
+  <span class="text-sm">{{ "clients.addressActions" | translate }}</span>
+</ng-template>
+<ng-template #contactActionsTooltip>
+  <span class="text-sm">{{ "clients.contactActions" | translate }}</span>
+</ng-template>
 @if (loading()) {
   <div class="flex items-center gap-2 py-10" role="status">
     <hlm-spinner aria-label="{{ 'clients.loading' | translate }}" />
@@ -11,7 +20,9 @@
     </button>
   </div>
 } @else if (client(); as item) {
-  <div class="app-detail-hierarchy space-y-6 text-sm">
+  <div
+    class="app-detail-hierarchy min-w-0 space-y-4 text-sm [&_button]:text-sm [&_dd]:min-w-0 [&_dd]:break-words [&_span]:text-sm"
+  >
     <nav aria-label="{{ 'clients.breadcrumb' | translate }}">
       <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
         <li>
@@ -26,84 +37,162 @@
 
     <header class="space-y-4">
       <div class="flex flex-wrap items-start justify-between gap-4">
-        <div class="min-w-0 space-y-2">
-          <h1 class="break-words text-2xl font-semibold">{{ title() }}</h1>
-          @if (secondaryName(); as name) {
-            <p class="text-muted-foreground">{{ name }}</p>
-          }
-          <div class="flex flex-wrap gap-2">
-            <span class="rounded-md border border-border px-2 py-1">
-              {{ "clients.type." + item.type | translate }}
-            </span>
-            <span
-              [class]="
-                statusBadgeBaseClasses + ' ' + statusBadgeClass(item.status)
-              "
-            >
-              {{ "clients.status." + item.status | translate }}
-            </span>
-            <span class="rounded-md border border-border px-2 py-1">
-              {{
-                (item.isDomestic ? "clients.domestic" : "clients.foreign")
-                  | translate
-              }}
-            </span>
+        <div class="min-w-0 flex-1 space-y-2">
+          <div class="space-y-2">
+            <h1 class="min-w-0 break-words text-2xl font-semibold">
+              {{ title() }}
+            </h1>
+            <div class="flex flex-wrap gap-2">
+              <span class="rounded-md border border-border px-2 py-1">
+                {{ "clients.type." + item.type | translate }}
+              </span>
+              <span
+                [class]="
+                  statusBadgeBaseClasses + ' ' + statusBadgeClass(item.status)
+                "
+                class="text-sm"
+              >
+                {{ "clients.status." + item.status | translate }}
+              </span>
+              <span class="rounded-md border border-border px-2 py-1">
+                {{
+                  (item.isDomestic ? "clients.domestic" : "clients.foreign")
+                    | translate
+                }}
+              </span>
+            </div>
           </div>
+          @if (secondaryName(); as name) {
+            <p class="break-words text-muted-foreground">{{ name }}</p>
+          }
         </div>
-        <button hlmBtn type="button" (click)="editClient()">
+        <button
+          hlmBtn
+          type="button"
+          variant="default"
+          [disabled]="!!pending() || confirming()"
+          (click)="editClient()"
+        >
+          <ng-icon name="lucidePencil" aria-hidden="true" />
           {{ "clients.edit" | translate }}
         </button>
       </div>
-      <dl class="grid gap-3 sm:grid-cols-3">
-        <div>
-          <dt class="font-medium">{{ "clients.email" | translate }}</dt>
-          <dd>
-            @if (item.email) {
-              <a
-                class="underline-offset-4 hover:underline"
-                [href]="'mailto:' + item.email"
-              >
-                {{ item.email }}
-              </a>
-            } @else {
-              {{ "common.notProvided" | translate }}
-            }
-          </dd>
+      <dl
+        class="grid rounded-lg border border-border bg-card sm:grid-cols-2 [&_dt]:mb-1 [&_dt]:text-muted-foreground"
+        [class]="
+          item.type === 'ORGANIZATION'
+            ? 'xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)]'
+            : 'xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)]'
+        "
+      >
+        <div class="summary-cell">
+          <span class="icon-tile bg-muted text-muted-foreground">
+            <ng-icon name="lucideMail" aria-hidden="true" />
+          </span>
+          <div>
+            <dt class="font-medium">{{ "clients.email" | translate }}</dt>
+            <dd>
+              @if (item.email) {
+                <a
+                  class="underline-offset-4 hover:underline"
+                  [href]="'mailto:' + item.email"
+                >
+                  {{ item.email }}
+                </a>
+              } @else {
+                {{ "common.notProvided" | translate }}
+              }
+            </dd>
+          </div>
         </div>
-        <div>
-          <dt class="font-medium">{{ "clients.phone" | translate }}</dt>
-          <dd>
-            @if (item.phone) {
-              <a
-                class="underline-offset-4 hover:underline"
-                [href]="'tel:' + item.phone"
-              >
-                {{ item.phone }}
-              </a>
-            } @else {
-              {{ "common.notProvided" | translate }}
-            }
-          </dd>
+        <div class="summary-cell">
+          <span class="icon-tile bg-muted text-muted-foreground">
+            <ng-icon name="lucidePhone" aria-hidden="true" />
+          </span>
+          <div>
+            <dt class="font-medium">{{ "clients.phone" | translate }}</dt>
+            <dd>
+              @if (item.phone) {
+                <a
+                  class="underline-offset-4 hover:underline"
+                  [href]="'tel:' + item.phone"
+                >
+                  {{ item.phone }}
+                </a>
+              } @else {
+                {{ "common.notProvided" | translate }}
+              }
+            </dd>
+          </div>
         </div>
-        <div>
-          <dt class="font-medium">{{ "clients.responsible" | translate }}</dt>
-          <dd>
-            {{
-              item.responsibleUser?.displayName ||
-                ("common.notProvided" | translate)
-            }}
-          </dd>
+        <div class="summary-cell">
+          <span class="icon-tile bg-muted text-muted-foreground">
+            <ng-icon name="lucideUserRound" aria-hidden="true" />
+          </span>
+          <div>
+            <dt class="font-medium">{{ "clients.responsible" | translate }}</dt>
+            <dd>
+              {{
+                item.responsibleUser?.displayName ||
+                  ("common.notProvided" | translate)
+              }}
+            </dd>
+          </div>
         </div>
+        <div class="summary-cell">
+          <span class="icon-tile bg-muted text-muted-foreground">
+            <ng-icon
+              [name]="
+                item.type === 'ORGANIZATION'
+                  ? 'lucideBuilding2'
+                  : 'lucideUserRound'
+              "
+              aria-hidden="true"
+            />
+          </span>
+          <div>
+            <dt class="font-medium">
+              {{
+                (item.type === "ORGANIZATION"
+                  ? "clients.taxNumber"
+                  : "clients.jmbg"
+                ) | translate
+              }}
+            </dt>
+            <dd class="font-medium">
+              {{
+                displayValue(
+                  item.type === "ORGANIZATION" ? item.taxNumber : item.jmbg
+                )
+              }}
+            </dd>
+          </div>
+        </div>
+        @if (item.type === "ORGANIZATION") {
+          <div class="summary-cell">
+            <span class="icon-tile bg-muted text-muted-foreground">
+              <ng-icon name="lucideFileText" aria-hidden="true" />
+            </span>
+            <div>
+              <dt class="font-medium">
+                {{ "clients.registrationNumber" | translate }}
+              </dt>
+              <dd class="font-medium">
+                {{ displayValue(item.registrationNumber) }}
+              </dd>
+            </div>
+          </div>
+        }
       </dl>
     </header>
 
     <div
-      class="border-t border-border pt-6"
+      class="min-w-0"
       hlmTabs
       [tab]="selectedTab()"
       (tabActivated)="selectTab($event)"
     >
-      <div>
+      <div class="max-w-full overflow-x-auto pb-1">
         <div hlmTabsList aria-label="{{ 'clients.sections' | translate }}">
           <button hlmTabsTrigger="overview">
             {{ "clients.overview" | translate }}
@@ -123,194 +212,319 @@
         </div>
       </div>
 
-      <section hlmTabsContent="overview" class="pt-6">
+      <section hlmTabsContent="overview" class="pt-0">
         <h2 class="sr-only">{{ "clients.overview" | translate }}</h2>
-        <div class="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(18rem,1fr)]">
-          <div class="space-y-8">
+        @if (pending()) {
+          <div class="mb-4 flex items-center gap-2" role="status">
+            <hlm-spinner [attr.aria-label]="'clients.saving' | translate" />
+            <span>{{ "clients.saving" | translate }}</span>
+          </div>
+        }
+        @if (mutationError()) {
+          <div class="mb-4 flex flex-wrap items-center gap-3" role="alert">
+            <p class="text-destructive">
+              {{ "clients.mutationError" | translate }}
+            </p>
+            <button hlmBtn type="button" variant="outline" (click)="reload()">
+              {{ "clients.retry" | translate }}
+            </button>
+          </div>
+        }
+        <div
+          class="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"
+        >
+          <div class="min-w-0 space-y-3">
             <law-client-retainer-card [clientId]="item.id" />
-            <section class="space-y-4">
-              <h3 class="text-lg font-semibold">
-                {{ "clients.basicInfo" | translate }}
-              </h3>
-              <dl class="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-                <div>
-                  <dt class="font-medium">
-                    {{ "clients.number" | translate }}
-                  </dt>
-                  <dd class="text-muted-foreground">{{ item.clientNumber }}</dd>
-                </div>
-                <div>
-                  <dt class="font-medium">{{ "clients.type" | translate }}</dt>
-                  <dd class="text-muted-foreground">
-                    {{ "clients.type." + item.type | translate }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-medium">
-                    {{ "clients.status" | translate }}
-                  </dt>
-                  <dd>
-                    <span
-                      [class]="
-                        statusBadgeBaseClasses +
-                        ' ' +
-                        statusBadgeClass(item.status)
-                      "
-                    >
-                      {{ "clients.status." + item.status | translate }}
-                    </span>
-                  </dd>
-                </div>
-                @if (item.type === "INDIVIDUAL") {
+            <section class="detail-section" data-testid="client-basic">
+              <div class="section-heading">
+                <h3 class="text-base font-semibold">
+                  <span class="icon-tile bg-muted text-muted-foreground">
+                    <ng-icon name="lucideUserRound" aria-hidden="true" />
+                  </span>
+                  {{ "clients.basicInfo" | translate }}
+                </h3>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="ghost"
+                  [disabled]="!!pending() || confirming()"
+                  (click)="editClient('basic')"
+                >
+                  <ng-icon name="lucidePencil" aria-hidden="true" />
+                  {{ "clients.sectionEdit" | translate }}
+                </button>
+              </div>
+              <div class="section-body grid min-w-0 gap-5 sm:grid-cols-2">
+                <dl class="field-list">
                   <div>
-                    <dt class="font-medium">
-                      {{ "clients.firstName" | translate }}
-                    </dt>
-                    <dd class="text-muted-foreground">
-                      {{ displayValue(item.firstName) }}
-                    </dd>
+                    <dt>{{ "clients.number" | translate }}</dt>
+                    <dd>{{ item.clientNumber }}</dd>
                   </div>
+                  @if (item.type === "INDIVIDUAL") {
+                    <div>
+                      <dt>{{ "clients.firstName" | translate }}</dt>
+                      <dd>{{ displayValue(item.firstName) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.lastName" | translate }}</dt>
+                      <dd>{{ displayValue(item.lastName) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.displayName" | translate }}</dt>
+                      <dd>{{ displayValue(item.displayName) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.jmbg" | translate }}</dt>
+                      <dd>{{ displayValue(item.jmbg) }}</dd>
+                    </div>
+                  } @else {
+                    <div>
+                      <dt>{{ "clients.organizationName" | translate }}</dt>
+                      <dd>{{ displayValue(item.organizationName) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.displayName" | translate }}</dt>
+                      <dd>{{ displayValue(item.displayName) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.registrationNumber" | translate }}</dt>
+                      <dd>{{ displayValue(item.registrationNumber) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.taxNumber" | translate }}</dt>
+                      <dd>{{ displayValue(item.taxNumber) }}</dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.isPublicSector" | translate }}</dt>
+                      <dd>
+                        {{
+                          (item.isPublicSector
+                            ? "clients.publicSectorYes"
+                            : "clients.publicSectorNo"
+                          ) | translate
+                        }}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>{{ "clients.jbkjs" | translate }}</dt>
+                      <dd>{{ displayValue(item.jbkjs) }}</dd>
+                    </div>
+                  }
                   <div>
-                    <dt class="font-medium">
-                      {{ "clients.lastName" | translate }}
-                    </dt>
-                    <dd class="text-muted-foreground">
-                      {{ displayValue(item.lastName) }}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="font-medium">
-                      {{ "clients.jmbg" | translate }}
-                    </dt>
-                    <dd class="text-muted-foreground">
-                      {{ displayValue(item.jmbg) }}
-                    </dd>
-                  </div>
-                } @else {
-                  <div>
-                    <dt class="font-medium">
-                      {{ "clients.organizationName" | translate }}
-                    </dt>
-                    <dd class="text-muted-foreground">
-                      {{ displayValue(item.organizationName) }}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="font-medium">
-                      {{ "clients.registrationNumber" | translate }}
-                    </dt>
-                    <dd class="text-muted-foreground">
-                      {{ displayValue(item.registrationNumber) }}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt class="font-medium">
-                      {{ "clients.taxNumber" | translate }}
-                    </dt>
-                    <dd class="text-muted-foreground">
-                      {{ displayValue(item.taxNumber) }}
-                    </dd>
-                  </div>
-                }
-                <div>
-                  <dt class="font-medium">
-                    {{ "clients.displayName" | translate }}
-                  </dt>
-                  <dd class="text-muted-foreground">
-                    {{ displayValue(item.displayName) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-medium">
-                    {{ "clients.residency" | translate }}
-                  </dt>
-                  <dd class="text-muted-foreground">
-                    {{
-                      (item.isDomestic ? "clients.domestic" : "clients.foreign")
-                        | translate
-                    }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-medium">{{ "clients.email" | translate }}</dt>
-                  <dd class="text-muted-foreground">
-                    {{ displayValue(item.email) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-medium">{{ "clients.phone" | translate }}</dt>
-                  <dd class="text-muted-foreground">
-                    {{ displayValue(item.phone) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-medium">
-                    {{ "clients.website" | translate }}
-                  </dt>
-                  <dd class="text-muted-foreground">
-                    @if (item.website) {
-                      <a
-                        class="underline-offset-4 hover:underline"
-                        [href]="item.website"
-                        target="_blank"
-                        rel="noopener noreferrer"
+                    <dt>{{ "clients.status" | translate }}</dt>
+                    <dd>
+                      <span
+                        [class]="
+                          statusBadgeBaseClasses +
+                          ' ' +
+                          statusBadgeClass(item.status)
+                        "
                       >
-                        {{ item.website }}
-                      </a>
-                    } @else {
-                      {{ "common.notProvided" | translate }}
-                    }
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-medium">
-                    {{ "clients.language" | translate }}
-                  </dt>
-                  <dd class="text-muted-foreground">
-                    {{ displayValue(item.preferredLanguage) }}
-                  </dd>
-                </div>
-                <div>
-                  <dt class="font-medium">
-                    {{ "clients.responsible" | translate }}
-                  </dt>
-                  <dd class="text-muted-foreground">
-                    {{
-                      item.responsibleUser?.displayName ||
-                        ("common.notProvided" | translate)
-                    }}
-                  </dd>
-                </div>
-                <div class="sm:col-span-2">
-                  <dt class="font-medium">{{ "clients.tags" | translate }}</dt>
-                  <dd class="text-muted-foreground">{{ tagNames(item) }}</dd>
-                </div>
-              </dl>
+                        {{ "clients.status." + item.status | translate }}
+                      </span>
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{{ "clients.tags" | translate }}</dt>
+                    <dd>{{ tagNames(item) }}</dd>
+                  </div>
+                </dl>
+                <dl class="field-list">
+                  <div>
+                    <dt>{{ "clients.type" | translate }}</dt>
+                    <dd>{{ "clients.type." + item.type | translate }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ "clients.residency" | translate }}</dt>
+                    <dd>
+                      {{
+                        (item.isDomestic
+                          ? "clients.domestic"
+                          : "clients.foreign"
+                        ) | translate
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{{ "clients.phone" | translate }}</dt>
+                    <dd>{{ displayValue(item.phone) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ "clients.email" | translate }}</dt>
+                    <dd>{{ displayValue(item.email) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ "clients.responsible" | translate }}</dt>
+                    <dd>
+                      {{
+                        item.responsibleUser?.displayName ||
+                          ("common.notProvided" | translate)
+                      }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{{ "clients.language" | translate }}</dt>
+                    <dd>{{ displayValue(item.preferredLanguage) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ "clients.website" | translate }}</dt>
+                    <dd>
+                      @if (item.website) {
+                        <a
+                          class="underline-offset-4 hover:underline"
+                          [href]="item.website"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {{ item.website }}
+                        </a>
+                      } @else {
+                        {{ "common.notProvided" | translate }}
+                      }
+                    </dd>
+                  </div>
+                </dl>
+              </div>
             </section>
 
-            <section class="space-y-4">
-              <h3 class="text-lg font-semibold">
-                {{ "clients.addresses" | translate }}
-              </h3>
-              <div class="grid gap-4 sm:grid-cols-2">
+            <section class="detail-section" data-testid="client-addresses">
+              <div class="section-heading">
+                <h3 class="text-base font-semibold">
+                  <span class="icon-tile bg-muted text-muted-foreground">
+                    <ng-icon name="lucideMapPin" aria-hidden="true" />
+                  </span>
+                  {{ "clients.addresses" | translate }}
+                </h3>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="ghost"
+                  [disabled]="!!pending() || confirming()"
+                  (click)="editClient('addresses')"
+                >
+                  <ng-icon name="lucidePencil" aria-hidden="true" />
+                  {{ "clients.sectionEdit" | translate }}
+                </button>
+              </div>
+              <div class="section-body grid gap-3 sm:grid-cols-2">
                 @for (address of sortedAddresses(); track address.id) {
-                  <article
-                    class="space-y-2 border-t border-border pt-4 first:border-t-0 first:pt-0"
-                  >
-                    <div class="flex flex-wrap items-center gap-2">
-                      <h4 class="font-medium">
-                        {{
-                          "clients.addressType." + address.addressType
-                            | translate
-                        }}
-                      </h4>
-                      @if (address.isPrimary) {
-                        <span class="rounded-md border border-border px-2 py-1">
-                          {{ "clients.primaryAddress" | translate }}
-                        </span>
-                      }
+                  <article class="record space-y-3 bg-muted/20">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <ng-icon
+                          [name]="
+                            address.addressType === 'REGISTERED'
+                              ? 'lucideHouse'
+                              : address.addressType === 'BILLING' ||
+                                  address.addressType === 'OFFICE'
+                                ? 'lucideBuilding2'
+                                : 'lucideMapPin'
+                          "
+                          class="shrink-0 text-lg text-muted-foreground"
+                          aria-hidden="true"
+                        />
+                        <h4
+                          class="rounded-md border border-border bg-background px-2 py-1 font-medium"
+                        >
+                          {{
+                            "clients.addressType." + address.addressType
+                              | translate
+                          }}
+                        </h4>
+                        @if (address.isPrimary) {
+                          <span
+                            class="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-primary"
+                          >
+                            <ng-icon name="lucideStar" aria-hidden="true" />
+                            {{ "clients.primaryAddress" | translate }}
+                          </span>
+                        }
+                      </div>
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        class="shrink-0"
+                        [hlmDropdownMenuTrigger]="addressMenu"
+                        align="end"
+                        [disabled]="!!pending() || confirming()"
+                        [attr.aria-label]="
+                          ('clients.addressActions' | translate) +
+                          ': ' +
+                          address.street
+                        "
+                        [hlmTooltip]="addressActionsTooltip"
+                      >
+                        <ng-icon name="lucideEllipsis" aria-hidden="true" />
+                      </button>
+                      <ng-template #addressMenu>
+                        <div hlmDropdownMenu width="content">
+                          <button
+                            hlmDropdownMenuItem
+                            type="button"
+                            (triggered)="editClient('addresses')"
+                          >
+                            <ng-icon name="lucidePencil" aria-hidden="true" />
+                            {{ "clients.sectionEdit" | translate }}
+                          </button>
+                          <button
+                            hlmDropdownMenuItem
+                            type="button"
+                            [disabled]="address.isPrimary || !!pending()"
+                            (triggered)="
+                              updateAddress(address.id, { isPrimary: true })
+                            "
+                          >
+                            <ng-icon name="lucideStar" aria-hidden="true" />
+                            {{ "clients.setPrimary" | translate }}
+                          </button>
+                          <div hlmDropdownMenuSeparator></div>
+                          <div hlmDropdownMenuLabel>
+                            {{ "clients.addressType" | translate }}
+                          </div>
+                          @for (type of addressTypes; track type) {
+                            <button
+                              hlmDropdownMenuItem
+                              type="button"
+                              [disabled]="
+                                address.addressType === type || !!pending()
+                              "
+                              (triggered)="
+                                updateAddress(address.id, { addressType: type })
+                              "
+                            >
+                              {{ "clients.addressType." + type | translate }}
+                            </button>
+                          }
+                          <div hlmDropdownMenuSeparator></div>
+                          @if (address.isPrimary) {
+                            <div
+                              hlmDropdownMenuItem
+                              variant="destructive"
+                              [disabled]="true"
+                              class="data-disabled:pointer-events-auto"
+                              [hlmTooltip]="primaryDeleteTooltip"
+                            >
+                              <ng-icon name="lucideTrash2" aria-hidden="true" />
+                              {{ "clients.delete" | translate }}
+                            </div>
+                          } @else {
+                            <button
+                              hlmDropdownMenuItem
+                              type="button"
+                              variant="destructive"
+                              [disabled]="!!pending()"
+                              (triggered)="deleteRecord('address', address.id)"
+                            >
+                              <ng-icon name="lucideTrash2" aria-hidden="true" />
+                              {{ "clients.delete" | translate }}
+                            </button>
+                          }
+                        </div>
+                      </ng-template>
                     </div>
-                    <p>
+                    <p class="break-words">
                       {{ displayValue(address.street) }}
                       @if (address.streetAdditional) {
                         , {{ address.streetAdditional }}
@@ -324,7 +538,7 @@
                       <br />
                       {{ countryName(address.country) }}
                     </p>
-                    <dl class="grid gap-2">
+                    <dl class="field-list">
                       <div>
                         <dt class="font-medium">
                           {{ "clients.country" | translate }}
@@ -351,19 +565,32 @@
               </div>
             </section>
 
-            <section class="space-y-4">
-              <h3 class="text-lg font-semibold">
-                {{ "clients.identificationDocuments" | translate }}
-              </h3>
-              <div class="grid gap-4 sm:grid-cols-2">
+            <section class="detail-section" data-testid="client-identification">
+              <div class="section-heading">
+                <h3 class="text-base font-semibold">
+                  <span class="icon-tile bg-muted text-muted-foreground">
+                    <ng-icon name="lucideFileText" aria-hidden="true" />
+                  </span>
+                  {{ "clients.identificationDocuments" | translate }}
+                </h3>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  [disabled]="!!pending() || confirming()"
+                  (click)="editClient('identification')"
+                >
+                  <ng-icon name="lucidePlus" aria-hidden="true" />
+                  {{ "clients.addDocument" | translate }}
+                </button>
+              </div>
+              <div class="section-body grid gap-3 sm:grid-cols-2">
                 @for (
                   document of identificationDocuments();
                   track document.id
                 ) {
-                  <article
-                    class="border-t border-border pt-4 first:border-t-0 first:pt-0"
-                  >
-                    <dl class="grid gap-2">
+                  <article class="record bg-muted/20">
+                    <dl class="field-list">
                       <div>
                         <dt class="font-medium">
                           {{ "clients.documentType" | translate }}
@@ -407,7 +634,14 @@
                     </dl>
                   </article>
                 } @empty {
-                  <p class="text-muted-foreground">
+                  <p
+                    class="flex items-center gap-2 text-muted-foreground sm:col-span-2"
+                  >
+                    <ng-icon
+                      name="lucideFileText"
+                      class="shrink-0 text-lg"
+                      aria-hidden="true"
+                    />
                     {{ "clients.noIdentificationDocuments" | translate }}
                   </p>
                 }
@@ -415,91 +649,206 @@
             </section>
           </div>
 
-          <aside class="space-y-8">
-            <section class="space-y-4">
-              <h3 class="text-lg font-semibold">
-                {{ "clients.contacts" | translate }}
-              </h3>
-              @for (contact of sortedContacts(); track contact.id) {
-                <article
-                  class="space-y-2 border-t border-border pt-4 first:border-t-0 first:pt-0"
+          <aside class="min-w-0 space-y-3">
+            <section class="detail-section" data-testid="client-contacts">
+              <div class="section-heading">
+                <h3 class="text-base font-semibold">
+                  <span class="icon-tile bg-muted text-muted-foreground">
+                    <ng-icon name="lucideUsers" aria-hidden="true" />
+                  </span>
+                  {{ "clients.contacts" | translate }}
+                </h3>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="ghost"
+                  [disabled]="!!pending() || confirming()"
+                  (click)="editClient('contacts')"
                 >
-                  <div class="flex flex-wrap items-center gap-2">
-                    <h4 class="font-medium">
-                      {{ (contact.firstName + " " + contact.lastName).trim() || contact.email || contact.phone || ("clients.primaryContact" | translate) }}
-                    </h4>
-                    @if (contact.isPrimary) {
-                      <span class="rounded-md border border-border px-2 py-1">
-                        {{ "clients.primaryContact" | translate }}
-                      </span>
-                    }
-                  </div>
-                  <dl class="grid gap-2">
-                    <div>
-                      <dt class="font-medium">
-                        {{ "clients.position" | translate }}
-                      </dt>
-                      <dd class="text-muted-foreground">
-                        {{ displayValue(contact.position) }}
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="font-medium">
-                        {{ "clients.email" | translate }}
-                      </dt>
-                      <dd class="text-muted-foreground">
-                        @if (contact.email) {
-                          <a
-                            class="underline-offset-4 hover:underline"
-                            [href]="'mailto:' + contact.email"
+                  <ng-icon name="lucidePencil" aria-hidden="true" />
+                  {{ "clients.sectionEdit" | translate }}
+                </button>
+              </div>
+              <div class="section-body space-y-3">
+                @for (contact of sortedContacts(); track contact.id) {
+                  <article class="record space-y-3 bg-muted/20">
+                    <div class="flex items-start justify-between gap-2">
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
+                        <h4 class="min-w-0 break-words font-medium">
+                          {{
+                            (
+                              contact.firstName +
+                              " " +
+                              contact.lastName
+                            ).trim() ||
+                              contact.email ||
+                              contact.phone ||
+                              ("clients.primaryContact" | translate)
+                          }}
+                        </h4>
+                        @if (contact.isPrimary) {
+                          <span
+                            class="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-primary"
                           >
-                            {{ contact.email }}
-                          </a>
-                        } @else {
-                          {{ "common.notProvided" | translate }}
+                            <ng-icon name="lucideStar" aria-hidden="true" />
+                            {{ "clients.primaryContact" | translate }}
+                          </span>
                         }
-                      </dd>
-                    </div>
-                    <div>
-                      <dt class="font-medium">
-                        {{ "clients.phone" | translate }}
-                      </dt>
-                      <dd class="text-muted-foreground">
-                        @if (contact.phone) {
-                          <a
-                            class="underline-offset-4 hover:underline"
-                            [href]="'tel:' + contact.phone"
+                      </div>
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        class="shrink-0"
+                        [hlmDropdownMenuTrigger]="contactMenu"
+                        align="end"
+                        [disabled]="!!pending() || confirming()"
+                        [attr.aria-label]="
+                          ('clients.contactActions' | translate) +
+                          ': ' +
+                          (contact.firstName + ' ' + contact.lastName).trim()
+                        "
+                        [hlmTooltip]="contactActionsTooltip"
+                      >
+                        <ng-icon name="lucideEllipsis" aria-hidden="true" />
+                      </button>
+                      <ng-template #contactMenu>
+                        <div hlmDropdownMenu width="content">
+                          <button
+                            hlmDropdownMenuItem
+                            type="button"
+                            (triggered)="editClient('contacts')"
                           >
-                            {{ contact.phone }}
-                          </a>
-                        } @else {
-                          {{ "common.notProvided" | translate }}
-                        }
-                      </dd>
+                            <ng-icon name="lucidePencil" aria-hidden="true" />
+                            {{ "clients.sectionEdit" | translate }}
+                          </button>
+                          <button
+                            hlmDropdownMenuItem
+                            type="button"
+                            [disabled]="
+                              contact.isPrimary ||
+                              contact.status !== 'ACTIVE' ||
+                              !!pending()
+                            "
+                            (triggered)="setPrimaryContact(contact.id)"
+                          >
+                            <ng-icon name="lucideStar" aria-hidden="true" />
+                            {{ "clients.setPrimary" | translate }}
+                          </button>
+                          <div hlmDropdownMenuSeparator></div>
+                          @if (contact.isPrimary) {
+                            <div
+                              hlmDropdownMenuItem
+                              variant="destructive"
+                              [disabled]="true"
+                              class="data-disabled:pointer-events-auto"
+                              [hlmTooltip]="primaryDeleteTooltip"
+                            >
+                              <ng-icon name="lucideTrash2" aria-hidden="true" />
+                              {{ "clients.delete" | translate }}
+                            </div>
+                          } @else {
+                            <button
+                              hlmDropdownMenuItem
+                              type="button"
+                              variant="destructive"
+                              [disabled]="!!pending()"
+                              (triggered)="deleteRecord('contact', contact.id)"
+                            >
+                              <ng-icon name="lucideTrash2" aria-hidden="true" />
+                              {{ "clients.delete" | translate }}
+                            </button>
+                          }
+                        </div>
+                      </ng-template>
                     </div>
-                    <div>
-                      <dt class="font-medium">
-                        {{ "clients.notes" | translate }}
-                      </dt>
-                      <dd class="whitespace-pre-line text-muted-foreground">
-                        {{ displayValue(contact.notes) }}
-                      </dd>
-                    </div>
-                  </dl>
-                </article>
-              } @empty {
-                <p class="text-muted-foreground">
-                  {{ "clients.noContacts" | translate }}
-                </p>
-              }
+                    <dl class="field-list">
+                      <div>
+                        <dt class="font-medium">
+                          {{ "clients.position" | translate }}
+                        </dt>
+                        <dd class="text-muted-foreground">
+                          {{ displayValue(contact.position) }}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt class="font-medium">
+                          {{ "clients.email" | translate }}
+                        </dt>
+                        <dd class="text-muted-foreground">
+                          @if (contact.email) {
+                            <a
+                              class="underline-offset-4 hover:underline"
+                              [href]="'mailto:' + contact.email"
+                            >
+                              {{ contact.email }}
+                            </a>
+                          } @else {
+                            {{ "common.notProvided" | translate }}
+                          }
+                        </dd>
+                      </div>
+                      <div>
+                        <dt class="font-medium">
+                          {{ "clients.phone" | translate }}
+                        </dt>
+                        <dd class="text-muted-foreground">
+                          @if (contact.phone) {
+                            <a
+                              class="underline-offset-4 hover:underline"
+                              [href]="'tel:' + contact.phone"
+                            >
+                              {{ contact.phone }}
+                            </a>
+                          } @else {
+                            {{ "common.notProvided" | translate }}
+                          }
+                        </dd>
+                      </div>
+                      <div>
+                        <dt class="font-medium">
+                          {{ "clients.notes" | translate }}
+                        </dt>
+                        <dd class="whitespace-pre-line text-muted-foreground">
+                          {{ displayValue(contact.notes) }}
+                        </dd>
+                      </div>
+                    </dl>
+                  </article>
+                } @empty {
+                  <p class="text-muted-foreground">
+                    {{ "clients.noContacts" | translate }}
+                  </p>
+                }
+              </div>
             </section>
-            <section class="space-y-4">
-              <h3 class="text-lg font-semibold">
-                {{ "clients.notes" | translate }}
-              </h3>
-              <p class="whitespace-pre-line text-muted-foreground">
-                {{ displayValue(item.notes) }}
-              </p>
+            <section class="detail-section" data-testid="client-notes">
+              <div class="section-heading">
+                <h3 class="text-base font-semibold">
+                  <span class="icon-tile bg-muted text-muted-foreground">
+                    <ng-icon name="lucideStickyNote" aria-hidden="true" />
+                  </span>
+                  {{ "clients.notes" | translate }}
+                </h3>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="ghost"
+                  [disabled]="!!pending() || confirming()"
+                  (click)="editClient('additional')"
+                >
+                  <ng-icon name="lucidePencil" aria-hidden="true" />
+                  {{ "clients.sectionEdit" | translate }}
+                </button>
+              </div>
+              <div class="section-body">
+                <p
+                  class="rounded-md bg-muted/30 p-3 break-words whitespace-pre-line text-muted-foreground"
+                >
+                  {{ displayValue(item.notes) }}
+                </p>
+              </div>
             </section>
           </aside>
         </div>

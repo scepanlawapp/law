@@ -263,6 +263,26 @@ describe("ClientRetainerCardComponent", () => {
     expect(reports.clientUsage).toHaveBeenCalledTimes(2);
   });
 
+  it("keeps the compact rate action named and opens the existing rate dialog", async () => {
+    setup.listRetainers.mockReturnValue(of([]));
+    reports.clientUsage.mockReturnValue(of(null));
+    const fixture = await create();
+    const action = query(fixture, "client-rate-edit");
+
+    expect(action?.getAttribute("aria-label")).toBe(
+      "retainers.clientRate.action",
+    );
+    action?.click();
+    expect(rateDialog.open).toHaveBeenCalledWith({
+      clientId: "client-1",
+      profile: {
+        clientId: "client-1",
+        hourlyRate: "12000.00",
+        currency: "RSD",
+      },
+    });
+  });
+
   it("hides the card when the API answers 403", async () => {
     setup.listRetainers.mockReturnValue(throwError(() => ({ status: 403 })));
     reports.clientUsage.mockReturnValue(throwError(() => ({ status: 403 })));

@@ -1,0 +1,18 @@
+{
+  "track_id": "client_detail_redesign_20261009",
+  "parent_track_id": null,
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-10-09",
+  "updated_at": "2026-10-09",
+  "keywords": [
+    "clients",
+    "detail",
+    "responsive",
+    "primary",
+    "dialog",
+    "visual-fidelity",
+    "icons",
+    "registration-number"
+  ]
+}

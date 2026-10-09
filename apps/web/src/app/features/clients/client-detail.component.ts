@@ -11,6 +11,7 @@ import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { ClientDetail } from "@law/api-interfaces";
 import {
   ClientAddress,
+  ClientAddressRequest,
   ClientContact,
   ClientIdentificationDocument,
   ClientsApiClient,
@@ -24,13 +25,34 @@ import {
   HlmTabsList,
   HlmTabsTrigger,
 } from "@spartan-ng/helm/tabs";
-import { forkJoin } from "rxjs";
+import { finalize, forkJoin, Observable, switchMap } from "rxjs";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideBuilding2,
+  lucideEllipsis,
+  lucideFileText,
+  lucideHouse,
+  lucideMail,
+  lucideMapPin,
+  lucidePencil,
+  lucidePhone,
+  lucidePlus,
+  lucideStar,
+  lucideStickyNote,
+  lucideTrash2,
+  lucideUserRound,
+  lucideUsers,
+} from "@ng-icons/lucide";
+import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { loadCountryOptions } from "../../shared/utils/countries";
 import { CasesListComponent } from "../cases/cases-list/cases-list.component";
 import { DocumentsComponent } from "../documents/documents.component";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
+import { ClientFormTab } from "./client-create-edit-modal/client-form-dialog.models";
+import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ClientRetainerCardComponent } from "./client-retainer-card/client-retainer-card.component";
 import {
   STATUS_BADGE_BASE_CLASSES,
@@ -48,7 +70,29 @@ type ClientTab =
   selector: "law-client-detail",
   standalone: true,
   templateUrl: "./client-detail.component.html",
+  styleUrl: "./client-detail.component.css",
+  providers: [
+    provideIcons({
+      lucideBuilding2,
+      lucideEllipsis,
+      lucideFileText,
+      lucideHouse,
+      lucideMail,
+      lucideMapPin,
+      lucidePencil,
+      lucidePhone,
+      lucidePlus,
+      lucideStar,
+      lucideStickyNote,
+      lucideTrash2,
+      lucideUserRound,
+      lucideUsers,
+    }),
+  ],
   imports: [
+    NgIcon,
+    HlmDropdownMenuImports,
+    HlmTooltip,
     RouterLink,
     HlmButton,
     HlmSpinner,
@@ -72,6 +116,7 @@ export class ClientDetailComponent {
   private readonly router = inject(Router);
   private readonly localization = inject(LocalizationService);
   private readonly clientDialog = inject(ClientFormDialogService);
+  private readonly confirmation = inject(ConfirmDialogService);
 
   readonly id = this.route.snapshot.paramMap.get("clientId")!;
   readonly client = signal<ClientDetail | null>(null);
@@ -82,6 +127,16 @@ export class ClientDetailComponent {
   readonly countries = signal(new Map<string, string>());
   readonly loading = signal(true);
   readonly error = signal(false);
+  readonly pending = signal<string | null>(null);
+  readonly confirming = signal(false);
+  readonly mutationError = signal(false);
+  readonly addressTypes = [
+    "REGISTERED",
+    "DELIVERY",
+    "BILLING",
+    "OFFICE",
+    "POSTAL",
+  ] as const;
   readonly selectedTab = signal<ClientTab>(
     this.toTab(this.route.snapshot.queryParamMap.get("tab")),
   );
@@ -92,9 +147,11 @@ export class ClientDetailComponent {
     ),
   );
   readonly sortedContacts = computed(() =>
-    [...this.contacts()].sort(
-      (first, second) => Number(second.isPrimary) - Number(first.isPrimary),
-    ),
+    this.contacts()
+      .filter((contact) => contact.status !== "INACTIVE")
+      .sort(
+        (first, second) => Number(second.isPrimary) - Number(first.isPrimary),
+      ),
   );
   readonly title = computed(() => {
     const client = this.client();
@@ -133,6 +190,7 @@ export class ClientDetailComponent {
   reload(): void {
     this.loading.set(true);
     this.error.set(false);
+    this.mutationError.set(false);
     forkJoin({
       client: this.api.get(this.id),
       addresses: this.api.listAddresses(this.id),
@@ -183,12 +241,113 @@ export class ClientDetailComponent {
     });
   }
 
-  editClient(): void {
+  editClient(initialTab: ClientFormTab = "basic"): void {
+    if (this.pending() || this.confirming()) return;
     this.clientDialog
-      .edit(this.id)
+      .edit(this.id, initialTab)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((updated) => {
         if (updated) this.reload();
+      });
+  }
+
+  updateAddress(
+    addressId: string,
+    changes: Partial<ClientAddressRequest>,
+  ): void {
+    const address = this.addresses().find((item) => item.id === addressId);
+    if (!address || this.pending() || this.confirming()) return;
+    const request: ClientAddressRequest = {
+      addressType: address.addressType,
+      street: address.street,
+      streetAdditional: address.streetAdditional ?? "",
+      city: address.city,
+      postalCode: address.postalCode,
+      stateOrRegion: address.stateOrRegion ?? "",
+      country: address.country,
+      note: address.note ?? "",
+      isPrimary: address.isPrimary,
+      ...changes,
+    };
+    this.mutate(addressId, this.api.updateAddress(this.id, addressId, request));
+  }
+
+  setPrimaryContact(contactId: string): void {
+    const contact = this.contacts().find((item) => item.id === contactId);
+    if (
+      !contact ||
+      contact.isPrimary ||
+      contact.status !== "ACTIVE" ||
+      this.pending() ||
+      this.confirming()
+    )
+      return;
+    this.mutate(
+      contactId,
+      this.api.updateContact(this.id, contactId, { isPrimary: true }),
+    );
+  }
+
+  deleteRecord(kind: "address" | "contact", recordId: string): void {
+    if (this.pending() || this.confirming() || !this.canDelete(kind, recordId))
+      return;
+    this.confirming.set(true);
+    this.confirmation
+      .confirm({
+        title: "clients.delete",
+        message:
+          kind === "address"
+            ? "clients.removeConfirm"
+            : "clients.deleteContactConfirm",
+        confirmText: "clients.delete",
+        variant: "danger",
+      })
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((confirmed) => {
+        this.confirming.set(false);
+        if (!confirmed || this.pending() || !this.canDelete(kind, recordId))
+          return;
+        this.mutate(
+          recordId,
+          kind === "address"
+            ? this.api.removeAddress(this.id, recordId)
+            : this.api.deactivateContact(this.id, recordId),
+        );
+      });
+  }
+
+  private canDelete(kind: "address" | "contact", recordId: string): boolean {
+    const record =
+      kind === "address"
+        ? this.addresses().find((item) => item.id === recordId)
+        : this.contacts().find(
+            (item) => item.id === recordId && item.status === "ACTIVE",
+          );
+    return !!record && !record.isPrimary;
+  }
+
+  private mutate(recordId: string, request: Observable<unknown>): void {
+    this.pending.set(recordId);
+    this.mutationError.set(false);
+    request
+      .pipe(
+        switchMap(() =>
+          forkJoin({
+            client: this.api.get(this.id),
+            addresses: this.api.listAddresses(this.id),
+            contacts: this.api.listContacts(this.id),
+          }),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() => this.pending.set(null)),
+      )
+      .subscribe({
+        next: ({ client, addresses, contacts }) => {
+          this.client.set(client);
+          this.addresses.set(addresses);
+          this.contacts.set(contacts);
+        },
+        error: () => this.mutationError.set(true),
       });
   }
 

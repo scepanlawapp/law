@@ -1,3 +1,6 @@
+<ng-template #primaryDeleteTooltip>
+  <span class="text-sm">{{ "clients.primaryDeleteBlocked" | translate }}</span>
+</ng-template>
 <hlm-dialog-header class="shrink-0 border-b border-border pb-5">
   <h2 hlmDialogTitle>
     {{ (clientId ? "clients.edit" : "clients.create") | translate }}
@@ -385,9 +388,25 @@
                   />
                   {{ "clients.primaryAddress" | translate }}
                 </label>
-                <button hlmBtn type="button" (click)="removeAddress($index)">
-                  {{ "clients.remove" | translate }}
-                </button>
+                <span
+                  [attr.tabindex]="address.controls.isPrimary.value ? 0 : null"
+                  [hlmTooltip]="primaryDeleteTooltip"
+                  [tooltipDisabled]="!address.controls.isPrimary.value"
+                  [attr.aria-label]="
+                    address.controls.isPrimary.value
+                      ? ('clients.primaryDeleteBlocked' | translate)
+                      : null
+                  "
+                >
+                  <button
+                    hlmBtn
+                    type="button"
+                    [disabled]="address.controls.isPrimary.value || saving()"
+                    (click)="removeAddress($index)"
+                  >
+                    {{ "clients.remove" | translate }}
+                  </button>
+                </span>
               </div>
             </div>
           }
@@ -523,9 +542,25 @@
                   />
                   {{ "clients.primaryContact" | translate }}
                 </label>
-                <button hlmBtn type="button" (click)="removeContact($index)">
-                  {{ "clients.remove" | translate }}
-                </button>
+                <span
+                  [attr.tabindex]="contact.controls.isPrimary.value ? 0 : null"
+                  [hlmTooltip]="primaryDeleteTooltip"
+                  [tooltipDisabled]="!contact.controls.isPrimary.value"
+                  [attr.aria-label]="
+                    contact.controls.isPrimary.value
+                      ? ('clients.primaryDeleteBlocked' | translate)
+                      : null
+                  "
+                >
+                  <button
+                    hlmBtn
+                    type="button"
+                    [disabled]="contact.controls.isPrimary.value || saving()"
+                    (click)="removeContact($index)"
+                  >
+                    {{ "clients.remove" | translate }}
+                  </button>
+                </span>
               </div>
             </div>
           }

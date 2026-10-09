@@ -30,6 +30,7 @@ describe("Client primary contact synchronization", () => {
       updateMany: jest.fn(),
     },
     clientActivity: { create: jest.fn() },
+    clientAddress: { findFirst: jest.fn(), delete: jest.fn() },
   };
   const service = new ClientsService(db as never, {} as never);
   const run = <T>(fn: () => Promise<T>) =>
@@ -146,14 +147,49 @@ describe("Client primary contact synchronization", () => {
       data: expect.objectContaining({ email: "changed@test.rs" }),
     });
   });
-  it("clears summary channels when the primary contact is deactivated", async () => {
-    db.clientContact.findFirst
-      .mockResolvedValueOnce(primary)
-      .mockResolvedValueOnce(null);
-    await run(() => service.deactivateContact(clientId, primary.id));
-    expect(db.client.update).toHaveBeenCalledWith({
-      where: { id: clientId, workspaceId },
-      data: expect.objectContaining({ email: null, phone: null }),
+  it("rejects primary contact deletion without changing its channels", async () => {
+    await expect(
+      run(() => service.deactivateContact(clientId, primary.id)),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.clientContact.update).not.toHaveBeenCalled();
+    expect(db.client.update).not.toHaveBeenCalled();
+  });
+  it("deactivates a secondary contact scoped to its client", async () => {
+    db.clientContact.findFirst.mockResolvedValue({
+      ...primary,
+      isPrimary: false,
+    });
+    await run(() => service.deactivateContact(clientId, "secondary"));
+    expect(db.clientContact.findFirst).toHaveBeenCalledWith({
+      where: { id: "secondary", clientId },
+    });
+    expect(db.clientContact.update).toHaveBeenCalledWith({
+      where: { id: "secondary" },
+      data: { status: "INACTIVE", isPrimary: false },
+    });
+  });
+  it("rejects primary address deletion", async () => {
+    db.clientAddress.findFirst.mockResolvedValue({
+      id: "address",
+      isPrimary: true,
+    });
+    await expect(
+      run(() => service.removeAddress(clientId, "address")),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.clientAddress.delete).not.toHaveBeenCalled();
+    expect(db.$queryRaw).toHaveBeenCalled();
+  });
+  it("deletes secondary addresses scoped to their client", async () => {
+    db.clientAddress.findFirst.mockResolvedValue({
+      id: "address",
+      isPrimary: false,
+    });
+    await run(() => service.removeAddress(clientId, "address"));
+    expect(db.clientAddress.findFirst).toHaveBeenCalledWith({
+      where: { id: "address", clientId },
+    });
+    expect(db.clientAddress.delete).toHaveBeenCalledWith({
+      where: { id: "address" },
     });
   });
 });
