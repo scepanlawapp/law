@@ -43,6 +43,7 @@ import { AuthState } from "@law/security";
 import { switchMap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
 import {
   createSelectItemToString,
   type SelectOption,
@@ -124,6 +125,7 @@ function mondayIndex(date: Date): number {
     HlmSpinner,
     HlmTooltip,
     TranslatePipe,
+    ComboboxSelectAllComponent,
     CalendarEventsListComponent,
   ],
   providers: [provideIcons({ lucideChevronDown, lucideChevronUp })],

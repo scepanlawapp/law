@@ -80,6 +80,7 @@ import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { SKIP_GLOBAL_ERROR_TOAST } from "../../../core/http/api-error.interceptor";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { ComboboxSelectAllComponent } from "../../../shared/ui/combobox-select-all/combobox-select-all.component";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import {
   DocumentUploadDialogContext,
@@ -137,6 +138,7 @@ import { formatFileSize } from "./document-upload.utils";
     HlmTr,
     HlmTooltip,
     TranslatePipe,
+    ComboboxSelectAllComponent,
   ],
   providers: [
     provideIcons({

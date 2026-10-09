@@ -107,24 +107,38 @@
                 <span class="text-destructive">*</span>
               </label>
               <div class="flex items-center gap-2">
-                <hlm-select
+                <div
+                  hlmCombobox
                   class="min-w-0 flex-1"
-                  formControlName="clientId"
+                  [value]="form.controls.clientId.value"
+                  (valueChange)="setClientId($event)"
                   [itemToString]="clientItemToString"
+                  [disabled]="form.controls.clientId.disabled"
                 >
-                  <hlm-select-trigger buttonId="clientId" class="w-full">
-                    <hlm-select-value />
-                  </hlm-select-trigger>
-                  <hlm-select-content *hlmSelectPortal width="content">
-                    <hlm-select-group>
+                  <hlm-combobox-trigger
+                    buttonId="clientId"
+                    class="w-full"
+                    [forceInvalid]="showError('clientId')"
+                  >
+                    <hlm-combobox-value />
+                  </hlm-combobox-trigger>
+                  <hlm-combobox-content *hlmComboboxPortal width="content">
+                    <hlm-combobox-input
+                      [placeholder]="'common.search' | translate"
+                      [showTrigger]="false"
+                    />
+                    <hlm-combobox-empty>
+                      {{ "common.noResults" | translate }}
+                    </hlm-combobox-empty>
+                    <div hlmComboboxList>
                       @for (client of clients(); track client.id) {
-                        <hlm-select-item [value]="client.id">
+                        <hlm-combobox-item [value]="client.id">
                           {{ client.name }}
-                        </hlm-select-item>
+                        </hlm-combobox-item>
                       }
-                    </hlm-select-group>
-                  </hlm-select-content>
-                </hlm-select>
+                    </div>
+                  </hlm-combobox-content>
+                </div>
                 <button
                   hlmBtn
                   size="sm"
@@ -348,24 +362,38 @@
                 <span>{{ "cases.responsible" | translate }}</span>
                 <span class="text-destructive">*</span>
               </label>
-              <hlm-select
+              <div
+                hlmCombobox
                 class="w-full"
-                formControlName="responsibleUserId"
+                [value]="form.controls.responsibleUserId.value"
+                (valueChange)="setResponsibleUserId($event)"
                 [itemToString]="responsibleUserItemToString"
+                [disabled]="form.controls.responsibleUserId.disabled"
               >
-                <hlm-select-trigger buttonId="responsibleUserId" class="w-full">
-                  <hlm-select-value />
-                </hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal width="content">
-                  <hlm-select-group>
+                <hlm-combobox-trigger
+                  buttonId="responsibleUserId"
+                  class="w-full"
+                  [forceInvalid]="showError('responsibleUserId')"
+                >
+                  <hlm-combobox-value />
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'common.search' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "common.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
                     @for (user of users(); track user.id) {
-                      <hlm-select-item [value]="user.id">
+                      <hlm-combobox-item [value]="user.id">
                         {{ user.name }}
-                      </hlm-select-item>
+                      </hlm-combobox-item>
                     }
-                  </hlm-select-group>
-                </hlm-select-content>
-              </hlm-select>
+                  </div>
+                </hlm-combobox-content>
+              </div>
               <p class="text-muted-foreground mt-1 text-xs">
                 {{ "cases.form.responsibleImmutableHint" | translate }}
               </p>

@@ -30,6 +30,17 @@ import {
   lucideTrash2,
 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
 import { HlmField, HlmFieldError, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -100,6 +111,15 @@ interface LinkedWorkEntryListItem {
     RouterLink,
     NgIcon,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmField,
     HlmFieldError,
     HlmFieldLabel,
@@ -369,6 +389,13 @@ export class FinanceInvoiceCreateComponent {
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.bumpRevision());
+  }
+
+  setClientId(value: string | null | undefined): void {
+    const control = this.form.controls.clientId;
+    control.setValue(value ?? "");
+    control.markAsDirty();
+    control.markAsTouched();
   }
 
   loadInvoice(): void {

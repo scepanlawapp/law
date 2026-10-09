@@ -225,24 +225,36 @@
               <label hlmFieldLabel for="responsibleUserId">
                 {{ "clients.responsible" | translate }}
               </label>
-              <hlm-select
-                formControlName="responsibleUserId"
+              <div
+                hlmCombobox
+                [value]="form.controls.responsibleUserId.value"
+                (valueChange)="setResponsibleUserId($event)"
                 [itemToString]="responsibleUserItemToString"
               >
-                <hlm-select-trigger buttonId="responsibleUserId" class="w-full">
-                  <hlm-select-value />
-                </hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal>
-                  <hlm-select-group>
-                    <hlm-select-item value=""></hlm-select-item>
+                <hlm-combobox-trigger
+                  buttonId="responsibleUserId"
+                  class="w-full"
+                >
+                  <hlm-combobox-value />
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'common.search' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "common.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    <hlm-combobox-item value=""></hlm-combobox-item>
                     @for (user of users(); track user.userId) {
-                      <hlm-select-item [value]="user.userId">
+                      <hlm-combobox-item [value]="user.userId">
                         {{ user.label }}
-                      </hlm-select-item>
+                      </hlm-combobox-item>
                     }
-                  </hlm-select-group>
-                </hlm-select-content>
-              </hlm-select>
+                  </div>
+                </hlm-combobox-content>
+              </div>
             </div>
           </div>
         </section>

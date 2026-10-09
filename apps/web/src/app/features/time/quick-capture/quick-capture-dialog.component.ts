@@ -779,6 +779,13 @@ export class QuickCaptureDialogComponent {
     this.clientSearchTerms.next(term);
   }
 
+  setUserId(value: string | null | undefined): void {
+    const control = this.form.controls.userId;
+    control.setValue(value ?? "");
+    control.markAsDirty();
+    control.markAsTouched();
+  }
+
   setClientId(value: string | null | undefined): void {
     const known = value ? this.knownClients().get(value) : undefined;
     if (known) this.applyClient(known);

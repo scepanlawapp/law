@@ -36,26 +36,35 @@
       <label class="text-sm font-medium" for="case-responsible-filter">
         {{ "cases.responsible" | translate }}
       </label>
-      <hlm-select
-        [formControl]="responsibleUserId"
+      <div
+        hlmCombobox
+        [value]="responsibleUserId.value"
+        (valueChange)="setResponsibleUserId($event)"
         [itemToString]="userItemToString"
       >
-        <hlm-select-trigger buttonId="case-responsible-filter">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal>
-          <hlm-select-group>
-            <hlm-select-item value="">
+        <hlm-combobox-trigger buttonId="case-responsible-filter">
+          <hlm-combobox-value />
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-input
+            [placeholder]="'common.search' | translate"
+            [showTrigger]="false"
+          />
+          <hlm-combobox-empty>
+            {{ "common.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            <hlm-combobox-item value="">
               {{ "cases.allResponsibleUsers" | translate }}
-            </hlm-select-item>
+            </hlm-combobox-item>
             @for (user of users(); track user.id) {
-              <hlm-select-item [value]="user.id">
+              <hlm-combobox-item [value]="user.id">
                 {{ user.name }}
-              </hlm-select-item>
+              </hlm-combobox-item>
             }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
+          </div>
+        </hlm-combobox-content>
+      </div>
     </div>
     <div class="flex w-56 max-w-full flex-col gap-1">
       <label class="text-sm font-medium" for="case-sort">

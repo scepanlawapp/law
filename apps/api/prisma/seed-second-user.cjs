@@ -1,26 +1,11 @@
+// Seeds every office persona (profile, membership, user settings) into the workspace.
+// Passwords: AUTH_BOOTSTRAP_PASSWORD{2..9}, falling back to AUTH_BOOTSTRAP_PASSWORD.
 const { PrismaClient } = require("@prisma/client");
-const { randomBytes, scryptSync } = require("node:crypto");
-
-function hashPassword(password) {
-  const salt = randomBytes(16).toString("hex");
-  const key = scryptSync(password, salt, 64).toString("hex");
-  return `${salt}:${key}`;
-}
+const { upsertPersonas } = require("./demo-personas.cjs");
 
 async function main() {
-  const email = process.env.AUTH_BOOTSTRAP_EMAIL2?.trim().toLowerCase();
-  const password = process.env.AUTH_BOOTSTRAP_PASSWORD2;
   const workspaceName =
     process.env.AUTH_BOOTSTRAP_WORKSPACE ?? "Default workspace";
-
-  if (!email || !password) {
-    throw new Error(
-      "AUTH_BOOTSTRAP_EMAIL2 and AUTH_BOOTSTRAP_PASSWORD2 are required",
-    );
-  }
-  if (password.length < 12) {
-    throw new Error("AUTH_BOOTSTRAP_PASSWORD2 must be at least 12 characters");
-  }
 
   const prisma = new PrismaClient();
 
@@ -36,39 +21,7 @@ async function main() {
       create: { id: workspaceId, name: workspaceName },
     });
 
-    let user = await prisma.user.findUnique({ where: { email } });
-    if (!user) {
-      user = await prisma.user.create({
-        data: {
-          email,
-          passwordHash: hashPassword(password),
-          status: "ACTIVE",
-          passwordChangedAt: new Date(),
-        },
-      });
-    } else if (process.env.AUTH_BOOTSTRAP_FORCE_PASSWORD_RESET === "true") {
-      user = await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordHash: hashPassword(password),
-          status: "ACTIVE",
-          passwordChangedAt: new Date(),
-        },
-      });
-    }
-
-    await prisma.workspaceMember.upsert({
-      where: {
-        userId_workspaceId: { userId: user.id, workspaceId: workspace.id },
-      },
-      update: { role: "OWNER", status: "ACTIVE" },
-      create: {
-        userId: user.id,
-        workspaceId: workspace.id,
-        role: "OWNER",
-        status: "ACTIVE",
-      },
-    });
+    const users = await upsertPersonas(prisma, workspace.id);
 
     await prisma.storageConnection.upsert({
       where: {
@@ -87,7 +40,10 @@ async function main() {
       },
     });
 
-    console.log(`Bootstrap user ready: ${email}`);
+    for (const user of users)
+      console.log(
+        `User ready: ${user.firstName} ${user.lastName} <${user.email}>`,
+      );
     console.log(`Bootstrap workspace ready: ${workspace.id}`);
   } finally {
     await prisma.$disconnect();

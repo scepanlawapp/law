@@ -41,6 +41,7 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { ComboboxSelectAllComponent } from "../../../shared/ui/combobox-select-all/combobox-select-all.component";
 import { EventWorkEntriesComponent } from "./event-work-entries.component";
 import { EventDialogContext } from "./event-dialog.models";
 import { compatibleCaseId, withCaseClient } from "./event-dialog.utils";
@@ -79,6 +80,7 @@ function localDateTime(value: string): string {
     HlmSpinner,
     HlmTextarea,
     TranslatePipe,
+    ComboboxSelectAllComponent,
   ],
 })
 export class EventDialogComponent {

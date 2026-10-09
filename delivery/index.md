@@ -150,3 +150,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Client modal and primary contact](tracks/client_modal_primary_contact_20261009/index.md)
 
 - [Revenue Sharing Settings](tracks/revenue_sharing_settings_20261009/index.md)
+
+- [Demo seed and retainer VAT fix](tracks/demo_seed_retainer_vat_20261009/index.md)

@@ -12,27 +12,35 @@
     <label class="font-medium" for="line-import-case">
       {{ "finance.case" | translate }}
     </label>
-    <hlm-select
+    <div
+      hlmCombobox
       [value]="caseId()"
       (valueChange)="setCaseId($event ?? '')"
       [itemToString]="caseItemToString"
     >
-      <hlm-select-trigger buttonId="line-import-case" class="w-full">
-        <hlm-select-value />
-      </hlm-select-trigger>
-      <hlm-select-content *hlmSelectPortal width="content">
-        <hlm-select-group>
-          <hlm-select-item value="">
+      <hlm-combobox-trigger buttonId="line-import-case" class="w-full">
+        <hlm-combobox-value />
+      </hlm-combobox-trigger>
+      <hlm-combobox-content *hlmComboboxPortal width="content">
+        <hlm-combobox-input
+          [placeholder]="'common.search' | translate"
+          [showTrigger]="false"
+        />
+        <hlm-combobox-empty>
+          {{ "common.noResults" | translate }}
+        </hlm-combobox-empty>
+        <div hlmComboboxList>
+          <hlm-combobox-item value="">
             {{ "finance.allCases" | translate }}
-          </hlm-select-item>
+          </hlm-combobox-item>
           @for (caseItem of cases(); track caseItem.id) {
-            <hlm-select-item [value]="caseItem.id">
+            <hlm-combobox-item [value]="caseItem.id">
               {{ caseItem.caseNumber }} — {{ caseItem.name }}
-            </hlm-select-item>
+            </hlm-combobox-item>
           }
-        </hlm-select-group>
-      </hlm-select-content>
-    </hlm-select>
+        </div>
+      </hlm-combobox-content>
+    </div>
   </div>
 
   <fieldset class="flex flex-wrap items-center gap-x-5 gap-y-2">

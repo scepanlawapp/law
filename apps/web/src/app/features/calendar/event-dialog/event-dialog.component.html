@@ -73,6 +73,11 @@
             <hlm-combobox-empty>
               {{ "work.filters.noResults" | translate }}
             </hlm-combobox-empty>
+            <law-combobox-select-all
+              [options]="clients()"
+              [selected]="form.controls.clientIds.value"
+              (selectedChange)="setClientIds($event)"
+            />
             <div hlmComboboxList>
               @for (client of clients(); track client.id) {
                 <hlm-combobox-item [value]="client.id">

@@ -178,26 +178,43 @@ describe("TeamTimeComponent", () => {
     );
   });
 
-  it("appends the next page on Load more", () => {
+  it("appends the next page when the scroll sentinel becomes visible", () => {
+    const callbacks: IntersectionObserverCallback[] = [];
+    const original = globalThis.IntersectionObserver;
+    globalThis.IntersectionObserver = class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(callback);
+      }
+      observe(): void {
+        // visibility is triggered manually
+      }
+      disconnect(): void {
+        // nothing to release
+      }
+    } as unknown as typeof IntersectionObserver;
     api.list
       .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 2)))
       .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2)));
     const fixture = create();
     expect(rows(fixture)).toHaveLength(1);
+    expect(callbacks).toHaveLength(1);
 
-    const loadMore = Array.from(
-      (fixture.nativeElement as HTMLElement).querySelectorAll("button"),
-    ).find((item) => item.textContent?.includes("work.loadMore"));
-    loadMore?.click();
+    callbacks[0](
+      [{ isIntersecting: true } as IntersectionObserverEntry],
+      {} as IntersectionObserver,
+    );
     fixture.detectChanges();
+    globalThis.IntersectionObserver = original;
 
     expect(api.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2 }),
     );
     expect(rows(fixture)).toHaveLength(2);
-    expect((fixture.nativeElement as HTMLElement).textContent).not.toContain(
-      "work.loadMore",
-    );
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        "[aria-hidden='true'].h-px",
+      ),
+    ).toBeNull();
   });
 
   it("offers edit and write-off only on editable rows", () => {

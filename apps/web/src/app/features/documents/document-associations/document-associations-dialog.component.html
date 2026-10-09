@@ -54,6 +54,13 @@
                 {{ "documents.associations.loadError" | translate }}
               </hlm-combobox-empty>
             } @else {
+              @if (clientOptions().length) {
+                <law-combobox-select-all
+                  [options]="clientOptions()"
+                  [selected]="selectedClientIds()"
+                  (selectedChange)="setClientIds($event)"
+                />
+              }
               <hlm-combobox-empty>
                 {{ "documents.associations.noResults" | translate }}
               </hlm-combobox-empty>
@@ -110,6 +117,13 @@
                 {{ "documents.associations.loadError" | translate }}
               </hlm-combobox-empty>
             } @else {
+              @if (caseOptions().length) {
+                <law-combobox-select-all
+                  [options]="caseOptions()"
+                  [selected]="selectedCaseIds()"
+                  (selectedChange)="setCaseIds($event)"
+                />
+              }
               <hlm-combobox-empty>
                 {{ "documents.associations.noResults" | translate }}
               </hlm-combobox-empty>

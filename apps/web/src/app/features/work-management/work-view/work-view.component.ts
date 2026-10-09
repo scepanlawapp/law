@@ -23,6 +23,7 @@ import {
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
   HlmComboboxContent,
   HlmComboboxEmpty,
   HlmComboboxInput,
@@ -31,6 +32,7 @@ import {
   HlmComboboxMultiple,
   HlmComboboxPortal,
   HlmComboboxTrigger,
+  HlmComboboxValue,
 } from "@spartan-ng/helm/combobox";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -41,6 +43,7 @@ import { lucideKanban, lucideList, lucidePlus } from "@ng-icons/lucide";
 import { Observable, debounceTime, distinctUntilChanged } from "rxjs";
 import { BottomReachedDirective } from "../../../core/directives/bottom-reached.directive";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { ComboboxSelectAllComponent } from "../../../shared/ui/combobox-select-all/combobox-select-all.component";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
@@ -119,6 +122,7 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     ReactiveFormsModule,
     BottomReachedDirective,
     HlmButton,
+    HlmCombobox,
     HlmComboboxContent,
     HlmComboboxEmpty,
     HlmComboboxInput,
@@ -127,12 +131,14 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
     HlmComboboxMultiple,
     HlmComboboxPortal,
     HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmInput,
     HlmSelectImports,
     HlmSpinner,
     HlmTooltip,
     NgIcon,
     TranslatePipe,
+    ComboboxSelectAllComponent,
     DialogPanelComponent,
     CdkDrag,
     CdkDropList,

@@ -29,6 +29,7 @@ import { HlmTableImports } from "@spartan-ng/helm/table";
 import { debounceTime, distinctUntilChanged, forkJoin } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
 import {
   CURRENCY_FILTER_OPTIONS,
   createCurrencyItemToString,
@@ -66,6 +67,7 @@ const PAGE_SIZE = 15;
     HlmSpinner,
     HlmTableImports,
     TranslatePipe,
+    ComboboxSelectAllComponent,
   ],
   providers: [provideIcons({ lucidePencil, lucideTrash2 })],
 })

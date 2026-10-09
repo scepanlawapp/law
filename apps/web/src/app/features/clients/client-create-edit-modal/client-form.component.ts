@@ -47,6 +47,17 @@ import {
 import { HlmTabsImports } from "@spartan-ng/helm/tabs";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
+import {
   HlmDialogDescription,
   HlmDialogFooter,
   HlmDialogHeader,
@@ -97,6 +108,15 @@ const DEFAULT_COUNTRY_CODE = "RS";
     NgIcon,
     ReactiveFormsModule,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
@@ -428,6 +448,13 @@ export class ClientFormComponent {
     collection.clear();
     for (const item of items) collection.push(create(item));
     if (!items.length && addEmptyWhenNoItems) collection.push(createEmpty());
+  }
+
+  setResponsibleUserId(value: string | null | undefined): void {
+    const control = this.form.controls.responsibleUserId;
+    control.setValue(value ?? "");
+    control.markAsDirty();
+    control.markAsTouched();
   }
 
   addAddress(): void {
