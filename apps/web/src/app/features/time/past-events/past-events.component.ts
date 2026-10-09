@@ -15,6 +15,7 @@ import { PastWorkEvent, WorkEntryTreatment } from "@law/api-interfaces";
 import { provideIcons } from "@ng-icons/core";
 import { lucideChevronLeft, lucideChevronRight } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { PaginationComponent } from "../../../shared/ui/pagination/pagination.component";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
@@ -38,6 +39,7 @@ import { timeLocale } from "../time-utils";
   imports: [
     NgTemplateOutlet,
     HlmButton,
+    PaginationComponent,
     HlmSpinner,
     HlmTableImports,
     TranslatePipe,
@@ -71,7 +73,9 @@ export class PastEventsComponent {
   readonly error = signal(false);
   readonly busy = signal<string | null>(null);
   readonly page = signal(1);
+  readonly pageSize = signal(50);
   readonly totalPages = signal(0);
+  private requestSequence = 0;
   readonly badgeBase = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
   constructor() {
@@ -99,16 +103,25 @@ export class PastEventsComponent {
   }
   load(page = this.page()): void {
     if (this.loading()) return;
+    const sequence = ++this.requestSequence;
     this.loading.set(true);
     this.error.set(false);
     this.api
-      .pastEvents(page, 20)
+      .pastEvents(page, this.pageSize())
       .pipe(
-        finalize(() => this.loading.set(false)),
+        finalize(() => {
+          if (sequence === this.requestSequence) this.loading.set(false);
+        }),
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe({
         next: (response) => {
+          const lastPage = Math.max(1, response.meta.totalPages);
+          if (page > lastPage) {
+            this.loading.set(false);
+            this.load(lastPage);
+            return;
+          }
           if (this.totalItems() === null && response.items.length === 0) {
             this.expanded.set(false);
           }
@@ -119,6 +132,11 @@ export class PastEventsComponent {
         },
         error: () => this.error.set(true),
       });
+  }
+  changePageSize(pageSize: number): void {
+    if (this.loading() || pageSize === this.pageSize()) return;
+    this.pageSize.set(pageSize);
+    this.load(1);
   }
   viewEvent(event: PastWorkEvent): void {
     if (this.busy()) return;

@@ -37,7 +37,9 @@
       "@law/workspace-documents": [
         "./libs/api/features/workspace-documents/src/index.ts"
       ],
-      "@law/revenue-sharing": ["./libs/api/features/revenue-sharing/src/index.ts"],
+      "@law/revenue-sharing": [
+        "./libs/api/features/revenue-sharing/src/index.ts"
+      ],
       "@law/financials": ["./libs/api/features/financials/src/index.ts"],
       "@law/work-entries": ["./libs/api/features/work-entries/src/index.ts"],
       "@law/core": ["./libs/api/core/src/index.ts"],
@@ -149,6 +151,9 @@
       ],
       "@spartan-ng/helm/command": [
         "./libs/shared/frontend/ui/command/src/index.ts"
+      ],
+      "@spartan-ng/helm/pagination": [
+        "./libs/shared/frontend/ui/pagination/src/index.ts"
       ]
     }
   },

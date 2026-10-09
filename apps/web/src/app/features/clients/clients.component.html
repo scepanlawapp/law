@@ -114,30 +114,13 @@
         </tbody>
       </table>
     </div>
-    <div class="app-pagination">
-      <p class="text-sm text-muted-foreground">
-        {{ "clients.page" | translate: { page: page(), total: pageCount() } }}
-      </p>
-      <div class="flex gap-2">
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          (click)="changePage(page() - 1)"
-          [disabled]="page() === 1 || loading()"
-        >
-          {{ "clients.previous" | translate }}
-        </button>
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          (click)="changePage(page() + 1)"
-          [disabled]="page() === pageCount() || loading()"
-        >
-          {{ "clients.next" | translate }}
-        </button>
-      </div>
-    </div>
+    <law-pagination
+      [currentPage]="page()"
+      [itemsPerPage]="pageSize()"
+      [totalItems]="totalItems()"
+      [disabled]="loading()"
+      (currentPageChange)="changePage($event)"
+      (itemsPerPageChange)="changePageSize($event)"
+    />
   }
 }

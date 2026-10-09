@@ -5,6 +5,14 @@
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
 
+## Frontend list pagination
+
+- Every data-list page-button group uses the installed Spartan numbered pagination family: clients, cases (including client-related case lists), documents (including case/client document views), finance invoices, invoice work-entry import, past work events, and case-detail activities, responsibilities, linked assistant sessions and drafts.
+- These lists default to 50 items per page and offer 10/20/50/100, total items/pages, numbered navigation, ellipsis and previous/next controls. Labels follow SR/EN and semantic themes; controls wrap on mobile and remain keyboard accessible.
+- Case-list navigation preserves existing namespaced URL filters/sort via `casePage` and `casePageSize`. Other lists and dialogs retain local state, so nested lists cannot overwrite parent route pagination. Size changes reset to page 1; the case assistant endpoint shares one size across sessions/drafts and resets both page numbers when it changes. Invoice-import selection survives page/size changes.
+- Filtering, sorting, deletion clamping and stale-request guards remain in the owning screens. Infinite scroll/load-more and their sizes remain unchanged for team time, My time weekly aggregation, work views, finance work review, assistant conversation navigation, notifications and lookup requests. Calendar/week/period and tab-overflow arrows are not data-list pagination.
+- Verification and residual repository gate issues are recorded in the [delivery plan](../delivery/tracks/frontend_numbered_pagination_20261009/plan.md).
+
 ## Backend foundation
 
 - The API is an Nx/NestJS application composed from feature modules for authentication, chat, clients, cases, references, user settings, activities/tasks/deadlines, legal knowledge, and workspace documents.

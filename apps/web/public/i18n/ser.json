@@ -1,4 +1,12 @@
 {
+  "pagination.totalItems": "ukupno stavki",
+  "pagination.pages": "strana",
+  "pagination.previous": "Prethodna",
+  "pagination.next": "Sledeća",
+  "pagination.itemsPerPage": "Stavki po strani",
+  "pagination.navigation": "Paginacija",
+  "pagination.page": "Strana",
+  "pagination.morePages": "Više strana",
   "brand.legalAi": "LegalAI",
   "brand.workspace": "Radni prostor",
   "common.create": "Kreiraj",

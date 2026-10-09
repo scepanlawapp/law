@@ -1,3 +1,4 @@
+import { provideRouter } from "@angular/router";
 import { TestBed } from "@angular/core/testing";
 import {
   CasesApiClient,
@@ -269,6 +270,7 @@ describe("DocumentsComponent state helpers", () => {
         selectedCategory: { value: "" },
         searchControl: { value: "" },
         page: () => 1,
+        pageSize: () => 50,
       },
     ) as DocumentsComponent;
 
@@ -291,6 +293,7 @@ describe("DocumentsComponent state helpers", () => {
         selectedCategory: { value: "" },
         searchControl: { value: "" },
         page: () => 1,
+        pageSize: () => 50,
       },
     ) as DocumentsComponent;
 
@@ -455,6 +458,7 @@ describe("DocumentsComponent AI access", () => {
     const toast = { success: jest.fn(), error: jest.fn() };
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         { provide: DocumentsApiClient, useValue: documentsApi },
         {
           provide: CasesApiClient,
@@ -508,6 +512,22 @@ describe("DocumentsComponent AI access", () => {
         "documents.ai.status.FAILED",
       ]),
     );
+  });
+
+  it("defaults to 50, resets page size and clears filters with one request", () => {
+    jest.useFakeTimers();
+    const { component, documentsApi } = setup([document()]);
+    expect(component.buildListQuery("false").pageSize).toBe(50);
+    component.page.set(3);
+    const calls = documentsApi.list.mock.calls.length;
+    component.changePageSize(20);
+    expect(component.page()).toBe(1);
+    expect(documentsApi.list.mock.calls.length).toBe(calls + 1);
+    expect(component.buildListQuery("false").pageSize).toBe(20);
+    component.searchControl.setValue("test", { emitEvent: false });
+    component.clearFilters();
+    jest.advanceTimersByTime(500);
+    expect(documentsApi.list.mock.calls.length).toBe(calls + 2);
   });
 
   it("enables AI for selected files only and refreshes", () => {

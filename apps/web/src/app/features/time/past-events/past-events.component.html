@@ -112,30 +112,15 @@
         </p>
       }
     }
-    @if (totalPages() > 1) {
-      <div class="flex justify-end gap-2">
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          [disabled]="loading() || page() <= 1"
-          (click)="load(page() - 1)"
-        >
-          {{ "time.events.previous" | translate }}
-        </button>
-        <span class="self-center text-sm">
-          {{ page() }} / {{ totalPages() }}
-        </span>
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          [disabled]="loading() || page() >= totalPages()"
-          (click)="load(page() + 1)"
-        >
-          {{ "time.events.next" | translate }}
-        </button>
-      </div>
+    @if (totalItems() !== null) {
+      <law-pagination
+        [currentPage]="page()"
+        [itemsPerPage]="pageSize()"
+        [totalItems]="totalItems() ?? 0"
+        [disabled]="loading()"
+        (currentPageChange)="load($event)"
+        (itemsPerPageChange)="changePageSize($event)"
+      />
     }
   </section>
 </div>

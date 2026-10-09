@@ -32,6 +32,7 @@ import {
 } from "@spartan-ng/helm/combobox";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
@@ -84,6 +85,7 @@ type CaseTab =
     HlmField,
     HlmFieldLabel,
     HlmInput,
+    PaginationComponent,
     HlmSelectImports,
     HlmSpinner,
     HlmTextarea,
@@ -118,6 +120,7 @@ export class CaseDetailComponent {
   readonly activitiesLoading = signal(false);
   readonly activitiesLoaded = signal(false);
   readonly activitiesPage = signal(1);
+  readonly activitiesPageSize = signal(50);
   readonly activitiesPageCount = signal(1);
   readonly activitiesTotal = signal(0);
   readonly activityTypes = signal<DomainActivity["type"][]>([]);
@@ -126,6 +129,7 @@ export class CaseDetailComponent {
   readonly responsibilitiesLoading = signal(false);
   readonly responsibilitiesLoaded = signal(false);
   readonly responsibilitiesPage = signal(1);
+  readonly responsibilitiesPageSize = signal(50);
   readonly responsibilitiesPageCount = signal(1);
   readonly responsibilitiesTotal = signal(0);
   readonly documents = signal<DocumentSummary[]>([]);
@@ -139,6 +143,10 @@ export class CaseDetailComponent {
   readonly showCloseForm = signal(false);
   readonly showActivityForm = signal(false);
   readonly assistantLinks = signal<CaseLinksResponse | null>(null);
+  readonly assistantPageSize = signal(50);
+  private activitiesRequest = 0;
+  private responsibilitiesRequest = 0;
+  private assistantRequest = 0;
   readonly assistantLoading = signal(false);
   readonly assistantSessionsPage = signal(1);
   readonly assistantSessionsPageCount = signal(1);
@@ -377,16 +385,35 @@ export class CaseDetailComponent {
     const workspaceId = this.auth.session()?.memberships[0]?.workspaceId;
     if (!workspaceId) return;
 
+    const sequence = ++this.assistantRequest;
     this.assistantLoading.set(true);
     this.chat
       .caseLinks(workspaceId, this.id, {
         page: this.assistantSessionsPage(),
         draftPage: this.assistantDraftsPage(),
-        pageSize: CASE_DETAIL_PAGE_SIZE,
+        pageSize: this.assistantPageSize(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (links) => {
+          if (sequence !== this.assistantRequest) return;
+          const sessionPage = Math.min(
+            links.sessions.meta.page,
+            Math.max(1, links.sessions.meta.totalPages),
+          );
+          const draftPage = Math.min(
+            links.drafts.meta.page,
+            Math.max(1, links.drafts.meta.totalPages),
+          );
+          if (
+            sessionPage !== links.sessions.meta.page ||
+            draftPage !== links.drafts.meta.page
+          ) {
+            this.assistantSessionsPage.set(sessionPage);
+            this.assistantDraftsPage.set(draftPage);
+            this.loadAssistantLinks();
+            return;
+          }
           this.assistantLinks.set(links);
           this.assistantSessionsPage.set(links.sessions.meta.page);
           this.assistantSessionsPageCount.set(
@@ -399,6 +426,7 @@ export class CaseDetailComponent {
           this.assistantLoading.set(false);
         },
         error: () => {
+          if (sequence !== this.assistantRequest) return;
           this.assistantLoading.set(false);
           this.toast.error(this.local.translate("cases.loadError"));
         },
@@ -407,17 +435,25 @@ export class CaseDetailComponent {
 
   loadActivities(force = false): void {
     if (this.activitiesLoaded() && !force) return;
+    const sequence = ++this.activitiesRequest;
     this.activitiesLoading.set(true);
     this.api
       .listActivities(this.id, {
         search: this.activitySearch.value.trim() || undefined,
         types: this.activityTypes().length ? this.activityTypes() : undefined,
         page: this.activitiesPage(),
-        pageSize: CASE_DETAIL_PAGE_SIZE,
+        pageSize: this.activitiesPageSize(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
+          if (sequence !== this.activitiesRequest) return;
+          const lastPage = Math.max(1, response.meta.totalPages);
+          if (response.meta.page > lastPage) {
+            this.activitiesPage.set(lastPage);
+            this.loadActivities(true);
+            return;
+          }
           this.activities.set(response.items);
           this.activitiesPage.set(response.meta.page);
           this.activitiesPageCount.set(Math.max(1, response.meta.totalPages));
@@ -426,6 +462,7 @@ export class CaseDetailComponent {
           this.activitiesLoading.set(false);
         },
         error: () => {
+          if (sequence !== this.activitiesRequest) return;
           this.activitiesLoading.set(false);
           this.toast.error(this.local.translate("cases.loadError"));
         },
@@ -434,15 +471,23 @@ export class CaseDetailComponent {
 
   loadResponsibilities(force = false): void {
     if (this.responsibilitiesLoaded() && !force) return;
+    const sequence = ++this.responsibilitiesRequest;
     this.responsibilitiesLoading.set(true);
     this.api
       .listResponsibilities(this.id, {
         page: this.responsibilitiesPage(),
-        pageSize: CASE_DETAIL_PAGE_SIZE,
+        pageSize: this.responsibilitiesPageSize(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
+          if (sequence !== this.responsibilitiesRequest) return;
+          const lastPage = Math.max(1, response.meta.totalPages);
+          if (response.meta.page > lastPage) {
+            this.responsibilitiesPage.set(lastPage);
+            this.loadResponsibilities(true);
+            return;
+          }
           this.responsibilities.set(response.items);
           this.responsibilitiesPage.set(response.meta.page);
           this.responsibilitiesPageCount.set(
@@ -453,6 +498,7 @@ export class CaseDetailComponent {
           this.responsibilitiesLoading.set(false);
         },
         error: () => {
+          if (sequence !== this.responsibilitiesRequest) return;
           this.responsibilitiesLoading.set(false);
           this.toast.error(this.local.translate("cases.loadError"));
         },
@@ -490,26 +536,74 @@ export class CaseDetailComponent {
   }
 
   changeActivitiesPage(page: number): void {
-    if (page < 1 || page > this.activitiesPageCount()) return;
+    if (
+      page < 1 ||
+      page > this.activitiesPageCount() ||
+      this.activitiesLoading()
+    )
+      return;
     this.activitiesPage.set(page);
     this.loadActivities(true);
   }
 
   changeResponsibilitiesPage(page: number): void {
-    if (page < 1 || page > this.responsibilitiesPageCount()) return;
+    if (
+      page < 1 ||
+      page > this.responsibilitiesPageCount() ||
+      this.responsibilitiesLoading()
+    )
+      return;
     this.responsibilitiesPage.set(page);
     this.loadResponsibilities(true);
   }
 
   changeAssistantSessionsPage(page: number): void {
-    if (page < 1 || page > this.assistantSessionsPageCount()) return;
+    if (
+      page < 1 ||
+      page > this.assistantSessionsPageCount() ||
+      this.assistantLoading()
+    )
+      return;
     this.assistantSessionsPage.set(page);
     this.loadAssistantLinks();
   }
 
   changeAssistantDraftsPage(page: number): void {
-    if (page < 1 || page > this.assistantDraftsPageCount()) return;
+    if (
+      page < 1 ||
+      page > this.assistantDraftsPageCount() ||
+      this.assistantLoading()
+    )
+      return;
     this.assistantDraftsPage.set(page);
+    this.loadAssistantLinks();
+  }
+
+  changeActivitiesPageSize(pageSize: number): void {
+    if (this.activitiesLoading() || pageSize === this.activitiesPageSize())
+      return;
+    this.activitiesPageSize.set(pageSize);
+    this.activitiesPage.set(1);
+    this.loadActivities(true);
+  }
+
+  changeResponsibilitiesPageSize(pageSize: number): void {
+    if (
+      this.responsibilitiesLoading() ||
+      pageSize === this.responsibilitiesPageSize()
+    )
+      return;
+    this.responsibilitiesPageSize.set(pageSize);
+    this.responsibilitiesPage.set(1);
+    this.loadResponsibilities(true);
+  }
+
+  changeAssistantPageSize(pageSize: number): void {
+    if (this.assistantLoading() || pageSize === this.assistantPageSize())
+      return;
+    this.assistantPageSize.set(pageSize);
+    this.assistantSessionsPage.set(1);
+    this.assistantDraftsPage.set(1);
     this.loadAssistantLinks();
   }
 

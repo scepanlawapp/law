@@ -23,6 +23,7 @@ import {
 } from "@spartan-ng/helm/combobox";
 import { HlmEmptyImports } from "@spartan-ng/helm/empty";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
@@ -41,8 +42,6 @@ import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
 } from "../../shared/status-badge";
-
-const PAGE_SIZE = 15;
 
 @Component({
   selector: "law-finance-invoices",
@@ -63,6 +62,7 @@ const PAGE_SIZE = 15;
     HlmComboboxTrigger,
     HlmEmptyImports,
     HlmInput,
+    PaginationComponent,
     HlmSelectImports,
     HlmSpinner,
     HlmTableImports,
@@ -93,6 +93,7 @@ export class FinanceInvoicesComponent {
   readonly error = signal(false);
   readonly loaded = signal(false);
   readonly page = signal(1);
+  readonly pageSize = signal(50);
   readonly filterRevision = signal(0);
   readonly advancedFiltersOpen = signal(false);
   readonly deletingInvoiceId = signal<string | null>(null);
@@ -146,11 +147,11 @@ export class FinanceInvoicesComponent {
     });
   });
   readonly pageCount = computed(() =>
-    Math.max(1, Math.ceil(this.filteredInvoices().length / PAGE_SIZE)),
+    Math.max(1, Math.ceil(this.filteredInvoices().length / this.pageSize())),
   );
   readonly visibleInvoices = computed(() => {
-    const start = (this.page() - 1) * PAGE_SIZE;
-    return this.filteredInvoices().slice(start, start + PAGE_SIZE);
+    const start = (this.page() - 1) * this.pageSize();
+    return this.filteredInvoices().slice(start, start + this.pageSize());
   });
 
   constructor() {
@@ -187,6 +188,7 @@ export class FinanceInvoicesComponent {
       .subscribe({
         next: ({ invoices, clients }) => {
           this.invoices.set(invoices);
+          this.page.set(Math.min(this.page(), this.pageCount()));
           this.clients.set(clients.items);
           this.loaded.set(true);
           this.loading.set(false);
@@ -202,6 +204,12 @@ export class FinanceInvoicesComponent {
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
     this.page.set(page);
+  }
+
+  changePageSize(pageSize: number): void {
+    if (this.loading() || pageSize === this.pageSize()) return;
+    this.pageSize.set(pageSize);
+    this.page.set(1);
   }
 
   deleteInvoice(invoice: InvoiceSummary, event: Event): void {
