@@ -816,6 +816,7 @@ async function ensureEvents(
 
     const event = await prisma.event.create({
       data: {
+        workWriteOffReason: null,
         workspaceId,
         type: template.type,
         title: linkedCase
@@ -1615,6 +1616,7 @@ async function ensureWorkEntries(
         sourceType: extra.sourceType ?? null,
         sourceId: extra.sourceId ?? null,
         taskId: extra.sourceType === "TASK" ? extra.sourceId : null,
+        eventId: extra.sourceType === "EVENT" ? extra.sourceId : null,
         invoiceLineId: extra.invoiceLineId ?? null,
         aiParsed: extra.aiParsed ?? false,
         createdByUserId: user.id,

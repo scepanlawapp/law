@@ -14,6 +14,8 @@ const entryId = "77777777-7777-4777-a777-777777777777";
 
 describe("WorkEntrySourcesService", () => {
   const tx = {
+    $queryRaw: jest.fn(),
+    event: { findFirst: jest.fn() },
     workEntry: { findFirst: jest.fn(), createMany: jest.fn() },
     activityLog: { create: jest.fn() },
   };
@@ -58,6 +60,21 @@ describe("WorkEntrySourcesService", () => {
   });
 
   describe("ensureForSource", () => {
+    it("does not propose duplicate work when event work already exists", async () => {
+      tx.workEntry.findFirst.mockReset().mockResolvedValue({ id: entryId });
+      await expect(
+        service.ensureForSource(tx as never, input({ sourceType: "EVENT" })),
+      ).resolves.toBe(entryId);
+      expect(tx.workEntry.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            OR: expect.arrayContaining([{ eventId: input().sourceId }]),
+          }),
+        }),
+      );
+      expect(tx.workEntry.createMany).not.toHaveBeenCalled();
+    });
+
     it("returns null and writes nothing when no client is known", async () => {
       await expect(
         service.ensureForSource(tx as never, input({ clientIds: [] })),

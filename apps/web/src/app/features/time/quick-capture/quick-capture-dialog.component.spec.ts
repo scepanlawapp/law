@@ -1,8 +1,10 @@
+import { EventDialogService } from "../../calendar/event-dialog/event-dialog.service";
 import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import {
   BillingSetupApiClient,
   CasesApiClient,
+  EventsApiClient,
   ClientsApiClient,
   WorkEntriesApiClient,
   WorkManagementApiClient,
@@ -25,6 +27,10 @@ import { TaskDialogService } from "../../work-management/task-dialog/task-dialog
 
 jest.mock("../../work-management/task-dialog/task-dialog.service", () => ({
   TaskDialogService: class TaskDialogService {},
+}));
+
+jest.mock("../../calendar/event-dialog/event-dialog.service", () => ({
+  EventDialogService: class EventDialogService {},
 }));
 
 let context: QuickCaptureInput = { mode: "create" };
@@ -76,6 +82,7 @@ describe("QuickCaptureDialogComponent", () => {
     };
   });
 
+  const eventDialog = { open: jest.fn(() => of(undefined)) };
   const taskDialog = { open: jest.fn(() => of(undefined)) };
   const tasks = {
     getTask: jest.fn(() => of({ id: "task-1", title: "Prepare submission" })),
@@ -104,11 +111,18 @@ describe("QuickCaptureDialogComponent", () => {
       providers: [
         { provide: BrnDialogRef, useValue: dialogRef },
         { provide: ConfirmDialogService, useValue: confirmation },
+        { provide: EventDialogService, useValue: eventDialog },
         { provide: TaskDialogService, useValue: taskDialog },
         { provide: WorkManagementApiClient, useValue: tasks },
         { provide: WorkEntriesApiClient, useValue: entries },
         { provide: BillingSetupApiClient, useValue: billing },
         { provide: ClientsApiClient, useValue: clients },
+        {
+          provide: EventsApiClient,
+          useValue: {
+            get: jest.fn(() => of({ id: "event-1", title: "Hearing" })),
+          },
+        },
         { provide: CasesApiClient, useValue: cases },
         { provide: ToastService, useValue: toast },
         {
@@ -837,6 +851,47 @@ describe("QuickCaptureDialogComponent", () => {
     );
   });
 
+  it("keeps explicit non-billable treatment when selecting a client and submits it", () => {
+    context = {
+      mode: "create",
+      eventId: "event-1",
+      title: "Internal meeting",
+      treatment: "NON_BILLABLE",
+    };
+    const fixture = render();
+    const component = fixture.componentInstance;
+    component.form.controls.clientId.setValue("client-1");
+    fixture.detectChanges();
+    expect(component.form.controls.treatment.value).toBe("NON_BILLABLE");
+    component.submit();
+    expect(entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: "event-1",
+        treatment: "NON_BILLABLE",
+      }),
+    );
+  });
+
+  it("persists the event link and opens the event from the capture header", async () => {
+    context = {
+      mode: "create",
+      eventId: "event-1",
+      clientId: "client-1",
+      title: "Hearing work",
+    };
+    const fixture = render();
+    expect(fixture.nativeElement.textContent).toContain("Hearing");
+    fixture.componentInstance.openLinkedEvent();
+    await fixture.whenStable();
+    expect(eventDialog.open).toHaveBeenCalledWith({
+      event: { id: "event-1", title: "Hearing" },
+    });
+    expect(dialogRef.close).not.toHaveBeenCalled();
+    fixture.componentInstance.submit();
+    expect(entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({ eventId: "event-1" }),
+    );
+  });
   describe("save", () => {
     it("creates a MANUAL entry when nothing was parsed", () => {
       const { componentInstance: component } = render();

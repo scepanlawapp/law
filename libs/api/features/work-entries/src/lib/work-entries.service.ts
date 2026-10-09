@@ -13,6 +13,7 @@ import {
   ConfirmWorkEntryRequest,
   CreateWorkEntryRequest,
   PaginatedResponse,
+  PastWorkEvent,
   StartTimerRequest,
   TimeReviewResponse,
   UpdateWorkEntryRequest,
@@ -28,6 +29,7 @@ import {
 } from "@law/api-interfaces";
 import {
   DEFAULT_PAGE,
+  PaginationQueryDto,
   DEFAULT_PAGE_SIZE,
   PlatformPrismaService,
   WorkspaceContextService,
@@ -165,6 +167,7 @@ export class WorkEntriesService {
       and.push({ clientId: { in: query.clientIds } });
     if (query.caseId) and.push({ caseId: query.caseId });
     if (query.taskId) and.push({ taskId: query.taskId });
+    if (query.eventId) and.push({ eventId: query.eventId });
     if (query.statuses?.length) and.push({ status: { in: query.statuses } });
     if (query.treatments?.length) {
       and.push({ treatment: { in: query.treatments } });
@@ -315,13 +318,12 @@ export class WorkEntriesService {
       ? await this.db.workEntry.findMany({
           where: {
             workspaceId,
-            sourceType: "EVENT",
-            sourceId: { in: events.map((event) => event.id) },
+            eventId: { in: events.map((event) => event.id) },
           },
-          select: { sourceId: true },
+          select: { eventId: true },
         })
       : [];
-    const loggedEventIds = new Set(sourced.map((row) => row.sourceId));
+    const loggedEventIds = new Set(sourced.map((row) => row.eventId));
     const missingEvents = events
       .filter((event) => !loggedEventIds.has(event.id))
       .map((event) => ({
@@ -397,6 +399,133 @@ export class WorkEntriesService {
     return rows.map((row) => this.toEntry(row));
   }
 
+  private eventScope(): Prisma.EventWhereInput {
+    return {
+      workspaceId: this.workspaceId,
+      OR: [
+        { organizerUserId: this.userId },
+        { assignees: { some: { userId: this.userId } } },
+      ],
+    };
+  }
+
+  async pastEvents(
+    query: PaginationQueryDto,
+  ): Promise<PaginatedResponse<PastWorkEvent>> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 20;
+    const where: Prisma.EventWhereInput = {
+      ...this.eventScope(),
+      status: { not: "CANCELLED" },
+      endsAt: { lte: new Date() },
+      workEntries: { none: {} },
+    };
+    const [total, events] = await Promise.all([
+      this.db.event.count({ where }),
+      this.db.event.findMany({
+        where,
+        include: { clients: { include: { client: true } }, case: true },
+        orderBy: [{ endsAt: "desc" }, { id: "asc" }],
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+      }),
+    ]);
+    return {
+      items: events.map((event) => {
+        return {
+          id: event.id,
+          type: event.type,
+          title: event.title,
+          description: event.description,
+          startsAt: event.startsAt.toISOString(),
+          endsAt: event.endsAt.toISOString(),
+          isAllDay: event.isAllDay,
+          clients: event.clients.map((link) =>
+            this.clientReference(link.client),
+          ),
+          case: this.caseReference(event.case),
+          hasWorkEntry: false,
+          writeOffReason: null,
+          workEntry: null,
+        };
+      }),
+      meta: paginationMeta(page, pageSize, total, [
+        { field: "endsAt", direction: "desc" },
+      ]),
+    };
+  }
+
+  private async lockPastEvent(tx: Prisma.TransactionClient, id: string) {
+    await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${id} AND "workspaceId" = ${this.workspaceId} FOR UPDATE`;
+    const event = await tx.event.findFirst({
+      where: { ...this.eventScope(), id },
+      include: { clients: true, case: true },
+    });
+    if (!event) throw new NotFoundException("Event not found");
+    if (event.status === "CANCELLED" || event.endsAt > new Date())
+      throw new ConflictException("Event has not ended or is cancelled");
+    return event;
+  }
+
+  async writeOffEvent(id: string): Promise<WorkEntry> {
+    const row = await this.db.$transaction(async (tx) => {
+      const event = await this.lockPastEvent(tx, id);
+      // The event lock serializes double clicks and concurrent captures.
+      const existing = await tx.workEntry.findFirst({
+        where: { workspaceId: this.workspaceId, eventId: id },
+        include: entryInclude,
+      });
+      if (existing)
+        throw new ConflictException("Event already has recorded work");
+      const clientIds = [
+        ...new Set(event.clients.map((link) => link.clientId)),
+      ];
+      const clientId =
+        event.case?.clientId ??
+        (clientIds.length === 1 ? clientIds[0] : undefined);
+      if (!clientId)
+        throw new BadRequestException(
+          "Choose a client when recording non-billable event work",
+        );
+      await this.assertClientAndCase(clientId, event.caseId ?? undefined, tx);
+      const duration = Math.round(
+        (event.endsAt.getTime() - event.startsAt.getTime()) / 60000,
+      );
+      const workDate = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "Europe/Belgrade",
+      }).format(event.startsAt);
+      const created = await tx.workEntry.create({
+        data: {
+          workspaceId: this.workspaceId,
+          userId: this.userId,
+          clientId,
+          caseId: event.caseId,
+          eventId: id,
+          workDate: this.toWorkDate(workDate),
+          minutes:
+            !event.isAllDay && duration >= 1 && duration <= 1440
+              ? duration
+              : null,
+          title: this.titleText(event.title.slice(0, 200)),
+          description: this.optionalText(event.description ?? undefined),
+          status: "CONFIRMED",
+          treatment: "NON_BILLABLE",
+          source: "EVENT",
+          createdByUserId: this.userId,
+          updatedByUserId: this.userId,
+        },
+        include: entryInclude,
+      });
+      await this.log(tx, "WORK_ENTRY_CREATED", created, {
+        source: "EVENT",
+        treatment: "NON_BILLABLE",
+        status: "CONFIRMED",
+      });
+      return created;
+    });
+    return this.toEntry(row);
+  }
+
   // --------------------------------------------------------------- writes
 
   /** Task update holds the task row lock, serializing repeated completions. */
@@ -453,6 +582,8 @@ export class WorkEntriesService {
   }
 
   async create(input: CreateWorkEntryRequest): Promise<WorkEntry> {
+    if (input.eventId && input.taskId)
+      throw new BadRequestException("Choose either an event or a task");
     const minutes = input.minutes ?? null;
     this.assertMinutes(minutes);
     const title = this.titleText(input.title);
@@ -469,6 +600,7 @@ export class WorkEntriesService {
       ));
 
     const row = await this.db.$transaction(async (tx) => {
+      if (input.eventId) await this.lockPastEvent(tx, input.eventId);
       if (input.taskId) {
         const task = await tx.task.findFirst({
           where: { id: input.taskId, workspaceId: this.workspaceId },
@@ -490,7 +622,12 @@ export class WorkEntriesService {
           treatment,
           status: "CONFIRMED",
           taskId: input.taskId ?? null,
-          source: input.taskId ? "TASK" : (input.source ?? "MANUAL"),
+          source: input.eventId
+            ? "EVENT"
+            : input.taskId
+              ? "TASK"
+              : (input.source ?? "MANUAL"),
+          eventId: input.eventId ?? null,
           aiParsed: input.aiParsed ?? false,
           createdByUserId: this.userId,
           updatedByUserId: this.userId,
@@ -1071,6 +1208,7 @@ export class WorkEntriesService {
       sourceType: row.sourceType as WorkEntrySourceType | null,
       sourceId: row.sourceId,
       taskId: row.taskId ?? null,
+      eventId: row.eventId ?? null,
       invoiceId: row.invoiceLine?.invoiceId ?? null,
       aiParsed: row.aiParsed,
       createdAt: row.createdAt.toISOString(),

@@ -9,7 +9,6 @@ import {
   untracked,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { RouterLink } from "@angular/router";
 import { WorkEntriesApiClient } from "@law/api-clients";
 import {
   ClientReference,
@@ -19,7 +18,12 @@ import {
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { NgIcon, provideIcons } from "@ng-icons/core";
-import { lucideChevronLeft, lucideChevronRight } from "@ng-icons/lucide";
+import {
+  lucideKanban,
+  lucideList,
+  lucideChevronLeft,
+  lucideChevronRight,
+} from "@ng-icons/lucide";
 import { NgTemplateOutlet } from "@angular/common";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
@@ -41,13 +45,15 @@ import {
   weekDays,
 } from "./time-utils";
 
+import { PastEventsComponent } from "./past-events/past-events.component";
+import { HlmTableImports } from "@spartan-ng/helm/table";
+
 const PAGE_SIZE = 100;
 
 export interface WeekDay {
   date: string;
   isToday: boolean;
   entries: WorkEntry[];
-  minutes: number;
 }
 
 export interface ClientTotal {
@@ -64,11 +70,20 @@ export interface ClientTotal {
     HlmSpinner,
     NgIcon,
     NgTemplateOutlet,
-    RouterLink,
+    PastEventsComponent,
+    HlmTableImports,
     TranslatePipe,
   ],
-  providers: [provideIcons({ lucideChevronLeft, lucideChevronRight })],
+  providers: [
+    provideIcons({
+      lucideKanban,
+      lucideList,
+      lucideChevronLeft,
+      lucideChevronRight,
+    }),
+  ],
   templateUrl: "./my-time.component.html",
+  host: { class: "block h-full" },
 })
 export class MyTimeComponent {
   private readonly api = inject(WorkEntriesApiClient);
@@ -77,6 +92,7 @@ export class MyTimeComponent {
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly presentation = signal<"board" | "list">("board");
   readonly weekStart = signal(mondayOf(officeToday()));
   readonly entries = signal<WorkEntry[]>([]);
   readonly loading = signal(false);
@@ -98,7 +114,6 @@ export class MyTimeComponent {
         date,
         isToday: date === this.today,
         entries,
-        minutes: sumMinutes(entries),
       };
     }),
   );

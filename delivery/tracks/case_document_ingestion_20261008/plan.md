@@ -49,7 +49,7 @@
 
 **Files:**
 - Modify: `apps/api/prisma/schema.prisma`
-- Create: `apps/api/prisma/migrations/20261009090000_document_content/migration.sql`
+- Create: `apps/api/prisma/migrations/20261009130000_document_content/migration.sql`
 - Modify: `libs/api/api-interfaces/src/lib/api-interfaces.ts`
 - Modify: `delivery/tracks/case_document_ingestion_20261008/index.md` (link the plan)
 
@@ -58,7 +58,7 @@
 - Produces (api-interfaces): `type DocumentAiStatus = "OFF" | "QUEUED" | "PROCESSING" | "READY" | "FAILED" | "UNSUPPORTED"`; `type DocumentKind = "ID_CARD" | "PASSPORT" | "APR_EXCERPT" | "COURT_DECISION" | "ADMIN_DECISION" | "OTHER"`; `DocumentSummary` gains `aiAccess: boolean; aiStatus: DocumentAiStatus; documentKind: DocumentKind | null; fromAssistantChat: boolean`; `interface BulkDocumentAiAccessRequest { documentIds: string[]; aiAccess: boolean }`; `interface BulkDocumentAiAccessResponse { updated: number }`.
 
 - [x] **Step 1:** Add the enums, models, and columns to `schema.prisma`. `DocumentContentChunk.embedding` is `Unsupported("vector(1024)")?`; `DocumentContent` has `@@unique([workspaceId, sha256])`; `DocumentFact` has `@@index([workspaceId, contentId])`; relations cascade from `DocumentContent` to chunks and facts; `DocumentVersion.contentId`/`ChatAttachment.contentId` are `onDelete: SetNull`.
-- [x] **Step 2:** Run `npx prisma migrate dev --create-only --name document_content --schema apps/api/prisma/schema.prisma`, rename the folder to `20261009090000_document_content`, and append: `CREATE INDEX "DocumentContentChunk_embedding_hnsw" ON "DocumentContentChunk" USING hnsw ("embedding" vector_cosine_ops);` _Done: the HNSW index was dropped (controller ruling; Prisma cannot represent it), so no index is appended._
+- [x] **Step 2:** Run `npx prisma migrate dev --create-only --name document_content --schema apps/api/prisma/schema.prisma`, rename the folder to `20261009130000_document_content`, and append: `CREATE INDEX "DocumentContentChunk_embedding_hnsw" ON "DocumentContentChunk" USING hnsw ("embedding" vector_cosine_ops);` _Done: the HNSW index was dropped (controller ruling; Prisma cannot represent it), so no index is appended._
 - [x] **Step 3:** Run `npm run db:migrate`. Expected: "Your database is now in sync with your schema."
 - [x] **Step 4:** Add the api-interfaces types above. Run `npx tsc -p libs/api/api-interfaces/tsconfig.lib.json --noEmit`. Expected: no errors (the API build will fail until Task 7 maps the new fields — that is expected; keep this task's commit compiling by giving the mapper temporary values `aiAccess: false, aiStatus: "OFF", documentKind: null, fromAssistantChat: false` in `documents.service.ts`'s summary mapper).
 - [x] **Step 5:** Commit `feat(documents): document content schema and shared types`.

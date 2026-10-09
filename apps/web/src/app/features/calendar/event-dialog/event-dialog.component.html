@@ -185,6 +185,9 @@
       formControlName="description"
     ></textarea>
   </div>
+  @if (eventId) {
+    <law-event-work-entries [eventId]="eventId" [disabled]="saving()" />
+  }
   <hlm-dialog-footer class="flex justify-end gap-2">
     <button
       hlmBtn

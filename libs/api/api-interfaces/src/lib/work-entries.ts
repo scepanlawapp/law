@@ -34,6 +34,7 @@ export type WorkEntrySourceType =
 export type RetainerRule = "HOURLY" | "AT" | "ABSORBED";
 
 export interface WorkEntry {
+  eventId?: string | null;
   /** Task this work belongs to; multiple entries can share a task. */
   taskId?: string | null;
   id: string;
@@ -67,6 +68,8 @@ export interface WorkEntryActions {
 }
 
 export interface CreateWorkEntryRequest {
+  /** Existing calendar event captured by this work entry. */
+  eventId?: string;
   taskId?: string;
   clientId: string;
   caseId?: string;
@@ -82,13 +85,14 @@ export interface CreateWorkEntryRequest {
 }
 
 export type UpdateWorkEntryRequest = Partial<
-  Omit<CreateWorkEntryRequest, "taskId">
+  Omit<CreateWorkEntryRequest, "taskId" | "eventId">
 > & {
   /** Restore written-off work to confirmed in the same transaction as edits. */
   status?: "CONFIRMED";
 };
 
 export interface WorkEntryQuery {
+  eventId?: string;
   taskId?: string;
   userIds?: string[];
   clientIds?: string[];
@@ -280,4 +284,19 @@ export interface ProfitabilityReport {
     loggedMinutes: number;
     billedMinutes: number;
   }[];
+}
+
+export interface PastWorkEvent {
+  hasWorkEntry: boolean;
+  id: string;
+  title: string;
+  description: string | null;
+  type: "MEETING" | "HEARING" | "CALL" | "OTHER";
+  startsAt: string;
+  endsAt: string;
+  isAllDay: boolean;
+  clients: ClientReference[];
+  case: CaseReference | null;
+  writeOffReason: string | null;
+  workEntry: { id: string; status: WorkEntryStatus; canManage: boolean } | null;
 }

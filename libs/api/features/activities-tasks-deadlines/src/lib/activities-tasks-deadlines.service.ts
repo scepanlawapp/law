@@ -213,6 +213,7 @@ export class ActivitiesTasksDeadlinesService {
 
   private eventInclude() {
     return {
+      _count: { select: { workEntries: true } },
       case: true,
       clients: { include: { client: true } },
       assignees: { include: { user: true } },
@@ -302,6 +303,7 @@ export class ActivitiesTasksDeadlinesService {
 
   private event(item: any): EventDetail {
     return {
+      hasWorkEntry: (item._count?.workEntries ?? 0) > 0,
       id: item.id,
       type: item.type,
       title: item.title,

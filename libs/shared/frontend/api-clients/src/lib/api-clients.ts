@@ -105,6 +105,7 @@ import {
   WorkCaptureParseResponse,
   WorkEntry,
   WorkEntryQuery,
+  PastWorkEvent,
   WorkspaceBillingConfig,
   OrganizationSettings,
   OtherOrganizationSettings,
@@ -2203,6 +2204,23 @@ export class WorkEntriesApiClient {
     return this.http.get<PaginatedResponse<WorkEntry>>(
       this.endpoint("/work-entries"),
       { withCredentials: true, params: queryParams(query) },
+    );
+  }
+
+  pastEvents(
+    page = 1,
+    pageSize = 20,
+  ): Observable<PaginatedResponse<PastWorkEvent>> {
+    return this.http.get<PaginatedResponse<PastWorkEvent>>(
+      this.endpoint("/work-entries/past-events"),
+      { withCredentials: true, params: queryParams({ page, pageSize }) },
+    );
+  }
+  writeOffEvent(id: string): Observable<WorkEntry> {
+    return this.http.post<WorkEntry>(
+      this.endpoint(`/work-entries/events/${id}/write-off`),
+      {},
+      { withCredentials: true },
     );
   }
 

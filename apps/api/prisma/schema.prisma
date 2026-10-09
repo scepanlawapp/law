@@ -853,6 +853,8 @@ model CaseActivity {
 }
 
 model Event {
+  workEntries WorkEntry[]
+  workWriteOffReason String?
   id              String          @id @default(uuid())
   workspaceId     String
   type            EventType
@@ -2032,6 +2034,7 @@ model WorkEntry {
   clientId          String
   caseId            String?
   taskId            String?
+  eventId           String?
   workDate          DateTime           @db.Date
   minutes           Int?
   timerStartedAt    DateTime?          @db.Timestamptz(3)
@@ -2056,6 +2059,7 @@ model WorkEntry {
   client            Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
   case              Case?              @relation(fields: [caseId], references: [id], onDelete: SetNull)
   task              Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  event             Event?             @relation(fields: [eventId], references: [id], onDelete: SetNull)
   serviceCategory   ServiceCategory?   @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
   invoiceLine       InvoiceLine?       @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
   createdBy         User               @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
@@ -2063,6 +2067,7 @@ model WorkEntry {
 
   @@unique([workspaceId, sourceType, sourceId])
   @@index([workspaceId, taskId, workDate])
+  @@index([workspaceId, eventId, workDate])
   @@index([workspaceId, clientId, workDate])
   @@index([workspaceId, userId, workDate])
   @@index([workspaceId, status])

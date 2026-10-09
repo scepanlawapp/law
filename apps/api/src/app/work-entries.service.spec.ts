@@ -85,7 +85,12 @@ describe("WorkEntriesService", () => {
     $queryRaw: jest.fn(),
     task: { findFirst: jest.fn() },
     client: { findFirst: jest.fn(), findMany: jest.fn() },
-    event: { findMany: jest.fn() },
+    event: {
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+      count: jest.fn(),
+      update: jest.fn(),
+    },
     document: { findMany: jest.fn() },
     chatSession: { findMany: jest.fn() },
     case: { findFirst: jest.fn() },
@@ -414,6 +419,155 @@ describe("WorkEntriesService", () => {
       } finally {
         logSpy.mockRestore();
       }
+    });
+  });
+
+  describe("past event work", () => {
+    const eventId = "11111111-1111-4111-8111-111111111119";
+    const event = {
+      id: eventId,
+      title: "Sastanak",
+      description: null,
+      status: "COMPLETED",
+      startsAt: new Date("2020-01-01T08:00:00Z"),
+      endsAt: new Date("2020-01-01T09:00:00Z"),
+      isAllDay: false,
+      case: null,
+      caseId: null,
+      clients: [{ clientId }],
+    };
+    beforeEach(() => {
+      db.event.findFirst.mockResolvedValue(event);
+      db.workEntry.findFirst.mockResolvedValue(null);
+    });
+    it.each(["PROPOSED", "CONFIRMED", "BILLED", "WRITTEN_OFF"])(
+      "adds work without overwriting existing %s event work",
+      async (status) => {
+        db.workEntry.findFirst.mockResolvedValue(
+          entryRecord({ status, userId: otherUserId }),
+        );
+        const created = await as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        );
+        expect(created.eventId).toBe(eventId);
+        expect(db.workEntry.create).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({
+              eventId,
+              source: "EVENT",
+              status: "CONFIRMED",
+              userId,
+            }),
+          }),
+        );
+        expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+      },
+    );
+    it("rejects inaccessible events", async () => {
+      db.event.findFirst.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        ),
+      ).rejects.toBeInstanceOf(NotFoundException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it.each([
+      { status: "SCHEDULED", endsAt: new Date("2099-01-01") },
+      { status: "CANCELLED" },
+    ])("rejects future or cancelled events", async (override) => {
+      db.event.findFirst.mockResolvedValue({ ...event, ...override });
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, eventId }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.writeOffEvent(eventId)),
+      ).rejects.toBeInstanceOf(ConflictException);
+    });
+    it("creates confirmed non-billable work directly without a reason", async () => {
+      const work = await as(WorkspaceRole.LAWYER, () =>
+        service.writeOffEvent(eventId),
+      );
+      expect(work).toEqual(
+        expect.objectContaining({
+          eventId,
+          status: "CONFIRMED",
+          treatment: "NON_BILLABLE",
+          minutes: 60,
+          title: "Sastanak",
+        }),
+      );
+      expect(db.event.update).not.toHaveBeenCalled();
+      expect(db.activityLog.create).toHaveBeenCalled();
+      expect(db.$queryRaw).toHaveBeenCalled();
+    });
+    it("does not invent a client", async () => {
+      db.event.findFirst.mockResolvedValue({ ...event, clients: [] });
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.writeOffEvent(eventId)),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it("uses the case client and does not invent all-day duration", async () => {
+      db.event.findFirst.mockResolvedValue({
+        ...event,
+        isAllDay: true,
+        clients: [],
+        case: { clientId },
+      });
+      const work = await as(WorkspaceRole.LAWYER, () =>
+        service.writeOffEvent(eventId),
+      );
+      expect(work.minutes).toBeNull();
+      expect(db.workEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ clientId }),
+        }),
+      );
+    });
+    it.each(["CONFIRMED", "PROPOSED", "BILLED"])(
+      "prevents duplicate writeoff and preserves %s work",
+      async (status) => {
+        db.workEntry.findFirst.mockResolvedValue(entryRecord({ status }));
+        await expect(
+          as(WorkspaceRole.LAWYER, () => service.writeOffEvent(eventId)),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(db.workEntry.create).not.toHaveBeenCalled();
+        expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+      },
+    );
+    it("filters events without work before counting and pagination", async () => {
+      db.event.count.mockResolvedValue(0);
+      db.event.findMany.mockResolvedValue([]);
+      await as(WorkspaceRole.LAWYER, () =>
+        service.pastEvents({ page: 2, pageSize: 20 }),
+      );
+      const where = expect.objectContaining({
+        workspaceId,
+        endsAt: { lte: expect.any(Date) },
+        status: { not: "CANCELLED" },
+        workEntries: { none: {} },
+        OR: [{ organizerUserId: userId }, { assignees: { some: { userId } } }],
+      });
+      expect(db.event.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({ where, skip: 20, take: 20 }),
+      );
+      expect(db.event.count).toHaveBeenCalledWith({ where });
+    });
+    it("filters the work list by event in the workspace", async () => {
+      await as(WorkspaceRole.OWNER, () =>
+        service.list({ eventId, page: 1, pageSize: 50 }),
+      );
+      expect(db.workEntry.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId,
+            AND: expect.arrayContaining([{ eventId }]),
+          }),
+        }),
+      );
     });
   });
 
@@ -973,7 +1127,7 @@ describe("WorkEntriesService", () => {
       db.workEntry.findMany
         .mockResolvedValueOnce([])
         .mockResolvedValueOnce([])
-        .mockResolvedValueOnce([{ sourceId: eventA }]);
+        .mockResolvedValueOnce([{ eventId: eventA }]);
 
       const result = await as(WorkspaceRole.LAWYER, () =>
         service.review("2026-10-01"),
@@ -1002,8 +1156,7 @@ describe("WorkEntriesService", () => {
       expect(db.workEntry.findMany).toHaveBeenLastCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
-            sourceType: "EVENT",
-            sourceId: { in: [eventA, eventB] },
+            eventId: { in: [eventA, eventB] },
           }),
         }),
       );

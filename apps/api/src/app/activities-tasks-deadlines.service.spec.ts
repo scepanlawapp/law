@@ -517,6 +517,25 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
     });
   });
 
+  it.each([0, 1, 3, 0])(
+    "derives hasWorkEntry from the current relationship count (%i)",
+    async (count) => {
+      db.event.findFirst.mockResolvedValue(
+        eventRow({ _count: { workEntries: count } }),
+      );
+      const event = await run(() => service.getEvent(eventId));
+      expect(event.hasWorkEntry).toBe(count > 0);
+      expect(db.event.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: eventId, workspaceId },
+          include: expect.objectContaining({
+            _count: { select: { workEntries: true } },
+          }),
+        }),
+      );
+    },
+  );
+
   describe("transitionEvent", () => {
     it("proposes an entry for the organizer with the event duration", async () => {
       tx.event.findFirst.mockResolvedValue(

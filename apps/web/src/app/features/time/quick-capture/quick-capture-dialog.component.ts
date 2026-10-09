@@ -19,6 +19,7 @@ import {
 import {
   BillingSetupApiClient,
   CasesApiClient,
+  EventsApiClient,
   ClientsApiClient,
   WorkEntriesApiClient,
   WorkManagementApiClient,
@@ -26,6 +27,7 @@ import {
 import {
   CaseReference,
   TaskDetail,
+  EventDetail,
   ClientReference,
   ServiceCategory,
   WorkCaptureParseResponse,
@@ -168,6 +170,7 @@ function today(): string {
 })
 export class QuickCaptureDialogComponent {
   private readonly injector = inject(Injector);
+  private readonly eventsApi = inject(EventsApiClient);
   private readonly tasksApi = inject(WorkManagementApiClient);
   private readonly entriesApi = inject(WorkEntriesApiClient);
   private readonly confirm = inject(ConfirmDialogService);
@@ -182,6 +185,43 @@ export class QuickCaptureDialogComponent {
     injectBrnDialogContext<QuickCaptureInput<unknown>>();
   protected readonly speech = inject(SpeechRecognitionService);
   readonly dialogRef = inject(BrnDialogRef<unknown>);
+
+  readonly linkedEventId = signal(
+    this.context.eventId ??
+      (this.context.source?.sourceType === "EVENT"
+        ? this.context.source.sourceId
+        : undefined),
+  );
+  readonly linkedEvent = signal<EventDetail | null>(null);
+  readonly openingEvent = signal(false);
+  openLinkedEvent(): void {
+    const id = this.linkedEventId();
+    if (!id || this.openingEvent() || this.saving()) return;
+    this.openingEvent.set(true);
+    this.eventsApi
+      .get(id)
+      .pipe(
+        tap((event) => this.linkedEvent.set(event)),
+        switchMap((event) =>
+          from(import("../../calendar/event-dialog/event-dialog.service")).pipe(
+            switchMap(({ EventDialogService }) =>
+              this.injector.get(EventDialogService).open({ event }),
+            ),
+          ),
+        ),
+        finalize(() => this.openingEvent.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (event) => {
+          if (event) this.linkedEvent.set(event);
+        },
+        error: () =>
+          this.toast.error(
+            this.localization.translate("time.events.actionError"),
+          ),
+      });
+  }
 
   readonly linkedTaskId = signal(this.context.taskId);
   readonly linkedTask = signal<TaskDetail | null>(null);
@@ -303,9 +343,12 @@ export class QuickCaptureDialogComponent {
       nonNullable: true,
     }),
     serviceCategoryId: new FormControl("", { nonNullable: true }),
-    treatment: new FormControl<WorkEntryTreatment>("UNDECIDED", {
-      nonNullable: true,
-    }),
+    treatment: new FormControl<WorkEntryTreatment>(
+      this.context.treatment ?? "UNDECIDED",
+      {
+        nonNullable: true,
+      },
+    ),
   });
   readonly saving = signal(false);
   readonly loadingEntry = signal(false);
@@ -328,7 +371,9 @@ export class QuickCaptureDialogComponent {
   /** True while a loaded entry's own values are applied to the form. */
   private hydrating = false;
   /** An existing entry keeps its treatment until client, date or category change. */
-  private keepTreatment = Boolean(this.context.entryId);
+  private keepTreatment = Boolean(
+    this.context.entryId || this.context.treatment,
+  );
   private applyingCase = false;
   private micBaseText = "";
 
@@ -398,6 +443,15 @@ export class QuickCaptureDialogComponent {
 
   constructor() {
     effect((onCleanup) => {
+      const id = this.linkedEventId();
+      if (!id) return;
+      const sub = this.eventsApi.get(id).subscribe({
+        next: (event) => this.linkedEvent.set(event),
+        error: () => this.linkedEvent.set(null),
+      });
+      onCleanup(() => sub.unsubscribe());
+    });
+    effect((onCleanup) => {
       const id = this.linkedTaskId();
       if (!id) return;
       const subscription = this.tasksApi.getTask(id).subscribe({
@@ -422,13 +476,14 @@ export class QuickCaptureDialogComponent {
         if (!this.applyingCase && caseId.value) {
           caseId.setValue("", { emitEvent: false });
         }
-        if (!this.hydrating) this.keepTreatment = false;
+        if (!this.hydrating && !this.context.treatment)
+          this.keepTreatment = false;
       });
     for (const control of [workDate, serviceCategoryId]) {
       control.valueChanges
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe(() => {
-          if (this.hydrating) return;
+          if (this.hydrating || this.context.treatment) return;
           this.keepTreatment = false;
           this.applyDefaultTreatment();
         });
@@ -753,7 +808,7 @@ export class QuickCaptureDialogComponent {
   /** What to send: a deliberate pick, or the default shown; else let the API decide. */
   private treatmentToSend(): WorkEntryTreatment | undefined {
     const { treatment } = this.form.controls;
-    if (treatment.dirty) return treatment.value;
+    if (treatment.dirty || this.context.treatment) return treatment.value;
     if (this.keepTreatment || this.agreements() === null) return undefined;
     return treatment.value;
   }
@@ -782,6 +837,13 @@ export class QuickCaptureDialogComponent {
         next: ({ entry, actions }) => {
           this.entryActions.set(actions);
           this.loadedEntry.set(entry);
+          this.linkedEventId.set(
+            this.context.eventId ??
+              entry.eventId ??
+              (entry.sourceType === "EVENT"
+                ? (entry.sourceId ?? undefined)
+                : undefined),
+          );
           this.linkedTaskId.set(
             this.context.taskId ?? entry.taskId ?? undefined,
           );
@@ -946,6 +1008,7 @@ export class QuickCaptureDialogComponent {
       case "create":
         return this.entriesApi.create({
           ...fields,
+          eventId: this.context.eventId,
           source: aiParsed ? "QUICK_CAPTURE" : "MANUAL",
           aiParsed,
         });

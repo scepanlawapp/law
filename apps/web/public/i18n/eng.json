@@ -2467,5 +2467,18 @@
   "documents.ai.fromChat": "From an assistant conversation",
   "documents.ai.reprocess": "Reprocess",
   "documents.ai.bulkUpdated": "Updated: {count}",
-  "documents.ai.accessInfo": "About AI access"
+  "documents.ai.accessInfo": "About AI access",
+  "time.events.title": "Past events",
+  "time.events.description": "Ended events you organize or are assigned to, without any work entries.",
+  "time.events.loading": "Loading events…",
+  "time.events.loadError": "Events could not be loaded. Please retry.",
+  "time.events.actionError": "Could not complete the action. Refresh the list and retry.",
+  "time.events.unlogged": "Unlogged",
+  "time.events.event": "Event",
+  "time.events.view": "View",
+  "time.events.view.event": "View Event",
+  "time.events.empty": "No past events without work entries.",
+  "time.events.previous": "Previous page",
+  "time.events.shrink": "Shrink",
+  "time.events.next": "Next page"
 }

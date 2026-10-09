@@ -2467,5 +2467,18 @@
   "documents.ai.fromChat": "Iz razgovora sa asistentom",
   "documents.ai.reprocess": "Ponovo obradi",
   "documents.ai.bulkUpdated": "Ažurirano: {count}",
-  "documents.ai.accessInfo": "O AI pristupu"
+  "documents.ai.accessInfo": "O AI pristupu",
+  "time.events.title": "Prošli događaji",
+  "time.events.description": "Završeni događaji koje organizujete ili kojima ste dodeljeni, bez unosa rada.",
+  "time.events.loading": "Učitavanje događaja…",
+  "time.events.loadError": "Događaji nisu učitani. Pokušajte ponovo.",
+  "time.events.actionError": "Radnju nije moguće izvršiti. Osvežite listu i pokušajte ponovo.",
+  "time.events.unlogged": "Rad nije zabeležen",
+  "time.events.event": "Događaj",
+  "time.events.view": "Prikaži",
+  "time.events.view.event": "Prikaži događaj",
+  "time.events.empty": "Nema prošlih događaja bez unosa rada.",
+  "time.events.previous": "Prethodna strana",
+  "time.events.shrink": "Smanji",
+  "time.events.next": "Sledeća strana"
 }

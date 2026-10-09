@@ -1,9 +1,36 @@
-<div class="w-150">
+<div>
   <hlm-dialog-header>
     <div class="flex min-w-0 flex-wrap items-start justify-between gap-3 pe-6">
       <h2 hlmDialogTitle>
         {{ (readOnly() ? "work.entries.viewTitle" : titleKey) | translate }}
       </h2>
+      @if (linkedEventId()) {
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          size="sm"
+          class="w-56 max-w-full justify-start"
+          [hlmTooltip]="
+            linkedEvent()?.title || ('time.events.view' | translate)
+          "
+          [attr.aria-label]="
+            ('time.events.view' | translate) +
+            ': ' +
+            (linkedEvent()?.title || '')
+          "
+          [disabled]="openingEvent() || saving()"
+          (click)="openLinkedEvent()"
+        >
+          @if (openingEvent()) {
+            <hlm-spinner />
+          }
+          <span class="min-w-0 truncate">
+            {{ "time.events.event" | translate }}:
+            {{ linkedEvent()?.title || ("time.events.view" | translate) }}
+          </span>
+        </button>
+      }
       @if (linkedTaskId()) {
         <button
           hlmBtn

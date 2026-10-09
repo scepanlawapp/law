@@ -2,6 +2,7 @@ import { Observable } from "rxjs";
 import {
   CreateWorkEntryRequest,
   WorkEntry,
+  WorkEntryTreatment,
   WorkEntrySourceType,
 } from "@law/api-interfaces";
 
@@ -14,9 +15,11 @@ export interface QuickCaptureInput<TResult = WorkEntry> {
   manageEntry?: boolean;
   onDeleted?: () => void;
   taskId?: string;
+  eventId?: string;
   clientId?: string;
   caseId?: string;
   minutes?: number;
+  treatment?: WorkEntryTreatment;
   /** Required when confirming a stopped timer; otherwise time is optional. */
   requireMinutes?: boolean;
   title?: string;
