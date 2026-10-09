@@ -1,6 +1,6 @@
 # Business Logic Done So Far
 
-**Checked:** 2026-10-07
+**Checked:** 2026-10-09
 **Scope:** `apps/api`, `apps/web`, shared API contracts and API clients.
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
@@ -13,6 +13,17 @@ This document describes behavior that is currently implemented in code and wired
 - API responses use shared contracts from `libs/api/api-interfaces` and paginated response metadata where list endpoints support pagination.
 - User-facing API responses expose depth-1 display references for related clients, cases, and users where the web UI shows those relationships. Request payloads, filters, route params, and internal identifiers still use IDs.
 - Domain mutations create activity-log entries for the activities/tasks/deadlines workflow and for document create/update/version/archive/restore, preserving the acting user and workspace context.
+
+## Revenue sharing configuration
+
+- `/finance/settings` provides Overview, General Rules, Team Agreements, Special Rules, Simulator and History sections. Finance navigation and all APIs restrict confidential configuration to active OWNER/ADMIN accounts. Serbian Latin and English labels include every displayed enum and stable validation error code.
+- The isolated `@law/revenue-sharing` Nest feature uses the existing single workspace, members and users. `GET/PUT /api/revenue-sharing`, `GET /api/revenue-sharing/references`, `GET /api/revenue-sharing/history`, and `POST /api/revenue-sharing/preview` expose persisted configuration, read-only scope references and hypothetical previews. PUT atomically publishes all settings, agreement and rule changes together.
+- Configuration starts disabled and unconfigured. Disabling or reducing the UI preset preserves personal agreements and special rules. Exact percentage strings distinguish unconfigured, inherited, explicitly excluded and configured-zero values. Firm policy records revenue/VAT/expense/partial-payment/reference-date choices without applying them to accounting.
+- Effective-dated member agreements support individual rates, per-field inheritance, opt-out, origination overrides, departure policies and returning engagement periods. Published rate terms cannot be rewritten; closing periods and documented departure amendments create new snapshots. Earlier versions remain immutable. For saved collection previews, rates resolve at the entitlement reference date and later departure amendments resolve as of the explicit collection date.
+- Rules support firm, member, client, case and existing calendar Event scopes, earning categories, override/additive/exclusive-pool behavior and effective periods. Validation rejects ownership failures, overlaps, contradictory same-level rules, invalid dates/precision and exclusive pools above 100%. Prior deactivated rules can retain unavailable scope references without allowing new foreign references.
+- Publication uses serializable transactions, optimistic revision checks, an author/reason/effective-date audit snapshot, indexed immutable agreement/rule projections, exact Decimal special-rule percentages and database constraints/triggers. The seed deliberately adds no active revenue-sharing business rules.
+- The simulator uses edited settings through a pure rule-resolution/preview component, warns on gaps or missing/conflicting configuration, avoids self-origination double counting by default, and writes no earnings. Amounts are hypothetical eligible amounts supplied according to the chosen VAT/cost policy; actual invoice/payment allocation is deferred.
+- No work-entry, calendar-event, invoice, invoice-line, payment or financial calculation behavior was changed. Live PostgreSQL migration/persistence verification remains pending because Docker WSL integration is unavailable; see the [delivery report](../delivery/tracks/revenue_sharing_settings_20261009/report.md) for checks and rollout limitations.
 
 ## Legal knowledge retrieval
 

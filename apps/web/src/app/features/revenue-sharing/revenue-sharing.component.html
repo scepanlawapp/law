@@ -1,0 +1,809 @@
+<section
+  class="p-4 md:p-6 space-y-6 text-sm"
+  [attr.aria-busy]="loading() || saving()"
+>
+  <header>
+    <h1 class="text-2xl font-semibold">{{ "revenue.title" | translate }}</h1>
+    <p class="text-muted-foreground mt-2">
+      {{ "revenue.pageDescription" | translate }}
+    </p>
+  </header>
+  @if (error()) {
+    <div
+      role="alert"
+      class="border border-destructive rounded-lg p-4 text-destructive"
+    >
+      {{ error() | translate }}
+    </div>
+  }
+  @if (loading()) {
+    <div class="flex gap-3 items-center">
+      <hlm-spinner />
+      {{ "revenue.loading" | translate }}
+    </div>
+  } @else if (!loaded()) {
+    <button hlmBtn type="button" (click)="load()">
+      {{ "revenue.retry" | translate }}
+    </button>
+  } @else {
+    <fieldset [disabled]="saving()" class="space-y-6 min-w-0">
+      <div class="rounded-lg border bg-card p-4 space-y-4">
+        <p role="status">
+          {{
+            (dirty() ? "revenue.unsaved" : "revenue.currentVersion") | translate
+          }}
+          {{ loaded()!.version }}
+        </p>
+        <div class="grid gap-4 md:grid-cols-2">
+          <div>
+            <label hlmLabel for="publish-date">
+              {{ "revenue.effectiveFrom" | translate }}
+            </label>
+            <input
+              hlmInput
+              class="mt-2 w-full"
+              id="publish-date"
+              type="date"
+              [formControl]="publication.controls.effectiveFrom"
+            />
+          </div>
+          <div>
+            <label hlmLabel for="publish-reason">
+              {{ "revenue.reason" | translate }}
+            </label>
+            <input
+              hlmInput
+              class="mt-2 w-full"
+              id="publish-reason"
+              type="text"
+              [formControl]="publication.controls.reason"
+            />
+          </div>
+        </div>
+        <p class="text-muted-foreground">
+          {{ "revenue.publicationHelp" | translate }}
+        </p>
+        <div class="flex flex-wrap gap-3">
+          <button
+            hlmBtn
+            type="button"
+            [disabled]="saving() || !dirty()"
+            (click)="publish()"
+          >
+            @if (saving()) {
+              <hlm-spinner />
+            }
+            {{ "revenue.publish" | translate }}
+          </button>
+          <button
+            hlmBtn
+            variant="outline"
+            type="button"
+            [disabled]="saving() || !dirty()"
+            (click)="discard()"
+          >
+            {{ "revenue.discardButton" | translate }}
+          </button>
+        </div>
+      </div>
+      <hlm-tabs [tab]="tab()" (tabActivated)="tab.set($event)">
+        <hlm-tabs-list
+          class="max-w-full overflow-x-auto justify-start"
+          [attr.aria-label]="'revenue.sections' | translate"
+        >
+          @for (section of tabs; track section) {
+            <button type="button" [hlmTabsTrigger]="section">
+              {{ "revenue.tab." + section | translate }}
+            </button>
+          }
+        </hlm-tabs-list>
+        <div
+          hlmTabsContent="overview"
+          class="rounded-lg border bg-card p-4 space-y-6"
+        >
+          <div class="flex items-center gap-3">
+            <hlm-switch
+              inputId="revenue-enabled"
+              [formControl]="form.controls.enabled"
+            />
+            <label hlmLabel for="revenue-enabled">
+              {{ "revenue.enabled" | translate }}
+            </label>
+          </div>
+          @if (!form.controls.enabled.value) {
+            <p class="text-muted-foreground">
+              {{ "revenue.disabledHelp" | translate }}
+            </p>
+          }
+          <law-revenue-select
+            id="revenue-mode"
+            label="revenue.configurationMode"
+            [control]="form.controls.configurationMode"
+            [options]="modes"
+          />
+          <p class="text-muted-foreground">
+            {{
+              "revenue.modeHelp." + form.controls.configurationMode.value
+                | translate
+            }}
+          </p>
+          <p class="text-muted-foreground">
+            {{ "revenue.modePreservation" | translate }}
+          </p>
+        </div>
+        <div
+          hlmTabsContent="general"
+          class="rounded-lg border bg-card p-4 space-y-6"
+        >
+          <h2 class="text-lg font-medium">
+            {{ "revenue.tab.general" | translate }}
+          </h2>
+          <div class="grid gap-4 md:grid-cols-2">
+            @for (field of generalFields; track field.key) {
+              <law-revenue-select
+                [id]="'policy-' + field.key"
+                [label]="'revenue.' + field.key"
+                [control]="form.controls[field.key]"
+                [options]="field.options"
+              />
+            }
+          </div>
+          <p class="text-muted-foreground">
+            {{ "revenue.policyHelp" | translate }}
+          </p>
+          <h3 class="font-medium">{{ "revenue.rates" | translate }}</h3>
+          @for (origin of origins; track origin) {
+            <law-revenue-rate
+              [id]="'default-' + origin"
+              [label]="'revenue.enum.' + origin"
+              [form]="form.controls.rates.controls[origin]"
+            />
+          }
+          <div class="flex items-center gap-3">
+            <hlm-switch
+              inputId="bonus-enabled"
+              [formControl]="form.controls.originationEnabled"
+            />
+            <label hlmLabel for="bonus-enabled">
+              {{ "revenue.originationEnabled" | translate }}
+            </label>
+          </div>
+          @if (form.controls.originationEnabled.value) {
+            <law-revenue-rate
+              id="default-bonus"
+              label="revenue.originationRate"
+              [form]="form.controls.originationRate"
+            />
+            <div class="flex items-center gap-3">
+              <hlm-switch
+                inputId="bonus-others"
+                [formControl]="form.controls.originationOnOthersWork"
+              />
+              <label hlmLabel for="bonus-others">
+                {{ "revenue.originationOnOthersWork" | translate }}
+              </label>
+            </div>
+            <div class="flex items-center gap-3">
+              <hlm-switch
+                inputId="bonus-self"
+                [formControl]="form.controls.selfOrigination"
+              />
+              <label hlmLabel for="bonus-self">
+                {{ "revenue.selfOrigination" | translate }}
+              </label>
+            </div>
+            <div class="flex items-center gap-3">
+              <hlm-switch
+                inputId="bonus-override"
+                [formControl]="form.controls.allowPersonalOriginationOverride"
+              />
+              <label hlmLabel for="bonus-override">
+                {{ "revenue.allowPersonalOriginationOverride" | translate }}
+              </label>
+            </div>
+            <p class="text-muted-foreground">
+              {{ "revenue.bonusHelp" | translate }}
+            </p>
+          }
+        </div>
+        <div hlmTabsContent="team" class="space-y-5">
+          @if (!individualMode()) {
+            <p class="border rounded-lg p-4">
+              {{ "revenue.personalInactive" | translate }}
+            </p>
+          }
+          <law-revenue-select
+            id="member-filter"
+            label="revenue.memberFilter"
+            [control]="filter"
+            [options]="filterOptions"
+          />
+          <div hlmTableContainer>
+            <table hlmTable>
+              <thead hlmTHead>
+                <tr hlmTr>
+                  <th hlmTh>{{ "revenue.memberId" | translate }}</th>
+                  <th hlmTh>{{ "revenue.role" | translate }}</th>
+                  <th hlmTh>{{ "revenue.status" | translate }}</th>
+                  <th hlmTh>{{ "revenue.agreement" | translate }}</th>
+                </tr>
+              </thead>
+              <tbody hlmTBody>
+                @for (member of filteredMembers(); track member.id) {
+                  <tr hlmTr>
+                    <td hlmTd>{{ member.name }}</td>
+                    <td hlmTd>
+                      {{ "revenue.enum." + member.role | translate }}
+                    </td>
+                    <td hlmTd>
+                      {{ "revenue.enum." + member.status | translate }}
+                    </td>
+                    <td hlmTd>
+                      <div class="space-y-2">
+                        @for (a of agreementsFor(member.id); track a.id) {
+                          <div class="flex flex-wrap gap-3 items-center">
+                            <span>
+                              {{
+                                "revenue.enum." + a.agreementType | translate
+                              }}
+                              · {{ date(a.effectiveFrom) }} –
+                              {{ date(a.effectiveTo) }}
+                            </span>
+                            <button
+                              hlmBtn
+                              variant="outline"
+                              size="sm"
+                              type="button"
+                              (click)="editAgreement(member.id, a)"
+                            >
+                              {{ "revenue.viewEdit" | translate }}
+                            </button>
+                          </div>
+                        } @empty {
+                          <p class="text-muted-foreground">
+                            {{ "revenue.noAgreements" | translate }}
+                          </p>
+                        }
+                        <button
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          (click)="editAgreement(member.id)"
+                        >
+                          {{ "revenue.newAgreement" | translate }}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                } @empty {
+                  <tr hlmTr>
+                    <td hlmTd colspan="4">
+                      {{ "revenue.noMembers" | translate }}
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+          @if (editingAgreement()) {
+            <div class="border rounded-lg bg-card p-4 space-y-5">
+              <h3 class="text-lg font-medium">
+                {{ "revenue.agreement" | translate }} ·
+                {{ memberName(agreementEditor.controls.memberId.value) }}
+              </h3>
+              @if (historicalAgreement()) {
+                <p class="text-muted-foreground">
+                  {{ "revenue.historicalHelp" | translate }}
+                </p>
+              }
+              <law-revenue-select
+                id="agreement-type"
+                label="revenue.agreementType"
+                [control]="agreementEditor.controls.agreementType"
+                [options]="agreementTypes"
+              />
+              <div class="grid gap-4 md:grid-cols-2">
+                <div>
+                  <label hlmLabel for="agreement-from">
+                    {{ "revenue.effectiveFrom" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    class="mt-2 w-full"
+                    id="agreement-from"
+                    type="date"
+                    [formControl]="agreementEditor.controls.effectiveFrom"
+                  />
+                </div>
+                <div>
+                  <label hlmLabel for="agreement-to">
+                    {{ "revenue.effectiveTo" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    class="mt-2 w-full"
+                    id="agreement-to"
+                    type="date"
+                    [formControl]="agreementEditor.controls.effectiveTo"
+                  />
+                </div>
+              </div>
+              @if (
+                agreementEditor.controls.agreementType.value === "INDIVIDUAL"
+              ) {
+                @for (origin of origins; track origin) {
+                  <law-revenue-rate
+                    [id]="'agreement-' + origin"
+                    [label]="'revenue.enum.' + origin"
+                    [form]="agreementEditor.controls.rates.controls[origin]"
+                    [inherit]="true"
+                  />
+                }
+                <law-revenue-rate
+                  id="agreement-bonus"
+                  label="revenue.originationRate"
+                  [form]="agreementEditor.controls.originationRate"
+                  [inherit]="true"
+                />
+                <law-revenue-select
+                  id="agreement-self"
+                  label="revenue.selfOrigination"
+                  [control]="agreementEditor.controls.selfOrigination"
+                  [options]="selfOptions"
+                />
+                <p class="text-muted-foreground">
+                  {{ "revenue.inheritanceHelp" | translate }}
+                </p>
+              }
+              <law-revenue-select
+                id="agreement-departure"
+                label="revenue.departurePolicy"
+                [control]="agreementEditor.controls.departurePolicy"
+                [options]="departurePolicies"
+              />
+              <div>
+                <label hlmLabel for="agreement-cutoff">
+                  {{ "revenue.departureCutoffDate" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  class="mt-2 w-full"
+                  id="agreement-cutoff"
+                  type="date"
+                  [formControl]="agreementEditor.controls.departureCutoffDate"
+                />
+              </div>
+              <div>
+                <label hlmLabel for="agreement-description">
+                  {{ "revenue.description" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  class="mt-2 w-full"
+                  id="agreement-description"
+                  type="text"
+                  [formControl]="agreementEditor.controls.description"
+                />
+              </div>
+              <div class="flex gap-3">
+                <button hlmBtn type="button" (click)="stageAgreement()">
+                  {{ "revenue.applyDraft" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  variant="outline"
+                  type="button"
+                  (click)="cancelEditor()"
+                >
+                  {{ "common.cancel" | translate }}
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+        <div hlmTabsContent="special" class="space-y-5">
+          @if (!advancedMode()) {
+            <p class="border rounded-lg p-4">
+              {{ "revenue.specialInactive" | translate }}
+            </p>
+          }
+          <p class="text-muted-foreground">
+            {{ "revenue.precedenceHelp" | translate }}
+          </p>
+          <button hlmBtn type="button" (click)="editRule()">
+            {{ "revenue.newRule" | translate }}
+          </button>
+          @for (r of rules(); track r.id) {
+            <div
+              class="border bg-card rounded-lg p-4 flex flex-wrap justify-between gap-3"
+            >
+              <div>
+                <p>
+                  {{ memberName(r.memberId) }} ·
+                  {{ "revenue.enum." + r.earningType | translate }} ·
+                  {{ percent(r.percentage) }}
+                </p>
+                <p class="text-muted-foreground">
+                  {{ "revenue.enum." + r.scopeType | translate }} ·
+                  {{ scopeName(r) }} ·
+                  {{ "revenue.enum." + r.combinationMode | translate }} ·
+                  {{
+                    "revenue.enum." + (r.active ? "ACTIVE" : "INACTIVE")
+                      | translate
+                  }}
+                </p>
+                <p>{{ date(r.effectiveFrom) }} – {{ date(r.effectiveTo) }}</p>
+              </div>
+              <button
+                hlmBtn
+                variant="outline"
+                type="button"
+                (click)="editRule(r)"
+              >
+                {{ "revenue.viewEdit" | translate }}
+              </button>
+            </div>
+          } @empty {
+            <p class="border rounded-lg p-4">
+              {{ "revenue.noRules" | translate }}
+            </p>
+          }
+          @if (editingRule()) {
+            <div class="border bg-card rounded-lg p-4 space-y-5">
+              <h3 class="text-lg font-medium">
+                {{ "revenue.specialRule" | translate }}
+              </h3>
+              @if (historicalRule()) {
+                <p>{{ "revenue.historicalRuleHelp" | translate }}</p>
+              }
+              <div class="grid gap-4 md:grid-cols-2">
+                <law-revenue-select
+                  id="rule-member"
+                  label="revenue.memberId"
+                  [control]="ruleEditor.controls.memberId"
+                  [options]="memberOptions()"
+                />
+                <law-revenue-select
+                  id="rule-scope"
+                  label="revenue.scopeType"
+                  [control]="ruleEditor.controls.scopeType"
+                  [options]="scopeTypes"
+                />
+                @if (
+                  ruleEditor.controls.scopeType.value !== "FIRM" &&
+                  ruleEditor.controls.scopeType.value !== "MEMBER"
+                ) {
+                  <law-revenue-select
+                    id="rule-scope-id"
+                    label="revenue.scopeId"
+                    [control]="ruleEditor.controls.scopeId"
+                    [options]="scopeOptions()"
+                  />
+                }
+                <law-revenue-select
+                  id="rule-category"
+                  label="revenue.earningType"
+                  [control]="ruleEditor.controls.earningType"
+                  [options]="categories"
+                />
+                <law-revenue-select
+                  id="rule-origin"
+                  label="revenue.clientOrigin"
+                  [control]="ruleEditor.controls.clientOrigin"
+                  [options]="originOrAny"
+                />
+                <div>
+                  <label hlmLabel for="rule-percent">
+                    {{ "revenue.percentage" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    class="mt-2 w-full"
+                    id="rule-percent"
+                    type="text"
+                    [formControl]="ruleEditor.controls.percentage"
+                  />
+                </div>
+                <law-revenue-select
+                  id="rule-basis"
+                  label="revenue.revenueBasis"
+                  [control]="ruleEditor.controls.revenueBasis"
+                  [options]="bases"
+                />
+                <law-revenue-select
+                  id="rule-combination"
+                  label="revenue.combinationMode"
+                  [control]="ruleEditor.controls.combinationMode"
+                  [options]="combinations"
+                />
+                @if (
+                  ruleEditor.controls.combinationMode.value ===
+                  "EXCLUSIVE_SPLIT"
+                ) {
+                  <div>
+                    <label hlmLabel for="rule-pool">
+                      {{ "revenue.poolId" | translate }}
+                    </label>
+                    <input
+                      hlmInput
+                      class="mt-2 w-full"
+                      id="rule-pool"
+                      type="text"
+                      [formControl]="ruleEditor.controls.poolId"
+                    />
+                  </div>
+                }
+                <div>
+                  <label hlmLabel for="rule-from">
+                    {{ "revenue.effectiveFrom" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    class="mt-2 w-full"
+                    id="rule-from"
+                    type="date"
+                    [formControl]="ruleEditor.controls.effectiveFrom"
+                  />
+                </div>
+                <div>
+                  <label hlmLabel for="rule-to">
+                    {{ "revenue.effectiveTo" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    class="mt-2 w-full"
+                    id="rule-to"
+                    type="date"
+                    [formControl]="ruleEditor.controls.effectiveTo"
+                  />
+                </div>
+              </div>
+              <div class="flex items-center gap-3">
+                <hlm-switch
+                  inputId="rule-active"
+                  [formControl]="ruleEditor.controls.active"
+                />
+                <label hlmLabel for="rule-active">
+                  {{ "revenue.active" | translate }}
+                </label>
+              </div>
+              <div>
+                <label hlmLabel for="rule-description">
+                  {{ "revenue.description" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  class="mt-2 w-full"
+                  id="rule-description"
+                  type="text"
+                  [formControl]="ruleEditor.controls.description"
+                />
+              </div>
+              @if (ruleEditor.controls.scopeType.value === "WORK_EVENT") {
+                <p class="text-muted-foreground">
+                  {{ "revenue.eventScopeHelp" | translate }}
+                </p>
+              }
+              <div class="flex gap-3">
+                <button hlmBtn type="button" (click)="stageRule()">
+                  {{ "revenue.applyDraft" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  variant="outline"
+                  type="button"
+                  (click)="cancelEditor()"
+                >
+                  {{ "common.cancel" | translate }}
+                </button>
+              </div>
+            </div>
+          }
+        </div>
+        <div
+          hlmTabsContent="simulator"
+          class="border bg-card rounded-lg p-4 space-y-5"
+        >
+          <h2 class="text-lg font-medium">
+            {{ "revenue.tab.simulator" | translate }}
+          </h2>
+          <p class="text-muted-foreground">
+            {{ "revenue.hypothetical" | translate }}
+          </p>
+          <p class="text-muted-foreground">
+            {{ "revenue.simulatorHelp" | translate }}
+          </p>
+          <div class="grid gap-4 md:grid-cols-2">
+            <div>
+              <label hlmLabel for="preview-amount">
+                {{ "revenue.amount" | translate }}
+              </label>
+              <input
+                hlmInput
+                class="mt-2 w-full"
+                id="preview-amount"
+                type="text"
+                [formControl]="simulator.controls.amount"
+              />
+            </div>
+            <law-revenue-select
+              id="preview-basis"
+              label="revenue.revenueBasis"
+              [control]="simulator.controls.revenueBasis"
+              [options]="bases"
+            />
+            <law-revenue-select
+              id="preview-member"
+              label="revenue.memberId"
+              [control]="simulator.controls.memberId"
+              [options]="memberOptions()"
+            />
+            <law-revenue-select
+              id="preview-origin"
+              label="revenue.clientOrigin"
+              [control]="simulator.controls.clientOrigin"
+              [options]="originOptions"
+            />
+            <law-revenue-select
+              id="preview-originator"
+              label="revenue.originatorId"
+              [control]="simulator.controls.originatorId"
+              [options]="memberOptions(true)"
+            />
+            <div>
+              <label hlmLabel for="preview-date">
+                {{ "revenue.referenceDate" | translate }}
+              </label>
+              <input
+                hlmInput
+                class="mt-2 w-full"
+                id="preview-date"
+                type="date"
+                [formControl]="simulator.controls.referenceDate"
+              />
+            </div>
+            <div>
+              <label hlmLabel for="preview-collection-date">
+                {{ "revenue.collectionDate" | translate }}
+              </label>
+              <input
+                hlmInput
+                class="mt-2 w-full"
+                id="preview-collection-date"
+                type="date"
+                [formControl]="simulator.controls.collectionDate"
+              />
+            </div>
+            <law-revenue-select
+              id="preview-agreement"
+              label="revenue.agreement"
+              [control]="simulator.controls.agreementId"
+              [options]="agreementOptions()"
+            />
+            <law-revenue-select
+              id="preview-rule"
+              label="revenue.specialRule"
+              [control]="simulator.controls.specialRuleId"
+              [options]="ruleOptions()"
+            />
+            <law-revenue-select
+              id="preview-client"
+              label="revenue.clientId"
+              [control]="simulator.controls.clientId"
+              [options]="referenceOptions('clients', true)"
+            />
+            <law-revenue-select
+              id="preview-case"
+              label="revenue.caseId"
+              [control]="simulator.controls.caseId"
+              [options]="referenceOptions('cases', true)"
+            />
+            <law-revenue-select
+              id="preview-event"
+              label="revenue.eventId"
+              [control]="simulator.controls.eventId"
+              [options]="referenceOptions('events', true)"
+            />
+          </div>
+          <button
+            hlmBtn
+            type="button"
+            [disabled]="previewing()"
+            (click)="preview()"
+          >
+            @if (previewing()) {
+              <hlm-spinner />
+            }
+            {{ "revenue.preview" | translate }}
+          </button>
+          @if (previewResult(); as result) {
+            <div aria-live="polite" class="space-y-3">
+              @for (warning of result.warnings; track warning) {
+                <p class="text-destructive">
+                  {{ "revenue.error." + warning | translate }}
+                </p>
+              }
+              @if (!result.warnings.length) {
+                <dl class="grid gap-3 md:grid-cols-2">
+                  <div>
+                    <dt>{{ "revenue.workShare" | translate }}</dt>
+                    <dd>
+                      {{ percent(result.workPercentage) }} ·
+                      {{ money(result.workAmount) }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{{ "revenue.originationRate" | translate }}</dt>
+                    <dd>
+                      {{ percent(result.originationPercentage) }} ·
+                      {{ money(result.originationAmount) }}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt>{{ "revenue.total" | translate }}</dt>
+                    <dd>{{ money(result.total) }}</dd>
+                  </div>
+                  <div>
+                    <dt>{{ "revenue.residual" | translate }}</dt>
+                    <dd>{{ money(result.residual) }}</dd>
+                  </div>
+                </dl>
+                @for (explanation of result.explanations; track $index) {
+                  <p class="text-muted-foreground">
+                    {{ "revenue.enum." + explanation | translate }}
+                  </p>
+                }
+              }
+            </div>
+          }
+        </div>
+        <div hlmTabsContent="history" class="space-y-4">
+          @for (entry of history(); track entry.id) {
+            <details class="border bg-card rounded-lg p-4">
+              <summary class="cursor-pointer">
+                {{ "revenue.currentVersion" | translate }} {{ entry.version }} ·
+                {{ date(entry.createdAt) }} · {{ entry.changedBy }} ·
+                {{ "revenue.effectiveFrom" | translate }}
+                {{ date(entry.effectiveFrom) }}
+              </summary>
+              @if (entry.reason) {
+                <p class="mt-3">{{ entry.reason }}</p>
+              }
+              <div hlmTableContainer class="mt-3">
+                <table hlmTable>
+                  <thead hlmTHead>
+                    <tr hlmTr>
+                      <th hlmTh>{{ "revenue.changedField" | translate }}</th>
+                      <th hlmTh>{{ "revenue.oldValue" | translate }}</th>
+                      <th hlmTh>{{ "revenue.newValue" | translate }}</th>
+                    </tr>
+                  </thead>
+                  <tbody hlmTBody>
+                    @for (change of historyChanges(entry); track $index) {
+                      <tr hlmTr>
+                        <td hlmTd>{{ change.label }}</td>
+                        <td hlmTd>{{ change.oldValue }}</td>
+                        <td hlmTd>{{ change.newValue }}</td>
+                      </tr>
+                    } @empty {
+                      <tr hlmTr>
+                        <td hlmTd colspan="3">
+                          {{ "revenue.noValueChanges" | translate }}
+                        </td>
+                      </tr>
+                    }
+                  </tbody>
+                </table>
+              </div>
+            </details>
+          } @empty {
+            <p class="border rounded-lg p-4">
+              {{ "revenue.noHistory" | translate }}
+            </p>
+          }
+        </div>
+      </hlm-tabs>
+    </fieldset>
+  }
+</section>

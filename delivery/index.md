@@ -146,3 +146,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Work entry performer](tracks/work_entry_performer_20261009/index.md)
 
 - [Client modal and primary contact](tracks/client_modal_primary_contact_20261009/index.md)
+
+- [Revenue Sharing Settings](tracks/revenue_sharing_settings_20261009/index.md)

@@ -3,6 +3,9 @@
 // a representative multi-case billing entry, and the work-capture ledger
 // (service categories, rates, retainers, and a month of work entries).
 // Run `npm run db:seed:auth` first, then `npm run db:seed:demo`.
+// Revenue sharing is intentionally not seeded: configuration stays disabled and
+// unconfigured until an OWNER/ADMIN publishes a revision. Re-seeding preserves
+// all immutable RevenueSharingVersion/Agreement/Rule records.
 const { PrismaClient } = require("@prisma/client");
 const { createHash, randomBytes, scryptSync } = require("node:crypto");
 const fs = require("node:fs");

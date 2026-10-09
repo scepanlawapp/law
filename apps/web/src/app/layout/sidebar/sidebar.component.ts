@@ -204,6 +204,17 @@ export class SidebarComponent {
                   },
                 ]
               : []),
+            ...([WorkspaceRole.OWNER, WorkspaceRole.ADMIN].includes(
+              this.authState.activeWorkspace()?.role ?? WorkspaceRole.MEMBER,
+            )
+              ? [
+                  {
+                    route: "/finance/settings",
+                    label: "revenue.nav",
+                    icon: "lucideSettings",
+                  },
+                ]
+              : []),
             ...(this.showMonthEnd()
               ? [
                   {
