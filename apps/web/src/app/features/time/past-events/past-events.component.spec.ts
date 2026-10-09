@@ -11,6 +11,7 @@ import { PastEventsComponent } from "./past-events.component";
 
 const event: PastWorkEvent = {
   hasWorkEntry: false,
+  userId: "event-user",
   id: "event-1",
   type: "HEARING",
   title: "Hearing – Petrović",
@@ -44,7 +45,7 @@ describe("PastEventsComponent", () => {
   const dialog = { open: jest.fn() };
   const capture = { open: jest.fn() };
   const writeOff = { open: jest.fn() };
-  const toast = { error: jest.fn() };
+  const toast = { error: jest.fn(), info: jest.fn() };
   function render() {
     const fixture = TestBed.createComponent(PastEventsComponent);
     fixture.detectChanges();
@@ -123,14 +124,22 @@ describe("PastEventsComponent", () => {
     expect(writeOff.open).not.toHaveBeenCalled();
     expect(api.pastEvents).toHaveBeenCalledTimes(2);
   });
-  it("asks only for missing client data with non-billable capture preselected", () => {
+  it("never opens capture for write-off even if the event has no client", () => {
     const fixture = render();
     fixture.componentInstance.writeOff({ ...event, case: null, clients: [] });
-    expect(capture.open).toHaveBeenCalledWith(
-      expect.objectContaining({ eventId: event.id, treatment: "NON_BILLABLE" }),
-    );
+    expect(capture.open).not.toHaveBeenCalled();
     expect(writeOff.open).not.toHaveBeenCalled();
-    expect(api.writeOffEvent).not.toHaveBeenCalled();
+    expect(api.writeOffEvent).toHaveBeenCalledWith(event.id);
+  });
+  it("explains a missing event client without opening a dialog", () => {
+    api.writeOffEvent.mockReturnValueOnce(
+      throwError(() => ({ error: { code: "EVENT_CLIENT_REQUIRED" } })),
+    );
+    const fixture = render();
+    fixture.componentInstance.writeOff(event);
+    expect(toast.info).toHaveBeenCalledWith("time.events.clientRequired");
+    expect(capture.open).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.busy()).toBeNull();
   });
   it("does not allow duplicate capture or writing off billed work", () => {
     const fixture = render();

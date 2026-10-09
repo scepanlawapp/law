@@ -133,7 +133,12 @@
             <dt class="text-muted-foreground">
               {{ "work.entries.performer" | translate }}
             </dt>
-            <dd class="mt-1 break-words">{{ entry.user.displayName }}</dd>
+            <dd class="mt-1 break-words">
+              {{
+                entry.user?.displayName ??
+                  ("time.capture.unassigned" | translate)
+              }}
+            </dd>
           </div>
           <div>
             <dt class="text-muted-foreground">
@@ -215,6 +220,45 @@
             class="grid min-w-0 gap-4"
             [disabled]="readOnly() || saving()"
           >
+            <div hlmField>
+              <label hlmFieldLabel for="capture-user">
+                {{ "time.capture.user" | translate }}
+              </label>
+              <hlm-select
+                formControlName="userId"
+                [itemToString]="userItemToString"
+              >
+                <hlm-select-trigger
+                  buttonId="capture-user"
+                  class="w-full min-w-0 max-w-full"
+                >
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  @for (option of userOptions(); track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      {{ option.label | translate }}
+                    </hlm-select-item>
+                  }
+                </hlm-select-content>
+              </hlm-select>
+              @if (usersLoading()) {
+                <hlm-spinner />
+              }
+              @if (usersFailed()) {
+                <p role="alert" class="text-sm text-destructive">
+                  {{ "time.capture.usersError" | translate }}
+                </p>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  (click)="loadUsers()"
+                >
+                  {{ "time.retry" | translate }}
+                </button>
+              }
+            </div>
             @if (loadedEntry()?.status === "WRITTEN_OFF") {
               <div hlmField>
                 <label hlmFieldLabel for="capture-restore-status">

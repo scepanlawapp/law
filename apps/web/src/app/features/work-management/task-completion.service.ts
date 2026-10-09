@@ -21,6 +21,7 @@ export class TaskCompletionService {
       .open({
         mode: "create",
         taskId: task.id,
+        userId: task.assigneeUser.id,
         title: task.title.slice(0, 200),
         description: task.description ?? undefined,
         clientId: task.client?.id,
@@ -62,6 +63,7 @@ export class TaskCompletionService {
         this.capture.open<TaskDetail>({
           mode: "create",
           taskId,
+          userId: request.assigneeUserId,
           title: request.title.slice(0, 200),
           description: request.description,
           clientId: request.clientId,

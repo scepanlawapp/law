@@ -96,7 +96,7 @@
                     <td hlmTd class="whitespace-nowrap">
                       {{ workDateLabel(entry.workDate) }}
                     </td>
-                    <td hlmTd>{{ entry.user.displayName }}</td>
+                    <td hlmTd>{{ entry.user?.displayName ?? ("time.capture.unassigned" | translate) }}</td>
                     <td hlmTd class="max-w-xs">
                       <span class="line-clamp-2">{{ entry.title }}</span>
                       @if (entry.description) {

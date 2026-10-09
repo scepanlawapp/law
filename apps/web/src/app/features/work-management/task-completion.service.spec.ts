@@ -118,6 +118,7 @@ describe("TaskCompletionService", () => {
     service
       .openQuickCapture({
         id: "task",
+        assigneeUser: { id: "task-user" },
         title: "Review",
         description: "Notes",
       } as TaskDetail)
@@ -126,6 +127,7 @@ describe("TaskCompletionService", () => {
       expect.objectContaining({
         mode: "create",
         taskId: "task",
+        userId: "task-user",
         title: "Review",
         description: "Notes",
       }),

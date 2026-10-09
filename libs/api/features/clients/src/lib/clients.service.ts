@@ -11,6 +11,7 @@ import {
   WorkspaceContextService,
 } from "@law/core";
 import {
+  ClientPrimaryContactInput,
   ClientDetail,
   ClientListResponse,
   ClientSummary,
@@ -297,8 +298,8 @@ export class ClientsService {
     await this.requireTags(input.tagIds);
     const normalized = this.normalize(input);
     const { workspaceId, userId } = this.context;
-    const client = await this.db.$transaction(async (tx) =>
-      tx.client.create({
+    const client = await this.db.$transaction(async (tx) => {
+      const created = await tx.client.create({
         data: {
           workspaceId,
           clientNumber: await this.nextNumber(tx, "CLIENT"),
@@ -334,8 +335,22 @@ export class ClientsService {
             },
           },
         },
-      }),
-    );
+      });
+      await this.savePrimaryContact(
+        tx,
+        created.id,
+        input.primaryContact ??
+          (input.email || input.phone
+            ? {
+                firstName: input.firstName,
+                lastName: input.lastName,
+                email: input.email,
+                phone: input.phone,
+              }
+            : undefined),
+      );
+      return created;
+    });
     return this.get(client.id);
   }
 
@@ -352,6 +367,7 @@ export class ClientsService {
     const normalized = this.normalize(input, existing);
     const { userId, workspaceId } = this.context;
     await this.db.$transaction(async (tx) => {
+      await this.lockClient(tx, clientId);
       if (input.status === "ARCHIVED" && existing.status !== "ARCHIVED") {
         const activeCaseCount = await tx.case.count({
           where: {
@@ -418,6 +434,19 @@ export class ClientsService {
           updatedByUserId: userId,
         },
       });
+      if (input.primaryContact) {
+        await this.savePrimaryContact(tx, clientId, input.primaryContact);
+      } else if (input.email !== undefined || input.phone !== undefined) {
+        await this.savePrimaryContact(
+          tx,
+          clientId,
+          {
+            email: input.email ?? existing.email ?? "",
+            phone: input.phone ?? existing.phone ?? "",
+          },
+          true,
+        );
+      }
       await tx.clientActivity.create({
         data: {
           workspaceId,
@@ -696,6 +725,93 @@ export class ClientsService {
     });
   }
 
+  private async lockClient(
+    tx: Prisma.TransactionClient,
+    clientId: string,
+  ): Promise<void> {
+    await tx.$queryRaw`SELECT "id" FROM "Client" WHERE "id" = ${clientId} AND "workspaceId" = ${this.context.workspaceId} FOR UPDATE`;
+  }
+
+  private async savePrimaryContact(
+    tx: Prisma.TransactionClient,
+    clientId: string,
+    input?: ClientPrimaryContactInput,
+    reusePrimary = false,
+  ): Promise<void> {
+    if (!input) return;
+    const existing =
+      input.id || reusePrimary
+        ? await tx.clientContact.findFirst({
+            where: {
+              clientId,
+              status: "ACTIVE",
+              ...(input.id ? { id: input.id } : { isPrimary: true }),
+            },
+          })
+        : null;
+    if (input.id && !existing)
+      throw new BadRequestException(
+        "Primary contact is unavailable for this client",
+      );
+    const data = {
+      firstName: input.firstName?.trim() ?? existing?.firstName ?? "",
+      lastName: input.lastName?.trim() ?? existing?.lastName ?? "",
+      email:
+        input.email !== undefined
+          ? input.email.trim() || null
+          : (existing?.email ?? null),
+      phone:
+        input.phone !== undefined
+          ? input.phone.trim() || null
+          : (existing?.phone ?? null),
+      position:
+        input.position !== undefined
+          ? input.position.trim() || null
+          : (existing?.position ?? null),
+      notes:
+        input.notes !== undefined
+          ? input.notes.trim() || null
+          : (existing?.notes ?? null),
+      isPrimary: true,
+    };
+    if (
+      !existing &&
+      !data.email &&
+      !data.phone &&
+      !data.firstName &&
+      !data.lastName
+    )
+      return;
+    await tx.clientContact.updateMany({
+      where: { clientId, isPrimary: true },
+      data: { isPrimary: false },
+    });
+    if (existing)
+      await tx.clientContact.update({ where: { id: existing.id }, data });
+    else await tx.clientContact.create({ data: { clientId, ...data } });
+    await tx.client.update({
+      where: { id: clientId, workspaceId: this.context.workspaceId },
+      data: { email: data.email, phone: data.phone },
+    });
+  }
+
+  private async syncPrimaryChannels(
+    tx: Prisma.TransactionClient,
+    clientId: string,
+  ): Promise<void> {
+    const primary = await tx.clientContact.findFirst({
+      where: { clientId, status: "ACTIVE", isPrimary: true },
+    });
+    await tx.client.update({
+      where: { id: clientId, workspaceId: this.context.workspaceId },
+      data: {
+        email: primary?.email ?? null,
+        phone: primary?.phone ?? null,
+        updatedByUserId: this.context.userId,
+      },
+    });
+  }
+
   async listContacts(clientId: string) {
     await this.requireClient(clientId);
     return this.db.clientContact.findMany({
@@ -716,12 +832,13 @@ export class ClientsService {
   async createContact(clientId: string, input: ClientContactDto) {
     await this.requireClient(clientId);
     return this.db.$transaction(async (tx) => {
+      await this.lockClient(tx, clientId);
       if (input.isPrimary)
         await tx.clientContact.updateMany({
           where: { clientId, status: "ACTIVE", isPrimary: true },
           data: { isPrimary: false },
         });
-      return tx.clientContact.create({
+      const contact = await tx.clientContact.create({
         data: {
           clientId,
           firstName: input.firstName.trim(),
@@ -733,6 +850,8 @@ export class ClientsService {
           notes: input.notes?.trim(),
         },
       });
+      if (input.isPrimary) await this.syncPrimaryChannels(tx, clientId);
+      return contact;
     });
   }
 
@@ -741,11 +860,16 @@ export class ClientsService {
     contactId: string,
     input: UpdateClientContactDto,
   ) {
-    const existing = await this.getContact(clientId, contactId);
-    if (input.isPrimary && existing.status !== "ACTIVE") {
-      throw new BadRequestException("Only active contacts can be primary");
-    }
+    await this.requireClient(clientId);
     return this.db.$transaction(async (tx) => {
+      await this.lockClient(tx, clientId);
+      const existing = await tx.clientContact.findFirst({
+        where: { id: contactId, clientId },
+      });
+      if (!existing) throw new NotFoundException("Client contact not found");
+      if (input.isPrimary && existing.status !== "ACTIVE") {
+        throw new BadRequestException("Only active contacts can be primary");
+      }
       if (input.isPrimary)
         await tx.clientContact.updateMany({
           where: {
@@ -756,7 +880,7 @@ export class ClientsService {
           },
           data: { isPrimary: false },
         });
-      return tx.clientContact.update({
+      const contact = await tx.clientContact.update({
         where: { id: contactId },
         data: {
           ...(input.firstName !== undefined && {
@@ -780,14 +904,26 @@ export class ClientsService {
           }),
         },
       });
+      if (existing.isPrimary || input.isPrimary)
+        await this.syncPrimaryChannels(tx, clientId);
+      return contact;
     });
   }
 
   async deactivateContact(clientId: string, contactId: string) {
-    await this.getContact(clientId, contactId);
-    return this.db.clientContact.update({
-      where: { id: contactId },
-      data: { status: "INACTIVE", isPrimary: false },
+    await this.requireClient(clientId);
+    return this.db.$transaction(async (tx) => {
+      await this.lockClient(tx, clientId);
+      const existing = await tx.clientContact.findFirst({
+        where: { id: contactId, clientId },
+      });
+      if (!existing) throw new NotFoundException("Client contact not found");
+      const contact = await tx.clientContact.update({
+        where: { id: contactId },
+        data: { status: "INACTIVE", isPrimary: false },
+      });
+      if (existing.isPrimary) await this.syncPrimaryChannels(tx, clientId);
+      return contact;
     });
   }
 

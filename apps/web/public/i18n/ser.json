@@ -2483,5 +2483,13 @@
   "time.events.empty": "Nema prošlih događaja bez unosa rada.",
   "time.events.previous": "Prethodna strana",
   "time.events.shrink": "Smanji",
-  "time.events.next": "Sledeća strana"
+  "time.events.next": "Sledeća strana",
+  "time.capture.user": "Korisnik",
+  "time.capture.unassigned": "Nije dodeljeno",
+  "time.capture.usersError": "Nije moguće učitati korisnike.",
+  "time.events.clientRequired": "Dodajte klijenta ili predmet ovom događaju pre otpisa.",
+  "clients.formSections": "Podaci o klijentu",
+  "clients.primaryContactHint": "Imejl i telefon u osnovnim podacima pripadaju primarnom kontaktu. Ovde dodajte druge kontakte ili izaberite drugi primarni kontakt.",
+  "clients.editPrimaryChannels": "Izmenite imejl i telefon u osnovnim podacima",
+  "clients.requiredFields": "* Obavezna polja"
 }

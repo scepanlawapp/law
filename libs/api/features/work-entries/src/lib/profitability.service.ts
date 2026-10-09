@@ -143,7 +143,13 @@ export class ProfitabilityService {
     ]);
 
     const rates = await this.ratesByUser(
-      [...new Set(entries.map((entry) => entry.userId))],
+      [
+        ...new Set(
+          entries
+            .map((entry) => entry.userId)
+            .filter((id): id is string => id !== null),
+        ),
+      ],
       to,
     );
 
@@ -168,7 +174,10 @@ export class ProfitabilityService {
     >();
     for (const entry of entries) {
       const minutes = entry.minutes ?? 0;
-      const hourlyValue = this.rateOn(rates.get(entry.userId), entry.workDate);
+      const hourlyValue = this.rateOn(
+        entry.userId ? rates.get(entry.userId) : undefined,
+        entry.workDate,
+      );
       const accumulator = accumulatorFor(entry.clientId);
       if (entry.status === "WRITTEN_OFF") {
         accumulator.writtenOff.add(minutes, hourlyValue);
@@ -178,6 +187,7 @@ export class ProfitabilityService {
       if (entry.status === "CONFIRMED" && entry.invoiceLineId === null) {
         accumulator.unbilled.add(minutes, hourlyValue);
       }
+      if (!entry.userId || !entry.user) continue;
       let person = people.get(entry.userId);
       if (!person) {
         person = {

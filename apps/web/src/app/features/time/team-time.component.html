@@ -233,7 +233,7 @@
             <td hlmTd class="whitespace-nowrap">
               {{ workDateLabel(entry.workDate) }}
             </td>
-            <td hlmTd>{{ entry.user.displayName }}</td>
+            <td hlmTd>{{ entry.user?.displayName ?? ("time.capture.unassigned" | translate) }}</td>
             <td hlmTd>
               {{ entry.client.displayName }}
               @if (entry.case) {

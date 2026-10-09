@@ -27,8 +27,24 @@ import {
   ClientsApiClient,
   ReferencesApiClient,
 } from "@law/api-clients";
-import { forkJoin, map, Observable, switchMap, defaultIfEmpty } from "rxjs";
+import {
+  forkJoin,
+  map,
+  Observable,
+  switchMap,
+  defaultIfEmpty,
+  tap,
+} from "rxjs";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import {
+  lucideUserRound,
+  lucideMapPin,
+  lucideContactRound,
+  lucideIdCard,
+  lucideFileText,
+} from "@ng-icons/lucide";
+import { HlmTabsImports } from "@spartan-ng/helm/tabs";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmDialogDescription,
@@ -66,7 +82,18 @@ const DEFAULT_COUNTRY_CODE = "RS";
   selector: "law-client-form",
   standalone: true,
   templateUrl: "./client-form.component.html",
+  providers: [
+    provideIcons({
+      lucideUserRound,
+      lucideMapPin,
+      lucideContactRound,
+      lucideIdCard,
+      lucideFileText,
+    }),
+  ],
   imports: [
+    HlmTabsImports,
+    NgIcon,
     ReactiveFormsModule,
     HlmButton,
     HlmDialogDescription,
@@ -142,12 +169,32 @@ export class ClientFormComponent {
     this.createIdentificationDocumentForm(),
   ]);
   readonly contacts = new FormArray([this.createContactForm(undefined, true)]);
-  // Top-level section expand/collapse state; multiple sections can stay open at once.
-  readonly expandedBasicMore = signal(false);
-  readonly expandedAddresses = signal(true);
-  readonly expandedContacts = signal(false);
-  readonly expandedIdentification = signal(false);
-  readonly expandedAdditional = signal(false);
+  readonly activeSection = signal("basic");
+  readonly sections = [
+    { id: "basic", label: "clients.basicInfo", icon: "lucideUserRound" },
+    { id: "addresses", label: "clients.addresses", icon: "lucideMapPin" },
+    { id: "contacts", label: "clients.contacts", icon: "lucideContactRound" },
+    {
+      id: "identification",
+      label: "clients.identificationSection",
+      icon: "lucideIdCard",
+    },
+    {
+      id: "additional",
+      label: "clients.additionalInformation",
+      icon: "lucideFileText",
+    },
+  ];
+  private readonly removedContactIds = new Set<string>();
+  private savedClientId = this.clientId;
+  readonly loadFailed = signal(false);
+  primaryContact() {
+    return (
+      this.contacts.controls.find(
+        (contact) => contact.controls.isPrimary.value,
+      ) ?? this.contacts.controls[0]
+    );
+  }
   private readonly addressExtraExpanded = new WeakMap<
     AbstractControl,
     boolean
@@ -171,8 +218,6 @@ export class ClientFormComponent {
     jmbg: new FormControl(""),
     taxNumber: new FormControl(""),
     registrationNumber: new FormControl(""),
-    email: new FormControl("", { validators: [Validators.email] }),
-    phone: new FormControl(""),
     website: new FormControl(""),
     preferredLanguage: new FormControl(""),
     notes: new FormControl(""),
@@ -244,16 +289,39 @@ export class ClientFormComponent {
               (document) => this.createIdentificationDocumentForm(document),
               () => this.createIdentificationDocumentForm(),
             );
+            const activeContacts = contacts.filter(
+              (contact) => contact.status !== "INACTIVE",
+            );
             this.replaceForms(
               this.contacts,
-              contacts,
+              activeContacts,
               (contact) => this.createContactForm(contact),
-              () => this.createContactForm(),
+              () => this.createContactForm(undefined, true),
             );
+            if (!activeContacts.some((contact) => contact.isPrimary)) {
+              const matchingIndex = activeContacts.findIndex(
+                (contact) =>
+                  (client.email && contact.email === client.email) ||
+                  (client.phone && contact.phone === client.phone),
+              );
+              if (matchingIndex >= 0) this.selectPrimaryContact(matchingIndex);
+              else if (client.email || client.phone) {
+                const primary = this.createContactForm(undefined, true);
+                primary.patchValue({
+                  firstName: client.firstName ?? "",
+                  lastName: client.lastName ?? "",
+                  email: client.email ?? "",
+                  phone: client.phone ?? "",
+                });
+                if (!activeContacts.length) this.contacts.clear();
+                this.contacts.insert(0, primary);
+              } else this.selectPrimaryContact(0);
+            }
             this.loading.set(false);
           },
           error: () => {
             this.loading.set(false);
+            this.loadFailed.set(true);
             this.toast.error(this.localization.translate("clients.loadError"));
           },
         });
@@ -382,7 +450,14 @@ export class ClientFormComponent {
   }
 
   removeContact(index: number): void {
-    if (this.contacts.length > 1) this.contacts.removeAt(index);
+    const contact = this.contacts.at(index);
+    if (contact.controls.id.value)
+      this.removedContactIds.add(contact.controls.id.value);
+    const wasPrimary = contact.controls.isPrimary.value;
+    this.contacts.removeAt(index);
+    if (!this.contacts.length)
+      this.contacts.push(this.createContactForm(undefined, true));
+    else if (wasPrimary) this.selectPrimaryContact(0);
   }
   isOrganization(): boolean {
     return this.form.controls.type.value === "ORGANIZATION";
@@ -423,53 +498,25 @@ export class ClientFormComponent {
     );
   }
 
-  /** Expands any section/nested area containing an invalid control, then focuses the first one. */
+  /** Reveal invalid controls before focusing them, including hidden panels. */
   private expandInvalidSectionsAndFocus(): void {
-    const basicMoreInvalid = [
-      this.form.controls.displayName,
-      this.form.controls.website,
-      this.form.controls.preferredLanguage,
-    ].some((control) => control.invalid);
-    if (basicMoreInvalid) this.expandedBasicMore.set(true);
-
-    if (this.addresses.invalid) {
-      this.expandedAddresses.set(true);
-      for (const group of this.addresses.controls) {
-        const extraInvalid = [
-          group.controls.streetAdditional,
-          group.controls.stateOrRegion,
-          group.controls.note,
-        ].some((control) => control.invalid);
-        if (extraInvalid) this.setAddressExtraExpanded(group, true);
-      }
-    }
-
-    if (this.contacts.invalid) {
-      this.expandedContacts.set(true);
-      for (const group of this.contacts.controls) {
-        if (group.controls.notes.invalid)
-          this.setContactNotesExpanded(group, true);
-      }
-    }
-
     if (
-      this.form.controls.jmbg.invalid ||
-      this.form.controls.registrationNumber.invalid ||
-      this.form.controls.taxNumber.invalid ||
-      this.identificationDocuments.invalid
-    ) {
-      this.expandedIdentification.set(true);
-    }
-
-    if (this.form.controls.tagIds.invalid || this.form.controls.notes.invalid) {
-      this.expandedAdditional.set(true);
-    }
-
+      this.form.controls.displayName.invalid ||
+      this.form.controls.website.invalid ||
+      this.form.controls.preferredLanguage.invalid
+    )
+      this.activeSection.set("additional");
+    else if (this.form.invalid || this.primaryContact().controls.email.invalid)
+      this.activeSection.set("basic");
+    else if (this.addresses.invalid) this.activeSection.set("addresses");
+    else if (this.contacts.invalid) this.activeSection.set("contacts");
+    else if (this.identificationDocuments.invalid)
+      this.activeSection.set("identification");
     setTimeout(() => {
-      const invalidControl = this.elementRef.nativeElement.querySelector(
-        "input.ng-invalid, textarea.ng-invalid, .ng-invalid[hlmcombobox], .ng-invalid",
+      const invalid = this.elementRef.nativeElement.querySelector(
+        `[data-client-panel="${this.activeSection()}"] input.ng-invalid, [data-client-panel="${this.activeSection()}"] textarea.ng-invalid`,
       );
-      if (invalidControl instanceof HTMLElement) invalidControl.focus();
+      if (invalid instanceof HTMLElement) invalid.focus();
     });
   }
 
@@ -501,7 +548,14 @@ export class ClientFormComponent {
   }
 
   submit(): void {
-    if (this.form.invalid || this.addresses.invalid || this.saving()) {
+    if (
+      this.form.invalid ||
+      this.addresses.invalid ||
+      this.contacts.invalid ||
+      this.identificationDocuments.invalid ||
+      this.saving() ||
+      this.loadFailed()
+    ) {
       this.markAllFormSectionsAsTouched();
       this.expandInvalidSectionsAndFocus();
       return;
@@ -529,8 +583,7 @@ export class ClientFormComponent {
       jmbg: raw.jmbg?.trim() || undefined,
       taxNumber: raw.taxNumber?.trim() || undefined,
       registrationNumber: raw.registrationNumber?.trim() || undefined,
-      email: raw.email?.trim() || undefined,
-      phone: raw.phone?.trim() || undefined,
+
       website: raw.website?.trim() || undefined,
       preferredLanguage: raw.preferredLanguage?.trim() || undefined,
       notes: raw.notes?.trim() || undefined,
@@ -546,29 +599,62 @@ export class ClientFormComponent {
       contactRequests === null
     ) {
       this.markAllFormSectionsAsTouched();
-      if (addressRequests === null) this.expandedAddresses.set(true);
-      if (documentRequests === null) this.expandedIdentification.set(true);
-      if (contactRequests === null) this.expandedContacts.set(true);
+      if (addressRequests === null) this.activeSection.set("addresses");
+      if (documentRequests === null) this.activeSection.set("identification");
+      if (contactRequests === null) this.activeSection.set("contacts");
       this.saving.set(false);
       this.toast.error(this.localization.translate("clients.saveError"));
       return;
     }
+    const primary = this.primaryContact().getRawValue();
+    request.primaryContact = {
+      id: primary.id || undefined,
+      firstName: primary.firstName.trim(),
+      lastName: primary.lastName.trim(),
+      email: primary.email?.trim() ?? "",
+      phone: primary.phone?.trim() ?? "",
+      position: primary.position?.trim() ?? "",
+      notes: primary.notes?.trim() ?? "",
+    };
     this.saving.set(true);
-    const action = this.clientId
-      ? this.api.update(this.clientId, request)
+    const action = this.savedClientId
+      ? this.api.update(this.savedClientId, request)
       : this.api.create(request);
     action
       .pipe(
+        tap((client) => (this.savedClientId = client.id)),
+        switchMap((client) =>
+          this.api.listContacts(client.id).pipe(
+            tap((contacts) => {
+              const primary = contacts.find(
+                (contact) => contact.isPrimary && contact.status !== "INACTIVE",
+              );
+              if (primary)
+                this.primaryContact().controls.id.setValue(primary.id);
+            }),
+            map(() => client),
+          ),
+        ),
         switchMap((client) =>
           forkJoin([
             ...addressRequests.map((row) => this.saveAddress(client.id, row)),
             ...documentRequests.map((request) =>
               this.saveIdentificationDocument(client.id, request),
             ),
-            ...contactRequests.map((row) => this.saveContact(client.id, row)),
+            ...contactRequests
+              .filter((row) => !row.request.isPrimary)
+              .map((row) => this.saveContact(client.id, row)),
+            ...[...this.removedContactIds].map((id) =>
+              this.api
+                .deactivateContact(client.id, id)
+                .pipe(tap(() => this.removedContactIds.delete(id))),
+            ),
           ])
             // An empty forkJoin completes without emitting, which would skip `next` below.
-            .pipe(defaultIfEmpty(null), map(() => client)),
+            .pipe(
+              defaultIfEmpty(null),
+              switchMap(() => this.api.get(client.id)),
+            ),
         ),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -660,17 +746,27 @@ export class ClientFormComponent {
     request: ClientContactRequest;
   }> | null {
     const rows = this.contacts.getRawValue();
-    const populated = rows.filter((row) =>
-      [
-        row.firstName,
-        row.lastName,
-        row.position,
-        row.email,
-        row.phone,
-        row.notes,
-      ].some((value) => value?.trim()),
+    const populated = rows.filter(
+      (row) =>
+        row.id ||
+        [
+          row.firstName,
+          row.lastName,
+          row.position,
+          row.email,
+          row.phone,
+          row.notes,
+        ].some((value) => value?.trim()),
     );
-    if (populated.some((row) => !row.firstName.trim() || !row.lastName.trim()))
+    if (
+      populated.some(
+        (row) =>
+          !row.isPrimary &&
+          ![row.firstName, row.lastName, row.email, row.phone].some((value) =>
+            value?.trim(),
+          ),
+      )
+    )
       return null;
     return populated.map(({ id, ...row }) => ({
       id: id || undefined,
@@ -679,8 +775,8 @@ export class ClientFormComponent {
         firstName: row.firstName.trim(),
         lastName: row.lastName.trim(),
         position: row.position?.trim() || undefined,
-        email: row.email?.trim() || undefined,
-        phone: row.phone?.trim() || undefined,
+        email: row.email?.trim() ?? "",
+        phone: row.phone?.trim() ?? "",
         notes: row.notes?.trim() || undefined,
       },
     }));
