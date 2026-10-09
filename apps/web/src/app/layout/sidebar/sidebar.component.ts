@@ -48,11 +48,16 @@ import {
   HlmSidebarMenuSubButton,
   HlmSidebarMenuSubItem,
   HlmSidebarTrigger,
+  HlmSidebarService,
 } from "@spartan-ng/helm/sidebar";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { WorkspaceRole } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
-import { canRunMonthEnd, canViewRetainers } from "../../shared/billing";
+import {
+  canManageBilling,
+  canRunMonthEnd,
+  canViewRetainers,
+} from "../../shared/billing";
 import { UserMenuComponent } from "../../shared/components/user-menu/user-menu.component";
 
 interface SidebarNavigationItem {
@@ -124,6 +129,12 @@ export class SidebarComponent {
   private readonly authState = inject(AuthState);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sidebar = inject(HlmSidebarService);
+  readonly reportsIconMode = computed(
+    () => this.sidebar.state() === "collapsed" && !this.sidebar.isMobile(),
+  );
+  readonly reportsRouteActive = signal(this.router.url.startsWith("/reports"));
+  readonly reportsExpanded = signal(this.router.url.startsWith("/reports"));
   readonly session = this.authState.session;
   readonly financeRouteActive = signal(this.router.url.startsWith("/finance"));
 
@@ -226,7 +237,37 @@ export class SidebarComponent {
               : []),
           ],
         },
-        { route: "/reports", label: "nav.reports", icon: "lucideChartBar" },
+        {
+          route: "/reports",
+          label: "nav.reports",
+          icon: "lucideChartBar",
+          children: [
+            ...(canManageBilling(this.authState.activeWorkspace()?.role)
+              ? [
+                  {
+                    route: "/reports/overview",
+                    label: "report.overview",
+                    icon: "lucideChartBar",
+                  },
+                  {
+                    route: "/reports/earnings",
+                    label: "report.earnings",
+                    icon: "lucideUsers",
+                  },
+                  {
+                    route: "/reports/outstanding",
+                    label: "report.outstanding",
+                    icon: "lucideClock",
+                  },
+                ]
+              : []),
+            {
+              route: "/reports/my-earnings",
+              label: "report.personal",
+              icon: "lucideUserCheck",
+            },
+          ],
+        },
       ],
     },
   ]);
@@ -239,11 +280,27 @@ export class SidebarComponent {
         ),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe((event) =>
+      .subscribe((event) => {
         this.financeRouteActive.set(
           event.urlAfterRedirects.startsWith("/finance"),
-        ),
-      );
+        );
+        this.reportsRouteActive.set(
+          event.urlAfterRedirects.startsWith("/reports"),
+        );
+        if (event.urlAfterRedirects.startsWith("/reports"))
+          this.reportsExpanded.set(true);
+      });
+  }
+
+  toggleReports(expanded: boolean): void {
+    this.reportsExpanded.set(expanded);
+  }
+  openReportsMenu(): void {
+    this.sidebar.setOpen(true);
+    this.reportsExpanded.set(true);
+  }
+  closeReportsMobile(route: string): void {
+    if (route.startsWith("/reports")) this.sidebar.setOpenMobile(false);
   }
 
   logout(): void {

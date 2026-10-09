@@ -25,6 +25,7 @@
         type="button"
         class="shrink-0 group-data-[collapsible=icon]:order-first mb-4"
         [srOnlyText]="'nav.toggleSidebar' | translate"
+        [attr.aria-label]="'nav.toggleSidebar' | translate"
       ></button>
     </div>
   </hlm-sidebar-header>
@@ -62,10 +63,29 @@
                 @if (item.children; as children) {
                   <hlm-collapsible
                     [expanded]="
-                      item.route === '/finance' && financeRouteActive()
+                      item.route === '/reports'
+                        ? reportsExpanded()
+                        : item.route === '/finance' && financeRouteActive()
+                    "
+                    (expandedChange)="
+                      item.route === '/reports' && toggleReports($event)
                     "
                   >
-                    @if (item.route === "/finance" && financeRouteActive()) {
+                    @if (item.route === "/reports" && reportsIconMode()) {
+                      <button
+                        hlmSidebarMenuButton
+                        type="button"
+                        [tooltip]="item.label | translate"
+                        [isActive]="reportsRouteActive()"
+                        (click)="openReportsMenu()"
+                        [attr.aria-expanded]="reportsExpanded()"
+                      >
+                        <ng-icon [name]="item.icon" aria-hidden="true" />
+                        <span>{{ item.label | translate }}</span>
+                      </button>
+                    } @else if (
+                      item.route === "/finance" && financeRouteActive()
+                    ) {
                       <a
                         hlmSidebarMenuButton
                         routerLink="/finance/work-review"
@@ -84,6 +104,9 @@
                       <button
                         hlmSidebarMenuButton
                         hlmCollapsibleTrigger
+                        [isActive]="
+                          item.route === '/reports' && reportsRouteActive()
+                        "
                         type="button"
                         [tooltip]="item.label | translate"
                       >
@@ -93,6 +116,9 @@
                           name="lucideChevronRight"
                           aria-hidden="true"
                           class="ms-auto transition-transform group-data-[state=open]/collapsible:rotate-90"
+                          [class.rotate-90]="
+                            item.route === '/reports' && reportsExpanded()
+                          "
                         />
                       </button>
                     }
@@ -103,6 +129,7 @@
                             <a
                               hlmSidebarMenuSubButton
                               [routerLink]="child.route"
+                              (click)="closeReportsMobile(child.route)"
                               routerLinkActive
                               #financeChildActive="routerLinkActive"
                               [isActive]="financeChildActive.isActive"

@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Reports UI Prototype](./tracks/reports_ui_prototype_20261009/index.md)
 - [Event Work Entry Without Client](./tracks/event_work_entry_no_client_20261009/index.md)
 - [Finance Retainer Agreement Management](./tracks/retainer_agreement_creation_20261009/index.md)
 - [Client Detail Redesign](./tracks/client_detail_redesign_20261009/index.md)

@@ -1,0 +1,426 @@
+<div
+  class="mx-auto w-full max-w-screen-2xl space-y-6 p-4 text-foreground md:p-6"
+>
+  <button
+    hlmSidebarTrigger
+    type="button"
+    class="md:hidden"
+    [srOnlyText]="'nav.toggleSidebar' | translate"
+    [attr.aria-label]="'nav.toggleSidebar' | translate"
+  ></button>
+  <header class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <p
+        class="mb-2 text-sm font-medium uppercase tracking-widest text-primary"
+      >
+        {{ "nav.reports" | translate }}
+      </p>
+      <h1 class="text-2xl font-semibold tracking-tight md:text-3xl">
+        {{ titles[view()] | translate }}
+        @if (view() === "detail") {
+          · {{ selectedMember()?.name ?? ("report.unavailable" | translate) }}
+        }
+      </h1>
+      <p class="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+        {{ titles[view()] + ".description" | translate }}
+      </p>
+      @if (selectedMember()?.former) {
+        <p class="mt-2 text-sm text-muted-foreground">
+          {{ "report.former" | translate }}
+        </p>
+      }
+    </div>
+    @if (view() === "detail") {
+      <a
+        hlmBtn
+        variant="outline"
+        routerLink="/reports/earnings"
+        [queryParams]="detailQuery()"
+      >
+        {{ "report.back" | translate }}
+      </a>
+    } @else if (canManage()) {
+      <a hlmBtn variant="outline" routerLink="/reports/profitability">
+        {{ "reports.profitability.title" | translate }}
+      </a>
+    }
+  </header>
+  <aside
+    class="rounded-xl border border-primary/30 bg-primary/5 px-4 py-3 text-sm"
+    role="note"
+  >
+    <span class="font-semibold text-primary">
+      {{ "report.demo" | translate }}
+    </span>
+    <span class="ml-2">{{ "report.demoHelp" | translate }}</span>
+    @if (personal()) {
+      <p class="mt-1 text-muted-foreground">
+        {{ "report.personalDemo" | translate }} · {{ selectedMember()?.name }}
+      </p>
+    }
+  </aside>
+  <law-report-filters
+    [value]="filters()"
+    [data]="data()"
+    [personal]="detail()"
+    [grouping]="view() === 'overview' || detail()"
+    (changed)="updateFilters($event)"
+  />
+  @if (view() === "detail" && !selectedMember()) {
+    <p role="alert" class="rounded-xl border border-border bg-card p-6">
+      {{ "report.memberMissing" | translate }}
+    </p>
+  }
+  <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    @for (kpi of kpis(); track kpi.label) {
+      <law-report-kpi
+        [label]="kpi.label"
+        [value]="kpi.value"
+        [count]="!!kpi.count"
+        [emphasis]="
+          kpi.label === 'report.shareCollected' ||
+          kpi.label === 'report.attributed'
+        "
+      />
+    }
+  </div>
+  @if (view() === "earnings") {
+    <p class="text-sm text-muted-foreground">
+      {{ "report.potential" | translate }}:
+      <span class="font-medium text-foreground">
+        {{ format.money(sums().potential) }}
+      </span>
+    </p>
+  }
+  @if (missing()) {
+    <p
+      class="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground"
+    >
+      {{ "report.missingHelp" | translate }} · {{ format.number(missing()) }}
+    </p>
+  }
+  @if (view() === "overview") {
+    <div class="grid gap-5 xl:grid-cols-2">
+      <law-report-chart
+        title="report.revenueComparison"
+        firstLabel="report.invoiced"
+        secondLabel="report.eligibleCollected"
+        [data]="comparison()"
+      />
+      <law-report-distribution
+        [total]="sums().eligibleCollected"
+        [attributed]="sums().shareCollected"
+      />
+    </div>
+    <law-report-chart
+      title="report.ranking"
+      [data]="ranking()"
+      [query]="detailQuery()"
+    />
+  } @else if (view() === "earnings") {
+    <div class="grid gap-5 xl:grid-cols-2">
+      <law-report-chart
+        title="report.earningsComparison"
+        [data]="ranking()"
+        [query]="detailQuery()"
+      />
+      <law-report-chart
+        title="report.workComparison"
+        firstLabel="report.invoicedWork"
+        secondLabel="report.collectedWork"
+        [data]="workComparison()"
+        [query]="detailQuery()"
+      />
+    </div>
+  } @else if (view() === "outstanding") {
+    <div class="grid gap-5 xl:grid-cols-2">
+      <law-report-chart
+        title="report.aging"
+        firstLabel="report.balance"
+        [data]="age()"
+      />
+      <law-report-chart
+        title="report.potentialComparison"
+        firstLabel="report.potential"
+        [data]="ranking()"
+        [query]="detailQuery()"
+      />
+    </div>
+  } @else {
+    <div class="grid gap-5 xl:grid-cols-2">
+      <law-report-chart
+        title="report.earningsOverTime"
+        firstLabel="report.category.workShare"
+        secondLabel="report.category.origination"
+        [data]="comparison()"
+      />
+      <law-report-chart title="report.earningsByCase" [data]="byCase()" />
+    </div>
+    <law-report-chart title="report.categories" [data]="categories()" />
+  }
+  <section class="space-y-4">
+    <div class="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <h2 class="text-lg font-semibold">
+          {{
+            (detail()
+              ? "report.detailTable"
+              : view() === "outstanding"
+                ? "report.outstandingTable"
+                : "report.earningsTable"
+            ) | translate
+          }}
+        </h2>
+        <p class="mt-1 text-sm text-muted-foreground">
+          {{ format.date(filters().from) }} — {{ format.date(filters().to) }} ·
+          {{ "report.basis." + filters().basis | translate }}
+        </p>
+      </div>
+      <div class="w-full sm:w-72">
+        <label hlmLabel for="report-search">
+          {{
+            (detail() || view() === "outstanding"
+              ? "report.searchWork"
+              : "report.searchAttorney"
+            ) | translate
+          }}
+        </label>
+        <input
+          hlmInput
+          id="report-search"
+          type="search"
+          class="mt-2"
+          [value]="filters().search"
+          (input)="search($any($event.target).value)"
+        />
+      </div>
+    </div>
+    @if (detail() || view() === "outstanding") {
+      <law-report-work-table
+        [rows]="workRows()"
+        [members]="data().members"
+        [detail]="detail()"
+        [personal]="personal()"
+        (selected)="drilldown($event)"
+      />
+    } @else {
+      <div class="overflow-x-auto rounded-xl border border-border bg-card">
+        <table hlmTable class="w-full min-w-[1100px] text-sm">
+          <caption class="sr-only">
+            {{ "report.earningsTable" | translate }}
+          </caption>
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh scope="col" [attr.aria-sort]="ariaSort('name')">
+                <button
+                  hlmBtn
+                  variant="ghost"
+                  size="sm"
+                  (click)="sortMembers('name')"
+                >
+                  {{ "report.attorney" | translate }} {{ sortLabel("name") }}
+                </button>
+              </th>
+              @for (column of earningsColumns; track column) {
+                <th
+                  hlmTh
+                  scope="col"
+                  class="text-right"
+                  [attr.aria-sort]="ariaSort(column)"
+                >
+                  <button
+                    hlmBtn
+                    variant="ghost"
+                    size="sm"
+                    (click)="sortMembers(column)"
+                  >
+                    {{ "report." + column | translate }} {{ sortLabel(column) }}
+                  </button>
+                </th>
+              }
+              <th hlmTh scope="col">
+                <span class="sr-only">{{ "report.details" | translate }}</span>
+              </th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (member of members(); track member.id) {
+              <tr hlmTr>
+                <td hlmTd>
+                  <a
+                    class="font-medium text-primary hover:underline"
+                    [routerLink]="['/reports/earnings', member.id]"
+                    [queryParams]="detailQuery()"
+                  >
+                    {{ member.name }}
+                  </a>
+                  @if (member.former) {
+                    <span class="mt-1 block text-muted-foreground">
+                      {{ "report.former" | translate }}
+                    </span>
+                  }
+                </td>
+                @for (column of earningsColumns; track column) {
+                  <td hlmTd class="whitespace-nowrap text-right tabular-nums">
+                    {{ format.money(member[column]) }}
+                  </td>
+                }
+                <td hlmTd>
+                  <a
+                    hlmBtn
+                    variant="ghost"
+                    size="sm"
+                    [routerLink]="['/reports/earnings', member.id]"
+                    [queryParams]="detailQuery()"
+                    [attr.aria-label]="
+                      ('report.details' | translate) + ': ' + member.name
+                    "
+                  >
+                    {{ "report.details" | translate }}
+                  </a>
+                </td>
+              </tr>
+            } @empty {
+              <tr hlmTr>
+                <td
+                  hlmTd
+                  colspan="8"
+                  class="h-28 text-center text-muted-foreground"
+                >
+                  {{ "report.empty" | translate }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+  @if (selected(); as row) {
+    <section
+      class="rounded-xl border border-primary/30 bg-card p-5"
+      aria-live="polite"
+      aria-labelledby="allocation-title"
+    >
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <h2 id="allocation-title" tabindex="-1" class="text-lg font-semibold">
+            {{ "report.allocationDetails" | translate }}
+          </h2>
+          <p class="mt-1 text-sm text-muted-foreground">
+            {{ row.titleKey | translate }} · {{ row.caseName }} ·
+            {{ row.client }} ·
+            {{
+              row.invoice?.reference ?? ("report.enum.NotInvoiced" | translate)
+            }}
+          </p>
+        </div>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          size="sm"
+          (click)="closeDrilldown()"
+        >
+          {{ "report.close" | translate }}
+        </button>
+      </div>
+      <dl class="my-5 grid gap-4 text-sm sm:grid-cols-2 xl:grid-cols-4">
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "report.invoiced" | translate }}
+          </dt>
+          <dd class="mt-1 font-medium">{{ format.money(row.invoiced) }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "report.collected" | translate }}
+          </dt>
+          <dd class="mt-1 font-medium">{{ format.money(row.collected) }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "report.balance" | translate }}
+          </dt>
+          <dd class="mt-1 font-medium">{{ format.money(row.balance) }}</dd>
+        </div>
+        <div>
+          <dt class="text-muted-foreground">
+            {{ "report.workDate" | translate }}
+          </dt>
+          <dd class="mt-1 font-medium">{{ format.date(row.workDate) }}</dd>
+        </div>
+      </dl>
+      <p class="text-sm text-muted-foreground">
+        {{ "report.allocationHelp" | translate }}
+      </p>
+      @for (
+        allocation of row.earnings;
+        track allocation.memberId + allocation.category
+      ) {
+        <div class="mt-4 rounded-lg border border-border p-4 text-sm">
+          <p class="font-semibold">
+            @if (!detail()) {
+              {{ allocationMemberName(allocation.memberId) }} ·
+            }
+            {{ "report.category." + allocation.category | translate }} ·
+            {{ format.percent(allocation.rate / 10000) }}
+          </p>
+          <p class="mt-2 text-muted-foreground">
+            {{
+              "report.reason." + (allocation.reason ?? allocation.category)
+                | translate
+            }}
+          </p>
+          <dl class="mt-3 grid gap-3 sm:grid-cols-3">
+            <div>
+              <dt class="text-muted-foreground">
+                {{ "report.shareInvoiced" | translate }}
+              </dt>
+              <dd>
+                {{ format.money(row.invoiced) }} ×
+                {{ format.percent(allocation.rate / 10000) }} =
+                {{ format.money(allocation.invoiced) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">
+                {{ "report.shareCollected" | translate }}
+              </dt>
+              <dd>
+                {{ format.money(row.collected) }} ×
+                {{ format.percent(allocation.rate / 10000) }} =
+                {{ format.money(allocation.collected) }}
+              </dd>
+            </div>
+            <div>
+              <dt class="text-muted-foreground">
+                {{ "report.potential" | translate }}
+              </dt>
+              <dd>{{ format.money(allocation.potential) }}</dd>
+            </div>
+          </dl>
+        </div>
+      } @empty {
+        <p class="mt-3 text-sm">
+          {{ "report.enum." + row.sharing | translate }}
+        </p>
+      }
+      <h3 class="mb-2 mt-5 text-sm font-semibold">
+        {{ "report.payments" | translate }}
+      </h3>
+      @for (payment of row.payments; track payment.date) {
+        @if (payment.date <= filters().to) {
+          <p class="text-sm">
+            {{ format.date(payment.date) }} · {{ format.money(payment.amount) }}
+          </p>
+        }
+      }
+      @if (!row.collectedAsOf) {
+        <p class="text-sm text-muted-foreground">
+          {{ "report.noPayments" | translate }}
+        </p>
+      }
+    </section>
+  }
+</div>
