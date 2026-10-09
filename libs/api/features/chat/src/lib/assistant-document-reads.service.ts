@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import type { Prisma } from "@prisma/client";
 import type {
   BriefDocumentFact,
   BriefDocumentInput,
@@ -34,6 +35,12 @@ import {
 } from "./document-facts.conflicts";
 
 const DOCUMENT_LIMIT = 30;
+/** Readable case documents the content tools cover (newest first). */
+const READABLE_DOCUMENT_LIMIT = 100;
+/** Unfiled chat attachments the content tools cover (newest first). */
+const READABLE_ATTACHMENT_LIMIT = 30;
+/** Facts one get_document_facts result holds. */
+const FACTS_RESULT_LIMIT = 300;
 const READ_WINDOW_CHARS = 12_000;
 const SNIPPET_CONTEXT_CHARS = 200;
 const HITS_PER_DOCUMENT = 10;
@@ -380,7 +387,14 @@ export class AssistantDocumentReadsService {
         score: chunk.score,
       });
     }
-    return { status: "OK", query: args.query, hits, notIndexed, aiAccessOff };
+    return {
+      status: "OK",
+      query: args.query,
+      hits,
+      notIndexed,
+      aiAccessOff,
+      truncated: selection.truncated,
+    };
   }
 
   /**
@@ -415,9 +429,10 @@ export class AssistantDocumentReadsService {
       }
     }
     const order = [...indexed.keys()];
-    const ordered = rows
+    const readableRows = rows
       .filter((row) => indexed.has(row.contentId))
       .sort((a, b) => order.indexOf(a.contentId) - order.indexOf(b.contentId));
+    const ordered = readableRows.slice(0, FACTS_RESULT_LIMIT);
     const subjects = new Map<string, AssistantDocumentSubject>();
     const sourced: SourcedFact[] = [];
     for (const row of ordered) {
@@ -459,6 +474,8 @@ export class AssistantDocumentReadsService {
       conflicts: findFactConflicts(sourced),
       notIndexed,
       aiAccessOff,
+      truncated:
+        selection.truncated || readableRows.length > FACTS_RESULT_LIMIT,
     };
   }
 
@@ -509,7 +526,7 @@ export class AssistantDocumentReadsService {
     scope: AssistantTurnScope,
     refArg: string | undefined,
   ): Promise<
-    | { sources: Source[] }
+    | { sources: Source[]; truncated: boolean }
     | {
         refusal: {
           status: "AI_ACCESS_OFF" | "NOT_FOUND";
@@ -517,9 +534,9 @@ export class AssistantDocumentReadsService {
         };
       }
   > {
-    const { sources } = await this.sources(scope);
+    const { sources, truncated } = await this.readableSources(scope);
     const ref = refArg?.trim();
-    if (!ref) return { sources };
+    if (!ref) return { sources, truncated };
     const source =
       sources.find((item) => item.ref === ref) ??
       (await this.namedDocument(scope, ref));
@@ -532,7 +549,7 @@ export class AssistantDocumentReadsService {
       };
     }
     const refusal = refuse(source, ref);
-    return refusal ? { refusal } : { sources: [source] };
+    return refusal ? { refusal } : { sources: [source], truncated: false };
   }
 
   /**
@@ -590,112 +607,103 @@ export class AssistantDocumentReadsService {
     return { indexed, notIndexed, aiAccessOff };
   }
 
-  private async sources(scope: AssistantTurnScope): Promise<{
-    caseId: string | null;
-    caseNumber: string | null;
-    sources: Source[];
-    truncated: boolean;
-  }> {
-    const session = await this.prisma.chatSession.findFirst({
-      where: { id: scope.sessionId, workspaceId: scope.workspaceId },
-      select: {
-        case: { select: { id: true, caseNumber: true } },
-      },
-    });
+  /**
+   * Every source of the conversation for listing and reading: the oldest
+   * `DOCUMENT_LIMIT` case documents and attachments, off ones included.
+   */
+  private async sources(scope: AssistantTurnScope): Promise<SourceSet> {
+    const session = await this.sessionCase(scope);
     const caseId = session?.case?.id ?? null;
     const [documents, attachments] = await Promise.all([
       caseId
         ? this.prisma.document.findMany({
-            where: {
-              workspaceId: scope.workspaceId,
-              archivedAt: null,
-              cases: { some: { caseId } },
-              currentVersionId: { not: null },
-            },
+            where: caseDocumentWhere(scope, caseId),
             orderBy: { createdAt: "asc" },
             take: DOCUMENT_LIMIT + 1,
-            select: {
-              id: true,
-              title: true,
-              createdAt: true,
-              aiAccess: true,
-              archivedAt: true,
-              currentVersion: {
-                select: {
-                  id: true,
-                  originalFilename: true,
-                  extractionStatus: true,
-                  contentId: true,
-                  content: { select: { status: true } },
-                },
-              },
-            },
+            select: SOURCE_DOCUMENT_SELECT,
           })
         : Promise.resolve([]),
       this.prisma.chatAttachment.findMany({
         where: { workspaceId: scope.workspaceId, sessionId: scope.sessionId },
         orderBy: { createdAt: "asc" },
         take: DOCUMENT_LIMIT,
-        select: {
-          id: true,
-          originalName: true,
-          extractionStatus: true,
-          documentId: true,
-          contentId: true,
-          content: { select: { status: true } },
-          createdAt: true,
-          document: { select: { aiAccess: true, archivedAt: true } },
-        },
+        select: SOURCE_ATTACHMENT_SELECT,
       }),
     ]);
-
-    const sources: Source[] = [];
-    const filed = new Set<string>();
-    for (const document of documents.slice(0, DOCUMENT_LIMIT)) {
-      if (!document.currentVersion) continue;
-      filed.add(document.id);
-      const access = DocumentAccessPolicy.forDocument(document);
-      if (hiddenFromAssistant(access)) continue;
-      sources.push({
-        kind: "document",
-        ref: `${DOC_PREFIX}${document.id}`,
-        title: toLatin(document.title),
-        fileName: document.currentVersion.originalFilename,
-        versionId: document.currentVersion.id,
-        status: document.currentVersion.extractionStatus,
-        contentStatus: document.currentVersion.content?.status ?? null,
-        addedAt: document.createdAt,
-        contentId: document.currentVersion.contentId,
-        access,
-      });
-    }
-    for (const attachment of attachments) {
-      if (attachment.documentId && filed.has(attachment.documentId)) continue;
-      const access = DocumentAccessPolicy.forAttachment({
-        contentId: attachment.contentId,
-        document: attachment.document,
-      });
-      // An attachment filed as an archived document is gone for the assistant.
-      if (hiddenFromAssistant(access)) continue;
-      sources.push({
-        kind: "attachment",
-        ref: `${ATTACHMENT_PREFIX}${attachment.id}`,
-        title: toLatin(attachment.originalName),
-        fileName: attachment.originalName,
-        attachmentId: attachment.id,
-        status: attachment.extractionStatus,
-        contentStatus: attachment.content?.status ?? null,
-        addedAt: attachment.createdAt,
-        contentId: attachment.contentId,
-        access,
-      });
-    }
     return {
       caseId,
       caseNumber: session?.case?.caseNumber ?? null,
-      sources,
+      sources: toSources(documents.slice(0, DOCUMENT_LIMIT), attachments),
       truncated: documents.length > DOCUMENT_LIMIT,
     };
+  }
+
+  /**
+   * The sources the content tools (semantic search, facts) cover. Readable
+   * sources are selected directly, so documents with AI access off never take
+   * a slot from a newer readable one: the newest `READABLE_DOCUMENT_LIMIT`
+   * case documents with AI access on plus the newest unfiled attachments.
+   * A bounded sample of the off documents is added only so their titles can be
+   * reported as `aiAccessOff`.
+   */
+  private async readableSources(scope: AssistantTurnScope): Promise<SourceSet> {
+    const session = await this.sessionCase(scope);
+    const caseId = session?.case?.id ?? null;
+    const [documents, offDocuments] = caseId
+      ? await Promise.all([
+          this.prisma.document.findMany({
+            where: { ...caseDocumentWhere(scope, caseId), aiAccess: true },
+            orderBy: { createdAt: "desc" },
+            take: READABLE_DOCUMENT_LIMIT + 1,
+            select: SOURCE_DOCUMENT_SELECT,
+          }),
+          this.prisma.document.findMany({
+            where: { ...caseDocumentWhere(scope, caseId), aiAccess: false },
+            orderBy: { createdAt: "desc" },
+            take: DOCUMENT_LIMIT,
+            select: SOURCE_DOCUMENT_SELECT,
+          }),
+        ])
+      : [[], []];
+    const kept = documents.slice(0, READABLE_DOCUMENT_LIMIT);
+    const attachments = await this.prisma.chatAttachment.findMany({
+      where: {
+        workspaceId: scope.workspaceId,
+        sessionId: scope.sessionId,
+        // Filed attachments follow their document; the case documents above
+        // already cover those, so only unfiled ones and ones filed elsewhere.
+        OR: [
+          { documentId: null },
+          {
+            documentId: { notIn: kept.map((document) => document.id) },
+            document: { aiAccess: true, archivedAt: null },
+          },
+        ],
+      },
+      orderBy: { createdAt: "desc" },
+      take: READABLE_ATTACHMENT_LIMIT + 1,
+      select: SOURCE_ATTACHMENT_SELECT,
+    });
+    return {
+      caseId,
+      caseNumber: session?.case?.caseNumber ?? null,
+      sources: toSources(
+        [...kept, ...offDocuments],
+        attachments.slice(0, READABLE_ATTACHMENT_LIMIT),
+      ),
+      truncated:
+        documents.length > READABLE_DOCUMENT_LIMIT ||
+        attachments.length > READABLE_ATTACHMENT_LIMIT,
+    };
+  }
+
+  private sessionCase(scope: AssistantTurnScope) {
+    return this.prisma.chatSession.findFirst({
+      where: { id: scope.sessionId, workspaceId: scope.workspaceId },
+      select: {
+        case: { select: { id: true, caseNumber: true } },
+      },
+    });
   }
 
   /**
@@ -714,38 +722,9 @@ export class AssistantDocumentReadsService {
         archivedAt: null,
         currentVersionId: { not: null },
       },
-      select: {
-        id: true,
-        title: true,
-        createdAt: true,
-        aiAccess: true,
-        archivedAt: true,
-        currentVersion: {
-          select: {
-            id: true,
-            originalFilename: true,
-            extractionStatus: true,
-            contentId: true,
-            content: { select: { status: true } },
-          },
-        },
-      },
+      select: SOURCE_DOCUMENT_SELECT,
     });
-    if (!document?.currentVersion) return null;
-    const access = DocumentAccessPolicy.forDocument(document);
-    if (hiddenFromAssistant(access)) return null;
-    return {
-      kind: "document",
-      ref: `${DOC_PREFIX}${document.id}`,
-      title: toLatin(document.title),
-      fileName: document.currentVersion.originalFilename,
-      versionId: document.currentVersion.id,
-      status: document.currentVersion.extractionStatus,
-      contentStatus: document.currentVersion.content?.status ?? null,
-      addedAt: document.createdAt,
-      contentId: document.currentVersion.contentId,
-      access,
-    };
+    return document ? (toSources([document], [])[0] ?? null) : null;
   }
 
   /**
@@ -844,6 +823,106 @@ export class AssistantDocumentReadsService {
       return { status: "FAILED", text: null };
     }
   }
+}
+
+type SourceSet = {
+  caseId: string | null;
+  caseNumber: string | null;
+  sources: Source[];
+  truncated: boolean;
+};
+
+function caseDocumentWhere(scope: AssistantTurnScope, caseId: string) {
+  return {
+    workspaceId: scope.workspaceId,
+    archivedAt: null,
+    cases: { some: { caseId } },
+    currentVersionId: { not: null },
+  };
+}
+
+const SOURCE_DOCUMENT_SELECT = {
+  id: true,
+  title: true,
+  createdAt: true,
+  aiAccess: true,
+  archivedAt: true,
+  currentVersion: {
+    select: {
+      id: true,
+      originalFilename: true,
+      extractionStatus: true,
+      contentId: true,
+      content: { select: { status: true } },
+    },
+  },
+} as const;
+
+const SOURCE_ATTACHMENT_SELECT = {
+  id: true,
+  originalName: true,
+  extractionStatus: true,
+  documentId: true,
+  contentId: true,
+  content: { select: { status: true } },
+  createdAt: true,
+  document: { select: { aiAccess: true, archivedAt: true } },
+} as const;
+
+type SourceDocumentRow = Prisma.DocumentGetPayload<{
+  select: typeof SOURCE_DOCUMENT_SELECT;
+}>;
+type SourceAttachmentRow = Prisma.ChatAttachmentGetPayload<{
+  select: typeof SOURCE_ATTACHMENT_SELECT;
+}>;
+
+/** Documents first, then attachments not already covered by a filed document. */
+function toSources(
+  documents: SourceDocumentRow[],
+  attachments: SourceAttachmentRow[],
+): Source[] {
+  const sources: Source[] = [];
+  const filed = new Set<string>();
+  for (const document of documents) {
+    if (!document.currentVersion) continue;
+    filed.add(document.id);
+    const access = DocumentAccessPolicy.forDocument(document);
+    if (hiddenFromAssistant(access)) continue;
+    sources.push({
+      kind: "document",
+      ref: `${DOC_PREFIX}${document.id}`,
+      title: toLatin(document.title),
+      fileName: document.currentVersion.originalFilename,
+      versionId: document.currentVersion.id,
+      status: document.currentVersion.extractionStatus,
+      contentStatus: document.currentVersion.content?.status ?? null,
+      addedAt: document.createdAt,
+      contentId: document.currentVersion.contentId,
+      access,
+    });
+  }
+  for (const attachment of attachments) {
+    if (attachment.documentId && filed.has(attachment.documentId)) continue;
+    const access = DocumentAccessPolicy.forAttachment({
+      contentId: attachment.contentId,
+      document: attachment.document,
+    });
+    // An attachment filed as an archived document is gone for the assistant.
+    if (hiddenFromAssistant(access)) continue;
+    sources.push({
+      kind: "attachment",
+      ref: `${ATTACHMENT_PREFIX}${attachment.id}`,
+      title: toLatin(attachment.originalName),
+      fileName: attachment.originalName,
+      attachmentId: attachment.id,
+      status: attachment.extractionStatus,
+      contentStatus: attachment.content?.status ?? null,
+      addedAt: attachment.createdAt,
+      contentId: attachment.contentId,
+      access,
+    });
+  }
+  return sources;
 }
 
 /** Archived or unknown: the assistant does not see these at all. */

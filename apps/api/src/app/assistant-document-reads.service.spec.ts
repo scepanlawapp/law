@@ -692,7 +692,29 @@ describe("AssistantDocumentReadsService semantic search and facts", () => {
         })),
       },
       document: {
-        findMany: jest.fn(async () => documents),
+        // Honors the where/orderBy/take the service sends, like the database.
+        findMany: jest.fn(
+          async (args?: {
+            where?: { aiAccess?: boolean };
+            orderBy?: { createdAt?: "asc" | "desc" };
+            take?: number;
+          }) => {
+            let rows = documents.filter(
+              (row) =>
+                args?.where?.aiAccess === undefined ||
+                row.aiAccess === args.where.aiAccess,
+            );
+            const direction = args?.orderBy?.createdAt;
+            if (direction) {
+              rows = [...rows].sort(
+                (a, b) =>
+                  (a.createdAt.getTime() - b.createdAt.getTime()) *
+                  (direction === "asc" ? 1 : -1),
+              );
+            }
+            return args?.take ? rows.slice(0, args.take) : rows;
+          },
+        ),
         findFirst: jest.fn(async (): Promise<unknown> => null),
       },
       chatAttachment: {
@@ -796,6 +818,7 @@ describe("AssistantDocumentReadsService semantic search and facts", () => {
         ],
         notIndexed: [],
         aiAccessOff: ["Tajni ugovor"],
+        truncated: false,
       });
     });
 
@@ -955,6 +978,141 @@ describe("AssistantDocumentReadsService semantic search and facts", () => {
     });
   });
 
+  describe("source selection for the content tools", () => {
+    const dated = (index: number, aiAccess: boolean, id = `doc-${index}`) => ({
+      ...doc(id, `Dokument ${index}`, aiAccess ? `content-${index}` : null),
+      aiAccess,
+      createdAt: new Date(Date.UTC(2026, 0, 1) + index * 60_000),
+    });
+
+    it("covers the newest readable documents; off documents take no slot", async () => {
+      // 35 readable (indexes 0..34, oldest first) and 10 newer off documents.
+      const documents = [
+        ...Array.from({ length: 35 }, (_, i) => dated(i, true)),
+        ...Array.from({ length: 10 }, (_, i) =>
+          dated(100 + i, false, `off-${i}`),
+        ),
+      ];
+      const { service, search, prisma } = setupSemantic({
+        documents,
+        contents: Array.from({ length: 35 }, (_, i) => ready(`content-${i}`)),
+      });
+
+      const result = await service.searchCaseDocuments(scope, { query: "x1" });
+
+      const ids = (
+        search.searchChunks.mock.calls as unknown[][]
+      )[0][1] as string[];
+      expect(ids).toHaveLength(35);
+      expect(ids).toContain("content-34");
+      expect(ids).toContain("content-0");
+      expect(prisma.document.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ aiAccess: true }),
+          orderBy: { createdAt: "desc" },
+          take: 101,
+        }),
+      );
+      expect(result).toMatchObject({
+        status: "OK",
+        truncated: false,
+        aiAccessOff: expect.arrayContaining(["Dokument 100"]),
+      });
+    });
+
+    it("keeps the newest 100 readable documents and flags truncation", async () => {
+      const documents = Array.from({ length: 105 }, (_, i) => dated(i, true));
+      const { service, search } = setupSemantic({
+        documents,
+        contents: documents.map((_, i) => ready(`content-${i}`)),
+      });
+
+      const result = await service.searchCaseDocuments(scope, { query: "x1" });
+
+      const ids = (
+        search.searchChunks.mock.calls as unknown[][]
+      )[0][1] as string[];
+      expect(ids).toHaveLength(100);
+      expect(ids).toContain("content-104");
+      expect(ids).not.toContain("content-4");
+      expect(result).toMatchObject({ status: "OK", truncated: true });
+    });
+
+    it("reads facts of documents beyond the first thirty", async () => {
+      const documents = Array.from({ length: 35 }, (_, i) => dated(i, true));
+      const { service, search } = setupSemantic({
+        documents,
+        contents: documents.map((_, i) => ready(`content-${i}`, "ID_CARD")),
+        facts: [fact("content-34", "fullName", "Najnoviji Dokument")],
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      expect((search.factsFor.mock.calls as unknown[][])[0][1]).toContain(
+        "content-34",
+      );
+      expect(result).toMatchObject({
+        status: "OK",
+        truncated: false,
+        subjects: [{ ref: "doc:doc-34" }],
+      });
+    });
+
+    it("selects unfiled attachments newest first and counts them toward truncation", async () => {
+      const { service, prisma } = setupSemantic({
+        attachments: Array.from({ length: 31 }, (_, i) => ({
+          id: `att-${i}`,
+          originalName: `prilog-${i}.pdf`,
+          extractionStatus: "COMPLETED",
+          documentId: null,
+          contentId: null,
+          content: null,
+          document: null,
+          createdAt: new Date(Date.UTC(2026, 0, 1) + i * 60_000),
+        })),
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      expect(prisma.chatAttachment.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          orderBy: { createdAt: "desc" },
+          take: 31,
+        }),
+      );
+      expect(result).toMatchObject({ status: "OK", truncated: true });
+    });
+
+    it("caps the facts in one result at 300 and flags truncation", async () => {
+      const { service } = setupSemantic({
+        documents: [doc("doc-1", "Lična karta", "content-1")],
+        contents: [ready("content-1", "ID_CARD")],
+        facts: Array.from({ length: 301 }, (_, i) =>
+          fact("content-1", "fullName", `Osoba ${i}`, { subjectKey: `s${i}` }),
+        ),
+      });
+
+      const result = await service.getDocumentFacts(scope, {});
+
+      expect(result.status).toBe("OK");
+      if (result.status !== "OK") return;
+      expect(
+        result.subjects.reduce((sum, item) => sum + item.facts.length, 0),
+      ).toBe(300);
+      expect(result.truncated).toBe(true);
+    });
+
+    it("does not touch listing: list_documents still reports its own truncation", async () => {
+      const documents = Array.from({ length: 35 }, (_, i) => dated(i, true));
+      const { service } = setupSemantic({ documents });
+
+      const result = await service.listDocuments(scope);
+
+      expect(result).toMatchObject({ status: "OK", truncated: true });
+      if (result.status === "OK") expect(result.items).toHaveLength(30);
+    });
+  });
+
   describe("getDocumentFacts", () => {
     const PERSON_DOC = (id: string, title: string, contentId: string) =>
       doc(id, title, contentId);
@@ -1029,6 +1187,7 @@ describe("AssistantDocumentReadsService semantic search and facts", () => {
         conflicts: [],
         notIndexed: [],
         aiAccessOff: ["Tajna kartica"],
+        truncated: false,
       });
     });
 

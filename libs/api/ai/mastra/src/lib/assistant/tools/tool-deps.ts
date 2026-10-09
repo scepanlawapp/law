@@ -377,6 +377,8 @@ export type AssistantCaseDocumentSearch =
       notIndexed: string[];
       /** Titles of documents skipped because AI access is off. */
       aiAccessOff: string[];
+      /** True when the case has more readable documents than were searched. */
+      truncated: boolean;
     }
   | { status: "NO_DOCUMENTS"; message: string }
   | {
@@ -415,6 +417,11 @@ export type AssistantDocumentFacts =
       conflicts: AssistantDocumentFactConflict[];
       notIndexed: string[];
       aiAccessOff: string[];
+      /**
+       * True when facts were left out: more readable documents than were
+       * covered, or more facts than the result holds.
+       */
+      truncated: boolean;
     }
   | {
       status: "NOT_FOUND" | "UNAVAILABLE" | "AI_ACCESS_OFF";

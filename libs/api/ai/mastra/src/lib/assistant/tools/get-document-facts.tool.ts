@@ -10,7 +10,7 @@ export function createGetDocumentFactsTool(deps: LegalAssistantToolDeps) {
   return createTool({
     id: GET_DOCUMENT_FACTS_TOOL_ID,
     description:
-      "Returns the structured facts extracted from ID cards, passports, APR excerpts, and court or administrative decisions among this conversation's documents (or one document ref): personal and company data of the parties (names, JMBG, addresses, registration numbers, decision dates and outcomes), each with the quote it came from. Facts that two documents report differently for the same person or company are listed in conflicts. Lists documents that are not processed yet (notIndexed) and documents with AI access off (aiAccessOff). Read-only.",
+      "Returns the structured facts extracted from ID cards, passports, APR excerpts, and court or administrative decisions among this conversation's documents (or one document ref): personal and company data of the parties (names, JMBG, addresses, registration numbers, decision dates and outcomes), each with the quote it came from. Facts that two documents report differently for the same person or company are listed in conflicts. Lists documents that are not processed yet (notIndexed) and documents with AI access off (aiAccessOff). truncated is true when older documents or facts were left out; say so and narrow by ref. Read-only.",
     inputSchema: z.object({
       ref: z
         .string()

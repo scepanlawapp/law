@@ -14,7 +14,7 @@ export function createSearchCaseDocumentsTool(deps: LegalAssistantToolDeps) {
   return createTool({
     id: SEARCH_CASE_DOCUMENTS_TOOL_ID,
     description:
-      "Semantic search over the content of this conversation's attachments and the case's documents (or one document ref): finds the passages that best answer a question or topic, ranked by relevance, even when the exact words differ. Returns numbered passages with the document title and character offsets for read_document. Use it for questions about what documents say; use search_documents for an exact number, name, or quote. Lists documents that are not indexed yet (notIndexed) and documents with AI access off (aiAccessOff). Read-only.",
+      "Semantic search over the content of this conversation's attachments and the case's documents (or one document ref): finds the passages that best answer a question or topic, ranked by relevance, even when the exact words differ. Returns numbered passages with the document title and character offsets for read_document. Use it for questions about what documents say; use search_documents for an exact number, name, or quote. Lists documents that are not indexed yet (notIndexed) and documents with AI access off (aiAccessOff). truncated is true when older documents or facts were left out; say so and narrow by ref. Read-only.",
     inputSchema: z.object({
       query: z
         .string()
