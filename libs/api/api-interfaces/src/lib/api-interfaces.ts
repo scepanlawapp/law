@@ -1,4 +1,7 @@
-import type { CreateWorkEntryRequest } from "./work-entries";
+import type {
+  CreateWorkEntryRequest,
+  WorkEntryTreatment,
+} from "./work-entries";
 export enum WorkspaceRole {
   OWNER = "OWNER",
   ADMIN = "ADMIN",
@@ -1446,17 +1449,23 @@ export interface InvoiceLineSummary {
   sourceId: string | null;
   pricingRequired: boolean;
   minutes: number | null;
-  workEntries: {
-    id: string;
-    workDate: string;
-    user: UserReference;
-    title: string;
-    description: string;
-    minutes: number | null;
-  }[];
+  workEntries: InvoiceWorkEntrySummary[];
   billedAt: string | null;
   cancelledAt: string | null;
   cancellationReason: string | null;
+}
+
+export interface InvoiceWorkEntrySummary {
+  id: string;
+  workDate: string;
+  user: UserReference;
+  title: string;
+  description: string;
+  minutes: number | null;
+  case?: CaseReference | null;
+  treatment?: WorkEntryTreatment;
+  value?: string | null;
+  currency?: string | null;
 }
 
 export interface InvoiceSummary {

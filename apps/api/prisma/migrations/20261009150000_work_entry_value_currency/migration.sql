@@ -1,0 +1,3 @@
+ALTER TABLE "WorkEntry"
+ADD COLUMN "value" DECIMAL(18,2),
+ADD COLUMN "currency" TEXT;

@@ -204,6 +204,16 @@ export class FinancialsService {
           title: string;
           description: string;
           minutes: number | null;
+          case: {
+            id: string;
+            caseNumber: string;
+            name: string;
+            status: CaseReference["status"];
+            priority: CaseReference["priority"];
+          } | null;
+          treatment: string;
+          value: Prisma.Decimal | null;
+          currency: string | null;
         }) => ({
           id: entry.id,
           workDate: entry.workDate.toISOString().slice(0, 10),
@@ -211,6 +221,10 @@ export class FinancialsService {
           title: entry.title,
           description: entry.description,
           minutes: entry.minutes,
+          case: entry.case ? this.caseReference(entry.case) : null,
+          treatment: entry.treatment,
+          value: entry.value?.toString() ?? null,
+          currency: entry.currency,
         }),
       ),
       billedAt: line.billedAt?.toISOString() ?? null,
@@ -224,7 +238,7 @@ export class FinancialsService {
     caseLinks: { include: { case: true } },
     performedBy: true,
     workEntries: {
-      include: { user: true },
+      include: { user: true, case: true },
       orderBy: [
         { workDate: "asc" as const },
         { createdAt: "asc" as const },
@@ -419,6 +433,7 @@ export class FinancialsService {
         workspaceId: this.workspaceId,
         clientId: invoice.clientId,
         status: WorkEntryStatus.CONFIRMED,
+        treatment: { in: ["RETAINER", "HOURLY", "AT", "UNDECIDED"] },
         invoiceLineId: null,
       },
       data: {
@@ -573,10 +588,8 @@ export class FinancialsService {
         netAmount: input.netAmount,
         vatRate: input.vatRate,
         taxCategoryCode: input.taxCategoryCode?.trim() || null,
-        taxExemptionReasonCode:
-          input.taxExemptionReasonCode?.trim() || null,
-        taxExemptionReasonText:
-          input.taxExemptionReasonText?.trim() || null,
+        taxExemptionReasonCode: input.taxExemptionReasonCode?.trim() || null,
+        taxExemptionReasonText: input.taxExemptionReasonText?.trim() || null,
         vatAmount: input.vatAmount,
         grossAmount: input.grossAmount,
         currency: invoice.currency.toUpperCase(),

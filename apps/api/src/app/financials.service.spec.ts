@@ -70,8 +70,13 @@ function invoiceLine() {
         id: entryA,
         workDate: new Date("2026-09-23"),
         user: user(),
+        case: caseRecord(),
+        title: "Call",
         description: "Call",
         minutes: 90,
+        treatment: "HOURLY",
+        value: new Prisma.Decimal(25),
+        currency: "RSD",
       },
     ],
     billedAt: null,
@@ -261,6 +266,7 @@ describe("FinancialsService", () => {
         workspaceId,
         clientId,
         status: "CONFIRMED",
+        treatment: { in: ["RETAINER", "HOURLY", "AT", "UNDECIDED"] },
         invoiceLineId: null,
       },
       data: {
@@ -606,13 +612,18 @@ describe("FinancialsService", () => {
         pricingRequired: false,
         minutes: 90,
         workEntries: [
-          {
+          expect.objectContaining({
             id: entryA,
             workDate: "2026-09-23",
             user: expect.objectContaining({ id: userId }),
+            case: expect.objectContaining({ id: caseId }),
+            title: "Call",
             description: "Call",
             minutes: 90,
-          },
+            treatment: "HOURLY",
+            value: "25",
+            currency: "RSD",
+          }),
         ],
       }),
     );

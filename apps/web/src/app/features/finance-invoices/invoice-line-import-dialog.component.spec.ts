@@ -4,8 +4,12 @@ import { WorkEntry } from "@law/api-interfaces";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { of } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
+import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
 import { InvoiceLineImportDialogComponent } from "./invoice-line-import-dialog.component";
-import { InvoiceLineImportDialogContext } from "./invoice-line-import-dialog.models";
+import {
+  InvoiceLineImportDialogContext,
+  InvoiceLineImportResult,
+} from "./invoice-line-import-dialog.models";
 
 let context: InvoiceLineImportDialogContext = {
   client: {
@@ -23,7 +27,10 @@ jest.mock("@spartan-ng/brain/dialog", () => ({
   injectBrnDialogContext: () => context,
 }));
 
-function entry(id: string): WorkEntry {
+function entry(
+  id: string,
+  treatment: WorkEntry["treatment"] = "HOURLY",
+): WorkEntry {
   return {
     id,
     user: { id: "user-1", displayName: "Ana Anić", email: null },
@@ -35,7 +42,7 @@ function entry(id: string): WorkEntry {
     title: `Rad ${id}`,
     description: "",
     serviceCategory: null,
-    treatment: "HOURLY",
+    treatment,
     status: "CONFIRMED",
     writeOffReason: null,
     source: "MANUAL",
@@ -50,6 +57,8 @@ function entry(id: string): WorkEntry {
 
 describe("InvoiceLineImportDialogComponent", () => {
   const workEntries = { list: jest.fn() };
+  const dialogRef = { close: jest.fn() };
+  const quickCapture = { open: jest.fn() };
 
   beforeAll(() => {
     globalThis.ResizeObserver ??= class {
@@ -67,11 +76,16 @@ describe("InvoiceLineImportDialogComponent", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    quickCapture.open.mockReturnValue(of(null));
     context = { ...context, excludedEntryIds: ["entry-2"] };
     workEntries.list.mockReturnValue(
       of({
-        items: [entry("entry-1"), entry("entry-2")],
-        meta: { page: 1, pageSize: 10, totalItems: 2, totalPages: 1 },
+        items: [
+          entry("entry-1"),
+          entry("entry-2"),
+          entry("entry-3", "UNDECIDED"),
+        ],
+        meta: { page: 1, pageSize: 10, totalItems: 3, totalPages: 1 },
       }),
     );
     TestBed.configureTestingModule({
@@ -87,7 +101,8 @@ describe("InvoiceLineImportDialogComponent", () => {
               }),
           },
         },
-        { provide: BrnDialogRef, useValue: { close: jest.fn() } },
+        { provide: BrnDialogRef, useValue: dialogRef },
+        { provide: QuickCaptureDialogService, useValue: quickCapture },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -113,5 +128,135 @@ describe("InvoiceLineImportDialogComponent", () => {
     rows[1].cells[1].click();
     fixture.detectChanges();
     expect(fixture.componentInstance.selected().size).toBe(0);
+
+    rows[2].cells[1].click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.selected().has("entry-3")).toBe(true);
+
+    fixture.componentInstance.setCaseId("case-7");
+    expect(workEntries.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        caseId: "case-7",
+        page: 1,
+        statuses: ["CONFIRMED"],
+        unbilledOnly: true,
+      }),
+    );
+  });
+
+  it("shows recorded work value and currency with localized missing-value labels", () => {
+    workEntries.list.mockReturnValue(
+      of({
+        items: [
+          { ...entry("entry-1"), value: "1234567.8", currency: "RSD" },
+          { ...entry("entry-2"), value: null, currency: null },
+        ],
+        meta: { page: 1, pageSize: 10, totalItems: 2, totalPages: 1 },
+      }),
+    );
+    const fixture = TestBed.createComponent(InvoiceLineImportDialogComponent);
+    fixture.detectChanges();
+
+    const table = (fixture.nativeElement as HTMLElement).querySelector("table");
+    const headers = Array.from(table?.querySelectorAll("th") ?? []);
+    const rows = Array.from(table?.querySelectorAll("tbody tr") ?? []);
+
+    expect(headers[6].textContent?.trim()).toBe("finance.workValueShort");
+    expect(headers[7].textContent?.trim()).toBe("finance.currency");
+    expect(headers[8].textContent?.trim()).toBe("finance.viewWorkEntry");
+    expect(rows[0].querySelectorAll("td")[6].textContent?.trim()).toBe(
+      "1.234.567,80",
+    );
+    expect(rows[0].querySelectorAll("td")[7].textContent?.trim()).toBe("RSD");
+    expect(rows[1].querySelectorAll("td")[6].textContent?.trim()).toBe(
+      "time.capture.noWorkValue",
+    );
+    expect(rows[1].querySelectorAll("td")[7].textContent?.trim()).toBe(
+      "time.capture.noCurrency",
+    );
+  });
+
+  it("shows the description in a three-line tooltip and opens the full entry without toggling selection", () => {
+    const description =
+      "A full work description that continues beyond the row.";
+    workEntries.list.mockReturnValue(
+      of({
+        items: [
+          {
+            ...entry("entry-1"),
+            description,
+            case: {
+              id: "case-1",
+              caseNumber: "P-123",
+              name: "Example matter",
+            },
+          },
+        ],
+        meta: { page: 1, pageSize: 10, totalItems: 1, totalPages: 1 },
+      }),
+    );
+    const fixture = TestBed.createComponent(InvoiceLineImportDialogComponent);
+    fixture.detectChanges();
+
+    const row = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="import-entry"]',
+    ) as HTMLTableRowElement;
+    const descriptionElement = row.querySelector(".line-clamp-3");
+    const viewButton = row.querySelector("button") as HTMLButtonElement;
+
+    expect(descriptionElement?.textContent?.trim()).toBe(description);
+    expect(descriptionElement?.getAttribute("title")).toBe(description);
+    expect(descriptionElement?.classList.contains("line-clamp-3")).toBe(true);
+    expect(row.textContent).toContain("Rad entry-1");
+    expect(row.textContent).toContain("P-123");
+    expect(viewButton.getAttribute("aria-label")).toBe("finance.viewWorkEntry");
+    expect(viewButton.title).toBe("finance.viewWorkEntry");
+
+    viewButton.click();
+
+    expect(quickCapture.open).toHaveBeenCalledWith({
+      mode: "view",
+      entryId: "entry-1",
+    });
+    expect(fixture.componentInstance.selected().size).toBe(0);
+  });
+
+  it("returns separate mode by default and grouped mode with cross-page selection", () => {
+    workEntries.list
+      .mockReturnValueOnce(
+        of({
+          items: [entry("entry-1")],
+          meta: { page: 1, pageSize: 10, totalItems: 11, totalPages: 2 },
+        }),
+      )
+      .mockReturnValueOnce(
+        of({
+          items: [entry("entry-3")],
+          meta: { page: 2, pageSize: 10, totalItems: 11, totalPages: 2 },
+        }),
+      );
+    const fixture = TestBed.createComponent(InvoiceLineImportDialogComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    expect(component.mode()).toBe("SEPARATE");
+    component.toggle(entry("entry-1"));
+    component.changePage(2);
+    expect(component.page()).toBe(2);
+    component.toggle(entry("entry-3"));
+    component.mode.set("GROUPED");
+    component.importSelected();
+
+    expect(dialogRef.close).toHaveBeenCalledWith<InvoiceLineImportResult>({
+      entries: [entry("entry-1"), entry("entry-3")],
+      mode: "GROUPED",
+    });
+    expect(workEntries.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        page: 2,
+        statuses: ["CONFIRMED"],
+        treatments: ["RETAINER", "HOURLY", "AT", "UNDECIDED"],
+        unbilledOnly: true,
+      }),
+    );
   });
 });

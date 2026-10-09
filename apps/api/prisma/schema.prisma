@@ -2048,6 +2048,8 @@ model WorkEntry {
   description       String             @default("") @db.Text
   serviceCategoryId String?
   treatment         WorkEntryTreatment @default(UNDECIDED)
+  value             Decimal?           @db.Decimal(18, 2)
+  currency          String?
   status            WorkEntryStatus    @default(PROPOSED)
   writeOffReason    String?            @db.Text
   source            WorkEntrySource    @default(MANUAL)

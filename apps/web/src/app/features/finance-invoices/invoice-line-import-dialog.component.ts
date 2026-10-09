@@ -8,6 +8,8 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { CaseSummary, WorkEntry } from "@law/api-interfaces";
 import { CasesApiClient, WorkEntriesApiClient } from "@law/api-clients";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideEye } from "@ng-icons/lucide";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -22,8 +24,13 @@ import { HlmTableImports } from "@spartan-ng/helm/table";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { formatDate } from "../../shared/billing";
+import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
 import { TREATMENT_LABEL_KEYS, formatMinutes } from "../time/time-utils";
 import { InvoiceLineImportDialogContext } from "./invoice-line-import-dialog.models";
+import {
+  InvoiceLineImportMode,
+  InvoiceLineImportResult,
+} from "./invoice-line-import-dialog.models";
 
 const PAGE_SIZE = 10;
 
@@ -42,17 +49,21 @@ const PAGE_SIZE = 10;
     HlmSelectImports,
     HlmSpinner,
     HlmTableImports,
+    NgIcon,
     TranslatePipe,
   ],
+  providers: [provideIcons({ lucideEye })],
 })
 export class InvoiceLineImportDialogComponent {
   private readonly api = inject(WorkEntriesApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly localization = inject(LocalizationService);
+  private readonly quickCapture = inject(QuickCaptureDialogService);
   private readonly context =
     injectBrnDialogContext<InvoiceLineImportDialogContext>();
-  readonly dialogRef = inject<BrnDialogRef<WorkEntry[]>>(BrnDialogRef);
+  readonly dialogRef =
+    inject<BrnDialogRef<InvoiceLineImportResult>>(BrnDialogRef);
 
   readonly client = this.context.client;
   readonly excludedEntryIds = new Set(this.context.excludedEntryIds);
@@ -63,6 +74,7 @@ export class InvoiceLineImportDialogComponent {
   readonly caseId = signal("");
   readonly entries = signal<WorkEntry[]>([]);
   readonly selected = signal(new Map<string, WorkEntry>());
+  readonly mode = signal<InvoiceLineImportMode>("SEPARATE");
   readonly page = signal(1);
   readonly pageCount = signal(1);
   readonly totalItems = signal(0);
@@ -99,6 +111,7 @@ export class InvoiceLineImportDialogComponent {
       .list({
         clientIds: [this.client.id],
         statuses: ["CONFIRMED"],
+        treatments: ["RETAINER", "HOURLY", "AT", "UNDECIDED"],
         unbilledOnly: true,
         caseId: this.caseId() || undefined,
         page: this.page(),
@@ -139,6 +152,10 @@ export class InvoiceLineImportDialogComponent {
     this.toggle(entry);
   }
 
+  openEntry(entry: WorkEntry): void {
+    this.quickCapture.open({ mode: "view", entryId: entry.id }).subscribe();
+  }
+
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
     this.page.set(page);
@@ -147,11 +164,29 @@ export class InvoiceLineImportDialogComponent {
 
   importSelected(): void {
     if (this.selected().size) {
-      this.dialogRef.close([...this.selected().values()]);
+      this.dialogRef.close({
+        entries: [...this.selected().values()],
+        mode: this.mode(),
+      });
     }
   }
 
   formatDate(value: string): string {
     return formatDate(value.slice(0, 10), this.localization.language());
+  }
+
+  formatWorkValue(value: string): string {
+    const match = /^(-?)(\d+)(?:\.(\d*))?$/.exec(value);
+    if (!match) return value;
+
+    const [, sign, whole, fraction = ""] = match;
+    let cents = BigInt(`${whole}${fraction.padEnd(2, "0").slice(0, 2)}`);
+    if (fraction.length > 2 && fraction[2] >= "5") cents += 1n;
+
+    const groupedWhole = (cents / 100n)
+      .toString()
+      .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+    const decimal = (cents % 100n).toString().padStart(2, "0");
+    return `${sign && cents > 0n ? "-" : ""}${groupedWhole},${decimal}`;
   }
 }

@@ -22,6 +22,7 @@ describe("WorkEntrySourcesService", () => {
   const db = { workEntry: { findFirst: jest.fn() } };
   const workEntries = {
     defaultTreatmentFor: jest.fn(),
+    defaultWorkEntryCurrency: jest.fn(),
     get: jest.fn(),
     confirm: jest.fn(),
   };
@@ -57,6 +58,7 @@ describe("WorkEntrySourcesService", () => {
     tx.workEntry.createMany.mockResolvedValue({ count: 1 });
     tx.activityLog.create.mockResolvedValue({});
     workEntries.defaultTreatmentFor.mockResolvedValue("UNDECIDED");
+    workEntries.defaultWorkEntryCurrency.mockResolvedValue("RSD");
   });
 
   describe("ensureForSource", () => {

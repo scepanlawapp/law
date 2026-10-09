@@ -19,6 +19,7 @@ import {
   UpdateWorkEntryRequest,
   UserReference,
   WorkEntry,
+  WorkEntryCurrency,
   WorkEntryQuery,
   WorkEntryActions,
   WorkEntrySource,
@@ -26,6 +27,7 @@ import {
   WorkEntryStatus,
   WorkEntryTreatment,
   WorkspaceRole,
+  SUPPORTED_WORK_ENTRY_CURRENCIES,
 } from "@law/api-interfaces";
 import {
   DEFAULT_PAGE,
@@ -521,6 +523,7 @@ export class WorkEntriesService {
               : null,
           title: this.titleText(event.title.slice(0, 200)),
           description: this.optionalText(event.description ?? undefined),
+          currency: await this.defaultWorkEntryCurrency(clientId, tx),
           status: "CONFIRMED",
           treatment: "NON_BILLABLE",
           source: "EVENT",
@@ -562,6 +565,7 @@ export class WorkEntriesService {
         input.serviceCategoryId ?? null,
         tx,
       ));
+    const money = await this.newWorkEntryMoney(input, input.clientId, tx);
     const performerId =
       input.userId === undefined ? task.assigneeUserId : input.userId;
     await this.assertPerformer(performerId, tx);
@@ -573,6 +577,8 @@ export class WorkEntriesService {
       minutes,
       title,
       description,
+      value: money.value,
+      currency: money.currency,
       treatment,
       serviceCategoryId: input.serviceCategoryId ?? null,
       status: "CONFIRMED" as const,
@@ -631,6 +637,7 @@ export class WorkEntriesService {
         if (input.userId === undefined) performerId = task.assigneeUserId;
       }
       await this.assertPerformer(performerId, tx);
+      const money = await this.newWorkEntryMoney(input, input.clientId, tx);
       const created = await tx.workEntry.create({
         data: {
           workspaceId: this.workspaceId,
@@ -643,6 +650,8 @@ export class WorkEntriesService {
           description,
           serviceCategoryId: input.serviceCategoryId ?? null,
           treatment,
+          value: money.value,
+          currency: money.currency,
           status: "CONFIRMED",
           taskId: input.taskId ?? null,
           source: input.eventId
@@ -728,6 +737,26 @@ export class WorkEntriesService {
         ? await this.defaultTreatmentFor(clientId, workDate, serviceCategoryId)
         : current.treatment);
 
+    const nextValue =
+      input.value === undefined
+        ? (current.value ?? null)
+        : this.parseWorkEntryValue(input.value);
+    let nextCurrency =
+      input.currency === undefined
+        ? this.normalizeWorkEntryCurrency(current.currency)
+        : this.normalizeWorkEntryCurrency(input.currency);
+    if (
+      nextValue !== null &&
+      nextCurrency === null &&
+      input.value !== undefined &&
+      input.currency === undefined
+    ) {
+      nextCurrency = await this.defaultWorkEntryCurrency(clientId);
+    }
+    if (nextValue !== null && nextCurrency === null) {
+      throw new BadRequestException("A currency is required for a work value");
+    }
+
     if (input.userId !== undefined && input.userId !== current.userId)
       await this.assertPerformer(input.userId);
     const data: Prisma.WorkEntryUncheckedUpdateManyInput = {
@@ -738,6 +767,11 @@ export class WorkEntriesService {
       serviceCategoryId,
       treatment,
       updatedByUserId: this.userId,
+      ...(input.value !== undefined ? { value: nextValue } : {}),
+      ...(input.currency !== undefined ||
+      (nextValue !== null && current.currency === null)
+        ? { currency: nextCurrency }
+        : {}),
     };
     if (input.minutes !== undefined) data.minutes = input.minutes;
     if (input.title !== undefined) data.title = this.titleText(input.title);
@@ -798,6 +832,25 @@ export class WorkEntriesService {
       input.description !== undefined
         ? this.optionalText(input.description)
         : current.description;
+    const nextValue =
+      input.value === undefined
+        ? (current.value ?? null)
+        : this.parseWorkEntryValue(input.value);
+    let nextCurrency =
+      input.currency === undefined
+        ? this.normalizeWorkEntryCurrency(current.currency)
+        : this.normalizeWorkEntryCurrency(input.currency);
+    if (
+      nextValue !== null &&
+      nextCurrency === null &&
+      input.value !== undefined &&
+      input.currency === undefined
+    ) {
+      nextCurrency = await this.defaultWorkEntryCurrency(current.clientId);
+    }
+    if (nextValue !== null && nextCurrency === null) {
+      throw new BadRequestException("A currency is required for a work value");
+    }
 
     if (input.userId !== undefined && input.userId !== current.userId)
       await this.assertPerformer(input.userId);
@@ -809,6 +862,11 @@ export class WorkEntriesService {
         minutes,
         title,
         description,
+        ...(input.value !== undefined ? { value: nextValue } : {}),
+        ...(input.currency !== undefined ||
+        (nextValue !== null && current.currency === null)
+          ? { currency: nextCurrency }
+          : {}),
         timerStartedAt: null,
         updatedByUserId: this.userId,
       },
@@ -959,6 +1017,7 @@ export class WorkEntriesService {
             title: input.title ? toLatin(input.title.trim()).slice(0, 200) : "",
             description: this.optionalText(input.description),
             treatment,
+            currency: await this.defaultWorkEntryCurrency(input.clientId, tx),
             status: "RUNNING",
             source: "TIMER",
             createdByUserId: this.userId,
@@ -1251,6 +1310,94 @@ export class WorkEntriesService {
     );
   }
 
+  async defaultWorkEntryCurrency(
+    clientId: string,
+    tx: Prisma.TransactionClient | PlatformPrismaService = this.db,
+  ): Promise<WorkEntryCurrency> {
+    const profile = await tx.clientBillingProfile.findFirst({
+      where: { workspaceId: this.workspaceId, clientId },
+      select: { currency: true },
+    });
+    const profileCurrency = this.supportedWorkEntryCurrency(profile?.currency);
+    if (profileCurrency) return profileCurrency;
+
+    const settings = await tx.organizationSettings.findUnique({
+      where: { workspaceId: this.workspaceId },
+      select: { defaultCurrencyCode: true },
+    });
+    return (
+      this.supportedWorkEntryCurrency(settings?.defaultCurrencyCode) ?? "RSD"
+    );
+  }
+
+  private normalizeWorkEntryCurrency(
+    value: string | null | undefined,
+  ): WorkEntryCurrency | null {
+    if (value == null || value === "") return null;
+    const currency = value.trim().toUpperCase();
+    const supported = this.supportedWorkEntryCurrency(currency);
+    if (!supported)
+      throw new BadRequestException("Unsupported work entry currency");
+    return supported;
+  }
+
+  private supportedWorkEntryCurrency(
+    value: string | null | undefined,
+  ): WorkEntryCurrency | null {
+    if (value == null || value === "") return null;
+    const currency = value.trim().toUpperCase();
+    if (
+      !SUPPORTED_WORK_ENTRY_CURRENCIES.includes(currency as WorkEntryCurrency)
+    ) {
+      return null;
+    }
+    return currency as WorkEntryCurrency;
+  }
+
+  private parseWorkEntryValue(
+    value: string | null | undefined,
+  ): Prisma.Decimal | null {
+    if (value == null) return null;
+    let amount: Prisma.Decimal;
+    try {
+      amount = new Prisma.Decimal(value);
+    } catch {
+      throw new BadRequestException(
+        "Work entry value must be a decimal amount",
+      );
+    }
+    if (
+      !amount.isFinite() ||
+      amount.isNegative() ||
+      amount.decimalPlaces() > 2 ||
+      amount.greaterThan("9999999999999999.99")
+    ) {
+      throw new BadRequestException(
+        "Work entry value is outside the supported range",
+      );
+    }
+    return amount;
+  }
+
+  private async newWorkEntryMoney(
+    input: Pick<CreateWorkEntryRequest, "value" | "currency">,
+    clientId: string,
+    tx: Prisma.TransactionClient,
+  ): Promise<{
+    value: Prisma.Decimal | null;
+    currency: WorkEntryCurrency | null;
+  }> {
+    const value = this.parseWorkEntryValue(input.value);
+    const currency =
+      input.currency === undefined
+        ? await this.defaultWorkEntryCurrency(clientId, tx)
+        : this.normalizeWorkEntryCurrency(input.currency);
+    if (value !== null && currency === null) {
+      throw new BadRequestException("A currency is required for a work value");
+    }
+    return { value, currency };
+  }
+
   // -------------------------------------------------------------- mapping
 
   private toEntry(row: EntryRecord): WorkEntry {
@@ -1268,6 +1415,8 @@ export class WorkEntriesService {
         ? { id: row.serviceCategory.id, name: row.serviceCategory.name }
         : null,
       treatment: row.treatment,
+      value: row.value?.toString() ?? null,
+      currency: row.currency as WorkEntryCurrency | null,
       status: row.status,
       writeOffReason: row.writeOffReason,
       source: row.source as WorkEntrySource,

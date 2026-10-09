@@ -97,6 +97,8 @@ describe("WorkEntriesService", () => {
     case: { findFirst: jest.fn() },
     caseResponsibility: { findFirst: jest.fn() },
     serviceCategory: { findFirst: jest.fn() },
+    clientBillingProfile: { findFirst: jest.fn() },
+    organizationSettings: { findUnique: jest.fn() },
     retainerAgreement: { findMany: jest.fn() },
     workEntry: {
       count: jest.fn(),
@@ -142,6 +144,10 @@ describe("WorkEntriesService", () => {
     db.client.findFirst.mockResolvedValue({ id: clientId });
     db.case.findFirst.mockResolvedValue(null);
     db.serviceCategory.findFirst.mockResolvedValue({ id: categoryId });
+    db.clientBillingProfile.findFirst.mockResolvedValue(null);
+    db.organizationSettings.findUnique.mockResolvedValue({
+      defaultCurrencyCode: "RSD",
+    });
     db.retainerAgreement.findMany.mockResolvedValue([]);
     db.workEntry.create.mockImplementation(
       async ({ data }: { data: Record<string, unknown> }) =>
@@ -530,6 +536,65 @@ describe("WorkEntriesService", () => {
       } finally {
         logSpy.mockRestore();
       }
+    });
+  });
+
+  describe("work value and currency", () => {
+    it("persists an explicit zero with the explicitly chosen currency", async () => {
+      db.clientBillingProfile.findFirst.mockResolvedValue({ currency: "RSD" });
+      const entry = await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, value: "0", currency: "EUR" }),
+      );
+
+      expect(entry.value).toBe("0");
+      expect(entry.currency).toBe("EUR");
+      const data = db.workEntry.create.mock.calls[0][0].data;
+      expect(data.value.toString()).toBe("0");
+      expect(data.currency).toBe("EUR");
+    });
+
+    it("defaults currency from the client profile, organization, then RSD", async () => {
+      db.clientBillingProfile.findFirst.mockResolvedValue({ currency: "EUR" });
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.defaultWorkEntryCurrency(clientId),
+        ),
+      ).resolves.toBe("EUR");
+
+      db.clientBillingProfile.findFirst.mockResolvedValue(null);
+      db.organizationSettings.findUnique.mockResolvedValue({
+        defaultCurrencyCode: "USD",
+      });
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.defaultWorkEntryCurrency(clientId),
+        ),
+      ).resolves.toBe("USD");
+
+      db.organizationSettings.findUnique.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.defaultWorkEntryCurrency(clientId),
+        ),
+      ).resolves.toBe("RSD");
+    });
+
+    it("rejects negative values and unsupported currencies before persistence", async () => {
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, value: "-1", currency: "RSD" }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({
+            ...validCreate,
+            value: "10",
+            currency: "ZZZ",
+          } as never),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
     });
   });
 

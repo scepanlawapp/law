@@ -2,17 +2,21 @@ import { FormArray } from "@angular/forms";
 import { InvoiceLineSummary, WorkEntry } from "@law/api-interfaces";
 import {
   appendUniqueWorkEntries,
+  appendGroupedWorkEntries,
+  concatenateWorkEntryTitles,
   InvoiceLineForm,
   calculateInvoiceLineAmounts,
   calculateInvoiceTotals,
   createInvoiceLineForm,
   createWorkEntryLineForm,
+  createGroupedWorkEntryLineForm,
   detachInvoiceLineWorkEntries,
   hasPricingRequiredLines,
   incompatibleCurrencyIndexes,
   localizePaymentMethod,
   normalizeCurrency,
   recalculateInvoiceLine,
+  sumDecimalValues,
   toInvoiceLineInput,
 } from "./invoice-form";
 
@@ -177,6 +181,134 @@ describe("billing invoice form helpers", () => {
     });
     expect(foreign.controls.pricingRequired.value).toBe(true);
     expect(foreign.controls.netAmount.value).toBe(0);
+  });
+
+  it("prefers a matching explicit WorkEntry value, including zero", () => {
+    const explicit = createWorkEntryLineForm(
+      entry({ value: "12.30", currency: "RSD" }),
+      "RSD",
+      rate,
+    );
+    const zero = createWorkEntryLineForm(
+      entry({ value: "0.00", currency: "RSD" }),
+      "RSD",
+      rate,
+    );
+    const missingCurrency = createWorkEntryLineForm(
+      entry({ value: "12.30", currency: null }),
+      "RSD",
+      rate,
+    );
+
+    expect(explicit.controls.netAmount.value).toBe(12.3);
+    expect(explicit.controls.pricingRequired.value).toBe(false);
+    expect(zero.controls.netAmount.value).toBe(0);
+    expect(zero.controls.pricingRequired.value).toBe(false);
+    expect(zero.valid).toBe(true);
+    expect(missingCurrency.controls.pricingRequired.value).toBe(true);
+  });
+
+  it("creates one exact grouped line in chronological order", () => {
+    const first = entry({
+      id: "b-entry",
+      workDate: "2026-09-28",
+      title: "Prvi rad",
+      value: "0.10",
+      currency: "RSD",
+      treatment: "AT",
+      minutes: 15,
+    });
+    const second = entry({
+      id: "a-entry",
+      workDate: "2026-09-29",
+      title: "Drugi rad",
+      value: "0.20",
+      currency: "RSD",
+      treatment: "AT",
+      minutes: 30,
+    });
+    const lines = new FormArray<InvoiceLineForm>([]);
+
+    expect(
+      appendGroupedWorkEntries(
+        lines,
+        [second, first, first],
+        "RSD",
+        rate,
+        20,
+        "Grouped work (2 entries)",
+      ),
+    ).toBe(2);
+    expect(lines.length).toBe(1);
+    expect(lines.at(0).getRawValue()).toMatchObject({
+      workEntryIds: ["b-entry", "a-entry"],
+      minutes: 45,
+      serviceDate: "2026-09-28",
+      description: "Prvi rad; Drugi rad",
+      netAmount: 0.3,
+      pricingRequired: false,
+      vatRate: 20,
+      vatAmount: 0.06,
+      grossAmount: 0.36,
+    });
+    expect(sumDecimalValues(["0.10", "0.20"])).toBe("0.30");
+  });
+
+  it("does not show partial grouped prices for missing or mixed-currency values", () => {
+    const known = entry({ value: "15.00", currency: "RSD" });
+    const missing = entry({
+      id: "missing",
+      treatment: "AT",
+      value: null,
+      currency: "RSD",
+    });
+    const mixed = entry({
+      id: "mixed",
+      value: "5.00",
+      currency: "EUR",
+    });
+
+    for (const entries of [
+      [known, missing],
+      [known, mixed],
+    ]) {
+      const line = createGroupedWorkEntryLineForm(entries, "RSD", rate);
+      expect(line.controls.netAmount.value).toBe(0);
+      expect(line.controls.pricingRequired.value).toBe(true);
+    }
+
+    const unsafeTotal = createGroupedWorkEntryLineForm(
+      [
+        entry({ value: "90071992547409.92", currency: "RSD" }),
+        entry({ id: "extra-cent", value: "0.01", currency: "RSD" }),
+      ],
+      "RSD",
+      rate,
+    );
+    expect(unsafeTotal.controls.pricingRequired.value).toBe(true);
+    expect(unsafeTotal.controls.netAmount.value).toBe(0);
+  });
+
+  it("uses hourly pricing only for compatible entries and caps grouped titles", () => {
+    const line = createGroupedWorkEntryLineForm(
+      [entry({ id: "one", minutes: 60 }), entry({ id: "two", minutes: 30 })],
+      "RSD",
+      rate,
+      20,
+    );
+    expect(line.controls.netAmount.value).toBe(12000);
+    expect(line.controls.vatAmount.value).toBe(2400);
+    expect(line.controls.pricingRequired.value).toBe(false);
+
+    const overflow = concatenateWorkEntryTitles(
+      [
+        entry({ id: "one", title: "a".repeat(6000) }),
+        entry({ id: "two", title: "b".repeat(6000) }),
+      ],
+      "Grouped work (2 entries)",
+    );
+    expect(overflow).toBe("Grouped work (2 entries)");
+    expect(overflow.length).toBeLessThanOrEqual(10_000);
   });
 
   it("clears pricingRequired when the amount on a flagged row becomes positive", () => {

@@ -35,6 +35,34 @@
     </hlm-select>
   </div>
 
+  <fieldset class="flex flex-wrap items-center gap-x-5 gap-y-2">
+    <legend class="mb-1 font-medium">
+      {{ "finance.importMode" | translate }}
+    </legend>
+    <label class="flex items-center gap-2">
+      <input
+        type="radio"
+        name="invoice-import-mode"
+        value="SEPARATE"
+        class="h-4 w-4 accent-primary"
+        [checked]="mode() === 'SEPARATE'"
+        (change)="mode.set('SEPARATE')"
+      />
+      {{ "finance.importSeparate" | translate }}
+    </label>
+    <label class="flex items-center gap-2">
+      <input
+        type="radio"
+        name="invoice-import-mode"
+        value="GROUPED"
+        class="h-4 w-4 accent-primary"
+        [checked]="mode() === 'GROUPED'"
+        (change)="mode.set('GROUPED')"
+      />
+      {{ "finance.importGrouped" | translate }}
+    </label>
+  </fieldset>
+
   <div class="min-h-0 flex-1 overflow-y-auto">
     @if (loading()) {
       <div class="flex items-center gap-2 py-8" aria-live="polite">
@@ -59,7 +87,7 @@
       </p>
     } @else {
       <div hlmTableContainer class="rounded-lg border border-border">
-        <table hlmTable class="w-full min-w-[720px]">
+        <table hlmTable class="w-full min-w-[1120px]">
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh class="w-24">
@@ -73,6 +101,17 @@
               </th>
               <th hlmTh class="w-32">
                 {{ "time.capture.treatment" | translate }}
+              </th>
+              <th hlmTh class="w-48 text-right">
+                {{ "finance.workValueShort" | translate }}
+              </th>
+              <th hlmTh class="w-32">
+                {{ "finance.currency" | translate }}
+              </th>
+              <th hlmTh class="w-12">
+                <span class="sr-only">
+                  {{ "finance.viewWorkEntry" | translate }}
+                </span>
               </th>
             </tr>
           </thead>
@@ -108,14 +147,29 @@
                   {{ formatDate(entry.workDate) }}
                 </td>
                 <td hlmTd class="whitespace-normal">
-                  {{ entry.title }}
-                  <span class="block text-muted-foreground">
-                    {{
-                      entry.case?.caseNumber ?? ("finance.noCase" | translate)
-                    }}
-                  </span>
+                  <div class="min-w-0">
+                    <div class="font-medium">{{ entry.title }}</div>
+                    @if (entry.description) {
+                      <p
+                        class="line-clamp-3 break-words text-muted-foreground"
+                        [attr.title]="entry.description"
+                      >
+                        {{ entry.description }}
+                      </p>
+                    }
+                    <span class="block text-muted-foreground">
+                      {{
+                        entry.case?.caseNumber ?? ("finance.noCase" | translate)
+                      }}
+                    </span>
+                  </div>
                 </td>
-                <td hlmTd>{{ entry.user?.displayName ?? ("time.capture.unassigned" | translate) }}</td>
+                <td hlmTd>
+                  {{
+                    entry.user?.displayName ??
+                      ("time.capture.unassigned" | translate)
+                  }}
+                </td>
                 <td hlmTd class="whitespace-nowrap">
                   @if (entry.minutes !== null) {
                     {{ formatMinutes(entry.minutes) }}
@@ -125,6 +179,31 @@
                 </td>
                 <td hlmTd>
                   {{ treatmentLabelKeys[entry.treatment] | translate }}
+                </td>
+                <td hlmTd class="whitespace-nowrap text-right">
+                  @if (entry.value != null) {
+                    {{ formatWorkValue(entry.value) }}
+                  } @else {
+                    {{ "time.capture.noWorkValue" | translate }}
+                  }
+                </td>
+                <td hlmTd class="whitespace-nowrap">
+                  {{
+                    entry.currency ?? ("time.capture.noCurrency" | translate)
+                  }}
+                </td>
+                <td hlmTd>
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    [attr.aria-label]="'finance.viewWorkEntry' | translate"
+                    [attr.title]="'finance.viewWorkEntry' | translate"
+                    (click)="openEntry(entry)"
+                  >
+                    <ng-icon name="lucideEye" aria-hidden="true" />
+                  </button>
                 </td>
               </tr>
             }

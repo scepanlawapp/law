@@ -405,15 +405,21 @@ export class BillingSetupService {
     const row = await this.db.clientBillingProfile.findFirst({
       where: { workspaceId: this.workspaceId, clientId },
     });
+    const config = await this.loadConfig();
+    const organization = await this.db.organizationSettings.findUnique({
+      where: { workspaceId: this.workspaceId },
+      select: { defaultCurrencyCode: true },
+    });
+    const fallbackCurrency =
+      organization?.defaultCurrencyCode ?? config.internalCurrency;
     if (!row) {
-      const config = await this.loadConfig();
       return {
         clientId,
         hourlyRate: null,
-        currency: config.internalCurrency,
+        currency: fallbackCurrency,
       };
     }
-    return this.toProfile(row, (await this.loadConfig()).internalCurrency);
+    return this.toProfile(row, fallbackCurrency);
   }
 
   async upsertProfile(

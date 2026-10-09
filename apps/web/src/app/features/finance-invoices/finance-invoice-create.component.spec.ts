@@ -1,4 +1,6 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
+import { NgIcon } from "@ng-icons/core";
 import {
   ActivatedRoute,
   convertToParamMap,
@@ -43,6 +45,7 @@ const organizationSettings = {
     defaultNote: "Plaćanje u roku dospeća.",
   },
 };
+const importDialog = { open: jest.fn() };
 
 function entry(id: string, treatment: WorkEntry["treatment"]): WorkEntry {
   return {
@@ -99,6 +102,7 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    importDialog.open.mockReturnValue(of(undefined));
     workEntries.get.mockImplementation((id: string) =>
       of(entry(id, id === "e1" ? "HOURLY" : "AT")),
     );
@@ -128,14 +132,17 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
           },
         },
         { provide: ClientFormDialogService, useValue: {} },
-        { provide: InvoiceLineImportDialogService, useValue: {} },
+        { provide: InvoiceLineImportDialogService, useValue: importDialog },
         {
           provide: LocalizationService,
           useValue: {
-            translate: (key: string) =>
-              key === "settings.organization.payment.methods.BANK_TRANSFER"
-                ? "Virman"
-                : key,
+            translate: (key: string, params?: { count?: number }) => {
+              if (key === "settings.organization.payment.methods.BANK_TRANSFER")
+                return "Virman";
+              if (key === "finance.linkedWorkDetailsCount")
+                return `Linked ${params?.count ?? ""}`;
+              return key;
+            },
             language: () => "SR",
           },
         },
@@ -160,6 +167,11 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     const component = fixture.componentInstance;
 
     expect(component.form.controls.currency.value).toBe("EUR");
+    expect(
+      component.form.controls.lines.controls.map(
+        (line) => line.controls.workEntryIds.value,
+      ),
+    ).toEqual([["e1"], ["e2"]]);
     const [hourly, flagged] = component.form.controls.lines.controls;
     expect(hourly.controls.netAmount.value).toBe(100);
     expect(hourly.controls.vatRate.value).toBe(20);
@@ -168,6 +180,32 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     expect(hourly.controls.pricingRequired.value).toBe(false);
     expect(flagged.controls.pricingRequired.value).toBe(true);
     expect(component.pricingRequiredCount()).toBe(1);
+  });
+
+  it("shows the linked-work count and toggles its accessible details", () => {
+    const fixture = create();
+    const button = fixture.nativeElement.querySelector(
+      'button[aria-controls="invoice-line-work-0"]',
+    ) as HTMLButtonElement;
+    const icon = () =>
+      fixture.debugElement.query(
+        By.css("button[aria-controls='invoice-line-work-0'] ng-icon"),
+      ).componentInstance as NgIcon;
+
+    expect(button.textContent).toContain("Linked 1");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(button.getAttribute("aria-controls")).toBe("invoice-line-work-0");
+    expect(button.disabled).toBe(false);
+    expect(icon().name()).toBe("lucideChevronDown");
+
+    button.click();
+    fixture.detectChanges();
+
+    expect(button.getAttribute("aria-expanded")).toBe("true");
+    expect(icon().name()).toBe("lucideChevronUp");
+    expect(
+      fixture.nativeElement.querySelector("#invoice-line-work-0"),
+    ).not.toBeNull();
   });
 
   it("prefills the invoice header from organization settings", () => {
@@ -195,6 +233,38 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     expect(component.form.controls.invoiceNumber.value).toBe("2026-000001");
   });
 
+  it("keeps billable deep-link work and reports requested non-billable work", () => {
+    workEntries.get.mockImplementation((id: string) =>
+      of(entry(id, id === "e1" ? "NON_BILLABLE" : "HOURLY")),
+    );
+    const component = create().componentInstance;
+
+    expect(component.form.controls.lines.length).toBe(1);
+    expect(
+      component.form.controls.lines.at(0).controls.workEntryIds.value,
+    ).toEqual(["e2"]);
+    expect(component.saveError()).toBe("finance.someWorkUnavailable");
+  });
+
+  it("imports UNDECIDED deep-link work without inferring a price", () => {
+    workEntries.get.mockImplementation((id: string) =>
+      of(entry(id, "UNDECIDED")),
+    );
+    const component = create().componentInstance;
+
+    expect(
+      component.form.controls.lines.controls.map((line) => ({
+        workEntryIds: line.controls.workEntryIds.value,
+        netAmount: line.controls.netAmount.value,
+        pricingRequired: line.controls.pricingRequired.value,
+      })),
+    ).toEqual([
+      { workEntryIds: ["e1"], netAmount: 0, pricingRequired: true },
+      { workEntryIds: ["e2"], netAmount: 0, pricingRequired: true },
+    ]);
+    expect(component.saveError()).toBe("");
+  });
+
   it("clears the flag when the user prices a flagged row", () => {
     const fixture = create();
     const flagged = fixture.componentInstance.form.controls.lines.at(1);
@@ -204,6 +274,63 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
 
     expect(flagged.controls.pricingRequired.value).toBe(false);
     expect(fixture.componentInstance.pricingRequiredCount()).toBe(0);
+  });
+
+  it("imports selected work as one deterministic grouped line", () => {
+    const older = entry("group-older", "AT");
+    older.workDate = "2026-09-08";
+    older.title = "Prvi rad";
+    older.value = "0.10";
+    older.currency = "EUR";
+    const newer = entry("group-newer", "AT");
+    newer.workDate = "2026-09-09";
+    newer.title = "Drugi rad";
+    newer.value = "0.20";
+    newer.currency = "EUR";
+    importDialog.open.mockReturnValueOnce(
+      of({ entries: [newer, older], mode: "GROUPED" }),
+    );
+    const component = create().componentInstance;
+
+    component.openImportDialog();
+
+    expect(importDialog.open).toHaveBeenCalledWith(client, ["e1", "e2"]);
+    expect(component.form.controls.lines.length).toBe(3);
+    expect(component.form.controls.lines.at(2).getRawValue()).toMatchObject({
+      workEntryIds: ["group-older", "group-newer"],
+      serviceDate: "2026-09-08",
+      description: "Prvi rad; Drugi rad",
+      netAmount: 0.3,
+      pricingRequired: false,
+      vatRate: 20,
+    });
+  });
+
+  it("keeps selected entries separate and detaches associations on client change", () => {
+    importDialog.open.mockReturnValueOnce(
+      of({ entries: [entry("separate-entry", "AT")], mode: "SEPARATE" }),
+    );
+    const component = create().componentInstance;
+    component.openImportDialog();
+    expect(
+      component.form.controls.lines.at(2).controls.workEntryIds.value,
+    ).toEqual(["separate-entry"]);
+
+    const originalNet =
+      component.form.controls.lines.at(0).controls.netAmount.value;
+    component.form.controls.clientId.setValue("client-2");
+
+    expect(
+      component.form.controls.lines.controls.every(
+        (line) => line.controls.workEntryIds.value.length === 0,
+      ),
+    ).toBe(true);
+    expect(component.form.controls.lines.at(0).controls.netAmount.value).toBe(
+      originalNet,
+    );
+    expect(component.clientChangeNotice()).toBe(
+      "finance.workDetachedOnClientChange",
+    );
   });
 });
 
@@ -258,6 +385,27 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
     };
   }
 
+  function draftInvoice(lines: unknown[]) {
+    return {
+      id: invoiceId,
+      invoiceNumber: "2026-000042",
+      clientId: client.id,
+      status: "DRAFT",
+      dateOfCreate: "2026-10-01",
+      dateOfMaturity: "2026-10-15",
+      dateOfTurnover: "2026-09-30",
+      placeOfIssue: "Beograd",
+      methodOfPayment: "Prenos",
+      comment: "",
+      vatRate: "0.00",
+      numberOfCashBill: "",
+      country: "Srbija",
+      currency: "RSD",
+      printWorkSpecification: true,
+      lines,
+    };
+  }
+
   beforeEach(() => {
     jest.clearAllMocks();
     api.invoice.mockReturnValue(
@@ -304,7 +452,7 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
           },
         },
         { provide: ClientFormDialogService, useValue: {} },
-        { provide: InvoiceLineImportDialogService, useValue: {} },
+        { provide: InvoiceLineImportDialogService, useValue: importDialog },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -370,6 +518,145 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
     expect(firstLine.controls.grossAmount.value).toBe(1000);
     expect(component.form.controls.invoiceNumber.value).toBe("2026-000042");
     expect(api.suggestInvoiceNumber).not.toHaveBeenCalled();
+  });
+
+  it("hydrates unique linked-work details and the comparable draft summary", () => {
+    const detail = {
+      id: "linked-work-1",
+      workDate: "2026-09-30",
+      user,
+      title: "Pregled podneska",
+      description: "",
+      minutes: 75,
+      case: { id: "case-1", caseNumber: "P-1/26", name: "Spor" },
+      treatment: "HOURLY" as const,
+      value: "0.10",
+      currency: "RSD",
+    };
+    api.invoice.mockReturnValueOnce(
+      of(draftInvoice([{ ...savedLine("line-2", 1), workEntries: [detail] }])),
+    );
+    const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    expect(component.workEntryDetail(detail.id)).toMatchObject({
+      title: "Pregled podneska",
+      case: detail.case,
+      treatment: "HOURLY",
+      value: "0.10",
+      currency: "RSD",
+    });
+    expect(component.linkedWorkSummary()).toMatchObject({
+      count: 1,
+      totalMinutes: 75,
+      linkedLineCount: 1,
+      valueTotal: "0.10",
+      valueCurrency: "RSD",
+      missingValue: false,
+      mixedCurrencies: false,
+    });
+    const detailButton = fixture.nativeElement.querySelector(
+      '[aria-controls="invoice-line-work-0"]',
+    ) as HTMLButtonElement;
+    expect(detailButton.getAttribute("aria-expanded")).toBe("false");
+    detailButton.click();
+    fixture.detectChanges();
+    expect(detailButton.getAttribute("aria-expanded")).toBe("true");
+    expect(fixture.nativeElement.textContent).toContain("Pregled podneska");
+  });
+
+  it("reports mixed currencies even when a linked WorkEntry has no value", () => {
+    const workWithValue = {
+      id: "work-rsd",
+      workDate: "2026-09-29",
+      user,
+      title: "Rad u dinarima",
+      description: "",
+      minutes: 30,
+      treatment: "AT" as const,
+      value: "10.00",
+      currency: "RSD",
+    };
+    const workWithoutValue = {
+      ...workWithValue,
+      id: "work-eur",
+      title: "Rad u evrima bez vrednosti",
+      value: null,
+      currency: "EUR",
+    };
+    api.invoice.mockReturnValueOnce(
+      of(
+        draftInvoice([
+          {
+            ...savedLine("line-2", 1),
+            workEntries: [workWithValue, workWithoutValue],
+          },
+        ]),
+      ),
+    );
+    const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.linkedWorkSummary()).toMatchObject({
+      count: 2,
+      valueTotal: null,
+      missingValue: true,
+      mixedCurrencies: true,
+    });
+  });
+
+  it("keeps line pricing when unlinking and immediately removes linked lines", () => {
+    const detail = {
+      id: "linked-work-2",
+      workDate: "2026-09-30",
+      user,
+      title: "Pregled podneska",
+      description: "",
+      minutes: 45,
+    };
+    const remainingDetail = {
+      ...detail,
+      id: "linked-work-3",
+      title: "Prateći rad",
+      minutes: 30,
+    };
+    api.invoice.mockReturnValueOnce(
+      of(
+        draftInvoice([
+          {
+            ...savedLine("line-2", 1),
+            minutes: 75,
+            workEntries: [detail, remainingDetail],
+          },
+        ]),
+      ),
+    );
+    const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const line = component.form.controls.lines.at(0);
+    const originalNet = line.controls.netAmount.value;
+
+    component.unlinkWorkEntry(line, detail.id);
+    expect(line.controls.workEntryIds.value).toEqual([remainingDetail.id]);
+    expect(line.controls.minutes.value).toBe(30);
+    expect(line.controls.netAmount.value).toBe(originalNet);
+    expect(component.linkedWorkSummary().count).toBe(1);
+
+    component.unlinkWorkEntry(line, remainingDetail.id);
+    expect(line.controls.workEntryIds.value).toEqual([]);
+    expect(line.controls.minutes.value).toBeNull();
+    expect(component.linkedWorkSummary().count).toBe(0);
+
+    line.controls.workEntryIds.setValue([detail.id]);
+    component.formRevision.update((revision) => revision + 1);
+    expect(component.form.controls.lines.length).toBe(1);
+    expect(component.linkedWorkSummary().count).toBe(1);
+
+    component.removeLine(0);
+    expect(component.form.controls.lines.length).toBe(0);
+    expect(component.linkedWorkSummary().count).toBe(0);
   });
 });
 

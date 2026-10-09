@@ -131,6 +131,18 @@
           </div>
           <div>
             <dt class="text-muted-foreground">
+              {{ "time.capture.workValue" | translate }}
+            </dt>
+            <dd class="mt-1">
+              @if (entry.value !== null && entry.value !== undefined) {
+                {{ entry.value }} {{ entry.currency ?? "" }}
+              } @else {
+                {{ "time.capture.noWorkValue" | translate }}
+              }
+            </dd>
+          </div>
+          <div>
+            <dt class="text-muted-foreground">
               {{ "work.entries.performer" | translate }}
             </dt>
             <dd class="mt-1 break-words">
@@ -527,6 +539,67 @@
                 id="capture-description"
                 formControlName="description"
               ></textarea>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <div hlmField>
+                <label hlmFieldLabel for="capture-work-value">
+                  {{ "time.capture.workValue" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  id="capture-work-value"
+                  type="text"
+                  inputmode="decimal"
+                  autocomplete="off"
+                  formControlName="value"
+                  aria-describedby="capture-work-value-hint"
+                />
+                <p id="capture-work-value-hint" class="text-muted-foreground">
+                  {{ "time.capture.workValueHint" | translate }}
+                </p>
+                @if (
+                  form.controls.value.touched &&
+                  form.controls.value.hasError("workValue")
+                ) {
+                  <p class="text-destructive" role="alert">
+                    {{ "time.capture.workValueInvalid" | translate }}
+                  </p>
+                }
+              </div>
+              <div hlmField>
+                <label hlmFieldLabel for="capture-work-currency">
+                  {{ "time.capture.currency" | translate }}
+                </label>
+                <hlm-select
+                  formControlName="currency"
+                  [itemToString]="currencyItemToString"
+                >
+                  <hlm-select-trigger
+                    buttonId="capture-work-currency"
+                    class="w-full min-w-0 max-w-full"
+                  >
+                    <hlm-select-value />
+                  </hlm-select-trigger>
+                  <hlm-select-content *hlmSelectPortal width="content">
+                    <hlm-select-group>
+                      @for (option of currencyOptions; track option.value) {
+                        <hlm-select-item [value]="option.value">
+                          {{ option.label | translate }}
+                        </hlm-select-item>
+                      }
+                    </hlm-select-group>
+                  </hlm-select-content>
+                </hlm-select>
+                @if (
+                  form.hasError("workValueCurrency") &&
+                  form.controls.currency.touched
+                ) {
+                  <p class="text-destructive" role="alert">
+                    {{ "time.capture.workValueCurrencyRequired" | translate }}
+                  </p>
+                }
+              </div>
             </div>
 
             @if (!fromSource) {

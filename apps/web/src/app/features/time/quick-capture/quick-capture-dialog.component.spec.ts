@@ -7,6 +7,7 @@ import {
   CasesApiClient,
   EventsApiClient,
   ClientsApiClient,
+  OrganizationSettingsApiClient,
   WorkEntriesApiClient,
   WorkManagementApiClient,
 } from "@law/api-clients";
@@ -101,7 +102,11 @@ describe("QuickCaptureDialogComponent", () => {
     confirm: jest.fn(),
     confirmFromSource: jest.fn(),
   };
-  const billing = { listRetainers: jest.fn(), listCategories: jest.fn() };
+  const billing = {
+    listRetainers: jest.fn(),
+    listCategories: jest.fn(),
+    getProfile: jest.fn(),
+  };
   const clients = { list: jest.fn(), get: jest.fn() };
   const cases = { list: jest.fn(), get: jest.fn() };
   const toast = { success: jest.fn(), error: jest.fn(), info: jest.fn() };
@@ -117,6 +122,14 @@ describe("QuickCaptureDialogComponent", () => {
         { provide: WorkManagementApiClient, useValue: tasks },
         { provide: WorkEntriesApiClient, useValue: entries },
         { provide: BillingSetupApiClient, useValue: billing },
+        {
+          provide: OrganizationSettingsApiClient,
+          useValue: {
+            get: jest.fn(() =>
+              of({ currency: { defaultCurrencyCode: "RSD" } }),
+            ),
+          },
+        },
         { provide: ClientsApiClient, useValue: clients },
         {
           provide: EventsApiClient,
@@ -191,6 +204,9 @@ describe("QuickCaptureDialogComponent", () => {
     entries.confirmFromSource.mockReturnValue(of(savedEntry));
     billing.listRetainers.mockReturnValue(of([]));
     billing.listCategories.mockReturnValue(of([]));
+    billing.getProfile.mockReturnValue(
+      of({ clientId: "client-1", hourlyRate: null, currency: "RSD" }),
+    );
     clients.list.mockReturnValue(
       of({
         items: [
@@ -241,6 +257,40 @@ describe("QuickCaptureDialogComponent", () => {
   it("makes the duration and the description optional", () => {
     const { componentInstance: component } = render();
     fillValid(component, { minutes: null, description: "" });
+    expect(component.form.valid).toBe(true);
+  });
+
+  it("uses the client billing currency ahead of the organization default", () => {
+    context = { mode: "create", clientId: "client-1" };
+    billing.getProfile.mockReturnValueOnce(
+      of({ clientId: "client-1", hourlyRate: "80.00", currency: "EUR" }),
+    );
+    const component = render().componentInstance;
+
+    expect(component.form.controls.currency.value).toBe("EUR");
+  });
+
+  it("accepts an explicit zero work value and submits it independently", () => {
+    const component = render().componentInstance;
+    fillValid(component);
+    component.form.patchValue({ value: "0", currency: "EUR" });
+    expect(component.form.valid).toBe(true);
+
+    component.submit();
+
+    expect(entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({ value: "0.00", currency: "EUR" }),
+    );
+  });
+
+  it("validates money precision and requires currency only when a value exists", () => {
+    const component = render().componentInstance;
+    fillValid(component);
+    component.form.controls.value.setValue("12.345");
+    expect(component.form.controls.value.hasError("workValue")).toBe(true);
+    component.form.patchValue({ value: "12.50", currency: "" });
+    expect(component.form.hasError("workValueCurrency")).toBe(true);
+    component.form.controls.value.setValue("");
     expect(component.form.valid).toBe(true);
   });
 
@@ -873,6 +923,36 @@ describe("QuickCaptureDialogComponent", () => {
     );
   });
 
+  it("hydrates and resubmits an existing work value and currency", () => {
+    context = { mode: "edit", entryId: "priced-entry" };
+    entries.get.mockReturnValue(
+      of({
+        ...savedEntry,
+        client: clientRef("client-1", "Client"),
+        case: null,
+        minutes: 30,
+        title: "Priced work",
+        description: "",
+        workDate: "2026-10-08",
+        serviceCategory: null,
+        treatment: "HOURLY",
+        status: "CONFIRMED",
+        value: "125.40",
+        currency: "EUR",
+      }),
+    );
+    const component = render().componentInstance;
+
+    expect(component.form.controls.value.value).toBe("125.40");
+    expect(component.form.controls.currency.value).toBe("EUR");
+    component.submit();
+
+    expect(entries.update).toHaveBeenCalledWith(
+      "priced-entry",
+      expect.objectContaining({ value: "125.40", currency: "EUR" }),
+    );
+  });
+
   it("defaults the user selector to the current user and submits a different selection", () => {
     context = { mode: "create", clientId: "client-1", title: "Work" };
     const fixture = render();
@@ -1040,6 +1120,8 @@ describe("QuickCaptureDialogComponent", () => {
         minutes: 12,
         title: "Rad",
         description: "",
+        value: null,
+        currency: "RSD",
       });
       expect(entries.create).not.toHaveBeenCalled();
       expect(dialogRef.close).toHaveBeenCalledWith(savedEntry);
@@ -1061,6 +1143,8 @@ describe("QuickCaptureDialogComponent", () => {
         minutes: 45,
         title: "Ročište",
         description: "",
+        value: null,
+        currency: "RSD",
       });
     });
 
