@@ -696,7 +696,7 @@ export class FinanceInvoiceCreateComponent {
           const usable = entries.filter(
             (entry): entry is WorkEntry =>
               entry !== null &&
-              entry.client.id === clientId &&
+              entry.client?.id === clientId &&
               entry.status === "CONFIRMED" &&
               entry.invoiceId === null &&
               ["RETAINER", "HOURLY", "AT", "UNDECIDED"].includes(

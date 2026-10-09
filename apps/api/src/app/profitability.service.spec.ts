@@ -33,7 +33,7 @@ function person(id: string, firstName: string) {
 
 interface EntryFixture {
   userId?: string;
-  clientId?: string;
+  clientId?: string | null;
   minutes: number | null;
   workDate?: string;
   status?: "CONFIRMED" | "BILLED" | "WRITTEN_OFF";
@@ -56,7 +56,7 @@ describe("ProfitabilityService", () => {
         const userId = entry.userId ?? userA;
         return {
           userId,
-          clientId: entry.clientId ?? clientA,
+          clientId: entry.clientId === undefined ? clientA : entry.clientId,
           minutes: entry.minutes,
           workDate: new Date(entry.workDate ?? "2026-10-05"),
           status: entry.status ?? "BILLED",
@@ -193,6 +193,19 @@ describe("ProfitabilityService", () => {
     expect(row.minutes).toBe(180);
     expect(row.unknownValueMinutes).toBe(120);
     expect(row.timeValue).toBe("3000.00");
+  });
+
+  it("excludes clientless work from client rows but keeps performer time", async () => {
+    setEntries([
+      { minutes: 45, clientId: null, status: "CONFIRMED", invoiceLineId: null },
+    ]);
+
+    const result = await report();
+
+    expect(result.rows).toEqual([]);
+    expect(result.byPerson).toEqual([
+      expect.objectContaining({ loggedMinutes: 45, billedMinutes: 0 }),
+    ]);
   });
 
   it("has no time value when none of the minutes can be priced", async () => {

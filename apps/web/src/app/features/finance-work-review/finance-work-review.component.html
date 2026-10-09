@@ -273,7 +273,7 @@
               {{ workDateLabel(entry.workDate) }}
             </td>
             <td hlmTd>
-              {{ entry.client.displayName }}
+              {{ entry.client?.displayName ?? ("time.capture.noClient" | translate) }}
               <span class="text-muted-foreground block text-xs">
                 {{ entry.case?.caseNumber ?? ("finance.noCase" | translate) }}
               </span>

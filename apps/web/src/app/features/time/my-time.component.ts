@@ -123,6 +123,7 @@ export class MyTimeComponent {
   readonly clientTotals = computed<ClientTotal[]>(() => {
     const totals = new Map<string, ClientTotal>();
     for (const entry of this.entries()) {
+      if (!entry.client) continue;
       const current = totals.get(entry.client.id);
       if (current) current.minutes += entry.minutes ?? 0;
       else

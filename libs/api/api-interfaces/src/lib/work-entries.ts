@@ -70,7 +70,7 @@ export interface WorkEntry {
   taskId?: string | null;
   id: string;
   user: UserReference | null;
-  client: ClientReference;
+  client: ClientReference | null;
   case: CaseReference | null;
   workDate: string;
   minutes: number | null;
@@ -107,7 +107,7 @@ export interface CreateWorkEntryRequest {
   /** Existing calendar event captured by this work entry. */
   eventId?: string;
   taskId?: string;
-  clientId: string;
+  clientId?: string | null;
   caseId?: string;
   workDate: string;
   /** Omit or null for work that is priced later on the invoice. */

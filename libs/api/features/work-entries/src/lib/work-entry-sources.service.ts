@@ -86,8 +86,9 @@ export class WorkEntrySourcesService {
 
   /**
    * Creates the entry for a source record inside the caller's transaction.
-   * Returns its id, or null when the work cannot be attributed to exactly one
-   * client. Idempotent per source: an existing entry is returned untouched.
+  * Returns its id, or null when a non-event source cannot be attributed to
+  * exactly one client. Events may produce clientless non-billable work.
+  * Idempotent per source: an existing entry is returned untouched.
    */
   async ensureForSource(
     tx: Prisma.TransactionClient,
@@ -97,8 +98,8 @@ export class WorkEntrySourcesService {
       await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${input.sourceId} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
     }
     const clientIds = [...new Set(input.clientIds)];
-    if (clientIds.length !== 1) return null;
-    const [clientId] = clientIds;
+    const clientId = clientIds.length === 1 ? clientIds[0] : null;
+    if (!clientId && input.sourceType !== "EVENT") return null;
 
     const existing = await tx.workEntry.findFirst({
       where: {
@@ -125,12 +126,14 @@ export class WorkEntrySourcesService {
       input.minutes <= MAX_MINUTES
         ? input.minutes
         : null;
-    const treatment = await this.workEntries.defaultTreatmentFor(
-      clientId,
-      input.workDate,
-      null,
-      tx,
-    );
+    const treatment = clientId
+      ? await this.workEntries.defaultTreatmentFor(
+          clientId,
+          input.workDate,
+          null,
+          tx,
+        )
+      : "NON_BILLABLE";
     const status = input.confirm && minutes !== null ? "CONFIRMED" : "PROPOSED";
     // A concurrent completion of the same source can win the unique index. A
     // failed INSERT would poison the surrounding Postgres transaction, so the
@@ -146,10 +149,9 @@ export class WorkEntrySourcesService {
           minutes,
           title: toLatin(input.title.trim()).slice(0, 200) || "Rad",
           description: toLatin((input.description ?? "").trim()),
-          currency: await this.workEntries.defaultWorkEntryCurrency(
-            clientId,
-            tx,
-          ),
+          currency: clientId
+            ? await this.workEntries.defaultWorkEntryCurrency(clientId, tx)
+            : null,
           treatment,
           status,
           source: SOURCE_BY_TYPE[input.sourceType],

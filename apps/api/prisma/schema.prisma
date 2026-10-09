@@ -2036,7 +2036,7 @@ model WorkEntry {
   id                String             @id @default(uuid())
   workspaceId       String
   userId            String?
-  clientId          String
+  clientId          String?
   caseId            String?
   taskId            String?
   eventId           String?
@@ -2063,7 +2063,7 @@ model WorkEntry {
   updatedAt         DateTime           @updatedAt @db.Timestamptz(3)
   workspace         Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
   user              User?              @relation("WorkEntryPerformer", fields: [userId], references: [id], onDelete: Restrict)
-  client            Client             @relation(fields: [clientId], references: [id], onDelete: Restrict)
+  client            Client?            @relation(fields: [clientId], references: [id], onDelete: Restrict)
   case              Case?              @relation(fields: [caseId], references: [id], onDelete: SetNull)
   task              Task?              @relation(fields: [taskId], references: [id], onDelete: SetNull)
   event             Event?             @relation(fields: [eventId], references: [id], onDelete: SetNull)

@@ -1918,6 +1918,7 @@
   "time.capture.pickCase": "Koji predmet?",
   "time.capture.loading": "Učitavanje unosa",
   "time.capture.client": "Klijent",
+  "time.capture.noClient": "Bez klijenta",
   "time.capture.selectClient": "Izaberite klijenta",
   "time.capture.clientRequired": "Izaberite klijenta.",
   "time.capture.case": "Predmet",

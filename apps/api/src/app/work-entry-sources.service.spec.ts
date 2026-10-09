@@ -95,6 +95,27 @@ describe("WorkEntrySourcesService", () => {
       expect(tx.workEntry.createMany).not.toHaveBeenCalled();
     });
 
+    it("creates non-billable event work when no unique client is known", async () => {
+      await service.ensureForSource(
+        tx as never,
+        input({ sourceType: "EVENT", clientIds: [] }),
+      );
+      expect(tx.workEntry.createMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: [
+            expect.objectContaining({
+              clientId: null,
+              eventId: sourceId,
+              treatment: "NON_BILLABLE",
+              currency: null,
+            }),
+          ],
+        }),
+      );
+      expect(workEntries.defaultTreatmentFor).not.toHaveBeenCalled();
+      expect(workEntries.defaultWorkEntryCurrency).not.toHaveBeenCalled();
+    });
+
     it("creates a PROPOSED entry for a repeated single client and stays idempotent", async () => {
       const first = await service.ensureForSource(
         tx as never,

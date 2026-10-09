@@ -495,14 +495,10 @@ export class WorkEntriesService {
       ];
       const clientId =
         event.case?.clientId ??
-        (clientIds.length === 1 ? clientIds[0] : undefined);
-      if (!clientId)
-        throw new BadRequestException({
-          code: "EVENT_CLIENT_REQUIRED",
-          message:
-            "Event needs a single client or a case before work can be recorded",
-        });
-      await this.assertClientAndCase(clientId, event.caseId ?? undefined, tx);
+        (clientIds.length === 1 ? clientIds[0] : null);
+      if (clientId) {
+        await this.assertClientAndCase(clientId, event.caseId ?? undefined, tx);
+      }
       const duration = Math.round(
         (event.endsAt.getTime() - event.startsAt.getTime()) / 60000,
       );
@@ -523,7 +519,9 @@ export class WorkEntriesService {
               : null,
           title: this.titleText(event.title.slice(0, 200)),
           description: this.optionalText(event.description ?? undefined),
-          currency: await this.defaultWorkEntryCurrency(clientId, tx),
+          currency: clientId
+            ? await this.defaultWorkEntryCurrency(clientId, tx)
+            : null,
           status: "CONFIRMED",
           treatment: "NON_BILLABLE",
           source: "EVENT",
@@ -611,15 +609,32 @@ export class WorkEntriesService {
     const title = this.titleText(input.title);
     const description = this.optionalText(input.description);
     const workDate = this.toWorkDate(input.workDate);
-    await this.assertClientAndCase(input.clientId, input.caseId);
+    const clientId = input.clientId ?? null;
+    if (!clientId && !input.eventId) {
+      throw new BadRequestException("A client is required for this work entry");
+    }
+    if (clientId) {
+      await this.assertClientAndCase(clientId, input.caseId);
+    } else if (input.caseId && !input.eventId) {
+      throw new BadRequestException("A case requires a client");
+    }
     await this.assertServiceCategory(input.serviceCategoryId);
-    const treatment =
-      input.treatment ??
-      (await this.defaultTreatmentFor(
-        input.clientId,
-        workDate,
-        input.serviceCategoryId ?? null,
-      ));
+    const treatment = clientId
+      ? (input.treatment ??
+        (await this.defaultTreatmentFor(
+          clientId,
+          workDate,
+          input.serviceCategoryId ?? null,
+        )))
+      : (input.treatment ?? "NON_BILLABLE");
+    if (!clientId && treatment !== "NON_BILLABLE") {
+      throw new BadRequestException(
+        "Clientless event work must be non-billable",
+      );
+    }
+    if (!clientId && input.value != null) {
+      throw new BadRequestException("Clientless event work cannot have a value");
+    }
 
     const row = await this.db.$transaction(async (tx) => {
       let performerId = input.userId === undefined ? this.userId : input.userId;
@@ -637,12 +652,12 @@ export class WorkEntriesService {
         if (input.userId === undefined) performerId = task.assigneeUserId;
       }
       await this.assertPerformer(performerId, tx);
-      const money = await this.newWorkEntryMoney(input, input.clientId, tx);
+      const money = await this.newWorkEntryMoney(input, clientId, tx);
       const created = await tx.workEntry.create({
         data: {
           workspaceId: this.workspaceId,
           userId: performerId,
-          clientId: input.clientId,
+          clientId,
           caseId: input.caseId ?? null,
           workDate,
           minutes,
@@ -702,7 +717,8 @@ export class WorkEntriesService {
       throw new ConflictException("Confirm the timer before changing its user");
     }
 
-    const clientId = input.clientId ?? current.clientId;
+    const clientId =
+      input.clientId === undefined ? current.clientId : input.clientId;
     const clientChanged = clientId !== current.clientId;
     // A case belongs to exactly one client; moving the entry to another client
     // drops the old case unless a new one is given.
@@ -712,8 +728,17 @@ export class WorkEntriesService {
         : clientChanged
           ? null
           : current.caseId;
-    if (clientChanged || input.caseId !== undefined) {
+    const clientlessEvent =
+      clientId === null &&
+      current.eventId !== null &&
+      current.source === "EVENT";
+    if (!clientId && !clientlessEvent) {
+      throw new BadRequestException("A client is required for this work entry");
+    }
+    if (clientId && (clientChanged || input.caseId !== undefined)) {
       await this.assertClientAndCase(clientId, caseId ?? undefined);
+    } else if (caseId && !clientlessEvent) {
+      throw new BadRequestException("A case requires a client");
     }
     if (input.serviceCategoryId !== undefined) {
       await this.assertServiceCategory(input.serviceCategoryId);
@@ -731,11 +756,17 @@ export class WorkEntriesService {
     const categoryChanged = serviceCategoryId !== current.serviceCategoryId;
     // The default only depends on client, date and category, so it is refreshed
     // exactly when one of those changed and the user did not pick a treatment.
-    const treatment =
-      input.treatment ??
-      (clientChanged || dateChanged || categoryChanged
-        ? await this.defaultTreatmentFor(clientId, workDate, serviceCategoryId)
-        : current.treatment);
+    const treatment = clientId
+      ? input.treatment ??
+        (clientChanged || dateChanged || categoryChanged
+          ? await this.defaultTreatmentFor(clientId, workDate, serviceCategoryId)
+          : current.treatment)
+      : (input.treatment ?? "NON_BILLABLE");
+    if (!clientId && treatment !== "NON_BILLABLE") {
+      throw new BadRequestException(
+        "Clientless event work must be non-billable",
+      );
+    }
 
     const nextValue =
       input.value === undefined
@@ -751,7 +782,10 @@ export class WorkEntriesService {
       input.value !== undefined &&
       input.currency === undefined
     ) {
-      nextCurrency = await this.defaultWorkEntryCurrency(clientId);
+      if (clientId) nextCurrency = await this.defaultWorkEntryCurrency(clientId);
+    }
+    if (!clientId && nextValue !== null) {
+      throw new BadRequestException("Clientless event work cannot have a value");
     }
     if (nextValue !== null && nextCurrency === null) {
       throw new BadRequestException("A currency is required for a work value");
@@ -844,9 +878,13 @@ export class WorkEntriesService {
       nextValue !== null &&
       nextCurrency === null &&
       input.value !== undefined &&
-      input.currency === undefined
+      input.currency === undefined &&
+      current.clientId
     ) {
       nextCurrency = await this.defaultWorkEntryCurrency(current.clientId);
+    }
+    if (!current.clientId && nextValue !== null) {
+      throw new BadRequestException("Clientless event work cannot have a value");
     }
     if (nextValue !== null && nextCurrency === null) {
       throw new BadRequestException("A currency is required for a work value");
@@ -1175,7 +1213,7 @@ export class WorkEntriesService {
   private async log(
     tx: Prisma.TransactionClient,
     action: string,
-    entry: { id: string; clientId: string; caseId: string | null },
+    entry: { id: string; clientId: string | null; caseId: string | null },
     metadata: Record<string, Prisma.InputJsonValue | null | undefined>,
   ): Promise<void> {
     const cleaned = Object.fromEntries(
@@ -1381,7 +1419,7 @@ export class WorkEntriesService {
 
   private async newWorkEntryMoney(
     input: Pick<CreateWorkEntryRequest, "value" | "currency">,
-    clientId: string,
+    clientId: string | null,
     tx: Prisma.TransactionClient,
   ): Promise<{
     value: Prisma.Decimal | null;
@@ -1390,7 +1428,9 @@ export class WorkEntriesService {
     const value = this.parseWorkEntryValue(input.value);
     const currency =
       input.currency === undefined
-        ? await this.defaultWorkEntryCurrency(clientId, tx)
+        ? clientId
+          ? await this.defaultWorkEntryCurrency(clientId, tx)
+          : null
         : this.normalizeWorkEntryCurrency(input.currency);
     if (value !== null && currency === null) {
       throw new BadRequestException("A currency is required for a work value");
@@ -1404,7 +1444,7 @@ export class WorkEntriesService {
     return {
       id: row.id,
       user: row.user ? this.userReference(row.user) : null,
-      client: this.clientReference(row.client),
+      client: row.client ? this.clientReference(row.client) : null,
       case: this.caseReference(row.case),
       workDate: row.workDate.toISOString().slice(0, 10),
       minutes: row.minutes,
@@ -1440,7 +1480,9 @@ export class WorkEntriesService {
     };
   }
 
-  private clientReference(client: EntryRecord["client"]): ClientReference {
+  private clientReference(
+    client: NonNullable<EntryRecord["client"]>,
+  ): ClientReference {
     return {
       id: client.id,
       clientNumber: client.clientNumber,

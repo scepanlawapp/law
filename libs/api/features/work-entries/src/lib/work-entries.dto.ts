@@ -72,8 +72,9 @@ export class CreateWorkEntryDto implements CreateWorkEntryRequest {
   @IsOptional()
   @IsUUID()
   taskId?: string;
+  @IsOptional()
   @IsUUID()
-  clientId!: string;
+  clientId?: string | null;
 
   @IsOptional()
   @IsUUID()
@@ -128,7 +129,7 @@ export class UpdateWorkEntryDto implements UpdateWorkEntryRequest {
   @IsOptional() @IsIn(["CONFIRMED"]) status?: "CONFIRMED";
   @IsOptional()
   @IsUUID()
-  clientId?: string;
+  clientId?: string | null;
 
   @IsOptional()
   @IsUUID()

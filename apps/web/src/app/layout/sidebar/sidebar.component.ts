@@ -204,6 +204,15 @@ export class SidebarComponent {
                   },
                 ]
               : []),
+            ...(this.showMonthEnd()
+              ? [
+                  {
+                    route: "/finance/month-end",
+                    label: "nav.financeMonthEnd",
+                    icon: "lucideCalendarCheck",
+                  },
+                ]
+              : []),
             ...([WorkspaceRole.OWNER, WorkspaceRole.ADMIN].includes(
               this.authState.activeWorkspace()?.role ?? WorkspaceRole.MEMBER,
             )
@@ -212,15 +221,6 @@ export class SidebarComponent {
                     route: "/finance/settings",
                     label: "revenue.nav",
                     icon: "lucideSettings",
-                  },
-                ]
-              : []),
-            ...(this.showMonthEnd()
-              ? [
-                  {
-                    route: "/finance/month-end",
-                    label: "nav.financeMonthEnd",
-                    icon: "lucideCalendarCheck",
                   },
                 ]
               : []),

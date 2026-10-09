@@ -57,11 +57,13 @@ export class RetainerUsageService implements OnModuleInit {
 
   /** Alerts run whenever a work entry becomes CONFIRMED. */
   onModuleInit(): void {
-    this.workEntries.afterConfirmed = (entry) =>
-      this.checkThresholds({
+    this.workEntries.afterConfirmed = (entry) => {
+      if (!entry.client) return Promise.resolve();
+      return this.checkThresholds({
         clientId: entry.client.id,
         workDate: new Date(entry.workDate),
       });
+    };
   }
 
   async usage(clientId: string, month: string): Promise<RetainerUsage | null> {

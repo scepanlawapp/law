@@ -1918,6 +1918,7 @@
   "time.capture.pickCase": "Which case?",
   "time.capture.loading": "Loading entry",
   "time.capture.client": "Client",
+  "time.capture.noClient": "No client",
   "time.capture.selectClient": "Select a client",
   "time.capture.clientRequired": "Select a client.",
   "time.capture.case": "Case",
