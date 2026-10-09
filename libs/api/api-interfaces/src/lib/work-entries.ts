@@ -38,7 +38,7 @@ export interface WorkEntry {
   /** Task this work belongs to; multiple entries can share a task. */
   taskId?: string | null;
   id: string;
-  user: UserReference;
+  user: UserReference | null;
   client: ClientReference;
   case: CaseReference | null;
   workDate: string;
@@ -68,6 +68,7 @@ export interface WorkEntryActions {
 }
 
 export interface CreateWorkEntryRequest {
+  userId?: string | null;
   /** Existing calendar event captured by this work entry. */
   eventId?: string;
   taskId?: string;
@@ -114,6 +115,7 @@ export interface StartTimerRequest {
 }
 
 export interface ConfirmWorkEntryRequest {
+  userId?: string | null;
   minutes?: number | null;
   title?: string;
   description?: string;
@@ -124,6 +126,7 @@ export interface WriteOffWorkEntryRequest {
 }
 
 export interface ConfirmSourceEntryRequest {
+  userId?: string | null;
   sourceType: WorkEntrySourceType;
   sourceId: string;
   minutes: number | null;
@@ -287,6 +290,7 @@ export interface ProfitabilityReport {
 }
 
 export interface PastWorkEvent {
+  userId: string;
   hasWorkEntry: boolean;
   id: string;
   title: string;

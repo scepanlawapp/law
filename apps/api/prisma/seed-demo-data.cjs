@@ -1547,7 +1547,7 @@ async function ensureWorkEntries(
     [33, 1, "D", true, 4, 100, "Savetovanje o sticanju udela", COR, "AT", "CONFIRMED", "MANUAL"],
     [34, 3, "D", true, 11, 60, "Nacrt ugovora o prodaji udela", DRAFT, "AT", "CONFIRMED", "MANUAL"],
     [35, 4, "D", false, 14, 45, "Poziv klijenta oko tužbe", OTHER, "UNDECIDED", "CONFIRMED", "QUICK_CAPTURE"],
-    [36, 6, "D", false, 17, 30, "Prva konsultacija sa klijentom", COR, "NON_BILLABLE", "CONFIRMED", "MANUAL"],
+    [36, 6, "D", false, 17, 30, "Prva konsultacija sa klijentom", COR, "NON_BILLABLE", "CONFIRMED", "MANUAL", { unassigned: true }],
     [37, 5, "D", true, 18, null, "Dostava dokumentacije sudu", null, "UNDECIDED", "PROPOSED", "EVENT", { sourceType: "EVENT", sourceId: sources.eventD }],
     // Running timer (one per user at most).
     [38, 2, "D", true, null, null, "Priprema za ročište", LIT, "UNDECIDED", "RUNNING", "TIMER", { timerStartedAt: new Date(now - 25 * 60000) }],
@@ -1596,7 +1596,7 @@ async function ensureWorkEntries(
       create: {
         id: workEntryId(n),
         workspaceId,
-        userId: user.id,
+        userId: extra.unassigned ? null : user.id,
         clientId: client.id,
         caseId: caseItem ? caseItem.id : null,
         workDate,

@@ -17,6 +17,7 @@ import {
   Validators,
 } from "@angular/forms";
 import {
+  ReferencesApiClient,
   BillingSetupApiClient,
   CasesApiClient,
   EventsApiClient,
@@ -171,6 +172,7 @@ function today(): string {
 export class QuickCaptureDialogComponent {
   private readonly injector = inject(Injector);
   private readonly eventsApi = inject(EventsApiClient);
+  private readonly references = inject(ReferencesApiClient);
   private readonly tasksApi = inject(WorkManagementApiClient);
   private readonly entriesApi = inject(WorkEntriesApiClient);
   private readonly confirm = inject(ConfirmDialogService);
@@ -311,6 +313,12 @@ export class QuickCaptureDialogComponent {
     { value: "UNDECIDED", label: "time.treatment.undecided" },
   ];
   readonly form = new FormGroup({
+    userId: new FormControl(
+      this.context.userId === undefined
+        ? (this.auth.session()?.user.id ?? "")
+        : (this.context.userId ?? ""),
+      { nonNullable: true },
+    ),
     clientId: new FormControl(this.context.clientId ?? "", {
       nonNullable: true,
       validators: this.fromSource ? [] : [Validators.required],
@@ -441,12 +449,70 @@ export class QuickCaptureDialogComponent {
       this.localization.translate(key),
     )(value);
 
+  readonly users = signal<SelectOption[]>([]);
+  readonly usersLoading = signal(false);
+  readonly usersFailed = signal(false);
+  readonly userOptions = computed(() => {
+    const options = [...this.users()];
+    const saved = this.loadedEntry()?.user;
+    if (saved && !options.some((option) => option.value === saved.id))
+      options.push({ value: saved.id, label: saved.displayName });
+    return [{ value: "", label: "time.capture.unassigned" }, ...options];
+  });
+  readonly userItemToString = (value: string | null | undefined): string =>
+    this.userOptions().some((option) => option.value === value)
+      ? createSelectItemToString(this.userOptions(), (key) =>
+          this.localization.translate(key),
+        )(value)
+      : "";
+
+  private applySourceUser(userId: string | undefined): void {
+    if (
+      userId &&
+      this.mode === "create" &&
+      this.context.userId === undefined &&
+      !this.form.controls.userId.dirty
+    ) {
+      this.form.controls.userId.setValue(userId, { emitEvent: false });
+    }
+  }
+
+  loadUsers(): void {
+    this.usersLoading.set(true);
+    this.usersFailed.set(false);
+    this.references
+      .users()
+      .pipe(
+        finalize(() => this.usersLoading.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (members) =>
+          this.users.set(
+            members.map((member) => ({
+              value: member.userId,
+              label:
+                [member.user.firstName, member.user.lastName]
+                  .filter(Boolean)
+                  .join(" ") || member.user.email,
+            })),
+          ),
+        error: () => this.usersFailed.set(true),
+      });
+  }
+
   constructor() {
+    if (this.mode !== "view") this.loadUsers();
     effect((onCleanup) => {
       const id = this.linkedEventId();
       if (!id) return;
       const sub = this.eventsApi.get(id).subscribe({
-        next: (event) => this.linkedEvent.set(event),
+        next: (event) => {
+          this.linkedEvent.set(event);
+          this.applySourceUser(
+            event.assigneeUsers?.[0]?.id ?? event.organizerUser?.id,
+          );
+        },
         error: () => this.linkedEvent.set(null),
       });
       onCleanup(() => sub.unsubscribe());
@@ -455,7 +521,10 @@ export class QuickCaptureDialogComponent {
       const id = this.linkedTaskId();
       if (!id) return;
       const subscription = this.tasksApi.getTask(id).subscribe({
-        next: (task) => this.linkedTask.set(task),
+        next: (task) => {
+          this.linkedTask.set(task);
+          this.applySourceUser(task.assigneeUser?.id);
+        },
         // The header button remains available to retry the task lookup.
         error: () => this.linkedTask.set(null),
       });
@@ -923,6 +992,7 @@ export class QuickCaptureDialogComponent {
     this.linkedTaskId.set(this.context.taskId ?? entry.taskId ?? undefined);
     const controls = this.form.controls;
     this.hydrating = true;
+    controls.userId.setValue(entry.user?.id ?? "", { emitEvent: false });
     // Values the caller passed in win over the stored ones.
     if (!this.context.clientId) {
       this.applyClient({ id: entry.client.id, name: entry.client.displayName });
@@ -987,6 +1057,7 @@ export class QuickCaptureDialogComponent {
     const title = value.title.trim();
     const description = value.description.trim();
     const fields = {
+      userId: value.userId || null,
       taskId: this.context.taskId,
       clientId: value.clientId,
       // The update contract cannot clear a case or category, only set them.
@@ -1012,27 +1083,31 @@ export class QuickCaptureDialogComponent {
           source: aiParsed ? "QUICK_CAPTURE" : "MANUAL",
           aiParsed,
         });
-      case "confirm-timer":
+      case "confirm-timer": {
+        const { userId, ...timerFields } = fields;
         return this.entriesApi
           .update(this.requiredEntryId(), {
-            ...fields,
+            ...timerFields,
             ...(aiParsed ? { aiParsed } : {}),
           })
           .pipe(
             switchMap(() =>
               this.entriesApi.confirm(this.requiredEntryId(), {
+                userId,
                 minutes,
                 title,
                 description,
               }),
             ),
           );
+      }
       case "confirm-source": {
         const source = this.context.source;
         if (!source) {
           return throwError(() => new Error("A source is required to confirm"));
         }
         return this.entriesApi.confirmFromSource({
+          userId: value.userId || null,
           sourceType: source.sourceType,
           sourceId: source.sourceId,
           minutes,

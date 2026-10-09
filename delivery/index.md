@@ -138,3 +138,7 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Work / Time events and views](tracks/time_event_capture_20261008/index.md)
 
 - [Event work entries](tracks/event_work_entries_20261009/index.md)
+
+- [Work entry performer](tracks/work_entry_performer_20261009/index.md)
+
+- [Client modal and primary contact](tracks/client_modal_primary_contact_20261009/index.md)

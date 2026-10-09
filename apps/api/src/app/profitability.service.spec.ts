@@ -61,9 +61,7 @@ describe("ProfitabilityService", () => {
           workDate: new Date(entry.workDate ?? "2026-10-05"),
           status: entry.status ?? "BILLED",
           invoiceLineId:
-            entry.invoiceLineId === undefined
-              ? "line"
-              : entry.invoiceLineId,
+            entry.invoiceLineId === undefined ? "line" : entry.invoiceLineId,
           user: person(userId, userId === userA ? "Ana" : "Bojan"),
         };
       }),
@@ -329,6 +327,23 @@ describe("ProfitabilityService", () => {
 
     // 100 / (7/60) = 857.142857...
     expect(row.effectiveHourlyRate).toBe("857.14");
+  });
+
+  it("handles unassigned work without inventing a person or rate", async () => {
+    db.workEntry.findMany.mockResolvedValue([
+      {
+        userId: null,
+        user: null,
+        clientId: clientA,
+        minutes: 60,
+        workDate: new Date("2026-10-05"),
+        status: "CONFIRMED",
+        invoiceLineId: null,
+      },
+    ]);
+    const result = await report();
+    expect(result.byPerson).toEqual([]);
+    expect(db.userRate.findMany).not.toHaveBeenCalled();
   });
 
   it("reports logged against billed minutes per person, without written-off time", async () => {

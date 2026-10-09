@@ -426,7 +426,7 @@
                 >
                   <div class="flex flex-wrap items-center gap-2">
                     <h4 class="font-medium">
-                      {{ contact.firstName }} {{ contact.lastName }}
+                      {{ (contact.firstName + " " + contact.lastName).trim() || contact.email || contact.phone || ("clients.primaryContact" | translate) }}
                     </h4>
                     @if (contact.isPrimary) {
                       <span class="rounded-md border border-border px-2 py-1">

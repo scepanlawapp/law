@@ -1,3 +1,4 @@
+import type { ClientPrimaryContactInput } from "@law/api-interfaces";
 import type { TaskRequest } from "@law/api-interfaces";
 import { inject, Injectable } from "@angular/core";
 import {
@@ -925,6 +926,7 @@ export interface CaseListQuery {
 }
 
 export interface ClientRequest {
+  primaryContact?: ClientPrimaryContactInput;
   type: ClientType;
   status?: ClientStatus;
   firstName?: string;

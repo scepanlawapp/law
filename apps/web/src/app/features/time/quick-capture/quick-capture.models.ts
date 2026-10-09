@@ -14,6 +14,7 @@ export interface QuickCaptureInput<TResult = WorkEntry> {
   /** Show entry-management actions when opened from task details. */
   manageEntry?: boolean;
   onDeleted?: () => void;
+  userId?: string | null;
   taskId?: string;
   eventId?: string;
   clientId?: string;

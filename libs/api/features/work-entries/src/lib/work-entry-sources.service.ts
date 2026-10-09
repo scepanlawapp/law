@@ -216,6 +216,7 @@ export class WorkEntrySourcesService {
     });
     if (!entry) throw new NotFoundException("Work entry not found");
     return this.workEntries.confirm(entry.id, {
+      ...(input.userId !== undefined ? { userId: input.userId } : {}),
       minutes: input.minutes,
       title: input.title,
       description: input.description,

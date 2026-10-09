@@ -9,6 +9,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  ValidateNested,
   Max,
   MaxLength,
   Min,
@@ -60,7 +61,21 @@ export class ClientCaseListQueryDto extends PaginationQueryDto {
   priority?: CasePriority;
 }
 
+export class ClientPrimaryContactDto {
+  @IsOptional() @IsUUID() id?: string;
+  @IsOptional() @IsString() @MaxLength(160) firstName?: string;
+  @IsOptional() @IsString() @MaxLength(160) lastName?: string;
+  @IsOptional() @IsString() @MaxLength(160) position?: string;
+  @IsOptional() @IsString() @MaxLength(320) email?: string;
+  @IsOptional() @IsString() @MaxLength(80) phone?: string;
+  @IsOptional() @IsString() @MaxLength(10000) notes?: string;
+}
+
 export class CreateClientDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => ClientPrimaryContactDto)
+  primaryContact?: ClientPrimaryContactDto;
   @IsEnum(ClientType)
   type!: ClientType;
 

@@ -1,0 +1,1 @@
+ALTER TABLE "WorkEntry" ALTER COLUMN "userId" DROP NOT NULL;

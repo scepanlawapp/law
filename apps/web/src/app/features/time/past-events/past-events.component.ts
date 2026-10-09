@@ -1,3 +1,4 @@
+import { HttpErrorResponse } from "@angular/common/http";
 import { DOCUMENT, NgTemplateOutlet } from "@angular/common";
 import {
   ChangeDetectionStrategy,
@@ -158,10 +159,6 @@ export class PastEventsComponent {
   }
   writeOff(event: PastWorkEvent): void {
     if (this.busy() || !this.canWriteOff(event)) return;
-    if (!event.case && event.clients.length !== 1) {
-      this.logWork(event, "NON_BILLABLE");
-      return;
-    }
     this.busy.set(event.id);
     this.api
       .writeOffEvent(event.id)
@@ -174,7 +171,11 @@ export class PastEventsComponent {
           this.load(1);
           this.workChanged.emit();
         },
-        error: () => this.showError(),
+        error: (error: HttpErrorResponse) => {
+          if (error.error?.code === "EVENT_CLIENT_REQUIRED")
+            this.toast.info(this.local.translate("time.events.clientRequired"));
+          else this.showError();
+        },
       });
   }
   private showError(): void {

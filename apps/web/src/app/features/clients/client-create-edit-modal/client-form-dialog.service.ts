@@ -25,7 +25,7 @@ export class ClientFormDialogService {
       ClientFormComponent,
       {
         contentClass:
-          "sm:max-w-2xl h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
+          "w-[calc(100vw-2rem)] sm:max-w-6xl h-[calc(100dvh-4rem)] flex flex-col overflow-hidden",
         context: context ?? {},
       },
     ).closed$;

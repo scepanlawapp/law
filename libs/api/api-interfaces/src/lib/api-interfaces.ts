@@ -1729,3 +1729,14 @@ export interface TaskRequest {
   /** Confirmed capture saved atomically when status becomes DONE. */
   workEntry?: CreateWorkEntryRequest;
 }
+
+/** Primary contact edited together with a client. Empty channels clear stored values. */
+export interface ClientPrimaryContactInput {
+  id?: string;
+  firstName?: string;
+  lastName?: string;
+  position?: string;
+  email?: string;
+  phone?: string;
+  notes?: string;
+}

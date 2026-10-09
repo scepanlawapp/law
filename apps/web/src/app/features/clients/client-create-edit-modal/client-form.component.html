@@ -1,4 +1,4 @@
-<hlm-dialog-header>
+<hlm-dialog-header class="shrink-0 border-b border-border pb-5">
   <h2 hlmDialogTitle>
     {{ (clientId ? "clients.edit" : "clients.create") | translate }}
   </h2>
@@ -9,166 +9,623 @@
     <hlm-spinner aria-label="{{ 'clients.loading' | translate }}" />
   </div>
 } @else {
+  @if (loadFailed()) {
+    <p role="alert" class="text-destructive">
+      {{ "clients.loadError" | translate }}
+    </p>
+  }
   <form
     [formGroup]="form"
     (ngSubmit)="submit()"
     novalidate
     class="flex min-h-0 flex-1 flex-col gap-6 text-sm"
   >
-    <div class="min-h-0 flex-1 overflow-y-auto">
-      <section class="flex flex-col gap-4">
-        <h2 class="text-base font-medium">
-          {{ "clients.basicInfo" | translate }}
-        </h2>
-        <fieldset>
-          <legend>{{ "clients.type" | translate }}</legend>
-          <hlm-radio-group formControlName="type" class="flex flex-wrap gap-4">
-            @for (option of clientTypeOptions; track option.value) {
-              <div class="flex items-center gap-2">
-                <hlm-radio
-                  [value]="option.value"
-                  [inputId]="'client-type-' + option.value.toLowerCase()"
+    <hlm-tabs
+      [tab]="activeSection()"
+      (tabActivated)="activeSection.set($event)"
+      orientation="vertical"
+      class="min-h-0 flex-1 flex-col gap-6 md:flex-row"
+    >
+      <hlm-tabs-list
+        class="grid w-full shrink-0 grid-cols-2 gap-2 border-0 bg-transparent p-0 md:flex md:w-52"
+        aria-label="{{ 'clients.formSections' | translate }}"
+      >
+        @for (section of sections; track section.id) {
+          <button
+            type="button"
+            [hlmTabsTrigger]="section.id"
+            class="h-auto min-h-11 flex-none justify-start gap-2 px-3 py-3 text-sm"
+          >
+            <ng-icon [name]="section.icon" aria-hidden="true" />
+            {{ section.label | translate }}
+          </button>
+        }
+      </hlm-tabs-list>
+      <div class="min-h-0 min-w-0 flex-1 overflow-y-auto px-1 pb-2">
+        <section
+          hlmTabsContent="basic"
+          data-client-panel="basic"
+          class="flex flex-col gap-5"
+        >
+          <h2 class="text-xl font-semibold">
+            {{ "clients.basicInfo" | translate }}
+          </h2>
+          <fieldset>
+            <legend>{{ "clients.type" | translate }}</legend>
+            <hlm-radio-group
+              formControlName="type"
+              class="grid grid-cols-1 gap-3 md:grid-cols-2"
+            >
+              @for (option of clientTypeOptions; track option.value) {
+                <div
+                  class="flex items-center gap-2 rounded-lg border border-border p-3"
+                  [class.bg-accent]="form.controls.type.value === option.value"
+                  [class.border-primary]="
+                    form.controls.type.value === option.value
+                  "
                 >
+                  <hlm-radio
+                    [value]="option.value"
+                    [inputId]="'client-type-' + option.value.toLowerCase()"
+                  >
+                    <hlm-radio-indicator indicator />
+                  </hlm-radio>
+                  <label
+                    hlmLabel
+                    class="flex-1 cursor-pointer"
+                    [for]="'client-type-' + option.value.toLowerCase()"
+                  >
+                    {{ option.label | translate }}
+                  </label>
+                </div>
+              }
+            </hlm-radio-group>
+          </fieldset>
+
+          @if (isOrganization()) {
+            <div hlmField>
+              <label hlmFieldLabel for="organizationName">
+                {{ "clients.organizationName" | translate }} *
+              </label>
+              <input
+                hlmInput
+                id="organizationName"
+                formControlName="organizationName"
+                required
+              />
+            </div>
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div hlmField>
+                <label hlmFieldLabel for="registrationNumber">
+                  {{ "clients.registrationNumber" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  id="registrationNumber"
+                  formControlName="registrationNumber"
+                />
+              </div>
+              <div hlmField>
+                <label hlmFieldLabel for="taxNumber">
+                  {{ "clients.taxNumber" | translate }}
+                </label>
+                <input hlmInput id="taxNumber" formControlName="taxNumber" />
+              </div>
+            </div>
+          } @else {
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div hlmField>
+                <label hlmFieldLabel for="firstName">
+                  {{ "clients.firstName" | translate }} *
+                </label>
+                <input
+                  hlmInput
+                  id="firstName"
+                  formControlName="firstName"
+                  required
+                />
+              </div>
+              <div hlmField>
+                <label hlmFieldLabel for="lastName">
+                  {{ "clients.lastName" | translate }} *
+                </label>
+                <input
+                  hlmInput
+                  id="lastName"
+                  formControlName="lastName"
+                  required
+                />
+              </div>
+            </div>
+            <div hlmField>
+              <label hlmFieldLabel for="jmbg">
+                {{ "clients.jmbg" | translate }}
+              </label>
+              <input hlmInput id="jmbg" formControlName="jmbg" />
+            </div>
+          }
+
+          <fieldset>
+            <legend>{{ "clients.residency" | translate }}</legend>
+            <hlm-radio-group
+              formControlName="isDomestic"
+              class="flex flex-wrap gap-4"
+            >
+              <div class="flex items-center gap-2">
+                <hlm-radio [value]="true" inputId="client-domestic">
                   <hlm-radio-indicator indicator />
                 </hlm-radio>
-                <label
-                  hlmLabel
-                  class="cursor-pointer"
-                  [for]="'client-type-' + option.value.toLowerCase()"
-                >
-                  {{ option.label | translate }}
+                <label hlmLabel class="cursor-pointer" for="client-domestic">
+                  {{ "clients.domestic" | translate }}
                 </label>
               </div>
-            }
-          </hlm-radio-group>
-        </fieldset>
+              <div class="flex items-center gap-2">
+                <hlm-radio [value]="false" inputId="client-foreign">
+                  <hlm-radio-indicator indicator />
+                </hlm-radio>
+                <label hlmLabel class="cursor-pointer" for="client-foreign">
+                  {{ "clients.foreign" | translate }}
+                </label>
+              </div>
+            </hlm-radio-group>
+          </fieldset>
 
-        @if (isOrganization()) {
-          <div hlmField>
-            <label hlmFieldLabel for="organizationName">
-              {{ "clients.organizationName" | translate }}
-            </label>
-            <input
-              hlmInput
-              id="organizationName"
-              formControlName="organizationName"
-              required
-            />
-          </div>
+          @if (isOrganization()) {
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div class="flex items-center gap-2">
+                <hlm-switch
+                  id="client-public-sector"
+                  formControlName="isPublicSector"
+                />
+                <label hlmLabel for="client-public-sector">
+                  {{ "clients.isPublicSector" | translate }}
+                </label>
+              </div>
+              @if (form.controls.isPublicSector.value) {
+                <div hlmField>
+                  <label hlmFieldLabel for="jbkjs">
+                    {{ "clients.jbkjs" | translate }}
+                  </label>
+                  <input hlmInput id="jbkjs" formControlName="jbkjs" />
+                </div>
+              }
+            </div>
+          }
+
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
-              <label hlmFieldLabel for="registrationNumber">
-                {{ "clients.registrationNumber" | translate }}
+              <label hlmFieldLabel for="email">
+                {{ "clients.email" | translate }}
               </label>
               <input
                 hlmInput
-                id="registrationNumber"
-                formControlName="registrationNumber"
+                id="email"
+                type="email"
+                [formControl]="primaryContact().controls.email"
               />
             </div>
             <div hlmField>
-              <label hlmFieldLabel for="taxNumber">
-                {{ "clients.taxNumber" | translate }}
-              </label>
-              <input hlmInput id="taxNumber" formControlName="taxNumber" />
-            </div>
-          </div>
-        } @else {
-          <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div hlmField>
-              <label hlmFieldLabel for="firstName">
-                {{ "clients.firstName" | translate }}
+              <label hlmFieldLabel for="phone">
+                {{ "clients.phone" | translate }}
               </label>
               <input
                 hlmInput
-                id="firstName"
-                formControlName="firstName"
-                required
-              />
-            </div>
-            <div hlmField>
-              <label hlmFieldLabel for="lastName">
-                {{ "clients.lastName" | translate }}
-              </label>
-              <input
-                hlmInput
-                id="lastName"
-                formControlName="lastName"
-                required
+                id="phone"
+                type="tel"
+                [formControl]="primaryContact().controls.phone"
               />
             </div>
           </div>
-          <div hlmField>
-            <label hlmFieldLabel for="jmbg">
-              {{ "clients.jmbg" | translate }}
-            </label>
-            <input hlmInput id="jmbg" formControlName="jmbg" />
-          </div>
-        }
 
-        <fieldset>
-          <legend>{{ "clients.residency" | translate }}</legend>
-          <hlm-radio-group
-            formControlName="isDomestic"
-            class="flex flex-wrap gap-4"
-          >
-            <div class="flex items-center gap-2">
-              <hlm-radio [value]="true" inputId="client-domestic">
-                <hlm-radio-indicator indicator />
-              </hlm-radio>
-              <label hlmLabel class="cursor-pointer" for="client-domestic">
-                {{ "clients.domestic" | translate }}
-              </label>
-            </div>
-            <div class="flex items-center gap-2">
-              <hlm-radio [value]="false" inputId="client-foreign">
-                <hlm-radio-indicator indicator />
-              </hlm-radio>
-              <label hlmLabel class="cursor-pointer" for="client-foreign">
-                {{ "clients.foreign" | translate }}
-              </label>
-            </div>
-          </hlm-radio-group>
-        </fieldset>
-
-        @if (isOrganization()) {
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div class="flex items-center gap-2">
-              <hlm-switch
-                id="client-public-sector"
-                formControlName="isPublicSector"
-              />
-              <label hlmLabel for="client-public-sector">
-                {{ "clients.isPublicSector" | translate }}
+            <div hlmField class="md:col-span-2">
+              <label hlmFieldLabel for="responsibleUserId">
+                {{ "clients.responsible" | translate }}
               </label>
+              <hlm-select
+                formControlName="responsibleUserId"
+                [itemToString]="responsibleUserItemToString"
+              >
+                <hlm-select-trigger buttonId="responsibleUserId" class="w-full">
+                  <hlm-select-value />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal>
+                  <hlm-select-group>
+                    <hlm-select-item value=""></hlm-select-item>
+                    @for (user of users(); track user.userId) {
+                      <hlm-select-item [value]="user.userId">
+                        {{ user.label }}
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
             </div>
-            @if (form.controls.isPublicSector.value) {
+          </div>
+        </section>
+
+        <section
+          hlmTabsContent="addresses"
+          data-client-panel="addresses"
+          class="min-w-0 space-y-5"
+        >
+          <h3 class="text-xl font-semibold">
+            {{ "clients.addresses" | translate }}
+          </h3>
+          @for (address of addresses.controls; track address) {
+            <div
+              [formGroup]="address"
+              class="border-border flex flex-col gap-4 border p-3"
+            >
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'address-type-' + $index">
+                    {{ "clients.addressType" | translate }}
+                  </label>
+                  <hlm-select
+                    formControlName="addressType"
+                    [itemToString]="addressTypeItemToString"
+                  >
+                    <hlm-select-trigger
+                      [id]="'address-type-' + $index"
+                      class="w-full"
+                    >
+                      <hlm-select-value />
+                    </hlm-select-trigger>
+                    <hlm-select-content *hlmSelectPortal>
+                      <hlm-select-group>
+                        @for (
+                          option of addressTypeOptions;
+                          track option.value
+                        ) {
+                          <hlm-select-item [value]="option.value">
+                            {{ addressTypeItemToString(option.value) }}
+                          </hlm-select-item>
+                        }
+                      </hlm-select-group>
+                    </hlm-select-content>
+                  </hlm-select>
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'address-country-' + $index">
+                    {{ "clients.country" | translate }}
+                  </label>
+                  <law-country-select
+                    [inputId]="'address-country-' + $index"
+                    [required]="true"
+                    formControlName="country"
+                  />
+                </div>
+              </div>
               <div hlmField>
-                <label hlmFieldLabel for="jbkjs">
-                  {{ "clients.jbkjs" | translate }}
+                <label hlmFieldLabel [for]="'address-street-' + $index">
+                  {{ "clients.street" | translate }}
                 </label>
-                <input hlmInput id="jbkjs" formControlName="jbkjs" />
+                <input
+                  hlmInput
+                  [id]="'address-street-' + $index"
+                  formControlName="street"
+                  required
+                />
               </div>
-            }
-          </div>
-        }
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'address-city-' + $index">
+                    {{ "clients.city" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    [id]="'address-city-' + $index"
+                    formControlName="city"
+                    required
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'address-postal-code-' + $index">
+                    {{ "clients.postalCode" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    [id]="'address-postal-code-' + $index"
+                    formControlName="postalCode"
+                    required
+                  />
+                </div>
+              </div>
 
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-          <div hlmField>
-            <label hlmFieldLabel for="email">
-              {{ "clients.email" | translate }}
-            </label>
-            <input hlmInput id="email" type="email" formControlName="email" />
-          </div>
-          <div hlmField>
-            <label hlmFieldLabel for="phone">
-              {{ "clients.phone" | translate }}
-            </label>
-            <input hlmInput id="phone" formControlName="phone" />
-          </div>
-        </div>
+              <law-collapsible-section
+                [title]="'clients.additionalAddressInfo' | translate"
+                [expanded]="isAddressExtraExpanded(address)"
+                (expandedChange)="setAddressExtraExpanded(address, $event)"
+              >
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div hlmField>
+                    <label
+                      hlmFieldLabel
+                      [for]="'address-street-additional-' + $index"
+                    >
+                      {{ "clients.streetAdditional" | translate }}
+                    </label>
+                    <input
+                      hlmInput
+                      [id]="'address-street-additional-' + $index"
+                      formControlName="streetAdditional"
+                    />
+                  </div>
+                  <div hlmField>
+                    <label hlmFieldLabel [for]="'address-region-' + $index">
+                      {{ "clients.stateOrRegion" | translate }}
+                    </label>
+                    <input
+                      hlmInput
+                      [id]="'address-region-' + $index"
+                      formControlName="stateOrRegion"
+                    />
+                  </div>
+                  <div hlmField class="md:col-span-2">
+                    <label hlmFieldLabel [for]="'address-note-' + $index">
+                      {{ "clients.note" | translate }}
+                    </label>
+                    <textarea
+                      hlmTextarea
+                      [id]="'address-note-' + $index"
+                      formControlName="note"
+                    ></textarea>
+                  </div>
+                </div>
+              </law-collapsible-section>
 
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <label hlmLabel class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="address-primary"
+                    [checked]="address.controls.isPrimary.value"
+                    (change)="selectPrimaryAddress($index)"
+                  />
+                  {{ "clients.primaryAddress" | translate }}
+                </label>
+                <button hlmBtn type="button" (click)="removeAddress($index)">
+                  {{ "clients.remove" | translate }}
+                </button>
+              </div>
+            </div>
+          }
+          <button hlmBtn type="button" (click)="addAddress()">
+            {{ "clients.addAddress" | translate }}
+          </button>
+        </section>
+
+        <section
+          hlmTabsContent="contacts"
+          data-client-panel="contacts"
+          class="min-w-0 space-y-5"
+        >
+          <h3 class="text-xl font-semibold">
+            {{ "clients.contacts" | translate }}
+          </h3>
+          <p class="text-sm text-muted-foreground">
+            {{ "clients.primaryContactHint" | translate }}
+          </p>
+          @for (contact of contacts.controls; track contact) {
+            <div
+              [formGroup]="contact"
+              class="border-border flex flex-col gap-4 border p-3"
+            >
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-first-name-' + $index">
+                    {{ "clients.firstName" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    [id]="'contact-first-name-' + $index"
+                    formControlName="firstName"
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-last-name-' + $index">
+                    {{ "clients.lastName" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    [id]="'contact-last-name-' + $index"
+                    formControlName="lastName"
+                  />
+                </div>
+              </div>
+              @if (contact.controls.isPrimary.value) {
+                <div class="rounded-lg bg-muted p-3 text-sm">
+                  <p class="font-medium">
+                    {{ "clients.primaryContact" | translate }}
+                  </p>
+                  <p class="break-words">
+                    {{
+                      contact.controls.email.value ||
+                        ("common.notProvided" | translate)
+                    }}
+                    ·
+                    {{
+                      contact.controls.phone.value ||
+                        ("common.notProvided" | translate)
+                    }}
+                  </p>
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="link"
+                    class="px-0"
+                    (click)="activeSection.set('basic')"
+                  >
+                    {{ "clients.editPrimaryChannels" | translate }}
+                  </button>
+                </div>
+              } @else {
+                <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                  <div hlmField>
+                    <label hlmFieldLabel [for]="'contact-email-' + $index">
+                      {{ "clients.email" | translate }}
+                    </label>
+                    <input
+                      hlmInput
+                      type="email"
+                      [id]="'contact-email-' + $index"
+                      formControlName="email"
+                    />
+                  </div>
+                  <div hlmField>
+                    <label hlmFieldLabel [for]="'contact-phone-' + $index">
+                      {{ "clients.phone" | translate }}
+                    </label>
+                    <input
+                      hlmInput
+                      [id]="'contact-phone-' + $index"
+                      formControlName="phone"
+                    />
+                  </div>
+                </div>
+              }
+              <div hlmField>
+                <label hlmFieldLabel [for]="'contact-position-' + $index">
+                  {{ "clients.position" | translate }}
+                </label>
+                <input
+                  hlmInput
+                  [id]="'contact-position-' + $index"
+                  formControlName="position"
+                />
+              </div>
+
+              <law-collapsible-section
+                [title]="'clients.contactNotes' | translate"
+                [expanded]="isContactNotesExpanded(contact)"
+                (expandedChange)="setContactNotesExpanded(contact, $event)"
+              >
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'contact-notes-' + $index">
+                    {{ "clients.notes" | translate }}
+                  </label>
+                  <textarea
+                    hlmTextarea
+                    [id]="'contact-notes-' + $index"
+                    formControlName="notes"
+                  ></textarea>
+                </div>
+              </law-collapsible-section>
+
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <label hlmLabel class="flex cursor-pointer items-center gap-2">
+                  <input
+                    type="radio"
+                    name="contact-primary"
+                    [checked]="contact.controls.isPrimary.value"
+                    (change)="selectPrimaryContact($index)"
+                  />
+                  {{ "clients.primaryContact" | translate }}
+                </label>
+                <button hlmBtn type="button" (click)="removeContact($index)">
+                  {{ "clients.remove" | translate }}
+                </button>
+              </div>
+            </div>
+          }
+          <button hlmBtn type="button" (click)="addContact()">
+            {{ "clients.addContact" | translate }}
+          </button>
+        </section>
+
+        <section
+          hlmTabsContent="identification"
+          data-client-panel="identification"
+          class="min-w-0 space-y-5"
+        >
+          <h3 class="text-xl font-semibold">
+            {{ "clients.identificationSection" | translate }}
+          </h3>
+          @for (document of identificationDocuments.controls; track document) {
+            <div
+              [formGroup]="document"
+              class="border-border flex flex-col gap-4 border p-3"
+            >
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'document-type-' + $index">
+                    {{ "clients.documentType" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    [id]="'document-type-' + $index"
+                    formControlName="type"
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'document-number-' + $index">
+                    {{ "clients.documentNumber" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    [id]="'document-number-' + $index"
+                    formControlName="number"
+                  />
+                </div>
+              </div>
+              <div hlmField>
+                <label hlmFieldLabel [for]="'document-country-' + $index">
+                  {{ "clients.country" | translate }}
+                </label>
+                <law-country-select
+                  [inputId]="'document-country-' + $index"
+                  formControlName="country"
+                />
+              </div>
+              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'document-issued-' + $index">
+                    {{ "clients.issuedDate" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    type="date"
+                    [id]="'document-issued-' + $index"
+                    formControlName="issuedDate"
+                  />
+                </div>
+                <div hlmField>
+                  <label hlmFieldLabel [for]="'document-expired-' + $index">
+                    {{ "clients.expiredDate" | translate }}
+                  </label>
+                  <input
+                    hlmInput
+                    type="date"
+                    [id]="'document-expired-' + $index"
+                    formControlName="expiredDate"
+                  />
+                </div>
+              </div>
+              <div class="flex justify-end">
+                <button
+                  hlmBtn
+                  type="button"
+                  (click)="removeIdentificationDocument($index)"
+                >
+                  {{ "clients.remove" | translate }}
+                </button>
+              </div>
+            </div>
+          }
+          <button hlmBtn type="button" (click)="addIdentificationDocument()">
+            {{ "clients.addDocument" | translate }}
+          </button>
+        </section>
+
+        <section
+          hlmTabsContent="additional"
+          data-client-panel="additional"
+          class="min-w-0 space-y-5"
+        >
+          <h3 class="text-xl font-semibold">
+            {{ "clients.additionalInformation" | translate }}
+          </h3>
           <div hlmField>
             <label hlmFieldLabel for="status">
               {{ "clients.status" | translate }}
@@ -191,36 +648,7 @@
               </hlm-select-content>
             </hlm-select>
           </div>
-          <div hlmField>
-            <label hlmFieldLabel for="responsibleUserId">
-              {{ "clients.responsible" | translate }}
-            </label>
-            <hlm-select
-              formControlName="responsibleUserId"
-              [itemToString]="responsibleUserItemToString"
-            >
-              <hlm-select-trigger buttonId="responsibleUserId" class="w-full">
-                <hlm-select-value />
-              </hlm-select-trigger>
-              <hlm-select-content *hlmSelectPortal>
-                <hlm-select-group>
-                  <hlm-select-item value=""></hlm-select-item>
-                  @for (user of users(); track user.userId) {
-                    <hlm-select-item [value]="user.userId">
-                      {{ user.label }}
-                    </hlm-select-item>
-                  }
-                </hlm-select-group>
-              </hlm-select-content>
-            </hlm-select>
-          </div>
-        </div>
 
-        <law-collapsible-section
-          [title]="'clients.additionalBasicInfo' | translate"
-          [expanded]="expandedBasicMore()"
-          (expandedChange)="expandedBasicMore.set($event)"
-        >
           <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div hlmField>
               <label hlmFieldLabel for="displayName">
@@ -245,373 +673,50 @@
               />
             </div>
           </div>
-        </law-collapsible-section>
-      </section>
 
-      <law-collapsible-section
-        [title]="'clients.addresses' | translate"
-        [expanded]="expandedAddresses()"
-        (expandedChange)="expandedAddresses.set($event)"
-      >
-        @for (address of addresses.controls; track address) {
-          <div
-            [formGroup]="address"
-            class="border-border flex flex-col gap-4 border p-3"
-          >
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div hlmField>
-                <label hlmFieldLabel [for]="'address-type-' + $index">
-                  {{ "clients.addressType" | translate }}
-                </label>
-                <hlm-select
-                  formControlName="addressType"
-                  [itemToString]="addressTypeItemToString"
-                >
-                  <hlm-select-trigger
-                    [id]="'address-type-' + $index"
-                    class="w-full"
-                  >
-                    <hlm-select-value />
-                  </hlm-select-trigger>
-                  <hlm-select-content *hlmSelectPortal>
-                    <hlm-select-group>
-                      @for (option of addressTypeOptions; track option.value) {
-                        <hlm-select-item [value]="option.value">
-                          {{ addressTypeItemToString(option.value) }}
-                        </hlm-select-item>
-                      }
-                    </hlm-select-group>
-                  </hlm-select-content>
-                </hlm-select>
-              </div>
-              <div hlmField>
-                <label hlmFieldLabel [for]="'address-country-' + $index">
-                  {{ "clients.country" | translate }}
-                </label>
-                <law-country-select
-                  [inputId]="'address-country-' + $index"
-                  [required]="true"
-                  formControlName="country"
-                />
-              </div>
-            </div>
-            <div hlmField>
-              <label hlmFieldLabel [for]="'address-street-' + $index">
-                {{ "clients.street" | translate }}
-              </label>
-              <input
-                hlmInput
-                [id]="'address-street-' + $index"
-                formControlName="street"
-                required
-              />
-            </div>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div hlmField>
-                <label hlmFieldLabel [for]="'address-city-' + $index">
-                  {{ "clients.city" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  [id]="'address-city-' + $index"
-                  formControlName="city"
-                  required
-                />
-              </div>
-              <div hlmField>
-                <label hlmFieldLabel [for]="'address-postal-code-' + $index">
-                  {{ "clients.postalCode" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  [id]="'address-postal-code-' + $index"
-                  formControlName="postalCode"
-                  required
-                />
-              </div>
-            </div>
-
-            <law-collapsible-section
-              [title]="'clients.additionalAddressInfo' | translate"
-              [expanded]="isAddressExtraExpanded(address)"
-              (expandedChange)="setAddressExtraExpanded(address, $event)"
-            >
-              <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-                <div hlmField>
-                  <label
-                    hlmFieldLabel
-                    [for]="'address-street-additional-' + $index"
-                  >
-                    {{ "clients.streetAdditional" | translate }}
-                  </label>
+          <fieldset>
+            <legend>{{ "clients.tags" | translate }}</legend>
+            <div class="flex flex-wrap gap-4">
+              @for (tag of tags(); track tag.id) {
+                <label hlmLabel class="flex cursor-pointer items-center gap-2">
                   <input
-                    hlmInput
-                    [id]="'address-street-additional-' + $index"
-                    formControlName="streetAdditional"
+                    type="checkbox"
+                    [checked]="form.controls.tagIds.value.includes(tag.id)"
+                    (change)="toggleTag(tag.id, $any($event.target).checked)"
                   />
-                </div>
-                <div hlmField>
-                  <label hlmFieldLabel [for]="'address-region-' + $index">
-                    {{ "clients.stateOrRegion" | translate }}
-                  </label>
-                  <input
-                    hlmInput
-                    [id]="'address-region-' + $index"
-                    formControlName="stateOrRegion"
-                  />
-                </div>
-                <div hlmField class="md:col-span-2">
-                  <label hlmFieldLabel [for]="'address-note-' + $index">
-                    {{ "clients.note" | translate }}
-                  </label>
-                  <textarea
-                    hlmTextarea
-                    [id]="'address-note-' + $index"
-                    formControlName="note"
-                  ></textarea>
-                </div>
-              </div>
-            </law-collapsible-section>
-
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <label hlmLabel class="flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="address-primary"
-                  [checked]="address.controls.isPrimary.value"
-                  (change)="selectPrimaryAddress($index)"
-                />
-                {{ "clients.primaryAddress" | translate }}
-              </label>
-              <button hlmBtn type="button" (click)="removeAddress($index)">
-                {{ "clients.remove" | translate }}
-              </button>
+                  {{ tag.name }}
+                </label>
+              }
             </div>
+          </fieldset>
+          <div hlmField>
+            <label hlmFieldLabel for="notes">
+              {{ "clients.notes" | translate }}
+            </label>
+            <textarea hlmTextarea id="notes" formControlName="notes"></textarea>
           </div>
-        }
-        <button hlmBtn type="button" (click)="addAddress()">
-          {{ "clients.addAddress" | translate }}
-        </button>
-      </law-collapsible-section>
-
-      <law-collapsible-section
-        [title]="'clients.contacts' | translate"
-        [expanded]="expandedContacts()"
-        (expandedChange)="expandedContacts.set($event)"
+        </section>
+      </div>
+    </hlm-tabs>
+    <hlm-dialog-footer
+      class="shrink-0 items-center border-t border-border pt-5"
+    >
+      <p class="me-auto text-sm text-muted-foreground">
+        {{ "clients.requiredFields" | translate }}
+      </p>
+      <button
+        hlmBtn
+        variant="ghost"
+        type="button"
+        (click)="cancel()"
+        [disabled]="saving()"
       >
-        @for (contact of contacts.controls; track contact) {
-          <div
-            [formGroup]="contact"
-            class="border-border flex flex-col gap-4 border p-3"
-          >
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div hlmField>
-                <label hlmFieldLabel [for]="'contact-first-name-' + $index">
-                  {{ "clients.firstName" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  [id]="'contact-first-name-' + $index"
-                  formControlName="firstName"
-                />
-              </div>
-              <div hlmField>
-                <label hlmFieldLabel [for]="'contact-last-name-' + $index">
-                  {{ "clients.lastName" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  [id]="'contact-last-name-' + $index"
-                  formControlName="lastName"
-                />
-              </div>
-            </div>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div hlmField>
-                <label hlmFieldLabel [for]="'contact-email-' + $index">
-                  {{ "clients.email" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  type="email"
-                  [id]="'contact-email-' + $index"
-                  formControlName="email"
-                />
-              </div>
-              <div hlmField>
-                <label hlmFieldLabel [for]="'contact-phone-' + $index">
-                  {{ "clients.phone" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  [id]="'contact-phone-' + $index"
-                  formControlName="phone"
-                />
-              </div>
-            </div>
-            <div hlmField>
-              <label hlmFieldLabel [for]="'contact-position-' + $index">
-                {{ "clients.position" | translate }}
-              </label>
-              <input
-                hlmInput
-                [id]="'contact-position-' + $index"
-                formControlName="position"
-              />
-            </div>
-
-            <law-collapsible-section
-              [title]="'clients.contactNotes' | translate"
-              [expanded]="isContactNotesExpanded(contact)"
-              (expandedChange)="setContactNotesExpanded(contact, $event)"
-            >
-              <div hlmField>
-                <label hlmFieldLabel [for]="'contact-notes-' + $index">
-                  {{ "clients.notes" | translate }}
-                </label>
-                <textarea
-                  hlmTextarea
-                  [id]="'contact-notes-' + $index"
-                  formControlName="notes"
-                ></textarea>
-              </div>
-            </law-collapsible-section>
-
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <label hlmLabel class="flex cursor-pointer items-center gap-2">
-                <input
-                  type="radio"
-                  name="contact-primary"
-                  [checked]="contact.controls.isPrimary.value"
-                  (change)="selectPrimaryContact($index)"
-                />
-                {{ "clients.primaryContact" | translate }}
-              </label>
-              <button hlmBtn type="button" (click)="removeContact($index)">
-                {{ "clients.remove" | translate }}
-              </button>
-            </div>
-          </div>
-        }
-        <button hlmBtn type="button" (click)="addContact()">
-          {{ "clients.addContact" | translate }}
-        </button>
-      </law-collapsible-section>
-
-      <law-collapsible-section
-        [title]="'clients.identificationSection' | translate"
-        [expanded]="expandedIdentification()"
-        (expandedChange)="expandedIdentification.set($event)"
-      >
-        @for (document of identificationDocuments.controls; track document) {
-          <div
-            [formGroup]="document"
-            class="border-border flex flex-col gap-4 border p-3"
-          >
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div hlmField>
-                <label hlmFieldLabel [for]="'document-type-' + $index">
-                  {{ "clients.documentType" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  [id]="'document-type-' + $index"
-                  formControlName="type"
-                />
-              </div>
-              <div hlmField>
-                <label hlmFieldLabel [for]="'document-number-' + $index">
-                  {{ "clients.documentNumber" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  [id]="'document-number-' + $index"
-                  formControlName="number"
-                />
-              </div>
-            </div>
-            <div hlmField>
-              <label hlmFieldLabel [for]="'document-country-' + $index">
-                {{ "clients.country" | translate }}
-              </label>
-              <law-country-select
-                [inputId]="'document-country-' + $index"
-                formControlName="country"
-              />
-            </div>
-            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
-              <div hlmField>
-                <label hlmFieldLabel [for]="'document-issued-' + $index">
-                  {{ "clients.issuedDate" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  type="date"
-                  [id]="'document-issued-' + $index"
-                  formControlName="issuedDate"
-                />
-              </div>
-              <div hlmField>
-                <label hlmFieldLabel [for]="'document-expired-' + $index">
-                  {{ "clients.expiredDate" | translate }}
-                </label>
-                <input
-                  hlmInput
-                  type="date"
-                  [id]="'document-expired-' + $index"
-                  formControlName="expiredDate"
-                />
-              </div>
-            </div>
-            <div class="flex justify-end">
-              <button
-                hlmBtn
-                type="button"
-                (click)="removeIdentificationDocument($index)"
-              >
-                {{ "clients.remove" | translate }}
-              </button>
-            </div>
-          </div>
-        }
-        <button hlmBtn type="button" (click)="addIdentificationDocument()">
-          {{ "clients.addDocument" | translate }}
-        </button>
-      </law-collapsible-section>
-
-      <law-collapsible-section
-        [title]="'clients.additionalInformation' | translate"
-        [expanded]="expandedAdditional()"
-        (expandedChange)="expandedAdditional.set($event)"
-      >
-        <fieldset>
-          <legend>{{ "clients.tags" | translate }}</legend>
-          <div class="flex flex-wrap gap-4">
-            @for (tag of tags(); track tag.id) {
-              <label hlmLabel class="flex cursor-pointer items-center gap-2">
-                <input
-                  type="checkbox"
-                  [checked]="form.controls.tagIds.value.includes(tag.id)"
-                  (change)="toggleTag(tag.id, $any($event.target).checked)"
-                />
-                {{ tag.name }}
-              </label>
-            }
-          </div>
-        </fieldset>
-        <div hlmField>
-          <label hlmFieldLabel for="notes">
-            {{ "clients.notes" | translate }}
-          </label>
-          <textarea hlmTextarea id="notes" formControlName="notes"></textarea>
-        </div>
-      </law-collapsible-section>
-    </div>
-    <hlm-dialog-footer class="shrink-0">
-      <button hlmBtn variant="ghost" type="button" (click)="cancel()">
         {{ "clients.cancel" | translate }}
       </button>
-      <button hlmBtn type="submit" [disabled]="saving()">
+      <button hlmBtn type="submit" [disabled]="saving() || loadFailed()">
+        @if (saving()) {
+          <hlm-spinner />
+        }
         {{ (saving() ? "clients.saving" : "clients.save") | translate }}
       </button>
     </hlm-dialog-footer>

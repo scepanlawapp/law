@@ -286,7 +286,7 @@
                 </span>
               }
             </td>
-            <td hlmTd>{{ entry.user.displayName }}</td>
+            <td hlmTd>{{ entry.user?.displayName ?? ("time.capture.unassigned" | translate) }}</td>
             <td hlmTd class="whitespace-nowrap">
               @if (entry.minutes !== null) {
                 {{ formatMinutes(entry.minutes) }}

@@ -16,7 +16,11 @@ export function eventCaptureInput(
     | "startsAt"
     | "endsAt"
     | "isAllDay"
-  >,
+  > & {
+    userId?: string;
+    assigneeUsers?: EventDetail["assigneeUsers"];
+    organizerUser?: EventDetail["organizerUser"];
+  },
   treatment?: WorkEntryTreatment,
 ): QuickCaptureInput {
   const minutes = Math.round(
@@ -26,6 +30,8 @@ export function eventCaptureInput(
   return {
     mode: "create",
     eventId: event.id,
+    userId:
+      event.userId ?? event.assigneeUsers?.[0]?.id ?? event.organizerUser?.id,
     clientId: event.clients.length === 1 ? event.clients[0].id : undefined,
     caseId: event.case?.id,
     title: event.title.slice(0, 200),

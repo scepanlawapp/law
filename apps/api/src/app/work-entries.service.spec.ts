@@ -83,6 +83,7 @@ function agreement(coveredCategoryIds: string[]) {
 describe("WorkEntriesService", () => {
   const db = {
     $queryRaw: jest.fn(),
+    workspaceMember: { findFirst: jest.fn() },
     task: { findFirst: jest.fn() },
     client: { findFirst: jest.fn(), findMany: jest.fn() },
     event: {
@@ -137,12 +138,17 @@ describe("WorkEntriesService", () => {
       if (typeof input === "function") return input(db);
       return Promise.all(input as Promise<unknown>[]);
     });
+    db.workspaceMember.findFirst.mockResolvedValue({ userId });
     db.client.findFirst.mockResolvedValue({ id: clientId });
     db.case.findFirst.mockResolvedValue(null);
     db.serviceCategory.findFirst.mockResolvedValue({ id: categoryId });
     db.retainerAgreement.findMany.mockResolvedValue([]);
     db.workEntry.create.mockImplementation(
-      async ({ data }: { data: Record<string, unknown> }) => entryRecord(data),
+      async ({ data }: { data: Record<string, unknown> }) =>
+        entryRecord({
+          ...data,
+          ...(data.userId === null ? { user: null } : {}),
+        }),
     );
     db.workEntry.updateMany.mockResolvedValue({ count: 1 });
     db.workEntry.deleteMany.mockResolvedValue({ count: 1 });
@@ -150,6 +156,105 @@ describe("WorkEntriesService", () => {
     db.workEntry.findMany.mockResolvedValue([]);
     db.activityLog.create.mockResolvedValue({});
     service.afterConfirmed = async () => undefined;
+  });
+
+  describe("performer assignment", () => {
+    it("defaults manual capture to the current user and validates workspace membership", async () => {
+      await as(WorkspaceRole.LAWYER, () => service.create(validCreate));
+      expect(db.workEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId }) }),
+      );
+      expect(db.workspaceMember.findFirst).toHaveBeenCalledWith({
+        where: { workspaceId, userId, status: "ACTIVE" },
+        select: { userId: true },
+      });
+    });
+    it("uses a chosen user and keeps the current user as audit creator", async () => {
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, userId: otherUserId }),
+      );
+      expect(db.workEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            userId: otherUserId,
+            createdByUserId: userId,
+          }),
+        }),
+      );
+    });
+    it("rejects inactive or foreign-workspace assignments", async () => {
+      db.workspaceMember.findFirst.mockResolvedValue(null);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, userId: otherUserId }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+    it("uses task assignment unless capture explicitly chooses another user", async () => {
+      db.task.findFirst.mockResolvedValue({
+        id: "task-1",
+        assigneeUserId: otherUserId,
+      });
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, taskId: "task-1" }),
+      );
+      expect(db.workEntry.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ userId: otherUserId }),
+        }),
+      );
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({ ...validCreate, taskId: "task-1", userId }),
+      );
+      expect(db.workEntry.create).toHaveBeenLastCalledWith(
+        expect.objectContaining({ data: expect.objectContaining({ userId }) }),
+      );
+    });
+    it("allows the creator to manage their unassigned work without attributing it to them", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ userId: null, user: null }),
+      );
+      expect(
+        (await as(WorkspaceRole.MEMBER, () => service.get(entryId))).user,
+      ).toBeNull();
+      expect(
+        (await as(WorkspaceRole.MEMBER, () => service.actions(entryId)))
+          .canEdit,
+      ).toBe(true);
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ userId: null, user: null, createdByUserId: otherUserId }),
+      );
+      await expect(
+        as(WorkspaceRole.MEMBER, () => service.get(entryId)),
+      ).rejects.toBeInstanceOf(NotFoundException);
+    });
+    it("prevents reassignment from orphaning a running timer", async () => {
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ status: "RUNNING" }),
+      );
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.update(entryId, { userId: null }),
+        ),
+      ).rejects.toBeInstanceOf(ConflictException);
+      expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+    });
+    it("changes performer through edit and protects against concurrent reassignment", async () => {
+      db.workEntry.findFirst.mockResolvedValue(entryRecord());
+      db.workEntry.findUniqueOrThrow.mockResolvedValue(
+        entryRecord({ userId: otherUserId }),
+      );
+      await as(WorkspaceRole.LAWYER, () =>
+        service.update(entryId, { userId: otherUserId }),
+      );
+      expect(db.workEntry.updateMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({ userId }),
+          data: expect.objectContaining({ userId: otherUserId }),
+        }),
+      );
+    });
   });
 
   describe("task capture", () => {
@@ -186,7 +291,10 @@ describe("WorkEntriesService", () => {
       },
     );
     it("can add multiple entries without changing task status", async () => {
-      db.task.findFirst.mockResolvedValue({ id: task.id });
+      db.task.findFirst.mockResolvedValue({
+        id: task.id,
+        assigneeUserId: userId,
+      });
       await as(WorkspaceRole.LAWYER, () =>
         service.create({ ...validCreate, taskId: task.id }),
       );
@@ -196,7 +304,7 @@ describe("WorkEntriesService", () => {
       expect(db.workEntry.create).toHaveBeenCalledTimes(2);
       expect(db.task.findFirst).toHaveBeenCalledWith({
         where: { id: task.id, workspaceId },
-        select: { id: true },
+        select: { id: true, assigneeUserId: true },
       });
       expect(db.workEntry.create).toHaveBeenLastCalledWith(
         expect.objectContaining({
@@ -226,7 +334,10 @@ describe("WorkEntriesService", () => {
         expect.objectContaining({
           where: {
             workspaceId,
-            AND: expect.arrayContaining([{ taskId: task.id }, { userId }]),
+            AND: expect.arrayContaining([
+              { taskId: task.id },
+              { OR: [{ userId }, { userId: null, createdByUserId: userId }] },
+            ]),
           },
         }),
       );
@@ -435,6 +546,8 @@ describe("WorkEntriesService", () => {
       case: null,
       caseId: null,
       clients: [{ clientId }],
+      assignees: [],
+      organizerUserId: userId,
     };
     beforeEach(() => {
       db.event.findFirst.mockResolvedValue(event);
@@ -499,6 +612,7 @@ describe("WorkEntriesService", () => {
           title: "Sastanak",
         }),
       );
+      expect(work.user).toBeNull();
       expect(db.event.update).not.toHaveBeenCalled();
       expect(db.activityLog.create).toHaveBeenCalled();
       expect(db.$queryRaw).toHaveBeenCalled();
@@ -1019,7 +1133,9 @@ describe("WorkEntriesService", () => {
       );
       const where = db.workEntry.findMany.mock.calls[0][0].where;
       expect(where.workspaceId).toBe(workspaceId);
-      expect(where.AND).toEqual([{ userId }]);
+      expect(where.AND).toEqual([
+        { OR: [{ userId }, { userId: null, createdByUserId: userId }] },
+      ]);
     });
 
     it("returns own or actively-supervised entries for a LAWYER", async () => {
@@ -1029,6 +1145,7 @@ describe("WorkEntriesService", () => {
         {
           OR: [
             { userId },
+            { userId: null, createdByUserId: userId },
             {
               case: {
                 responsibilities: { some: { userId, endedAt: null } },

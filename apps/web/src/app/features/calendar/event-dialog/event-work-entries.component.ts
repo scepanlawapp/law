@@ -85,7 +85,7 @@ import { isEditable } from "../../time/time-utils";
                 {{ entry.title }}
               </span>
               <span class="text-sm text-muted-foreground">
-                {{ dateLabel(entry.workDate) }} · {{ entry.user.displayName }}
+                {{ dateLabel(entry.workDate) }} · {{ entry.user?.displayName ?? ("time.capture.unassigned" | translate) }}
               </span>
               <span class="flex flex-wrap items-center gap-2 text-sm">
                 <span>

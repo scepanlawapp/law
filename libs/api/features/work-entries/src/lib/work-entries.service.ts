@@ -148,6 +148,7 @@ export class WorkEntriesService {
       and.push({
         OR: [
           { userId: this.userId },
+          { userId: null, createdByUserId: this.userId },
           {
             case: {
               responsibilities: {
@@ -159,8 +160,13 @@ export class WorkEntriesService {
       });
       if (query.userIds?.length) and.push({ userId: { in: query.userIds } });
     } else {
-      // MEMBER: own entries only, whatever was asked for.
-      and.push({ userId: this.userId });
+      // Unassigned entries remain accessible to their creator without counting as their work.
+      and.push({
+        OR: [
+          { userId: this.userId },
+          { userId: null, createdByUserId: this.userId },
+        ],
+      });
     }
 
     if (query.clientIds?.length)
@@ -424,7 +430,11 @@ export class WorkEntriesService {
       this.db.event.count({ where }),
       this.db.event.findMany({
         where,
-        include: { clients: { include: { client: true } }, case: true },
+        include: {
+          clients: { include: { client: true } },
+          case: true,
+          assignees: true,
+        },
         orderBy: [{ endsAt: "desc" }, { id: "asc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
@@ -444,6 +454,7 @@ export class WorkEntriesService {
             this.clientReference(link.client),
           ),
           case: this.caseReference(event.case),
+          userId: event.assignees[0]?.userId ?? event.organizerUserId,
           hasWorkEntry: false,
           writeOffReason: null,
           workEntry: null,
@@ -459,7 +470,7 @@ export class WorkEntriesService {
     await tx.$queryRaw`SELECT "id" FROM "Event" WHERE "id" = ${id} AND "workspaceId" = ${this.workspaceId} FOR UPDATE`;
     const event = await tx.event.findFirst({
       where: { ...this.eventScope(), id },
-      include: { clients: true, case: true },
+      include: { clients: true, case: true, assignees: true },
     });
     if (!event) throw new NotFoundException("Event not found");
     if (event.status === "CANCELLED" || event.endsAt > new Date())
@@ -484,9 +495,11 @@ export class WorkEntriesService {
         event.case?.clientId ??
         (clientIds.length === 1 ? clientIds[0] : undefined);
       if (!clientId)
-        throw new BadRequestException(
-          "Choose a client when recording non-billable event work",
-        );
+        throw new BadRequestException({
+          code: "EVENT_CLIENT_REQUIRED",
+          message:
+            "Event needs a single client or a case before work can be recorded",
+        });
       await this.assertClientAndCase(clientId, event.caseId ?? undefined, tx);
       const duration = Math.round(
         (event.endsAt.getTime() - event.startsAt.getTime()) / 60000,
@@ -497,7 +510,7 @@ export class WorkEntriesService {
       const created = await tx.workEntry.create({
         data: {
           workspaceId: this.workspaceId,
-          userId: this.userId,
+          userId: null,
           clientId,
           caseId: event.caseId,
           eventId: id,
@@ -549,10 +562,13 @@ export class WorkEntriesService {
         input.serviceCategoryId ?? null,
         tx,
       ));
+    const performerId =
+      input.userId === undefined ? task.assigneeUserId : input.userId;
+    await this.assertPerformer(performerId, tx);
     const data = {
       clientId: input.clientId,
       caseId: input.caseId ?? null,
-      userId: task.assigneeUserId,
+      userId: performerId,
       workDate,
       minutes,
       title,
@@ -600,18 +616,25 @@ export class WorkEntriesService {
       ));
 
     const row = await this.db.$transaction(async (tx) => {
-      if (input.eventId) await this.lockPastEvent(tx, input.eventId);
+      let performerId = input.userId === undefined ? this.userId : input.userId;
+      if (input.eventId) {
+        const event = await this.lockPastEvent(tx, input.eventId);
+        if (input.userId === undefined)
+          performerId = event.assignees[0]?.userId ?? event.organizerUserId;
+      }
       if (input.taskId) {
         const task = await tx.task.findFirst({
           where: { id: input.taskId, workspaceId: this.workspaceId },
-          select: { id: true },
+          select: { id: true, assigneeUserId: true },
         });
         if (!task) throw new NotFoundException("Task not found");
+        if (input.userId === undefined) performerId = task.assigneeUserId;
       }
+      await this.assertPerformer(performerId, tx);
       const created = await tx.workEntry.create({
         data: {
           workspaceId: this.workspaceId,
-          userId: this.userId,
+          userId: performerId,
           clientId: input.clientId,
           caseId: input.caseId ?? null,
           workDate,
@@ -662,6 +685,14 @@ export class WorkEntriesService {
       throw new BadRequestException("A running timer needs its minutes");
     }
 
+    if (
+      current.status === "RUNNING" &&
+      input.userId !== undefined &&
+      input.userId !== current.userId
+    ) {
+      throw new ConflictException("Confirm the timer before changing its user");
+    }
+
     const clientId = input.clientId ?? current.clientId;
     const clientChanged = clientId !== current.clientId;
     // A case belongs to exactly one client; moving the entry to another client
@@ -697,7 +728,10 @@ export class WorkEntriesService {
         ? await this.defaultTreatmentFor(clientId, workDate, serviceCategoryId)
         : current.treatment);
 
+    if (input.userId !== undefined && input.userId !== current.userId)
+      await this.assertPerformer(input.userId);
     const data: Prisma.WorkEntryUncheckedUpdateManyInput = {
+      ...(input.userId !== undefined ? { userId: input.userId } : {}),
       clientId,
       caseId,
       workDate,
@@ -724,6 +758,9 @@ export class WorkEntriesService {
       (tx, updated) =>
         this.log(tx, "WORK_ENTRY_UPDATED", updated, {
           fields: Object.keys(input).sort(),
+          ...(input.userId !== undefined
+            ? { previousUserId: current.userId, userId: input.userId }
+            : {}),
           ...(input.status
             ? {
                 previousStatus: current.status,
@@ -762,9 +799,12 @@ export class WorkEntriesService {
         ? this.optionalText(input.description)
         : current.description;
 
+    if (input.userId !== undefined && input.userId !== current.userId)
+      await this.assertPerformer(input.userId);
     const row = await this.applyChange(
       current,
       {
+        ...(input.userId !== undefined ? { userId: input.userId } : {}),
         status: "CONFIRMED",
         minutes,
         title,
@@ -817,7 +857,7 @@ export class WorkEntriesService {
     });
     if (!row || !(await this.canRead(row)))
       throw new NotFoundException("Work entry not found");
-    const owns = this.isManager() || row.userId === this.userId;
+    const owns = this.ownsEntry(row);
     const canEdit = owns && row.status !== "BILLED";
     let reason: WorkEntryActions["deleteBlockedReason"] = null;
     if (!owns || (row.status === "WRITTEN_OFF" && !this.isManager()))
@@ -864,6 +904,7 @@ export class WorkEntriesService {
           id,
           workspaceId: this.workspaceId,
           status: { in: removable },
+          userId: current.userId,
         },
       });
       if (deleted.count === 0) {
@@ -985,13 +1026,24 @@ export class WorkEntriesService {
   // -------------------------------------------------------------- helpers
 
   /** Own entries are open to the performer; managers may touch anyone's. */
+  private ownsEntry(row: {
+    userId: string | null;
+    createdByUserId: string;
+  }): boolean {
+    return (
+      this.isManager() ||
+      row.userId === this.userId ||
+      (row.userId === null && row.createdByUserId === this.userId)
+    );
+  }
+
   private async loadForMutation(id: string): Promise<EntryRecord> {
     const row = await this.db.workEntry.findFirst({
       where: { id, workspaceId: this.workspaceId },
       include: entryInclude,
     });
     if (!row) throw new NotFoundException("Work entry not found");
-    if (!this.isManager() && row.userId !== this.userId) {
+    if (!this.ownsEntry(row)) {
       throw new ForbiddenException("You can only change your own work entries");
     }
     return row;
@@ -1004,7 +1056,7 @@ export class WorkEntriesService {
   }
 
   private async canRead(row: EntryRecord): Promise<boolean> {
-    if (this.isManager() || row.userId === this.userId) return true;
+    if (this.ownsEntry(row)) return true;
     if (this.context.role !== WorkspaceRole.LAWYER || !row.caseId) return false;
     const responsibility = await this.db.caseResponsibility.findFirst({
       where: {
@@ -1034,6 +1086,7 @@ export class WorkEntriesService {
           id: current.id,
           workspaceId: this.workspaceId,
           status: { in: allowedStatuses },
+          userId: current.userId,
         },
         data,
       });
@@ -1132,6 +1185,19 @@ export class WorkEntriesService {
     );
   }
 
+  private async assertPerformer(
+    userId: string | null,
+    db: Prisma.TransactionClient | PlatformPrismaService = this.db,
+  ): Promise<void> {
+    if (userId === null) return;
+    const member = await db.workspaceMember.findFirst({
+      where: { workspaceId: this.workspaceId, userId, status: "ACTIVE" },
+      select: { userId: true },
+    });
+    if (!member)
+      throw new BadRequestException("User is not an active workspace member");
+  }
+
   private async assertClientAndCase(
     clientId: string,
     caseId: string | undefined,
@@ -1190,7 +1256,7 @@ export class WorkEntriesService {
   private toEntry(row: EntryRecord): WorkEntry {
     return {
       id: row.id,
-      user: this.userReference(row.user),
+      user: row.user ? this.userReference(row.user) : null,
       client: this.clientReference(row.client),
       case: this.caseReference(row.case),
       workDate: row.workDate.toISOString().slice(0, 10),
@@ -1216,7 +1282,7 @@ export class WorkEntriesService {
     };
   }
 
-  private userReference(user: EntryRecord["user"]): UserReference {
+  private userReference(user: NonNullable<EntryRecord["user"]>): UserReference {
     return {
       id: user.id,
       displayName:

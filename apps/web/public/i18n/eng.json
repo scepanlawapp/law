@@ -2455,5 +2455,13 @@
   "time.events.empty": "No past events without work entries.",
   "time.events.previous": "Previous page",
   "time.events.shrink": "Shrink",
-  "time.events.next": "Next page"
+  "time.events.next": "Next page",
+  "time.capture.user": "User",
+  "time.capture.unassigned": "Unassigned",
+  "time.capture.usersError": "Could not load users.",
+  "time.events.clientRequired": "Add a client or a case to this event before writing it off.",
+  "clients.formSections": "Client sections",
+  "clients.primaryContactHint": "The email and phone in Basic information belong to the primary contact. Add other contacts here or choose a different primary contact.",
+  "clients.editPrimaryChannels": "Edit email and phone in Basic information",
+  "clients.requiredFields": "* Required fields"
 }

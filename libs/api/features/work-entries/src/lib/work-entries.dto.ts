@@ -62,6 +62,7 @@ const toBoolean = ({ value }: { value: unknown }): boolean | undefined =>
   value === undefined ? undefined : value === true || value === "true";
 
 export class CreateWorkEntryDto implements CreateWorkEntryRequest {
+  @IsOptional() @IsUUID() userId?: string | null;
   @IsOptional() @IsUUID() eventId?: string;
   @IsOptional()
   @IsUUID()
@@ -109,6 +110,7 @@ export class CreateWorkEntryDto implements CreateWorkEntryRequest {
 }
 
 export class UpdateWorkEntryDto implements UpdateWorkEntryRequest {
+  @IsOptional() @IsUUID() userId?: string | null;
   @IsOptional() @IsIn(["CONFIRMED"]) status?: "CONFIRMED";
   @IsOptional()
   @IsUUID()
@@ -156,6 +158,7 @@ export class UpdateWorkEntryDto implements UpdateWorkEntryRequest {
 }
 
 export class ConfirmWorkEntryDto implements ConfirmWorkEntryRequest {
+  @IsOptional() @IsUUID() userId?: string | null;
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -242,6 +245,7 @@ export class WorkEntryQueryDto
 }
 
 export class ConfirmSourceEntryDto implements ConfirmSourceEntryRequest {
+  @IsOptional() @IsUUID() userId?: string | null;
   @IsIn(WORK_ENTRY_SOURCE_TYPES)
   sourceType!: WorkEntrySourceType;
 

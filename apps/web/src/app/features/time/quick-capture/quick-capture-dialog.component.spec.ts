@@ -2,6 +2,7 @@ import { EventDialogService } from "../../calendar/event-dialog/event-dialog.ser
 import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import {
+  ReferencesApiClient,
   BillingSetupApiClient,
   CasesApiClient,
   EventsApiClient,
@@ -124,6 +125,27 @@ describe("QuickCaptureDialogComponent", () => {
           },
         },
         { provide: CasesApiClient, useValue: cases },
+        {
+          provide: ReferencesApiClient,
+          useValue: {
+            users: jest.fn(() =>
+              of([
+                {
+                  userId: "user-1",
+                  user: { firstName: "Ana", lastName: null, email: "ana@test" },
+                },
+                {
+                  userId: "user-2",
+                  user: {
+                    firstName: "Marko",
+                    lastName: null,
+                    email: "marko@test",
+                  },
+                },
+              ]),
+            ),
+          },
+        },
         { provide: ToastService, useValue: toast },
         {
           provide: AuthState,
@@ -851,6 +873,54 @@ describe("QuickCaptureDialogComponent", () => {
     );
   });
 
+  it("defaults the user selector to the current user and submits a different selection", () => {
+    context = { mode: "create", clientId: "client-1", title: "Work" };
+    const fixture = render();
+    const component = fixture.componentInstance;
+    expect(component.form.controls.userId.value).toBe("user-1");
+    expect(component.userItemToString("user-1")).toBe("Ana");
+    expect(fixture.nativeElement.querySelector("#capture-user")).not.toBeNull();
+    component.form.controls.userId.setValue("user-2");
+    component.submit();
+    expect(entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-2" }),
+    );
+  });
+  it("uses a source-provided performer for capture", () => {
+    context = { mode: "create", userId: "user-2" };
+    const fixture = render();
+    expect(fixture.componentInstance.form.controls.userId.value).toBe("user-2");
+  });
+  it.each(["user-2", null])(
+    "preserves the saved performer %s in edit mode",
+    (userId) => {
+      context = { mode: "edit", entryId: "entry-1" };
+      entries.get.mockReturnValue(
+        of({
+          ...savedEntry,
+          user: userId ? { id: userId, displayName: "Marko" } : null,
+          client: clientRef("client-1", "Client"),
+          case: null,
+          minutes: 30,
+          title: "Work",
+          description: "",
+          workDate: "2026-10-09",
+          serviceCategory: null,
+          treatment: "NON_BILLABLE",
+          status: "CONFIRMED",
+        }),
+      );
+      const fixture = render();
+      const component = fixture.componentInstance;
+      expect(component.form.controls.userId.value).toBe(userId ?? "");
+      component.submit();
+      expect(entries.update).toHaveBeenCalledWith(
+        "entry-1",
+        expect.objectContaining({ userId }),
+      );
+    },
+  );
+
   it("keeps explicit non-billable treatment when selecting a client and submits it", () => {
     context = {
       mode: "create",
@@ -966,6 +1036,7 @@ describe("QuickCaptureDialogComponent", () => {
         expect.objectContaining({ clientId: "client-1", minutes: 12 }),
       );
       expect(entries.confirm).toHaveBeenCalledWith("entry-1", {
+        userId: "user-1",
         minutes: 12,
         title: "Rad",
         description: "",
@@ -984,6 +1055,7 @@ describe("QuickCaptureDialogComponent", () => {
       const { componentInstance: component } = render();
       component.submit();
       expect(entries.confirmFromSource).toHaveBeenCalledWith({
+        userId: "user-1",
         sourceType: "EVENT",
         sourceId: "event-1",
         minutes: 45,
