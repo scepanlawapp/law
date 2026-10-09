@@ -4,6 +4,7 @@ import {
   briefResultSchema,
   buildBriefUserPrompt,
   runBriefExtractionLlm,
+  type BriefDocumentFact,
   type BriefDocumentInput,
   type BriefResult,
 } from "@law/brief-extraction";
@@ -58,6 +59,15 @@ const documentSchema = z.object({
   text: z.string().optional(),
 });
 
+const documentFactSchema = z.object({
+  ref: z.string(),
+  title: z.string(),
+  subjectType: z.string(),
+  subjectRole: z.string().nullable(),
+  field: z.string(),
+  value: z.string(),
+});
+
 const citationSchema = z.object({
   marker: z.number(),
   chunkId: z.string(),
@@ -78,6 +88,8 @@ export const documentDraftingInputSchema = z.object({
   /** Client facts in Latin script (conversation messages). */
   userText: z.string(),
   documents: z.array(documentSchema),
+  /** Facts extracted from readable case documents (values only). */
+  documentFacts: z.array(documentFactSchema).optional(),
   caseContext: z.string().nullable(),
   budget: budgetSchema,
 });
@@ -117,10 +129,15 @@ export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
     outputSchema: draftRevisionInputSchema,
     execute: async ({ inputData }) => {
       await deps.onStage?.("EXTRACTING_FACTS");
+      // Validated by the input schema; the cast restores strict field types.
+      const documentFacts = inputData.documentFacts as
+        | BriefDocumentFact[]
+        | undefined;
       const { prompt, promptChars, truncated } = buildBriefUserPrompt(
         {
           userText: inputData.userText,
           documents: inputData.documents as BriefDocumentInput[],
+          documentFacts,
         },
         {
           perDocMaxChars: inputData.budget.perDocMaxChars,
@@ -131,6 +148,7 @@ export function createDraftingWorkflows(deps: DraftingWorkflowDeps) {
         deps.provider,
         prompt,
         inputData.documentType,
+        documentFacts,
       );
       await deps.onBrief?.({ brief, promptChars, truncated });
       return {

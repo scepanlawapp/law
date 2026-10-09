@@ -30,6 +30,9 @@
       "@law/legal-knowledge": [
         "./libs/api/features/legal-knowledge/src/index.ts"
       ],
+      "@law/document-ingestion": [
+        "./libs/api/features/document-ingestion/src/index.ts"
+      ],
       "@law/file-storage": ["./libs/api/features/file-storage/src/index.ts"],
       "@law/workspace-documents": [
         "./libs/api/features/workspace-documents/src/index.ts"
@@ -67,6 +70,9 @@
       "@law/transliteration": ["./libs/api/ai/transliteration/src/index.ts"],
       "@law/knowledge": ["./libs/api/ai/knowledge/src/index.ts"],
       "@law/documents": ["./libs/api/ai/documents/src/index.ts"],
+      "@law/document-intelligence": [
+        "./libs/api/ai/document-intelligence/src/index.ts"
+      ],
       "@spartan-ng/helm/button": [
         "./libs/shared/frontend/ui/button/src/index.ts"
       ],

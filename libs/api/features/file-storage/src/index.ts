@@ -7,3 +7,4 @@ export * from "./lib/storage.types";
 export * from "./lib/storage.errors";
 export * from "./lib/content-type";
 export * from "./lib/storage-key";
+export * from "./lib/chat-attachment.storage";

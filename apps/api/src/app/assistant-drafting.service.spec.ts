@@ -24,7 +24,12 @@ const scope: AssistantTurnScope = {
 // Model output (legacy string evidence and missing fields are still accepted).
 const lawsuitBrief = {
   parties: [
-    { role: "plaintiff", name: "Petar Petrović", address: "Knez Mihailova 1, Beograd", idNumber: null },
+    {
+      role: "plaintiff",
+      name: "Petar Petrović",
+      address: "Knez Mihailova 1, Beograd",
+      idNumber: null,
+    },
     { role: "defendant", name: "Alfa d.o.o.", address: null, idNumber: null },
   ],
   fields: [
@@ -186,7 +191,8 @@ function prismaMock() {
 
 function setup(
   providerOutputs: unknown[],
-  documentReads?: { documentsByRef: jest.Mock },
+  documentReads?: { documentsByRef: jest.Mock; briefDocumentFacts?: jest.Mock },
+  content?: { ensureText: jest.Mock },
 ) {
   const prisma = prismaMock();
   const events = new ChatEventBus();
@@ -235,6 +241,7 @@ function setup(
     provider,
     legalKnowledge as never,
     documentReads as never,
+    content as never,
   );
   return {
     service,
@@ -346,7 +353,9 @@ describe("AssistantDraftingService.draftDocument", () => {
       { content: "(attachment)", attachments: [] },
     ]);
 
-    await expect(service.draftDocument(scope, { documentType: "LAWSUIT" })).resolves.toMatchObject({
+    await expect(
+      service.draftDocument(scope, { documentType: "LAWSUIT" }),
+    ).resolves.toMatchObject({
       status: "NO_CONTEXT",
     });
     expect(completeStructured).not.toHaveBeenCalled();
@@ -364,6 +373,7 @@ describe("AssistantDraftingService.draftDocument", () => {
 
   it("drafts an appeal from a named filed document", async () => {
     const documentReads = {
+      briefDocumentFacts: jest.fn().mockResolvedValue([]),
       documentsByRef: jest.fn().mockResolvedValue([
         {
           id: "doc:presuda-1",
@@ -379,11 +389,23 @@ describe("AssistantDraftingService.draftDocument", () => {
         {
           ...lawsuitBrief,
           parties: [
-            { role: "appellant", name: "Petar Petrović", address: null, idNumber: null },
-            { role: "opponent", name: "Alfa d.o.o.", address: null, idNumber: null },
+            {
+              role: "appellant",
+              name: "Petar Petrović",
+              address: null,
+              idNumber: null,
+            },
+            {
+              role: "opponent",
+              name: "Alfa d.o.o.",
+              address: null,
+              idNumber: null,
+            },
           ],
           fields: [{ key: "contestedDecision", value: "Presuda P 12/2026" }],
-          missingFields: [{ key: "serviceDate", label: "Datum prijema presude" }],
+          missingFields: [
+            { key: "serviceDate", label: "Datum prijema presude" },
+          ],
         },
         { ...draftOutput, documentText: "ŽALBA" },
       ],
@@ -417,17 +439,109 @@ describe("AssistantDraftingService.draftDocument", () => {
       brief: expect.objectContaining({
         documentType: "APPEAL",
         parties: [
-          expect.objectContaining({ role: "appellant", name: "Petar Petrović" }),
+          expect.objectContaining({
+            role: "appellant",
+            name: "Petar Petrović",
+          }),
           expect.objectContaining({ role: "opponent", name: "Alfa d.o.o." }),
         ],
       }),
     });
   });
 
+  it("prefills party data from readable document facts and keeps the verified source", async () => {
+    const documentReads = {
+      documentsByRef: jest.fn().mockResolvedValue([]),
+      briefDocumentFacts: jest.fn().mockResolvedValue([
+        {
+          ref: "doc:lk-1",
+          title: "Lična karta Petar",
+          subjectType: "PERSON",
+          subjectRole: null,
+          field: "fullName",
+          value: "Petar Petrović",
+        },
+        {
+          ref: "doc:lk-1",
+          title: "Lična karta Petar",
+          subjectType: "PERSON",
+          subjectRole: null,
+          field: "jmbg",
+          value: "0101990710006",
+        },
+      ]),
+    };
+    const { service, prisma, completeStructured } = setup(
+      [
+        {
+          ...lawsuitBrief,
+          parties: [
+            {
+              role: "plaintiff",
+              name: "Petar Petrović",
+              address: null,
+              idNumber: "0101990710006",
+              source: { ref: "doc:lk-1" },
+            },
+            {
+              role: "defendant",
+              name: "Alfa d.o.o.",
+              address: null,
+              idNumber: null,
+              source: { ref: "doc:izmisljen" },
+            },
+          ],
+        },
+        draftOutput,
+      ],
+      documentReads,
+    );
+
+    await service.draftDocument(scope, {
+      documentType: "LAWSUIT",
+      documentRefs: ["doc:presuda-1"],
+    });
+
+    expect(documentReads.briefDocumentFacts).toHaveBeenCalledWith(scope, [
+      "doc:presuda-1",
+    ]);
+    const briefPrompt = completeStructured.mock.calls[0][0].messages[1].content;
+    expect(briefPrompt).toContain("Činjenice iz dokumenata");
+    expect(briefPrompt).toContain("[doc:lk-1] Lična karta Petar");
+    expect(briefPrompt).toContain("jmbg: 0101990710006");
+    const stored = prisma.briefs.get("brief-1") as {
+      brief: { parties: Array<Record<string, unknown>> };
+    };
+    expect(stored.brief.parties[0]["source"]).toEqual({
+      ref: "doc:lk-1",
+      title: "Lična karta Petar",
+    });
+    expect(stored.brief.parties[1]).not.toHaveProperty("source");
+  });
+
+  it("drafts without facts when none are readable", async () => {
+    const documentReads = {
+      documentsByRef: jest.fn().mockResolvedValue([]),
+      briefDocumentFacts: jest.fn().mockResolvedValue([]),
+    };
+    const { service, completeStructured } = setup(
+      [lawsuitBrief, draftOutput],
+      documentReads,
+    );
+
+    await service.draftDocument(scope, { documentType: "LAWSUIT" });
+
+    expect(
+      completeStructured.mock.calls[0][0].messages[1].content,
+    ).not.toContain("Činjenice iz dokumenata");
+  });
+
   it("fails the open job and returns FAILED when the model output is invalid", async () => {
     const { service, prisma } = setup([lawsuitBrief, { warnings: [] }]);
 
-    await expect(service.draftDocument(scope, { documentType: "LAWSUIT" })).resolves.toMatchObject({
+    await expect(
+      service.draftDocument(scope, { documentType: "LAWSUIT" }),
+    ).resolves.toMatchObject({
       status: "FAILED",
     });
     const draftJob = [...prisma.jobs.values()].find(
@@ -639,6 +753,10 @@ describe("AssistantDraftingService queued jobs", () => {
         workspaceId: "workspace-1",
         sessionId: "session-1",
       },
+      include: {
+        content: { select: { status: true } },
+        document: { select: { aiAccess: true, archivedAt: true } },
+      },
     });
     const prompt = completeStructured.mock.calls[0][0].messages[1].content;
     expect(prompt).toContain("Tužba protiv poslodavca.");
@@ -648,5 +766,105 @@ describe("AssistantDraftingService queued jobs", () => {
       output: expect.objectContaining({ briefResultId: "brief-1" }),
     });
     expect(prisma.briefs.get("brief-1")).toMatchObject({ jobId: "job-brief" });
+  });
+
+  it("reads attachments that share content through DocumentContentService.ensureText", async () => {
+    const content = {
+      ensureText: jest.fn().mockResolvedValue({
+        status: "COMPLETED",
+        text: "Zakupni ugovor, zakupnina 400 EUR.",
+      }),
+    };
+    const { service, prisma, storage, completeStructured } = setup(
+      [lawsuitBrief, draftOutput],
+      undefined,
+      content,
+    );
+    prisma.chatAttachment.findMany.mockResolvedValue([
+      attachment("zakup", { contentId: "content-7" }),
+      attachment("legacy", {
+        extractionStatus: "COMPLETED",
+        extractedText: "Stari ugovor, 10 EUR.",
+      }),
+    ]);
+    const job = queuedJob("job-brief-2", "brief-extraction", {
+      messageId: "message-2",
+      userText: "Tužba zbog zakupa.",
+      attachments: [{ id: "zakup" }, { id: "legacy" }],
+      language: "sr",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await service.runBriefJob(job as never);
+
+    expect(content.ensureText).toHaveBeenCalledTimes(1);
+    expect(content.ensureText).toHaveBeenCalledWith("workspace-1", "content-7");
+    expect(storage.read).not.toHaveBeenCalled();
+    const prompt = completeStructured.mock.calls[0][0].messages[1].content;
+    expect(prompt).toContain("Zakupni ugovor, zakupnina 400 EUR.");
+    expect(prompt).toContain("Stari ugovor, 10 EUR.");
+    expect(prisma.attachmentUpdates).not.toContainEqual(
+      expect.objectContaining({ extractedText: expect.anything() }),
+    );
+  });
+
+  it("falls back to the column-based path for attachments without content", async () => {
+    const content = { ensureText: jest.fn() };
+    const { service, prisma, storage } = setup(
+      [lawsuitBrief, draftOutput],
+      undefined,
+      content,
+    );
+    prisma.chatAttachment.findMany.mockResolvedValue([attachment("stari")]);
+    const job = queuedJob("job-brief-3", "brief-extraction", {
+      messageId: "message-2",
+      userText: "Tužba.",
+      attachments: [{ id: "stari" }],
+      language: "sr",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await service.runBriefJob(job as never);
+
+    expect(content.ensureText).not.toHaveBeenCalled();
+    expect(storage.read).toHaveBeenCalledTimes(1);
+  });
+
+  it("never reads an attachment that was filed as a document with AI access off", async () => {
+    const content = { ensureText: jest.fn() };
+    const { service, prisma, storage, completeStructured } = setup(
+      [lawsuitBrief, draftOutput],
+      undefined,
+      content,
+    );
+    prisma.chatAttachment.findMany.mockResolvedValue([
+      attachment("tajni", {
+        contentId: "content-8",
+        documentId: "doc-8",
+        extractionStatus: "COMPLETED",
+        extractedText: "Poverljiv sadržaj ugovora.",
+        document: { aiAccess: false, archivedAt: null },
+      }),
+      attachment("javni", {
+        extractionStatus: "COMPLETED",
+        extractedText: "Javni sadržaj priloga.",
+        document: null,
+      }),
+    ]);
+    const job = queuedJob("job-brief-off", "brief-extraction", {
+      messageId: "message-2",
+      userText: "Tužba.",
+      attachments: [{ id: "tajni" }, { id: "javni" }],
+      language: "sr",
+    });
+    prisma.jobs.set(job.id, job);
+
+    await service.runBriefJob(job as never);
+
+    expect(content.ensureText).not.toHaveBeenCalled();
+    expect(storage.read).not.toHaveBeenCalled();
+    const prompt = completeStructured.mock.calls[0][0].messages[1].content;
+    expect(prompt).not.toContain("Poverljiv sadržaj");
+    expect(prompt).toContain("Javni sadržaj priloga.");
   });
 });

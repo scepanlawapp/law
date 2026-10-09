@@ -67,6 +67,9 @@ export class AssistantDeadlineDetectionService {
         message: `Dokument "${ref}" nije pronađen. Koristite list_documents.`,
       };
     }
+    if (document.note) {
+      return { status: "AI_ACCESS_OFF", message: document.note };
+    }
     if (document.status !== "COMPLETED" || !document.text?.trim()) {
       return {
         status: "NO_TEXT",

@@ -15,6 +15,8 @@ export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   list_documents: "none",
   read_document: "none",
   search_documents: "none",
+  search_case_documents: "none",
+  get_document_facts: "none",
   get_draft: "none",
   list_conversation_drafts: "none",
   draft_document: "reversible",
@@ -25,6 +27,7 @@ export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   create_deadline: "confirm",
   detect_deadlines: "confirm",
   create_tasks_from_brief: "confirm",
+  propose_client_update_from_document: "confirm",
 } as const;
 
 export type AssistantToolName = keyof typeof ASSISTANT_TOOL_SIDE_EFFECTS;

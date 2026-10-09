@@ -413,6 +413,32 @@
                 <ng-icon name="lucideFolderInput" aria-hidden="true" />
               </button>
             }
+            @if (selectedTab() !== "archived" && selectionCount("file") > 0) {
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                [disabled]="bulkPending() || renamePending()"
+                [attr.aria-label]="'documents.ai.enableSelected' | translate"
+                [hlmTooltip]="'documents.ai.enableSelected' | translate"
+                (click)="enableAiSelected()"
+              >
+                <ng-icon name="lucideSparkles" aria-hidden="true" />
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                [disabled]="bulkPending() || renamePending()"
+                [attr.aria-label]="'documents.ai.disableSelected' | translate"
+                [hlmTooltip]="'documents.ai.disableSelected' | translate"
+                (click)="disableAiSelected()"
+              >
+                <ng-icon name="lucideEyeOff" aria-hidden="true" />
+              </button>
+            }
             <button
               hlmBtn
               type="button"
@@ -530,7 +556,7 @@
             class="w-full min-w-[760px] table-fixed [&_th]:whitespace-normal [&_th]:px-2 [&_td]:px-2 [&_td]:whitespace-normal [&_td]:min-w-0"
           >
             <colgroup>
-              <col class="w-20" />
+              <col class="w-28" />
               <col class="w-[24%]" />
               <col class="w-[11%]" />
               <col />
@@ -652,6 +678,7 @@
                         size="1.5em"
                         aria-hidden="true"
                       />
+                      <law-document-ai-status [status]="document.aiStatus" />
                     </div>
                   </td>
                   <td hlmTd>
@@ -842,10 +869,13 @@
                 >
                   <ng-icon [name]="fileIcon(document)" aria-hidden="true" />
                 </span>
-                <span
-                  class="inline-flex rounded border border-border bg-muted px-2 py-1 text-sm"
-                >
-                  {{ categoryLabel(document.category) }}
+                <span class="flex items-center gap-2">
+                  <law-document-ai-status [status]="document.aiStatus" />
+                  <span
+                    class="inline-flex rounded border border-border bg-muted px-2 py-1 text-sm"
+                  >
+                    {{ categoryLabel(document.category) }}
+                  </span>
                 </span>
               </div>
               <ng-container
@@ -1220,6 +1250,78 @@
                     <dd>{{ formatDate(document.updatedAt) }}</dd>
                   </div>
                 </dl>
+              }
+            </section>
+
+            <section class="space-y-3" aria-labelledby="document-detail-ai">
+              <h3
+                id="document-detail-ai"
+                class="text-sm font-semibold uppercase tracking-wide text-muted-foreground"
+              >
+                {{ "documents.ai.access" | translate }}
+              </h3>
+              <div class="flex items-center gap-2">
+                <hlm-switch
+                  inputId="document-detail-ai-access"
+                  aria-describedby="document-detail-ai-tooltip"
+                  [formControl]="aiAccessControl"
+                />
+                <label hlmLabel for="document-detail-ai-access">
+                  {{ "documents.ai.access" | translate }}
+                </label>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  [hlmTooltip]="'documents.ai.accessTooltip' | translate"
+                  [attr.aria-label]="'documents.ai.accessInfo' | translate"
+                >
+                  <ng-icon name="lucideInfo" aria-hidden="true" />
+                </button>
+                <span id="document-detail-ai-tooltip" class="sr-only">
+                  {{ "documents.ai.accessTooltip" | translate }}
+                </span>
+                @if (aiPending()) {
+                  <hlm-spinner
+                    [attr.aria-label]="'documents.saving' | translate"
+                  />
+                }
+              </div>
+              <div class="flex flex-wrap items-center gap-2 text-sm">
+                <law-document-ai-status [status]="document.aiStatus" />
+                <span>
+                  {{ "documents.ai.status." + document.aiStatus | translate }}
+                </span>
+                @if (document.documentKind) {
+                  <span
+                    class="inline-flex rounded border border-border bg-muted px-2 py-1 text-xs"
+                  >
+                    {{
+                      "documents.ai.kind." + document.documentKind | translate
+                    }}
+                  </span>
+                }
+                @if (document.fromAssistantChat) {
+                  <span
+                    class="inline-flex rounded border border-border bg-muted px-2 py-1 text-xs"
+                  >
+                    {{ "documents.ai.fromChat" | translate }}
+                  </span>
+                }
+              </div>
+              @if (document.aiRetryable) {
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  [disabled]="aiPending()"
+                  (click)="reprocessDetailAi()"
+                >
+                  <ng-icon name="lucideRefreshCw" aria-hidden="true" />
+                  {{ "documents.ai.reprocess" | translate }}
+                </button>
               }
             </section>
 

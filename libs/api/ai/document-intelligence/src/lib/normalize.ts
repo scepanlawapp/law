@@ -1,0 +1,321 @@
+import { toLatin } from "@law/transliteration";
+import {
+  FACT_FIELDS,
+  SUBJECT_TYPES,
+  type FactKind,
+  type SubjectType,
+} from "./kinds";
+import {
+  digitsOnly,
+  isCalendarDate,
+  isValidJmbg,
+  isValidMb,
+  isValidPib,
+  jmbgBirthDate,
+} from "./identifiers";
+import { foldForMatch, foldText, locateInFolded } from "./quotes";
+
+/** One fact as the model reported it, flattened from its subject. */
+export interface RawFact {
+  subjectKey: string;
+  subjectType: SubjectType;
+  subjectRole: string | null;
+  field: string;
+  value: string;
+  quote: string;
+  confidence: number;
+}
+
+export interface ExtractedFact {
+  subjectKey: string;
+  subjectType: SubjectType;
+  subjectRole: string | null;
+  field: string;
+  value: string;
+  normalizedValue: string | null;
+  quote: string;
+  /** Offset of the quote in the original text. */
+  charStart: number | null;
+  confidence: number;
+}
+
+/** A quote shorter than this cannot verify anything. */
+const MIN_QUOTE_CHARS = 3;
+/** A quote longer than this is a pasted passage, not evidence for one value. */
+const MAX_QUOTE_CHARS = 300;
+/** Facts kept per content; the most confident win. */
+export const MAX_FACTS_PER_CONTENT = 100;
+
+function isDateField(field: string): boolean {
+  return field === "dateOfBirth" || field.endsWith("Date");
+}
+
+const IDENTIFIER_FIELDS: Record<
+  string,
+  { digits: number; valid: (digits: string) => boolean }
+> = {
+  jmbg: { digits: 13, valid: isValidJmbg },
+  taxNumber: { digits: 9, valid: isValidPib },
+  registrationNumber: { digits: 8, valid: isValidMb },
+};
+
+function iso(year: number, month: number, day: number): string | null {
+  if (!isCalendarDate(year, month, day)) {
+    return null;
+  }
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+// Folded (Latin, lower-case) month names: nominative, then genitive. The
+// genitive of some months drops a vowel ("septembar" -> "septembra").
+const MONTH_FORMS: readonly (readonly [string, string])[] = [
+  ["januar", "januara"],
+  ["februar", "februara"],
+  ["mart", "marta"],
+  ["april", "aprila"],
+  ["maj", "maja"],
+  ["jun", "juna"],
+  ["jul", "jula"],
+  ["avgust", "avgusta"],
+  ["septembar", "septembra"],
+  ["oktobar", "oktobra"],
+  ["novembar", "novembra"],
+  ["decembar", "decembra"],
+];
+
+const MONTH_NUMBER = new Map<string, number>(
+  MONTH_FORMS.flatMap((forms, index) =>
+    forms.map((form): [string, number] => [form, index + 1]),
+  ),
+);
+
+// Longest first, so "marta" is not cut short to "mart".
+const MONTH_PATTERN = [...MONTH_NUMBER.keys()]
+  .sort((a, b) => b.length - a.length)
+  .join("|");
+
+/**
+ * Every calendar date written in `text` as ISO strings. Understands
+ * "01.01.1990.", "1.1.1990", "01. 01. 1990.", "01/01/1990", "1990-01-01" and
+ * "1. januar 1990" / "1. januara 1990. godine". Impossible dates are skipped.
+ */
+function datesIn(text: string): Set<string> {
+  const folded = foldForMatch(text);
+  const found = new Set<string>();
+  const add = (year: string, month: number, day: string) => {
+    const value = iso(Number(year), month, Number(day));
+    if (value) {
+      found.add(value);
+    }
+  };
+  for (const m of folded.matchAll(
+    /(?<!\d)(\d{1,2}) ?[./-] ?(\d{1,2}) ?[./-] ?(\d{4})(?!\d)/g,
+  )) {
+    add(m[3], Number(m[2]), m[1]);
+  }
+  for (const m of folded.matchAll(/(?<!\d)(\d{4})-(\d{2})-(\d{2})(?!\d)/g)) {
+    add(m[1], Number(m[2]), m[3]);
+  }
+  const named = new RegExp(
+    `(?<!\\d)(\\d{1,2}) ?\\.? ?(${MONTH_PATTERN}) ?(\\d{4})(?!\\d)`,
+    "g",
+  );
+  for (const m of folded.matchAll(named)) {
+    add(m[3], MONTH_NUMBER.get(m[2]) as number, m[1]);
+  }
+  return found;
+}
+
+/** The one calendar date written in `text` as YYYY-MM-DD, or null. */
+export function singleIsoDate(text: string): string | null {
+  const dates = datesIn(text);
+  return dates.size === 1 ? [...dates][0] : null;
+}
+
+const SEPARATORS = new Set([" ", "\u00a0", ".", "-", "/"]);
+
+/**
+ * True when `digits` is printed in `quote` as one run of digits (optionally
+ * split by single spaces, dots, dashes or slashes) that is not part of a
+ * longer run of digits.
+ */
+function printsDigitRun(quote: string, digits: string): boolean {
+  const isDigit = (ch: string | undefined) =>
+    ch !== undefined && ch >= "0" && ch <= "9";
+  for (let start = 0; start < quote.length; start += 1) {
+    if (!isDigit(quote[start])) {
+      continue;
+    }
+    const before = quote[start - 1];
+    if (
+      isDigit(before) ||
+      (before !== undefined &&
+        SEPARATORS.has(before) &&
+        isDigit(quote[start - 2]))
+    ) {
+      continue;
+    }
+    let matched = 0;
+    let end = start;
+    while (end < quote.length && matched < digits.length) {
+      const ch = quote[end];
+      if (isDigit(ch)) {
+        if (ch !== digits[matched]) {
+          break;
+        }
+        matched += 1;
+      } else if (
+        !(
+          SEPARATORS.has(ch) &&
+          isDigit(quote[end - 1]) &&
+          isDigit(quote[end + 1])
+        )
+      ) {
+        break;
+      }
+      end += 1;
+    }
+    const after = quote[end];
+    const continues =
+      isDigit(after) ||
+      (after !== undefined && SEPARATORS.has(after) && isDigit(quote[end + 1]));
+    if (matched === digits.length && !continues) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function clamp01(value: number): number {
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+}
+
+/**
+ * Keeps only verified facts: the field is allowed for the kind, the quote is
+ * in the text, the value itself is printed in the quote (dates compared as
+ * calendar dates, identifiers as one contiguous digit run), identifiers pass
+ * their checksum, and a JMBG agrees with the subject's date of birth. Values
+ * and quotes are stored in Latin; `charStart` is an offset in the original
+ * `text`.
+ */
+export function normalizeFacts(
+  raw: readonly RawFact[],
+  text: string,
+  kind: FactKind,
+): ExtractedFact[] {
+  const allowed: ReadonlySet<string> = new Set(FACT_FIELDS[kind]);
+  const folded = foldText(text);
+  const seen = new Set<string>();
+  const facts: ExtractedFact[] = [];
+
+  for (const item of raw) {
+    const value = toLatin(item.value ?? "").trim();
+    const quote = toLatin(item.quote ?? "").trim();
+    const subjectKey = (item.subjectKey ?? "").trim();
+    if (
+      !allowed.has(item.field) ||
+      !value ||
+      !subjectKey ||
+      quote.length > MAX_QUOTE_CHARS ||
+      !(SUBJECT_TYPES as readonly string[]).includes(item.subjectType)
+    ) {
+      continue;
+    }
+    const foldedQuote = foldForMatch(quote);
+    const foldedValue = foldForMatch(value);
+    if (foldedQuote.length < MIN_QUOTE_CHARS || !foldedValue) {
+      continue;
+    }
+    const charStart = locateInFolded(folded, quote);
+    if (charStart === null) {
+      continue;
+    }
+
+    let normalizedValue: string | null = null;
+    const identifier = IDENTIFIER_FIELDS[item.field];
+    if (identifier) {
+      const digits = digitsOnly(value);
+      if (
+        digits.length !== identifier.digits ||
+        !identifier.valid(digits) ||
+        !printsDigitRun(quote, digits)
+      ) {
+        continue;
+      }
+      normalizedValue = digits;
+    } else if (isDateField(item.field)) {
+      const valueDates = datesIn(value);
+      if (valueDates.size !== 1) {
+        continue;
+      }
+      normalizedValue = [...valueDates][0];
+      if (!datesIn(quote).has(normalizedValue)) {
+        continue;
+      }
+    } else if (
+      foldedQuote.length < foldedValue.length ||
+      !foldedQuote.includes(foldedValue)
+    ) {
+      continue;
+    }
+
+    const dedupeKey = `${subjectKey}\u0000${item.field}\u0000${normalizedValue ?? value}`;
+    if (seen.has(dedupeKey)) {
+      continue;
+    }
+    seen.add(dedupeKey);
+    facts.push({
+      subjectKey,
+      subjectType: item.subjectType,
+      subjectRole: item.subjectRole?.trim()
+        ? toLatin(item.subjectRole.trim())
+        : null,
+      field: item.field,
+      value,
+      normalizedValue,
+      quote,
+      charStart,
+      confidence: clamp01(item.confidence),
+    });
+  }
+
+  return capByConfidence(dropJmbgContradictingBirthDate(facts));
+}
+
+/** At most `MAX_FACTS_PER_CONTENT` facts, the most confident, in original order. */
+function capByConfidence(facts: ExtractedFact[]): ExtractedFact[] {
+  if (facts.length <= MAX_FACTS_PER_CONTENT) {
+    return facts;
+  }
+  const keep = new Set(
+    facts
+      .map((fact, index) => ({ index, confidence: fact.confidence }))
+      // Array.prototype.sort is stable: ties keep their original order.
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, MAX_FACTS_PER_CONTENT)
+      .map((entry) => entry.index),
+  );
+  return facts.filter((_, index) => keep.has(index));
+}
+
+/** A JMBG encodes the birth date; if the same subject states another, drop it. */
+function dropJmbgContradictingBirthDate(
+  facts: ExtractedFact[],
+): ExtractedFact[] {
+  const birthDates = new Map<string, Set<string>>();
+  for (const fact of facts) {
+    if (fact.field === "dateOfBirth" && fact.normalizedValue) {
+      const dates = birthDates.get(fact.subjectKey) ?? new Set<string>();
+      dates.add(fact.normalizedValue);
+      birthDates.set(fact.subjectKey, dates);
+    }
+  }
+  return facts.filter((fact) => {
+    if (fact.field !== "jmbg" || !fact.normalizedValue) {
+      return true;
+    }
+    const dates = birthDates.get(fact.subjectKey);
+    const encoded = jmbgBirthDate(fact.normalizedValue);
+    return !dates || (encoded !== null && dates.has(encoded));
+  });
+}

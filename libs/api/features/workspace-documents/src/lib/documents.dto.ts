@@ -2,6 +2,7 @@ import { Transform } from "class-transformer";
 import {
   IsArray,
   ArrayMaxSize,
+  ArrayMinSize,
   IsBoolean,
   IsIn,
   IsOptional,
@@ -10,8 +11,13 @@ import {
   MaxLength,
   ValidateIf,
 } from "class-validator";
-import { DOCUMENT_CATEGORIES } from "@law/api-interfaces";
+import {
+  BulkDocumentAiAccessRequest,
+  DOCUMENT_CATEGORIES,
+} from "@law/api-interfaces";
 import { PaginationQueryDto } from "@law/core";
+
+export const BULK_AI_ACCESS_MAX = 200;
 
 const toArray = ({ value }: { value: unknown }): string[] | undefined =>
   value === undefined || value === ""
@@ -91,6 +97,21 @@ export class UpdateDocumentDto {
   @IsArray()
   @IsUUID("4", { each: true })
   clientIds?: string[];
+
+  @IsOptional()
+  @IsBoolean()
+  aiAccess?: boolean;
+}
+
+export class BulkDocumentAiAccessDto implements BulkDocumentAiAccessRequest {
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(BULK_AI_ACCESS_MAX)
+  @IsUUID("4", { each: true })
+  documentIds!: string[];
+
+  @IsBoolean()
+  aiAccess!: boolean;
 }
 
 export class DocumentVersionListQueryDto extends PaginationQueryDto {}

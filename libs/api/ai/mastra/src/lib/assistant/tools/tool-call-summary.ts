@@ -10,14 +10,17 @@ import { DRAFT_DOCUMENT_TOOL_ID } from "./draft-document.tool";
 import { GET_AGENDA_TOOL_ID } from "./get-agenda.tool";
 import { GET_CASE_TOOL_ID } from "./get-case.tool";
 import { GET_CLIENT_TOOL_ID } from "./get-client.tool";
+import { GET_DOCUMENT_FACTS_TOOL_ID } from "./get-document-facts.tool";
 import { LINK_CASE_TOOL_ID } from "./link-case.tool";
 import { LIST_ACTIVITY_TOOL_ID } from "./list-activity.tool";
 import { LIST_DOCUMENTS_TOOL_ID } from "./list-documents.tool";
 import { LIST_DRAFTS_TOOL_ID } from "./list-drafts.tool";
 import { LIST_WORK_ITEMS_TOOL_ID } from "./list-work-items.tool";
+import { PROPOSE_CLIENT_UPDATE_TOOL_ID } from "./propose-client-update.tool";
 import { READ_DOCUMENT_TOOL_ID } from "./read-document.tool";
 import { REVIEW_CONTRACT_TOOL_ID } from "./review-contract.tool";
 import { REVISE_DRAFT_TOOL_ID } from "./revise-draft.tool";
+import { SEARCH_CASE_DOCUMENTS_TOOL_ID } from "./search-case-documents.tool";
 import { SEARCH_CASES_TOOL_ID } from "./search-cases.tool";
 import { SEARCH_CLIENTS_TOOL_ID } from "./search-clients.tool";
 import { SEARCH_DOCUMENTS_TOOL_ID } from "./search-documents.tool";
@@ -82,6 +85,7 @@ export function describeToolCall(
     case LIST_ACTIVITY_TOOL_ID:
       return joined(args?.["case"], args?.["client"]);
     case SEARCH_DOCUMENTS_TOOL_ID:
+    case SEARCH_CASE_DOCUMENTS_TOOL_ID:
       return clip(args?.["query"]);
     case DRAFT_DOCUMENT_TOOL_ID:
       return joined(documentTypeLabel(args?.["documentType"]), args?.["note"]);
@@ -95,6 +99,8 @@ export function describeToolCall(
       return clip(args?.["serviceDate"]);
     case LINK_CASE_TOOL_ID:
       return clip(args?.["caseReference"]);
+    case PROPOSE_CLIENT_UPDATE_TOOL_ID:
+      return clip(args?.["documentRef"]);
     case CREATE_DEADLINE_TOOL_ID:
       return clip(
         [args?.["title"], args?.["dueDate"]].filter(Boolean).join(" · "),
@@ -153,6 +159,14 @@ export function toolResultCount(
               sum + Number(record(match)?.["count"] ?? 0),
             0,
           )
+        : 0;
+    case SEARCH_CASE_DOCUMENTS_TOOL_ID:
+      return result["status"] === "OK" && Array.isArray(result["hits"])
+        ? result["hits"].length
+        : 0;
+    case GET_DOCUMENT_FACTS_TOOL_ID:
+      return result["status"] === "OK" && Array.isArray(result["subjects"])
+        ? result["subjects"].length
         : 0;
     case SEARCH_CASES_TOOL_ID:
     case SEARCH_CLIENTS_TOOL_ID:

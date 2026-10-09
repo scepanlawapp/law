@@ -19,6 +19,11 @@ function documentDetail(id: string): DocumentDetail {
     category: null,
     archived: false,
     archivedAt: null,
+    aiAccess: false,
+    aiStatus: "OFF",
+    aiRetryable: false,
+    documentKind: null,
+    fromAssistantChat: false,
     cases: [],
     clients: [],
     currentVersion: null,
@@ -208,5 +213,129 @@ describe("folder upload destinations", () => {
     queue.retryFailed();
     expect(queue.hasUnknownOutcomes).toBe(true);
     expect(queue.canRemove(queue.rows[0])).toBe(false);
+  });
+
+  describe("AI access", () => {
+    function createQueue() {
+      const streams: Subject<HttpEvent<DocumentDetail>>[] = [];
+      const create = jest.fn((_body: FormData, _key: string) => {
+        void _key;
+        const subject = new Subject<HttpEvent<DocumentDetail>>();
+        streams.push(subject);
+        return subject.asObservable();
+      });
+      const addVersion = jest.fn(
+        () => new Subject<HttpEvent<DocumentDetail>>(),
+      );
+      const queue = new DocumentUploadQueue(
+        { create, addVersion },
+        "create",
+        undefined,
+        25_000_000,
+        1,
+      );
+      return { queue, create, streams, addVersion };
+    }
+
+    it("defaults new rows to off and sends aiAccess=false", () => {
+      const { queue, create } = createQueue();
+      queue.addFiles([file("one.pdf")]);
+      expect(queue.rows[0].aiAccess).toBe(false);
+      queue.startReady([], []);
+      expect(create.mock.calls[0][0].get("aiAccess")).toBe("false");
+    });
+
+    it("sends aiAccess=true for a row switched on", () => {
+      const { queue, create } = createQueue();
+      queue.addFiles([file("one.pdf")]);
+      queue.setAiAccess(queue.rows[0].id, true);
+      queue.startReady([], []);
+      expect(create.mock.calls[0][0].get("aiAccess")).toBe("true");
+    });
+
+    it("appends aiAccess before the file part", () => {
+      const { queue, create } = createQueue();
+      queue.addFiles([file("one.pdf")]);
+      queue.setAiAccess(queue.rows[0].id, true);
+      queue.startReady([], []);
+      const keys = Array.from(create.mock.calls[0][0].keys());
+      expect(keys.indexOf("aiAccess")).toBeGreaterThanOrEqual(0);
+      expect(keys.indexOf("aiAccess")).toBeLessThan(keys.indexOf("file"));
+    });
+
+    it("applies the dialog-level value to existing and new rows", () => {
+      const { queue } = createQueue();
+      queue.addFiles([file("one.pdf")]);
+      queue.setAllAiAccess(true);
+      expect(queue.rows[0].aiAccess).toBe(true);
+      queue.addFiles([file("two.pdf")]);
+      expect(queue.rows[1].aiAccess).toBe(true);
+      queue.setAllAiAccess(false);
+      expect(queue.rows.map((row) => row.aiAccess)).toEqual([false, false]);
+    });
+
+    it("setAllAiAccess leaves uploaded and in-flight rows untouched", () => {
+      const { queue, streams } = createQueue();
+      queue.addFiles([file("one.pdf"), file("two.pdf"), file("three.pdf")]);
+      queue.startReady([], []);
+      streams[0].next(new HttpResponse({ body: documentDetail("doc-1") }));
+      expect(queue.rows.map((row) => row.status)).toEqual([
+        "succeeded",
+        "uploading",
+        "queued",
+      ]);
+      queue.setAllAiAccess(true);
+      expect(queue.rows.map((row) => row.aiAccess)).toEqual([
+        false,
+        false,
+        false,
+      ]);
+    });
+
+    it("keeps the original value in the frozen retry payload", () => {
+      const { queue } = createQueue();
+      queue.addFiles([file("one.pdf")]);
+      queue.setAiAccess(queue.rows[0].id, true);
+      queue.startReady([], []);
+      expect(queue.rows[0].frozenCreate?.aiAccess).toBe(true);
+      queue.setAiAccess(queue.rows[0].id, false);
+      queue.setAllAiAccess(false);
+      expect(queue.rows[0].aiAccess).toBe(true);
+      expect(queue.rows[0].frozenCreate?.aiAccess).toBe(true);
+    });
+
+    it("retry resends the frozen aiAccess value", () => {
+      const { queue, create, streams } = createQueue();
+      queue.addFiles([file("one.pdf")]);
+      queue.setAiAccess(queue.rows[0].id, true);
+      queue.startReady([], []);
+      streams[0].error(new HttpErrorResponse({ status: 400 }));
+      queue.setAllAiAccess(false);
+      queue.retryFailed();
+      expect(create).toHaveBeenCalledTimes(2);
+      expect(create.mock.calls[1][0].get("aiAccess")).toBe("true");
+    });
+
+    it("never sends aiAccess for version uploads", () => {
+      const addVersion = jest.fn(
+        (_id: string, _body: FormData, _key: string) => {
+          void _id;
+          void _key;
+          return new Subject<HttpEvent<DocumentDetail>>();
+        },
+      );
+      const queue = new DocumentUploadQueue(
+        { create: jest.fn(), addVersion },
+        "version",
+        "document",
+        100,
+      );
+      queue.addFiles([file()]);
+      queue.setAiAccess(queue.rows[0].id, true);
+      queue.setAllAiAccess(true);
+      queue.startReady([], []);
+      expect(queue.rows[0].aiAccess).toBe(false);
+      expect(addVersion.mock.calls[0][1].has("aiAccess")).toBe(false);
+    });
   });
 });

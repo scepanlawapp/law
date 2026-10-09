@@ -41,6 +41,8 @@ export interface DocumentUploadTransport {
 
 export class DocumentUploadQueue {
   rows: DocumentUploadRow[] = [];
+  /** Dialog-level AI access applied to rows added later. */
+  aiAccessDefault = false;
   private readonly inflight = new Map<string, Subscription>();
 
   constructor(
@@ -116,6 +118,30 @@ export class DocumentUploadQueue {
     this.patch(id, { category });
   }
 
+  setAiAccess(id: string, aiAccess: boolean): void {
+    const row = this.rows.find((item) => item.id === id);
+    if (!row || !this.canChangeAiAccess(row)) return;
+    this.patch(id, { aiAccess });
+  }
+
+  setAllAiAccess(aiAccess: boolean): void {
+    if (this.mode !== "create") return;
+    this.aiAccessDefault = aiAccess;
+    this.rows = this.rows.map((row) =>
+      this.canChangeAiAccess(row) ? { ...row, aiAccess } : row,
+    );
+    this.emit();
+  }
+
+  canChangeAiAccess(row: DocumentUploadRow): boolean {
+    return (
+      this.mode === "create" &&
+      !row.frozenCreate &&
+      !row.frozenVersion &&
+      (row.status === "ready" || row.status === "invalid")
+    );
+  }
+
   resolveFolders(
     mapping: ReadonlyMap<string, string>,
     targetFolderId: string | null,
@@ -184,6 +210,7 @@ export class DocumentUploadQueue {
       folderId: null,
       titleControl: control,
       category: null,
+      aiAccess: this.mode === "create" && this.aiAccessDefault,
       status: "ready",
       loaded: 0,
       total: null,
@@ -244,6 +271,7 @@ export class DocumentUploadQueue {
       category: row.category,
       caseIds: [...caseIds],
       clientIds: [...clientIds],
+      aiAccess: row.aiAccess,
       originalFilename: row.file.name,
     };
     return {
@@ -301,6 +329,8 @@ export class DocumentUploadQueue {
     for (const clientId of frozen?.clientIds ?? []) {
       body.append("clientIds", clientId);
     }
+    // The API only honors text fields that arrive before the file part.
+    body.append("aiAccess", String(frozen?.aiAccess ?? row.aiAccess));
     body.append("file", row.file, row.file.name);
     return body;
   }

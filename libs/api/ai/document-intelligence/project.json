@@ -1,0 +1,26 @@
+{
+  "name": "document-intelligence",
+  "$schema": "../../../../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "libs/api/ai/document-intelligence/src",
+  "projectType": "library",
+  "tags": [
+    "scope:ai",
+    "type:workflow"
+  ],
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": [
+        "{options.outputPath}"
+      ],
+      "options": {
+        "outputPath": "dist/libs/api/ai/document-intelligence",
+        "main": "libs/api/ai/document-intelligence/src/index.ts",
+        "tsConfig": "libs/api/ai/document-intelligence/tsconfig.lib.json",
+        "assets": [
+          "libs/api/ai/document-intelligence/*.md"
+        ]
+      }
+    }
+  }
+}

@@ -135,3 +135,41 @@ describe("tool call summary", () => {
     ).toBe(7);
   });
 });
+
+describe("tool call summary for case-document tools", () => {
+  it("labels and counts search_case_documents and get_document_facts", () => {
+    expect(
+      describeToolCall("search_case_documents", { query: "  zakupnina  " }),
+    ).toBe("zakupnina");
+    expect(describeToolCall("get_document_facts", { ref: "doc:1" })).toBeNull();
+    expect(
+      toolResultCount("search_case_documents", {
+        status: "OK",
+        hits: [{}, {}, {}],
+      }),
+    ).toBe(3);
+    expect(
+      toolResultCount("search_case_documents", { status: "NO_DOCUMENTS" }),
+    ).toBe(0);
+    expect(
+      toolResultCount("get_document_facts", {
+        status: "OK",
+        subjects: [{}, {}],
+      }),
+    ).toBe(2);
+    expect(toolResultCount("get_document_facts", { status: "NOT_FOUND" })).toBe(
+      0,
+    );
+  });
+});
+
+describe("tool call summary for propose_client_update_from_document", () => {
+  it("labels the call with the document ref", () => {
+    expect(
+      describeToolCall("propose_client_update_from_document", {
+        documentRef: " doc:abc ",
+        subjectKey: "s1",
+      }),
+    ).toBe("doc:abc");
+  });
+});

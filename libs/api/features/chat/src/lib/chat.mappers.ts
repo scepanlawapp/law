@@ -13,6 +13,7 @@ import {
   LegalCitationResponse,
   WorkflowProgressStage,
   WorkflowJobResponse,
+  DocumentAiStatus,
   isDraftDocumentType,
 } from "@law/api-interfaces";
 import { isContractReviewType } from "@law/contract-review";
@@ -22,6 +23,7 @@ import {
   missingFieldKeys,
   normalizeMissingFields,
 } from "@law/brief-extraction";
+import { documentAiStatus } from "@law/document-ingestion";
 import { describeToolCall, toolResultCount } from "@law/mastra";
 
 /**
@@ -97,6 +99,37 @@ export function toSessionSummary(session: {
   };
 }
 
+/**
+ * Include for every query that builds attachment summaries: one join brings
+ * the shared content status along, so mapping never queries per attachment.
+ */
+export const ATTACHMENT_WITH_CONTENT = {
+  include: {
+    content: { select: { status: true } },
+    // The document the attachment was filed as: its AI access decides "OFF".
+    document: { select: { aiAccess: true, archivedAt: true } },
+  },
+} as const;
+
+/** Attachments plus what the assistant policy needs to decide whether it may read them. */
+export const ATTACHMENT_WITH_ACCESS = ATTACHMENT_WITH_CONTENT;
+
+/**
+ * What the chat chip shows for an attachment: "OFF" once it was filed as a
+ * document the assistant may not read (AI access off or archived), otherwise
+ * the status of the shared content.
+ */
+export function attachmentAiStatus(attachment: {
+  content?: { status: string } | null;
+  document?: { aiAccess: boolean; archivedAt: Date | null } | null;
+}): DocumentAiStatus {
+  const document = attachment.document;
+  return documentAiStatus(
+    !document || (document.aiAccess && !document.archivedAt),
+    attachment.content,
+  );
+}
+
 export function toAttachment(attachment: {
   id: string;
   originalName: string;
@@ -105,6 +138,8 @@ export function toAttachment(attachment: {
   createdAt: Date;
   extractionStatus?: ChatAttachmentSummary["extractionStatus"];
   sourceScript?: ChatAttachmentSummary["sourceScript"];
+  content?: { status: string } | null;
+  document?: { aiAccess: boolean; archivedAt: Date | null } | null;
 }): ChatAttachmentSummary {
   return {
     id: attachment.id,
@@ -114,6 +149,8 @@ export function toAttachment(attachment: {
     createdAt: attachment.createdAt.toISOString(),
     extractionStatus: attachment.extractionStatus,
     sourceScript: attachment.sourceScript ?? null,
+    // Unfiled attachments are always AI-readable; no content row yet is pending.
+    aiStatus: attachmentAiStatus(attachment),
   };
 }
 
@@ -133,6 +170,8 @@ export function toMessage(message: {
     mimeType: string;
     sizeBytes: number;
     createdAt: Date;
+    content?: { status: string } | null;
+    document?: { aiAccess: boolean; archivedAt: Date | null } | null;
   }>;
 }): ChatMessageResponse {
   return {

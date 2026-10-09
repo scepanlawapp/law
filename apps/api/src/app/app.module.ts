@@ -11,6 +11,7 @@ import { ReferencesModule } from "@law/references";
 import { UserSettingsModule } from "@law/user-settings";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
 import { LegalKnowledgeModule } from "@law/legal-knowledge";
+import { DocumentIngestionModule } from "@law/document-ingestion";
 import { WorkspaceDocumentsModule } from "@law/workspace-documents";
 import { FinancialsModule } from "@law/financials";
 import { BillingRunModule, WorkEntriesModule } from "@law/work-entries";
@@ -30,6 +31,7 @@ import { validateEnvironment } from "./config.validation";
     ActivitiesTasksDeadlinesModule,
     LegalKnowledgeModule,
     WorkspaceDocumentsModule,
+    DocumentIngestionModule,
     FinancialsModule,
     WorkEntriesModule,
     BillingRunModule,

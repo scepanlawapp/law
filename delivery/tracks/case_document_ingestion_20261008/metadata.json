@@ -1,0 +1,19 @@
+{
+  "track_id": "case_document_ingestion_20261008",
+  "parent_track_id": null,
+  "type": "epic",
+  "status": "in_progress",
+  "created_at": "2026-10-08",
+  "updated_at": "2026-10-09",
+  "keywords": [
+    "documents",
+    "embeddings",
+    "pgvector",
+    "dedup",
+    "sha256",
+    "facts",
+    "ai-access"
+  ],
+  "priority": null,
+  "prd_reference": null
+}

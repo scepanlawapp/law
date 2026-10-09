@@ -20,6 +20,7 @@ function setup(
   rows: ReturnType<typeof row>[],
   configOverrides: Partial<ChatRuntimeConfig> = {},
   drafting?: { workspaceState: jest.Mock },
+  actions?: { clientUpdateHint: jest.Mock },
 ) {
   const prisma = {
     chatSession: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -41,6 +42,7 @@ function setup(
     config,
     matterLink as never,
     drafting as never,
+    actions as never,
   );
   return { builder, prisma, matterLink };
 }
@@ -207,5 +209,90 @@ describe("AssistantContextBuilder", () => {
       { role: "user", content: "Pitanje o otkazu" },
       { role: "assistant", content: "Odgovor o otkazu" },
     ]);
+  });
+
+  describe("client update hint", () => {
+    const hint =
+      "Dokumenti predmeta sadrže podatke koji mogu dopuniti klijenta (propose_client_update_from_document).";
+
+    it("adds the hint to the case context when documents can fill the client", async () => {
+      const actions = { clientUpdateHint: jest.fn().mockResolvedValue(true) };
+      const { builder } = setup(
+        [row("USER", "Šta piše u ličnoj karti?", 1)],
+        {},
+        undefined,
+        actions,
+      );
+
+      const context = await builder.build({
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+      });
+
+      expect(actions.clientUpdateHint).toHaveBeenCalledWith(
+        "workspace-1",
+        "session-1",
+        "case-1",
+      );
+      expect(context.caseContext).toContain("Spor o zaradama");
+      expect(context.caseContext?.split("\n").at(-1)).toBe(hint);
+    });
+
+    it("adds nothing when there is nothing to fill", async () => {
+      const actions = { clientUpdateHint: jest.fn().mockResolvedValue(false) };
+      const { builder } = setup(
+        [row("USER", "Zdravo", 1)],
+        {},
+        undefined,
+        actions,
+      );
+
+      const context = await builder.build({
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+      });
+
+      expect(context.caseContext).not.toContain("propose_client_update");
+    });
+
+    it("does not look at documents when the conversation has no case", async () => {
+      const actions = { clientUpdateHint: jest.fn().mockResolvedValue(true) };
+      const { builder, matterLink } = setup(
+        [row("USER", "Zdravo", 1)],
+        {},
+        undefined,
+        actions,
+      );
+      matterLink.sessionCaseId.mockResolvedValue(null);
+      matterLink.caseContextBlock.mockResolvedValue(null);
+
+      const context = await builder.build({
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+      });
+
+      expect(actions.clientUpdateHint).not.toHaveBeenCalled();
+      expect(context.caseContext).toBeNull();
+    });
+
+    it("keeps the turn going when the check fails", async () => {
+      const actions = {
+        clientUpdateHint: jest.fn().mockRejectedValue(new Error("db down")),
+      };
+      const { builder } = setup(
+        [row("USER", "Zdravo", 1)],
+        {},
+        undefined,
+        actions,
+      );
+
+      const context = await builder.build({
+        workspaceId: "workspace-1",
+        sessionId: "session-1",
+      });
+
+      expect(context.caseContext).toContain("Spor o zaradama");
+      expect(context.caseContext).not.toContain("propose_client_update");
+    });
   });
 });

@@ -21,6 +21,8 @@
     "legal:ingest": "tsx --tsconfig tsconfig.base.json scripts/ingest-legal-source.ts",
     "legal:export": "tsx --tsconfig tsconfig.base.json scripts/export-legal-corpus.ts",
     "legal:import": "tsx --tsconfig tsconfig.base.json scripts/import-legal-corpus.ts",
+    "documents:backfill-content": "tsx --tsconfig tsconfig.base.json scripts/backfill-document-content.ts",
+    "documents:reindex-content": "tsx --tsconfig tsconfig.base.json scripts/reindex-document-content.ts",
     "db:migrate": "npx prisma migrate dev --schema apps/api/prisma/schema.prisma",
     "prisma:generate": "npx prisma generate --schema apps/api/prisma/schema.prisma"
   },

@@ -59,6 +59,8 @@ import {
   PaginatedResponse,
   TaskDetail,
   TaskStatus,
+  BulkDocumentAiAccessRequest,
+  BulkDocumentAiAccessResponse,
   DocumentDetail,
   DocumentFolderBrowseResponse,
   DocumentFolderSummary,
@@ -1926,6 +1928,35 @@ export class DocumentsApiClient {
     return this.http.patch<DocumentDetail>(
       this.endpoint(`/documents/${documentId}`),
       request,
+      { withCredentials: true },
+    );
+  }
+
+  setAiAccess(
+    documentId: string,
+    aiAccess: boolean,
+  ): Observable<DocumentDetail> {
+    return this.http.patch<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}`),
+      { aiAccess },
+      { withCredentials: true },
+    );
+  }
+
+  setAiAccessBulk(
+    request: BulkDocumentAiAccessRequest,
+  ): Observable<BulkDocumentAiAccessResponse> {
+    return this.http.patch<BulkDocumentAiAccessResponse>(
+      this.endpoint("/documents/ai-access"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  reprocessAi(documentId: string): Observable<DocumentDetail> {
+    return this.http.post<DocumentDetail>(
+      this.endpoint(`/documents/${documentId}/ai-reprocess`),
+      {},
       { withCredentials: true },
     );
   }

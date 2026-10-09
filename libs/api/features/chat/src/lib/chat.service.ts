@@ -6,7 +6,7 @@ import {
   NotFoundException,
   Optional,
 } from "@nestjs/common";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   ChatAttachmentSummary,
   ChatMessageFeedback,
@@ -45,7 +45,9 @@ import { toCyrillic, toLatin } from "@law/transliteration";
 import { buildTitleUserPrompt, generateTitle } from "@law/title-generation";
 import { ChatRuntimeConfig, CHAT_ALLOWED_MIME_TYPES } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
-import { ChatStorageService } from "./chat.storage";
+import { ChatAttachmentStorage } from "@law/file-storage";
+import { DocumentContentService } from "@law/document-ingestion";
+import { DocumentAccessPolicy } from "./document-access.policy";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { resolveChatModelProvider } from "./chat-model.util";
 import {
@@ -58,6 +60,7 @@ import {
   toSessionSummary,
   userDisplayName,
   toToolCall,
+  ATTACHMENT_WITH_CONTENT,
 } from "./chat.mappers";
 import { MatterLinkService } from "./matter-link.service";
 import { ChatSessionFacetsQueryDto, ChatSessionListQueryDto } from "./chat.dto";
@@ -154,7 +157,7 @@ export class ChatService {
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly events: ChatEventBus,
-    private readonly storage: ChatStorageService,
+    private readonly storage: ChatAttachmentStorage,
     private readonly config: ChatRuntimeConfig,
     @Optional()
     @Inject(CHAT_MODEL_PROVIDER)
@@ -168,6 +171,9 @@ export class ChatService {
     @Optional()
     @Inject(ChatDocumentPromotionService)
     private readonly promotion?: ChatDocumentPromotionService,
+    @Optional()
+    @Inject(DocumentContentService)
+    private readonly content?: DocumentContentService,
   ) {
     this.workflowQueue =
       workflowQueue ??
@@ -526,7 +532,7 @@ export class ChatService {
     ] = await Promise.all([
       this.db.chatMessage.findMany({
         where: { sessionId },
-        include: { attachments: true },
+        include: { attachments: ATTACHMENT_WITH_CONTENT },
         orderBy: { createdAt: "asc" },
       }),
       this.db.workflowJob.findMany({
@@ -693,6 +699,7 @@ export class ChatService {
       sizeBytes: number;
       createdAt: Date;
       extractionStatus?: ChatAttachmentSummary["extractionStatus"];
+      content?: { status: string } | null;
     }> = [];
     for (const file of params.files) {
       const attachmentId = randomUUID();
@@ -701,6 +708,14 @@ export class ChatService {
         sessionId: session.id,
         attachmentId,
         buffer: file.buffer,
+      });
+      // Identical bytes within the workspace share one content row.
+      const sha256 = createHash("sha256").update(file.buffer).digest("hex");
+      const content = await this.content?.findOrCreate({
+        workspaceId: params.workspaceId,
+        sha256,
+        mimeType: file.mimetype,
+        sizeBytes: file.size,
       });
       const saved = await this.db.chatAttachment.create({
         data: {
@@ -712,9 +727,17 @@ export class ChatService {
           storedName,
           mimeType: file.mimetype,
           sizeBytes: file.size,
+          sha256,
+          contentId: content?.id ?? null,
         },
+        ...ATTACHMENT_WITH_CONTENT,
       });
       savedAttachments.push(saved);
+      if (content) {
+        await this.content?.requestIngestionSafely(params.workspaceId, [
+          content.id,
+        ]);
+      }
     }
 
     await this.db.chatSession.update({
@@ -1255,7 +1278,7 @@ export class ChatService {
       data: {
         metadata: { ...metadata, feedback },
       },
-      include: { attachments: true },
+      include: { attachments: ATTACHMENT_WITH_CONTENT },
     });
     return toMessage(updated);
   }
@@ -1365,7 +1388,7 @@ export class ChatService {
     const afterDate = after ? new Date(after) : new Date(0);
     const messages = await this.db.chatMessage.findMany({
       where: { sessionId, createdAt: { gt: afterDate } },
-      include: { attachments: true },
+      include: { attachments: ATTACHMENT_WITH_CONTENT },
       orderBy: { createdAt: "asc" },
     });
     const jobs = await this.db.workflowJob.findMany({
@@ -1400,11 +1423,16 @@ export class ChatService {
   }): Promise<void> {
     const attachments = params.attachmentIds.length
       ? await this.db.chatAttachment.findMany({
-          where: { id: { in: params.attachmentIds } },
+          where: {
+            id: { in: params.attachmentIds },
+            workspaceId: params.workspaceId,
+          },
           select: {
             originalName: true,
             mimeType: true,
             extractedText: true,
+            contentId: true,
+            document: { select: { aiAccess: true, archivedAt: true } },
           },
         })
       : [];
@@ -1414,7 +1442,13 @@ export class ChatService {
       attachments: attachments.map((attachment) => ({
         originalName: attachment.originalName,
         mimeType: attachment.mimeType,
-        text: attachment.extractedText ?? "",
+        // Text of an attachment filed as an AI-off document never reaches the model.
+        text: DocumentAccessPolicy.forAttachment({
+          contentId: attachment.contentId,
+          document: attachment.document,
+        }).readable
+          ? (attachment.extractedText ?? "")
+          : "",
       })),
       perAttachmentMaxChars: this.config.titleContentMaxChars,
     });

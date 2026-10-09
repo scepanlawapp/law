@@ -1,0 +1,15 @@
+{
+  "name": "@law/document-intelligence",
+  "version": "0.0.1",
+  "private": true,
+  "type": "commonjs",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "dependencies": {
+    "@law/api-interfaces": "0.0.1",
+    "@law/llm": "0.0.1",
+    "@law/transliteration": "0.0.1",
+    "tslib": "^2.3.0",
+    "zod": "^3.24.2"
+  }
+}

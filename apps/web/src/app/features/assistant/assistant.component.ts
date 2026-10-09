@@ -64,6 +64,7 @@ import {
   ChatSessionSummary,
   ChatStreamEvent,
   PendingActionSummary,
+  DocumentAiStatus,
   DocumentAnalysisResponse,
   DocumentScript,
   DraftResultResponse,
@@ -72,6 +73,7 @@ import {
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { finalize } from "rxjs";
+import { DocumentAiStatusComponent } from "../../shared/components/document-ai-status/document-ai-status.component";
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import {
   ConversationNavigatorComponent,
@@ -181,6 +183,7 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
     CitationListComponent,
     PendingActionCardComponent,
     StarterPromptsComponent,
+    DocumentAiStatusComponent,
   ],
   templateUrl: "./assistant.component.html",
   styleUrl: "./assistant.component.scss",
@@ -1076,7 +1079,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   private upsertPendingAction(action: PendingActionSummary): void {
-    this.pendingActions.update((actions) => ({ ...actions, [action.id]: action }));
+    this.pendingActions.update((actions) => ({
+      ...actions,
+      [action.id]: action,
+    }));
   }
 
   protected regenerateAnswer(message: ChatMessageResponse): void {
@@ -1592,6 +1598,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (event.type === "attachment.updated" && event.attachment) {
       this.updateAttachment(event.attachment);
     }
+    if (
+      event.type === "document.content.updated" &&
+      event.attachmentIds &&
+      event.status
+    ) {
+      this.updateAttachmentAiStatus(event.attachmentIds, event.status);
+    }
     if (event.type === "draft.updated" && event.draft) {
       this.applyDraft(event.draft);
     }
@@ -1673,6 +1686,25 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           item.id === attachment.id ? attachment : item,
         ),
       })),
+    );
+  }
+
+  private updateAttachmentAiStatus(
+    attachmentIds: string[],
+    aiStatus: DocumentAiStatus,
+  ): void {
+    const ids = new Set(attachmentIds);
+    this.messages.update((items) =>
+      items.map((message) =>
+        message.attachments.some((item) => ids.has(item.id))
+          ? {
+              ...message,
+              attachments: message.attachments.map((item) =>
+                ids.has(item.id) ? { ...item, aiStatus } : item,
+              ),
+            }
+          : message,
+      ),
     );
   }
 
@@ -1770,5 +1802,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 function indexPendingActions(
   actions: readonly PendingActionSummary[] | undefined,
 ): Record<string, PendingActionSummary> {
-  return Object.fromEntries((actions ?? []).map((action) => [action.id, action]));
+  return Object.fromEntries(
+    (actions ?? []).map((action) => [action.id, action]),
+  );
 }

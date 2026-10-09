@@ -16,6 +16,7 @@ import {
   lucideCheck,
   lucideChevronDown,
   lucideChevronRight,
+  lucideInfo,
   lucideTrash2,
   lucideUpload,
   lucideX,
@@ -62,8 +63,10 @@ import {
 } from "@spartan-ng/helm/dialog";
 import { HlmField } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { HlmLabel } from "@spartan-ng/helm/label";
 import { HlmProgressImports } from "@spartan-ng/helm/progress";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmSwitch } from "@spartan-ng/helm/switch";
 import {
   HlmTable,
   HlmTableContainer,
@@ -122,7 +125,9 @@ import { formatFileSize } from "./document-upload.utils";
     HlmDialogTitle,
     HlmField,
     HlmInput,
+    HlmLabel,
     HlmProgressImports,
+    HlmSwitch,
     HlmTable,
     HlmTableContainer,
     HlmTBody,
@@ -138,6 +143,7 @@ import { formatFileSize } from "./document-upload.utils";
       lucideCheck,
       lucideChevronDown,
       lucideChevronRight,
+      lucideInfo,
       lucideTrash2,
       lucideUpload,
       lucideX,
@@ -173,6 +179,9 @@ export class DocumentUploadDialogComponent {
   readonly categoryCodes = DOCUMENT_CATEGORIES;
   readonly categoryFilter = comboboxContainsFilter;
 
+  readonly showAiAccess = this.mode === "create";
+  readonly tableColumns = this.showAiAccess ? 7 : 6;
+  readonly aiAccessAll = signal(false);
   readonly dragging = signal(false);
   readonly preparing = signal(false);
   readonly importError = signal<string | null>(null);
@@ -330,6 +339,19 @@ export class DocumentUploadDialogComponent {
 
   setCategory(id: string, category: string | null): void {
     this.queue.setCategory(id, category);
+  }
+
+  setAllAiAccess(value: boolean): void {
+    this.aiAccessAll.set(value);
+    this.queue.setAllAiAccess(value);
+  }
+
+  setRowAiAccess(id: string, value: boolean): void {
+    this.queue.setAiAccess(id, value);
+  }
+
+  canEditAiAccess(row: DocumentUploadRow): boolean {
+    return !this.preparing() && this.queue.canChangeAiAccess(row);
   }
 
   canEditCategory(row: DocumentUploadRow): boolean {

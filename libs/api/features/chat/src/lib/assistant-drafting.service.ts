@@ -11,10 +11,12 @@ import {
   DEFAULT_DOCUMENT_TYPE,
   getDocumentType,
   normalizeBrief,
+  type BriefDocumentFact,
   type BriefDocumentInput,
 } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
+import { DocumentContentService } from "@law/document-ingestion";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
 import type { ChatModelProvider } from "@law/llm";
 import {
@@ -31,8 +33,18 @@ import { ChatRuntimeConfig } from "./chat.config";
 import { ChatEventBus } from "./chat.events";
 import { resolveChatModelProvider } from "./chat-model.util";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
-import { toDraft, toJob, toMessage } from "./chat.mappers";
-import { ChatStorageService } from "./chat.storage";
+import {
+  DocumentAccessPolicy,
+  accessRefusalMessage,
+} from "./document-access.policy";
+import {
+  ATTACHMENT_WITH_ACCESS,
+  attachmentAiStatus,
+  toDraft,
+  toJob,
+  toMessage,
+} from "./chat.mappers";
+import { ChatAttachmentStorage } from "@law/file-storage";
 import { CHAT_MODEL_PROVIDER } from "./chat.tokens";
 import { MatterLinkService } from "./matter-link.service";
 
@@ -68,7 +80,7 @@ export class AssistantDraftingService {
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly events: ChatEventBus,
-    private readonly storage: ChatStorageService,
+    private readonly storage: ChatAttachmentStorage,
     private readonly config: ChatRuntimeConfig,
     private readonly matterLink: MatterLinkService,
     @Optional()
@@ -76,6 +88,7 @@ export class AssistantDraftingService {
     private readonly provider?: ChatModelProvider,
     @Optional() private readonly legalKnowledge?: LegalKnowledgeService,
     @Optional() private readonly documentReads?: AssistantDocumentReadsService,
+    @Optional() private readonly content?: DocumentContentService,
   ) {}
 
   async draftDocument(
@@ -147,6 +160,7 @@ export class AssistantDraftingService {
             workspaceId: job.workspaceId,
             sessionId: job.sessionId,
           },
+          ...ATTACHMENT_WITH_ACCESS,
         })
       : [];
     const userText =
@@ -183,10 +197,14 @@ export class AssistantDraftingService {
         scope,
         attachments.filter(
           (attachment) =>
-            !attachment.documentId || !named.has(`doc:${attachment.documentId}`),
+            !attachment.documentId ||
+            !named.has(`doc:${attachment.documentId}`),
         ),
       )),
     ];
+    const accessNotes = documents.flatMap((doc) =>
+      doc.note ? [doc.note] : [],
+    );
     const hasContext =
       userText.trim().length > 0 ||
       documents.some((doc) => doc.status === "COMPLETED" && !!doc.text);
@@ -198,7 +216,10 @@ export class AssistantDraftingService {
       });
       return {
         status: "NO_CONTEXT",
-        message: "Nema dovoljno čitljivih činjenica ni priloga za nacrt.",
+        message: [
+          "Nema dovoljno čitljivih činjenica ni priloga za nacrt.",
+          ...accessNotes,
+        ].join(" "),
       };
     }
 
@@ -264,6 +285,7 @@ export class AssistantDraftingService {
         documentType,
         userText,
         documents,
+        documentFacts: await this.documentFacts(scope, documentRefs),
         caseContext: await this.caseContext(scope),
         budget: this.budget(),
       });
@@ -278,7 +300,10 @@ export class AssistantDraftingService {
     if (!draftJob || !briefId) {
       return { status: "FAILED", message: "Izrada nacrta nije uspela." };
     }
-    return this.saveDraft(scope, draftJob, briefId, outcome, null);
+    const saved = await this.saveDraft(scope, draftJob, briefId, outcome, null);
+    return saved.status === "DRAFT_READY" && accessNotes.length
+      ? { ...saved, warnings: [...accessNotes, ...saved.warnings] }
+      : saved;
   }
 
   async reviseDraft(
@@ -562,7 +587,7 @@ export class AssistantDraftingService {
         role: "USER",
         ...(trigger ? { createdAt: { lte: trigger.createdAt } } : {}),
       },
-      include: { attachments: true },
+      include: { attachments: ATTACHMENT_WITH_ACCESS },
       orderBy: { createdAt: "desc" },
       take: CONVERSATION_USER_MESSAGES,
     });
@@ -590,6 +615,24 @@ export class AssistantDraftingService {
     return this.documentReads.documentsByRef(scope, refs);
   }
 
+  /** Facts of the readable case documents and attachments; none without the reads service. */
+  private async documentFacts(
+    scope: AssistantTurnScope,
+    refs: string[],
+  ): Promise<BriefDocumentFact[]> {
+    if (!this.documentReads) return [];
+    try {
+      return await this.documentReads.briefDocumentFacts(scope, refs);
+    } catch (error) {
+      this.logger.warn(
+        `Document facts were not added to the brief: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return [];
+    }
+  }
+
   /** Reuses extracted text; extracts pending attachments like the legacy job. */
   private async readDocuments(
     scope: AssistantTurnScope,
@@ -602,6 +645,25 @@ export class AssistantDraftingService {
         name: attachment.originalName,
         mimeType: attachment.mimeType,
       };
+      const access = DocumentAccessPolicy.forAttachment({
+        contentId: attachment.contentId,
+        document: attachment.document,
+      });
+      if (access.readable === false) {
+        // No text source is touched for an attachment the policy refuses.
+        const note = accessRefusalMessage(access, attachment.originalName);
+        if (note) documents.push({ ...base, status: "FAILED", note });
+        continue;
+      }
+      if (attachment.contentId && this.content) {
+        const result = await this.readContent(
+          scope,
+          attachment,
+          attachment.contentId,
+        );
+        documents.push({ ...base, status: result.status, text: result.text });
+        continue;
+      }
       if (
         attachment.extractionStatus === "COMPLETED" &&
         attachment.extractedText
@@ -621,6 +683,46 @@ export class AssistantDraftingService {
       documents.push({ ...base, status: result.status, text: result.text });
     }
     return documents;
+  }
+
+  /** Text of an attachment that shares a content row; extracted once per content. */
+  private async readContent(
+    scope: AssistantTurnScope,
+    attachment: AttachmentRow,
+    contentId: string,
+  ): Promise<{
+    status: "COMPLETED" | "FAILED" | "UNSUPPORTED";
+    text?: string;
+  }> {
+    const summary = toAttachmentSummary(attachment);
+    this.emit(scope, {
+      type: "attachment.updated",
+      createdAt: new Date().toISOString(),
+      attachment: { ...summary, extractionStatus: "RUNNING" },
+    });
+    const result = await this.content!.ensureText(
+      attachment.workspaceId,
+      contentId,
+    ).catch((error: unknown) => {
+      this.logger.warn(
+        `Text of content ${contentId} was not read: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return { status: "FAILED" as const, text: null };
+    });
+    const status =
+      result.status === "COMPLETED" || result.status === "UNSUPPORTED"
+        ? result.status
+        : "FAILED";
+    this.emit(scope, {
+      type: "attachment.updated",
+      createdAt: new Date().toISOString(),
+      attachment: { ...summary, extractionStatus: status },
+    });
+    return status === "COMPLETED"
+      ? { status, text: result.text ?? "" }
+      : { status };
   }
 
   private async extract(
@@ -888,6 +990,10 @@ type AttachmentRow = {
   extractedText: string | null;
   sourceScript: ChatAttachmentSummary["sourceScript"] | null;
   documentId?: string | null;
+  contentId: string | null;
+  content?: { status: string } | null;
+  /** The document the attachment was filed as (required so a caller cannot skip the AI-access check). */
+  document: { aiAccess: boolean; archivedAt: Date | null } | null;
 };
 
 function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
@@ -899,6 +1005,7 @@ function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
     createdAt: attachment.createdAt.toISOString(),
     extractionStatus: attachment.extractionStatus,
     sourceScript: attachment.sourceScript ?? null,
+    aiStatus: attachmentAiStatus(attachment),
   };
 }
 

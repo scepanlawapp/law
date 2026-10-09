@@ -283,6 +283,7 @@ export type ChatEventType =
   | "message.delta"
   | "message.updated"
   | "attachment.updated"
+  | "document.content.updated"
   | "triage.started"
   | "triage.completed"
   | "job.queued"
@@ -305,6 +306,12 @@ export interface ChatAttachmentSummary {
   createdAt: string;
   extractionStatus?: ChatAttachmentExtractionStatus;
   sourceScript?: ChatAttachmentSourceScript | null;
+  /**
+   * Whether the assistant can read this file yet. An unfiled attachment is
+   * always readable. One filed as a case document follows that document's AI
+   * access: "OFF" when the document has AI access off or is archived.
+   */
+  aiStatus: DocumentAiStatus;
 }
 
 export interface ChatMessageResponse {
@@ -529,7 +536,8 @@ export type PendingActionStatus =
 export type PendingActionType =
   | "link_case"
   | "create_deadline"
-  | "create_tasks_from_brief";
+  | "create_tasks_from_brief"
+  | "update_client_from_document";
 
 /** A record change proposed by the assistant, awaiting the user's decision. */
 export interface PendingActionSummary {
@@ -563,6 +571,10 @@ export interface ChatStreamEvent {
   messageId?: string;
   delta?: string;
   attachment?: ChatAttachmentSummary;
+  /** `document.content.updated`: attachments of this session on that content. */
+  attachmentIds?: string[];
+  /** `document.content.updated`: the content's new AI status. */
+  status?: DocumentAiStatus;
   job?: WorkflowJobResponse;
   draft?: DraftResultResponse;
   analysis?: DocumentAnalysisResponse;
@@ -643,12 +655,21 @@ export interface BriefEvidenceItem {
   provided: boolean;
 }
 
+/** The document whose extracted facts filled a brief party. */
+export interface BriefFactSource {
+  // Document ref (`doc:<id>` or `att:<id>`).
+  ref: string;
+  title: string;
+}
+
 export interface BriefPartyEntry {
   // Role id from the document type, e.g. "plaintiff", "appellant".
   role: string;
   name: string | null;
   address: string | null;
   idNumber: string | null;
+  // Set only when the party's values come from a document fact; older briefs have none.
+  source?: BriefFactSource | null;
 }
 
 export interface BriefFieldValue {
@@ -715,12 +736,14 @@ export interface BriefApplyPreview {
   clientRole: string | null;
   clientPartyName: string | null;
   clientPartyAddress: string | null;
+  clientPartySource?: BriefFactSource | null;
   nameNeedsSplit: boolean;
   suggestedFirstName: string | null;
   suggestedLastName: string | null;
   clientMatches: BriefClientMatch[];
   opposingPartyName: string | null;
   opposingPartyAddress: string | null;
+  opposingPartySource?: BriefFactSource | null;
   suggestedCaseName: string;
   suggestedDescription: string;
   suggestedCaseNumber: string;
@@ -1246,6 +1269,31 @@ export interface DocumentStatistics {
   archived: number;
 }
 
+export type DocumentAiStatus =
+  | "OFF"
+  | "QUEUED"
+  | "PROCESSING"
+  | "READY"
+  | "FAILED"
+  | "UNSUPPORTED";
+
+export type DocumentKind =
+  | "ID_CARD"
+  | "PASSPORT"
+  | "APR_EXCERPT"
+  | "COURT_DECISION"
+  | "ADMIN_DECISION"
+  | "OTHER";
+
+export interface BulkDocumentAiAccessRequest {
+  documentIds: string[];
+  aiAccess: boolean;
+}
+
+export interface BulkDocumentAiAccessResponse {
+  updated: number;
+}
+
 export interface DocumentSummary {
   folderId?: string | null;
   id: string;
@@ -1253,6 +1301,15 @@ export interface DocumentSummary {
   category: string | null;
   archived: boolean;
   archivedAt: string | null;
+  aiAccess: boolean;
+  aiStatus: DocumentAiStatus;
+  /**
+   * The assistant's processing of this document can be retried by hand: it
+   * failed, stalled in the queue, or finished without a kind or facts.
+   */
+  aiRetryable: boolean;
+  documentKind: DocumentKind | null;
+  fromAssistantChat: boolean;
   cases: CaseReference[];
   clients: ClientReference[];
   currentVersion: DocumentVersionSummary | null;

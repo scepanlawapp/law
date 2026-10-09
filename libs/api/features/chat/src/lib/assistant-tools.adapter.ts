@@ -15,7 +15,9 @@ import type {
   AssistantCaseFacts,
   AssistantCaseLookup,
   AssistantClientFacts,
+  AssistantCaseDocumentSearch,
   AssistantClientLookup,
+  AssistantDocumentFacts,
   AssistantDocumentList,
   AssistantDocumentRead,
   AssistantDocumentSearch,
@@ -96,6 +98,24 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
   ): Promise<AssistantDocumentSearch> {
     return this.documents
       ? this.documents.searchDocuments(scope, args)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
+
+  searchCaseDocuments(
+    scope: AssistantTurnScope,
+    args: { query: string; ref?: string; limit?: number },
+  ): Promise<AssistantCaseDocumentSearch> {
+    return this.documents
+      ? this.documents.searchCaseDocuments(scope, args)
+      : Promise.resolve(DOCUMENTS_UNAVAILABLE);
+  }
+
+  getDocumentFacts(
+    scope: AssistantTurnScope,
+    args: { ref?: string },
+  ): Promise<AssistantDocumentFacts> {
+    return this.documents
+      ? this.documents.getDocumentFacts(scope, args)
       : Promise.resolve(DOCUMENTS_UNAVAILABLE);
   }
 

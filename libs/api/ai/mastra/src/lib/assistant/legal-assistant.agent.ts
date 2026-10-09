@@ -9,6 +9,7 @@ import { createDraftDocumentTool } from "./tools/draft-document.tool";
 import { createGetAgendaTool } from "./tools/get-agenda.tool";
 import { createGetCaseTool } from "./tools/get-case.tool";
 import { createGetClientTool } from "./tools/get-client.tool";
+import { createGetDocumentFactsTool } from "./tools/get-document-facts.tool";
 import { createGetDraftTool } from "./tools/get-draft.tool";
 import { createLinkCaseTool } from "./tools/link-case.tool";
 import { createListActivityTool } from "./tools/list-activity.tool";
@@ -18,11 +19,13 @@ import { createListWorkItemsTool } from "./tools/list-work-items.tool";
 import { createReadDocumentTool } from "./tools/read-document.tool";
 import { createReviewContractTool } from "./tools/review-contract.tool";
 import { createReviseDraftTool } from "./tools/revise-draft.tool";
+import { createSearchCaseDocumentsTool } from "./tools/search-case-documents.tool";
 import { createSearchCasesTool } from "./tools/search-cases.tool";
 import { createSearchClientsTool } from "./tools/search-clients.tool";
 import { createSearchDocumentsTool } from "./tools/search-documents.tool";
 import { createSearchLegalSourcesTool } from "./tools/search-legal-sources.tool";
 import { createSummarizeCaseDocumentsTool } from "./tools/summarize-case-documents.tool";
+import { createProposeClientUpdateTool } from "./tools/propose-client-update.tool";
 import type { LegalAssistantToolDeps } from "./tools/tool-deps";
 
 export const LEGAL_ASSISTANT_AGENT_ID = "legal-assistant";
@@ -63,6 +66,8 @@ export function createLegalAssistantAgent(options: {
       list_documents: createListDocumentsTool(options.deps),
       read_document: createReadDocumentTool(options.deps),
       search_documents: createSearchDocumentsTool(options.deps),
+      search_case_documents: createSearchCaseDocumentsTool(options.deps),
+      get_document_facts: createGetDocumentFactsTool(options.deps),
       draft_document: createDraftDocumentTool(options.deps),
       revise_draft: createReviseDraftTool(options.deps),
       review_contract: createReviewContractTool(options.deps),
@@ -73,6 +78,9 @@ export function createLegalAssistantAgent(options: {
       link_case: createLinkCaseTool(options.deps),
       create_deadline: createCreateDeadlineTool(options.deps),
       create_tasks_from_brief: createCreateTasksFromBriefTool(options.deps),
+      propose_client_update_from_document: createProposeClientUpdateTool(
+        options.deps,
+      ),
     },
   });
 }

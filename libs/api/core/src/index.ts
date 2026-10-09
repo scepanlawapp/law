@@ -8,3 +8,4 @@ export * from "./lib/workspace-context.interceptor";
 export * from "./lib/workspace.constants";
 export * from "./lib/text-match";
 export * from "./lib/number-pattern";
+export * from "./lib/queue-root.module";
