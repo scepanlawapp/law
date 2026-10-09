@@ -32,6 +32,37 @@ export type WorkEntrySourceType =
   | "CLIENT_ACTIVITY"
   | "CASE_ACTIVITY";
 export type RetainerRule = "HOURLY" | "AT" | "ABSORBED";
+export const SUPPORTED_WORK_ENTRY_CURRENCIES = [
+  "RSD",
+  "EUR",
+  "USD",
+  "CHF",
+  "GBP",
+  "JPY",
+  "CAD",
+  "AUD",
+  "CNY",
+  "HKD",
+  "SGD",
+  "NZD",
+  "SEK",
+  "NOK",
+  "DKK",
+  "PLN",
+  "CZK",
+  "HUF",
+  "RON",
+  "BGN",
+  "TRY",
+  "AED",
+  "SAR",
+  "INR",
+  "BRL",
+  "MXN",
+  "ZAR",
+] as const;
+export type WorkEntryCurrency =
+  (typeof SUPPORTED_WORK_ENTRY_CURRENCIES)[number];
 
 export interface WorkEntry {
   eventId?: string | null;
@@ -50,6 +81,10 @@ export interface WorkEntry {
   description: string;
   serviceCategory: { id: string; name: string } | null;
   treatment: WorkEntryTreatment;
+  /** Recorded work value; independent from any invoice line amount. */
+  value?: string | null;
+  /** ISO 4217 currency for the recorded work value, when known. */
+  currency?: WorkEntryCurrency | null;
   status: WorkEntryStatus;
   writeOffReason: string | null;
   source: WorkEntrySource;
@@ -81,6 +116,9 @@ export interface CreateWorkEntryRequest {
   description?: string;
   serviceCategoryId?: string;
   treatment?: WorkEntryTreatment;
+  /** Decimal string; never an invoice net amount. */
+  value?: string | null;
+  currency?: string | null;
   source?: "MANUAL" | "QUICK_CAPTURE";
   aiParsed?: boolean;
 }
@@ -119,6 +157,8 @@ export interface ConfirmWorkEntryRequest {
   minutes?: number | null;
   title?: string;
   description?: string;
+  value?: string | null;
+  currency?: string | null;
 }
 
 export interface WriteOffWorkEntryRequest {
@@ -132,6 +172,8 @@ export interface ConfirmSourceEntryRequest {
   minutes: number | null;
   title?: string;
   description?: string;
+  value?: string | null;
+  currency?: string | null;
 }
 
 export interface WorkCaptureParseRequest {

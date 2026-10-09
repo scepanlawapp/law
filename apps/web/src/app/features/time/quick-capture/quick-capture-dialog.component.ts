@@ -11,9 +11,11 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
+  AbstractControl,
   FormControl,
   FormGroup,
   ReactiveFormsModule,
+  ValidationErrors,
   Validators,
 } from "@angular/forms";
 import {
@@ -24,6 +26,7 @@ import {
   ClientsApiClient,
   WorkEntriesApiClient,
   WorkManagementApiClient,
+  OrganizationSettingsApiClient,
 } from "@law/api-clients";
 import {
   CaseReference,
@@ -89,6 +92,10 @@ import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-
 import { ToastService } from "../../../shared/ui/toast/toast.service";
 import { createSelectItemToString, SelectOption } from "../../../shared/utils";
 import {
+  CURRENCY_OPTIONS,
+  createCurrencyItemToString,
+} from "../../../shared/currency";
+import {
   activeAgreementOn,
   AgreementTerms,
   agreementTerms,
@@ -107,6 +114,32 @@ const RECENT_ENTRY_COUNT = 20;
 const LIST_PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 250;
 const TITLE_MAX_LENGTH = 200;
+const WORK_VALUE_PATTERN = /^\d{1,16}(?:[.,]\d{1,2})?$/;
+
+function workValueValidator(control: AbstractControl): ValidationErrors | null {
+  const value = String(control.value ?? "").trim();
+  if (!value) return null;
+  const [whole] = value.replace(",", ".").split(".");
+  return WORK_VALUE_PATTERN.test(value) && whole.replace(/^0+/, "").length <= 16
+    ? null
+    : { workValue: true };
+}
+
+function workValueCurrencyValidator(
+  control: AbstractControl,
+): ValidationErrors | null {
+  const form = control as FormGroup;
+  return form.get("value")?.value && !form.get("currency")?.value
+    ? { workValueCurrency: true }
+    : null;
+}
+
+function normalizeWorkValue(value: string): string | null {
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const [whole, fraction = ""] = trimmed.replace(",", ".").split(".");
+  return `${whole.replace(/^0+(?=\d)/, "")}.${fraction.padEnd(2, "0")}`;
+}
 
 interface ClientOption {
   id: string;
@@ -177,6 +210,9 @@ export class QuickCaptureDialogComponent {
   private readonly entriesApi = inject(WorkEntriesApiClient);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly billingApi = inject(BillingSetupApiClient);
+  private readonly organizationSettingsApi = inject(
+    OrganizationSettingsApiClient,
+  );
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly auth = inject(AuthState);
@@ -312,52 +348,77 @@ export class QuickCaptureDialogComponent {
     { value: "NON_BILLABLE", label: "time.treatment.nonBillable" },
     { value: "UNDECIDED", label: "time.treatment.undecided" },
   ];
-  readonly form = new FormGroup({
-    userId: new FormControl(
-      this.context.userId === undefined
-        ? (this.auth.session()?.user.id ?? "")
-        : (this.context.userId ?? ""),
-      { nonNullable: true },
-    ),
-    clientId: new FormControl(this.context.clientId ?? "", {
-      nonNullable: true,
-      validators: this.fromSource ? [] : [Validators.required],
-    }),
-    caseId: new FormControl(this.context.caseId ?? "", { nonNullable: true }),
-    // Time is optional: untimed work is priced later on the invoice. Only a
-    // stopped timer must keep its minutes.
-    minutes: new FormControl<number | null>(this.context.minutes ?? null, {
-      validators: [
-        ...(this.context.requireMinutes ? [Validators.required] : []),
-        integerValidator,
-        Validators.min(1),
-        Validators.max(1440),
-      ],
-    }),
-    workDate: new FormControl(this.context.workDate ?? today(), {
-      nonNullable: true,
-      validators: [Validators.required],
-    }),
-    /** One-sentence summary; also the text the AI fill reads. */
-    title: new FormControl(this.context.title ?? "", {
-      nonNullable: true,
-      validators: [
-        Validators.required,
-        Validators.pattern(/\S/),
-        Validators.maxLength(TITLE_MAX_LENGTH),
-      ],
-    }),
-    description: new FormControl(this.context.description ?? "", {
-      nonNullable: true,
-    }),
-    serviceCategoryId: new FormControl("", { nonNullable: true }),
-    treatment: new FormControl<WorkEntryTreatment>(
-      this.context.treatment ?? "UNDECIDED",
-      {
+  readonly currencyOptions: SelectOption[] = [
+    { value: "", label: "time.capture.noCurrency" },
+    ...CURRENCY_OPTIONS,
+  ];
+  readonly currencyItemToString = (value: string | null | undefined): string =>
+    value
+      ? createCurrencyItemToString((key) => this.localization.translate(key))(
+          value,
+        )
+      : this.localization.translate("time.capture.noCurrency");
+  readonly form = new FormGroup(
+    {
+      userId: new FormControl(
+        this.context.userId === undefined
+          ? (this.auth.session()?.user.id ?? "")
+          : (this.context.userId ?? ""),
+        { nonNullable: true },
+      ),
+      clientId: new FormControl(this.context.clientId ?? "", {
         nonNullable: true,
-      },
-    ),
-  });
+        validators: this.fromSource ? [] : [Validators.required],
+      }),
+      caseId: new FormControl(this.context.caseId ?? "", { nonNullable: true }),
+      // Time is optional: untimed work is priced later on the invoice. Only a
+      // stopped timer must keep its minutes.
+      minutes: new FormControl<number | null>(this.context.minutes ?? null, {
+        validators: [
+          ...(this.context.requireMinutes ? [Validators.required] : []),
+          integerValidator,
+          Validators.min(1),
+          Validators.max(1440),
+        ],
+      }),
+      workDate: new FormControl(this.context.workDate ?? today(), {
+        nonNullable: true,
+        validators: [Validators.required],
+      }),
+      /** One-sentence summary; also the text the AI fill reads. */
+      title: new FormControl(this.context.title ?? "", {
+        nonNullable: true,
+        validators: [
+          Validators.required,
+          Validators.pattern(/\S/),
+          Validators.maxLength(TITLE_MAX_LENGTH),
+        ],
+      }),
+      description: new FormControl(this.context.description ?? "", {
+        nonNullable: true,
+      }),
+      value: new FormControl(this.context.value ?? "", {
+        nonNullable: true,
+        validators: workValueValidator,
+      }),
+      currency: new FormControl(
+        this.context.currency === undefined
+          ? "RSD"
+          : (this.context.currency ?? ""),
+        {
+          nonNullable: true,
+        },
+      ),
+      serviceCategoryId: new FormControl("", { nonNullable: true }),
+      treatment: new FormControl<WorkEntryTreatment>(
+        this.context.treatment ?? "UNDECIDED",
+        {
+          nonNullable: true,
+        },
+      ),
+    },
+    { validators: workValueCurrencyValidator },
+  );
   readonly saving = signal(false);
   readonly loadingEntry = signal(false);
   readonly parsing = signal(false);
@@ -366,6 +427,8 @@ export class QuickCaptureDialogComponent {
   readonly clientCandidates = signal<ClientReference[]>([]);
   readonly caseCandidates = signal<CaseReference[]>([]);
   readonly categories = signal<ServiceCategory[]>([]);
+  readonly organizationCurrency = signal<string | null>(null);
+  readonly clientProfileCurrency = signal<string | null>(null);
 
   private readonly recentClients = signal<ClientReference[]>([]);
   private readonly listedClients = signal<ClientOption[]>([]);
@@ -562,6 +625,34 @@ export class QuickCaptureDialogComponent {
       startWith(clientId.value),
       distinctUntilChanged(),
     );
+    this.organizationSettingsApi
+      .get()
+      .pipe(
+        map((settings) => settings.currency?.defaultCurrencyCode ?? null),
+        catchError(() => of(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((currency) => {
+        this.organizationCurrency.set(currency);
+        this.applyDefaultCurrency();
+      });
+    client$
+      .pipe(
+        tap(() => this.clientProfileCurrency.set(null)),
+        switchMap((id) =>
+          id
+            ? this.billingApi.getProfile(id).pipe(
+                map((profile) => profile.currency),
+                catchError(() => of(null)),
+              )
+            : of(null),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((currency) => {
+        this.clientProfileCurrency.set(currency);
+        this.applyDefaultCurrency();
+      });
     client$
       .pipe(
         switchMap((id) =>
@@ -874,6 +965,31 @@ export class QuickCaptureDialogComponent {
     );
   }
 
+  private applyDefaultCurrency(): void {
+    if (
+      this.context.currency !== undefined ||
+      this.loadedEntry() ||
+      this.form.controls.currency.dirty
+    ) {
+      return;
+    }
+    const supported = (currency: string | null): currency is string =>
+      !!currency &&
+      CURRENCY_OPTIONS.some(
+        (option) => option.value === currency.toUpperCase(),
+      );
+    const currency = [
+      this.clientProfileCurrency(),
+      this.organizationCurrency(),
+      "RSD",
+    ].find(supported);
+    if (currency) {
+      this.form.controls.currency.setValue(currency.toUpperCase(), {
+        emitEvent: false,
+      });
+    }
+  }
+
   /** What to send: a deliberate pick, or the default shown; else let the API decide. */
   private treatmentToSend(): WorkEntryTreatment | undefined {
     const { treatment } = this.form.controls;
@@ -1014,6 +1130,12 @@ export class QuickCaptureDialogComponent {
     if (!this.context.workDate) controls.workDate.setValue(entry.workDate);
     controls.serviceCategoryId.setValue(entry.serviceCategory?.id ?? "");
     controls.treatment.setValue(entry.treatment, { emitEvent: false });
+    if (this.context.value === undefined) {
+      controls.value.setValue(entry.value ?? "", { emitEvent: false });
+    }
+    if (this.context.currency === undefined) {
+      controls.currency.setValue(entry.currency ?? "", { emitEvent: false });
+    }
     controls.treatment.markAsPristine();
     this.hydrating = false;
     this.keepTreatment = true;
@@ -1068,6 +1190,8 @@ export class QuickCaptureDialogComponent {
       description,
       serviceCategoryId: value.serviceCategoryId || undefined,
       treatment: this.treatmentToSend(),
+      value: normalizeWorkValue(value.value),
+      currency: value.currency || null,
     };
     const aiParsed = this.aiParsed();
 
@@ -1097,6 +1221,8 @@ export class QuickCaptureDialogComponent {
                 minutes,
                 title,
                 description,
+                value: normalizeWorkValue(value.value),
+                currency: value.currency || null,
               }),
             ),
           );
@@ -1113,6 +1239,8 @@ export class QuickCaptureDialogComponent {
           minutes,
           title,
           description,
+          value: normalizeWorkValue(value.value),
+          currency: value.currency || null,
         });
       }
       case "view":

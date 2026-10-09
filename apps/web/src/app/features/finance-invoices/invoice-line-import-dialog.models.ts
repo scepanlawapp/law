@@ -1,4 +1,11 @@
-import { ClientSummary } from "@law/api-interfaces";
+import { ClientSummary, WorkEntry } from "@law/api-interfaces";
+
+export type InvoiceLineImportMode = "SEPARATE" | "GROUPED";
+
+export interface InvoiceLineImportResult {
+  entries: WorkEntry[];
+  mode: InvoiceLineImportMode;
+}
 
 export interface InvoiceLineImportDialogContext {
   client: ClientSummary;

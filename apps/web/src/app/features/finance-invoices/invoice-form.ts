@@ -50,6 +50,9 @@ export interface ClientRate {
   currency: string;
 }
 
+const LINE_DESCRIPTION_LIMIT = 10_000;
+const zeroPricedLines = new WeakSet<InvoiceLineForm>();
+
 export type InvoiceLineAmountSource =
   | "netAmount"
   | "vatRate"
@@ -131,7 +134,10 @@ function pricedOrFlaggedValidator(
 ): ValidationErrors | null {
   const group = control as InvoiceLineForm;
   const net = group.controls.netAmount.value;
-  return group.controls.pricingRequired.value || (net !== null && net > 0)
+  return group.controls.pricingRequired.value ||
+    (net !== null && net > 0) ||
+    (net === 0 &&
+      (Boolean(group.controls.id.value) || zeroPricedLines.has(group)))
     ? null
     : { priceRequired: true };
 }
@@ -225,15 +231,36 @@ export function createWorkEntryLineForm(
   const minutes = entry.minutes;
   const sameCurrency =
     !!rate && normalizeCurrency(rate.currency) === normalizeCurrency(currency);
-  const price =
-    entry.treatment === "HOURLY" && sameCurrency && minutes !== null
-      ? (priceMinutes(minutes, rate?.hourlyRate) ?? 0)
-      : 0;
-  const priced = price > 0;
-  return buildLineForm({
+  const entryCurrency = entry.currency
+    ? normalizeCurrency(entry.currency)
+    : null;
+  const explicitMinor = parseMinorUnits(entry.value);
+  const explicitCurrencyMatches = entryCurrency === normalizeCurrency(currency);
+  const fallbackPrice =
+    entry.value == null &&
+    entry.treatment === "HOURLY" &&
+    sameCurrency &&
+    (entryCurrency === null || explicitCurrencyMatches) &&
+    minutes !== null
+      ? priceMinutes(minutes, rate?.hourlyRate)
+      : null;
+  const parsedAmountMinor =
+    entry.value != null
+      ? explicitCurrencyMatches
+        ? explicitMinor
+        : null
+      : fallbackPrice === null || fallbackPrice <= 0
+        ? null
+        : parseMinorUnits(fallbackPrice.toFixed(2));
+  const amountMinor =
+    parsedAmountMinor !== null && isSafeMinorUnits(parsedAmountMinor)
+      ? parsedAmountMinor
+      : null;
+  const price = amountMinor === null ? 0 : minorUnitsToNumber(amountMinor);
+  const line = buildLineForm({
     workEntryIds: [entry.id],
     minutes,
-    pricingRequired: !priced,
+    pricingRequired: amountMinor === null,
     serviceDate: entry.workDate.slice(0, 10),
     // Untimed work shows just its title and is priced by hand.
     description:
@@ -246,6 +273,133 @@ export function createWorkEntryLineForm(
     grossAmount: amountsFromNetAndRate(price, defaultVatRate).grossAmount,
     currency,
   });
+  if (amountMinor === BigInt(0)) {
+    zeroPricedLines.add(line);
+    line.updateValueAndValidity({ emitEvent: false });
+  }
+  return line;
+}
+
+/** Stable service-date/ID order shared by grouped descriptions and associations. */
+export function sortWorkEntries<T extends Pick<WorkEntry, "id" | "workDate">>(
+  entries: readonly T[],
+): T[] {
+  const unique = new Map<string, T>();
+  for (const entry of entries) unique.set(entry.id, entry);
+  return [...unique.values()].sort((left, right) => {
+    const leftDate = left.workDate.slice(0, 10);
+    const rightDate = right.workDate.slice(0, 10);
+    if (leftDate !== rightDate) return leftDate < rightDate ? -1 : 1;
+    return left.id === right.id ? 0 : left.id < right.id ? -1 : 1;
+  });
+}
+
+/** Joins original titles without allowing an invoice line past its form limit. */
+export function concatenateWorkEntryTitles(
+  entries: readonly Pick<WorkEntry, "id" | "workDate" | "title">[],
+  overflowFallback: string,
+): string {
+  const description = sortWorkEntries(entries)
+    .map((entry) => entry.title.trim())
+    .filter(Boolean)
+    .join("; ");
+  return description.length <= LINE_DESCRIPTION_LIMIT
+    ? description
+    : overflowFallback.slice(0, LINE_DESCRIPTION_LIMIT);
+}
+
+/** Creates one invoice line for a deterministic group of distinct work entries. */
+export function createGroupedWorkEntryLineForm(
+  entries: readonly WorkEntry[],
+  currency: string,
+  rate: ClientRate | null,
+  defaultVatRate = 0,
+  overflowFallback = "",
+): InvoiceLineForm {
+  const ordered = sortWorkEntries(entries);
+  const minutes = ordered.reduce<number | null>(
+    (total, entry) =>
+      entry.minutes === null ? total : (total ?? 0) + entry.minutes,
+    null,
+  );
+  const currencyCode = normalizeCurrency(currency);
+  let totalMinor = BigInt(0);
+  let priceable = ordered.length > 0;
+
+  for (const entry of ordered) {
+    const entryCurrency = entry.currency
+      ? normalizeCurrency(entry.currency)
+      : null;
+    let amountMinor: bigint | null = null;
+    if (entry.value != null) {
+      if (entryCurrency === currencyCode) {
+        amountMinor = parseMinorUnits(entry.value);
+      }
+    } else if (
+      entry.treatment === "HOURLY" &&
+      entry.minutes !== null &&
+      rate &&
+      normalizeCurrency(rate.currency) === currencyCode &&
+      (!entryCurrency || entryCurrency === currencyCode)
+    ) {
+      const amount = priceMinutes(entry.minutes, rate.hourlyRate);
+      amountMinor =
+        amount === null || amount <= 0
+          ? null
+          : parseMinorUnits(amount.toFixed(2));
+    }
+    if (amountMinor === null) priceable = false;
+    else {
+      totalMinor += amountMinor;
+      if (!isSafeMinorUnits(totalMinor)) priceable = false;
+    }
+  }
+
+  const netAmount = priceable ? minorUnitsToNumber(totalMinor) : 0;
+  const amounts = amountsFromNetAndRate(netAmount, defaultVatRate);
+  const line = buildLineForm({
+    workEntryIds: ordered.map((entry) => entry.id),
+    minutes,
+    pricingRequired: !priceable,
+    serviceDate: ordered[0]?.workDate.slice(0, 10) ?? localDate(),
+    description: concatenateWorkEntryTitles(ordered, overflowFallback),
+    netAmount,
+    vatRate: defaultVatRate,
+    vatAmount: amounts.vatAmount,
+    grossAmount: amounts.grossAmount,
+    currency: currencyCode,
+  });
+  if (priceable && totalMinor === BigInt(0)) {
+    zeroPricedLines.add(line);
+    line.updateValueAndValidity({ emitEvent: false });
+  }
+  return line;
+}
+
+/** Appends one grouped line and returns the count of newly associated entries. */
+export function appendGroupedWorkEntries(
+  target: FormArray<InvoiceLineForm>,
+  entries: readonly WorkEntry[],
+  currency: string,
+  rate: ClientRate | null,
+  defaultVatRate = 0,
+  overflowFallback = "",
+): number {
+  const existing = new Set(lineWorkEntryIds(target.controls));
+  const addedEntries = sortWorkEntries(entries).filter(
+    (entry) => !existing.has(entry.id),
+  );
+  if (!addedEntries.length) return 0;
+  target.push(
+    createGroupedWorkEntryLineForm(
+      addedEntries,
+      currency,
+      rate,
+      defaultVatRate,
+      overflowFallback,
+    ),
+  );
+  return addedEntries.length;
 }
 
 /** Work entry ids that already back a line of the invoice. */
@@ -338,6 +492,37 @@ export function incompatibleCurrencyIndexes(
 
 export function normalizeCurrency(value: string): string {
   return value.trim().toUpperCase();
+}
+
+export function sumDecimalValues(values: readonly string[]): string | null {
+  let total = BigInt(0);
+  for (const value of values) {
+    const minor = parseMinorUnits(value);
+    if (minor === null) return null;
+    total += minor;
+  }
+  return `${total / BigInt(100)}.${String(total % BigInt(100)).padStart(2, "0")}`;
+}
+
+function parseMinorUnits(
+  value: string | number | null | undefined,
+): bigint | null {
+  if (typeof value === "number") {
+    if (!Number.isFinite(value) || value < 0) return null;
+    value = value.toFixed(2);
+  }
+  if (typeof value !== "string" || !/^\d+(?:\.\d{1,2})?$/.test(value.trim()))
+    return null;
+  const [whole, fraction = ""] = value.trim().split(".");
+  return BigInt(whole) * BigInt(100) + BigInt(fraction.padEnd(2, "0"));
+}
+
+function isSafeMinorUnits(value: bigint): boolean {
+  return value <= BigInt(Number.MAX_SAFE_INTEGER);
+}
+
+function minorUnitsToNumber(value: bigint): number {
+  return Number(value) / 100;
 }
 
 function amountsFromNetAndRate(

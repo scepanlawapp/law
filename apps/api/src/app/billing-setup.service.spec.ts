@@ -74,6 +74,7 @@ describe("BillingSetupService", () => {
       updateMany: jest.fn(),
     },
     clientBillingProfile: { findFirst: jest.fn(), upsert: jest.fn() },
+    organizationSettings: { findUnique: jest.fn() },
     userRate: { findMany: jest.fn(), create: jest.fn() },
     workspaceMember: { findFirst: jest.fn() },
     workspaceConfig: { findUnique: jest.fn(), upsert: jest.fn() },
@@ -109,6 +110,9 @@ describe("BillingSetupService", () => {
       internalCurrency: "RSD",
       defaultVatRate: new Prisma.Decimal(20),
       paymentTermDays: 15,
+    });
+    db.organizationSettings.findUnique.mockResolvedValue({
+      defaultCurrencyCode: "RSD",
     });
     db.workspaceMember.findFirst.mockResolvedValue({ userId });
   });
@@ -370,6 +374,25 @@ describe("BillingSetupService", () => {
           }),
         ),
       ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it("uses the organization default when no client profile exists", async () => {
+      db.clientBillingProfile.findFirst.mockResolvedValue(null);
+      db.organizationSettings.findUnique.mockResolvedValue({
+        defaultCurrencyCode: "EUR",
+      });
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.getProfile(clientId)),
+      ).resolves.toEqual({ clientId, hourlyRate: null, currency: "EUR" });
+
+      db.clientBillingProfile.findFirst.mockResolvedValue({
+        clientId,
+        hourlyRate: null,
+        currency: "CHF",
+      });
+      await expect(
+        as(WorkspaceRole.LAWYER, () => service.getProfile(clientId)),
+      ).resolves.toMatchObject({ currency: "CHF" });
     });
   });
 

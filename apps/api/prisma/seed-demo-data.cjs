@@ -1610,6 +1610,8 @@ async function ensureWorkEntries(
           ? categories.get(categoryName).id
           : null,
         treatment,
+        value: extra.value ?? null,
+        currency: extra.currency ?? "RSD",
         status,
         writeOffReason: extra.writeOffReason ?? null,
         source,

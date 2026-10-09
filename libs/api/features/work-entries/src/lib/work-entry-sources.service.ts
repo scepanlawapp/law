@@ -146,6 +146,10 @@ export class WorkEntrySourcesService {
           minutes,
           title: toLatin(input.title.trim()).slice(0, 200) || "Rad",
           description: toLatin((input.description ?? "").trim()),
+          currency: await this.workEntries.defaultWorkEntryCurrency(
+            clientId,
+            tx,
+          ),
           treatment,
           status,
           source: SOURCE_BY_TYPE[input.sourceType],
@@ -220,6 +224,8 @@ export class WorkEntrySourcesService {
       minutes: input.minutes,
       title: input.title,
       description: input.description,
+      value: input.value,
+      currency: input.currency,
     });
   }
 }

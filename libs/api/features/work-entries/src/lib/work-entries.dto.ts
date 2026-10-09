@@ -11,6 +11,7 @@ import {
   IsUUID,
   Max,
   MaxLength,
+  Matches,
   Min,
   ValidateIf,
 } from "class-validator";
@@ -26,7 +27,11 @@ import type {
   WorkEntrySourceType,
   WorkEntryStatus,
   WorkEntryTreatment,
+  WorkEntryCurrency,
 } from "@law/api-interfaces";
+import { SUPPORTED_WORK_ENTRY_CURRENCIES } from "@law/api-interfaces";
+
+const WORK_ENTRY_VALUE_PATTERN = /^\d{1,16}(?:\.\d{1,2})?$/;
 
 export const WORK_ENTRY_STATUSES = [
   "RUNNING",
@@ -101,6 +106,15 @@ export class CreateWorkEntryDto implements CreateWorkEntryRequest {
   treatment?: WorkEntryTreatment;
 
   @IsOptional()
+  @IsString()
+  @Matches(WORK_ENTRY_VALUE_PATTERN)
+  value?: string | null;
+
+  @IsOptional()
+  @IsIn(SUPPORTED_WORK_ENTRY_CURRENCIES)
+  currency?: WorkEntryCurrency | null;
+
+  @IsOptional()
   @IsIn(["MANUAL", "QUICK_CAPTURE"])
   source?: "MANUAL" | "QUICK_CAPTURE";
 
@@ -149,6 +163,15 @@ export class UpdateWorkEntryDto implements UpdateWorkEntryRequest {
   treatment?: WorkEntryTreatment;
 
   @IsOptional()
+  @IsString()
+  @Matches(WORK_ENTRY_VALUE_PATTERN)
+  value?: string | null;
+
+  @IsOptional()
+  @IsIn(SUPPORTED_WORK_ENTRY_CURRENCIES)
+  currency?: WorkEntryCurrency | null;
+
+  @IsOptional()
   @IsIn(["MANUAL", "QUICK_CAPTURE"])
   source?: "MANUAL" | "QUICK_CAPTURE";
 
@@ -174,6 +197,15 @@ export class ConfirmWorkEntryDto implements ConfirmWorkEntryRequest {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(WORK_ENTRY_VALUE_PATTERN)
+  value?: string | null;
+
+  @IsOptional()
+  @IsIn(SUPPORTED_WORK_ENTRY_CURRENCIES)
+  currency?: WorkEntryCurrency | null;
 }
 
 export class WriteOffWorkEntryDto {
@@ -198,6 +230,15 @@ export class StartTimerDto implements StartTimerRequest {
   @IsOptional()
   @IsString()
   description?: string;
+
+  @IsOptional()
+  @IsString()
+  @Matches(WORK_ENTRY_VALUE_PATTERN)
+  value?: string | null;
+
+  @IsOptional()
+  @IsIn(SUPPORTED_WORK_ENTRY_CURRENCIES)
+  currency?: WorkEntryCurrency | null;
 }
 
 export class WorkEntryQueryDto

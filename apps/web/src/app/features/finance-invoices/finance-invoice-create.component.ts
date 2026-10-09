@@ -10,8 +10,10 @@ import {
 import {
   Invoice,
   ClientSummary,
+  InvoiceWorkEntrySummary,
   OrganizationSettings,
   WorkEntry,
+  WorkEntryTreatment,
 } from "@law/api-interfaces";
 import {
   BillingSetupApiClient,
@@ -22,7 +24,11 @@ import {
 } from "@law/api-clients";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
-import { lucideTrash2 } from "@ng-icons/lucide";
+import {
+  lucideChevronDown,
+  lucideChevronUp,
+  lucideTrash2,
+} from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldError, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -49,6 +55,7 @@ import {
   InvoiceLineForm,
   ClientRate,
   appendUniqueWorkEntries,
+  appendGroupedWorkEntries,
   calculateInvoiceTotals,
   createInvoiceLineForm,
   detachInvoiceLineWorkEntries,
@@ -57,11 +64,32 @@ import {
   lineWorkEntryIds,
   normalizeCurrency,
   recalculateInvoiceLine,
+  sumDecimalValues,
   toInvoiceLineInput,
 } from "./invoice-form";
 import { InvoiceLineImportDialogService } from "./invoice-line-import-dialog.service";
+import { InvoiceLineImportMode } from "./invoice-line-import-dialog.models";
 import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
 import { createSelectItemToString } from "../../shared/utils";
+import { formatMinutes, TREATMENT_LABEL_KEYS } from "../time/time-utils";
+
+interface LinkedWorkEntryDetail {
+  id: string;
+  workDate: string;
+  title: string;
+  user: WorkEntry["user"];
+  case: WorkEntry["case"];
+  minutes: number | null;
+  treatment: WorkEntryTreatment | null;
+  value: string | null;
+  currency: string | null;
+}
+
+interface LinkedWorkEntryListItem {
+  id: string;
+  detail: LinkedWorkEntryDetail | null;
+  lineIndexes: number[];
+}
 
 @Component({
   selector: "law-finance-invoice-create",
@@ -82,7 +110,9 @@ import { createSelectItemToString } from "../../shared/utils";
     HlmTextarea,
     TranslatePipe,
   ],
-  providers: [provideIcons({ lucideTrash2 })],
+  providers: [
+    provideIcons({ lucideChevronDown, lucideChevronUp, lucideTrash2 }),
+  ],
 })
 export class FinanceInvoiceCreateComponent {
   private readonly api = inject(FinancialsApiClient);
@@ -109,6 +139,7 @@ export class FinanceInvoiceCreateComponent {
   readonly allowManualOverride = signal(true);
   readonly saveError = signal("");
   readonly formRevision = signal(0);
+  readonly clientChangeNotice = signal("");
   readonly selectedClient = signal<ClientSummary | null>(null);
   private readonly organizationSettings = signal<OrganizationSettings | null>(
     null,
@@ -130,6 +161,11 @@ export class FinanceInvoiceCreateComponent {
   ];
   private prefillStarted = false;
   private readonly registeredLines = new WeakSet<InvoiceLineForm>();
+  readonly workEntryDetails = signal(new Map<string, LinkedWorkEntryDetail>());
+  readonly expandedInvoiceLines = signal(new Set<InvoiceLineForm>());
+  readonly linkedWorkExpanded = signal(false);
+  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  readonly formatMinutes = formatMinutes;
 
   readonly form = new FormGroup({
     invoiceNumber: new FormControl("", { nonNullable: true }),
@@ -224,6 +260,63 @@ export class FinanceInvoiceCreateComponent {
       (line) => line.controls.pricingRequired.value,
     ).length;
   });
+  readonly linkedWorkSummary = computed(() => {
+    this.formRevision();
+    const lineIndexesByEntry = new Map<string, number[]>();
+    const linkedLineIndexes = new Set<number>();
+    for (const [
+      lineIndex,
+      line,
+    ] of this.form.controls.lines.controls.entries()) {
+      for (const id of new Set(line.controls.workEntryIds.value)) {
+        const indexes = lineIndexesByEntry.get(id) ?? [];
+        indexes.push(lineIndex);
+        lineIndexesByEntry.set(id, indexes);
+        linkedLineIndexes.add(lineIndex);
+      }
+    }
+    const entries: LinkedWorkEntryListItem[] = [...lineIndexesByEntry].map(
+      ([id, lineIndexes]) => ({
+        id,
+        detail: this.workEntryDetails().get(id) ?? null,
+        lineIndexes,
+      }),
+    );
+    const details = entries.flatMap((item) =>
+      item.detail ? [item.detail] : [],
+    );
+    const values = entries.map((item) => item.detail?.value ?? null);
+    const currencies = new Set(
+      entries
+        .map((item) => item.detail?.currency?.toUpperCase() ?? null)
+        .filter((currency): currency is string => currency !== null),
+    );
+    const missingValue = values.some((value) => value === null);
+    const mixedCurrencies =
+      currencies.size > 1 ||
+      entries.some(
+        (item) => item.detail?.value != null && !item.detail.currency,
+      );
+    const valueCurrency = currencies.size === 1 ? [...currencies][0] : null;
+    const valueTotal =
+      entries.length > 0 && !missingValue && !mixedCurrencies
+        ? sumDecimalValues(values as string[])
+        : null;
+
+    return {
+      entries,
+      count: entries.length,
+      totalMinutes: details.reduce(
+        (total, detail) => total + (detail.minutes ?? 0),
+        0,
+      ),
+      linkedLineCount: linkedLineIndexes.size,
+      valueTotal,
+      valueCurrency,
+      missingValue,
+      mixedCurrencies,
+    };
+  });
   readonly canSave = computed(() => {
     this.formRevision();
     return (
@@ -259,7 +352,13 @@ export class FinanceInvoiceCreateComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((clientId) => {
         if (previousClientId && previousClientId !== clientId) {
+          const detachedCount = lineWorkEntryIds(
+            this.form.controls.lines.controls,
+          ).length;
           detachInvoiceLineWorkEntries(this.form.controls.lines.controls);
+          this.clientChangeNotice.set(
+            detachedCount ? "finance.workDetachedOnClientChange" : "",
+          );
         }
         previousClientId = clientId;
         this.selectedClient.set(
@@ -346,9 +445,66 @@ export class FinanceInvoiceCreateComponent {
   }
 
   removeLine(index: number): void {
+    const line = this.form.controls.lines.at(index);
+    if (!line || this.saving()) return;
+    this.removeLineForm(line);
+  }
+
+  private removeLineForm(line: InvoiceLineForm): void {
+    const index = this.form.controls.lines.controls.indexOf(line);
+    if (index < 0) return;
+    this.expandedInvoiceLines.update((expanded) => {
+      const next = new Set(expanded);
+      next.delete(line);
+      return next;
+    });
     this.form.controls.lines.removeAt(index);
     this.form.controls.lines.markAsDirty();
     this.bumpRevision();
+  }
+
+  toggleInvoiceLineDetails(line: InvoiceLineForm): void {
+    const expanded = new Set(this.expandedInvoiceLines());
+    if (expanded.has(line)) expanded.delete(line);
+    else expanded.add(line);
+    this.expandedInvoiceLines.set(expanded);
+  }
+
+  isInvoiceLineExpanded(line: InvoiceLineForm): boolean {
+    return this.expandedInvoiceLines().has(line);
+  }
+
+  unlinkWorkEntry(line: InvoiceLineForm, entryId: string): void {
+    const entryIds = line.controls.workEntryIds.value;
+    if (!entryIds.includes(entryId)) return;
+    const remainingIds = entryIds.filter((id) => id !== entryId);
+    line.controls.workEntryIds.setValue(remainingIds);
+    const knownMinutes = remainingIds
+      .map((id) => this.workEntryDetails().get(id)?.minutes ?? null)
+      .filter((minutes): minutes is number => minutes !== null);
+    line.controls.minutes.setValue(
+      knownMinutes.length
+        ? knownMinutes.reduce((total, minutes) => total + minutes, 0)
+        : null,
+    );
+    line.markAsDirty();
+    this.form.controls.lines.markAsDirty();
+    this.bumpRevision();
+  }
+
+  revealLinkedLine(lineIndex: number): void {
+    const line = this.form.controls.lines.at(lineIndex);
+    if (!line) return;
+    this.expandedInvoiceLines.update((expanded) => new Set(expanded).add(line));
+    if (typeof document !== "undefined") {
+      document
+        .getElementById(`invoice-line-${lineIndex}`)
+        ?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    }
+  }
+
+  workEntryDetail(entryId: string): LinkedWorkEntryDetail | null {
+    return this.workEntryDetails().get(entryId) ?? null;
   }
 
   openImportDialog(): void {
@@ -357,17 +513,19 @@ export class FinanceInvoiceCreateComponent {
     this.importDialog
       .open(client, lineWorkEntryIds(this.form.controls.lines.controls))
       .pipe(
-        switchMap((entries) =>
-          entries?.length
+        switchMap((result) =>
+          result?.entries.length
             ? forkJoin({
-                entries: of(entries),
+                result: of(result),
                 rate: this.clientRate(client.id),
               })
             : EMPTY,
         ),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(({ entries, rate }) => this.appendEntries(entries, rate));
+      .subscribe(({ result, rate }) =>
+        this.appendEntries(result.entries, rate, result.mode),
+      );
   }
 
   isCurrencyMismatch(index: number): boolean {
@@ -472,13 +630,18 @@ export class FinanceInvoiceCreateComponent {
       { emitEvent: false },
     );
     this.form.controls.lines.clear({ emitEvent: false });
+    const details = new Map<string, LinkedWorkEntryDetail>();
     for (const line of invoice.lines) {
+      for (const entry of line.workEntries) {
+        details.set(entry.id, workEntryDetailFromSummary(entry));
+      }
       const lineForm = createInvoiceLineForm(line);
       this.form.controls.lines.push(lineForm, {
         emitEvent: false,
       });
       this.registerLine(lineForm);
     }
+    this.workEntryDetails.set(details);
     this.selectedClient.set(
       this.clients().find((client) => client.id === invoice.clientId) ?? null,
     );
@@ -535,7 +698,10 @@ export class FinanceInvoiceCreateComponent {
               entry !== null &&
               entry.client.id === clientId &&
               entry.status === "CONFIRMED" &&
-              entry.invoiceId === null,
+              entry.invoiceId === null &&
+              ["RETAINER", "HOURLY", "AT", "UNDECIDED"].includes(
+                entry.treatment,
+              ),
           );
           this.appendEntries(usable, rate);
           if (usable.length !== this.requestedWorkEntryIds.length) {
@@ -560,6 +726,7 @@ export class FinanceInvoiceCreateComponent {
   private appendEntries(
     entries: readonly WorkEntry[],
     rate: ClientRate | null,
+    mode: InvoiceLineImportMode = "SEPARATE",
   ): void {
     // A new invoice bills in the client's currency, so the imported
     // entries can be priced from the client's rate.
@@ -574,13 +741,34 @@ export class FinanceInvoiceCreateComponent {
       this.form.controls.currency.setValue(normalizeCurrency(rate.currency));
     }
     const firstNewIndex = this.form.controls.lines.length;
-    const added = appendUniqueWorkEntries(
-      this.form.controls.lines,
-      entries,
-      normalizeCurrency(this.form.controls.currency.value) || "RSD",
-      rate,
-      this.invoiceLineDefaultVatRate(),
+    const existingIds = new Set(
+      lineWorkEntryIds(this.form.controls.lines.controls),
     );
+    const newEntries = entries.filter((entry) => !existingIds.has(entry.id));
+    const details = new Map(this.workEntryDetails());
+    for (const entry of entries) details.set(entry.id, workEntryDetail(entry));
+    this.workEntryDetails.set(details);
+    const currency =
+      normalizeCurrency(this.form.controls.currency.value) || "RSD";
+    const added =
+      mode === "GROUPED"
+        ? appendGroupedWorkEntries(
+            this.form.controls.lines,
+            newEntries,
+            currency,
+            rate,
+            this.invoiceLineDefaultVatRate(),
+            this.localization.translate("finance.groupedOverflow", {
+              count: newEntries.length,
+            }),
+          )
+        : appendUniqueWorkEntries(
+            this.form.controls.lines,
+            newEntries,
+            currency,
+            rate,
+            this.invoiceLineDefaultVatRate(),
+          );
     if (!added) return;
     this.registerLinesFrom(firstNewIndex);
     this.form.controls.lines.markAsDirty();
@@ -742,4 +930,34 @@ function addDays(date: string, days: number): string {
   const parsed = new Date(`${date}T12:00:00`);
   parsed.setDate(parsed.getDate() + Math.max(0, Math.trunc(days)));
   return parsed.toISOString().slice(0, 10);
+}
+
+function workEntryDetail(entry: WorkEntry): LinkedWorkEntryDetail {
+  return {
+    id: entry.id,
+    workDate: entry.workDate,
+    title: entry.title,
+    user: entry.user,
+    case: entry.case,
+    minutes: entry.minutes,
+    treatment: entry.treatment,
+    value: entry.value ?? null,
+    currency: entry.currency ?? null,
+  };
+}
+
+function workEntryDetailFromSummary(
+  entry: InvoiceWorkEntrySummary,
+): LinkedWorkEntryDetail {
+  return {
+    id: entry.id,
+    workDate: entry.workDate,
+    title: entry.title,
+    user: entry.user,
+    case: entry.case ?? null,
+    minutes: entry.minutes,
+    treatment: entry.treatment ?? null,
+    value: entry.value ?? null,
+    currency: entry.currency ?? null,
+  };
 }

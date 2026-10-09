@@ -21,6 +21,8 @@ export interface QuickCaptureInput<TResult = WorkEntry> {
   caseId?: string;
   minutes?: number;
   treatment?: WorkEntryTreatment;
+  value?: string | null;
+  currency?: string | null;
   /** Required when confirming a stopped timer; otherwise time is optional. */
   requireMinutes?: boolean;
   title?: string;
