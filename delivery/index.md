@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Event Work Entry Without Client](./tracks/event_work_entry_no_client_20261009/index.md)
 - [Finance Retainer Agreement Management](./tracks/retainer_agreement_creation_20261009/index.md)
 - [Client Detail Redesign](./tracks/client_detail_redesign_20261009/index.md)
 - [Case Assistant Tab Links](./tracks/case_assistant_tab_links_20261007/index.md)

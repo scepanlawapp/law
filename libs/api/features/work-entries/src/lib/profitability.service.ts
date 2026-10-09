@@ -178,14 +178,16 @@ export class ProfitabilityService {
         entry.userId ? rates.get(entry.userId) : undefined,
         entry.workDate,
       );
-      const accumulator = accumulatorFor(entry.clientId);
+      const accumulator = entry.clientId
+        ? accumulatorFor(entry.clientId)
+        : null;
       if (entry.status === "WRITTEN_OFF") {
-        accumulator.writtenOff.add(minutes, hourlyValue);
+        accumulator?.writtenOff.add(minutes, hourlyValue);
         continue;
       }
-      accumulator.time.add(minutes, hourlyValue);
+      accumulator?.time.add(minutes, hourlyValue);
       if (entry.status === "CONFIRMED" && entry.invoiceLineId === null) {
-        accumulator.unbilled.add(minutes, hourlyValue);
+        accumulator?.unbilled.add(minutes, hourlyValue);
       }
       if (!entry.userId || !entry.user) continue;
       let person = people.get(entry.userId);

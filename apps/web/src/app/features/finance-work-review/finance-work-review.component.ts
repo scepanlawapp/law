@@ -123,7 +123,7 @@ export class FinanceWorkReviewComponent {
     this.reload();
   }
   canInvoice(entry: WorkEntry): boolean {
-    return entry.status === "CONFIRMED" && !entry.invoiceId;
+    return !!entry.client && entry.status === "CONFIRMED" && !entry.invoiceId;
   }
   view(entry: WorkEntry): void {
     this.capture
@@ -276,14 +276,16 @@ export class FinanceWorkReviewComponent {
 
   toggle(entry: WorkEntry): void {
     if (!this.canInvoice(entry)) return;
+    const entryClientId = entry.client?.id;
+    if (!entryClientId) return;
     const selected = new Map(this.selected());
     if (selected.has(entry.id)) {
       selected.delete(entry.id);
       this.selected.set(selected);
       return;
     }
-    const currentClient = selected.values().next().value?.client.id;
-    if (currentClient && currentClient !== entry.client.id) {
+    const currentClient = selected.values().next().value?.client?.id;
+    if (currentClient && currentClient !== entryClientId) {
       this.toast.error(
         this.localization.translate("finance.selectionOneClient"),
       );
@@ -348,8 +350,8 @@ export class FinanceWorkReviewComponent {
   private navigateToStatement(entries: WorkEntry[]): void {
     if (!entries.length || entries.some((entry) => !this.canInvoice(entry)))
       return;
-    const clientIds = new Set(entries.map((entry) => entry.client.id));
-    if (clientIds.size !== 1) {
+    const clientId = entries[0].client?.id;
+    if (!clientId || entries.some((entry) => entry.client?.id !== clientId)) {
       this.toast.error(
         this.localization.translate("finance.selectionOneClient"),
       );
@@ -357,7 +359,7 @@ export class FinanceWorkReviewComponent {
     }
     void this.router.navigate(["/finance/invoices/new"], {
       queryParams: {
-        clientId: entries[0].client.id,
+        clientId,
         workEntryIds: entries.map((entry) => entry.id),
       },
     });

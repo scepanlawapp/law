@@ -175,7 +175,7 @@ export class TimeReviewComponent {
       .open({
         mode: "confirm-timer",
         entryId: entry.id,
-        clientId: entry.client.id,
+        clientId: entry.client?.id,
         caseId: entry.case?.id,
         minutes: entry.minutes ?? undefined,
         title: entry.title,

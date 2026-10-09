@@ -340,6 +340,11 @@ export class QuickCaptureDialogComponent {
   readonly canFinishWithoutNewWork = Boolean(this.context.finishWithoutNewWork);
   /** Source confirmations take client, case and treatment from the source. */
   readonly fromSource = this.mode === "confirm-source";
+  readonly eventLinked = signal(
+    Boolean(
+      this.context.eventId || this.context.source?.sourceType === "EVENT",
+    ),
+  );
   readonly minuteChips = [15, 30, 60, 120] as const;
   readonly treatmentOptions: SelectOption<WorkEntryTreatment>[] = [
     { value: "RETAINER", label: "time.treatment.retainer" },
@@ -368,7 +373,7 @@ export class QuickCaptureDialogComponent {
       ),
       clientId: new FormControl(this.context.clientId ?? "", {
         nonNullable: true,
-        validators: this.fromSource ? [] : [Validators.required],
+        validators: this.eventLinked() ? [] : [Validators.required],
       }),
       caseId: new FormControl(this.context.caseId ?? "", { nonNullable: true }),
       // Time is optional: untimed work is priced later on the invoice. Only a
@@ -411,7 +416,10 @@ export class QuickCaptureDialogComponent {
       ),
       serviceCategoryId: new FormControl("", { nonNullable: true }),
       treatment: new FormControl<WorkEntryTreatment>(
-        this.context.treatment ?? "UNDECIDED",
+        this.context.treatment ??
+          (this.eventLinked() && !this.context.clientId
+            ? "NON_BILLABLE"
+            : "UNDECIDED"),
         {
           nonNullable: true,
         },
@@ -605,6 +613,12 @@ export class QuickCaptureDialogComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((value) => {
         this.selectedClientId.set(value);
+        if (!value && this.eventLinked()) {
+          this.form.controls.treatment.setValue("NON_BILLABLE", {
+            emitEvent: false,
+          });
+          this.form.controls.value.setValue("", { emitEvent: false });
+        }
         if (!this.applyingCase && caseId.value) {
           caseId.setValue("", { emitEvent: false });
         }
@@ -953,6 +967,10 @@ export class QuickCaptureDialogComponent {
 
   private applyDefaultTreatment(): void {
     const { treatment, workDate, serviceCategoryId } = this.form.controls;
+    if (!this.form.controls.clientId.value && this.eventLinked()) {
+      treatment.setValue("NON_BILLABLE", { emitEvent: false });
+      return;
+    }
     const agreements = this.agreements();
     if (treatment.dirty || agreements === null) return;
     const agreement = activeAgreementOn(
@@ -1108,16 +1126,22 @@ export class QuickCaptureDialogComponent {
     this.linkedTaskId.set(this.context.taskId ?? entry.taskId ?? undefined);
     const controls = this.form.controls;
     this.hydrating = true;
+    if (entry.eventId || entry.sourceType === "EVENT") {
+      this.eventLinked.set(true);
+      controls.clientId.clearValidators();
+      controls.clientId.updateValueAndValidity({ emitEvent: false });
+    }
     controls.userId.setValue(entry.user?.id ?? "", { emitEvent: false });
     // Values the caller passed in win over the stored ones.
-    if (!this.context.clientId) {
+    if (!this.context.clientId && entry.client) {
       this.applyClient({ id: entry.client.id, name: entry.client.displayName });
     }
     const entryCase = entry.case;
-    if (!this.context.caseId && entryCase) {
+    const entryClient = entry.client;
+    if (!this.context.caseId && entryCase && entryClient) {
       this.pickedCases.update((items) => [
         ...items,
-        { ...entryCase, client: entry.client },
+        { ...entryCase, client: entryClient },
       ]);
       controls.caseId.setValue(entryCase.id, { emitEvent: false });
     }
@@ -1181,7 +1205,7 @@ export class QuickCaptureDialogComponent {
     const fields = {
       userId: value.userId || null,
       taskId: this.context.taskId,
-      clientId: value.clientId,
+      clientId: value.clientId || null,
       // The update contract cannot clear a case or category, only set them.
       caseId: value.caseId || undefined,
       workDate: value.workDate,
@@ -1267,6 +1291,7 @@ function uniqueClients(entries: WorkEntry[]): ClientReference[] {
   const seen = new Set<string>();
   const clients: ClientReference[] = [];
   for (const entry of entries) {
+    if (!entry.client) continue;
     if (seen.has(entry.client.id)) continue;
     seen.add(entry.client.id);
     clients.push(entry.client);

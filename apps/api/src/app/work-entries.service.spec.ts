@@ -450,6 +450,80 @@ describe("WorkEntriesService", () => {
       );
     });
 
+    it("creates clientless event work only as non-billable", async () => {
+      const sourceEventId = "11111111-1111-4111-8111-111111111119";
+      db.event.findFirst.mockResolvedValue({
+        id: sourceEventId,
+        status: "COMPLETED",
+        startsAt: new Date("2020-01-01T08:00:00Z"),
+        endsAt: new Date("2020-01-01T09:00:00Z"),
+        isAllDay: false,
+        title: "Meeting",
+        description: null,
+        caseId: null,
+        case: null,
+        clients: [],
+        assignees: [],
+        organizerUserId: userId,
+      });
+      db.workEntry.create.mockResolvedValueOnce(
+        entryRecord({
+          clientId: null,
+          client: null,
+          treatment: "NON_BILLABLE",
+        }),
+      );
+      await as(WorkspaceRole.LAWYER, () =>
+        service.create({
+          ...validCreate,
+          clientId: null,
+          eventId: sourceEventId,
+          caseId,
+          treatment: "NON_BILLABLE",
+        }),
+      );
+      expect(db.workEntry.create.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({
+          clientId: null,
+          eventId: sourceEventId,
+          caseId,
+          treatment: "NON_BILLABLE",
+          currency: null,
+        }),
+      );
+    });
+
+    it("still requires a client for manual work and billable event work", async () => {
+      const sourceEventId = "11111111-1111-4111-8111-111111111119";
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({ ...validCreate, clientId: null }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({
+            ...validCreate,
+            clientId: null,
+            eventId: sourceEventId,
+            treatment: "HOURLY",
+          }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.create({
+            ...validCreate,
+            clientId: null,
+            eventId: sourceEventId,
+            value: "100.00",
+            currency: "RSD",
+          }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      expect(db.workEntry.create).not.toHaveBeenCalled();
+    });
+
     it.each(["", "   ", "x".repeat(201)])(
       "rejects the title %j",
       async (title) => {
@@ -682,12 +756,28 @@ describe("WorkEntriesService", () => {
       expect(db.activityLog.create).toHaveBeenCalled();
       expect(db.$queryRaw).toHaveBeenCalled();
     });
-    it("does not invent a client", async () => {
+    it("writes off an event without a client", async () => {
       db.event.findFirst.mockResolvedValue({ ...event, clients: [] });
-      await expect(
-        as(WorkspaceRole.LAWYER, () => service.writeOffEvent(eventId)),
-      ).rejects.toBeInstanceOf(BadRequestException);
-      expect(db.workEntry.create).not.toHaveBeenCalled();
+      db.workEntry.create.mockResolvedValueOnce(
+        entryRecord({
+          clientId: null,
+          client: null,
+          treatment: "NON_BILLABLE",
+        }),
+      );
+      const work = await as(WorkspaceRole.LAWYER, () =>
+        service.writeOffEvent(eventId),
+      );
+      expect(work.client).toBeNull();
+      expect(db.workEntry.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            clientId: null,
+            eventId,
+            treatment: "NON_BILLABLE",
+          }),
+        }),
+      );
     });
     it("uses the case client and does not invent all-day duration", async () => {
       db.event.findFirst.mockResolvedValue({
@@ -843,6 +933,43 @@ describe("WorkEntriesService", () => {
       );
     });
 
+    it("allows an event entry to remain clientless only when non-billable", async () => {
+      const sourceEventId = "11111111-1111-4111-8111-111111111119";
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({
+          eventId: sourceEventId,
+          source: "EVENT",
+          clientId: null,
+          client: null,
+          caseId: null,
+          treatment: "NON_BILLABLE",
+        }),
+      );
+      db.workEntry.findUniqueOrThrow.mockResolvedValue(
+        entryRecord({
+          eventId: sourceEventId,
+          source: "EVENT",
+          clientId: null,
+          client: null,
+          caseId: null,
+          treatment: "NON_BILLABLE",
+        }),
+      );
+
+      await as(WorkspaceRole.LAWYER, () =>
+        service.update(entryId, { title: "Event work" }),
+      );
+      expect(db.workEntry.updateMany.mock.calls[0][0].data).toEqual(
+        expect.objectContaining({ clientId: null, treatment: "NON_BILLABLE" }),
+      );
+
+      await expect(
+        as(WorkspaceRole.LAWYER, () =>
+          service.update(entryId, { treatment: "HOURLY" }),
+        ),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
     it("refreshes the default treatment when the category changes", async () => {
       db.retainerAgreement.findMany.mockResolvedValue([
         agreement([categoryId]),
@@ -979,6 +1106,33 @@ describe("WorkEntriesService", () => {
           title: "Završen pregled",
         }),
       );
+    });
+
+    it("confirms a clientless event proposal without client billing defaults", async () => {
+      const sourceEventId = "11111111-1111-4111-8111-111111111119";
+      const clientlessEventEntry = {
+        source: "EVENT",
+        sourceType: "EVENT",
+        sourceId: sourceEventId,
+        eventId: sourceEventId,
+        clientId: null,
+        client: null,
+        treatment: "NON_BILLABLE",
+        currency: null,
+      };
+      db.workEntry.findFirst.mockResolvedValue(
+        entryRecord({ ...clientlessEventEntry, status: "PROPOSED" }),
+      );
+      db.workEntry.findUniqueOrThrow.mockResolvedValue(
+        entryRecord({ ...clientlessEventEntry, status: "CONFIRMED" }),
+      );
+
+      const result = await as(WorkspaceRole.LAWYER, () =>
+        service.confirm(entryId, { minutes: 30, title: "Sastanak" }),
+      );
+
+      expect(result.client).toBeNull();
+      expect(db.clientBillingProfile.findFirst).not.toHaveBeenCalled();
     });
 
     it("refuses to confirm a running timer without minutes", async () => {

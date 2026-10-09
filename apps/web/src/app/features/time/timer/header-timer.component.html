@@ -3,8 +3,13 @@
     class="border-border flex items-center gap-2 rounded-md border px-2 py-1 text-sm"
     role="timer"
   >
-    <span class="max-w-40 truncate" [title]="running.client.displayName">
-      {{ running.client.displayName }}
+    <span
+      class="max-w-40 truncate"
+      [title]="
+        running.client?.displayName ?? ('time.capture.noClient' | translate)
+      "
+    >
+      {{ running.client?.displayName ?? ("time.capture.noClient" | translate) }}
     </span>
     @if (awaitingConfirmation()) {
       <span class="text-muted-foreground">

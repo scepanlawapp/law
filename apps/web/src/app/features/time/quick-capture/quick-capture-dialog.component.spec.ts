@@ -244,6 +244,25 @@ describe("QuickCaptureDialogComponent", () => {
     expect(component.form.valid).toBe(true);
   });
 
+  it("allows event capture without a client and defaults to non-billable", () => {
+    context = { mode: "create", eventId: "event-1" };
+    const { componentInstance: component } = render();
+    component.form.controls.title.setValue("Ročište");
+
+    expect(component.form.controls.clientId.hasError("required")).toBe(false);
+    expect(component.form.controls.treatment.value).toBe("NON_BILLABLE");
+    expect(component.form.valid).toBe(true);
+
+    component.submit();
+
+    expect(entries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventId: "event-1",
+        clientId: null,
+      }),
+    );
+  });
+
   it("requires a one-sentence title of at most 200 characters", () => {
     const { componentInstance: component } = render();
     fillValid(component, { title: "   " });

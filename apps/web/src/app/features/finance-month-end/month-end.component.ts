@@ -132,6 +132,7 @@ export class MonthEndComponent {
 
   /** A proposed entry is confirmed; a confirmed one still needs its treatment. */
   confirm(entry: WorkEntry): void {
+    if (!entry.client) return;
     const request =
       entry.status === "PROPOSED"
         ? this.capture.open({
