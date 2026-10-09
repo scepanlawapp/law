@@ -1,7 +1,15 @@
 import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { Router, RouterLink } from "@angular/router";
-import { debounceTime, distinctUntilChanged, startWith, switchMap } from "rxjs";
+import {
+  EMPTY,
+  catchError,
+  debounceTime,
+  distinctUntilChanged,
+  startWith,
+  switchMap,
+} from "rxjs";
+import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ClientSummary } from "@law/api-interfaces";
 import { ClientsApiClient, ReferencesApiClient } from "@law/api-clients";
@@ -40,6 +48,7 @@ import {
     RouterLink,
     HlmButton,
     HlmInput,
+    PaginationComponent,
     HlmTable,
     HlmTableContainer,
     HlmTBody,
@@ -67,6 +76,8 @@ export class ClientsComponent {
   readonly search = new FormControl("", { nonNullable: true });
   readonly items = signal<ClientSummary[]>([]);
   readonly page = signal(1);
+  readonly pageSize = signal(50);
+  readonly totalItems = signal(0);
   readonly pageCount = signal(1);
   readonly loading = signal(true);
   readonly error = signal(false);
@@ -111,17 +122,30 @@ export class ClientsComponent {
     const sequence = ++this.sequence;
     this.loading.set(true);
     this.error.set(false);
-    return this.clientsApi.list({ search, page, pageSize: 20 }).pipe(
-      switchMap((response) => {
-        if (sequence === this.sequence) {
-          this.items.set(response.items);
-          this.page.set(response.meta.page);
-          this.pageCount.set(response.meta.totalPages);
-          this.loading.set(false);
-        }
-        return [];
-      }),
-    );
+    return this.clientsApi
+      .list({ search, page, pageSize: this.pageSize() })
+      .pipe(
+        switchMap((response) => {
+          if (sequence === this.sequence) {
+            const lastPage = Math.max(1, response.meta.totalPages);
+            if (response.meta.page > lastPage)
+              return this.load(search, lastPage);
+            this.items.set(response.items);
+            this.page.set(response.meta.page);
+            this.pageCount.set(lastPage);
+            this.totalItems.set(response.meta.totalItems);
+            this.loading.set(false);
+          }
+          return [];
+        }),
+        catchError(() => {
+          if (sequence === this.sequence) {
+            this.loading.set(false);
+            this.error.set(true);
+          }
+          return EMPTY;
+        }),
+      );
   }
 
   changePage(page: number): void {
@@ -138,6 +162,12 @@ export class ClientsComponent {
 
   retry(): void {
     this.changePage(this.page());
+  }
+  changePageSize(pageSize: number): void {
+    if (this.loading() || pageSize === this.pageSize()) return;
+    this.pageSize.set(pageSize);
+    this.page.set(1);
+    this.load().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
   }
   clearSearch(): void {
     this.search.setValue("");

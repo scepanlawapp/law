@@ -1,4 +1,5 @@
 import { TestBed } from "@angular/core/testing";
+import { provideRouter } from "@angular/router";
 import { EventsApiClient, WorkEntriesApiClient } from "@law/api-clients";
 import { PastWorkEvent } from "@law/api-interfaces";
 import { of, throwError } from "rxjs";
@@ -46,6 +47,13 @@ describe("PastEventsComponent", () => {
   const capture = { open: jest.fn() };
   const writeOff = { open: jest.fn() };
   const toast = { error: jest.fn(), info: jest.fn() };
+  beforeAll(() => {
+    globalThis.ResizeObserver ??= class {
+      observe = jest.fn();
+      unobserve = jest.fn();
+      disconnect = jest.fn();
+    };
+  });
   function render() {
     const fixture = TestBed.createComponent(PastEventsComponent);
     fixture.detectChanges();
@@ -54,7 +62,7 @@ describe("PastEventsComponent", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     api.pastEvents.mockReturnValue(
-      of({ items: [event], meta: { totalPages: 2 } }),
+      of({ items: [event], meta: { totalPages: 2, totalItems: 51 } }),
     );
     api.writeOffEvent.mockReturnValue(of(undefined));
     events.get.mockReturnValue(of(event));
@@ -63,6 +71,7 @@ describe("PastEventsComponent", () => {
     writeOff.open.mockReturnValue(of(null));
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         { provide: WorkEntriesApiClient, useValue: api },
         { provide: EventsApiClient, useValue: events },
         { provide: EventDialogService, useValue: dialog },
@@ -158,7 +167,7 @@ describe("PastEventsComponent", () => {
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector("article")).not.toBeNull();
     fixture.componentInstance.load(2);
-    expect(api.pastEvents).toHaveBeenLastCalledWith(2, 20);
+    expect(api.pastEvents).toHaveBeenLastCalledWith(2, 50);
   });
   it("shows a retryable error", () => {
     api.pastEvents.mockReturnValueOnce(throwError(() => new Error("Offline")));
@@ -168,5 +177,13 @@ describe("PastEventsComponent", () => {
     );
     fixture.componentInstance.load();
     expect(fixture.componentInstance.error()).toBe(false);
+  });
+  it("resets to page one when items per page changes", () => {
+    const fixture = render();
+    fixture.componentInstance.load(2);
+    fixture.componentInstance.changePageSize(20);
+    expect(api.pastEvents).toHaveBeenLastCalledWith(1, 20);
+    expect(api.pastEvents).toHaveBeenCalledTimes(3);
+    expect(fixture.componentInstance.page()).toBe(1);
   });
 });

@@ -297,31 +297,14 @@
           </tbody>
         </table>
       </div>
-      <div class="flex flex-wrap items-center justify-between gap-3">
-        <p class="text-muted-foreground">
-          {{ "finance.page" | translate: { page: page(), total: pageCount() } }}
-        </p>
-        <div class="flex gap-2">
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            [disabled]="page() === 1"
-            (click)="changePage(page() - 1)"
-          >
-            {{ "finance.previous" | translate }}
-          </button>
-          <button
-            hlmBtn
-            type="button"
-            variant="outline"
-            [disabled]="page() === pageCount()"
-            (click)="changePage(page() + 1)"
-          >
-            {{ "finance.next" | translate }}
-          </button>
-        </div>
-      </div>
+      <law-pagination
+        [currentPage]="page()"
+        [itemsPerPage]="pageSize()"
+        [totalItems]="filteredInvoices().length"
+        [disabled]="loading()"
+        (currentPageChange)="changePage($event)"
+        (itemsPerPageChange)="changePageSize($event)"
+      />
     }
   </section>
 </div>

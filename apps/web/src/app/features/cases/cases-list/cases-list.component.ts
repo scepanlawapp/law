@@ -18,6 +18,7 @@ import {
 } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
+import { PaginationComponent } from "../../../shared/ui/pagination/pagination.component";
 import {
   HlmEmpty,
   HlmEmptyContent,
@@ -86,6 +87,7 @@ type CaseSort =
     HlmComboboxTrigger,
     HlmComboboxValue,
     HlmInput,
+    PaginationComponent,
     HlmEmpty,
     HlmEmptyContent,
     HlmEmptyDescription,
@@ -124,6 +126,7 @@ export class CasesListComponent implements OnInit {
   });
   readonly items = signal<CaseSummary[]>([]);
   readonly page = signal(1);
+  readonly pageSize = signal(50);
   readonly pageCount = signal(1);
   readonly totalItems = signal(0);
   readonly loading = signal(false);
@@ -192,7 +195,19 @@ export class CasesListComponent implements OnInit {
 
   ngOnInit(): void {
     this.route.queryParamMap
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        distinctUntilChanged((previous, current) =>
+          [
+            "caseSearch",
+            "caseStatus",
+            "caseResponsibleUserId",
+            "caseSort",
+            "casePage",
+            "casePageSize",
+          ].every((key) => previous.get(key) === current.get(key)),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe((params) => {
         this.applyingUrlState = true;
         this.search.setValue(params.get("caseSearch") ?? "", {
@@ -209,6 +224,8 @@ export class CasesListComponent implements OnInit {
           emitEvent: false,
         });
         this.page.set(this.positiveInteger(params.get("casePage")));
+        const pageSize = Number(params.get("casePageSize"));
+        this.pageSize.set([10, 20, 50, 100].includes(pageSize) ? pageSize : 50);
         this.applyingUrlState = false;
         this.load();
       });
@@ -246,7 +263,7 @@ export class CasesListComponent implements OnInit {
       responsibleUserId: this.responsibleUserId.value || undefined,
       sort: this.sort.value,
       page: this.page(),
-      pageSize: 20,
+      pageSize: this.pageSize(),
     };
     this.loading.set(true);
     this.error.set(false);
@@ -261,9 +278,14 @@ export class CasesListComponent implements OnInit {
       .subscribe({
         next: (response) => {
           if (sequence !== this.requestSequence) return;
+          const lastPage = Math.max(1, response.meta.totalPages);
+          if (response.meta.page > lastPage) {
+            this.updateQuery({ casePage: lastPage });
+            return;
+          }
           this.items.set(response.items);
           this.page.set(response.meta.page);
-          this.pageCount.set(response.meta.totalPages);
+          this.pageCount.set(lastPage);
           this.totalItems.set(response.meta.totalItems);
           this.loaded.set(true);
         },
@@ -276,6 +298,11 @@ export class CasesListComponent implements OnInit {
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
     this.updateQuery({ casePage: page });
+  }
+
+  changePageSize(pageSize: number): void {
+    if (this.loading() || pageSize === this.pageSize()) return;
+    this.updateQuery({ casePage: 1, casePageSize: pageSize });
   }
 
   clearFilters(): void {

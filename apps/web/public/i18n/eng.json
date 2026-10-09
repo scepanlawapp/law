@@ -1,4 +1,12 @@
 {
+  "pagination.totalItems": "total items",
+  "pagination.pages": "pages",
+  "pagination.previous": "Previous",
+  "pagination.next": "Next",
+  "pagination.itemsPerPage": "Items per page",
+  "pagination.navigation": "Pagination",
+  "pagination.page": "Page",
+  "pagination.morePages": "More pages",
   "brand.legalAi": "LegalAI",
   "brand.workspace": "Law workspace",
   "common.create": "Create",

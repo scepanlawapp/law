@@ -983,34 +983,15 @@
       }
 
       @if (documents().length) {
-        <div class="mt-4 flex flex-wrap items-center justify-between gap-3">
-          <p class="text-sm text-muted-foreground">
-            {{
-              "documents.pageInfo"
-                | translate: { page: page(), total: pageCount() }
-            }}
-          </p>
-          <div class="flex gap-2">
-            <button
-              hlmBtn
-              type="button"
-              variant="outline"
-              (click)="changePage(page() - 1)"
-              [disabled]="page() === 1 || loading()"
-            >
-              {{ "documents.previous" | translate }}
-            </button>
-            <button
-              hlmBtn
-              type="button"
-              variant="outline"
-              (click)="changePage(page() + 1)"
-              [disabled]="page() >= pageCount() || loading()"
-            >
-              {{ "documents.next" | translate }}
-            </button>
-          </div>
-        </div>
+        <law-pagination
+          class="mt-4 block"
+          [currentPage]="page()"
+          [itemsPerPage]="pageSize()"
+          [totalItems]="totalItems()"
+          [disabled]="loading()"
+          (currentPageChange)="changePage($event)"
+          (itemsPerPageChange)="changePageSize($event)"
+        />
       }
     </section>
   </div>

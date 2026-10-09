@@ -1,4 +1,5 @@
 import { TestBed } from "@angular/core/testing";
+import { provideRouter } from "@angular/router";
 import { CasesApiClient, WorkEntriesApiClient } from "@law/api-clients";
 import { WorkEntry } from "@law/api-interfaces";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
@@ -90,6 +91,7 @@ describe("InvoiceLineImportDialogComponent", () => {
     );
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         { provide: WorkEntriesApiClient, useValue: workEntries },
         {
           provide: CasesApiClient,
@@ -142,6 +144,28 @@ describe("InvoiceLineImportDialogComponent", () => {
         unbilledOnly: true,
       }),
     );
+  });
+
+  it("defaults to 50 and preserves selection when size changes without route navigation", () => {
+    const fixture = TestBed.createComponent(InvoiceLineImportDialogComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    expect(workEntries.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, pageSize: 50 }),
+    );
+    component.toggle(entry("entry-1"));
+    component.page.set(2);
+    component.changePageSize(20);
+    expect(workEntries.list).toHaveBeenCalledTimes(2);
+    expect(workEntries.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, pageSize: 20 }),
+    );
+    expect(component.selected().has("entry-1")).toBe(true);
+    expect(
+      fixture.nativeElement.querySelector(
+        "hlm-numbered-pagination-query-params",
+      ),
+    ).toBeNull();
   });
 
   it("shows recorded work value and currency with localized missing-value labels", () => {

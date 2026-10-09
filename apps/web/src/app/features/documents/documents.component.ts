@@ -82,6 +82,7 @@ import {
 } from "@spartan-ng/helm/empty";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmLabel } from "@spartan-ng/helm/label";
+import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
@@ -127,7 +128,6 @@ export type DocumentsViewMode = "list" | "grid";
 export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";
 export type DocumentSelection = { id: string; kind: "file" | "folder" };
 
-const DOCUMENT_PAGE_SIZE = 20;
 const AI_POLL_INTERVAL_MS = 5000;
 /**
  * Polls in a row that changed nothing before polling gives up (10 minutes).
@@ -174,6 +174,7 @@ const isAiWatched = (
     HlmEmptyHeader,
     HlmInput,
     HlmLabel,
+    PaginationComponent,
     HlmSelectImports,
     HlmSpinner,
     HlmSwitch,
@@ -268,6 +269,7 @@ export class DocumentsComponent implements OnInit {
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly page = signal(1);
+  readonly pageSize = signal(50);
   readonly pageCount = signal(1);
   readonly totalItems = signal(0);
   readonly caseOptions = signal<Array<{ id: string; label: string }>>([]);
@@ -917,7 +919,10 @@ export class DocumentsComponent implements OnInit {
         next: ({ documents: response, detail }) => {
           if (generation !== this.aiMutationGeneration) return;
           this.trackAiPoll(response.items, detail);
-          if (response.meta.page === this.page()) {
+          if (
+            response.meta.page === this.page() &&
+            query.pageSize === this.pageSize()
+          ) {
             this.documents.set(response.items);
             this.pageCount.set(response.meta.totalPages || 1);
             this.totalItems.set(response.meta.totalItems);
@@ -999,11 +1004,17 @@ export class DocumentsComponent implements OnInit {
     this.load();
   }
 
+  changePageSize(pageSize: number): void {
+    if (this.loading() || pageSize === this.pageSize()) return;
+    this.pageSize.set(pageSize);
+    this.resetPageAndLoad();
+  }
+
   clearFilters(): void {
-    this.searchControl.setValue("");
+    this.searchControl.setValue("", { emitEvent: false });
     this.selectedCaseIds.set([]);
-    this.selectedClientId.setValue("");
-    this.selectedCategory.setValue("");
+    this.selectedClientId.setValue("", { emitEvent: false });
+    this.selectedCategory.setValue("", { emitEvent: false });
     this.page.set(1);
     this.load();
   }
@@ -1345,7 +1356,7 @@ export class DocumentsComponent implements OnInit {
         | undefined,
       search: this.searchControl.value.trim() || undefined,
       page: this.page(),
-      pageSize: DOCUMENT_PAGE_SIZE,
+      pageSize: this.pageSize(),
     };
   }
 

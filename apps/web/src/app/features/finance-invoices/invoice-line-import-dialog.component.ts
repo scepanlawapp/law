@@ -12,6 +12,7 @@ import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideEye } from "@ng-icons/lucide";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
 import {
   HlmDialogDescription,
   HlmDialogFooter,
@@ -32,8 +33,6 @@ import {
   InvoiceLineImportResult,
 } from "./invoice-line-import-dialog.models";
 
-const PAGE_SIZE = 10;
-
 /** Lists the confirmed, unbilled work entries of one client for a invoice. */
 @Component({
   selector: "law-invoice-line-import-dialog",
@@ -42,6 +41,7 @@ const PAGE_SIZE = 10;
   templateUrl: "./invoice-line-import-dialog.component.html",
   imports: [
     HlmButton,
+    PaginationComponent,
     HlmDialogDescription,
     HlmDialogFooter,
     HlmDialogHeader,
@@ -76,10 +76,12 @@ export class InvoiceLineImportDialogComponent {
   readonly selected = signal(new Map<string, WorkEntry>());
   readonly mode = signal<InvoiceLineImportMode>("SEPARATE");
   readonly page = signal(1);
+  readonly pageSize = signal(50);
   readonly pageCount = signal(1);
   readonly totalItems = signal(0);
   readonly loading = signal(false);
   readonly error = signal(false);
+  private requestSequence = 0;
 
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("finance.allCases");
@@ -105,6 +107,7 @@ export class InvoiceLineImportDialogComponent {
   }
 
   load(): void {
+    const sequence = ++this.requestSequence;
     this.loading.set(true);
     this.error.set(false);
     this.api
@@ -115,11 +118,18 @@ export class InvoiceLineImportDialogComponent {
         unbilledOnly: true,
         caseId: this.caseId() || undefined,
         page: this.page(),
-        pageSize: PAGE_SIZE,
+        pageSize: this.pageSize(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
+          if (sequence !== this.requestSequence) return;
+          const lastPage = Math.max(1, response.meta.totalPages);
+          if (response.meta.page > lastPage) {
+            this.page.set(lastPage);
+            this.load();
+            return;
+          }
           this.entries.set(response.items);
           this.page.set(response.meta.page);
           this.pageCount.set(Math.max(1, response.meta.totalPages));
@@ -127,6 +137,7 @@ export class InvoiceLineImportDialogComponent {
           this.loading.set(false);
         },
         error: () => {
+          if (sequence !== this.requestSequence) return;
           this.loading.set(false);
           this.error.set(true);
         },
@@ -159,6 +170,13 @@ export class InvoiceLineImportDialogComponent {
   changePage(page: number): void {
     if (page < 1 || page > this.pageCount() || this.loading()) return;
     this.page.set(page);
+    this.load();
+  }
+
+  changePageSize(pageSize: number): void {
+    if (this.loading() || pageSize === this.pageSize()) return;
+    this.pageSize.set(pageSize);
+    this.page.set(1);
     this.load();
   }
 

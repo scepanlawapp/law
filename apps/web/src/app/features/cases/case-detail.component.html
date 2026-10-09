@@ -666,12 +666,16 @@
                               [queryParams]="{ sessionId: draft.sessionId }"
                             >
                               <p class="font-medium">
-                                {{ "assistant.documentType." + draft.documentType | translate }}
+                                {{
+                                  "assistant.documentType." + draft.documentType
+                                    | translate
+                                }}
                               </p>
                               <p class="text-xs text-muted-foreground">
                                 {{
                                   "assistant.draftStatus." +
-                                    (draft.approvalStatus || "READY_FOR_SIGNOFF") | translate
+                                    (draft.approvalStatus ||
+                                      "READY_FOR_SIGNOFF") | translate
                                 }}
                                 · {{ formatDate(draft.createdAt) }}
                               </p>
@@ -958,41 +962,14 @@
             </div>
           }
           @if (activitiesTotal() > 0) {
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-muted-foreground">
-                {{
-                  "cases.page"
-                    | translate
-                      : {
-                          page: activitiesPage(),
-                          total: activitiesPageCount(),
-                        }
-                }}
-              </p>
-              <div class="flex gap-2">
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  [disabled]="activitiesPage() === 1 || activitiesLoading()"
-                  (click)="changeActivitiesPage(activitiesPage() - 1)"
-                >
-                  {{ "cases.previous" | translate }}
-                </button>
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  [disabled]="
-                    activitiesPage() >= activitiesPageCount() ||
-                    activitiesLoading()
-                  "
-                  (click)="changeActivitiesPage(activitiesPage() + 1)"
-                >
-                  {{ "cases.next" | translate }}
-                </button>
-              </div>
-            </div>
+            <law-pagination
+              [currentPage]="activitiesPage()"
+              [itemsPerPage]="activitiesPageSize()"
+              [totalItems]="activitiesTotal()"
+              [disabled]="activitiesLoading()"
+              (currentPageChange)="changeActivitiesPage($event)"
+              (itemsPerPageChange)="changeActivitiesPageSize($event)"
+            />
           }
         </div>
       </section>
@@ -1037,7 +1014,9 @@
                 <div
                   class="rounded-xl border border-border bg-card p-5 shadow-sm"
                 >
-                  <div class="mb-2 flex flex-wrap items-baseline justify-between gap-2">
+                  <div
+                    class="mb-2 flex flex-wrap items-baseline justify-between gap-2"
+                  >
                     <h3 class="font-medium">
                       {{ "cases.detail.latestTimeline" | translate }}
                     </h3>
@@ -1093,53 +1072,15 @@
                       </li>
                     }
                   </ul>
-                  <div
-                    class="mt-4 flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <p class="text-muted-foreground">
-                      {{
-                        "cases.page"
-                          | translate
-                            : {
-                                page: assistantSessionsPage(),
-                                total: assistantSessionsPageCount(),
-                              }
-                      }}
-                    </p>
-                    <div class="flex gap-2">
-                      <button
-                        hlmBtn
-                        type="button"
-                        variant="outline"
-                        [disabled]="
-                          assistantSessionsPage() === 1 || assistantLoading()
-                        "
-                        (click)="
-                          changeAssistantSessionsPage(
-                            assistantSessionsPage() - 1
-                          )
-                        "
-                      >
-                        {{ "cases.previous" | translate }}
-                      </button>
-                      <button
-                        hlmBtn
-                        type="button"
-                        variant="outline"
-                        [disabled]="
-                          assistantSessionsPage() >=
-                            assistantSessionsPageCount() || assistantLoading()
-                        "
-                        (click)="
-                          changeAssistantSessionsPage(
-                            assistantSessionsPage() + 1
-                          )
-                        "
-                      >
-                        {{ "cases.next" | translate }}
-                      </button>
-                    </div>
-                  </div>
+                  <law-pagination
+                    class="mt-4 block"
+                    [currentPage]="assistantSessionsPage()"
+                    [itemsPerPage]="assistantPageSize()"
+                    [totalItems]="links.sessions.meta.totalItems"
+                    [disabled]="assistantLoading()"
+                    (currentPageChange)="changeAssistantSessionsPage($event)"
+                    (itemsPerPageChange)="changeAssistantPageSize($event)"
+                  />
                 } @else {
                   <p class="text-muted-foreground">
                     {{ "cases.detail.noAssistantSessions" | translate }}
@@ -1162,12 +1103,16 @@
                           [queryParams]="{ sessionId: draft.sessionId }"
                         >
                           <p class="font-medium">
-                            {{ "assistant.documentType." + draft.documentType | translate }}
+                            {{
+                              "assistant.documentType." + draft.documentType
+                                | translate
+                            }}
                           </p>
                           <p class="text-xs text-muted-foreground">
                             {{
                               "assistant.draftStatus." +
-                                (draft.approvalStatus || "READY_FOR_SIGNOFF") | translate
+                                (draft.approvalStatus || "READY_FOR_SIGNOFF")
+                                | translate
                             }}
                             · {{ formatDate(draft.createdAt) }}
                           </p>
@@ -1175,49 +1120,15 @@
                       </li>
                     }
                   </ul>
-                  <div
-                    class="mt-4 flex flex-wrap items-center justify-between gap-3"
-                  >
-                    <p class="text-muted-foreground">
-                      {{
-                        "cases.page"
-                          | translate
-                            : {
-                                page: assistantDraftsPage(),
-                                total: assistantDraftsPageCount(),
-                              }
-                      }}
-                    </p>
-                    <div class="flex gap-2">
-                      <button
-                        hlmBtn
-                        type="button"
-                        variant="outline"
-                        [disabled]="
-                          assistantDraftsPage() === 1 || assistantLoading()
-                        "
-                        (click)="
-                          changeAssistantDraftsPage(assistantDraftsPage() - 1)
-                        "
-                      >
-                        {{ "cases.previous" | translate }}
-                      </button>
-                      <button
-                        hlmBtn
-                        type="button"
-                        variant="outline"
-                        [disabled]="
-                          assistantDraftsPage() >= assistantDraftsPageCount() ||
-                          assistantLoading()
-                        "
-                        (click)="
-                          changeAssistantDraftsPage(assistantDraftsPage() + 1)
-                        "
-                      >
-                        {{ "cases.next" | translate }}
-                      </button>
-                    </div>
-                  </div>
+                  <law-pagination
+                    class="mt-4 block"
+                    [currentPage]="assistantDraftsPage()"
+                    [itemsPerPage]="assistantPageSize()"
+                    [totalItems]="links.drafts.meta.totalItems"
+                    [disabled]="assistantLoading()"
+                    (currentPageChange)="changeAssistantDraftsPage($event)"
+                    (itemsPerPageChange)="changeAssistantPageSize($event)"
+                  />
                 } @else {
                   <p class="text-muted-foreground">
                     {{ "cases.detail.noAssistantDrafts" | translate }}
@@ -1366,47 +1277,14 @@
             </div>
           }
           @if (responsibilitiesTotal() > 0) {
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <p class="text-muted-foreground">
-                {{
-                  "cases.page"
-                    | translate
-                      : {
-                          page: responsibilitiesPage(),
-                          total: responsibilitiesPageCount(),
-                        }
-                }}
-              </p>
-              <div class="flex gap-2">
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  [disabled]="
-                    responsibilitiesPage() === 1 || responsibilitiesLoading()
-                  "
-                  (click)="
-                    changeResponsibilitiesPage(responsibilitiesPage() - 1)
-                  "
-                >
-                  {{ "cases.previous" | translate }}
-                </button>
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  [disabled]="
-                    responsibilitiesPage() >= responsibilitiesPageCount() ||
-                    responsibilitiesLoading()
-                  "
-                  (click)="
-                    changeResponsibilitiesPage(responsibilitiesPage() + 1)
-                  "
-                >
-                  {{ "cases.next" | translate }}
-                </button>
-              </div>
-            </div>
+            <law-pagination
+              [currentPage]="responsibilitiesPage()"
+              [itemsPerPage]="responsibilitiesPageSize()"
+              [totalItems]="responsibilitiesTotal()"
+              [disabled]="responsibilitiesLoading()"
+              (currentPageChange)="changeResponsibilitiesPage($event)"
+              (itemsPerPageChange)="changeResponsibilitiesPageSize($event)"
+            />
           }
         </div>
       </section>

@@ -221,33 +221,15 @@
     }
   </div>
 
-  <hlm-dialog-footer class="items-center sm:justify-between">
-    <div class="flex flex-wrap items-center gap-3">
-      <p class="text-muted-foreground">
-        {{ "finance.page" | translate: { page: page(), total: pageCount() } }}
-        · {{ totalItems() }} {{ "finance.items" | translate }}
-      </p>
-      <div class="flex gap-1">
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          [disabled]="page() === 1 || loading()"
-          (click)="changePage(page() - 1)"
-        >
-          {{ "finance.previous" | translate }}
-        </button>
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          [disabled]="page() === pageCount() || loading()"
-          (click)="changePage(page() + 1)"
-        >
-          {{ "finance.next" | translate }}
-        </button>
-      </div>
-    </div>
+  <law-pagination
+    [currentPage]="page()"
+    [itemsPerPage]="pageSize()"
+    [totalItems]="totalItems()"
+    [disabled]="loading()"
+    (currentPageChange)="changePage($event)"
+    (itemsPerPageChange)="changePageSize($event)"
+  />
+  <hlm-dialog-footer class="items-center sm:justify-end">
     <div class="flex gap-2">
       <button
         hlmBtn
