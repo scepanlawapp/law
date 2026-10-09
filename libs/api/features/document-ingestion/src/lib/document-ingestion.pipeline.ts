@@ -21,7 +21,10 @@ import {
   DOCUMENT_EMBEDDING_PROVIDER,
   DOCUMENT_MODEL_PROVIDER,
 } from "./document-ingestion.providers";
-import { CURRENT_PIPELINE_VERSION } from "./document-ingestion.types";
+import {
+  CURRENT_PIPELINE_VERSION,
+  isIngestionCurrent,
+} from "./document-ingestion.types";
 
 const EMBED_BATCH_SIZE = 32;
 const CHUNK_TRANSACTION_TIMEOUT_MS = 60_000;
@@ -32,6 +35,7 @@ interface ContentState {
   extractedText: string | null;
   documentKind: string | null;
   failedStep: string | null;
+  embeddingModel: string | null;
 }
 
 /** A classification or fact step that failed on an otherwise READY content. */
@@ -65,14 +69,9 @@ export class DocumentIngestionPipeline {
     let state = await this.load(workspaceId, contentId);
     if (!state) return;
     if (state.status === "UNSUPPORTED") return;
-    const markedForRetry = state.status === "READY" && !!state.failedStep;
-    if (
-      state.status === "READY" &&
-      state.pipelineVersion >= CURRENT_PIPELINE_VERSION &&
-      !markedForRetry
-    ) {
-      return;
-    }
+    // READY on another embedding model falls through: embedStep replaces the
+    // old model's chunks and everything else stored is kept.
+    if (isIngestionCurrent(state, this.embeddings.model)) return;
     // Off is strict: never send the text of unreadable content to a provider.
     if (!(await this.hasReadableSource(workspaceId, contentId))) {
       this.logger.log(
@@ -164,6 +163,7 @@ export class DocumentIngestionPipeline {
         extractedText: true,
         documentKind: true,
         failedStep: true,
+        embeddingModel: true,
       },
     });
   }

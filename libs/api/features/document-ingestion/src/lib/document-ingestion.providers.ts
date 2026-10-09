@@ -3,6 +3,7 @@ import { ConfigService } from "@nestjs/config";
 import { OpenRouterEmbeddingProvider } from "@law/knowledge";
 import type { ChatModelProvider } from "@law/llm";
 import { MastraChatModelProvider, openRouterModel } from "@law/mastra";
+import { DEFAULT_EMBEDDING_MODEL } from "./document-ingestion.types";
 
 export const DOCUMENT_EMBEDDING_PROVIDER = Symbol(
   "DOCUMENT_EMBEDDING_PROVIDER",
@@ -19,7 +20,10 @@ export const documentEmbeddingProvider: Provider = {
     new OpenRouterEmbeddingProvider({
       apiKey: config.get<string>("OPENROUTER_API_KEY", ""),
       baseUrl: config.get<string>("OPENROUTER_BASE_URL", DEFAULT_BASE_URL),
-      model: config.get<string>("LEGAL_EMBEDDING_MODEL", "BAAI/bge-m3"),
+      model: config.get<string>(
+        "LEGAL_EMBEDDING_MODEL",
+        DEFAULT_EMBEDDING_MODEL,
+      ),
     }),
 };
 

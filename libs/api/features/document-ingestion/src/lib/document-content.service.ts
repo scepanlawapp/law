@@ -1,13 +1,15 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger } from "@nestjs/common";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
 import { Prisma, type DocumentContentStatus } from "@prisma/client";
+import type { EmbeddingProvider } from "@law/knowledge";
 import { ContentBytesReader } from "./content-bytes.reader";
+import { DOCUMENT_EMBEDDING_PROVIDER } from "./document-ingestion.providers";
 import { DocumentIngestionQueue } from "./document-ingestion.queue";
-import {
-  ContentText,
-  CURRENT_PIPELINE_VERSION,
-} from "./document-ingestion.types";
+import { ContentText, isIngestionCurrent } from "./document-ingestion.types";
+
+/** How long a request waits for the queue before giving up (Redis may be reconnecting). */
+export const INGESTION_REQUEST_TIMEOUT_MS = 3_000;
 
 /**
  * Content rows are keyed by (workspaceId, sha256): identical bytes within a
@@ -22,6 +24,8 @@ export class DocumentContentService {
     private readonly prisma: PlatformPrismaService,
     private readonly queue: DocumentIngestionQueue,
     private readonly bytes: ContentBytesReader,
+    @Inject(DOCUMENT_EMBEDDING_PROVIDER)
+    private readonly embeddings: Pick<EmbeddingProvider, "model">,
   ) {}
 
   async findOrCreate(input: {
@@ -61,39 +65,71 @@ export class DocumentContentService {
     }
   }
 
-  /** Enqueue ingestion unless the content is already READY on this pipeline version. */
+  /**
+   * Enqueue ingestion unless the content is already READY on this pipeline
+   * version and embedding model.
+   */
   async requestIngestion(
     workspaceId: string,
     contentId: string,
   ): Promise<void> {
     const content = await this.prisma.documentContent.findFirst({
       where: { id: contentId, workspaceId },
-      select: { status: true, pipelineVersion: true, failedStep: true },
+      select: {
+        status: true,
+        pipelineVersion: true,
+        failedStep: true,
+        embeddingModel: true,
+      },
     });
     if (!content) return;
     // Nothing can be extracted from unsupported content, so a re-run is waste.
     if (content.status === "UNSUPPORTED") return;
-    if (
-      content.status === "READY" &&
-      content.pipelineVersion >= CURRENT_PIPELINE_VERSION &&
-      !content.failedStep // READY with a marker still owes classify/facts
-    ) {
-      return;
-    }
+    if (isIngestionCurrent(content, this.embeddings.model)) return;
     await this.queue.enqueue(workspaceId, contentId);
   }
 
   /**
    * Best effort: callers have already saved their own state, so a queue outage
    * must not fail the request. Unprocessed content stays PENDING (QUEUED) and
-   * is recovered by reprocess or the reindex command.
+   * is recovered by reprocess or the reindex command. The wait is bounded: a
+   * Redis that is reconnecting would otherwise hang the caller (an upload) for
+   * as long as the client keeps retrying.
    */
   async requestIngestionSafely(
     workspaceId: string,
     contentIds: Iterable<string | null | undefined>,
   ): Promise<void> {
-    for (const contentId of new Set(contentIds)) {
-      if (!contentId) continue;
+    const ids = [...new Set(contentIds)].filter((id): id is string => !!id);
+    if (!ids.length) return;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const timeout = new Promise<"timeout">((resolve) => {
+      timer = setTimeout(
+        () => resolve("timeout"),
+        INGESTION_REQUEST_TIMEOUT_MS,
+      );
+    });
+    try {
+      const outcome = await Promise.race([
+        this.requestEach(workspaceId, ids).then(() => "done" as const),
+        timeout,
+      ]);
+      if (outcome === "timeout") {
+        this.logger.warn(
+          `Ingestion request for ${ids.length} content row(s) did not answer within ${INGESTION_REQUEST_TIMEOUT_MS} ms; it stays queued for reprocess`,
+        );
+      }
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  /** Never rejects: each failure is logged and the next content is tried. */
+  private async requestEach(
+    workspaceId: string,
+    contentIds: string[],
+  ): Promise<void> {
+    for (const contentId of contentIds) {
       try {
         await this.requestIngestion(workspaceId, contentId);
       } catch (error) {

@@ -39,6 +39,9 @@ export const STALE_PENDING_MS = 10 * 60_000;
  * Whether a content can be sent through the pipeline again by hand: it failed,
  * it sat PENDING long enough that its job was probably lost (queue outage,
  * Redis flush), or it finished READY but still owes classification or facts.
+ * No content row at all (a version from before ingestion that was never
+ * backfilled) is retryable too: reprocessing links the content first. Callers
+ * decide whether a document without a current version applies.
  */
 export function isContentRetryable(
   content:
@@ -51,7 +54,7 @@ export function isContentRetryable(
     | undefined,
   now: Date = new Date(),
 ): boolean {
-  if (!content) return false;
+  if (!content) return true;
   switch (content.status) {
     case "FAILED":
       return true;

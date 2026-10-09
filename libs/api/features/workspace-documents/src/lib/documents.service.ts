@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Logger,
   NotFoundException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
@@ -30,6 +31,7 @@ import {
   isContentRetryable,
 } from "@law/document-ingestion";
 import { FileService, uploadFingerprint } from "@law/file-storage";
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import {
   BULK_AI_ACCESS_MAX,
@@ -44,6 +46,8 @@ const DOCUMENT_SORT = ["updatedAt", "createdAt", "title"] as const;
 
 @Injectable()
 export class DocumentsService {
+  private readonly logger = new Logger(DocumentsService.name);
+
   constructor(
     private readonly prisma: PlatformPrismaService,
     private readonly files: FileService,
@@ -445,34 +449,7 @@ export class DocumentsService {
     });
     // An archived document stays unread: the flag changes, nothing is queued.
     if (aiAccessChanged && body.aiAccess && !existing.archivedAt) {
-      await this.content.requestIngestionSafely(this.context.workspaceId, [
-        existing.currentVersion?.contentId,
-      ]);
-    }
-    return this.get(id);
-  }
-
-  async setAiAccess(id: string, aiAccess: boolean): Promise<DocumentDetail> {
-    const existing = await this.requireDocument(id);
-    if (existing.aiAccess === aiAccess) return this.toDetail(existing);
-    await this.prisma.$transaction(async (tx) => {
-      await tx.document.update({
-        where: { id: existing.id, workspaceId: this.context.workspaceId },
-        data: {
-          aiAccess,
-          ...this.aiAccessAudit(),
-          updatedByUserId: this.context.userId,
-        },
-      });
-      await this.logAiAccess(tx, existing.id, aiAccess, {
-        caseId: existing.cases[0]?.caseId,
-        clientId: existing.clients[0]?.clientId,
-      });
-    });
-    if (aiAccess && !existing.archivedAt) {
-      await this.content.requestIngestionSafely(this.context.workspaceId, [
-        existing.currentVersion?.contentId,
-      ]);
+      await this.ingestCurrentVersions([existing.currentVersion]);
     }
     return this.get(id);
   }
@@ -492,7 +469,16 @@ export class DocumentsService {
       select: {
         id: true,
         aiAccess: true,
-        currentVersion: { select: { contentId: true } },
+        currentVersion: {
+          select: {
+            id: true,
+            contentId: true,
+            storedFileId: true,
+            storedFile: {
+              select: { sha256: true, sizeBytes: true, detectedMimeType: true },
+            },
+          },
+        },
         cases: { select: { caseId: true }, take: 1 },
         clients: { select: { clientId: true }, take: 1 },
       },
@@ -517,9 +503,8 @@ export class DocumentsService {
       }
     });
     if (body.aiAccess) {
-      await this.content.requestIngestionSafely(
-        workspaceId,
-        changed.map((row) => row.currentVersion?.contentId),
+      await this.ingestCurrentVersions(
+        changed.map((row) => row.currentVersion),
       );
     }
     return { updated: changed.length };
@@ -527,10 +512,21 @@ export class DocumentsService {
 
   async reprocess(id: string): Promise<DocumentDetail> {
     const existing = await this.requireDocument(id);
-    const contentId = existing.currentVersion?.contentId;
-    if (!contentId || !this.isRetryable(existing)) {
+    const version = existing.currentVersion;
+    if (!version || !this.isRetryable(existing)) {
       throw new ConflictException(
         "Only documents with AI access whose processing failed or stalled can be reprocessed",
+      );
+    }
+    let contentId: string;
+    try {
+      contentId = await this.ensureVersionContent(version);
+    } catch (error) {
+      this.logger.warn(
+        `Content of document ${existing.id} could not be linked: ${describe(error)}`,
+      );
+      throw new ConflictException(
+        "The stored file could not be read for processing",
       );
     }
     await this.content.requestIngestion(this.context.workspaceId, contentId);
@@ -597,6 +593,11 @@ export class DocumentsService {
           metadata: { caseIds, clientIds },
         });
       });
+      // Archiving leaves the content unread, so a document that is on again
+      // may owe processing (it could have been uploaded or toggled while archived).
+      if (existing.aiAccess) {
+        await this.ingestCurrentVersions([existing.currentVersion]);
+      }
     }
     return this.get(id);
   }
@@ -707,6 +708,75 @@ export class DocumentsService {
       ...links,
       metadata: { aiAccess },
     });
+  }
+
+  /**
+   * Requests ingestion of the given current versions' content, linking content
+   * first for versions that predate ingestion. Best effort, like the request.
+   */
+  private async ingestCurrentVersions(
+    versions: ReadonlyArray<LinkableVersion | null | undefined>,
+  ): Promise<void> {
+    const contentIds: Array<string | null> = [];
+    for (const version of versions) {
+      if (!version) continue;
+      try {
+        contentIds.push(await this.ensureVersionContent(version));
+      } catch (error) {
+        // The flag change is already saved; the document stays retryable.
+        this.logger.warn(
+          `Content of version ${version.id} could not be linked: ${describe(error)}`,
+        );
+      }
+    }
+    await this.content.requestIngestionSafely(
+      this.context.workspaceId,
+      contentIds,
+    );
+  }
+
+  /**
+   * The content id of a version. A version that predates ingestion and was
+   * never backfilled has none: hash its stored file (the recorded sha256, else
+   * its bytes), find or create the hash-keyed content and link it now.
+   */
+  private async ensureVersionContent(
+    version: LinkableVersion,
+  ): Promise<string> {
+    if (version.contentId) return version.contentId;
+    const { workspaceId } = this.context;
+    let sha256 = version.storedFile.sha256;
+    let sizeBytes = Number(version.storedFile.sizeBytes);
+    let mimeType = version.storedFile.detectedMimeType;
+    if (!sha256) {
+      const download = await this.files.openDownload({
+        workspaceId,
+        storedFileId: version.storedFileId,
+      });
+      const hash = createHash("sha256");
+      let size = 0;
+      for await (const chunk of download.stream) {
+        const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+        hash.update(buffer);
+        size += buffer.length;
+      }
+      sha256 = hash.digest("hex");
+      sizeBytes = size;
+      mimeType = mimeType ?? download.mimeType;
+    }
+    const content = await this.content.findOrCreate({
+      workspaceId,
+      sha256,
+      mimeType: mimeType ?? "application/octet-stream",
+      sizeBytes,
+    });
+    // Idempotent: the content is keyed by bytes, so a concurrent link of the
+    // same file writes the same id.
+    await this.prisma.documentVersion.updateMany({
+      where: { id: version.id, workspaceId, contentId: null },
+      data: { contentId: content.id },
+    });
+    return content.id;
   }
 
   /**
@@ -835,7 +905,8 @@ export class DocumentsService {
     return (
       row.aiAccess &&
       !row.archivedAt &&
-      isContentRetryable(row.currentVersion?.content)
+      !!row.currentVersion &&
+      isContentRetryable(row.currentVersion.content ?? null)
     );
   }
 
@@ -913,6 +984,22 @@ export class DocumentsService {
       createdAt: row.createdAt.toISOString(),
     };
   }
+}
+
+/** What linking content for a version needs. */
+type LinkableVersion = {
+  id: string;
+  contentId?: string | null;
+  storedFileId: string;
+  storedFile: {
+    detectedMimeType: string | null;
+    sizeBytes: bigint;
+    sha256: string | null;
+  };
+};
+
+function describe(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
 }
 
 type VersionRow = {

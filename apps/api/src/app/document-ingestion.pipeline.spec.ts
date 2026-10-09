@@ -176,6 +176,7 @@ function setup(
     prisma as never,
     queue as never,
     reader as never,
+    { model: "BAAI/bge-m3" } as never,
   );
   const embeddings = options.embeddings ?? embeddingProvider();
   const counted = countingModel(
@@ -660,11 +661,41 @@ describe("DocumentIngestionPipeline", () => {
 
   it("does nothing for content already READY on the current version", async () => {
     const s = setup({
-      row: { status: "READY", pipelineVersion: CURRENT_PIPELINE_VERSION },
+      row: {
+        status: "READY",
+        pipelineVersion: CURRENT_PIPELINE_VERSION,
+        embeddingModel: "BAAI/bge-m3",
+      },
     });
     await s.pipeline.run(WORKSPACE, CONTENT);
     expect(s.prisma.documentContent.updateMany).not.toHaveBeenCalled();
     expect(s.embeddings.embed).not.toHaveBeenCalled();
+  });
+
+  it("re-embeds READY content from another embedding model and keeps the rest", async () => {
+    const s = setup({
+      row: {
+        status: "READY",
+        pipelineVersion: CURRENT_PIPELINE_VERSION,
+        embeddingModel: "old-model",
+        extractedText: ID_CARD_TEXT,
+        documentKind: "ID_CARD",
+      },
+      chunkCount: 2,
+      factCount: 1,
+    });
+    s.prisma.documentContentChunk.count.mockResolvedValue(0);
+
+    await s.pipeline.run(WORKSPACE, CONTENT);
+
+    expect(s.tx.documentContentChunk.deleteMany).toHaveBeenCalled();
+    expect(s.embeddings.embed).toHaveBeenCalled();
+    expect(extract).not.toHaveBeenCalled();
+    expect(s.model).not.toHaveBeenCalled();
+    expect(s.row).toMatchObject({
+      status: "READY",
+      embeddingModel: "BAAI/bge-m3",
+    });
   });
 
   it("reprocesses READY content from an older pipeline version", async () => {

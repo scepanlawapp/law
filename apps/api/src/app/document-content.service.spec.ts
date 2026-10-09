@@ -52,6 +52,7 @@ function setup(options: { row?: Row | null; bytes?: unknown } = {}) {
       prisma as never,
       queue as never,
       reader as never,
+      { model: "model-a" } as never,
     ),
   };
 }
@@ -159,7 +160,11 @@ describe("DocumentContentService", () => {
 
     it("skips READY content on the current pipeline version", async () => {
       const { service, queue, prisma } = setup({
-        row: { status: "READY", pipelineVersion: 1 },
+        row: {
+          status: "READY",
+          pipelineVersion: 1,
+          embeddingModel: "model-a",
+        },
       });
       await service.requestIngestion("ws-1", "content-1");
       expect(queue.enqueue).not.toHaveBeenCalled();
@@ -173,6 +178,18 @@ describe("DocumentContentService", () => {
     it("re-enqueues READY content from an older pipeline version", async () => {
       const { service, queue } = setup({
         row: { status: "READY", pipelineVersion: 0 },
+      });
+      await service.requestIngestion("ws-1", "content-1");
+      expect(queue.enqueue).toHaveBeenCalledWith("ws-1", "content-1");
+    });
+
+    it("re-enqueues READY content embedded by another model", async () => {
+      const { service, queue } = setup({
+        row: {
+          status: "READY",
+          pipelineVersion: 1,
+          embeddingModel: "model-old",
+        },
       });
       await service.requestIngestion("ws-1", "content-1");
       expect(queue.enqueue).toHaveBeenCalledWith("ws-1", "content-1");
@@ -194,7 +211,12 @@ describe("DocumentContentService", () => {
 
     it("re-enqueues READY content marked for retry", async () => {
       const { service, queue } = setup({
-        row: { status: "READY", pipelineVersion: 1, failedStep: "CLASSIFYING" },
+        row: {
+          status: "READY",
+          pipelineVersion: 1,
+          failedStep: "CLASSIFYING",
+          embeddingModel: "model-a",
+        },
       });
       await service.requestIngestion("ws-1", "content-1");
       expect(queue.enqueue).toHaveBeenCalledWith("ws-1", "content-1");
@@ -234,6 +256,45 @@ describe("DocumentContentService", () => {
       ).resolves.toBeUndefined();
       expect(queue.enqueue).toHaveBeenCalledTimes(2);
       expect(warn).toHaveBeenCalledWith(expect.stringContaining("redis down"));
+    });
+
+    describe("when the queue never answers", () => {
+      beforeEach(() => jest.useFakeTimers());
+      afterEach(() => jest.useRealTimers());
+
+      it("stops waiting after three seconds and logs it", async () => {
+        const { service, queue } = setup({
+          row: { status: "PENDING", pipelineVersion: 0 },
+        });
+        queue.enqueue.mockImplementation(
+          () => new Promise<void>(() => undefined),
+        );
+
+        let settled = false;
+        const pending = service
+          .requestIngestionSafely("ws-1", ["content-1", "content-2"])
+          .then(() => {
+            settled = true;
+          });
+        await jest.advanceTimersByTimeAsync(2_900);
+        expect(settled).toBe(false);
+
+        await jest.advanceTimersByTimeAsync(200);
+        await pending;
+        expect(settled).toBe(true);
+        expect(warn).toHaveBeenCalledWith(
+          expect.stringContaining("did not answer within 3000 ms"),
+        );
+      });
+
+      it("leaves no timer behind when the queue answers in time", async () => {
+        const { service } = setup({
+          row: { status: "PENDING", pipelineVersion: 0 },
+        });
+        await service.requestIngestionSafely("ws-1", ["content-1"]);
+        expect(jest.getTimerCount()).toBe(0);
+        expect(warn).not.toHaveBeenCalled();
+      });
     });
   });
 

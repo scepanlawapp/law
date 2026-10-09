@@ -51,7 +51,7 @@ describe("isContentRetryable", () => {
     );
   });
 
-  it("never retries in-flight, unsupported or missing content", () => {
+  it("never retries in-flight or unsupported content", () => {
     for (const status of [
       "EXTRACTING",
       "EMBEDDING",
@@ -62,7 +62,10 @@ describe("isContentRetryable", () => {
         false,
       );
     }
-    expect(isContentRetryable(null, now)).toBe(false);
-    expect(isContentRetryable(undefined, now)).toBe(false);
+  });
+
+  it("retries a document that has no content row at all (never linked or ingested)", () => {
+    expect(isContentRetryable(null, now)).toBe(true);
+    expect(isContentRetryable(undefined, now)).toBe(true);
   });
 });

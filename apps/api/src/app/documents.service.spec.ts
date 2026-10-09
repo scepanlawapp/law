@@ -3,6 +3,7 @@ import {
   ConflictException,
   NotFoundException,
 } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import { Readable } from "node:stream";
 import { WorkspaceContextService } from "@law/core";
 import { WorkspaceRole } from "@law/api-interfaces";
@@ -43,6 +44,7 @@ describe("DocumentsService", () => {
     },
     documentVersion: {
       create: jest.fn(),
+      updateMany: jest.fn(),
       count: jest.fn(),
       findMany: jest.fn(),
       aggregate: jest.fn(),
@@ -58,6 +60,7 @@ describe("DocumentsService", () => {
     prisma as never,
     queue as never,
     {} as never,
+    { model: "model-a" } as never,
   );
   const service = new DocumentsService(
     prisma as never,
@@ -177,6 +180,7 @@ describe("DocumentsService", () => {
     });
     prisma.documentContent.updateMany.mockResolvedValue({ count: 1 });
     prisma.document.updateMany.mockResolvedValue({ count: 0 });
+    prisma.documentVersion.updateMany.mockResolvedValue({ count: 1 });
     queue.enqueue.mockResolvedValue(undefined);
     files.commitAvailable.mockResolvedValue(undefined);
     files.openDownload.mockResolvedValue({
@@ -736,8 +740,9 @@ describe("DocumentsService", () => {
       prisma.documentContent.findFirst.mockResolvedValue({
         status: "READY",
         pipelineVersion: 99,
+        embeddingModel: "model-a",
       });
-      await run(() => service.setAiAccess("doc-1", true));
+      await run(() => service.update("doc-1", { aiAccess: true }));
       expect(prisma.document.update).toHaveBeenCalledWith(
         expect.objectContaining({
           where: { id: "doc-1", workspaceId },
@@ -761,7 +766,7 @@ describe("DocumentsService", () => {
 
     it("enqueues the current content when turning AI access on for unprocessed content", async () => {
       prisma.document.findFirst.mockResolvedValue(rowWith({}, "PENDING"));
-      await run(() => service.setAiAccess("doc-1", true));
+      await run(() => service.update("doc-1", { aiAccess: true }));
       expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
     });
 
@@ -769,7 +774,7 @@ describe("DocumentsService", () => {
       queue.enqueue.mockRejectedValue(new Error("redis down"));
       prisma.document.findFirst.mockResolvedValue(rowWith({}, "PENDING"));
       await expect(
-        run(() => service.setAiAccess("doc-1", true)),
+        run(() => service.update("doc-1", { aiAccess: true })),
       ).resolves.toBeDefined();
       expect(activityLog.create).toHaveBeenCalled();
     });
@@ -778,7 +783,15 @@ describe("DocumentsService", () => {
       prisma.document.findFirst.mockResolvedValue(
         rowWith({ aiAccess: true }, "READY"),
       );
-      await run(() => service.setAiAccess("doc-1", false));
+      await run(() => service.update("doc-1", { aiAccess: false }));
+      expect(prisma.document.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            aiAccess: false,
+            aiAccessChangedByUserId: userId,
+          }),
+        }),
+      );
       expect(activityLog.create).toHaveBeenCalledWith(
         expect.objectContaining({
           data: expect.objectContaining({
@@ -789,11 +802,17 @@ describe("DocumentsService", () => {
       expect(queue.enqueue).not.toHaveBeenCalled();
     });
 
-    it("writes nothing when the AI access value does not change", async () => {
+    it("leaves the flag, its audit and the queue alone when the value does not change", async () => {
       prisma.document.findFirst.mockResolvedValue(rowWith({ aiAccess: true }));
-      await run(() => service.setAiAccess("doc-1", true));
-      expect(prisma.document.update).not.toHaveBeenCalled();
-      expect(activityLog.create).not.toHaveBeenCalled();
+      await run(() => service.update("doc-1", { aiAccess: true }));
+      const [{ data }] = prisma.document.update.mock.calls[0];
+      expect(data).not.toHaveProperty("aiAccess");
+      expect(data).not.toHaveProperty("aiAccessChangedAt");
+      const actions = activityLog.create.mock.calls.map(
+        ([arg]) => arg.data.action,
+      );
+      expect(actions).toEqual(["DOCUMENT_UPDATED"]);
+      expect(queue.enqueue).not.toHaveBeenCalled();
     });
 
     it("applies aiAccess from a document patch with one activity row", async () => {
@@ -1094,6 +1113,172 @@ describe("DocumentsService", () => {
       });
     });
 
+    describe("versions without a content row (created before ingestion)", () => {
+      const legacy = (extra: Record<string, unknown> = {}, sha = "abc") => ({
+        ...documentRow,
+        ...extra,
+        currentVersion: {
+          ...documentRow.currentVersion,
+          contentId: null,
+          content: null,
+          storedFile: {
+            detectedMimeType: "application/pdf",
+            sizeBytes: BigInt(12),
+            sha256: sha as string | null,
+          },
+        },
+      });
+      const SHA_OF_PDF_BYTES = createHash("sha256")
+        .update("%PDF-1.4")
+        .digest("hex");
+
+      it("links the content from the recorded hash and enqueues when AI access is turned on", async () => {
+        prisma.document.findFirst.mockResolvedValue(legacy());
+        await run(() => service.update("doc-1", { aiAccess: true }));
+        expect(files.openDownload).not.toHaveBeenCalled();
+        expect(prisma.documentContent.upsert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: { workspaceId_sha256: { workspaceId, sha256: "abc" } },
+            create: expect.objectContaining({
+              mimeType: "application/pdf",
+              sizeBytes: 12,
+            }),
+          }),
+        );
+        expect(prisma.documentVersion.updateMany).toHaveBeenCalledWith({
+          where: { id: "ver-1", workspaceId, contentId: null },
+          data: { contentId: "content-1" },
+        });
+        expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+      });
+
+      it("hashes the stored bytes when no hash was recorded", async () => {
+        prisma.document.findFirst.mockResolvedValue(legacy({}, null as never));
+        await run(() => service.update("doc-1", { aiAccess: true }));
+        expect(files.openDownload).toHaveBeenCalledWith({
+          workspaceId,
+          storedFileId: "file-1",
+        });
+        expect(prisma.documentContent.upsert).toHaveBeenCalledWith(
+          expect.objectContaining({
+            where: {
+              workspaceId_sha256: { workspaceId, sha256: SHA_OF_PDF_BYTES },
+            },
+            create: expect.objectContaining({ sizeBytes: 8 }),
+          }),
+        );
+        expect(queue.enqueue).toHaveBeenCalled();
+      });
+
+      it("still turns the flag on when the file cannot be read, and leaves it retryable", async () => {
+        files.openDownload.mockRejectedValue(new Error("disk gone"));
+        prisma.document.findFirst.mockResolvedValue(legacy({}, null as never));
+        await expect(
+          run(() => service.update("doc-1", { aiAccess: true })),
+        ).resolves.toBeDefined();
+        expect(prisma.document.update).toHaveBeenCalledWith(
+          expect.objectContaining({
+            data: expect.objectContaining({ aiAccess: true }),
+          }),
+        );
+        expect(queue.enqueue).not.toHaveBeenCalled();
+      });
+
+      it("links bulk-enabled documents that have no content", async () => {
+        prisma.document.findMany.mockResolvedValue([
+          {
+            id: "a",
+            aiAccess: false,
+            currentVersion: legacy().currentVersion,
+            cases: [],
+            clients: [],
+          },
+        ]);
+        await run(() =>
+          service.setAiAccessBulk({ documentIds: ["a"], aiAccess: true }),
+        );
+        expect(prisma.documentVersion.updateMany).toHaveBeenCalled();
+        expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+      });
+
+      it("reprocess links the content and enqueues it", async () => {
+        prisma.document.findFirst.mockResolvedValue(legacy({ aiAccess: true }));
+        await run(() => service.reprocess("doc-1"));
+        expect(prisma.documentVersion.updateMany).toHaveBeenCalledWith({
+          where: { id: "ver-1", workspaceId, contentId: null },
+          data: { contentId: "content-1" },
+        });
+        expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+      });
+
+      it("reprocess answers 409 when the file cannot be read", async () => {
+        files.openDownload.mockRejectedValue(new Error("disk gone"));
+        prisma.document.findFirst.mockResolvedValue(
+          legacy({ aiAccess: true }, null as never),
+        );
+        await expect(
+          run(() => service.reprocess("doc-1")),
+        ).rejects.toBeInstanceOf(ConflictException);
+        expect(queue.enqueue).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("restore", () => {
+      const archivedOn = (extra: Record<string, unknown> = {}) =>
+        rowWith(
+          { aiAccess: true, archivedAt: new Date(), folderId: null, ...extra },
+          "PENDING",
+        );
+
+      it("requests ingestion of the current content of an opted-in document", async () => {
+        prisma.document.findFirst.mockResolvedValue(archivedOn());
+        await run(() => service.restore("doc-1"));
+        expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+      });
+
+      it("does not enqueue READY content that is already current", async () => {
+        prisma.document.findFirst.mockResolvedValue(archivedOn());
+        prisma.documentContent.findFirst.mockResolvedValue({
+          status: "READY",
+          pipelineVersion: 99,
+          embeddingModel: "model-a",
+        });
+        await run(() => service.restore("doc-1"));
+        expect(queue.enqueue).not.toHaveBeenCalled();
+      });
+
+      it("does not enqueue for a document with AI access off", async () => {
+        prisma.document.findFirst.mockResolvedValue(
+          archivedOn({ aiAccess: false }),
+        );
+        await run(() => service.restore("doc-1"));
+        expect(queue.enqueue).not.toHaveBeenCalled();
+      });
+
+      it("does nothing for a document that is not archived", async () => {
+        prisma.document.findFirst.mockResolvedValue(
+          rowWith({ aiAccess: true }, "PENDING"),
+        );
+        await run(() => service.restore("doc-1"));
+        expect(queue.enqueue).not.toHaveBeenCalled();
+      });
+
+      it("links content for a legacy opted-in document", async () => {
+        const row = archivedOn();
+        prisma.document.findFirst.mockResolvedValue({
+          ...row,
+          currentVersion: {
+            ...row.currentVersion,
+            contentId: null,
+            content: null,
+          },
+        });
+        await run(() => service.restore("doc-1"));
+        expect(prisma.documentVersion.updateMany).toHaveBeenCalled();
+        expect(queue.enqueue).toHaveBeenCalledWith(workspaceId, "content-1");
+      });
+    });
+
     describe("aiRetryable", () => {
       it.each([
         ["FAILED", {}, true, true],
@@ -1122,12 +1307,26 @@ describe("DocumentsService", () => {
         expect(detail.aiRetryable).toBe(false);
       });
 
-      it("is false when the version has no content row", async () => {
+      it("is true when the version has no content row yet", async () => {
         prisma.document.findFirst.mockResolvedValue(
           rowWith({ aiAccess: true }),
         );
         const detail = await run(() => service.get("doc-1"));
-        expect(detail.aiRetryable).toBe(false);
+        expect(detail.aiRetryable).toBe(true);
+        expect(detail.aiStatus).toBe("QUEUED");
+      });
+
+      it("is false without AI access or without a current version", async () => {
+        prisma.document.findFirst.mockResolvedValue(
+          rowWith({ aiAccess: false }),
+        );
+        expect((await run(() => service.get("doc-1"))).aiRetryable).toBe(false);
+        prisma.document.findFirst.mockResolvedValue({
+          ...documentRow,
+          aiAccess: true,
+          currentVersion: null,
+        });
+        expect((await run(() => service.get("doc-1"))).aiRetryable).toBe(false);
       });
     });
 
@@ -1135,20 +1334,9 @@ describe("DocumentsService", () => {
       const archived = () =>
         rowWith({ aiAccess: false, archivedAt: new Date() }, "PENDING");
 
-      it("turning AI access on through a patch changes the flag without enqueueing", async () => {
+      it("turning AI access on changes the flag without enqueueing", async () => {
         prisma.document.findFirst.mockResolvedValue(archived());
         await run(() => service.update("doc-1", { aiAccess: true }));
-        expect(prisma.document.update).toHaveBeenCalledWith(
-          expect.objectContaining({
-            data: expect.objectContaining({ aiAccess: true }),
-          }),
-        );
-        expect(queue.enqueue).not.toHaveBeenCalled();
-      });
-
-      it("turning AI access on with setAiAccess changes the flag without enqueueing", async () => {
-        prisma.document.findFirst.mockResolvedValue(archived());
-        await run(() => service.setAiAccess("doc-1", true));
         expect(prisma.document.update).toHaveBeenCalledWith(
           expect.objectContaining({
             data: expect.objectContaining({ aiAccess: true }),
