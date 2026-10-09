@@ -721,6 +721,89 @@ describe("DocumentsComponent AI access", () => {
       expect(documentsApi.list.mock.calls.length).toBe(afterReady);
     });
 
+    describe("giving up on stuck rows", () => {
+      const TICK = 5000;
+
+      it("stops after 120 polls in which nothing changed", () => {
+        jest.useFakeTimers();
+        const { documentsApi } = setup([
+          document({ id: "a", aiStatus: "QUEUED" }),
+        ]);
+        const baseline = documentsApi.list.mock.calls.length;
+
+        jest.advanceTimersByTime(119 * TICK);
+        expect(documentsApi.list.mock.calls.length).toBe(baseline + 119);
+        jest.advanceTimersByTime(TICK);
+        expect(documentsApi.list.mock.calls.length).toBe(baseline + 120);
+
+        jest.advanceTimersByTime(30 * TICK);
+        expect(documentsApi.list.mock.calls.length).toBe(baseline + 120);
+      });
+
+      it("restarts the count whenever a status changes", () => {
+        jest.useFakeTimers();
+        const { documentsApi, component } = setup([
+          document({ id: "a", aiStatus: "QUEUED" }),
+        ]);
+        const baseline = documentsApi.list.mock.calls.length;
+        jest.advanceTimersByTime(100 * TICK);
+        documentsApi.list.mockImplementation(() =>
+          of(page([document({ id: "a", aiStatus: "PROCESSING" })])),
+        );
+
+        jest.advanceTimersByTime(130 * TICK);
+
+        // 100 + the change tick + 120 more, then it gives up.
+        expect(documentsApi.list.mock.calls.length).toBe(baseline + 221);
+        expect(component.documents()[0].aiStatus).toBe("PROCESSING");
+      });
+
+      it("resumes after the user reloads or mutates", () => {
+        jest.useFakeTimers();
+        const stuck = document({
+          id: "a",
+          aiAccess: false,
+          aiStatus: "QUEUED",
+        });
+        const { documentsApi, component, fixture } = setup([stuck]);
+        jest.advanceTimersByTime(130 * TICK);
+        fixture.detectChanges();
+        const exhausted = documentsApi.list.mock.calls.length;
+        jest.advanceTimersByTime(10 * TICK);
+        expect(documentsApi.list.mock.calls.length).toBe(exhausted);
+
+        component.load();
+        fixture.detectChanges();
+        const afterReload = documentsApi.list.mock.calls.length;
+        jest.advanceTimersByTime(3 * TICK);
+        expect(documentsApi.list.mock.calls.length).toBe(afterReload + 3);
+
+        jest.advanceTimersByTime(130 * TICK);
+        fixture.detectChanges();
+        const exhaustedAgain = documentsApi.list.mock.calls.length;
+        component.openDocumentDetail(stuck);
+        documentsApi.setAiAccess.mockReturnValue(
+          of(document({ id: "a", aiAccess: true, aiStatus: "QUEUED" })),
+        );
+        component.toggleDetailAi(true);
+        fixture.detectChanges();
+        jest.advanceTimersByTime(2 * TICK);
+        expect(documentsApi.list.mock.calls.length).toBeGreaterThanOrEqual(
+          exhaustedAgain + 2,
+        );
+      });
+
+      it("does not poll for a row that can be reprocessed by hand", () => {
+        jest.useFakeTimers();
+        const { documentsApi } = setup([
+          document({ id: "a", aiStatus: "QUEUED", aiRetryable: true }),
+        ]);
+        const baseline = documentsApi.list.mock.calls.length;
+        jest.advanceTimersByTime(20 * TICK);
+        expect(documentsApi.list.mock.calls.length).toBe(baseline);
+      });
+    });
+
     it("does not poll when nothing is queued or processing", () => {
       jest.useFakeTimers();
       const { documentsApi } = setup([document({ aiStatus: "READY" })]);

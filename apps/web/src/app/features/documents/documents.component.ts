@@ -126,9 +126,23 @@ export type DocumentSelection = { id: string; kind: "file" | "folder" };
 
 const DOCUMENT_PAGE_SIZE = 20;
 const AI_POLL_INTERVAL_MS = 5000;
+/**
+ * Polls in a row that changed nothing before polling gives up (10 minutes).
+ * Something that stuck cannot finish by itself; a reload or an AI action on
+ * the document starts polling again.
+ */
+const AI_POLL_MAX_IDLE = 120;
 
 const isAiInProgress = (status: DocumentAiStatus | undefined): boolean =>
   status === "QUEUED" || status === "PROCESSING";
+
+/** In progress and not yet offered a manual retry: worth watching. */
+const isAiWatched = (
+  item:
+    | { aiStatus?: DocumentAiStatus; aiRetryable?: boolean }
+    | null
+    | undefined,
+): boolean => isAiInProgress(item?.aiStatus) && !item?.aiRetryable;
 
 @Component({
   selector: "law-documents",
@@ -240,6 +254,10 @@ export class DocumentsComponent implements OnInit {
   /** Bumped when an AI mutation starts and ends; older poll responses are dropped. */
   private aiMutationGeneration = 0;
   private aiConfirmPending = false;
+  /** Statuses seen by the last poll, to tell whether a poll changed anything. */
+  private lastAiSignature: string | null = null;
+  private idleAiPolls = 0;
+  private readonly aiPollingExhausted = signal(false);
   readonly documents = signal<DocumentSummary[]>([]);
   readonly loading = signal(false);
   readonly error = signal(false);
@@ -257,8 +275,9 @@ export class DocumentsComponent implements OnInit {
   readonly aiAccessControl = new FormControl(false, { nonNullable: true });
   private readonly aiPollingNeeded = computed(
     () =>
-      this.documents().some((row) => isAiInProgress(row.aiStatus)) ||
-      isAiInProgress(this.detailDocument()?.aiStatus),
+      !this.aiPollingExhausted() &&
+      (this.documents().some(isAiWatched) ||
+        isAiWatched(this.detailDocument())),
   );
   readonly detailForm = new FormGroup({
     title: new FormControl("", { nonNullable: true }),
@@ -755,6 +774,7 @@ export class DocumentsComponent implements OnInit {
 
   /** Cancels any in-flight poll so a stale response cannot overwrite the mutation result. */
   private beginAiMutation(): void {
+    this.resumeAiPolling();
     this.aiMutationGeneration++;
     this.pollSubscription?.unsubscribe();
     this.pollInFlight = false;
@@ -840,6 +860,27 @@ export class DocumentsComponent implements OnInit {
       this.aiAccessControl.setValue(detail.aiAccess, { emitEvent: false });
   }
 
+  private resumeAiPolling(): void {
+    this.lastAiSignature = null;
+    this.idleAiPolls = 0;
+    this.aiPollingExhausted.set(false);
+  }
+
+  /** Counts a poll that changed nothing; past the cap, polling stops. */
+  private trackAiPoll(
+    items: ReadonlyArray<DocumentSummary>,
+    detail: DocumentDetail | null,
+  ): void {
+    const signature = [...items, ...(detail ? [detail] : [])]
+      .map((item) => `${item.id}:${item.aiStatus}:${item.aiRetryable}`)
+      .join("|");
+    const changed =
+      this.lastAiSignature !== null && this.lastAiSignature !== signature;
+    this.lastAiSignature = signature;
+    this.idleAiPolls = changed ? 0 : this.idleAiPolls + 1;
+    if (this.idleAiPolls >= AI_POLL_MAX_IDLE) this.aiPollingExhausted.set(true);
+  }
+
   /** Silent reload of the current page and the open detail (no spinner, no state reset). */
   private refreshAiStatus(): void {
     if (
@@ -869,6 +910,7 @@ export class DocumentsComponent implements OnInit {
       .subscribe({
         next: ({ documents: response, detail }) => {
           if (generation !== this.aiMutationGeneration) return;
+          this.trackAiPoll(response.items, detail);
           if (response.meta.page === this.page()) {
             this.documents.set(response.items);
             this.pageCount.set(response.meta.totalPages || 1);
@@ -1207,6 +1249,7 @@ export class DocumentsComponent implements OnInit {
 
     const query = this.buildListQuery(arch);
 
+    this.resumeAiPolling();
     this.pollSubscription?.unsubscribe();
     this.pollInFlight = false;
     this.listSubscription?.unsubscribe();
