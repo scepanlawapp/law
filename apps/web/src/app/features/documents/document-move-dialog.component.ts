@@ -109,7 +109,7 @@ export interface DocumentMoveContext {
       <p hlmDialogDescription>{{ "documents.move.destination" | translate }}</p>
     </hlm-dialog-header>
     <div
-      class="my-4 max-h-[55dvh] min-h-40 overflow-y-auto"
+      class="my-4 min-h-0 flex-1 overflow-y-auto"
       [attr.aria-busy]="loading()"
     >
       <button

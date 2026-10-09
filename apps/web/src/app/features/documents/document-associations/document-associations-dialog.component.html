@@ -5,129 +5,133 @@
   </p>
 </hlm-dialog-header>
 
-<form class="mt-5 space-y-5" (submit)="$event.preventDefault(); save()">
-  <p class="break-words font-medium">{{ documentTitle }}</p>
+<form
+  class="mt-5 flex min-h-0 flex-1 flex-col gap-5"
+  (submit)="$event.preventDefault(); save()"
+>
+  <div class="min-h-0 flex-1 space-y-5 overflow-y-auto">
+    <p class="break-words font-medium">{{ documentTitle }}</p>
 
-  <div class="grid gap-4 md:grid-cols-2">
-    <div class="flex min-w-0 flex-col gap-1">
-      <label class="text-sm font-medium" for="document-associations-clients">
-        {{ "documents.associations.clients" | translate }}
-      </label>
-      <div
-        hlmComboboxMultiple
-        [value]="selectedClientIds()"
-        (valueChange)="setClientIds($event ?? [])"
-        [itemToString]="clientItemToString"
-        [disabled]="!allowClientPicker || saving()"
-      >
-        <hlm-combobox-chips>
-          <div *hlmComboboxValues="let values">
-            @for (id of values; track id) {
-              <hlm-combobox-chip [value]="id">
-                {{ clientItemToString(id) }}
-              </hlm-combobox-chip>
-            }
-          </div>
-          <input
-            hlmComboboxChipInput
-            id="document-associations-clients"
-            [placeholder]="'documents.associations.searchClients' | translate"
-            [disabled]="!allowClientPicker || saving()"
-            (input)="onClientSearch($event)"
-          />
-        </hlm-combobox-chips>
-        <hlm-combobox-content *hlmComboboxPortal>
-          @if (clientOptionsLoading()) {
-            <div
-              class="flex items-center gap-2 p-2 text-muted-foreground"
-              role="status"
-            >
-              <hlm-spinner class="size-4" />
-              {{ "documents.associations.loading" | translate }}
-            </div>
-          } @else if (clientOptionsError()) {
-            <hlm-combobox-empty>
-              {{ "documents.associations.loadError" | translate }}
-            </hlm-combobox-empty>
-          } @else {
-            <hlm-combobox-empty>
-              {{ "documents.associations.noResults" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (option of clientOptions(); track option.id) {
-                <hlm-combobox-item [value]="option.id">
-                  {{ option.label }}
-                </hlm-combobox-item>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="text-sm font-medium" for="document-associations-clients">
+          {{ "documents.associations.clients" | translate }}
+        </label>
+        <div
+          hlmComboboxMultiple
+          [value]="selectedClientIds()"
+          (valueChange)="setClientIds($event ?? [])"
+          [itemToString]="clientItemToString"
+          [disabled]="!allowClientPicker || saving()"
+        >
+          <hlm-combobox-chips>
+            <div *hlmComboboxValues="let values">
+              @for (id of values; track id) {
+                <hlm-combobox-chip [value]="id">
+                  {{ clientItemToString(id) }}
+                </hlm-combobox-chip>
               }
             </div>
-          }
-        </hlm-combobox-content>
+            <input
+              hlmComboboxChipInput
+              id="document-associations-clients"
+              [placeholder]="'documents.associations.searchClients' | translate"
+              [disabled]="!allowClientPicker || saving()"
+              (input)="onClientSearch($event)"
+            />
+          </hlm-combobox-chips>
+          <hlm-combobox-content *hlmComboboxPortal>
+            @if (clientOptionsLoading()) {
+              <div
+                class="flex items-center gap-2 p-2 text-muted-foreground"
+                role="status"
+              >
+                <hlm-spinner class="size-4" />
+                {{ "documents.associations.loading" | translate }}
+              </div>
+            } @else if (clientOptionsError()) {
+              <hlm-combobox-empty>
+                {{ "documents.associations.loadError" | translate }}
+              </hlm-combobox-empty>
+            } @else {
+              <hlm-combobox-empty>
+                {{ "documents.associations.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (option of clientOptions(); track option.id) {
+                  <hlm-combobox-item [value]="option.id">
+                    {{ option.label }}
+                  </hlm-combobox-item>
+                }
+              </div>
+            }
+          </hlm-combobox-content>
+        </div>
+      </div>
+
+      <div class="flex min-w-0 flex-col gap-1">
+        <label class="text-sm font-medium" for="document-associations-cases">
+          {{ "documents.associations.cases" | translate }}
+        </label>
+        <div
+          hlmComboboxMultiple
+          [value]="selectedCaseIds()"
+          (valueChange)="setCaseIds($event ?? [])"
+          [itemToString]="caseItemToString"
+          [disabled]="!allowCasePicker || saving()"
+        >
+          <hlm-combobox-chips>
+            <div *hlmComboboxValues="let values">
+              @for (id of values; track id) {
+                <hlm-combobox-chip [value]="id">
+                  {{ caseItemToString(id) }}
+                </hlm-combobox-chip>
+              }
+            </div>
+            <input
+              hlmComboboxChipInput
+              id="document-associations-cases"
+              [placeholder]="'documents.associations.searchCases' | translate"
+              [disabled]="!allowCasePicker || saving()"
+              (input)="onCaseSearch($event)"
+            />
+          </hlm-combobox-chips>
+          <hlm-combobox-content *hlmComboboxPortal>
+            @if (caseOptionsLoading()) {
+              <div
+                class="flex items-center gap-2 p-2 text-muted-foreground"
+                role="status"
+              >
+                <hlm-spinner class="size-4" />
+                {{ "documents.associations.loading" | translate }}
+              </div>
+            } @else if (caseOptionsError()) {
+              <hlm-combobox-empty>
+                {{ "documents.associations.loadError" | translate }}
+              </hlm-combobox-empty>
+            } @else {
+              <hlm-combobox-empty>
+                {{ "documents.associations.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (option of caseOptions(); track option.id) {
+                  <hlm-combobox-item [value]="option.id">
+                    {{ option.label }}
+                  </hlm-combobox-item>
+                }
+              </div>
+            }
+          </hlm-combobox-content>
+        </div>
       </div>
     </div>
 
-    <div class="flex min-w-0 flex-col gap-1">
-      <label class="text-sm font-medium" for="document-associations-cases">
-        {{ "documents.associations.cases" | translate }}
-      </label>
-      <div
-        hlmComboboxMultiple
-        [value]="selectedCaseIds()"
-        (valueChange)="setCaseIds($event ?? [])"
-        [itemToString]="caseItemToString"
-        [disabled]="!allowCasePicker || saving()"
-      >
-        <hlm-combobox-chips>
-          <div *hlmComboboxValues="let values">
-            @for (id of values; track id) {
-              <hlm-combobox-chip [value]="id">
-                {{ caseItemToString(id) }}
-              </hlm-combobox-chip>
-            }
-          </div>
-          <input
-            hlmComboboxChipInput
-            id="document-associations-cases"
-            [placeholder]="'documents.associations.searchCases' | translate"
-            [disabled]="!allowCasePicker || saving()"
-            (input)="onCaseSearch($event)"
-          />
-        </hlm-combobox-chips>
-        <hlm-combobox-content *hlmComboboxPortal>
-          @if (caseOptionsLoading()) {
-            <div
-              class="flex items-center gap-2 p-2 text-muted-foreground"
-              role="status"
-            >
-              <hlm-spinner class="size-4" />
-              {{ "documents.associations.loading" | translate }}
-            </div>
-          } @else if (caseOptionsError()) {
-            <hlm-combobox-empty>
-              {{ "documents.associations.loadError" | translate }}
-            </hlm-combobox-empty>
-          } @else {
-            <hlm-combobox-empty>
-              {{ "documents.associations.noResults" | translate }}
-            </hlm-combobox-empty>
-            <div hlmComboboxList>
-              @for (option of caseOptions(); track option.id) {
-                <hlm-combobox-item [value]="option.id">
-                  {{ option.label }}
-                </hlm-combobox-item>
-              }
-            </div>
-          }
-        </hlm-combobox-content>
-      </div>
-    </div>
+    @if (saveError()) {
+      <p role="alert" class="text-destructive">
+        {{ "documents.associations.saveError" | translate }}
+      </p>
+    }
   </div>
-
-  @if (saveError()) {
-    <p role="alert" class="text-destructive">
-      {{ "documents.associations.saveError" | translate }}
-    </p>
-  }
-
   <hlm-dialog-footer>
     <button
       hlmBtn

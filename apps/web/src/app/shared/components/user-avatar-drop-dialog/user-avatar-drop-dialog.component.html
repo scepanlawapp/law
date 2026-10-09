@@ -5,7 +5,7 @@
   </p>
 </hlm-dialog-header>
 
-<div class="flex min-w-0 flex-col gap-4">
+<div class="flex min-h-0 min-w-0 flex-1 flex-col gap-4 overflow-y-auto">
   <input
     #fileInput
     type="file"
@@ -14,21 +14,48 @@
     [disabled]="cropping()"
     (change)="selectImage($event)"
   />
-
-  <button
-    hlmBtn
-    variant="outline"
-    type="button"
-    [disabled]="cropping()"
-    (click)="fileInput.click()"
+  <div
+    class="flex min-h-50 shrink-0 flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed p-6 text-center transition-colors duration-200"
+    [class]="
+      dragging() ? 'border-primary bg-primary/10' : 'border-border bg-muted/30'
+    "
+    [class.opacity-50]="cropping()"
+    (dragenter)="dragEnter($event)"
+    (dragover)="dragOver($event)"
+    (dragleave)="dragLeave($event)"
+    (drop)="dropImage($event)"
   >
-    {{
-      (imageFile()
-        ? "settings.avatarCrop.chooseAnother"
-        : "settings.avatarCrop.choose"
-      ) | translate
-    }}
-  </button>
+    <ng-icon
+      name="lucideImagePlus"
+      class="text-primary text-3xl"
+      aria-hidden="true"
+    />
+    <p class="text-sm font-medium" aria-live="polite">
+      {{
+        (dragging()
+          ? "settings.avatarCrop.release"
+          : "settings.avatarCrop.drop"
+        ) | translate
+      }}
+    </p>
+    <p class="text-sm text-muted-foreground">
+      {{ "settings.avatarCrop.formats" | translate }}
+    </p>
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      [disabled]="cropping()"
+      (click)="fileInput.click()"
+    >
+      {{
+        (imageFile()
+          ? "settings.avatarCrop.chooseAnother"
+          : "settings.avatarCrop.choose"
+        ) | translate
+      }}
+    </button>
+  </div>
 
   @if (imageFile(); as file) {
     <div class="max-h-[55vh] overflow-auto rounded-lg bg-muted">
@@ -57,40 +84,40 @@
       {{ error() }}
     </p>
   }
+</div>
+<div class="flex shrink-0 flex-wrap justify-end gap-2">
+  <button
+    hlmBtn
+    variant="destructive"
+    type="button"
+    class="me-auto"
+    [disabled]="cropping()"
+    (click)="removeProfileImage()"
+  >
+    {{ "settings.avatarCrop.remove" | translate }}
+  </button>
 
-  <div class="flex justify-end gap-2">
-    <button
-      hlmBtn
-      variant="destructive"
-      type="button"
-      [disabled]="cropping()"
-      (click)="removeProfileImage()"
-    >
-      {{ "settings.avatarCrop.remove" | translate }}
-    </button>
+  <button
+    hlmBtn
+    variant="outline"
+    type="button"
+    [disabled]="cropping()"
+    (click)="cancel()"
+  >
+    {{ "common.cancel" | translate }}
+  </button>
 
-    <button
-      hlmBtn
-      variant="outline"
-      type="button"
-      [disabled]="cropping()"
-      (click)="cancel()"
-    >
-      {{ "common.cancel" | translate }}
-    </button>
-
-    <button
-      hlmBtn
-      type="button"
-      [disabled]="!ready() || cropping()"
-      (click)="apply()"
-    >
-      {{
-        (cropping()
-          ? "settings.avatarCrop.cropping"
-          : "settings.avatarCrop.apply"
-        ) | translate
-      }}
-    </button>
-  </div>
+  <button
+    hlmBtn
+    type="button"
+    [disabled]="!ready() || cropping()"
+    (click)="apply()"
+  >
+    {{
+      (cropping()
+        ? "settings.avatarCrop.cropping"
+        : "settings.avatarCrop.apply"
+      ) | translate
+    }}
+  </button>
 </div>

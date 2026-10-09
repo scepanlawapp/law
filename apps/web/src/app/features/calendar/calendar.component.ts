@@ -761,6 +761,9 @@ export class CalendarComponent {
   }
 
   private loadRange(scrollToNow = true): void {
+    const scrollTop = scrollToNow
+      ? undefined
+      : this.scheduleViewport?.nativeElement.scrollTop;
     const sequence = ++this.requestSequence;
     this.loading.set(true);
     this.error.set(false);
@@ -781,6 +784,13 @@ export class CalendarComponent {
           this.incomplete.set(Boolean(response.nextCursor));
           this.loading.set(false);
           if (scrollToNow) this.scrollToCurrentHour();
+          else if (scrollTop !== undefined) {
+            requestAnimationFrame(() => {
+              if (sequence !== this.requestSequence) return;
+              const viewport = this.scheduleViewport?.nativeElement;
+              if (viewport) viewport.scrollTop = scrollTop;
+            });
+          }
         },
         error: () => {
           if (sequence !== this.requestSequence) return;

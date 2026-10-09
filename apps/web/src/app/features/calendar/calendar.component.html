@@ -395,6 +395,7 @@
         </section>
       } @else if (view() === "list" || view() === "board") {
         <section
+          #scheduleViewport
           class="calendar-viewport"
           aria-label="{{ 'calendar.list' | translate }}"
         >
@@ -409,6 +410,7 @@
         </section>
       } @else {
         <section
+          #scheduleViewport
           class="calendar-viewport"
           aria-label="{{ 'calendar.month' | translate }}"
         >

@@ -8,83 +8,131 @@
     {{ "calendar.eventDialogDescription" | translate }}
   </p>
 </hlm-dialog-header>
-<form [formGroup]="form" (ngSubmit)="submit()" class="grid gap-4" novalidate>
-  <div hlmField>
-    <label hlmFieldLabel for="event-type">
-      {{ "calendar.eventType" | translate }}
-    </label>
-    <select
-      id="event-type"
-      formControlName="type"
-      class="h-10 rounded-md border border-input bg-background px-3 text-sm"
-    >
-      <option value="MEETING">{{ "calendar.type.meeting" | translate }}</option>
-      <option value="HEARING">{{ "calendar.type.hearing" | translate }}</option>
-      <option value="CALL">{{ "calendar.type.call" | translate }}</option>
-      <option value="OTHER">{{ "calendar.type.other" | translate }}</option>
-    </select>
-  </div>
-  <div hlmField>
-    <label hlmFieldLabel for="event-title">
-      {{ "calendar.eventTitle" | translate }}
-    </label>
-    <input hlmInput id="event-title" formControlName="title" />
-  </div>
-  <div class="grid gap-4 md:grid-cols-2">
+<form
+  [formGroup]="form"
+  (ngSubmit)="submit()"
+  class="flex min-h-0 flex-1 flex-col gap-4"
+  novalidate
+>
+  <div class="grid min-h-0 flex-1 gap-4 overflow-y-auto">
     <div hlmField>
-      <label hlmFieldLabel for="event-client">
-        {{ "calendar.client" | translate }}
+      <label hlmFieldLabel for="event-type">
+        {{ "calendar.eventType" | translate }}
       </label>
-      <div
-        hlmComboboxMultiple
-        [value]="form.controls.clientIds.value"
-        (valueChange)="setClientIds($event ?? [])"
-        [itemToString]="clientItemToString"
+      <select
+        id="event-type"
+        formControlName="type"
+        class="h-10 rounded-md border border-input bg-background px-3 text-sm"
       >
-        <hlm-combobox-trigger
-          buttonId="event-client"
-          class="w-full min-w-0 max-w-full"
+        <option value="MEETING">
+          {{ "calendar.type.meeting" | translate }}
+        </option>
+        <option value="HEARING">
+          {{ "calendar.type.hearing" | translate }}
+        </option>
+        <option value="CALL">{{ "calendar.type.call" | translate }}</option>
+        <option value="OTHER">{{ "calendar.type.other" | translate }}</option>
+      </select>
+    </div>
+    <div hlmField>
+      <label hlmFieldLabel for="event-title">
+        {{ "calendar.eventTitle" | translate }}
+      </label>
+      <input hlmInput id="event-title" formControlName="title" />
+    </div>
+    <div class="grid gap-4 md:grid-cols-2">
+      <div hlmField>
+        <label hlmFieldLabel for="event-client">
+          {{ "calendar.client" | translate }}
+        </label>
+        <div
+          hlmComboboxMultiple
+          [value]="form.controls.clientIds.value"
+          (valueChange)="setClientIds($event ?? [])"
+          [itemToString]="clientItemToString"
         >
-          <span data-slot="combobox-value" class="truncate">
-            @if (selectedClientsLabel(); as label) {
-              {{ label }}
-            } @else {
-              <span class="text-muted-foreground">
-                {{ "work.noClient" | translate }}
-              </span>
-            }
-          </span>
-        </hlm-combobox-trigger>
-        <hlm-combobox-content *hlmComboboxPortal width="content">
-          <hlm-combobox-input
-            [placeholder]="'work.filters.searchPlaceholder' | translate"
-            [showTrigger]="false"
-          />
-          <hlm-combobox-empty>
-            {{ "work.filters.noResults" | translate }}
-          </hlm-combobox-empty>
-          <div hlmComboboxList>
-            @for (client of clients(); track client.id) {
-              <hlm-combobox-item [value]="client.id">
-                {{ client.displayName }}
+          <hlm-combobox-trigger
+            buttonId="event-client"
+            class="w-full min-w-0 max-w-full"
+          >
+            <span data-slot="combobox-value" class="truncate">
+              @if (selectedClientsLabel(); as label) {
+                {{ label }}
+              } @else {
+                <span class="text-muted-foreground">
+                  {{ "work.noClient" | translate }}
+                </span>
+              }
+            </span>
+          </hlm-combobox-trigger>
+          <hlm-combobox-content *hlmComboboxPortal width="content">
+            <hlm-combobox-input
+              [placeholder]="'work.filters.searchPlaceholder' | translate"
+              [showTrigger]="false"
+            />
+            <hlm-combobox-empty>
+              {{ "work.filters.noResults" | translate }}
+            </hlm-combobox-empty>
+            <div hlmComboboxList>
+              @for (client of clients(); track client.id) {
+                <hlm-combobox-item [value]="client.id">
+                  {{ client.displayName }}
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </div>
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="event-case">
+          {{ "calendar.case" | translate }}
+        </label>
+        <div
+          hlmCombobox
+          [value]="form.controls.caseId.value"
+          (valueChange)="setCaseId($event)"
+          [itemToString]="caseItemToString"
+        >
+          <hlm-combobox-trigger
+            buttonId="event-case"
+            class="w-full min-w-0 max-w-full"
+          >
+            <hlm-combobox-value />
+          </hlm-combobox-trigger>
+          <hlm-combobox-content *hlmComboboxPortal width="content">
+            <hlm-combobox-input
+              [placeholder]="'work.filters.searchPlaceholder' | translate"
+              [showTrigger]="false"
+            />
+            <hlm-combobox-empty>
+              {{ "work.filters.noResults" | translate }}
+            </hlm-combobox-empty>
+            <div hlmComboboxList>
+              <hlm-combobox-item value="">
+                {{ "work.noCase" | translate }}
               </hlm-combobox-item>
-            }
-          </div>
-        </hlm-combobox-content>
+              @for (caseItem of cases(); track caseItem.id) {
+                <hlm-combobox-item [value]="caseItem.id">
+                  {{ caseItem.caseNumber }} — {{ caseItem.name }}
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </div>
       </div>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="event-case">
-        {{ "calendar.case" | translate }}
+      <label hlmFieldLabel for="event-responsible">
+        {{ "work.responsible" | translate }}
       </label>
       <div
         hlmCombobox
-        [value]="form.controls.caseId.value"
-        (valueChange)="setCaseId($event)"
-        [itemToString]="caseItemToString"
+        [value]="form.controls.responsibleUserId.value"
+        (valueChange)="setResponsibleUserId($event)"
+        [itemToString]="userItemToString"
       >
         <hlm-combobox-trigger
-          buttonId="event-case"
+          buttonId="event-responsible"
           class="w-full min-w-0 max-w-full"
         >
           <hlm-combobox-value />
@@ -98,96 +146,59 @@
             {{ "work.filters.noResults" | translate }}
           </hlm-combobox-empty>
           <div hlmComboboxList>
-            <hlm-combobox-item value="">
-              {{ "work.noCase" | translate }}
-            </hlm-combobox-item>
-            @for (caseItem of cases(); track caseItem.id) {
-              <hlm-combobox-item [value]="caseItem.id">
-                {{ caseItem.caseNumber }} — {{ caseItem.name }}
+            @for (user of users(); track user.id) {
+              <hlm-combobox-item [value]="user.id">
+                {{ user.name }}
               </hlm-combobox-item>
             }
           </div>
         </hlm-combobox-content>
       </div>
     </div>
-  </div>
-  <div hlmField>
-    <label hlmFieldLabel for="event-responsible">
-      {{ "work.responsible" | translate }}
-    </label>
-    <div
-      hlmCombobox
-      [value]="form.controls.responsibleUserId.value"
-      (valueChange)="setResponsibleUserId($event)"
-      [itemToString]="userItemToString"
-    >
-      <hlm-combobox-trigger
-        buttonId="event-responsible"
-        class="w-full min-w-0 max-w-full"
-      >
-        <hlm-combobox-value />
-      </hlm-combobox-trigger>
-      <hlm-combobox-content *hlmComboboxPortal width="content">
-        <hlm-combobox-input
-          [placeholder]="'work.filters.searchPlaceholder' | translate"
-          [showTrigger]="false"
+    <div class="grid gap-4 md:grid-cols-2">
+      <div hlmField>
+        <label hlmFieldLabel for="event-start">
+          {{ "calendar.startsAt" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="event-start"
+          type="datetime-local"
+          formControlName="startsAt"
         />
-        <hlm-combobox-empty>
-          {{ "work.filters.noResults" | translate }}
-        </hlm-combobox-empty>
-        <div hlmComboboxList>
-          @for (user of users(); track user.id) {
-            <hlm-combobox-item [value]="user.id">
-              {{ user.name }}
-            </hlm-combobox-item>
-          }
-        </div>
-      </hlm-combobox-content>
-    </div>
-  </div>
-  <div class="grid gap-4 md:grid-cols-2">
-    <div hlmField>
-      <label hlmFieldLabel for="event-start">
-        {{ "calendar.startsAt" | translate }}
-      </label>
-      <input
-        hlmInput
-        id="event-start"
-        type="datetime-local"
-        formControlName="startsAt"
-      />
+      </div>
+      <div hlmField>
+        <label hlmFieldLabel for="event-end">
+          {{ "calendar.endsAt" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="event-end"
+          type="datetime-local"
+          formControlName="endsAt"
+        />
+      </div>
     </div>
     <div hlmField>
-      <label hlmFieldLabel for="event-end">
-        {{ "calendar.endsAt" | translate }}
+      <label hlmFieldLabel for="event-location">
+        {{ "calendar.location" | translate }}
       </label>
-      <input
-        hlmInput
-        id="event-end"
-        type="datetime-local"
-        formControlName="endsAt"
-      />
+      <input hlmInput id="event-location" formControlName="location" />
     </div>
+    <div hlmField>
+      <label hlmFieldLabel for="event-description">
+        {{ "calendar.description" | translate }}
+      </label>
+      <textarea
+        hlmTextarea
+        id="event-description"
+        formControlName="description"
+      ></textarea>
+    </div>
+    @if (eventId) {
+      <law-event-work-entries [eventId]="eventId" [disabled]="saving()" />
+    }
   </div>
-  <div hlmField>
-    <label hlmFieldLabel for="event-location">
-      {{ "calendar.location" | translate }}
-    </label>
-    <input hlmInput id="event-location" formControlName="location" />
-  </div>
-  <div hlmField>
-    <label hlmFieldLabel for="event-description">
-      {{ "calendar.description" | translate }}
-    </label>
-    <textarea
-      hlmTextarea
-      id="event-description"
-      formControlName="description"
-    ></textarea>
-  </div>
-  @if (eventId) {
-    <law-event-work-entries [eventId]="eventId" [disabled]="saving()" />
-  }
   <hlm-dialog-footer class="flex justify-end gap-2">
     <button
       hlmBtn
