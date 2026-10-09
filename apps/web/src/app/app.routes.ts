@@ -1,3 +1,4 @@
+import { companyReportsGuard } from "./features/reports/prototype/reports.guard";
 import {
   revenueSettingsGuard,
   revenueUnsavedGuard,
@@ -133,7 +134,53 @@ export const appRoutes: Route[] = [
           },
         ],
       },
-      { path: "reports", component: ReportsComponent },
+      { path: "reports", pathMatch: "full", redirectTo: "reports/overview" },
+      { path: "reports/catalog", component: ReportsComponent },
+      {
+        path: "reports/overview",
+        data: { view: "overview" },
+        canActivate: [companyReportsGuard],
+        loadComponent: () =>
+          import("./features/reports/prototype/report-page.component").then(
+            (m) => m.ReportPageComponent,
+          ),
+      },
+      {
+        path: "reports/earnings/:memberId",
+        data: { view: "detail" },
+        canActivate: [companyReportsGuard],
+        loadComponent: () =>
+          import("./features/reports/prototype/report-page.component").then(
+            (m) => m.ReportPageComponent,
+          ),
+      },
+      {
+        path: "reports/earnings",
+        data: { view: "earnings" },
+        canActivate: [companyReportsGuard],
+        loadComponent: () =>
+          import("./features/reports/prototype/report-page.component").then(
+            (m) => m.ReportPageComponent,
+          ),
+      },
+      {
+        path: "reports/outstanding",
+        data: { view: "outstanding" },
+        canActivate: [companyReportsGuard],
+        loadComponent: () =>
+          import("./features/reports/prototype/report-page.component").then(
+            (m) => m.ReportPageComponent,
+          ),
+      },
+      {
+        path: "reports/my-earnings",
+        data: { view: "personal" },
+
+        loadComponent: () =>
+          import("./features/reports/prototype/report-page.component").then(
+            (m) => m.ReportPageComponent,
+          ),
+      },
       {
         path: "reports/profitability",
         component: ProfitabilityComponent,
