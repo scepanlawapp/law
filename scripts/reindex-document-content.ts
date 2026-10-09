@@ -3,6 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { Queue } from "bullmq";
 import { DocumentIngestionQueue } from "../libs/api/features/document-ingestion/src/lib/document-ingestion.queue";
 import {
+  DEFAULT_EMBEDDING_MODEL,
   DOCUMENT_INGEST_QUEUE,
   DocumentIngestPayload,
 } from "../libs/api/features/document-ingestion/src/lib/document-ingestion.types";
@@ -19,7 +20,12 @@ import {
  * processor, so Redis and the API must be up for jobs to complete.
  */
 async function main(): Promise<void> {
-  const options = parseReindexArgs(process.argv.slice(2));
+  const options = {
+    ...parseReindexArgs(process.argv.slice(2)),
+    // Same resolution as the document embedding provider.
+    embeddingModel:
+      process.env.LEGAL_EMBEDDING_MODEL?.trim() || DEFAULT_EMBEDDING_MODEL,
+  };
   const prisma = new PrismaClient();
 
   // Same Redis options as QueueRootModule.

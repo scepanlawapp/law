@@ -1,11 +1,20 @@
 import type { PrismaClient } from "@prisma/client";
-import { CURRENT_PIPELINE_VERSION } from "../libs/api/features/document-ingestion/src/lib/document-ingestion.types";
+import {
+  CURRENT_PIPELINE_VERSION,
+  DEFAULT_EMBEDDING_MODEL,
+  isIngestionCurrent,
+} from "../libs/api/features/document-ingestion/src/lib/document-ingestion.types";
 
 export interface ReindexOptions {
   /** Only content below `CURRENT_PIPELINE_VERSION`; READY rows on it are skipped either way. */
   pipelineVersionOnly: boolean;
   /** Count candidates without enqueueing anything. */
   dryRun: boolean;
+  /**
+   * Embedding model in use now (`LEGAL_EMBEDDING_MODEL`); READY content from
+   * another model is stale. Defaults to the platform default.
+   */
+  embeddingModel?: string;
 }
 
 export interface ReindexResult {
@@ -37,14 +46,17 @@ export function parseReindexArgs(argv: string[]): ReindexOptions {
  * Enqueues ingestion for content that an AI-readable source points at: current
  * versions of non-archived documents with `aiAccess = true` (any version) and
  * chat attachments that are unfiled or filed as such a document. Content
- * reachable only through access-off documents is never enqueued. Rows already READY on the current pipeline version are skipped,
- * matching `DocumentContentService.requestIngestion`.
+ * reachable only through access-off documents is never enqueued, nor is that
+ * of chat sessions the user deleted. Content that is READY, on the current
+ * pipeline version, embedded by the current model and without a retry marker
+ * is skipped, matching `DocumentContentService.requestIngestion`.
  */
 export async function reindexDocumentContent(
   prisma: PrismaClient,
   enqueue: EnqueueIngestion,
   options: ReindexOptions,
 ): Promise<ReindexResult> {
+  const embeddingModel = options.embeddingModel ?? DEFAULT_EMBEDDING_MODEL;
   const byWorkspace = new Map<string, Set<string>>();
   const add = (workspaceId: string, contentId: string | null) => {
     if (!contentId) return;
@@ -76,6 +88,8 @@ export async function reindexDocumentContent(
       where: {
         contentId: { not: null },
         id: { gt: cursor },
+        // A deleted conversation's files are no longer the user's to be read.
+        session: { isDeleted: false },
         // Unfiled attachments are readable; filed ones follow their document.
         OR: [
           { documentId: null },
@@ -102,15 +116,24 @@ export async function reindexDocumentContent(
       const contents = await prisma.documentContent.findMany({
         where: { id: { in: all.slice(i, i + PAGE_SIZE) }, workspaceId },
         orderBy: { id: "asc" },
-        select: { id: true, status: true, pipelineVersion: true },
+        select: {
+          id: true,
+          status: true,
+          pipelineVersion: true,
+          failedStep: true,
+          embeddingModel: true,
+        },
       });
       for (const content of contents) {
         if (content.status === "UNSUPPORTED") continue;
-        const outdated = content.pipelineVersion < CURRENT_PIPELINE_VERSION;
+        const outdated =
+          content.pipelineVersion < CURRENT_PIPELINE_VERSION ||
+          (content.status === "READY" &&
+            content.embeddingModel !== embeddingModel);
         if (
           options.pipelineVersionOnly
             ? !outdated
-            : !outdated && content.status === "READY"
+            : isIngestionCurrent(content, embeddingModel)
         ) {
           continue;
         }

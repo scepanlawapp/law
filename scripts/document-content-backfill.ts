@@ -41,7 +41,7 @@ export interface BackfillLogger {
   warn(message: string): void;
 }
 
-const PAGE_SIZE = 200;
+const PAGE_SIZE = 50;
 const DEFAULT_MIME = "application/octet-stream";
 
 type LegacyExtraction = {
@@ -269,28 +269,36 @@ export async function backfillDocumentContent(
   // assistant, so they keep that access. A system change: no acting user.
   // Only documents nobody ever toggled (aiAccessChangedAt null) qualify, so a
   // user's explicit "off" is never reverted and re-runs settle at zero.
-  const promoted = await prisma.chatAttachment.findMany({
-    where: { documentId: { not: null } },
-    select: { workspaceId: true, documentId: true },
-  });
-  const idsByWorkspace = new Map<string, string[]>();
-  for (const row of promoted) {
-    const ids = idsByWorkspace.get(row.workspaceId) ?? [];
-    ids.push(row.documentId as string);
-    idsByWorkspace.set(row.workspaceId, ids);
-  }
   const now = new Date();
-  for (const [workspaceId, ids] of idsByWorkspace) {
-    const updated = await prisma.document.updateMany({
-      where: {
-        id: { in: ids },
-        workspaceId,
-        aiAccess: false,
-        aiAccessChangedAt: null,
-      },
-      data: { aiAccess: true, aiAccessChangedAt: now },
+  cursor = "";
+  for (;;) {
+    const promoted = await prisma.chatAttachment.findMany({
+      where: { documentId: { not: null }, id: { gt: cursor } },
+      orderBy: { id: "asc" },
+      take: PAGE_SIZE,
+      select: { id: true, workspaceId: true, documentId: true },
     });
-    result.documentsOptedIn += updated.count;
+    if (promoted.length === 0) break;
+    cursor = promoted[promoted.length - 1].id;
+
+    const idsByWorkspace = new Map<string, string[]>();
+    for (const row of promoted) {
+      const ids = idsByWorkspace.get(row.workspaceId) ?? [];
+      ids.push(row.documentId as string);
+      idsByWorkspace.set(row.workspaceId, ids);
+    }
+    for (const [workspaceId, ids] of idsByWorkspace) {
+      const updated = await prisma.document.updateMany({
+        where: {
+          id: { in: ids },
+          workspaceId,
+          aiAccess: false,
+          aiAccessChangedAt: null,
+        },
+        data: { aiAccess: true, aiAccessChangedAt: now },
+      });
+      result.documentsOptedIn += updated.count;
+    }
   }
 
   return result;

@@ -28,6 +28,7 @@ function createFakePrisma(seed: {
   attachments?: Row[];
   documents?: Row[];
   contents?: Row[];
+  sessions?: Row[];
 }) {
   const t = {
     storedFiles: seed.storedFiles ?? [],
@@ -35,6 +36,7 @@ function createFakePrisma(seed: {
     attachments: seed.attachments ?? [],
     documents: seed.documents ?? [],
     contents: seed.contents ?? [],
+    sessions: seed.sessions ?? [],
   };
   let nextId = 1;
   const state = { failNextUpsertWithP2002: false };
@@ -56,6 +58,13 @@ function createFakePrisma(seed: {
     Object.entries(where).every(([key, cond]) => {
       if (key === "OR") {
         return (cond as Row[]).some((c) => matches(row, c, resolve));
+      }
+      if (key === "session" && resolve) {
+        // Sessions the fixture does not list are live.
+        const session = t.sessions.find((x) => x.id === row.sessionId) ?? {
+          isDeleted: false,
+        };
+        return matches(session, cond as Row);
       }
       if (key === "document" && resolve) {
         const doc = t.documents.find((d) => d.id === row.documentId);
@@ -317,6 +326,33 @@ describe("backfillDocumentContent", () => {
     expect(other.aiAccess).toBe(false);
     expect(other.aiAccessChangedAt).toBeNull();
     expect(result.documentsOptedIn).toBe(1);
+  });
+
+  it("opts in promoted documents page by page instead of loading every id", async () => {
+    const count = 120;
+    const ids = Array.from({ length: count }, (_, i) => `doc-${i}`);
+    const { prisma, tables } = createFakePrisma({
+      attachments: ids.map((id, i) =>
+        attachment(`a${String(i).padStart(3, "0")}`, {
+          sha256: sha(`bytes-${i}`),
+          documentId: id,
+        }),
+      ),
+      documents: ids.map((id) => documentRow(id)),
+    });
+    const findMany = jest.spyOn(prisma.chatAttachment, "findMany");
+
+    const result = await backfillDocumentContent(prisma, deps());
+
+    expect(result.documentsOptedIn).toBe(count);
+    expect(tables.documents.every((d) => d.aiAccess === true)).toBe(true);
+    const pageSizes = findMany.mock.calls.map(([args]) => args?.take);
+    expect(pageSizes.every((take) => take === 50)).toBe(true);
+    // 3 pages of attachments to link, 3 (+1 empty) for the opt-in.
+    const optInPages = findMany.mock.calls.filter(
+      ([args]) => (args?.where as Row | undefined)?.documentId !== undefined,
+    );
+    expect(optInPages.length).toBeGreaterThanOrEqual(3);
   });
 
   it("never re-enables a promoted document a user switched off", async () => {
@@ -620,7 +656,11 @@ describe("reindexDocumentContent", () => {
         baseContent("c-on"),
         baseContent("c-off"),
         baseContent("c-chat"),
-        baseContent("c-ready", { status: "READY", pipelineVersion: 99 }),
+        baseContent("c-ready", {
+          status: "READY",
+          pipelineVersion: 99,
+          embeddingModel: "BAAI/bge-m3",
+        }),
         baseContent("c-old", { status: "READY", pipelineVersion: 0 }),
         baseContent("c-orphan"),
         baseContent("c-shared"),
@@ -655,6 +695,92 @@ describe("reindexDocumentContent", () => {
     ]);
     expect(enqueue).toHaveBeenCalledWith(WS, "c-on");
     expect(result.enqueued).toBe(6);
+  });
+
+  describe("READY content that still needs work", () => {
+    const readyContent = (id: string, extra: Row = {}) =>
+      baseContent(id, {
+        status: "READY",
+        pipelineVersion: 99,
+        embeddingModel: "BAAI/bge-m3",
+        ...extra,
+      });
+    const idsFor = async (
+      seed: Parameters<typeof createFakePrisma>[0],
+      options: Partial<Parameters<typeof reindexDocumentContent>[2]> = {},
+    ) => {
+      const { prisma } = createFakePrisma(seed);
+      const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
+      await reindexDocumentContent(prisma, enqueue, {
+        pipelineVersionOnly: false,
+        dryRun: false,
+        ...options,
+      });
+      return enqueuedIds(enqueue);
+    };
+    const seed = (content: Row) => ({
+      documents: [documentRow("doc-on", true)],
+      versions: [
+        version("v1", "s", { documentId: "doc-on", contentId: content["id"] }),
+      ],
+      contents: [content],
+    });
+
+    it("includes READY content with a failed-step marker, like requestIngestion", async () => {
+      expect(
+        await idsFor(seed(readyContent("c-marked", { failedStep: "FACTS" }))),
+      ).toEqual(["c-marked"]);
+    });
+
+    it("skips clean READY content on the current model", async () => {
+      expect(await idsFor(seed(readyContent("c-clean")))).toEqual([]);
+    });
+
+    it("includes READY content embedded by another model, in both modes", async () => {
+      const content = readyContent("c-stale", { embeddingModel: "old-model" });
+      expect(await idsFor(seed(content))).toEqual(["c-stale"]);
+      expect(
+        await idsFor(seed(content), { pipelineVersionOnly: true }),
+      ).toEqual(["c-stale"]);
+    });
+
+    it("compares against the configured embedding model", async () => {
+      const content = readyContent("c-custom", { embeddingModel: "model-x" });
+      expect(
+        await idsFor(seed(content), { embeddingModel: "model-x" }),
+      ).toEqual([]);
+      expect(
+        await idsFor(seed(content), { embeddingModel: "model-y" }),
+      ).toEqual(["c-custom"]);
+    });
+  });
+
+  it("skips attachments of soft-deleted chat sessions", async () => {
+    const { prisma } = createFakePrisma({
+      sessions: [
+        { id: "session-live", isDeleted: false },
+        { id: "session-gone", isDeleted: true },
+      ],
+      attachments: [
+        attachment("a-live", {
+          sessionId: "session-live",
+          contentId: "c-live",
+        }),
+        attachment("a-gone", {
+          sessionId: "session-gone",
+          contentId: "c-gone",
+        }),
+      ],
+      contents: [baseContent("c-live"), baseContent("c-gone")],
+    });
+    const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
+
+    await reindexDocumentContent(prisma, enqueue, {
+      pipelineVersionOnly: false,
+      dryRun: false,
+    });
+
+    expect(enqueuedIds(enqueue)).toEqual(["c-live"]);
   });
 
   it("never enqueues content of off documents, archived documents or their filed attachments", async () => {
@@ -696,7 +822,10 @@ describe("reindexDocumentContent", () => {
 
   it("with --pipeline-version skips READY content on the current version", async () => {
     const { prisma, tables } = fixture();
-    tables.contents.find((c) => c.id === "c-old")!.pipelineVersion = 99;
+    Object.assign(tables.contents.find((c) => c.id === "c-old")!, {
+      pipelineVersion: 99,
+      embeddingModel: "BAAI/bge-m3",
+    });
     const enqueue = jest.fn(async (_ws: string, _id: string) => undefined);
 
     await reindexDocumentContent(prisma, enqueue, {
