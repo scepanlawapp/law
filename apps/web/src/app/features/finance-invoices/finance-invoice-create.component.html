@@ -115,27 +115,46 @@
               </button>
             }
           </div>
-          <hlm-select
-            formControlName="clientId"
+          <div
+            hlmCombobox
+            [value]="form.controls.clientId.value"
+            (valueChange)="setClientId($event)"
             [itemToString]="clientItemToString"
+            [disabled]="form.controls.clientId.disabled"
           >
-            <hlm-select-trigger
+            <hlm-combobox-trigger
               buttonId="invoice-client"
               class="w-full min-w-0"
+              [forceInvalid]="
+                form.controls.clientId.invalid && form.controls.clientId.touched
+              "
             >
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
+              <hlm-combobox-value />
+            </hlm-combobox-trigger>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
+              <hlm-combobox-input
+                [placeholder]="'common.search' | translate"
+                [showTrigger]="false"
+              />
+              <hlm-combobox-empty>
+                {{ "common.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
                 @for (client of clients(); track client.id) {
-                  <hlm-select-item [value]="client.id">
+                  <hlm-combobox-item [value]="client.id">
                     {{ client.displayName }}
-                  </hlm-select-item>
+                  </hlm-combobox-item>
                 }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
-          <hlm-field-error validator="required">
+              </div>
+            </hlm-combobox-content>
+          </div>
+          <hlm-field-error
+            validator="required"
+            [forceShow]="
+              form.controls.clientId.touched &&
+              form.controls.clientId.hasError('required')
+            "
+          >
             {{ "finance.required" | translate }}
           </hlm-field-error>
         </div>

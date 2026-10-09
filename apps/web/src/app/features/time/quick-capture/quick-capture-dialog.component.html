@@ -241,24 +241,36 @@
               <label hlmFieldLabel for="capture-user">
                 {{ "time.capture.user" | translate }}
               </label>
-              <hlm-select
-                formControlName="userId"
+              <div
+                hlmCombobox
+                [value]="form.controls.userId.value"
+                (valueChange)="setUserId($event)"
                 [itemToString]="userItemToString"
+                [disabled]="form.controls.userId.disabled"
               >
-                <hlm-select-trigger
+                <hlm-combobox-trigger
                   buttonId="capture-user"
                   class="w-full min-w-0 max-w-full"
                 >
-                  <hlm-select-value />
-                </hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal>
-                  @for (option of userOptions(); track option.value) {
-                    <hlm-select-item [value]="option.value">
-                      {{ option.label | translate }}
-                    </hlm-select-item>
-                  }
-                </hlm-select-content>
-              </hlm-select>
+                  <hlm-combobox-value />
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'common.search' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "common.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    @for (option of userOptions(); track option.value) {
+                      <hlm-combobox-item [value]="option.value">
+                        {{ option.label | translate }}
+                      </hlm-combobox-item>
+                    }
+                  </div>
+                </hlm-combobox-content>
+              </div>
               @if (usersLoading()) {
                 <hlm-spinner />
               }

@@ -26,6 +26,17 @@ import {
   HlmEmptyTitle,
 } from "@spartan-ng/helm/empty";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
+import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
   HlmTable,
@@ -65,6 +76,15 @@ type CaseSort =
     ReactiveFormsModule,
     RouterLink,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmInput,
     HlmEmpty,
     HlmEmptyContent,
@@ -209,6 +229,12 @@ export class CasesListComponent implements OnInit {
     this.sort.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.updateQuery({ casePage: 1 }));
+  }
+
+  setResponsibleUserId(value: string | null | undefined): void {
+    this.responsibleUserId.setValue(value ?? "");
+    this.responsibleUserId.markAsDirty();
+    this.responsibleUserId.markAsTouched();
   }
 
   load(): void {

@@ -14,29 +14,39 @@
           <label class="text-sm font-medium" for="retainers-client">
             {{ "retainers.list.client" | translate }}
           </label>
-          <hlm-select
-            [formControl]="selectedClient"
+          <div
+            hlmCombobox
+            [value]="selectedClientId()"
+            [disabled]="selectedClient.disabled"
+            (valueChange)="selectClient($event)"
             [itemToString]="clientItemToString"
           >
-            <hlm-select-trigger
+            <hlm-combobox-trigger
               buttonId="retainers-client"
               class="w-full min-w-0"
             >
-              <hlm-select-value />
-            </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
-              <hlm-select-group>
-                <hlm-select-item value="">
+              <hlm-combobox-value />
+            </hlm-combobox-trigger>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
+              <hlm-combobox-input
+                [placeholder]="'common.search' | translate"
+                [showTrigger]="false"
+              />
+              <hlm-combobox-empty>
+                {{ "common.noResults" | translate }}
+              </hlm-combobox-empty>
+              <div hlmComboboxList>
+                <hlm-combobox-item value="">
                   {{ "retainers.list.chooseClient" | translate }}
-                </hlm-select-item>
+                </hlm-combobox-item>
                 @for (client of clients(); track client.id) {
-                  <hlm-select-item [value]="client.id">
+                  <hlm-combobox-item [value]="client.id">
                     {{ client.displayName }}
-                  </hlm-select-item>
+                  </hlm-combobox-item>
                 }
-              </hlm-select-group>
-            </hlm-select-content>
-          </hlm-select>
+              </div>
+            </hlm-combobox-content>
+          </div>
           @if (clientsError()) {
             <span class="text-destructive text-sm" role="alert">
               {{ "retainers.list.clientsLoadError" | translate }}

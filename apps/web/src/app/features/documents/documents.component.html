@@ -232,6 +232,11 @@
                   <hlm-combobox-empty>
                     {{ "work.filters.noResults" | translate }}
                   </hlm-combobox-empty>
+                  <law-combobox-select-all
+                    [options]="caseOptions()"
+                    [selected]="selectedCaseIds()"
+                    (selectedChange)="setSelectedCaseIds($event)"
+                  />
                   <div hlmComboboxList>
                     @for (option of caseOptions(); track option.id) {
                       <hlm-combobox-item [value]="option.id">
@@ -252,26 +257,35 @@
               >
                 {{ "documents.filters.client" | translate }}
               </label>
-              <hlm-select
-                [formControl]="selectedClientId"
+              <div
+                hlmCombobox
+                [value]="selectedClientId.value"
+                (valueChange)="setSelectedClientId($event)"
                 [itemToString]="clientItemToString"
               >
-                <hlm-select-trigger buttonId="documents-client-filter">
-                  <hlm-select-value />
-                </hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal>
-                  <hlm-select-group>
-                    <hlm-select-item value="">
+                <hlm-combobox-trigger buttonId="documents-client-filter">
+                  <hlm-combobox-value />
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'common.search' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "common.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    <hlm-combobox-item value="">
                       {{ "documents.filters.allClients" | translate }}
-                    </hlm-select-item>
+                    </hlm-combobox-item>
                     @for (option of clientOptions(); track option.id) {
-                      <hlm-select-item [value]="option.id">
+                      <hlm-combobox-item [value]="option.id">
                         {{ option.label }}
-                      </hlm-select-item>
+                      </hlm-combobox-item>
                     }
-                  </hlm-select-group>
-                </hlm-select-content>
-              </hlm-select>
+                  </div>
+                </hlm-combobox-content>
+              </div>
             </div>
           }
 
@@ -1127,24 +1141,47 @@
                     >
                       {{ "documents.form.case" | translate }}
                     </label>
-                    <hlm-select
-                      formControlName="caseIds"
+                    <div
+                      hlmComboboxMultiple
+                      [value]="detailForm.controls.caseIds.value"
+                      (valueChange)="setDetailIds('caseIds', $event)"
                       [itemToString]="caseItemToString"
-                      multiple
                     >
-                      <hlm-select-trigger buttonId="document-detail-cases">
-                        <hlm-select-value />
-                      </hlm-select-trigger>
-                      <hlm-select-content *hlmSelectPortal>
-                        <hlm-select-group>
+                      <hlm-combobox-trigger
+                        buttonId="document-detail-cases"
+                        class="w-full"
+                      >
+                        <span data-slot="combobox-value" class="truncate">
+                          {{
+                            joinLabels(
+                              detailForm.controls.caseIds.value,
+                              caseItemToString
+                            )
+                          }}
+                        </span>
+                      </hlm-combobox-trigger>
+                      <hlm-combobox-content *hlmComboboxPortal width="content">
+                        <hlm-combobox-input
+                          [placeholder]="'common.search' | translate"
+                          [showTrigger]="false"
+                        />
+                        <hlm-combobox-empty>
+                          {{ "common.noResults" | translate }}
+                        </hlm-combobox-empty>
+                        <law-combobox-select-all
+                          [options]="caseOptions()"
+                          [selected]="detailForm.controls.caseIds.value"
+                          (selectedChange)="setDetailIds('caseIds', $event)"
+                        />
+                        <div hlmComboboxList>
                           @for (option of caseOptions(); track option.id) {
-                            <hlm-select-item [value]="option.id">
+                            <hlm-combobox-item [value]="option.id">
                               {{ option.label }}
-                            </hlm-select-item>
+                            </hlm-combobox-item>
                           }
-                        </hlm-select-group>
-                      </hlm-select-content>
-                    </hlm-select>
+                        </div>
+                      </hlm-combobox-content>
+                    </div>
                   </div>
                   <div>
                     <label
@@ -1153,24 +1190,47 @@
                     >
                       {{ "documents.form.client" | translate }}
                     </label>
-                    <hlm-select
-                      formControlName="clientIds"
+                    <div
+                      hlmComboboxMultiple
+                      [value]="detailForm.controls.clientIds.value"
+                      (valueChange)="setDetailIds('clientIds', $event)"
                       [itemToString]="clientItemToString"
-                      multiple
                     >
-                      <hlm-select-trigger buttonId="document-detail-clients">
-                        <hlm-select-value />
-                      </hlm-select-trigger>
-                      <hlm-select-content *hlmSelectPortal>
-                        <hlm-select-group>
+                      <hlm-combobox-trigger
+                        buttonId="document-detail-clients"
+                        class="w-full"
+                      >
+                        <span data-slot="combobox-value" class="truncate">
+                          {{
+                            joinLabels(
+                              detailForm.controls.clientIds.value,
+                              clientItemToString
+                            )
+                          }}
+                        </span>
+                      </hlm-combobox-trigger>
+                      <hlm-combobox-content *hlmComboboxPortal width="content">
+                        <hlm-combobox-input
+                          [placeholder]="'common.search' | translate"
+                          [showTrigger]="false"
+                        />
+                        <hlm-combobox-empty>
+                          {{ "common.noResults" | translate }}
+                        </hlm-combobox-empty>
+                        <law-combobox-select-all
+                          [options]="clientOptions()"
+                          [selected]="detailForm.controls.clientIds.value"
+                          (selectedChange)="setDetailIds('clientIds', $event)"
+                        />
+                        <div hlmComboboxList>
                           @for (option of clientOptions(); track option.id) {
-                            <hlm-select-item [value]="option.id">
+                            <hlm-combobox-item [value]="option.id">
                               {{ option.label }}
-                            </hlm-select-item>
+                            </hlm-combobox-item>
                           }
-                        </hlm-select-group>
-                      </hlm-select-content>
-                    </hlm-select>
+                        </div>
+                      </hlm-combobox-content>
+                    </div>
                   </div>
                   <div class="flex justify-end gap-2">
                     <button

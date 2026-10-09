@@ -18,7 +18,7 @@ import {
   HlmDialogHeader,
   HlmDialogTitle,
 } from "@spartan-ng/helm/dialog";
-import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmComboboxImports } from "@spartan-ng/helm/combobox";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -46,7 +46,7 @@ const PAGE_SIZE = 10;
     HlmDialogFooter,
     HlmDialogHeader,
     HlmDialogTitle,
-    HlmSelectImports,
+    HlmComboboxImports,
     HlmSpinner,
     HlmTableImports,
     NgIcon,

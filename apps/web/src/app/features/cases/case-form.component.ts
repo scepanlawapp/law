@@ -17,6 +17,17 @@ import {
   ReferencesApiClient,
 } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
+import {
+  HlmCombobox,
+  HlmComboboxContent,
+  HlmComboboxEmpty,
+  HlmComboboxInput,
+  HlmComboboxItem,
+  HlmComboboxList,
+  HlmComboboxPortal,
+  HlmComboboxTrigger,
+  HlmComboboxValue,
+} from "@spartan-ng/helm/combobox";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
@@ -49,6 +60,15 @@ function toDateInputValue(value: string | null | undefined): string {
     ReactiveFormsModule,
     RouterLink,
     HlmButton,
+    HlmCombobox,
+    HlmComboboxContent,
+    HlmComboboxEmpty,
+    HlmComboboxInput,
+    HlmComboboxItem,
+    HlmComboboxList,
+    HlmComboboxPortal,
+    HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmField,
     HlmFieldLabel,
     HlmInput,
@@ -292,6 +312,20 @@ export class CaseFormComponent {
       return this.local.translate("validation.pattern");
     }
     return null;
+  }
+
+  setClientId(value: string | null | undefined): void {
+    const control = this.form.controls.clientId;
+    control.setValue(value ?? "");
+    control.markAsDirty();
+    control.markAsTouched();
+  }
+
+  setResponsibleUserId(value: string | null | undefined): void {
+    const control = this.form.controls.responsibleUserId;
+    control.setValue(value ?? "");
+    control.markAsDirty();
+    control.markAsTouched();
   }
 
   openClientDialog(): void {

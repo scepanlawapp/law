@@ -74,6 +74,11 @@
           <hlm-combobox-empty>
             {{ "work.filters.noResults" | translate }}
           </hlm-combobox-empty>
+          <law-combobox-select-all
+            [options]="clients()"
+            [selected]="clientIds()"
+            (selectedChange)="setClientIds($event)"
+          />
           <div hlmComboboxList>
             @for (client of clients(); track client.id) {
               <hlm-combobox-item [value]="client.id">
@@ -89,27 +94,35 @@
       <label class="text-sm font-medium" for="unbilled-case">
         {{ "work.filters.case" | translate }}
       </label>
-      <hlm-select
+      <div
+        hlmCombobox
         [value]="caseId()"
         (valueChange)="setCaseId($event ?? '')"
         [itemToString]="caseItemToString"
       >
-        <hlm-select-trigger buttonId="unbilled-case" class="w-full">
-          <hlm-select-value />
-        </hlm-select-trigger>
-        <hlm-select-content *hlmSelectPortal width="content">
-          <hlm-select-group>
-            <hlm-select-item value="">
+        <hlm-combobox-trigger buttonId="unbilled-case" class="w-full">
+          <hlm-combobox-value />
+        </hlm-combobox-trigger>
+        <hlm-combobox-content *hlmComboboxPortal width="content">
+          <hlm-combobox-input
+            [placeholder]="'common.search' | translate"
+            [showTrigger]="false"
+          />
+          <hlm-combobox-empty>
+            {{ "common.noResults" | translate }}
+          </hlm-combobox-empty>
+          <div hlmComboboxList>
+            <hlm-combobox-item value="">
               {{ "work.filters.allCases" | translate }}
-            </hlm-select-item>
+            </hlm-combobox-item>
             @for (item of cases(); track item.id) {
-              <hlm-select-item [value]="item.id">
+              <hlm-combobox-item [value]="item.id">
                 {{ item.caseNumber }} — {{ item.name }}
-              </hlm-select-item>
+              </hlm-combobox-item>
             }
-          </hlm-select-group>
-        </hlm-select-content>
-      </hlm-select>
+          </div>
+        </hlm-combobox-content>
+      </div>
     </div>
 
     <div class="flex w-56 max-w-full flex-col gap-1">
@@ -141,6 +154,11 @@
           <hlm-combobox-empty>
             {{ "work.filters.noResults" | translate }}
           </hlm-combobox-empty>
+          <law-combobox-select-all
+            [options]="users()"
+            [selected]="peopleIds()"
+            (selectedChange)="setPeopleIds($event)"
+          />
           <div hlmComboboxList>
             @for (user of users(); track user.id) {
               <hlm-combobox-item [value]="user.id">
@@ -361,10 +379,6 @@
   }
 
   @if (hasMore() && !loading()) {
-    <div class="flex justify-center">
-      <button hlmBtn type="button" variant="outline" (click)="loadMore()">
-        {{ "work.loadMore" | translate }}
-      </button>
-    </div>
+    <div class="h-px" aria-hidden="true" (lawInfiniteScroll)="loadMore()"></div>
   }
 </section>

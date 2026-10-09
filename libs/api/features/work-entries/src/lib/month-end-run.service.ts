@@ -218,7 +218,7 @@ export class MonthEndRunService {
       month,
       monthStart: start,
       monthEnd: end,
-      vatRate: new Prisma.Decimal(config.defaultVatRate),
+      vatRate: await this.vatRate(config.defaultVatRate),
       internalCurrency: config.internalCurrency,
       paymentTermDays: config.paymentTermDays,
     };
@@ -229,6 +229,20 @@ export class MonthEndRunService {
       statements.push(...(await this.runForClient(run, client)));
     }
     return { month, statements };
+  }
+
+  /**
+   * Fees and rates are net; VAT follows the organization tax settings, so a
+   * non-VAT-registered office bills 0% and billing settings are only a fallback.
+   */
+  private async vatRate(fallback: string): Promise<Prisma.Decimal> {
+    const organization = await this.db.organizationSettings.findUnique({
+      where: { workspaceId: this.workspaceId },
+      select: { vatRegistered: true, defaultVatRate: true },
+    });
+    if (organization && !organization.vatRegistered)
+      return new Prisma.Decimal(0);
+    return new Prisma.Decimal(organization?.defaultVatRate ?? fallback);
   }
 
   /** Workspace clients with billable work in the month or an active retainer. */

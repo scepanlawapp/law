@@ -24,6 +24,7 @@ import {
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
   HlmComboboxContent,
   HlmComboboxEmpty,
   HlmComboboxInput,
@@ -32,9 +33,9 @@ import {
   HlmComboboxMultiple,
   HlmComboboxPortal,
   HlmComboboxTrigger,
+  HlmComboboxValue,
 } from "@spartan-ng/helm/combobox";
 import { HlmInput } from "@spartan-ng/helm/input";
-import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
   HlmTBody,
@@ -48,6 +49,8 @@ import {
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
+import { InfiniteScrollDirective } from "../../shared/infinite-scroll.directive";
 import { QuickCaptureDialogService } from "./quick-capture/quick-capture-dialog.service";
 import {
   STATUS_BADGE_CLASSES,
@@ -75,6 +78,7 @@ const TREATMENT_VALUES = Object.keys(
   imports: [
     ReactiveFormsModule,
     HlmButton,
+    HlmCombobox,
     HlmComboboxContent,
     HlmComboboxEmpty,
     HlmComboboxInput,
@@ -83,8 +87,9 @@ const TREATMENT_VALUES = Object.keys(
     HlmComboboxMultiple,
     HlmComboboxPortal,
     HlmComboboxTrigger,
+    HlmComboboxValue,
+    ComboboxSelectAllComponent,
     HlmInput,
-    HlmSelectImports,
     HlmSpinner,
     HlmTable,
     HlmTableContainer,
@@ -93,6 +98,7 @@ const TREATMENT_VALUES = Object.keys(
     HlmTh,
     HlmTHead,
     HlmTr,
+    InfiniteScrollDirective,
     TranslatePipe,
   ],
   templateUrl: "./team-time.component.html",

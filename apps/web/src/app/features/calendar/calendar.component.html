@@ -189,6 +189,11 @@
               <hlm-combobox-empty>
                 {{ "work.filters.noResults" | translate }}
               </hlm-combobox-empty>
+              <law-combobox-select-all
+                [options]="lawyers()"
+                [selected]="lawyerIds()"
+                (selectedChange)="setLawyerIds($event)"
+              />
               <div hlmComboboxList>
                 @for (lawyer of lawyers(); track lawyer.id) {
                   <hlm-combobox-item [value]="lawyer.id">

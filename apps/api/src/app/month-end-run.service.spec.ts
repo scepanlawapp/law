@@ -147,6 +147,7 @@ describe("MonthEndRunService", () => {
     clientBillingProfile: { findFirst: jest.fn() },
     invoice: { findFirst: jest.fn() },
     invoiceLine: { findMany: jest.fn() },
+    organizationSettings: { findUnique: jest.fn() },
     $transaction: jest.fn(),
   };
   const billingSetup = {
@@ -279,6 +280,40 @@ describe("MonthEndRunService", () => {
         ),
     );
     financials.createDraftFromLines.mockResolvedValue(draftId);
+  });
+
+  it("adds the organization VAT rate on top of the net retainer fee", async () => {
+    tx.organizationSettings.findUnique.mockResolvedValue({
+      vatRegistered: true,
+      defaultVatRate: new Prisma.Decimal(10),
+    });
+    state.agreements[clientA] = [agreement()];
+    state.retainerClients = [clientA];
+
+    await runAsOwner();
+
+    expect(createdLines()[0]).toMatchObject({
+      netAmount: 100000,
+      vatAmount: 10000,
+      grossAmount: 110000,
+    });
+  });
+
+  it("bills the retainer fee without VAT when the office is not VAT registered", async () => {
+    tx.organizationSettings.findUnique.mockResolvedValue({
+      vatRegistered: false,
+      defaultVatRate: new Prisma.Decimal(20),
+    });
+    state.agreements[clientA] = [agreement()];
+    state.retainerClients = [clientA];
+
+    await runAsOwner();
+
+    expect(createdLines()[0]).toMatchObject({
+      netAmount: 100000,
+      vatAmount: 0,
+      grossAmount: 100000,
+    });
   });
 
   it("bills a capped retainer: fee line plus priced overage", async () => {

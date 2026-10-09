@@ -53,6 +53,11 @@
             <hlm-combobox-empty>
               {{ "finance.noFilterOptions" | translate }}
             </hlm-combobox-empty>
+            <law-combobox-select-all
+              [options]="clients()"
+              [selected]="clientIds()"
+              (selectedChange)="setClientIds($event)"
+            />
             <div hlmComboboxList>
               @for (client of clients(); track client.id) {
                 <hlm-combobox-item [value]="client.id">

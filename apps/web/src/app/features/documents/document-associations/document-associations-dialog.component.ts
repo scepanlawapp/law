@@ -41,6 +41,7 @@ import {
 } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { ComboboxSelectAllComponent } from "../../../shared/ui/combobox-select-all/combobox-select-all.component";
 import {
   DocumentAssociationOption,
   DocumentAssociationsDialogContext,
@@ -70,6 +71,7 @@ import {
     HlmDialogTitle,
     HlmSpinner,
     TranslatePipe,
+    ComboboxSelectAllComponent,
   ],
 })
 export class DocumentAssociationsDialogComponent {

@@ -23,7 +23,7 @@ import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmProgressImports } from "@spartan-ng/helm/progress";
-import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmComboboxImports } from "@spartan-ng/helm/combobox";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
   HlmTBody,
@@ -85,7 +85,7 @@ export function sortByUsage(items: readonly RetainerUsage[]): UsageRow[] {
     HlmButton,
     HlmInput,
     HlmProgressImports,
-    HlmSelectImports,
+    HlmComboboxImports,
     HlmSpinner,
     HlmTable,
     HlmTableContainer,
@@ -151,6 +151,11 @@ export class FinanceRetainersComponent {
       this.clients().find((client) => client.id === value)?.displayName ?? value
     );
   };
+
+  selectClient(value: string | null | undefined): void {
+    this.selectedClient.setValue(value ?? "");
+    this.selectedClient.markAsDirty();
+  }
 
   constructor() {
     if (this.canManage()) {

@@ -62,6 +62,7 @@ import {
 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
+  HlmCombobox,
   HlmComboboxContent,
   HlmComboboxEmpty,
   HlmComboboxInput,
@@ -70,6 +71,7 @@ import {
   HlmComboboxMultiple,
   HlmComboboxPortal,
   HlmComboboxTrigger,
+  HlmComboboxValue,
 } from "@spartan-ng/helm/combobox";
 import {
   HlmEmpty,
@@ -110,6 +112,7 @@ import {
 } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
 import {
   createSelectItemToString,
   type SelectOption,
@@ -154,6 +157,7 @@ const isAiWatched = (
     NgTemplateOutlet,
     NgIcon,
     HlmButton,
+    HlmCombobox,
     HlmComboboxContent,
     HlmComboboxEmpty,
     HlmComboboxInput,
@@ -162,6 +166,7 @@ const isAiWatched = (
     HlmComboboxMultiple,
     HlmComboboxPortal,
     HlmComboboxTrigger,
+    HlmComboboxValue,
     HlmTooltip,
     HlmEmpty,
     HlmEmptyContent,
@@ -182,6 +187,7 @@ const isAiWatched = (
     HlmEmptyTitle,
     DocumentAiStatusComponent,
     TranslatePipe,
+    ComboboxSelectAllComponent,
   ],
   providers: [
     provideIcons({
@@ -1002,6 +1008,12 @@ export class DocumentsComponent implements OnInit {
     this.load();
   }
 
+  setSelectedClientId(value: string | null | undefined): void {
+    this.selectedClientId.setValue(value ?? "");
+    this.selectedClientId.markAsDirty();
+    this.selectedClientId.markAsTouched();
+  }
+
   setSelectedCaseIds(caseIds: string[]): void {
     this.selectedCaseIds.set(caseIds);
     this.resetPageAndLoad();
@@ -1015,6 +1027,22 @@ export class DocumentsComponent implements OnInit {
       .filter((option) => selected.has(option.id))
       .map((option) => option.label)
       .join(", ");
+  }
+
+  setDetailIds(
+    field: "caseIds" | "clientIds",
+    values: string[] | null | undefined,
+  ): void {
+    const control = this.detailForm.controls[field];
+    control.setValue(values ?? []);
+    control.markAsDirty();
+  }
+
+  joinLabels(
+    values: readonly string[],
+    toLabel: (value: string) => string,
+  ): string {
+    return values.map(toLabel).join(", ");
   }
 
   formatDate(value: string | null | undefined): string {
