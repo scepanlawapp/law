@@ -4,11 +4,17 @@ import { provideRouter } from "@angular/router";
 import {
   BillingReportsApiClient,
   BillingSetupApiClient,
+  ClientsApiClient,
 } from "@law/api-clients";
-import { RetainerUsage, WorkspaceRole } from "@law/api-interfaces";
+import {
+  RetainerAgreement,
+  RetainerUsage,
+  WorkspaceRole,
+} from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { of, throwError } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
+import { RetainerAgreementDialogService } from "../clients/client-retainer-card/retainer-agreement-dialog.service";
 import { FinanceRetainersComponent, sortByUsage } from "./retainers.component";
 
 function usage(
@@ -67,7 +73,42 @@ describe("sortByUsage", () => {
 describe("FinanceRetainersComponent", () => {
   const role = signal<WorkspaceRole>(WorkspaceRole.OWNER);
   const api = { usage: jest.fn() };
-  const setup = { getWorkspaceConfig: jest.fn() };
+  const setup = {
+    getWorkspaceConfig: jest.fn(),
+    listRetainers: jest.fn(),
+  };
+  const clientsApi = { list: jest.fn() };
+  const agreementDialog = { open: jest.fn() };
+  const savedAgreement: RetainerAgreement = {
+    id: "agreement-1",
+    clientId: "client-1",
+    title: "Paušal 2026",
+    monthlyFee: "100000.00",
+    currency: "RSD",
+    validFrom: "2026-01-01",
+    validTo: null,
+    includedMinutes: 1200,
+    coveredCategoryIds: [],
+    overageRule: "ABSORBED",
+    overageHourlyRate: null,
+    outOfScopeRule: "AT",
+    outOfScopeHourlyRate: null,
+    active: true,
+  };
+
+  beforeAll(() => {
+    globalThis.ResizeObserver ??= class {
+      observe(): void {
+        // jsdom has no layout.
+      }
+      unobserve(): void {
+        // jsdom has no layout.
+      }
+      disconnect(): void {
+        // jsdom has no layout.
+      }
+    };
+  });
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -80,6 +121,23 @@ describe("FinanceRetainersComponent", () => {
         paymentTermDays: 15,
       }),
     );
+    clientsApi.list.mockReturnValue(
+      of({
+        items: [
+          {
+            id: "client-1",
+            clientNumber: "K-1",
+            type: "COMPANY",
+            displayName: "Alfa",
+            status: "ACTIVE",
+          },
+        ],
+        total: 1,
+        page: 1,
+        pageSize: 100,
+      }),
+    );
+    agreementDialog.open.mockReturnValue(of(null));
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
@@ -89,6 +147,11 @@ describe("FinanceRetainersComponent", () => {
         },
         { provide: BillingReportsApiClient, useValue: api },
         { provide: BillingSetupApiClient, useValue: setup },
+        { provide: ClientsApiClient, useValue: clientsApi },
+        {
+          provide: RetainerAgreementDialogService,
+          useValue: agreementDialog,
+        },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -167,6 +230,138 @@ describe("FinanceRetainersComponent", () => {
     await create();
 
     expect(setup.getWorkspaceConfig).not.toHaveBeenCalled();
+    expect(clientsApi.list).not.toHaveBeenCalled();
+    expect(
+      document.querySelector('[data-testid="retainer-create"]'),
+    ).toBeNull();
+    expect(
+      document.querySelector('[data-testid="retainer-edit-agreement"]'),
+    ).toBeNull();
+  });
+
+  it("opens the create dialog for the selected client and refreshes usage after save", async () => {
+    api.usage.mockReturnValue(of([]));
+    agreementDialog.open.mockReturnValue(of(savedAgreement));
+    const fixture = await create();
+    const button = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="retainer-create"]',
+    ) as HTMLButtonElement;
+
+    expect(button.disabled).toBe(true);
+    expect(clientsApi.list).toHaveBeenCalledWith({
+      page: 1,
+      pageSize: 100,
+      status: "ACTIVE",
+    });
+
+    fixture.componentInstance.selectedClient.setValue("client-1");
+    fixture.detectChanges();
+    expect(button.disabled).toBe(false);
+    button.click();
+    await fixture.whenStable();
+
+    expect(agreementDialog.open).toHaveBeenCalledWith({
+      clientId: "client-1",
+      agreement: null,
+    });
+    expect(api.usage).toHaveBeenCalledTimes(2);
+    expect(api.usage).toHaveBeenLastCalledWith(
+      expect.stringMatching(/^\d{4}-\d{2}$/),
+    );
+  });
+
+  it("does not refresh usage when the create dialog is dismissed", async () => {
+    api.usage.mockReturnValue(of([]));
+    agreementDialog.open.mockReturnValue(of(null));
+    const fixture = await create();
+
+    fixture.componentInstance.selectedClient.setValue("client-1");
+    fixture.componentInstance.createAgreement();
+    await fixture.whenStable();
+
+    expect(api.usage).toHaveBeenCalledTimes(1);
+  });
+
+  it("loads and opens the selected row's full agreement, then refreshes after save", async () => {
+    const rowUsage = {
+      ...usage("client-1", "Alfa", 300, 1200),
+      agreementId: savedAgreement.id,
+    };
+    api.usage.mockReturnValue(of([rowUsage]));
+    setup.listRetainers.mockReturnValue(of([savedAgreement]));
+    agreementDialog.open.mockReturnValue(of(savedAgreement));
+    const fixture = await create();
+
+    const button = (fixture.nativeElement as HTMLElement).querySelector(
+      '[data-testid="retainer-edit-agreement"]',
+    ) as HTMLButtonElement;
+    expect(button.textContent).toContain("retainers.card.edit");
+    button.click();
+    await fixture.whenStable();
+
+    expect(setup.listRetainers).toHaveBeenCalledWith("client-1");
+    expect(agreementDialog.open).toHaveBeenCalledWith({
+      clientId: "client-1",
+      agreement: savedAgreement,
+    });
+    expect(api.usage).toHaveBeenCalledTimes(2);
+    expect(api.usage).toHaveBeenLastCalledWith(
+      fixture.componentInstance.month.value,
+    );
+  });
+
+  it("does not refresh usage when an edit is dismissed", async () => {
+    const rowUsage = {
+      ...usage("client-1", "Alfa", 300, 1200),
+      agreementId: savedAgreement.id,
+    };
+    api.usage.mockReturnValue(of([rowUsage]));
+    setup.listRetainers.mockReturnValue(of([savedAgreement]));
+    agreementDialog.open.mockReturnValue(of(null));
+    const fixture = await create();
+
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="retainer-edit-agreement"]',
+      )
+      ?.click();
+    await fixture.whenStable();
+
+    expect(agreementDialog.open).toHaveBeenCalledWith({
+      clientId: "client-1",
+      agreement: savedAgreement,
+    });
+    expect(api.usage).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["missing agreement", of([])],
+    ["agreement lookup failure", throwError(() => new Error("failed"))],
+  ])("shows a localized error for %s", async (_caseName, agreements) => {
+    api.usage.mockReturnValue(
+      of([
+        {
+          ...usage("client-1", "Alfa", 300, 1200),
+          agreementId: savedAgreement.id,
+        },
+      ]),
+    );
+    setup.listRetainers.mockReturnValue(agreements);
+    const fixture = await create();
+
+    (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLButtonElement>(
+        '[data-testid="retainer-edit-agreement"]',
+      )
+      ?.click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector('[role="alert"]')
+        ?.textContent,
+    ).toContain("retainers.list.editError");
+    expect(agreementDialog.open).not.toHaveBeenCalled();
   });
 
   it("reloads when the month changes", async () => {

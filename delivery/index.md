@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Finance Retainer Agreement Management](./tracks/retainer_agreement_creation_20261009/index.md)
 - [Client Detail Redesign](./tracks/client_detail_redesign_20261009/index.md)
 - [Case Assistant Tab Links](./tracks/case_assistant_tab_links_20261007/index.md)
 - [Invoice Payment Method Localization](./tracks/payment_method_translation_20261007/index.md)
@@ -73,6 +74,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Settings Content Scrolling](./tracks/settings_content_scroll_20261009/index.md)
 - [Case Document Ingestion (epic)](./tracks/case_document_ingestion_20261008/index.md)
 - [Assistant Conversation Organizer](./tracks/assistant_conversation_organizer_20261007/index.md)
 - [Assistant Capabilities (epic)](./tracks/assistant_capabilities_20261007/index.md)

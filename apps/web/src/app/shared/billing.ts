@@ -29,9 +29,9 @@ export const MONEY_INPUT_PATTERN = /^\d{1,16}([.,]\d{1,2})?$/;
 
 /** `12000,5` -> `12000.5`; empty input -> `null`. */
 export function normalizeMoney(
-  value: string | null | undefined,
+  value: string | number | null | undefined,
 ): string | null {
-  const trimmed = (value ?? "").trim();
+  const trimmed = String(value ?? "").trim();
   return trimmed ? trimmed.replace(",", ".") : null;
 }
 

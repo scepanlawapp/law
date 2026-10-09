@@ -14,7 +14,7 @@
     <p hlmDialogDescription>{{ "retainers.form.description" | translate }}</p>
   </hlm-dialog-header>
 
-  <div class="min-h-0 flex-1 overflow-y-auto py-4 text-sm">
+  <div class="min-h-0 flex-1 overflow-y-auto py-4 px-1 text-sm">
     <div class="grid gap-4 sm:grid-cols-2">
       <div hlmField class="sm:col-span-2">
         <label hlmFieldLabel for="retainer-title">
@@ -42,6 +42,8 @@
           hlmInput
           id="retainer-fee"
           inputmode="decimal"
+          type="number"
+          min="0"
           formControlName="monthlyFee"
           [attr.aria-invalid]="hasError('monthlyFee')"
         />
@@ -212,6 +214,8 @@
             hlmInput
             id="retainer-overage-rate"
             inputmode="decimal"
+            type="number"
+            min="0"
             formControlName="overageHourlyRate"
             [attr.aria-invalid]="hasError('overageHourlyRate')"
           />
@@ -257,6 +261,8 @@
             hlmInput
             id="retainer-scope-rate"
             inputmode="decimal"
+            type="number"
+            min="0"
             formControlName="outOfScopeHourlyRate"
             [attr.aria-invalid]="hasError('outOfScopeHourlyRate')"
           />
