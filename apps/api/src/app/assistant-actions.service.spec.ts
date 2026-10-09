@@ -224,8 +224,8 @@ function prismaMock() {
       findFirst: jest.fn().mockResolvedValue(clientRow()),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    documentFact: { count: jest.fn().mockResolvedValue(3) },
     document: {
-      count: jest.fn().mockResolvedValue(1),
       findFirst: jest.fn().mockResolvedValue({
         archivedAt: null,
         aiAccess: true,
@@ -1110,22 +1110,33 @@ describe("AssistantActionsService.clientUpdateHint", () => {
     );
   });
 
-  it("does not read facts or the client when the case has no processed readable document", async () => {
+  it("runs one fact count and reads nothing else when the case has no person or company facts", async () => {
     const { service, prisma, documents } = setup();
-    prisma.document.count.mockResolvedValue(0);
+    prisma.documentFact.count.mockResolvedValue(0);
 
     await expect(
       service.clientUpdateHint("workspace-1", "session-1", "case-21"),
     ).resolves.toBe(false);
-    expect(prisma.document.count).toHaveBeenCalledWith({
+    expect(prisma.documentFact.count).toHaveBeenCalledTimes(1);
+    expect(prisma.documentFact.count).toHaveBeenCalledWith({
       where: {
         workspaceId: "workspace-1",
-        archivedAt: null,
-        aiAccess: true,
-        cases: { some: { caseId: "case-21" } },
-        currentVersion: { content: { status: "READY" } },
+        subjectType: { in: ["PERSON", "COMPANY"] },
+        content: {
+          versions: {
+            some: {
+              currentFor: {
+                workspaceId: "workspace-1",
+                archivedAt: null,
+                aiAccess: true,
+                cases: { some: { caseId: "case-21" } },
+              },
+            },
+          },
+        },
       },
     });
+    expect(prisma.case.findFirst).not.toHaveBeenCalled();
     expect(prisma.client.findFirst).not.toHaveBeenCalled();
     expect(documents.getDocumentFacts).not.toHaveBeenCalled();
   });

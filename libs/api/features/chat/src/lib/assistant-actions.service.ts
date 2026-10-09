@@ -583,8 +583,9 @@ export class AssistantActionsService {
   /**
    * True when a readable case document filed for the conversation's client has
    * a matching subject whose facts could fill an empty client field. Cheap
-   * checks first: no processed (READY) readable document on the case, or
-   * nothing empty on the client, ends it before any facts are read.
+   * checks first: no person or company fact on the case's readable documents,
+   * or nothing empty on the client, ends it before any sources are listed or
+   * facts are read.
    */
   async clientUpdateHint(
     workspaceId: string,
@@ -592,16 +593,27 @@ export class AssistantActionsService {
     caseId: string,
   ): Promise<boolean> {
     if (!this.documents) return false;
-    const ready = await this.prisma.document.count({
+    // One cheap count first: person or company facts of the current version
+    // of an on, non-archived case document. Nothing else is loaded without it.
+    const personFacts = await this.prisma.documentFact.count({
       where: {
         workspaceId,
-        archivedAt: null,
-        aiAccess: true,
-        cases: { some: { caseId } },
-        currentVersion: { content: { status: "READY" } },
+        subjectType: { in: ["PERSON", "COMPANY"] },
+        content: {
+          versions: {
+            some: {
+              currentFor: {
+                workspaceId,
+                archivedAt: null,
+                aiAccess: true,
+                cases: { some: { caseId } },
+              },
+            },
+          },
+        },
       },
     });
-    if (!ready) return false;
+    if (!personFacts) return false;
     const linked = await this.prisma.case.findFirst({
       where: { id: caseId, workspaceId },
       select: { clientId: true },
