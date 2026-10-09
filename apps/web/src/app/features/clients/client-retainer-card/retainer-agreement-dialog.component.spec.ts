@@ -99,7 +99,8 @@ describe("RetainerAgreementDialogComponent", () => {
   }
 
   it("is invalid with overage rule HOURLY and an empty rate, valid otherwise", () => {
-    const { form } = create().componentInstance;
+    const fixture = create();
+    const { form } = fixture.componentInstance;
     fillValid(form, {
       overageRule: "HOURLY",
       overageHourlyRate: "",
@@ -109,10 +110,20 @@ describe("RetainerAgreementDialogComponent", () => {
     expect(form.invalid).toBe(true);
     expect(form.controls.overageHourlyRate.hasError("required")).toBe(true);
 
-    form.controls.overageHourlyRate.setValue("8500");
+    const rateInput = fixture.nativeElement.querySelector(
+      "#retainer-overage-rate",
+    ) as HTMLInputElement;
+    rateInput.value = "8500";
+    rateInput.dispatchEvent(new Event("input", { bubbles: true }));
+    fixture.detectChanges();
+
+    expect(form.controls.overageHourlyRate.value).toBe(8500);
     expect(form.valid).toBe(true);
 
-    form.controls.overageHourlyRate.setValue("0");
+    rateInput.value = "0";
+    rateInput.dispatchEvent(new Event("input", { bubbles: true }));
+    fixture.detectChanges();
+
     expect(form.invalid).toBe(true);
     expect(form.controls.overageHourlyRate.hasError("positive")).toBe(true);
   });
@@ -156,7 +167,7 @@ describe("RetainerAgreementDialogComponent", () => {
       monthlyFee: "100000,50",
       includedHours: 20,
       overageRule: "HOURLY",
-      overageHourlyRate: "8500",
+      overageHourlyRate: 8500,
       outOfScopeRule: "AT",
     });
     component.setCovered(["category-1"]);

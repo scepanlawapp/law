@@ -8,11 +8,71 @@
         {{ "retainers.list.description" | translate }}
       </p>
     </div>
-    <div class="flex w-44 max-w-full flex-col gap-1">
-      <label class="text-sm font-medium" for="retainers-month">
-        {{ "retainers.month" | translate }}
-      </label>
-      <input hlmInput id="retainers-month" type="month" [formControl]="month" />
+    <div class="flex flex-wrap items-end gap-3">
+      @if (canManage()) {
+        <div class="flex w-56 max-w-full flex-col gap-1">
+          <label class="text-sm font-medium" for="retainers-client">
+            {{ "retainers.list.client" | translate }}
+          </label>
+          <hlm-select
+            [formControl]="selectedClient"
+            [itemToString]="clientItemToString"
+          >
+            <hlm-select-trigger
+              buttonId="retainers-client"
+              class="w-full min-w-0"
+            >
+              <hlm-select-value />
+            </hlm-select-trigger>
+            <hlm-select-content *hlmSelectPortal>
+              <hlm-select-group>
+                <hlm-select-item value="">
+                  {{ "retainers.list.chooseClient" | translate }}
+                </hlm-select-item>
+                @for (client of clients(); track client.id) {
+                  <hlm-select-item [value]="client.id">
+                    {{ client.displayName }}
+                  </hlm-select-item>
+                }
+              </hlm-select-group>
+            </hlm-select-content>
+          </hlm-select>
+          @if (clientsError()) {
+            <span class="text-destructive text-sm" role="alert">
+              {{ "retainers.list.clientsLoadError" | translate }}
+            </span>
+          }
+        </div>
+        <button
+          hlmBtn
+          type="button"
+          data-testid="retainer-create"
+          [disabled]="!canCreateAgreement()"
+          [attr.aria-busy]="openingAgreement()"
+          (click)="createAgreement()"
+        >
+          @if (openingAgreement()) {
+            <hlm-spinner aria-hidden="true" />
+          }
+          {{ "retainers.card.create" | translate }}
+        </button>
+        @if (createError()) {
+          <span class="text-destructive text-sm" role="alert">
+            {{ "retainers.list.createError" | translate }}
+          </span>
+        }
+      }
+      <div class="flex w-44 max-w-full flex-col gap-1">
+        <label class="text-sm font-medium" for="retainers-month">
+          {{ "retainers.month" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="retainers-month"
+          type="month"
+          [formControl]="month"
+        />
+      </div>
     </div>
   </header>
 
@@ -33,6 +93,11 @@
       {{ "retainers.list.empty" | translate }}
     </p>
   } @else {
+    @if (editError()) {
+      <p class="text-destructive text-sm" role="alert">
+        {{ "retainers.list.editError" | translate }}
+      </p>
+    }
     <div hlmTableContainer>
       <table hlmTable>
         <thead hlmTHead>
@@ -47,6 +112,7 @@
             @if (canManage()) {
               <th hlmTh>{{ "retainers.card.effectiveRate" | translate }}</th>
               <th hlmTh>{{ "retainers.card.targetRate" | translate }}</th>
+              <th hlmTh>{{ "retainers.list.actions" | translate }}</th>
             }
           </tr>
         </thead>
@@ -137,6 +203,30 @@
                       {{ "retainers.card.rateUnavailable" | translate }}
                     </span>
                   }
+                </td>
+                <td hlmTd>
+                  <button
+                    hlmBtn
+                    type="button"
+                    data-testid="retainer-edit-agreement"
+                    [disabled]="
+                      openingAgreement() || editingAgreementId() !== null
+                    "
+                    [attr.aria-label]="
+                      ('retainers.card.edit' | translate) +
+                      ': ' +
+                      row.usage.client.displayName
+                    "
+                    [attr.aria-busy]="
+                      editingAgreementId() === row.usage.agreementId
+                    "
+                    (click)="editAgreement(row)"
+                  >
+                    @if (editingAgreementId() === row.usage.agreementId) {
+                      <hlm-spinner aria-hidden="true" />
+                    }
+                    {{ "retainers.card.edit" | translate }}
+                  </button>
                 </td>
               }
             </tr>
