@@ -96,7 +96,10 @@
               {{ "time.capture.client" | translate }}
             </dt>
             <dd class="mt-1 break-words">
-              {{ entry.client?.displayName ?? ("time.capture.noClient" | translate) }}
+              {{
+                entry.client?.displayName ??
+                  ("time.capture.noClient" | translate)
+              }}
             </dd>
           </div>
           <div>
@@ -661,7 +664,9 @@
                         [disabled]="
                           saving() ||
                           readOnly() ||
-                          (eventLinked() && !form.controls.clientId.value && option.value !== 'NON_BILLABLE')
+                          (eventLinked() &&
+                            !form.controls.clientId.value &&
+                            option.value !== 'NON_BILLABLE')
                         "
                         [aria-label]="option.label | translate"
                         [inputId]="option.value"

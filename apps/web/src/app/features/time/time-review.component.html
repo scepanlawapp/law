@@ -43,7 +43,10 @@
           >
             <div class="flex min-w-0 flex-col">
               <span class="truncate text-sm font-medium">
-                {{ entry.client?.displayName ?? ("time.capture.noClient" | translate) }}
+                {{
+                  entry.client?.displayName ??
+                    ("time.capture.noClient" | translate)
+                }}
                 @if (entry.case) {
                   <span class="text-muted-foreground font-normal">
                     · {{ entry.case.caseNumber }}
@@ -120,7 +123,10 @@
           >
             <div class="flex min-w-0 flex-col">
               <span class="truncate text-sm font-medium">
-                {{ entry.client?.displayName ?? ("time.capture.noClient" | translate) }}
+                {{
+                  entry.client?.displayName ??
+                    ("time.capture.noClient" | translate)
+                }}
                 <span class="text-muted-foreground font-normal">
                   · {{ workDateLabel(entry.workDate) }}
                 </span>

@@ -86,9 +86,9 @@ export class WorkEntrySourcesService {
 
   /**
    * Creates the entry for a source record inside the caller's transaction.
-  * Returns its id, or null when a non-event source cannot be attributed to
-  * exactly one client. Events may produce clientless non-billable work.
-  * Idempotent per source: an existing entry is returned untouched.
+   * Returns its id, or null when a non-event source cannot be attributed to
+   * exactly one client. Events may produce clientless non-billable work.
+   * Idempotent per source: an existing entry is returned untouched.
    */
   async ensureForSource(
     tx: Prisma.TransactionClient,

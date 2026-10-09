@@ -494,8 +494,7 @@ export class WorkEntriesService {
         ...new Set(event.clients.map((link) => link.clientId)),
       ];
       const clientId =
-        event.case?.clientId ??
-        (clientIds.length === 1 ? clientIds[0] : null);
+        event.case?.clientId ?? (clientIds.length === 1 ? clientIds[0] : null);
       if (clientId) {
         await this.assertClientAndCase(clientId, event.caseId ?? undefined, tx);
       }
@@ -633,7 +632,9 @@ export class WorkEntriesService {
       );
     }
     if (!clientId && input.value != null) {
-      throw new BadRequestException("Clientless event work cannot have a value");
+      throw new BadRequestException(
+        "Clientless event work cannot have a value",
+      );
     }
 
     const row = await this.db.$transaction(async (tx) => {
@@ -757,10 +758,14 @@ export class WorkEntriesService {
     // The default only depends on client, date and category, so it is refreshed
     // exactly when one of those changed and the user did not pick a treatment.
     const treatment = clientId
-      ? input.treatment ??
+      ? (input.treatment ??
         (clientChanged || dateChanged || categoryChanged
-          ? await this.defaultTreatmentFor(clientId, workDate, serviceCategoryId)
-          : current.treatment)
+          ? await this.defaultTreatmentFor(
+              clientId,
+              workDate,
+              serviceCategoryId,
+            )
+          : current.treatment))
       : (input.treatment ?? "NON_BILLABLE");
     if (!clientId && treatment !== "NON_BILLABLE") {
       throw new BadRequestException(
@@ -782,10 +787,13 @@ export class WorkEntriesService {
       input.value !== undefined &&
       input.currency === undefined
     ) {
-      if (clientId) nextCurrency = await this.defaultWorkEntryCurrency(clientId);
+      if (clientId)
+        nextCurrency = await this.defaultWorkEntryCurrency(clientId);
     }
     if (!clientId && nextValue !== null) {
-      throw new BadRequestException("Clientless event work cannot have a value");
+      throw new BadRequestException(
+        "Clientless event work cannot have a value",
+      );
     }
     if (nextValue !== null && nextCurrency === null) {
       throw new BadRequestException("A currency is required for a work value");
@@ -884,7 +892,9 @@ export class WorkEntriesService {
       nextCurrency = await this.defaultWorkEntryCurrency(current.clientId);
     }
     if (!current.clientId && nextValue !== null) {
-      throw new BadRequestException("Clientless event work cannot have a value");
+      throw new BadRequestException(
+        "Clientless event work cannot have a value",
+      );
     }
     if (nextValue !== null && nextCurrency === null) {
       throw new BadRequestException("A currency is required for a work value");

@@ -467,7 +467,11 @@ describe("WorkEntriesService", () => {
         organizerUserId: userId,
       });
       db.workEntry.create.mockResolvedValueOnce(
-        entryRecord({ clientId: null, client: null, treatment: "NON_BILLABLE" }),
+        entryRecord({
+          clientId: null,
+          client: null,
+          treatment: "NON_BILLABLE",
+        }),
       );
       await as(WorkspaceRole.LAWYER, () =>
         service.create({
@@ -755,7 +759,11 @@ describe("WorkEntriesService", () => {
     it("writes off an event without a client", async () => {
       db.event.findFirst.mockResolvedValue({ ...event, clients: [] });
       db.workEntry.create.mockResolvedValueOnce(
-        entryRecord({ clientId: null, client: null, treatment: "NON_BILLABLE" }),
+        entryRecord({
+          clientId: null,
+          client: null,
+          treatment: "NON_BILLABLE",
+        }),
       );
       const work = await as(WorkspaceRole.LAWYER, () =>
         service.writeOffEvent(eventId),

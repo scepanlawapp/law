@@ -5,10 +5,5 @@
   "status": "completed",
   "created_at": "2026-10-09",
   "updated_at": "2026-10-09",
-  "keywords": [
-    "events",
-    "work-entries",
-    "clientless",
-    "time"
-  ]
+  "keywords": ["events", "work-entries", "clientless", "time"]
 }
