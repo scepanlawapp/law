@@ -1507,6 +1507,76 @@ describe("ChatService", () => {
     });
   });
 
+  it("shows an attachment as OFF once it was filed as a document the assistant may not read", async () => {
+    const prisma = prismaMock();
+    prisma.chatSession.findFirst.mockResolvedValue(session);
+    const attachment = (
+      id: string,
+      document: { aiAccess: boolean; archivedAt: Date | null } | null,
+    ) => ({
+      id,
+      originalName: `${id}.pdf`,
+      mimeType: "application/pdf",
+      sizeBytes: 10,
+      createdAt: new Date("2026-10-01T10:00:00.000Z"),
+      extractionStatus: "COMPLETED",
+      sourceScript: null,
+      content: { status: "READY" },
+      document,
+    });
+    prisma.chatMessage.findMany.mockResolvedValue([
+      {
+        id: "message-1",
+        sessionId: session.id,
+        role: "USER",
+        content: "Prilozi",
+        status: "COMPLETED",
+        triageDecision: null,
+        correlationId: null,
+        metadata: null,
+        createdAt: new Date("2026-10-01T10:00:00.000Z"),
+        attachments: [
+          attachment("unfiled", null),
+          attachment("filed-on", { aiAccess: true, archivedAt: null }),
+          attachment("filed-off", { aiAccess: false, archivedAt: null }),
+          attachment("filed-archived", {
+            aiAccess: true,
+            archivedAt: new Date("2026-10-02T10:00:00.000Z"),
+          }),
+        ],
+      },
+    ]);
+    const service = new ChatService(
+      prisma as never,
+      new ChatEventBus(),
+      { save: jest.fn(), read: jest.fn() } as never,
+      new ChatRuntimeConfig(),
+      new FakeChatModelProvider({}),
+    );
+
+    const detail = await service.getSession(session.workspaceId, session.id);
+
+    expect(
+      detail.messages[0].attachments.map((item) => [item.id, item.aiStatus]),
+    ).toEqual([
+      ["unfiled", "READY"],
+      ["filed-on", "READY"],
+      ["filed-off", "OFF"],
+      ["filed-archived", "OFF"],
+    ]);
+    expect(prisma.chatMessage.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        include: {
+          attachments: {
+            include: expect.objectContaining({
+              document: { select: { aiAccess: true, archivedAt: true } },
+            }),
+          },
+        },
+      }),
+    );
+  });
+
   it("returns authoritative messages, jobs, and drafts for a session", async () => {
     const prisma = prismaMock();
     prisma.chatSession.findFirst.mockResolvedValue(session);

@@ -16,10 +16,7 @@ import {
 } from "@law/brief-extraction";
 import { PlatformPrismaService } from "@law/core";
 import { extractAttachmentText } from "@law/extraction";
-import {
-  DocumentContentService,
-  contentAiStatus,
-} from "@law/document-ingestion";
+import { DocumentContentService } from "@law/document-ingestion";
 import { LegalKnowledgeService } from "@law/legal-knowledge";
 import type { ChatModelProvider } from "@law/llm";
 import {
@@ -42,6 +39,7 @@ import {
 } from "./document-access.policy";
 import {
   ATTACHMENT_WITH_ACCESS,
+  attachmentAiStatus,
   toDraft,
   toJob,
   toMessage,
@@ -1007,7 +1005,7 @@ function toAttachmentSummary(attachment: AttachmentRow): ChatAttachmentSummary {
     createdAt: attachment.createdAt.toISOString(),
     extractionStatus: attachment.extractionStatus,
     sourceScript: attachment.sourceScript ?? null,
-    aiStatus: contentAiStatus(attachment.content),
+    aiStatus: attachmentAiStatus(attachment),
   };
 }
 

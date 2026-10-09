@@ -40,7 +40,15 @@ describe("DocumentContentListener", () => {
 
     expect(prisma.chatAttachment.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: { workspaceId: "workspace-1", contentId: "content-1" },
+        where: {
+          workspaceId: "workspace-1",
+          contentId: "content-1",
+          // Attachments filed as an off or archived document stay "OFF".
+          OR: [
+            { documentId: null },
+            { document: { aiAccess: true, archivedAt: null } },
+          ],
+        },
       }),
     );
     expect(emitted).toHaveLength(2);

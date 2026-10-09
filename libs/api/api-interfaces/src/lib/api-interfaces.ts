@@ -307,8 +307,9 @@ export interface ChatAttachmentSummary {
   extractionStatus?: ChatAttachmentExtractionStatus;
   sourceScript?: ChatAttachmentSourceScript | null;
   /**
-   * Whether the assistant can read this file yet. Unfiled chat attachments are
-   * always readable by the assistant, so this is never "OFF".
+   * Whether the assistant can read this file yet. An unfiled attachment is
+   * always readable. One filed as a case document follows that document's AI
+   * access: "OFF" when the document has AI access off or is archived.
    */
   aiStatus: DocumentAiStatus;
 }

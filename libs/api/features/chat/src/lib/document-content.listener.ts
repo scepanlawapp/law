@@ -47,7 +47,15 @@ export class DocumentContentListener implements OnModuleInit, OnModuleDestroy {
 
   private async forward(event: DocumentContentEvent): Promise<void> {
     const attachments = await this.prisma.chatAttachment.findMany({
-      where: { workspaceId: event.workspaceId, contentId: event.contentId },
+      where: {
+        workspaceId: event.workspaceId,
+        contentId: event.contentId,
+        // Attachments filed as an off or archived document stay "OFF".
+        OR: [
+          { documentId: null },
+          { document: { aiAccess: true, archivedAt: null } },
+        ],
+      },
       select: { id: true, sessionId: true },
       orderBy: { createdAt: "asc" },
     });
