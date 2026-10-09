@@ -1797,3 +1797,5 @@ export interface ClientPrimaryContactInput {
   phone?: string;
   notes?: string;
 }
+
+export * from "./revenue-sharing";

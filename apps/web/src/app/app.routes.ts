@@ -1,3 +1,7 @@
+import {
+  revenueSettingsGuard,
+  revenueUnsavedGuard,
+} from "./features/revenue-sharing/revenue-sharing.guard";
 import { Route } from "@angular/router";
 import { AcceptInvitationComponent } from "./accept-invitation.component";
 import { ForgotPasswordComponent } from "./auth/forgot-password/forgot-password.component";
@@ -97,6 +101,15 @@ export const appRoutes: Route[] = [
         path: "finance",
         children: [
           { path: "", pathMatch: "full", redirectTo: "work-review" },
+          {
+            path: "settings",
+            canActivate: [revenueSettingsGuard],
+            canDeactivate: [revenueUnsavedGuard],
+            loadComponent: () =>
+              import(
+                "./features/revenue-sharing/revenue-sharing.component"
+              ).then((m) => m.RevenueSharingComponent),
+          },
           { path: "price-sources", component: FinancePriceSourcesComponent },
           { path: "work-review", component: FinanceWorkReviewComponent },
           {

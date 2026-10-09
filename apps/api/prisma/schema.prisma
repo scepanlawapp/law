@@ -331,6 +331,9 @@ model User {
   passwordChangedAt     DateTime?              @db.Timestamptz(3)
   createdAt             DateTime               @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime               @updatedAt @db.Timestamptz(3)
+  revenueAgreements     RevenueSharingAgreement[]
+  revenueRules          RevenueSharingRule[]
+  revenueRevisions      RevenueSharingVersion[] @relation("RevenueRevisionAuthor")
   memberships           WorkspaceMember[]
   sessions              AuthSession[]
   tokens                AuthToken[]
@@ -392,6 +395,8 @@ model Workspace {
   name                        String
   createdAt                   DateTime                     @default(now()) @db.Timestamptz(3)
   updatedAt                   DateTime                     @updatedAt @db.Timestamptz(3)
+  revenueSettings             RevenueSharingSettings?
+  revenueVersions             RevenueSharingVersion[]
   memberships                 WorkspaceMember[]
   auditEvents                 AuditEvent[]
   chatSessions                ChatSession[]
@@ -2138,4 +2143,65 @@ model UserRate {
   user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([workspaceId, userId, effectiveFrom])
+}
+
+// Isolated configuration subsystem. No transaction/earning entities reference it.
+model RevenueSharingSettings {
+  workspaceId String @id
+  currentVersion Int @default(0)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+}
+
+model RevenueSharingVersion {
+  id String @id @default(uuid())
+  workspaceId String
+  version Int
+  effectiveFrom DateTime @db.Date
+  configuration Json
+  reason String
+  createdBy String
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  author User @relation("RevenueRevisionAuthor", fields: [createdBy], references: [id], onDelete: Restrict)
+  agreements RevenueSharingAgreement[]
+  rules RevenueSharingRule[]
+  @@unique([workspaceId, version])
+  @@unique([id, workspaceId])
+  @@index([workspaceId, effectiveFrom, version])
+}
+
+// Immutable indexed projections of each published snapshot, not mutable agreements.
+model RevenueSharingAgreement {
+  id String @id @default(uuid())
+  versionId String
+  workspaceId String
+  agreementId String
+  memberId String
+  effectiveFrom DateTime @db.Date
+  effectiveTo DateTime? @db.Date
+  terms Json
+  version RevenueSharingVersion @relation(fields: [versionId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  member User @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  @@unique([versionId, agreementId])
+  @@index([workspaceId, memberId, effectiveFrom, effectiveTo])
+}
+
+model RevenueSharingRule {
+  id String @id @default(uuid())
+  versionId String
+  workspaceId String
+  ruleId String
+  memberId String
+  scopeType String
+  scopeId String?
+  earningType String
+  percentage Decimal @db.Decimal(5, 2)
+  effectiveFrom DateTime @db.Date
+  effectiveTo DateTime? @db.Date
+  terms Json
+  version RevenueSharingVersion @relation(fields: [versionId, workspaceId], references: [id, workspaceId], onDelete: Restrict)
+  member User @relation(fields: [memberId], references: [id], onDelete: Restrict)
+  @@unique([versionId, ruleId])
+  @@index([workspaceId, memberId, effectiveFrom, effectiveTo])
+  @@index([workspaceId, scopeType, scopeId, earningType])
 }

@@ -1,3 +1,4 @@
+import { RevenueSharingModule } from "@law/revenue-sharing";
 import { Module } from "@nestjs/common";
 import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller";
@@ -33,6 +34,7 @@ import { validateEnvironment } from "./config.validation";
     WorkspaceDocumentsModule,
     DocumentIngestionModule,
     FinancialsModule,
+    RevenueSharingModule,
     WorkEntriesModule,
     BillingRunModule,
     NotificationsModule,
