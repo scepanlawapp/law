@@ -42,6 +42,31 @@ describe("model-config", () => {
 });
 
 describe("MastraChatModelProvider", () => {
+  it("does not log structured output when logging is explicitly disabled", async () => {
+    const error = jest
+      .spyOn(console, "error")
+      .mockImplementation(() => undefined);
+    const warn = jest
+      .spyOn(console, "warn")
+      .mockImplementation(() => undefined);
+    try {
+      const provider = new MastraChatModelProvider(
+        createMockModel({ version: "v2", mockText: { title: "" } }) as never,
+        { disableLogging: true },
+      );
+      await expect(
+        provider.completeStructured({
+          schema: briefLikeSchema,
+          messages: [{ role: "user", content: "Confidential pricing request" }],
+        }),
+      ).rejects.toThrow();
+      expect(error).not.toHaveBeenCalled();
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      error.mockRestore();
+      warn.mockRestore();
+    }
+  });
   it("returns a structured result parsed with the caller's schema", async () => {
     const provider = new MastraChatModelProvider(
       createMockModel({ version: "v2", mockText: { title: "Tužba" } }) as never,

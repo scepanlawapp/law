@@ -8,6 +8,7 @@ export interface ChatModelMessage {
 export interface CompleteStructuredRequest<T> {
   schema: z.ZodType<T>;
   messages: ChatModelMessage[];
+  abortSignal?: AbortSignal;
 }
 
 export interface StreamTextRequest {
