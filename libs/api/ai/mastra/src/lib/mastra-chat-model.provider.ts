@@ -1,4 +1,5 @@
 import { Agent } from "@mastra/core/agent";
+import { noopLogger } from "@mastra/core/logger";
 import type { MastraModelConfig } from "@mastra/core/llm";
 import type {
   ChatModelMessage,
@@ -19,13 +20,18 @@ type ConversationMessage =
 export class MastraChatModelProvider implements ChatModelProvider {
   private readonly agent: Agent;
 
-  constructor(model: MastraModelConfig) {
+  constructor(
+    model: MastraModelConfig,
+    options: { disableLogging?: boolean } = {},
+  ) {
     this.agent = new Agent({
       id: "law-chat-model-provider",
       name: "Law chat model provider",
       instructions: "",
       model,
     });
+    if (options.disableLogging)
+      this.agent.__registerPrimitives({ logger: noopLogger });
   }
 
   async completeStructured<T>(
@@ -36,6 +42,7 @@ export class MastraChatModelProvider implements ChatModelProvider {
       instructions,
       structuredOutput: { schema: request.schema },
       modelSettings: { temperature: 0 },
+      ...(request.abortSignal ? { abortSignal: request.abortSignal } : {}),
     });
     if (result.error) throw result.error;
     // Re-parse with the caller's schema so defaults and refinements apply exactly as before.

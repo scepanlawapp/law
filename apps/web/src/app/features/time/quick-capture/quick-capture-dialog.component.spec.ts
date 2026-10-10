@@ -15,6 +15,7 @@ import {
   RetainerAgreement,
   WorkCaptureParseResponse,
   WorkEntry,
+  PricingSuggestionResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
@@ -97,6 +98,7 @@ describe("QuickCaptureDialogComponent", () => {
     list: jest.fn(),
     get: jest.fn(),
     parse: jest.fn(),
+    suggestPrice: jest.fn(),
     create: jest.fn(),
     update: jest.fn(),
     confirm: jest.fn(),
@@ -110,6 +112,10 @@ describe("QuickCaptureDialogComponent", () => {
   const clients = { list: jest.fn(), get: jest.fn() };
   const cases = { list: jest.fn(), get: jest.fn() };
   const toast = { success: jest.fn(), error: jest.fn(), info: jest.fn() };
+  const authSession = signal({
+    user: { id: "user-1" },
+    memberships: [{ role: "OWNER" }],
+  });
 
   function render() {
     TestBed.configureTestingModule({
@@ -162,7 +168,7 @@ describe("QuickCaptureDialogComponent", () => {
         { provide: ToastService, useValue: toast },
         {
           provide: AuthState,
-          useValue: { session: signal({ user: { id: "user-1" } }) },
+          useValue: { session: authSession },
         },
         {
           provide: LocalizationService,
@@ -187,6 +193,11 @@ describe("QuickCaptureDialogComponent", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     context = { mode: "create" };
+    authSession.set({
+      user: { id: "user-1" },
+      memberships: [{ role: "OWNER" }],
+    });
+    entries.suggestPrice.mockReturnValue(NEVER);
     entries.list.mockReturnValue(
       of({
         items: [
@@ -233,6 +244,256 @@ describe("QuickCaptureDialogComponent", () => {
       ...values,
     });
   }
+
+  function priceResult(
+    overrides: Partial<PricingSuggestionResponse> = {},
+  ): PricingSuggestionResponse {
+    return {
+      status: "SUGGESTED",
+      suggestedPrice: "5000.00",
+      currency: "EUR",
+      explanation: "100 points at 50 EUR per point",
+      reviewRequired: true,
+      confidence: "EVIDENCE_BACKED_SUGGESTION",
+      calculation: {
+        formula: "points * pointValue",
+        operands: { base: "100", unitValue: "50" },
+        rounding: "ROUND_HALF_UP",
+      },
+      sources: [
+        {
+          id: "chunk",
+          sourceId: "tariff",
+          versionId: "version-1",
+          version: 1,
+          kind: "LEGAL_TARIFF",
+          title: "Tariff",
+          reference: "Tarifni broj 1",
+          sourceUrl: null,
+          effectiveFrom: "2026-01-01",
+          effectiveTo: null,
+          excerpt: "100 points; 50 EUR per point",
+        },
+      ],
+      missingInformation: [],
+      warnings: [],
+      alternatives: [],
+      ...overrides,
+    };
+  }
+
+  it("locks money fields, changes Suggest price to Cancel, and blocks save while pricing", () => {
+    const pending = new Subject<PricingSuggestionResponse>();
+    entries.suggestPrice.mockReturnValue(pending);
+    const fixture = render();
+    const component = fixture.componentInstance;
+    fillValid(component, {
+      value: "42.00",
+      currency: "RSD",
+      description: "Current description",
+    });
+    component.suggestPrice();
+    fixture.detectChanges();
+    expect(component.pricing()).toBe(true);
+    expect(component.form.controls.value.disabled).toBe(true);
+    expect(component.form.controls.currency.disabled).toBe(true);
+    expect(
+      buttonWithText(fixture.nativeElement, "time.pricing.cancel")?.disabled,
+    ).toBe(false);
+    expect(fixture.nativeElement.textContent).toContain("time.pricing.loading");
+    expect(entries.suggestPrice).toHaveBeenCalledWith({
+      kind: "UNSAVED",
+      work: expect.objectContaining({
+        title: "Pregled ugovora",
+        description: "Current description",
+        clientId: "client-1",
+        workDate: "2026-10-04",
+        minutes: 30,
+      }),
+    });
+    component.submit();
+    expect(entries.create).not.toHaveBeenCalled();
+    component.cancelPricing();
+  });
+
+  it("populates value and currency without saving and shows formula and source evidence", () => {
+    entries.suggestPrice.mockReturnValue(
+      of(priceResult({ suggestedPrice: "0.00" })),
+    );
+    const fixture = render();
+    const component = fixture.componentInstance;
+    fillValid(component);
+    component.suggestPrice();
+    fixture.detectChanges();
+    expect(component.form.controls.value.value).toBe("0.00");
+    expect(component.form.controls.currency.value).toBe("EUR");
+    expect(component.form.controls.value.enabled).toBe(true);
+    expect(component.form.controls.currency.enabled).toBe(true);
+    expect(component.form.controls.value.dirty).toBe(true);
+    expect(component.pricing()).toBe(false);
+    expect(entries.create).not.toHaveBeenCalled();
+    expect(entries.update).not.toHaveBeenCalled();
+    expect(fixture.nativeElement.textContent).toContain(
+      "100 points at 50 EUR per point",
+    );
+    expect(fixture.nativeElement.textContent).toContain("points * pointValue");
+    expect(fixture.nativeElement.textContent).toContain(
+      "100 points; 50 EUR per point",
+    );
+    expect(fixture.nativeElement.textContent).toContain("version-1");
+    component.form.controls.value.setValue("99.00");
+    expect(component.form.controls.value.value).toBe("99.00");
+  });
+
+  it("cancels from the same button, restores controls and ignores a late response", () => {
+    const pending = new Subject<PricingSuggestionResponse>();
+    entries.suggestPrice.mockReturnValue(pending);
+    const fixture = render();
+    const component = fixture.componentInstance;
+    fillValid(component, { value: "42.00", currency: "RSD" });
+    component.suggestPrice();
+    expect(pending.observed).toBe(true);
+    component.suggestPrice();
+    expect(pending.observed).toBe(false);
+    pending.next(priceResult());
+    fixture.detectChanges();
+    expect(component.form.controls.value.value).toBe("42.00");
+    expect(component.form.controls.currency.value).toBe("RSD");
+    expect(component.form.controls.value.enabled).toBe(true);
+    expect(component.form.controls.currency.enabled).toBe(true);
+    expect(component.pricingResult()).toBeNull();
+    expect(component.pricingMessage()).toBe("time.pricing.cancelled");
+    expect(
+      buttonWithText(fixture.nativeElement, "time.pricing.suggest"),
+    ).toBeDefined();
+  });
+
+  it("disables and guards price suggestions for non-billable work", () => {
+    const fixture = render();
+    const component = fixture.componentInstance;
+    fillValid(component, { treatment: "NON_BILLABLE" });
+    fixture.detectChanges();
+    expect(
+      buttonWithText(fixture.nativeElement, "time.pricing.suggest")?.disabled,
+    ).toBe(true);
+    component.suggestPrice();
+    expect(entries.suggestPrice).not.toHaveBeenCalled();
+  });
+
+  it("cancels stale requests when work changes or becomes non-billable", () => {
+    const pending = new Subject<PricingSuggestionResponse>();
+    entries.suggestPrice.mockReturnValue(pending);
+    const component = render().componentInstance;
+    fillValid(component, { value: "42.00" });
+    component.suggestPrice();
+    component.form.controls.description.setValue("Changed work");
+    expect(pending.observed).toBe(false);
+    expect(component.pricing()).toBe(false);
+    component.suggestPrice();
+    component.form.controls.treatment.setValue("NON_BILLABLE");
+    expect(pending.observed).toBe(false);
+    expect(component.form.controls.value.value).toBe("42.00");
+  });
+
+  it("restores fields after errors and allows retry", () => {
+    entries.suggestPrice.mockReturnValue(
+      throwError(() => new Error("Unavailable")),
+    );
+    const component = render().componentInstance;
+    fillValid(component, { value: "42.00" });
+    component.suggestPrice();
+    expect(component.pricingMessage()).toBe("time.pricing.failed");
+    expect(component.pricing()).toBe(false);
+    expect(component.form.controls.value.enabled).toBe(true);
+    expect(component.form.controls.currency.enabled).toBe(true);
+    expect(component.form.controls.value.value).toBe("42.00");
+    entries.suggestPrice.mockReturnValue(of(priceResult()));
+    component.suggestPrice();
+    expect(component.form.controls.value.value).toBe("5000.00");
+  });
+
+  it("shows missing information and alternatives without overwriting existing money", () => {
+    const result = priceResult({
+      status: "NEEDS_INFORMATION",
+      suggestedPrice: null,
+      currency: null,
+      calculation: null,
+      missingInformation: [
+        {
+          key: "claimValue",
+          label: "Claim value",
+          reason: "Needed for tariff band",
+          type: "DECIMAL",
+        },
+      ],
+    });
+    entries.suggestPrice.mockReturnValue(of(result));
+    const fixture = render();
+    const component = fixture.componentInstance;
+    fillValid(component, { value: "42.00", currency: "RSD" });
+    component.suggestPrice();
+    fixture.detectChanges();
+    expect(component.form.controls.value.value).toBe("42.00");
+    expect(fixture.nativeElement.textContent).toContain(
+      "Needed for tariff band",
+    );
+    const alternative = {
+      suggestedPrice: "100.00",
+      currency: "EUR",
+      explanation: "Client agreement",
+      calculation: {
+        formula: "base",
+        operands: { base: "100" },
+        rounding: "ROUND_HALF_UP",
+      },
+      sources: priceResult().sources,
+    };
+    entries.suggestPrice.mockReturnValue(
+      of(
+        priceResult({
+          status: "NEEDS_REVIEW",
+          suggestedPrice: null,
+          alternatives: [alternative],
+        }),
+      ),
+    );
+    component.suggestPrice();
+    fixture.detectChanges();
+    expect(component.form.controls.value.value).toBe("42.00");
+    expect(fixture.nativeElement.textContent).toContain("Client agreement");
+  });
+
+  it("does not enable previously disabled money controls after cancellation", () => {
+    const component = render().componentInstance;
+    fillValid(component);
+    component.form.controls.value.disable({ emitEvent: false });
+    component.suggestPrice();
+    component.cancelPricing();
+    expect(component.form.controls.value.disabled).toBe(true);
+    expect(component.form.controls.currency.enabled).toBe(true);
+  });
+
+  it("unsubscribes pricing on dialog destruction and hides it for unauthorized roles", () => {
+    const pending = new Subject<PricingSuggestionResponse>();
+    entries.suggestPrice.mockReturnValue(pending);
+    const fixture = render();
+    fillValid(fixture.componentInstance);
+    fixture.componentInstance.suggestPrice();
+    fixture.destroy();
+    expect(pending.observed).toBe(false);
+    TestBed.resetTestingModule();
+    authSession.set({
+      user: { id: "user-1" },
+      memberships: [{ role: "LAWYER" }],
+    });
+    const other = render();
+    fillValid(other.componentInstance);
+    other.componentInstance.suggestPrice();
+    expect(
+      buttonWithText(other.nativeElement, "time.pricing.suggest"),
+    ).toBeUndefined();
+    expect(entries.suggestPrice).toHaveBeenCalledTimes(1);
+  });
 
   it("is invalid without a client", () => {
     const { componentInstance: component } = render();

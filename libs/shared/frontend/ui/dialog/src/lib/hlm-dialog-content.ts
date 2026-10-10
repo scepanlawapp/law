@@ -35,6 +35,33 @@ type HlmDialogContentContext = {
       max-height: 95dvh !important;
       overflow: hidden !important;
     }
+
+    :host
+      ::ng-deep
+      :is(div, form, section):has(> [data-slot="dialog-header"]):has(
+        > [data-slot="dialog-footer"]
+      ) {
+      display: flex;
+      flex-direction: column;
+      flex: 1 1 auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    :host
+      ::ng-deep
+      :is(div, form, section):has(> [data-slot="dialog-header"]):has(
+        > [data-slot="dialog-footer"]
+      )
+      > :not([data-slot="dialog-header"]):not([data-slot="dialog-footer"]),
+    :host
+      > :not([data-slot="dialog-header"]):not([data-slot="dialog-footer"]):not(
+        [data-slot="dialog-component-wrapper"]
+      ):not(button) {
+      min-height: 0;
+      flex: 1 1 auto;
+      overflow-y: auto;
+    }
   `,
   host: {
     "data-slot": "dialog-content",
@@ -43,7 +70,8 @@ type HlmDialogContentContext = {
   template: `
     @if (component) {
       <div
-        class="flex min-h-0 flex-1 flex-col
+        data-slot="dialog-component-wrapper"
+        class="flex min-h-0 flex-1 flex-col overflow-hidden
          [&>*]:flex [&>*]:min-h-0 [&>*]:flex-1
          [&>*]:flex-col [&>*]:gap-6"
       >
