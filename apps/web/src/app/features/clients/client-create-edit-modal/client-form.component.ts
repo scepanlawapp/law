@@ -181,6 +181,15 @@ export class ClientFormComponent {
     this.addressTypeOptions,
     (key) => this.localization.translate(key),
   );
+  private readonly savedReferringLawyer =
+    signal<ClientDetail["referringLawyer"]>(null);
+  readonly referringLawyerItemToString = (
+    value: string | null | undefined,
+  ): string =>
+    this.users().find((user) => user.userId === value)?.label ??
+    (value && this.savedReferringLawyer()?.id === value
+      ? (this.savedReferringLawyer()?.displayName ?? "")
+      : "");
   readonly responsibleUserItemToString = (
     value: string | null | undefined,
   ): string => this.users().find((user) => user.userId === value)?.label ?? "";
@@ -246,6 +255,7 @@ export class ClientFormComponent {
     preferredLanguage: new FormControl(""),
     notes: new FormControl(""),
     responsibleUserId: new FormControl(""),
+    referringLawyerId: new FormControl(""),
     tagIds: new FormControl<string[]>([], { nonNullable: true }),
   });
   constructor() {
@@ -281,8 +291,12 @@ export class ClientFormComponent {
         .me()
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-          next: (session) =>
-            this.form.controls.responsibleUserId.setValue(session.user.id),
+          next: (session) => {
+            this.form.controls.responsibleUserId.setValue(session.user.id);
+            if (!this.form.controls.referringLawyerId.dirty) {
+              this.form.controls.referringLawyerId.setValue(session.user.id);
+            }
+          },
         });
     }
     if (this.clientId)
@@ -295,8 +309,10 @@ export class ClientFormComponent {
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: ({ client, addresses, documents, contacts }) => {
+            this.savedReferringLawyer.set(client.referringLawyer);
             this.form.patchValue({
               responsibleUserId: client.responsibleUser?.id ?? "",
+              referringLawyerId: client.referringLawyer?.id ?? "",
               tagIds: client.tags.map((tag) => tag.id),
             });
             this.form.patchValue(client);
@@ -452,6 +468,13 @@ export class ClientFormComponent {
 
   setResponsibleUserId(value: string | null | undefined): void {
     const control = this.form.controls.responsibleUserId;
+    control.setValue(value ?? "");
+    control.markAsDirty();
+    control.markAsTouched();
+  }
+
+  setReferringLawyerId(value: string | null | undefined): void {
+    const control = this.form.controls.referringLawyerId;
     control.setValue(value ?? "");
     control.markAsDirty();
     control.markAsTouched();
@@ -622,6 +645,7 @@ export class ClientFormComponent {
       preferredLanguage: raw.preferredLanguage?.trim() || undefined,
       notes: raw.notes?.trim() || undefined,
       responsibleUserId: raw.responsibleUserId || undefined,
+      referringLawyerId: raw.referringLawyerId || null,
       tagIds: raw.tagIds,
     };
     const addressRequests = this.addressRequests();

@@ -223,7 +223,7 @@
       <p class="text-destructive text-sm">
         {{ "time.team.loadError" | translate }}
       </p>
-      <button hlmBtn type="button" variant="outline" (click)="reload()">
+      <button hlmBtn type="button" variant="outline" (click)="retry()">
         {{ "time.retry" | translate }}
       </button>
     </div>
@@ -347,7 +347,14 @@
     </p>
   }
 
-  @if (hasMore() && !loading()) {
-    <div class="h-px" aria-hidden="true" (lawInfiniteScroll)="loadMore()"></div>
+  @if (totalItems() > 0) {
+    <law-pagination
+      [currentPage]="page()"
+      [itemsPerPage]="pageSize()"
+      [totalItems]="totalItems()"
+      [disabled]="loading()"
+      (currentPageChange)="changePage($event)"
+      (itemsPerPageChange)="changePageSize($event)"
+    />
   }
 </section>

@@ -116,3 +116,116 @@ describe("ClientsService createActivity", () => {
     expect(workEntrySources.ensureForSource).not.toHaveBeenCalled();
   });
 });
+
+describe("ClientsService referring lawyer", () => {
+  const db = {
+    $transaction: jest.fn(),
+    $queryRaw: jest.fn(),
+    client: { findFirst: jest.fn(), create: jest.fn(), update: jest.fn() },
+    workspaceMember: { findUnique: jest.fn() },
+    domainCounter: { upsert: jest.fn() },
+    clientActivity: { create: jest.fn() },
+    user: { findMany: jest.fn() },
+  };
+  const service = new ClientsService(db as never, {} as never);
+  const run = <T>(callback: () => Promise<T>) =>
+    WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.OWNER },
+      callback,
+    );
+  const existing = {
+    id: clientId,
+    type: "INDIVIDUAL",
+    firstName: "Petar",
+    lastName: "Petrović",
+    status: "ACTIVE",
+    referringLawyerId: userId,
+    referringLawyer: {
+      id: userId,
+      firstName: "Ana",
+      lastName: "Anić",
+      email: "ana@example.test",
+    },
+    responsibleUserId: null,
+    tags: [],
+    _count: { cases: 0 },
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  };
+  beforeEach(() => {
+    jest.resetAllMocks();
+    db.$transaction.mockImplementation((callback) => callback(db));
+    db.client.findFirst.mockResolvedValue(existing);
+    db.client.create.mockResolvedValue(existing);
+    db.domainCounter.upsert.mockResolvedValue({ value: 1 });
+    db.workspaceMember.findUnique.mockResolvedValue({
+      role: "LAWYER",
+      status: "ACTIVE",
+    });
+    db.user.findMany.mockResolvedValue([
+      {
+        id: userId,
+        firstName: "Ana",
+        lastName: "Anić",
+        email: "ana@example.test",
+      },
+    ]);
+  });
+  it("persists a referring lawyer on create and resolves their detail label", async () => {
+    const result = await run(() =>
+      service.create({
+        type: "INDIVIDUAL" as never,
+        firstName: "Petar",
+        lastName: "Petrović",
+        referringLawyerId: userId,
+      }),
+    );
+    expect(db.client.create.mock.calls[0][0].data.referringLawyerId).toBe(
+      userId,
+    );
+    expect(result.referringLawyer?.displayName).toBe("Ana Anić");
+    expect(db.workspaceMember.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId_workspaceId: { userId, workspaceId } },
+      }),
+    );
+  });
+  it.each([
+    null,
+    { role: "LAWYER", status: "SUSPENDED" },
+    { role: "ASSISTANT", status: "ACTIVE" },
+  ])("rejects an unavailable referring lawyer (%j)", async (member) => {
+    db.workspaceMember.findUnique.mockResolvedValue(member);
+    await expect(
+      run(() =>
+        service.create({
+          type: "INDIVIDUAL" as never,
+          firstName: "Petar",
+          referringLawyerId: userId,
+        }),
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    expect(db.client.create).not.toHaveBeenCalled();
+  });
+  it("preserves an unchanged historical referring lawyer without requiring active membership", async () => {
+    db.workspaceMember.findUnique.mockResolvedValue(null);
+    await run(() =>
+      service.update(clientId, { referringLawyerId: userId } as never),
+    );
+    expect(db.workspaceMember.findUnique).not.toHaveBeenCalled();
+    expect(db.client.update.mock.calls[0][0].data.referringLawyerId).toBe(
+      userId,
+    );
+  });
+  it("clears an existing referral with null and preserves it when omitted", async () => {
+    await run(() =>
+      service.update(clientId, { referringLawyerId: null } as never),
+    );
+    expect(db.client.update.mock.calls[0][0].data.referringLawyerId).toBeNull();
+    await run(() => service.update(clientId, {} as never));
+    expect(db.client.update.mock.calls[1][0].data).not.toHaveProperty(
+      "referringLawyerId",
+    );
+    expect(db.workspaceMember.findUnique).not.toHaveBeenCalled();
+  });
+});

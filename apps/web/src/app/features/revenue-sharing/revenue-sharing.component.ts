@@ -6,6 +6,7 @@ import {
   computed,
   inject,
   signal,
+  output,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
@@ -102,6 +103,7 @@ const writeRates = (form: ReturnType<typeof ratesForm>, rates: RevenueRates) =>
   templateUrl: "./revenue-sharing.component.html",
 })
 export class RevenueSharingComponent {
+  readonly published = output<void>();
   private readonly api = inject(RevenueSharingApiClient);
   private readonly destroyRef = inject(DestroyRef);
   readonly localization = inject(LocalizationService);
@@ -650,13 +652,7 @@ export class RevenueSharingComponent {
           this.apply(saved);
           this.saving.set(false);
           this.toast.success(this.localization.translate("revenue.saved"));
-          this.api
-            .history()
-            .pipe(takeUntilDestroyed(this.destroyRef))
-            .subscribe({
-              next: (history) => this.history.set(history),
-              error: () => this.error.set("revenue.error.REQUEST_FAILED"),
-            });
+          this.published.emit();
         },
         error: (e) => {
           this.saving.set(false);

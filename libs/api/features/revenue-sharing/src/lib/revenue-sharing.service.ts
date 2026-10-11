@@ -2,14 +2,21 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from "@nestjs/common";
 import { toLatin } from "@law/transliteration";
 import { Prisma } from "@prisma/client";
-import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
+import {
+  PlatformPrismaService,
+  WorkspaceContextService,
+  PaginationQueryDto,
+  paginationMeta,
+} from "@law/core";
 import {
   defaultRevenueConfiguration,
   RevenueConfiguration,
   RevenueHistoryEntry,
+  RevenueVersionListResponse,
   RevenuePreviewRequest,
   RevenuePublishRequest,
   RevenueReferences,
@@ -75,7 +82,53 @@ export class RevenueSharingService {
         author: { select: { firstName: true, lastName: true, email: true } },
       },
     });
-    return rows.map((row) => ({
+    return rows.map((row) => this.toVersion(row));
+  }
+  async listVersions(
+    query: PaginationQueryDto,
+  ): Promise<RevenueVersionListResponse> {
+    const { workspaceId } = this.context();
+    const { page, pageSize } = query;
+    const where = { workspaceId };
+    const [totalItems, rows] = await this.db.$transaction([
+      this.db.revenueSharingVersion.count({ where }),
+      this.db.revenueSharingVersion.findMany({
+        where,
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        orderBy: { version: "desc" },
+        include: {
+          author: { select: { firstName: true, lastName: true, email: true } },
+        },
+      }),
+    ]);
+    return {
+      items: rows.map((row) => this.toVersion(row)),
+      meta: paginationMeta(page, pageSize, totalItems, [
+        { field: "version", direction: "desc" },
+      ]),
+    };
+  }
+  async getVersion(id: string): Promise<RevenueHistoryEntry> {
+    const { workspaceId } = this.context();
+    const row = await this.db.revenueSharingVersion.findFirst({
+      where: { id, workspaceId },
+      include: {
+        author: { select: { firstName: true, lastName: true, email: true } },
+      },
+    });
+    if (!row)
+      throw new NotFoundException({ code: "revenue.VERSION_NOT_FOUND" });
+    return this.toVersion(row);
+  }
+  private toVersion(
+    row: Prisma.RevenueSharingVersionGetPayload<{
+      include: {
+        author: { select: { firstName: true; lastName: true; email: true } };
+      };
+    }>,
+  ): RevenueHistoryEntry {
+    return {
       id: row.id,
       version: row.version,
       effectiveFrom: row.effectiveFrom.toISOString().slice(0, 10),
@@ -85,7 +138,7 @@ export class RevenueSharingService {
         [row.author.firstName, row.author.lastName].filter(Boolean).join(" ") ||
         row.author.email,
       reason: row.reason,
-    }));
+    };
   }
   async references(): Promise<RevenueReferences> {
     const { workspaceId } = this.context();

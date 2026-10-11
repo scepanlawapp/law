@@ -55,7 +55,8 @@ export class ClientsService {
   }
 
   private async requireResponsibleUser(
-    userId: string | undefined,
+    userId: string | null | undefined,
+    label = "Responsible user",
   ): Promise<void> {
     if (!userId) return;
     const membership = await this.platformPrisma.workspaceMember.findUnique({
@@ -70,7 +71,7 @@ export class ClientsService {
       !["OWNER", "ADMIN", "LAWYER"].includes(membership.role)
     ) {
       throw new BadRequestException(
-        "Responsible user must be an active lawyer in this workspace",
+        `${label} must be an active lawyer in this workspace`,
       );
     }
   }
@@ -259,6 +260,9 @@ export class ClientsService {
       where: { id: clientId, workspaceId: this.context.workspaceId },
       include: {
         tags: { include: { tag: true } },
+        referringLawyer: {
+          select: { id: true, firstName: true, lastName: true, email: true },
+        },
         _count: {
           select: {
             cases: {
@@ -272,6 +276,13 @@ export class ClientsService {
     const users = await this.userReferenceMap([client.responsibleUserId]);
     return {
       ...this.toSummary(client, users),
+      referringLawyer: client.referringLawyer
+        ? {
+            id: client.referringLawyer.id,
+            displayName: this.userDisplayName(client.referringLawyer),
+            email: client.referringLawyer.email,
+          }
+        : null,
       firstName: client.firstName,
       lastName: client.lastName,
       organizationName: client.organizationName,
@@ -295,6 +306,10 @@ export class ClientsService {
 
   async create(input: CreateClientDto): Promise<ClientDetail> {
     await this.requireResponsibleUser(input.responsibleUserId);
+    await this.requireResponsibleUser(
+      input.referringLawyerId,
+      "Referring lawyer",
+    );
     await this.requireTags(input.tagIds);
     const normalized = this.normalize(input);
     const { workspaceId, userId } = this.context;
@@ -318,6 +333,7 @@ export class ClientsService {
           notes: input.notes?.trim(),
           customFields: this.customFields(input.customFields),
           responsibleUserId: input.responsibleUserId,
+          referringLawyerId: input.referringLawyerId,
           createdByUserId: userId,
           updatedByUserId: userId,
           tags: input.tagIds?.length
@@ -363,6 +379,12 @@ export class ClientsService {
     });
     if (!existing) throw new NotFoundException("Client not found");
     await this.requireResponsibleUser(input.responsibleUserId);
+    if (input.referringLawyerId !== existing.referringLawyerId) {
+      await this.requireResponsibleUser(
+        input.referringLawyerId,
+        "Referring lawyer",
+      );
+    }
     await this.requireTags(input.tagIds);
     const normalized = this.normalize(input, existing);
     const { userId, workspaceId } = this.context;
@@ -424,6 +446,9 @@ export class ClientsService {
           }),
           ...(input.responsibleUserId !== undefined && {
             responsibleUserId: input.responsibleUserId,
+          }),
+          ...(input.referringLawyerId !== undefined && {
+            referringLawyerId: input.referringLawyerId,
           }),
           ...(input.tagIds !== undefined && {
             tags: {

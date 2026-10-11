@@ -256,6 +256,43 @@
                 </hlm-combobox-content>
               </div>
             </div>
+            <div hlmField class="md:col-span-2">
+              <label hlmFieldLabel for="referringLawyerId">
+                {{ "clients.referringLawyer" | translate }}
+              </label>
+              <div
+                hlmCombobox
+                [value]="form.controls.referringLawyerId.value"
+                (valueChange)="setReferringLawyerId($event)"
+                [itemToString]="referringLawyerItemToString"
+              >
+                <hlm-combobox-trigger
+                  buttonId="referringLawyerId"
+                  class="w-full"
+                >
+                  <hlm-combobox-value />
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="content">
+                  <hlm-combobox-input
+                    [placeholder]="'common.search' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "common.noResults" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    <hlm-combobox-item value="">
+                      {{ "common.notProvided" | translate }}
+                    </hlm-combobox-item>
+                    @for (user of users(); track user.userId) {
+                      <hlm-combobox-item [value]="user.userId">
+                        {{ user.label }}
+                      </hlm-combobox-item>
+                    }
+                  </div>
+                </hlm-combobox-content>
+              </div>
+            </div>
           </div>
         </section>
 

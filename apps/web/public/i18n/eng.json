@@ -2493,8 +2493,8 @@
   "work.entries.deleteError": "The work entry could not be deleted. Try again.",
   "work.entries.loadEntryError": "The work entry could not be loaded. Try again.",
   "common.delete": "Delete",
-  "settings.organization.tabs.other": "Other settings",
-  "settings.organization.other.title": "Case numbering",
+  "settings.organization.tabs.other": "Case numeration",
+  "settings.organization.other.title": "Case numeration",
   "settings.organization.other.description": "Set the pattern used to suggest numbers for new cases. Existing numbers remain unchanged.",
   "settings.organization.other.caseNumberPattern": "Case number pattern",
   "settings.organization.other.patternHint": "Use date tokens and exactly one {SEQ} or {SEQ:n}. The preview uses sequence 1; suggestions continue the existing case sequence. Use letters A–Z, digits, /, . or -. Numbers may have up to 40 characters; allow room for the sequence to grow.",
@@ -2853,5 +2853,16 @@
   "report.reason.otherClient": "Demo rule for work on a client originated by another member.",
   "report.reason.origination": "A bonus for originating the client while another member performed the work.",
   "report.reason.workShare": "Allocation for performed work under a demo rule.",
-  "report.reason.contractual": "Other allocation under a demo agreement."
+  "report.reason.contractual": "Other allocation under a demo agreement.",
+  "clients.referringLawyer": "Referring lawyer",
+  "revenue.createVersion": "Create version",
+  "revenue.versionsDescription": "Browse all saved revenue-sharing versions or create a new configuration.",
+  "revenue.version": "Version",
+  "revenue.createdAt": "Created at",
+  "revenue.noVersions": "No versions have been created.",
+  "revenue.versionReadOnly": "Saved configuration. Create a new version to change these settings.",
+  "revenue.versionLoadError": "This version could not be loaded. It may be unavailable or you may not have access.",
+  "revenue.changedBy": "Changed by",
+  "revenue.noSavedAgreements": "No individual agreements in this version.",
+  "revenue.noSavedRules": "No special rules in this version."
 }

@@ -1,0 +1,86 @@
+<section class="space-y-6 text-sm" [attr.aria-busy]="loading()">
+  <nav [attr.aria-label]="'finance.breadcrumb' | translate">
+    <ol class="flex flex-wrap items-center gap-2 text-muted-foreground">
+      <li>
+        <a class="underline underline-offset-4" routerLink="/finance/settings">
+          {{ "revenue.title" | translate }}
+        </a>
+      </li>
+      <li aria-hidden="true">/</li>
+      <li aria-current="page" class="text-foreground">
+        {{ "revenue.version" | translate }} {{ version()?.version }}
+      </li>
+    </ol>
+  </nav>
+  @if (loading()) {
+    <div class="flex items-center gap-2 py-8" role="status">
+      <hlm-spinner />
+      {{ "revenue.loading" | translate }}
+    </div>
+  } @else if (error()) {
+    <div role="alert" class="space-y-3">
+      <p>{{ "revenue.versionLoadError" | translate }}</p>
+      <button hlmBtn type="button" variant="outline" (click)="load()">
+        {{ "revenue.retry" | translate }}
+      </button>
+    </div>
+  } @else if (version(); as item) {
+    <header>
+      <h1 class="text-2xl font-semibold">
+        {{ "revenue.version" | translate }} {{ item.version }}
+      </h1>
+      <p class="mt-2 text-muted-foreground">
+        {{ "revenue.versionReadOnly" | translate }}
+      </p>
+    </header>
+    <dl class="grid gap-4 rounded-lg border bg-card p-4 sm:grid-cols-2">
+      <div>
+        <dt class="text-muted-foreground">
+          {{ "revenue.effectiveFrom" | translate }}
+        </dt>
+        <dd>{{ item.effectiveFrom | date: "dd.MM.yyyy" }}</dd>
+      </div>
+      <div>
+        <dt class="text-muted-foreground">
+          {{ "revenue.createdAt" | translate }}
+        </dt>
+        <dd>{{ item.createdAt | date: "dd.MM.yyyy HH:mm" }}</dd>
+      </div>
+      <div>
+        <dt class="text-muted-foreground">
+          {{ "revenue.changedBy" | translate }}
+        </dt>
+        <dd>{{ item.changedBy }}</dd>
+      </div>
+      <div>
+        <dt class="text-muted-foreground">
+          {{ "revenue.reason" | translate }}
+        </dt>
+        <dd class="whitespace-pre-wrap break-words">{{ item.reason }}</dd>
+      </div>
+    </dl>
+    @for (section of sections(); track $index) {
+      <section class="space-y-4 rounded-lg border bg-card p-4">
+        <h2 class="text-lg font-semibold">{{ section.title }}</h2>
+        <dl class="divide-y">
+          @for (row of section.rows; track $index) {
+            <div class="grid gap-1 py-3 sm:grid-cols-2 sm:gap-4">
+              <dt class="text-muted-foreground">{{ row.label }}</dt>
+              <dd class="whitespace-pre-wrap break-words">{{ row.value }}</dd>
+            </div>
+          }
+        </dl>
+      </section>
+    }
+    @if (!item.configuration.agreements.length) {
+      <p class="text-muted-foreground">
+        {{ "revenue.noSavedAgreements" | translate }}
+      </p>
+    }
+    @if (!item.configuration.specialRules.length) {
+      <p class="text-muted-foreground">
+        {{ "revenue.noSavedRules" | translate }}
+      </p>
+    }
+  }
+</section>

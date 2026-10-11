@@ -1,5 +1,5 @@
 import { TestBed } from "@angular/core/testing";
-import { of, throwError } from "rxjs";
+import { of, Subject, throwError } from "rxjs";
 import {
   AuthApiClient,
   ClientsApiClient,
@@ -49,6 +49,7 @@ describe("ClientFormComponent primary contact", () => {
     deactivateContact: jest.fn(),
   };
   const close = jest.fn();
+  const auth = { me: jest.fn() };
   beforeAll(() => {
     globalThis.ResizeObserver ??= class {
       observe = jest.fn();
@@ -59,6 +60,7 @@ describe("ClientFormComponent primary contact", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     context = {};
+    auth.me.mockReturnValue(of({ user: { id: "user" } }));
     api.get.mockReturnValue(of(client));
     api.listAddresses.mockReturnValue(of([]));
     api.listIdentificationDocuments.mockReturnValue(of([]));
@@ -73,7 +75,7 @@ describe("ClientFormComponent primary contact", () => {
         { provide: ClientsApiClient, useValue: api },
         {
           provide: AuthApiClient,
-          useValue: { me: () => of({ user: { id: "user" } }) },
+          useValue: auth,
         },
         {
           provide: ReferencesApiClient,
@@ -147,6 +149,60 @@ describe("ClientFormComponent primary contact", () => {
     expect(api.create.mock.calls[0][0]).not.toHaveProperty("email");
     expect(api.createContact).not.toHaveBeenCalled();
     expect(close).toHaveBeenCalledWith(client);
+  });
+  it("defaults the referring lawyer to the signed-in user on create", () => {
+    const { componentInstance: form } = render();
+    expect(form.form.controls.referringLawyerId.value).toBe("user");
+    expect(form.form.controls.referringLawyerId.pristine).toBe(true);
+  });
+  it.each(["referrer", ""])(
+    "preserves explicit referring-lawyer choice '%s' when the session arrives late",
+    (choice) => {
+      const session = new Subject<{ user: { id: string } }>();
+      auth.me.mockReturnValue(session);
+      const { componentInstance: form } = render();
+      form.setReferringLawyerId(choice);
+      session.next({ user: { id: "user" } });
+      expect(form.form.controls.referringLawyerId.value).toBe(choice);
+    },
+  );
+  it("preserves an empty referring lawyer on edit", () => {
+    context = { clientId: client.id };
+    api.get.mockReturnValue(of({ ...client, referringLawyer: null }));
+    const { componentInstance: form } = render();
+    expect(form.form.controls.referringLawyerId.value).toBe("");
+    expect(auth.me).not.toHaveBeenCalled();
+  });
+  it("keeps the referring lawyer separate from the responsible lawyer and saves it", () => {
+    const { componentInstance: form } = render();
+    form.form.patchValue({ firstName: "Ana", lastName: "Test" });
+    form.setReferringLawyerId("referrer");
+    form.submit();
+    expect(api.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        responsibleUserId: "user",
+        referringLawyerId: "referrer",
+      }),
+    );
+  });
+  it("loads a referring lawyer and explicitly clears it on edit", () => {
+    context = { clientId: client.id };
+    api.get.mockReturnValue(
+      of({
+        ...client,
+        referringLawyer: { id: "referrer", displayName: "Mila" },
+      }),
+    );
+    const { componentInstance: form } = render();
+    expect(form.form.controls.referringLawyerId.value).toBe("referrer");
+    expect(form.referringLawyerItemToString("referrer")).toBe("Mila");
+    expect(form.users()).toEqual([]);
+    form.setReferringLawyerId("");
+    form.submit();
+    expect(api.update).toHaveBeenCalledWith(
+      client.id,
+      expect.objectContaining({ referringLawyerId: null }),
+    );
   });
   it("uses existing primary contact instead of duplicated legacy client fields", () => {
     context = { clientId: client.id };

@@ -153,3 +153,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Revenue Sharing Settings](tracks/revenue_sharing_settings_20261009/index.md)
 
 - [Demo seed and retainer VAT fix](tracks/demo_seed_retainer_vat_20261009/index.md)
+
+- [Client originator and finance versions](tracks/client_originator_finance_versions_20261012/index.md)
