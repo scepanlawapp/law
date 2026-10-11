@@ -1158,6 +1158,7 @@ export interface ClientSummary {
 }
 
 export interface ClientDetail extends ClientSummary {
+  referringLawyer: UserReference | null;
   firstName: string | null;
   lastName: string | null;
   organizationName: string | null;
@@ -1808,3 +1809,27 @@ export interface ClientPrimaryContactInput {
 }
 
 export * from "./revenue-sharing";
+
+export interface ClientRequest {
+  primaryContact?: ClientPrimaryContactInput;
+  type: ClientType;
+  status?: ClientStatus;
+  firstName?: string;
+  lastName?: string;
+  displayName?: string;
+  organizationName?: string;
+  isDomestic?: boolean;
+  isPublicSector?: boolean;
+  jbkjs?: string;
+  jmbg?: string;
+  taxNumber?: string;
+  registrationNumber?: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  preferredLanguage?: string;
+  notes?: string;
+  responsibleUserId?: string;
+  referringLawyerId?: string | null;
+  tagIds?: string[];
+}

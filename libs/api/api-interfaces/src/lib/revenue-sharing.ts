@@ -1,3 +1,5 @@
+import type { PaginatedResponse } from "./api-interfaces";
+
 /** Configuration only. Percentages are exact base-10 strings, never stored as floats. */
 export const REVENUE_ORIGINS = [
   "OWN_CLIENT",
@@ -188,3 +190,9 @@ export function defaultRevenueConfiguration(): RevenueConfiguration {
     specialRules: [],
   };
 }
+
+export interface RevenueVersionListQuery {
+  page?: number;
+  pageSize?: number;
+}
+export type RevenueVersionListResponse = PaginatedResponse<RevenueHistoryEntry>;

@@ -2493,7 +2493,7 @@
   "work.entries.deleteError": "Nije moguće obrisati rad. Pokušajte ponovo.",
   "work.entries.loadEntryError": "Nije moguće učitati rad. Pokušajte ponovo.",
   "common.delete": "Obriši",
-  "settings.organization.tabs.other": "Ostala podešavanja",
+  "settings.organization.tabs.other": "Numeracija predmeta",
   "settings.organization.other.title": "Numeracija predmeta",
   "settings.organization.other.description": "Podesite obrazac za predloge brojeva novih predmeta. Postojeći brojevi ostaju nepromenjeni.",
   "settings.organization.other.caseNumberPattern": "Obrazac broja predmeta",
@@ -2853,5 +2853,16 @@
   "report.reason.otherClient": "Demonstraciono pravilo za rad na klijentu kog je doveo drugi član.",
   "report.reason.origination": "Bonus za dovođenje klijenta, iako je rad izvršio drugi član.",
   "report.reason.workShare": "Udeo za izvršeni rad prema demonstracionom pravilu.",
-  "report.reason.contractual": "Druga raspodela prema demonstracionom ugovoru."
+  "report.reason.contractual": "Druga raspodela prema demonstracionom ugovoru.",
+  "clients.referringLawyer": "Advokat koji je doveo klijenta",
+  "revenue.createVersion": "Kreiraj verziju",
+  "revenue.versionsDescription": "Pregledajte sve sačuvane verzije raspodele prihoda ili kreirajte novu konfiguraciju.",
+  "revenue.version": "Verzija",
+  "revenue.createdAt": "Kreirano",
+  "revenue.noVersions": "Još nema kreiranih verzija.",
+  "revenue.versionReadOnly": "Sačuvana konfiguracija. Za promenu podešavanja kreirajte novu verziju.",
+  "revenue.versionLoadError": "Verzija nije učitana. Možda nije dostupna ili nemate pravo pristupa.",
+  "revenue.changedBy": "Izmenio",
+  "revenue.noSavedAgreements": "Ova verzija nema pojedinačne ugovore.",
+  "revenue.noSavedRules": "Ova verzija nema posebna pravila."
 }

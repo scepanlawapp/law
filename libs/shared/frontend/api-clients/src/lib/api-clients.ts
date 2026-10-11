@@ -1,4 +1,4 @@
-import type { ClientPrimaryContactInput } from "@law/api-interfaces";
+import type { ClientRequest } from "@law/api-interfaces";
 import type { TaskRequest } from "@law/api-interfaces";
 import { inject, Injectable } from "@angular/core";
 import {
@@ -927,28 +927,7 @@ export interface CaseListQuery {
   tags?: string[];
 }
 
-export interface ClientRequest {
-  primaryContact?: ClientPrimaryContactInput;
-  type: ClientType;
-  status?: ClientStatus;
-  firstName?: string;
-  lastName?: string;
-  displayName?: string;
-  organizationName?: string;
-  isDomestic?: boolean;
-  isPublicSector?: boolean;
-  jbkjs?: string;
-  jmbg?: string;
-  taxNumber?: string;
-  registrationNumber?: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  preferredLanguage?: string;
-  notes?: string;
-  responsibleUserId?: string;
-  tagIds?: string[];
-}
+export type { ClientRequest } from "@law/api-interfaces";
 
 export interface CaseRequest {
   clientId: string;

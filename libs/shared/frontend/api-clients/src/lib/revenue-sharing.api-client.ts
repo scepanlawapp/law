@@ -2,6 +2,8 @@ import { inject, Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import {
   RevenueHistoryEntry,
+  RevenueVersionListQuery,
+  RevenueVersionListResponse,
   RevenuePreviewRequest,
   RevenuePreviewResult,
   RevenuePublishRequest,
@@ -35,6 +37,23 @@ export class RevenueSharingApiClient {
     return this.http.get<RevenueHistoryEntry[]>(this.endpoint("/history"), {
       withCredentials: true,
     });
+  }
+  listVersions(query: RevenueVersionListQuery = {}) {
+    return this.http.get<RevenueVersionListResponse>(
+      this.endpoint("/versions"),
+      {
+        withCredentials: true,
+        params: { page: query.page ?? 1, pageSize: query.pageSize ?? 20 },
+      },
+    );
+  }
+  getVersion(id: string) {
+    return this.http.get<RevenueHistoryEntry>(
+      this.endpoint(`/versions/${encodeURIComponent(id)}`),
+      {
+        withCredentials: true,
+      },
+    );
   }
   preview(body: RevenuePreviewRequest) {
     return this.http.post<RevenuePreviewResult>(

@@ -46,12 +46,17 @@ function entry(id: string, status: WorkEntryStatus): WorkEntry {
   };
 }
 
-const page = (items: WorkEntry[], pageNumber: number, totalPages: number) => ({
+const page = (
+  items: WorkEntry[],
+  pageNumber: number,
+  totalPages: number,
+  totalItems = totalPages > 1 ? (totalPages - 1) * 25 + 1 : items.length,
+) => ({
   items,
   meta: {
     page: pageNumber,
     pageSize: 25,
-    totalItems: items.length,
+    totalItems,
     totalPages,
     hasPreviousPage: pageNumber > 1,
     hasNextPage: pageNumber < totalPages,
@@ -178,43 +183,103 @@ describe("TeamTimeComponent", () => {
     );
   });
 
-  it("appends the next page when the scroll sentinel becomes visible", () => {
-    const callbacks: IntersectionObserverCallback[] = [];
+  it("renders numbered pagination without an infinite-scroll observer or sentinel", () => {
+    let observerCreations = 0;
     const original = globalThis.IntersectionObserver;
     globalThis.IntersectionObserver = class {
-      constructor(callback: IntersectionObserverCallback) {
-        callbacks.push(callback);
+      constructor() {
+        observerCreations += 1;
       }
       observe(): void {
-        // visibility is triggered manually
+        // no observer should be attached on this page
+      }
+      unobserve(): void {
+        // no observer should be attached on this page
       }
       disconnect(): void {
-        // nothing to release
+        // no observer should be attached on this page
       }
     } as unknown as typeof IntersectionObserver;
+    const fixture = create();
+    const nativeElement = fixture.nativeElement as HTMLElement;
+    expect(nativeElement.querySelector("law-pagination")).not.toBeNull();
+    expect(nativeElement.querySelector("[aria-hidden='true'].h-px")).toBeNull();
+    expect(observerCreations).toBe(0);
+    if (original) globalThis.IntersectionObserver = original;
+    else Reflect.deleteProperty(globalThis, "IntersectionObserver");
+  });
+
+  it("requests the selected page and replaces the visible rows", () => {
     api.list
       .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 2)))
       .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2)));
     const fixture = create();
     expect(rows(fixture)).toHaveLength(1);
-    expect(callbacks).toHaveLength(1);
-
-    callbacks[0](
-      [{ isIntersecting: true } as IntersectionObserverEntry],
-      {} as IntersectionObserver,
-    );
+    const next = (
+      fixture.nativeElement as HTMLElement
+    ).querySelector<HTMLButtonElement>('button[aria-label="pagination.next"]');
+    expect(next).not.toBeNull();
+    next?.click();
     fixture.detectChanges();
-    globalThis.IntersectionObserver = original;
 
     expect(api.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2 }),
     );
     expect(rows(fixture)).toHaveLength(2);
-    expect(
-      (fixture.nativeElement as HTMLElement).querySelector(
-        "[aria-hidden='true'].h-px",
-      ),
-    ).toBeNull();
+    expect(rows(fixture).map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Opis e2"),
+    ]);
+  });
+
+  it("resets to page one when a filter changes", () => {
+    api.list
+      .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 2)))
+      .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2)))
+      .mockReturnValueOnce(of(page([entry("e3", "PROPOSED")], 1, 1)));
+    const fixture = create();
+
+    fixture.componentInstance.changePage(2);
+    fixture.componentInstance.setStatuses(["PROPOSED"]);
+
+    expect(api.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, statuses: ["PROPOSED"] }),
+    );
+    expect(fixture.componentInstance.page()).toBe(1);
+  });
+
+  it("resets to page one when the page size changes", () => {
+    api.list
+      .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 2)))
+      .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2)))
+      .mockReturnValueOnce(of(page([entry("e3", "PROPOSED")], 1, 1)));
+    const fixture = create();
+    fixture.componentInstance.changePage(2);
+
+    fixture.componentInstance.changePageSize(50);
+
+    expect(api.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ page: 1, pageSize: 50 }),
+    );
+    expect(fixture.componentInstance.page()).toBe(1);
+    expect(fixture.componentInstance.pageSize()).toBe(50);
+  });
+
+  it("clamps to the last available page when the result count shrinks", () => {
+    api.list
+      .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 3, 51)))
+      .mockReturnValueOnce(of(page([], 3, 2, 30)))
+      .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2, 30)));
+    const fixture = create();
+    fixture.componentInstance.changePage(3);
+
+    expect(api.list.mock.calls.slice(-2).map(([query]) => query?.page)).toEqual(
+      [3, 2],
+    );
+    expect(fixture.componentInstance.page()).toBe(2);
+    expect(fixture.componentInstance.totalItems()).toBe(30);
+    expect(rows(fixture).map((row) => row.textContent)).toEqual([
+      expect.stringContaining("Opis e2"),
+    ]);
   });
 
   it("offers edit and write-off only on editable rows", () => {

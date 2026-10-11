@@ -2,6 +2,7 @@ import {
   ExecutionContext,
   INestApplication,
   UnauthorizedException,
+  ValidationPipe,
 } from "@nestjs/common";
 import { Test } from "@nestjs/testing";
 import { APP_INTERCEPTOR, Reflector } from "@nestjs/core";
@@ -33,6 +34,10 @@ describe("Revenue sharing HTTP boundary", () => {
     status: "ACTIVE",
   };
   let versions: {
+    id: string;
+    createdAt: Date;
+    reason: string;
+    author: { firstName: string; lastName: string; email: string };
     workspaceId: string;
     version: number;
     effectiveFrom: Date;
@@ -47,10 +52,39 @@ describe("Revenue sharing HTTP boundary", () => {
         findMany: jest.fn(async () => [{ userId: memberId }]),
       },
       revenueSharingVersion: {
-        findFirst: jest.fn(async () => versions[versions.length - 1] ?? null),
+        findFirst: jest.fn(
+          async ({ where }) =>
+            versions
+              .filter(
+                (v) =>
+                  v.workspaceId === where.workspaceId &&
+                  (!where.id || v.id === where.id),
+              )
+              .at(-1) ?? null,
+        ),
+        count: jest.fn(
+          async ({ where }) =>
+            versions.filter((v) => v.workspaceId === where.workspaceId).length,
+        ),
+        findMany: jest.fn(async ({ where, skip = 0, take = versions.length }) =>
+          versions
+            .filter((v) => v.workspaceId === where.workspaceId)
+            .reverse()
+            .slice(skip, skip + take),
+        ),
         create: jest.fn(async ({ data }) => {
-          versions.push(data);
-          return data;
+          const row = {
+            ...data,
+            id: `version-${data.version}`,
+            createdAt: new Date(),
+            author: {
+              firstName: "Ana",
+              lastName: "Anić",
+              email: "ana@example.test",
+            },
+          };
+          versions.push(row);
+          return row;
         }),
       },
       revenueSharingSettings: {
@@ -65,8 +99,10 @@ describe("Revenue sharing HTTP boundary", () => {
     };
     const db = {
       ...storage,
-      $transaction: async (callback: (tx: typeof storage) => unknown) =>
-        callback(storage),
+      $transaction: async (
+        callback: ((tx: typeof storage) => unknown) | Promise<unknown>[],
+      ) =>
+        Array.isArray(callback) ? Promise.all(callback) : callback(storage),
     };
     const module = await Test.createTestingModule({
       controllers: [RevenueSharingController],
@@ -84,12 +120,10 @@ describe("Revenue sharing HTTP boundary", () => {
       .overrideGuard(AuthGuard)
       .useValue({
         canActivate: (context: ExecutionContext) => {
-          const request = context
-            .switchToHttp()
-            .getRequest<{
-              headers: { cookie?: string };
-              auth?: { user: { id: string } };
-            }>();
+          const request = context.switchToHttp().getRequest<{
+            headers: { cookie?: string };
+            auth?: { user: { id: string } };
+          }>();
           if (request.headers.cookie !== "law_session=test")
             throw new UnauthorizedException();
           request.auth = { user: { id: memberId } };
@@ -99,6 +133,13 @@ describe("Revenue sharing HTTP boundary", () => {
       .compile();
     app = module.createNestApplication();
     app.setGlobalPrefix("api");
+    app.useGlobalPipes(
+      new ValidationPipe({
+        transform: true,
+        whitelist: true,
+        forbidNonWhitelisted: true,
+      }),
+    );
     await app.listen(0, "127.0.0.1");
     url = await app.getUrl();
   });
@@ -167,6 +208,28 @@ describe("Revenue sharing HTTP boundary", () => {
     });
     expect(forged.status).toBe(400);
     expect(versions).toHaveLength(0);
+  });
+  it("lists paginated versions and retrieves one immutable snapshot", async () => {
+    await request("PUT", publish());
+    await request("PUT", publish(defaultRevenueConfiguration(), 1));
+    const getPath = (path: string) =>
+      fetch(`${url}/api/revenue-sharing/${path}`, {
+        headers: { cookie: "law_session=test" },
+      });
+    const response = await getPath("versions?page=2&pageSize=1");
+    expect(response.status).toBe(200);
+    const page = await response.json();
+    expect(page.meta).toMatchObject({ totalItems: 2, totalPages: 2, page: 2 });
+    expect(page.items.map((v: { version: number }) => v.version)).toEqual([1]);
+    expect((await (await getPath("versions/version-1")).json()).version).toBe(
+      1,
+    );
+    expect((await getPath("versions/missing")).status).toBe(404);
+    expect((await getPath("versions?page=0")).status).toBe(400);
+    expect((await getPath("versions?pageSize=101")).status).toBe(400);
+    membership.role = "LAWYER";
+    expect((await getPath("versions")).status).toBe(403);
+    expect((await getPath("versions/version-1")).status).toBe(403);
   });
   it("rejects stale revisions through the actual HTTP endpoint", async () => {
     await request("PUT", publish());

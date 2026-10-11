@@ -334,6 +334,7 @@ model User {
   revenueAgreements     RevenueSharingAgreement[]
   revenueRules          RevenueSharingRule[]
   revenueRevisions      RevenueSharingVersion[] @relation("RevenueRevisionAuthor")
+  referredClients       Client[] @relation("ClientReferringLawyer")
   memberships           WorkspaceMember[]
   sessions              AuthSession[]
   tokens                AuthToken[]
@@ -679,6 +680,8 @@ model Client {
   notes                   String?
   customFields            Json?
   responsibleUserId       String?
+  referringLawyerId       String?
+  referringLawyer         User? @relation("ClientReferringLawyer", fields: [referringLawyerId], references: [id], onDelete: SetNull)
   createdByUserId         String
   updatedByUserId         String
   createdAt               DateTime                       @default(now()) @db.Timestamptz(3)

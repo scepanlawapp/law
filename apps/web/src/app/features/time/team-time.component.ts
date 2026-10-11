@@ -37,6 +37,7 @@ import {
 } from "@spartan-ng/helm/combobox";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
 import {
   HlmTBody,
   HlmTd,
@@ -50,7 +51,6 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
-import { InfiniteScrollDirective } from "../../shared/infinite-scroll.directive";
 import { QuickCaptureDialogService } from "./quick-capture/quick-capture-dialog.service";
 import {
   STATUS_BADGE_CLASSES,
@@ -63,7 +63,7 @@ import {
 } from "./time-utils";
 import { WriteOffDialogService } from "./write-off-dialog/write-off-dialog.service";
 
-const PAGE_SIZE = 25;
+const PAGE_SIZE = 50;
 const OPTION_PAGE_SIZE = 100;
 
 const STATUS_VALUES = Object.keys(STATUS_LABEL_KEYS) as WorkEntryStatus[];
@@ -89,6 +89,7 @@ const TREATMENT_VALUES = Object.keys(
     HlmComboboxTrigger,
     HlmComboboxValue,
     ComboboxSelectAllComponent,
+    PaginationComponent,
     HlmInput,
     HlmSpinner,
     HlmTable,
@@ -98,7 +99,6 @@ const TREATMENT_VALUES = Object.keys(
     HlmTh,
     HlmTHead,
     HlmTr,
-    InfiniteScrollDirective,
     TranslatePipe,
   ],
   templateUrl: "./team-time.component.html",
@@ -137,8 +137,10 @@ export class TeamTimeComponent {
   readonly to = new FormControl("", { nonNullable: true });
 
   readonly entries = signal<WorkEntry[]>([]);
-  readonly page = signal(0);
-  readonly hasMore = signal(false);
+  readonly page = signal(1);
+  readonly pageSize = signal(PAGE_SIZE);
+  readonly totalItems = signal(0);
+  readonly totalPages = signal(1);
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly busyEntryId = signal<string | null>(null);
@@ -247,11 +249,24 @@ export class TeamTimeComponent {
   }
 
   reload(): void {
-    this.load(true);
+    this.page.set(1);
+    this.load(1);
   }
 
-  loadMore(): void {
-    if (this.hasMore() && !this.loading()) this.load(false);
+  retry(): void {
+    this.load(this.page());
+  }
+
+  changePage(page: number): void {
+    if (this.loading() || page < 1 || page > this.totalPages()) return;
+    this.load(page);
+  }
+
+  changePageSize(pageSize: number): void {
+    if (this.loading() || pageSize === this.pageSize()) return;
+    this.pageSize.set(pageSize);
+    this.page.set(1);
+    this.load(1);
   }
 
   workDateLabel(date: string): string {
@@ -307,7 +322,7 @@ export class TeamTimeComponent {
     const to = this.to.value;
     return {
       page,
-      pageSize: PAGE_SIZE,
+      pageSize: this.pageSize(),
       userIds: this.peopleIds().length ? this.peopleIds() : undefined,
       clientIds: this.clientIds().length ? this.clientIds() : undefined,
       caseId: this.caseId() || undefined,
@@ -318,8 +333,7 @@ export class TeamTimeComponent {
     };
   }
 
-  private load(reset: boolean): void {
-    const page = reset ? 1 : this.page() + 1;
+  private load(page: number): void {
     const requestId = ++this.requestId;
     this.loading.set(true);
     this.error.set(false);
@@ -329,17 +343,21 @@ export class TeamTimeComponent {
       .subscribe({
         next: (response) => {
           if (requestId !== this.requestId) return;
-          this.entries.update((items) =>
-            reset ? response.items : [...items, ...response.items],
-          );
+          const lastPage = Math.max(1, response.meta.totalPages);
+          this.totalItems.set(response.meta.totalItems);
+          this.totalPages.set(lastPage);
+          if (page > lastPage) {
+            this.page.set(lastPage);
+            this.load(lastPage);
+            return;
+          }
+          this.entries.set(response.items);
           this.page.set(page);
-          this.hasMore.set(page < response.meta.totalPages);
           this.loading.set(false);
         },
         error: () => {
           if (requestId !== this.requestId) return;
-          if (reset) this.entries.set([]);
-          this.hasMore.set(false);
+          this.entries.set([]);
           this.error.set(true);
           this.loading.set(false);
         },

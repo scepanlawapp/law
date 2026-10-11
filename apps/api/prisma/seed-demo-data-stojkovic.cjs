@@ -2044,6 +2044,7 @@ async function seedData(db, workspaceId, users, refs) {
           preferredContactMethod: isOrg ? "EMAIL" : pick(["PHONE", "EMAIL"]),
         },
         responsibleUserId: lawyers[def.resp].id,
+        referringLawyerId: lawyers[def.resp].id,
         createdByUserId: bojana.id,
         updatedByUserId: bojana.id,
         createdAt,

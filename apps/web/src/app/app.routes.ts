@@ -108,8 +108,16 @@ export const appRoutes: Route[] = [
             canDeactivate: [revenueUnsavedGuard],
             loadComponent: () =>
               import(
-                "./features/revenue-sharing/revenue-sharing.component"
-              ).then((m) => m.RevenueSharingComponent),
+                "./features/revenue-sharing/revenue-versions.component"
+              ).then((m) => m.RevenueVersionsComponent),
+          },
+          {
+            path: "settings/:id",
+            canActivate: [revenueSettingsGuard],
+            loadComponent: () =>
+              import(
+                "./features/revenue-sharing/revenue-version-detail.component"
+              ).then((m) => m.RevenueVersionDetailComponent),
           },
           { path: "price-sources", component: FinancePriceSourcesComponent },
           { path: "work-review", component: FinanceWorkReviewComponent },

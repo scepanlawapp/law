@@ -161,6 +161,10 @@ export class CreateClientDto {
   responsibleUserId?: string;
 
   @IsOptional()
+  @IsUUID()
+  referringLawyerId?: string | null;
+
+  @IsOptional()
   @IsArray()
   @IsUUID("4", { each: true })
   tagIds?: string[];

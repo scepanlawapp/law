@@ -605,3 +605,84 @@ describe("RevenueSharingService publication boundary", () => {
     });
   });
 });
+
+describe("Revenue version reads", () => {
+  const db = {
+    $transaction: jest.fn(),
+    revenueSharingVersion: {
+      count: jest.fn(),
+      findMany: jest.fn(),
+      findFirst: jest.fn(),
+    },
+  };
+  const service = new RevenueSharingService(db as never);
+  const row = {
+    id: "saved-version",
+    version: 3,
+    workspaceId,
+    effectiveFrom: new Date(date),
+    createdAt: new Date(date),
+    configuration: configuration(),
+    reason: "Novi uslovi",
+    author: { firstName: "Ana", lastName: "Anić", email: "ana@example.test" },
+  };
+  beforeEach(() => {
+    jest.resetAllMocks();
+    db.$transaction.mockImplementation((queries) => Promise.all(queries));
+    db.revenueSharingVersion.count.mockResolvedValue(5);
+    db.revenueSharingVersion.findMany.mockResolvedValue([row]);
+    db.revenueSharingVersion.findFirst.mockResolvedValue(row);
+  });
+  it("paginates all saved versions newest first inside the workspace", async () => {
+    const result = await withContext(() =>
+      service.listVersions({ page: 2, pageSize: 2 }),
+    );
+    expect(db.revenueSharingVersion.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { workspaceId },
+        skip: 2,
+        take: 2,
+        orderBy: { version: "desc" },
+      }),
+    );
+    expect(db.revenueSharingVersion.count).toHaveBeenCalledWith({
+      where: { workspaceId },
+    });
+    expect(result.meta).toMatchObject({
+      totalItems: 5,
+      totalPages: 3,
+      page: 2,
+      hasNextPage: true,
+    });
+    expect(result.items[0]).toMatchObject({
+      id: row.id,
+      version: 3,
+      changedBy: "Ana Anić",
+      effectiveFrom: date,
+    });
+  });
+  it("reads an exact saved snapshot and scopes the lookup to the workspace", async () => {
+    const result = await withContext(() => service.getVersion(row.id));
+    expect(db.revenueSharingVersion.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { id: row.id, workspaceId } }),
+    );
+    expect(result.configuration).toEqual(row.configuration);
+    db.revenueSharingVersion.findFirst.mockResolvedValue(null);
+    await expect(
+      withContext(() => service.getVersion("foreign")),
+    ).rejects.toMatchObject({ status: 404 });
+  });
+  it("denies both reads for non-admin members before querying", async () => {
+    await expect(
+      withContext(
+        () => service.listVersions({ page: 1, pageSize: 20 }),
+        WorkspaceRole.LAWYER,
+      ),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(
+      withContext(() => service.getVersion(row.id), WorkspaceRole.LAWYER),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(db.revenueSharingVersion.findMany).not.toHaveBeenCalled();
+    expect(db.revenueSharingVersion.findFirst).not.toHaveBeenCalled();
+  });
+});
