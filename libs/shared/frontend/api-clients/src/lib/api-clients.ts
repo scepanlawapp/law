@@ -1,5 +1,9 @@
 import type { ClientRequest } from "@law/api-interfaces";
 import type { TaskRequest } from "@law/api-interfaces";
+import type {
+  PricingSuggestionRequest,
+  PricingSuggestionResponse,
+} from "@law/api-interfaces";
 import { inject, Injectable } from "@angular/core";
 import {
   HttpClient,
@@ -2173,6 +2177,16 @@ export class FinancialsApiClient {
 @Injectable({ providedIn: "root" })
 export class WorkEntriesApiClient {
   private readonly http = inject(HttpClient);
+
+  suggestPrice(
+    body: PricingSuggestionRequest,
+  ): Observable<PricingSuggestionResponse> {
+    return this.http.post<PricingSuggestionResponse>(
+      this.endpoint("/work-entries/pricing-suggestion"),
+      body,
+      { withCredentials: true },
+    );
+  }
 
   private endpoint(path: string): string {
     const config = getRuntimeConfig();

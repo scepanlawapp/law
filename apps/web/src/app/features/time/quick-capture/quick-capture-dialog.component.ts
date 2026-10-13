@@ -1,4 +1,4 @@
-import { DatePipe } from "@angular/common";
+import { DatePipe, KeyValuePipe } from "@angular/common";
 import { HttpErrorResponse } from "@angular/common/http";
 import {
   Component,
@@ -38,10 +38,17 @@ import {
   WorkEntry,
   WorkEntryTreatment,
   WorkEntryActions,
+  PricingSuggestionResponse,
+  PricingSuggestionWork,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { NgIcon, provideIcons } from "@ng-icons/core";
-import { lucideMic, lucideMicOff } from "@ng-icons/lucide";
+import {
+  lucideMic,
+  lucideMicOff,
+  lucideSparkles,
+  lucideX,
+} from "@ng-icons/lucide";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
@@ -81,6 +88,7 @@ import {
   of,
   startWith,
   Subject,
+  Subscription,
   switchMap,
   tap,
   throwError,
@@ -175,6 +183,7 @@ function today(): string {
   imports: [
     ReactiveFormsModule,
     DatePipe,
+    KeyValuePipe,
     NgIcon,
     HlmButton,
     HlmCombobox,
@@ -200,7 +209,9 @@ function today(): string {
     HlmTextarea,
     TranslatePipe,
   ],
-  providers: [provideIcons({ lucideMic, lucideMicOff })],
+  providers: [
+    provideIcons({ lucideMic, lucideMicOff, lucideSparkles, lucideX }),
+  ],
 })
 export class QuickCaptureDialogComponent {
   private readonly injector = inject(Injector);
@@ -428,6 +439,125 @@ export class QuickCaptureDialogComponent {
     { validators: workValueCurrencyValidator },
   );
   readonly saving = signal(false);
+  readonly pricing = signal(false);
+  readonly pricingResult = signal<PricingSuggestionResponse | null>(null);
+  readonly pricingMessage = signal("");
+  readonly pricingOperandLabels: Record<string, string> = {
+    base: "time.pricing.operand.base",
+    unitValue: "time.pricing.operand.unitValue",
+    quantity: "time.pricing.operand.quantity",
+    adjustmentPercent: "time.pricing.operand.adjustmentPercent",
+    minimum: "time.pricing.operand.minimum",
+    maximum: "time.pricing.operand.maximum",
+  };
+  readonly canViewPricing = computed(
+    () =>
+      this.auth
+        .session()
+        ?.memberships?.some(
+          (membership) =>
+            membership.role === "OWNER" || membership.role === "ADMIN",
+        ) ?? false,
+  );
+  private pricingSubscription?: Subscription;
+  private pricingSnapshot = "";
+
+  private pricingWork(): PricingSuggestionWork {
+    const value = this.form.getRawValue();
+    return {
+      title: value.title.trim(),
+      description: value.description,
+      workDate: value.workDate,
+      minutes: value.minutes,
+      clientId: value.clientId || undefined,
+      caseId: value.caseId || undefined,
+      serviceCategoryId: value.serviceCategoryId || undefined,
+    };
+  }
+
+  private pricingFingerprint(): string {
+    return JSON.stringify({
+      work: this.pricingWork(),
+      treatment: this.form.controls.treatment.value,
+    });
+  }
+
+  suggestPrice(): void {
+    if (this.pricing()) {
+      this.cancelPricing();
+      return;
+    }
+    if (
+      !this.canViewPricing() ||
+      this.readOnly() ||
+      this.saving() ||
+      this.loadingEntry() ||
+      this.entryLoadFailed() ||
+      this.form.controls.treatment.value === "NON_BILLABLE"
+    )
+      return;
+    const controls = this.form.controls;
+    if (
+      !controls.title.value.trim() ||
+      controls.title.invalid ||
+      controls.workDate.invalid ||
+      controls.minutes.invalid ||
+      controls.description.value.length > 10000
+    ) {
+      this.pricingMessage.set("time.pricing.invalidInput");
+      return;
+    }
+    this.pricingResult.set(null);
+    this.pricingMessage.set("");
+    this.pricingSnapshot = this.pricingFingerprint();
+    this.pricing.set(true);
+    const lockedControls = [controls.value, controls.currency].filter(
+      (control) => control.enabled,
+    );
+    lockedControls.forEach((control) => control.disable({ emitEvent: false }));
+    this.pricingSubscription = this.entriesApi
+      .suggestPrice({ kind: "UNSAVED", work: this.pricingWork() })
+      .pipe(
+        finalize(() => {
+          this.pricing.set(false);
+          if (!this.readOnly())
+            lockedControls.forEach((control) =>
+              control.enable({ emitEvent: false }),
+            );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (result) => {
+          if (
+            this.pricingFingerprint() !== this.pricingSnapshot ||
+            this.readOnly()
+          )
+            return;
+          this.pricingResult.set(result);
+          if (
+            result.status === "SUGGESTED" &&
+            result.suggestedPrice !== null &&
+            result.currency !== null
+          ) {
+            controls.value.setValue(result.suggestedPrice, {
+              emitEvent: false,
+            });
+            controls.currency.setValue(result.currency, { emitEvent: false });
+            controls.value.markAsDirty();
+            controls.currency.markAsDirty();
+          }
+        },
+        error: () => this.pricingMessage.set("time.pricing.failed"),
+      });
+  }
+
+  cancelPricing(): void {
+    this.pricingSubscription?.unsubscribe();
+    this.pricingSubscription = undefined;
+    this.pricingMessage.set("time.pricing.cancelled");
+  }
+
   readonly loadingEntry = signal(false);
   readonly parsing = signal(false);
   readonly parseFailed = signal(false);
@@ -573,6 +703,15 @@ export class QuickCaptureDialogComponent {
   }
 
   constructor() {
+    this.destroyRef.onDestroy(() => this.pricingSubscription?.unsubscribe());
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        if (this.pricingFingerprint() !== this.pricingSnapshot) {
+          if (this.pricing()) this.cancelPricing();
+          this.pricingResult.set(null);
+        }
+      });
     if (this.mode !== "view") this.loadUsers();
     effect((onCleanup) => {
       const id = this.linkedEventId();
@@ -1175,7 +1314,13 @@ export class QuickCaptureDialogComponent {
   // ---------------------------------------------------------------- save
 
   submit(): void {
-    if (this.saving() || this.readOnly() || this.entryLoadFailed()) return;
+    if (
+      this.pricing() ||
+      this.saving() ||
+      this.readOnly() ||
+      this.entryLoadFailed()
+    )
+      return;
     if (this.form.invalid) {
       this.form.markAllAsTouched();
       return;
@@ -1184,7 +1329,12 @@ export class QuickCaptureDialogComponent {
   }
 
   finishWithoutNewWork(): void {
-    if (this.readOnly() || this.saving() || !this.context.finishWithoutNewWork)
+    if (
+      this.pricing() ||
+      this.readOnly() ||
+      this.saving() ||
+      !this.context.finishWithoutNewWork
+    )
       return;
     this.persist(this.context.finishWithoutNewWork(), "work.taskFinished");
   }

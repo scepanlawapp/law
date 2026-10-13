@@ -48,6 +48,22 @@ describe("work entry and billing clients", () => {
 
   afterEach(() => http.verify());
 
+  it("posts pricing suggestions with credentials and cancels the HTTP request on unsubscribe", () => {
+    const body = {
+      kind: "UNSAVED" as const,
+      work: { title: "Review", workDate: "2026-10-10" },
+    };
+    const subscription = TestBed.inject(WorkEntriesApiClient)
+      .suggestPrice(body)
+      .subscribe();
+    const request = http.expectOne(`${api}/work-entries/pricing-suggestion`);
+    expect(request.request.method).toBe("POST");
+    expect(request.request.withCredentials).toBe(true);
+    expect(request.request.body).toEqual(body);
+    subscription.unsubscribe();
+    expect(request.cancelled).toBe(true);
+  });
+
   it("posts a source confirmation to /work-entries/from-source", () => {
     const body = {
       sourceType: "EVENT" as const,
