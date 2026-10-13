@@ -46,6 +46,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
   EMPTY,
@@ -128,6 +129,7 @@ interface LinkedWorkEntryListItem {
     HlmSpinner,
     HlmTableImports,
     HlmTextarea,
+    HlmTooltip,
     TranslatePipe,
   ],
   providers: [
@@ -386,6 +388,27 @@ export class FinanceInvoiceCreateComponent {
         );
         this.bumpRevision();
       });
+    this.form.controls.currency.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((currency) => {
+        for (const line of this.form.controls.lines.controls) {
+          if (!line.controls.workEntryIds.value.length) continue;
+          line.controls.currency.setValue(currency, { emitEvent: false });
+          line.controls.additionalAmount.setValue(0, { emitEvent: false });
+          for (const item of line.controls.workEntryAllocations.controls) {
+            const entry = this.workEntryDetail(item.controls.workEntryId.value);
+            item.controls.invoiceValue.setValue(
+              normalizeCurrency(entry?.currency ?? "") ===
+                normalizeCurrency(currency)
+                ? Number(entry?.value ?? 0)
+                : 0,
+              { emitEvent: false },
+            );
+          }
+          recalculateInvoiceLine(line, "netAmount");
+        }
+        this.bumpRevision();
+      });
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.bumpRevision());
@@ -501,11 +524,28 @@ export class FinanceInvoiceCreateComponent {
     return this.expandedInvoiceLines().has(line);
   }
 
+  allocationControl(line: InvoiceLineForm, entryId: string) {
+    return line.controls.workEntryAllocations.controls.find(
+      (item) => item.controls.workEntryId.value === entryId,
+    )?.controls.invoiceValue;
+  }
+
   unlinkWorkEntry(line: InvoiceLineForm, entryId: string): void {
     const entryIds = line.controls.workEntryIds.value;
     if (!entryIds.includes(entryId)) return;
     const remainingIds = entryIds.filter((id) => id !== entryId);
     line.controls.workEntryIds.setValue(remainingIds);
+    const allocationIndex =
+      line.controls.workEntryAllocations.controls.findIndex(
+        (item) => item.controls.workEntryId.value === entryId,
+      );
+    if (allocationIndex >= 0)
+      line.controls.workEntryAllocations.removeAt(allocationIndex);
+    if (!remainingIds.length) {
+      line.controls.additionalAmount.setValue(0, { emitEvent: false });
+      line.controls.pricingRequired.setValue(false);
+    }
+    recalculateInvoiceLine(line, "netAmount");
     const knownMinutes = remainingIds
       .map((id) => this.workEntryDetails().get(id)?.minutes ?? null)
       .filter((minutes): minutes is number => minutes !== null);
@@ -660,7 +700,15 @@ export class FinanceInvoiceCreateComponent {
     const details = new Map<string, LinkedWorkEntryDetail>();
     for (const line of invoice.lines) {
       for (const entry of line.workEntries) {
-        details.set(entry.id, workEntryDetailFromSummary(entry));
+        details.set(
+          entry.id,
+          workEntryDetailFromSummary(
+            entry,
+            line.workEntryAllocations?.find(
+              (item) => item.workEntryId === entry.id,
+            ),
+          ),
+        );
       }
       const lineForm = createInvoiceLineForm(line);
       this.form.controls.lines.push(lineForm, {
@@ -755,18 +803,6 @@ export class FinanceInvoiceCreateComponent {
     rate: ClientRate | null,
     mode: InvoiceLineImportMode = "SEPARATE",
   ): void {
-    // A new invoice bills in the client's currency, so the imported
-    // entries can be priced from the client's rate.
-    if (
-      !this.isEditMode &&
-      !this.form.controls.lines.length &&
-      rate &&
-      CURRENCY_OPTIONS.some(
-        (option) => option.value === normalizeCurrency(rate.currency),
-      )
-    ) {
-      this.form.controls.currency.setValue(normalizeCurrency(rate.currency));
-    }
     const firstNewIndex = this.form.controls.lines.length;
     const existingIds = new Set(
       lineWorkEntryIds(this.form.controls.lines.controls),
@@ -922,6 +958,17 @@ export class FinanceInvoiceCreateComponent {
   private registerLine(line: InvoiceLineForm): void {
     if (this.registeredLines.has(line)) return;
     this.registeredLines.add(line);
+    if (line.controls.workEntryIds.value.length) {
+      this.expandedInvoiceLines.update((expanded) =>
+        new Set(expanded).add(line),
+      );
+    }
+    line.controls.workEntryAllocations.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.bumpRevision());
+    line.controls.additionalAmount.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.bumpRevision());
 
     const recalculate = (
       source: Parameters<typeof recalculateInvoiceLine>[1],
@@ -975,6 +1022,10 @@ function workEntryDetail(entry: WorkEntry): LinkedWorkEntryDetail {
 
 function workEntryDetailFromSummary(
   entry: InvoiceWorkEntrySummary,
+  allocation?: {
+    originalValue: string | null;
+    originalCurrency: string | null;
+  },
 ): LinkedWorkEntryDetail {
   return {
     id: entry.id,
@@ -984,7 +1035,9 @@ function workEntryDetailFromSummary(
     case: entry.case ?? null,
     minutes: entry.minutes,
     treatment: entry.treatment ?? null,
-    value: entry.value ?? null,
-    currency: entry.currency ?? null,
+    value: allocation ? allocation.originalValue : (entry.value ?? null),
+    currency: allocation
+      ? allocation.originalCurrency
+      : (entry.currency ?? null),
   };
 }

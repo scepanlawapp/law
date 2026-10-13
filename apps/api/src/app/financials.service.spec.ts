@@ -129,6 +129,7 @@ describe("FinancialsService", () => {
       update: jest.fn(),
       findMany: jest.fn(),
     },
+    invoiceWorkEntryAllocation: { findMany: jest.fn(), create: jest.fn() },
     invoiceLineCase: { createMany: jest.fn() },
     invoice: {
       create: jest.fn(),
@@ -160,7 +161,16 @@ describe("FinancialsService", () => {
   beforeEach(() => {
     jest.clearAllMocks();
     db.client.findFirst.mockResolvedValue(client());
-    db.workEntry.findMany.mockResolvedValue([]);
+    db.invoiceWorkEntryAllocation.findMany.mockResolvedValue([]);
+    db.workEntry.findMany.mockImplementation(
+      async (args: { where: { invoiceLineId?: string } }) =>
+        args.where.invoiceLineId
+          ? [
+              { id: entryA, value: new Prisma.Decimal(25), currency: "RSD" },
+              { id: entryB, value: new Prisma.Decimal(200), currency: "USD" },
+            ]
+          : [],
+    );
     db.workEntry.updateMany.mockResolvedValue({ count: 0 });
     db.invoiceLine.create.mockResolvedValue({ id: lineId });
     db.invoiceLine.deleteMany.mockResolvedValue({ count: 0 });
@@ -204,6 +214,18 @@ describe("FinancialsService", () => {
         (Number(value.netAmount) + value.vatAmount).toFixed(2),
       );
     }
+    if (
+      Array.isArray(extra.workEntryIds) &&
+      !("workEntryAllocations" in extra)
+    ) {
+      Object.assign(value, {
+        workEntryAllocations: extra.workEntryIds.map((id) => ({
+          workEntryId: id,
+          invoiceValue:
+            value.netAmount / (extra.workEntryIds as string[]).length,
+        })),
+      });
+    }
     return value;
   };
   const asAdmin = <T>(fn: () => Promise<T>) =>
@@ -222,7 +244,99 @@ describe("FinancialsService", () => {
     db.invoice.findUniqueOrThrow.mockResolvedValue(fullInvoice());
   }
 
-  it("creates a invoice and claims all line entries with one updateMany", async () => {
+  it.each([
+    { workEntryAllocations: undefined },
+    { workEntryAllocations: [] },
+    { workEntryAllocations: [{ workEntryId: entryA, invoiceValue: 0 }] },
+    { workEntryAllocations: [{ workEntryId: entryA, invoiceValue: -1 }] },
+    { workEntryAllocations: [{ workEntryId: entryA, invoiceValue: 1.001 }] },
+    { workEntryAllocations: [{ workEntryId: entryB, invoiceValue: 100 }] },
+    {
+      workEntryAllocations: [
+        { workEntryId: entryA, invoiceValue: 100 },
+        { workEntryId: entryA, invoiceValue: 100 },
+      ],
+    },
+    { additionalAmount: -1 },
+    { additionalAmount: 0.001 },
+    { additionalAmount: 1 },
+    { pricingRequired: true },
+  ])(
+    "rejects invalid or incomplete allocation requests before writing: %j",
+    async (invalid) => {
+      await expect(
+        asAdmin(() =>
+          service.createInvoice({
+            ...header,
+            lines: [line({ workEntryIds: [entryA], ...invalid })],
+          }),
+        ),
+      ).rejects.toThrow(ConflictException);
+      expect(db.invoice.create).not.toHaveBeenCalled();
+      expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+    },
+  );
+
+  it("preserves original snapshots on replacement and persists assigned currency and value", async () => {
+    mockCreate();
+    db.workEntry.updateMany.mockResolvedValue({ count: 2 });
+    db.workEntry.findMany.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { id: entryA, clientId, caseId },
+      { id: entryB, clientId, caseId },
+    ]);
+    db.invoiceWorkEntryAllocation.findMany.mockResolvedValueOnce([
+      {
+        workEntryId: entryB,
+        originalValue: new Prisma.Decimal(300),
+        originalCurrency: "GBP",
+      },
+    ]);
+    await asAdmin(() =>
+      service.createInvoice({
+        ...header,
+        netAmount: 380,
+        vatAmount: 76,
+        grossAmount: 456,
+        lines: [
+          line({
+            workEntryIds: [entryA, entryB],
+            netAmount: 380,
+            additionalAmount: 30,
+            workEntryAllocations: [
+              { workEntryId: entryA, invoiceValue: 100 },
+              { workEntryId: entryB, invoiceValue: 250 },
+            ],
+          }),
+        ],
+      }),
+    );
+    expect(db.invoiceWorkEntryAllocation.findMany).toHaveBeenCalledWith({
+      where: { workspaceId, invoiceLine: { invoiceId } },
+    });
+    const allocations = db.invoiceWorkEntryAllocation.create.mock.calls.map(
+      ([args]) => args.data,
+    );
+    expect(allocations[0]).toMatchObject({
+      workspaceId,
+      invoiceLineId: lineId,
+      workEntryId: entryA,
+      invoiceValue: 100,
+      currency: "RSD",
+      originalCurrency: "RSD",
+    });
+    expect(allocations[0].originalValue.toString()).toBe("25");
+    expect(allocations[1].originalValue.toString()).toBe("300");
+    expect(allocations[1].originalCurrency).toBe("GBP");
+    expect(db.workEntry.updateMany).toHaveBeenCalledWith({
+      where: { id: entryB, workspaceId, invoiceLineId: lineId },
+      data: { value: 250, currency: "RSD" },
+    });
+    expect(db.invoiceLine.create.mock.calls[0][0].data.additionalAmount).toBe(
+      30,
+    );
+  });
+
+  it("creates an invoice, claims its entries, and updates their allocated prices", async () => {
     mockCreate();
     db.workEntry.updateMany.mockResolvedValue({ count: 2 });
     db.workEntry.findMany
@@ -259,7 +373,7 @@ describe("FinancialsService", () => {
         pricingRequired: false,
       }),
     });
-    expect(db.workEntry.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.workEntry.updateMany).toHaveBeenCalledTimes(3);
     expect(db.workEntry.updateMany).toHaveBeenCalledWith({
       where: {
         id: { in: [entryA, entryB] },
@@ -432,7 +546,7 @@ describe("FinancialsService", () => {
     expect(createdInvoice.netAmount.toString()).toBe("150");
     expect(createdInvoice.vatAmount.toString()).toBe("30");
     expect(createdInvoice.grossAmount.toString()).toBe("180");
-    expect(db.workEntry.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.workEntry.updateMany).toHaveBeenCalledTimes(2);
   });
 
   it("updates invoice dates, metadata, and totals on a draft invoice", async () => {
@@ -654,7 +768,7 @@ describe("FinancialsService", () => {
       lineOrder: 4,
       sourceType: null,
     });
-    expect(db.workEntry.updateMany).toHaveBeenCalledTimes(1);
+    expect(db.workEntry.updateMany).toHaveBeenCalledTimes(2);
     expect(db.invoiceLineCase.createMany).toHaveBeenCalled();
     const { data } = db.invoice.update.mock.calls[0][0];
     expect(data.netAmount.increment.toString()).toBe("150.5");

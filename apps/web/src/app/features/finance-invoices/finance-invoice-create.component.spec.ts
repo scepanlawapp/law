@@ -162,24 +162,24 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     });
   });
 
-  it("defaults the currency to the client's profile and prices HOURLY work", () => {
+  it("keeps the invoice currency and requires recorded prices", () => {
     const fixture = create();
     const component = fixture.componentInstance;
 
-    expect(component.form.controls.currency.value).toBe("EUR");
+    expect(component.form.controls.currency.value).toBe("RSD");
     expect(
       component.form.controls.lines.controls.map(
         (line) => line.controls.workEntryIds.value,
       ),
     ).toEqual([["e1"], ["e2"]]);
     const [hourly, flagged] = component.form.controls.lines.controls;
-    expect(hourly.controls.netAmount.value).toBe(100);
+    expect(hourly.controls.netAmount.value).toBe(0);
     expect(hourly.controls.vatRate.value).toBe(20);
-    expect(hourly.controls.vatAmount.value).toBe(20);
-    expect(hourly.controls.grossAmount.value).toBe(120);
-    expect(hourly.controls.pricingRequired.value).toBe(false);
+    expect(hourly.controls.vatAmount.value).toBe(0);
+    expect(hourly.controls.grossAmount.value).toBe(0);
+    expect(hourly.controls.pricingRequired.value).toBe(true);
     expect(flagged.controls.pricingRequired.value).toBe(true);
-    expect(component.pricingRequiredCount()).toBe(1);
+    expect(component.pricingRequiredCount()).toBe(2);
   });
 
   it("shows the linked-work count and toggles its accessible details", () => {
@@ -193,19 +193,19 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
       ).componentInstance as NgIcon;
 
     expect(button.textContent).toContain("Linked 1");
-    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(button.getAttribute("aria-expanded")).toBe("true");
     expect(button.getAttribute("aria-controls")).toBe("invoice-line-work-0");
     expect(button.disabled).toBe(false);
-    expect(icon().name()).toBe("lucideChevronDown");
+    expect(icon().name()).toBe("lucideChevronUp");
 
     button.click();
     fixture.detectChanges();
 
-    expect(button.getAttribute("aria-expanded")).toBe("true");
-    expect(icon().name()).toBe("lucideChevronUp");
+    expect(button.getAttribute("aria-expanded")).toBe("false");
+    expect(icon().name()).toBe("lucideChevronDown");
     expect(
       fixture.nativeElement.querySelector("#invoice-line-work-0"),
-    ).not.toBeNull();
+    ).toBeNull();
   });
 
   it("prefills the invoice header from organization settings", () => {
@@ -269,11 +269,13 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     const fixture = create();
     const flagged = fixture.componentInstance.form.controls.lines.at(1);
 
-    flagged.controls.netAmount.setValue(250);
+    flagged.controls.workEntryAllocations
+      .at(0)
+      .controls.invoiceValue.setValue(250);
     fixture.detectChanges();
 
     expect(flagged.controls.pricingRequired.value).toBe(false);
-    expect(fixture.componentInstance.pricingRequiredCount()).toBe(0);
+    expect(fixture.componentInstance.pricingRequiredCount()).toBe(1);
   });
 
   it("imports selected work as one deterministic grouped line", () => {
@@ -292,6 +294,7 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
     );
     const component = create().componentInstance;
 
+    component.form.controls.currency.setValue("EUR");
     component.openImportDialog();
 
     expect(importDialog.open).toHaveBeenCalledWith(client, ["e1", "e2"]);
@@ -500,6 +503,76 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
     });
   });
 
+  it("restores original and invoice prices, updates the readonly total, and saves allocations", () => {
+    const detail = {
+      id: "allocated-entry",
+      workDate: "2026-09-30",
+      title: "Imported work",
+      description: "",
+      user,
+      minutes: 12,
+      value: "180",
+      currency: "RSD",
+    };
+    api.invoice.mockReturnValueOnce(
+      of(
+        draftInvoice([
+          {
+            ...savedLine("allocated-line", 0),
+            workEntries: [detail],
+            additionalAmount: "30",
+            workEntryAllocations: [
+              {
+                workEntryId: detail.id,
+                originalValue: "200",
+                originalCurrency: "USD",
+                invoiceValue: "180",
+                currency: "RSD",
+              },
+            ],
+          },
+        ]),
+      ),
+    );
+    const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    expect(component.workEntryDetail(detail.id)).toMatchObject({
+      value: "200",
+      currency: "USD",
+    });
+    const net = fixture.nativeElement.querySelector(
+      '[formControlName="netAmount"]',
+    ) as HTMLInputElement;
+    expect(net.readOnly).toBe(true);
+    expect(net.value).toBe("210,00");
+    const value = fixture.nativeElement.querySelector(
+      "#invoice-value-allocated-entry",
+    ) as HTMLInputElement;
+    value.dispatchEvent(new Event("focus"));
+    value.value = "190,50";
+    value.dispatchEvent(new Event("input"));
+    fixture.detectChanges();
+    expect(net.value).toBe("220,50");
+    expect(component.canSave()).toBe(true);
+    component.submit();
+    expect(api.updateInvoice).toHaveBeenCalledWith(
+      invoiceId,
+      expect.objectContaining({
+        lines: [
+          expect.objectContaining({
+            netAmount: 220.5,
+            additionalAmount: 30,
+            currency: "RSD",
+            workEntryAllocations: [
+              { workEntryId: detail.id, invoiceValue: 190.5 },
+            ],
+          }),
+        ],
+      }),
+    );
+  });
+
   it("preserves saved header and line VAT values while filling missing headers", () => {
     const fixture = TestBed.createComponent(FinanceInvoiceCreateComponent);
     fixture.detectChanges();
@@ -559,7 +632,9 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
     const detailButton = fixture.nativeElement.querySelector(
       '[aria-controls="invoice-line-work-0"]',
     ) as HTMLButtonElement;
-    expect(detailButton.getAttribute("aria-expanded")).toBe("false");
+    expect(detailButton.getAttribute("aria-expanded")).toBe("true");
+    detailButton.click();
+    fixture.detectChanges();
     detailButton.click();
     fixture.detectChanges();
     expect(detailButton.getAttribute("aria-expanded")).toBe("true");

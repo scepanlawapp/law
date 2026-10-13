@@ -246,4 +246,35 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
     expect(fixture.componentInstance.selectedCount()).toBe(0);
     expect(router.navigate).not.toHaveBeenCalled();
   });
+  it("selects all loaded eligible work for one client and exposes partial selection", () => {
+    entries.list.mockReturnValue(
+      of(
+        page([
+          entry("a", "one", "One"),
+          entry("b", "one", "One"),
+          entry("c", "two", "Two"),
+          { ...entry("closed", "one", "One"), status: "BILLED" },
+          { ...entry("non-billable", "one", "One"), treatment: "NON_BILLABLE" },
+        ]),
+      ),
+    );
+    const fixture = create();
+    const header = fixture.nativeElement.querySelector(
+      "thead input[type=checkbox]",
+    ) as HTMLInputElement;
+    header.click();
+    fixture.detectChanges();
+    expect([...fixture.componentInstance.selected().keys()]).toEqual([
+      "a",
+      "b",
+    ]);
+    expect(header.checked).toBe(true);
+    fixture.componentInstance.toggle(fixture.componentInstance.entries()[0]);
+    fixture.detectChanges();
+    expect(header.indeterminate).toBe(true);
+    header.click();
+    fixture.detectChanges();
+    header.click();
+    expect(fixture.componentInstance.selectedCount()).toBe(0);
+  });
 });

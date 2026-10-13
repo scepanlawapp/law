@@ -1,3 +1,4 @@
+import { HLM_INPUT_NUMBER_LOCALE } from "@spartan-ng/helm/input";
 import {
   ApplicationConfig,
   provideAppInitializer,
@@ -18,6 +19,13 @@ import { ThemeService } from "./core/theme/theme.service";
 
 export const appConfig: ApplicationConfig = {
   providers: [
+    {
+      provide: HLM_INPUT_NUMBER_LOCALE,
+      useFactory: () => {
+        const localization = inject(LocalizationService);
+        return () => (localization.language() === "EN" ? "en" : "sr");
+      },
+    },
     provideBrowserGlobalErrorListeners(),
     provideRouter(appRoutes),
     provideHttpClient(

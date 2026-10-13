@@ -566,9 +566,10 @@
                 <input
                   hlmInput
                   id="capture-work-value"
-                  type="text"
+                  type="number"
+                  min="0"
+                  step="0.01"
                   inputmode="decimal"
-                  autocomplete="off"
                   formControlName="value"
                   aria-describedby="capture-work-value-hint"
                 />
@@ -624,7 +625,6 @@
                 <button
                   hlmBtn
                   type="button"
-                  variant="outline"
                   [disabled]="
                     suggestingPrice() ||
                     saving() ||
@@ -749,7 +749,37 @@
             }
 
             @if (!fromSource) {
-              <div class="grid gap-4 md:grid-cols-3">
+              <div class="grid gap-4 md:grid-cols-2">
+                <fieldset class="grid gap-3 sm:col-span-2">
+                  <legend class="mb-3 text-sm font-medium">
+                    {{ "time.capture.treatment" | translate }}
+                  </legend>
+                  <hlm-radio-group
+                    formControlName="treatment"
+                    [attr.aria-label]="'time.capture.treatment' | translate"
+                    class="grid gap-3 sm:grid-cols-2"
+                  >
+                    @for (option of treatmentOptions; track option.value) {
+                      <hlm-radio
+                        [value]="option.value"
+                        [disabled]="
+                          saving() ||
+                          readOnly() ||
+                          (eventLinked() &&
+                            !form.controls.clientId.value &&
+                            option.value !== 'NON_BILLABLE')
+                        "
+                        [aria-label]="option.label | translate"
+                        [inputId]="option.value"
+                      >
+                        <hlm-radio-indicator indicator />
+                        <label hlmLabel [for]="option.value" class="text-sm">
+                          {{ option.label | translate }}
+                        </label>
+                      </hlm-radio>
+                    }
+                  </hlm-radio-group>
+                </fieldset>
                 <div hlmField>
                   <label hlmFieldLabel for="capture-date">
                     {{ "time.capture.date" | translate }}
@@ -790,36 +820,6 @@
                     </hlm-select-content>
                   </hlm-select>
                 </div>
-                <fieldset class="grid gap-3 sm:col-span-2">
-                  <legend class="mb-3 text-sm font-medium">
-                    {{ "time.capture.treatment" | translate }}
-                  </legend>
-                  <hlm-radio-group
-                    formControlName="treatment"
-                    [attr.aria-label]="'time.capture.treatment' | translate"
-                    class="grid gap-3 sm:grid-cols-2"
-                  >
-                    @for (option of treatmentOptions; track option.value) {
-                      <hlm-radio
-                        [value]="option.value"
-                        [disabled]="
-                          saving() ||
-                          readOnly() ||
-                          (eventLinked() &&
-                            !form.controls.clientId.value &&
-                            option.value !== 'NON_BILLABLE')
-                        "
-                        [aria-label]="option.label | translate"
-                        [inputId]="option.value"
-                      >
-                        <hlm-radio-indicator indicator />
-                        <label hlmLabel [for]="option.value" class="text-sm">
-                          {{ option.label | translate }}
-                        </label>
-                      </hlm-radio>
-                    }
-                  </hlm-radio-group>
-                </fieldset>
               </div>
             }
           </fieldset>

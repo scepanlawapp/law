@@ -2885,5 +2885,17 @@
   "revenue.versionLoadError": "This version could not be loaded. It may be unavailable or you may not have access.",
   "revenue.changedBy": "Changed by",
   "revenue.noSavedAgreements": "No individual agreements in this version.",
-  "revenue.noSavedRules": "No special rules in this version."
+  "revenue.noSavedRules": "No special rules in this version.",
+  "finance.originalWorkPrice": "Original price",
+  "finance.workInvoiceValue": "Invoice value",
+  "finance.workInvoiceValueRequired": "Enter an invoice value greater than 0, with at most two decimal places.",
+  "finance.additionalAmount": "Additional amount",
+  "finance.additionalAmountInvalid": "Enter 0 or more, with at most two decimal places.",
+  "finance.selectAllVisibleWork": "Select/deselect all available work on this page",
+  "finance.selectAllClientWork": "Select/deselect all loaded work for the selected client (or the first available client)",
+  "time.team.price": "Price",
+  "finance.lockedLineServiceDateExplanation": "This date comes from the imported work event. For a grouped line, the earliest date is used when the events are imported. You cannot change it here because this line is linked to those work events. Set the correct date on the work event before importing it.",
+  "finance.lockedLineNetExplanation": "This line contains imported work, so its net amount is calculated automatically: the sum of all work event invoice values plus the Additional amount. To change the total, expand the linked work details and edit the Invoice value for each event. To charge more without changing those values, enter an Additional amount below the list. The net amount updates immediately and cannot be edited directly.",
+  "finance.lockedLineGrossExplanation": "The gross amount is calculated automatically as the net amount plus VAT. For this line, change the work event Invoice values or the Additional amount to change the net amount. Adjust the VAT rate or VAT amount to change the tax. The gross amount updates automatically and cannot be edited directly.",
+  "finance.lockedLineCurrencyExplanation": "This line and all of its work event invoice values must use the invoice currency, so you cannot choose a separate currency here. The original work price is shown in its original currency for reference. If that currency differs, no automatic conversion is made: enter the Invoice value yourself in the invoice currency."
 }

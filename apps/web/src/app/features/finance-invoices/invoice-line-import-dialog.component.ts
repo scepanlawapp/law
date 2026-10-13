@@ -1,6 +1,7 @@
 import {
   ChangeDetectionStrategy,
   Component,
+  computed,
   DestroyRef,
   inject,
   signal,
@@ -142,6 +143,31 @@ export class InvoiceLineImportDialogComponent {
           this.error.set(true);
         },
       });
+  }
+
+  readonly selectableEntries = computed(() =>
+    this.entries().filter((entry) => !this.excludedEntryIds.has(entry.id)),
+  );
+  readonly allVisibleSelected = computed(
+    () =>
+      this.selectableEntries().length > 0 &&
+      this.selectableEntries().every((entry) => this.selected().has(entry.id)),
+  );
+  readonly someVisibleSelected = computed(
+    () =>
+      !this.allVisibleSelected() &&
+      this.selectableEntries().some((entry) => this.selected().has(entry.id)),
+  );
+
+  toggleAllVisible(): void {
+    if (this.loading()) return;
+    const selected = new Map(this.selected());
+    const remove = this.allVisibleSelected();
+    for (const entry of this.selectableEntries()) {
+      if (remove) selected.delete(entry.id);
+      else selected.set(entry.id, entry);
+    }
+    this.selected.set(selected);
   }
 
   toggle(entry: WorkEntry): void {

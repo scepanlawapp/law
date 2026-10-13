@@ -11,7 +11,7 @@ import {
   InvoiceLineSummary,
   WorkEntry,
 } from "@law/api-interfaces";
-import { formatHoursMinutes, priceMinutes } from "../../shared/billing";
+import { formatHoursMinutes } from "../../shared/billing";
 
 const PAYMENT_METHOD_TRANSLATION_KEYS: Record<string, string> = {
   BANK_TRANSFER: "settings.organization.payment.methods.BANK_TRANSFER",
@@ -29,7 +29,14 @@ export function localizePaymentMethod(
   return translationKey ? translate(translationKey) : value;
 }
 
+export type WorkEntryAllocationForm = FormGroup<{
+  workEntryId: FormControl<string>;
+  invoiceValue: FormControl<number | null>;
+}>;
+
 export type InvoiceLineForm = FormGroup<{
+  workEntryAllocations: FormArray<WorkEntryAllocationForm>;
+  additionalAmount: FormControl<number | null>;
   /** Saved line id; null for lines added in the composer. */
   id: FormControl<string | null>;
   workEntryIds: FormControl<string[]>;
@@ -51,7 +58,6 @@ export interface ClientRate {
 }
 
 const LINE_DESCRIPTION_LIMIT = 10_000;
-const zeroPricedLines = new WeakSet<InvoiceLineForm>();
 
 export type InvoiceLineAmountSource =
   | "netAmount"
@@ -136,14 +142,15 @@ function pricedOrFlaggedValidator(
   const net = group.controls.netAmount.value;
   return group.controls.pricingRequired.value ||
     (net !== null && net > 0) ||
-    (net === 0 &&
-      (Boolean(group.controls.id.value) || zeroPricedLines.has(group)))
+    (net === 0 && Boolean(group.controls.id.value))
     ? null
     : { priceRequired: true };
 }
 
 function buildLineForm(init: {
   id?: string | null;
+  workEntryAllocations?: { workEntryId: string; invoiceValue: number }[];
+  additionalAmount?: number;
   workEntryIds: string[];
   minutes: number | null;
   pricingRequired: boolean;
@@ -155,8 +162,27 @@ function buildLineForm(init: {
   grossAmount: number | null;
   currency: string;
 }): InvoiceLineForm {
-  return new FormGroup(
+  const line: InvoiceLineForm = new FormGroup(
     {
+      workEntryAllocations: new FormArray(
+        (init.workEntryAllocations ?? []).map(
+          (item) =>
+            new FormGroup({
+              workEntryId: new FormControl(item.workEntryId, {
+                nonNullable: true,
+              }),
+              invoiceValue: new FormControl<number | null>(item.invoiceValue, [
+                Validators.required,
+                Validators.min(0.01),
+                moneyPrecisionValidator,
+              ]),
+            }),
+        ),
+      ),
+      additionalAmount: new FormControl<number | null>(
+        init.additionalAmount ?? 0,
+        [Validators.required, Validators.min(0), moneyPrecisionValidator],
+      ),
       id: new FormControl<string | null>(init.id ?? null),
       workEntryIds: new FormControl(init.workEntryIds, { nonNullable: true }),
       minutes: new FormControl<number | null>(init.minutes),
@@ -193,8 +219,48 @@ function buildLineForm(init: {
         validators: [Validators.required, Validators.pattern(/^[A-Za-z]{3}$/)],
       }),
     },
-    { validators: pricedOrFlaggedValidator },
+    { validators: [pricedOrFlaggedValidator, allocationTotalValidator] },
   );
+  // Form-owned subscriptions live exactly as long as this line; there is no external stream.
+  line.controls.workEntryAllocations.valueChanges.subscribe(() =>
+    recalculateInvoiceLine(line, "netAmount"),
+  );
+  line.controls.additionalAmount.valueChanges.subscribe(() =>
+    recalculateInvoiceLine(line, "netAmount"),
+  );
+  if (init.workEntryIds.length) recalculateInvoiceLine(line, "netAmount");
+  return line;
+}
+
+function moneyPrecisionValidator(
+  control: AbstractControl,
+): ValidationErrors | null {
+  const value = control.value as number | null;
+  return value == null ||
+    (Number.isFinite(value) &&
+      Math.abs(value * 100 - Math.round(value * 100)) < 0.000001 &&
+      Math.abs(value * 100) <= Number.MAX_SAFE_INTEGER)
+    ? null
+    : { moneyPrecision: true };
+}
+
+function allocationTotalValidator(
+  control: AbstractControl,
+): ValidationErrors | null {
+  const line = control as InvoiceLineForm;
+  if (!line.controls.workEntryIds.value.length) return null;
+  const allocations = line.controls.workEntryAllocations.getRawValue();
+  const ids = line.controls.workEntryIds.value;
+  const total = allocations.reduce(
+    (sum, item) => sum + Math.round((item.invoiceValue ?? 0) * 100),
+    Math.round((line.controls.additionalAmount.value ?? 0) * 100),
+  );
+  return allocations.length === ids.length &&
+    new Set(allocations.map((item) => item.workEntryId)).size === ids.length &&
+    allocations.every((item) => ids.includes(item.workEntryId)) &&
+    Number.isSafeInteger(total)
+    ? null
+    : { workAllocationRequired: true };
 }
 
 export function createInvoiceLineForm(
@@ -204,6 +270,18 @@ export function createInvoiceLineForm(
 ): InvoiceLineForm {
   return buildLineForm({
     id: line?.id ?? null,
+    additionalAmount: Number(line?.additionalAmount ?? 0),
+    workEntryAllocations: line?.workEntries.map((entry) => ({
+      workEntryId: entry.id,
+      invoiceValue: Number(
+        line.workEntryAllocations?.find((item) => item.workEntryId === entry.id)
+          ?.invoiceValue ??
+          (normalizeCurrency(entry.currency ?? "") ===
+          normalizeCurrency(line.currency)
+            ? (entry.value ?? 0)
+            : 0),
+      ),
+    })),
     workEntryIds: line?.workEntries.map((entry) => entry.id) ?? [],
     minutes: line?.minutes ?? null,
     pricingRequired: line?.pricingRequired ?? false,
@@ -217,66 +295,24 @@ export function createInvoiceLineForm(
   });
 }
 
-/**
- * One line per imported work entry. An HOURLY entry is priced at the client's
- * hourly rate when that rate is in the invoice currency; anything else gets
- * a zero amount flagged `pricingRequired` so the user must price it.
- */
+/** Initial allocations use only recorded prices in the invoice currency. */
 export function createWorkEntryLineForm(
   entry: WorkEntry,
   currency: string,
   rate: ClientRate | null,
   defaultVatRate = 0,
 ): InvoiceLineForm {
-  const minutes = entry.minutes;
-  const sameCurrency =
-    !!rate && normalizeCurrency(rate.currency) === normalizeCurrency(currency);
-  const entryCurrency = entry.currency
-    ? normalizeCurrency(entry.currency)
-    : null;
-  const explicitMinor = parseMinorUnits(entry.value);
-  const explicitCurrencyMatches = entryCurrency === normalizeCurrency(currency);
-  const fallbackPrice =
-    entry.value == null &&
-    entry.treatment === "HOURLY" &&
-    sameCurrency &&
-    (entryCurrency === null || explicitCurrencyMatches) &&
-    minutes !== null
-      ? priceMinutes(minutes, rate?.hourlyRate)
-      : null;
-  const parsedAmountMinor =
-    entry.value != null
-      ? explicitCurrencyMatches
-        ? explicitMinor
-        : null
-      : fallbackPrice === null || fallbackPrice <= 0
-        ? null
-        : parseMinorUnits(fallbackPrice.toFixed(2));
-  const amountMinor =
-    parsedAmountMinor !== null && isSafeMinorUnits(parsedAmountMinor)
-      ? parsedAmountMinor
-      : null;
-  const price = amountMinor === null ? 0 : minorUnitsToNumber(amountMinor);
-  const line = buildLineForm({
-    workEntryIds: [entry.id],
-    minutes,
-    pricingRequired: amountMinor === null,
-    serviceDate: entry.workDate.slice(0, 10),
-    // Untimed work shows just its title and is priced by hand.
-    description:
-      minutes === null
-        ? entry.title
-        : `${entry.title} (${formatHoursMinutes(minutes)})`,
-    netAmount: price,
-    vatRate: defaultVatRate,
-    vatAmount: amountsFromNetAndRate(price, defaultVatRate).vatAmount,
-    grossAmount: amountsFromNetAndRate(price, defaultVatRate).grossAmount,
+  const line = createGroupedWorkEntryLineForm(
+    [entry],
     currency,
-  });
-  if (amountMinor === BigInt(0)) {
-    zeroPricedLines.add(line);
-    line.updateValueAndValidity({ emitEvent: false });
-  }
+    rate,
+    defaultVatRate,
+  );
+  line.controls.description.setValue(
+    entry.minutes === null
+      ? entry.title
+      : `${entry.title} (${formatHoursMinutes(entry.minutes)})`,
+  );
   return line;
 }
 
@@ -312,7 +348,7 @@ export function concatenateWorkEntryTitles(
 export function createGroupedWorkEntryLineForm(
   entries: readonly WorkEntry[],
   currency: string,
-  rate: ClientRate | null,
+  _rate: ClientRate | null,
   defaultVatRate = 0,
   overflowFallback = "",
 ): InvoiceLineForm {
@@ -323,57 +359,32 @@ export function createGroupedWorkEntryLineForm(
     null,
   );
   const currencyCode = normalizeCurrency(currency);
-  let totalMinor = BigInt(0);
-  let priceable = ordered.length > 0;
-
-  for (const entry of ordered) {
-    const entryCurrency = entry.currency
-      ? normalizeCurrency(entry.currency)
-      : null;
-    let amountMinor: bigint | null = null;
-    if (entry.value != null) {
-      if (entryCurrency === currencyCode) {
-        amountMinor = parseMinorUnits(entry.value);
-      }
-    } else if (
-      entry.treatment === "HOURLY" &&
-      entry.minutes !== null &&
-      rate &&
-      normalizeCurrency(rate.currency) === currencyCode &&
-      (!entryCurrency || entryCurrency === currencyCode)
-    ) {
-      const amount = priceMinutes(entry.minutes, rate.hourlyRate);
-      amountMinor =
-        amount === null || amount <= 0
-          ? null
-          : parseMinorUnits(amount.toFixed(2));
-    }
-    if (amountMinor === null) priceable = false;
-    else {
-      totalMinor += amountMinor;
-      if (!isSafeMinorUnits(totalMinor)) priceable = false;
-    }
-  }
-
-  const netAmount = priceable ? minorUnitsToNumber(totalMinor) : 0;
-  const amounts = amountsFromNetAndRate(netAmount, defaultVatRate);
-  const line = buildLineForm({
+  const allocations = ordered.map((entry) => {
+    const minor =
+      normalizeCurrency(entry.currency ?? "") === currencyCode
+        ? parseMinorUnits(entry.value)
+        : null;
+    return {
+      workEntryId: entry.id,
+      invoiceValue:
+        minor !== null && isSafeMinorUnits(minor)
+          ? minorUnitsToNumber(minor)
+          : 0,
+    };
+  });
+  return buildLineForm({
     workEntryIds: ordered.map((entry) => entry.id),
+    workEntryAllocations: allocations,
     minutes,
-    pricingRequired: !priceable,
+    pricingRequired: allocations.some((item) => item.invoiceValue <= 0),
     serviceDate: ordered[0]?.workDate.slice(0, 10) ?? localDate(),
     description: concatenateWorkEntryTitles(ordered, overflowFallback),
-    netAmount,
+    netAmount: 0,
     vatRate: defaultVatRate,
-    vatAmount: amounts.vatAmount,
-    grossAmount: amounts.grossAmount,
+    vatAmount: 0,
+    grossAmount: 0,
     currency: currencyCode,
   });
-  if (priceable && totalMinor === BigInt(0)) {
-    zeroPricedLines.add(line);
-    line.updateValueAndValidity({ emitEvent: false });
-  }
-  return line;
 }
 
 /** Appends one grouped line and returns the count of newly associated entries. */
@@ -414,6 +425,9 @@ export function detachInvoiceLineWorkEntries(
   for (const line of lines) {
     if (!line.controls.workEntryIds.value.length) continue;
     line.controls.workEntryIds.setValue([]);
+    line.controls.workEntryAllocations.clear({ emitEvent: false });
+    line.controls.additionalAmount.setValue(0, { emitEvent: false });
+    line.controls.pricingRequired.setValue(false, { emitEvent: false });
     line.controls.minutes.setValue(null);
     line.markAsDirty();
   }
@@ -445,9 +459,31 @@ export function recalculateInvoiceLine(
   line: InvoiceLineForm,
   source: InvoiceLineAmountSource,
 ): void {
-  const amounts = calculateInvoiceLineAmounts(source, line.getRawValue());
+  const linked = line.controls.workEntryIds.value.length > 0;
+  if (linked) {
+    const totalMinor = line.controls.workEntryAllocations.controls.reduce(
+      (sum, item) =>
+        sum + Math.round((item.controls.invoiceValue.value ?? 0) * 100),
+      Math.round((line.controls.additionalAmount.value ?? 0) * 100),
+    );
+    line.controls.netAmount.setValue(
+      Number.isSafeInteger(totalMinor) ? totalMinor / 100 : 0,
+      { emitEvent: false },
+    );
+    line.controls.pricingRequired.setValue(
+      line.controls.workEntryAllocations.invalid ||
+        line.controls.workEntryAllocations.controls.some(
+          (item) => (item.controls.invoiceValue.value ?? 0) <= 0,
+        ),
+      { emitEvent: false },
+    );
+  }
+  const amounts = calculateInvoiceLineAmounts(
+    linked && source === "grossAmount" ? "netAmount" : source,
+    line.getRawValue(),
+  );
   line.patchValue(amounts, { emitEvent: false });
-  if (amounts.netAmount > 0 && line.controls.pricingRequired.value) {
+  if (!linked && amounts.netAmount > 0 && line.controls.pricingRequired.value) {
     line.controls.pricingRequired.setValue(false, { emitEvent: false });
   }
   line.updateValueAndValidity({ emitEvent: false });
@@ -472,7 +508,16 @@ export function toInvoiceLineInput(line: InvoiceLineForm): InvoiceLineInput {
     vatAmount: value.vatAmount ?? 0,
     grossAmount: value.grossAmount ?? 0,
     currency: normalizeCurrency(value.currency),
-    ...(value.workEntryIds.length ? { workEntryIds: value.workEntryIds } : {}),
+    ...(value.workEntryIds.length
+      ? {
+          workEntryIds: value.workEntryIds,
+          workEntryAllocations: value.workEntryAllocations.map((item) => ({
+            workEntryId: item.workEntryId,
+            invoiceValue: item.invoiceValue ?? 0,
+          })),
+          additionalAmount: value.additionalAmount ?? 0,
+        }
+      : {}),
     ...(value.minutes !== null ? { minutes: value.minutes } : {}),
     pricingRequired: value.pricingRequired,
   };

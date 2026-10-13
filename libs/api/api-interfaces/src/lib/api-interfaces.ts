@@ -1428,7 +1428,17 @@ export type FinancialClientReference = ClientReference;
 
 export type FinancialCaseReference = CaseReference;
 
+export interface InvoiceWorkEntryAllocation {
+  workEntryId: string;
+  originalValue: string | null;
+  originalCurrency: string | null;
+  invoiceValue: string;
+  currency: string;
+}
+
 export interface InvoiceLineSummary {
+  additionalAmount?: string;
+  workEntryAllocations?: InvoiceWorkEntryAllocation[];
   id: string;
   invoiceId: string;
   client: FinancialClientReference;
@@ -1710,6 +1720,8 @@ export interface UpdateInvoiceRequest {
 }
 
 export interface InvoiceLineInput {
+  additionalAmount?: number;
+  workEntryAllocations?: { workEntryId: string; invoiceValue: number }[];
   /** Existing line id when editing; omit for new lines. */
   id?: string;
   serviceDate: string;

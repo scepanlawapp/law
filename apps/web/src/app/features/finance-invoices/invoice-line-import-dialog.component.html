@@ -99,7 +99,15 @@
           <thead hlmTHead>
             <tr hlmTr>
               <th hlmTh class="w-24">
-                <span class="sr-only">{{ "finance.select" | translate }}</span>
+                <input
+                  type="checkbox"
+                  class="h-4 w-4 accent-primary"
+                  [checked]="allVisibleSelected()"
+                  [indeterminate]="someVisibleSelected()"
+                  [disabled]="loading() || !selectableEntries().length"
+                  (change)="toggleAllVisible()"
+                  [attr.aria-label]="'finance.selectAllVisibleWork' | translate"
+                />
               </th>
               <th hlmTh class="w-32">{{ "finance.workDate" | translate }}</th>
               <th hlmTh>{{ "finance.lineDescription" | translate }}</th>

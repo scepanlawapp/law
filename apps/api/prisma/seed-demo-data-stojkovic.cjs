@@ -3630,6 +3630,7 @@ async function seedData(db, workspaceId, users, refs) {
   let invoiceSeq = sequenceState?.lastSequenceValue ?? 0;
   const invoices = [];
   const invoiceLines = [];
+  const invoiceWorkEntryAllocations = [];
   const invoiceLineCases = [];
   function createInvoice({
     client,
@@ -3713,6 +3714,7 @@ async function seedData(db, workspaceId, users, refs) {
       lineOrder: invoice.lineCount++,
       description,
       serviceDate: dateOnly(serviceDate),
+      additionalAmount: "0.00",
       netAmount: centsToMoney(netCents),
       vatRate: invoice.vatRate.toFixed(2),
       taxCategoryCode: invoice.vatRate > 0 ? "S20" : "O",
@@ -3739,7 +3741,26 @@ async function seedData(db, workspaceId, users, refs) {
     invoice.vatCents += vatCents;
     invoiceLines.push(line);
     if (attach)
-      for (const item of items) {
+      for (const [index, item] of items.entries()) {
+        // Synthetic demo data has a known line total; split its cents deterministically.
+        if (netCents >= items.length) {
+          const invoiceValue = centsToMoney(
+            Math.floor(netCents / items.length) +
+              (index < netCents % items.length ? 1 : 0),
+          );
+          invoiceWorkEntryAllocations.push({
+            id: randomUUID(),
+            workspaceId,
+            invoiceLineId: line.id,
+            workEntryId: item.row.id,
+            originalValue: item.row.value ?? null,
+            originalCurrency: item.row.currency ?? null,
+            invoiceValue,
+            currency: invoice.currency,
+          });
+          item.row.value = invoiceValue;
+          item.row.currency = invoice.currency;
+        }
         item.row.status = "BILLED";
         item.row.invoiceLineId = line.id;
         item.row.updatedAt = clampPast(invoice.createdAt);
@@ -4132,6 +4153,7 @@ async function seedData(db, workspaceId, users, refs) {
     "workEntry",
     entries.map((item) => item.row),
   );
+  await chunked("invoiceWorkEntryAllocation", invoiceWorkEntryAllocations);
   await chunked("caseActivity", caseActivities);
   await chunked("clientActivity", clientActivities);
   await db.invoiceNumberSequenceState.upsert({

@@ -254,7 +254,15 @@
       <thead hlmTHead>
         <tr hlmTr>
           <th hlmTh class="w-12">
-            <span class="sr-only">{{ "finance.select" | translate }}</span>
+            <input
+              type="checkbox"
+              class="h-4 w-4 accent-primary"
+              [checked]="allVisibleSelected()"
+              [indeterminate]="someVisibleSelected()"
+              [disabled]="loading() || !selectableEntries().length"
+              (change)="toggleAllVisible()"
+              [attr.aria-label]="'finance.selectAllClientWork' | translate"
+            />
           </th>
           <th hlmTh>{{ "time.capture.date" | translate }}</th>
           <th hlmTh>{{ "time.capture.client" | translate }}</th>

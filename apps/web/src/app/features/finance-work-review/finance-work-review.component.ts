@@ -131,7 +131,12 @@ export class FinanceWorkReviewComponent {
     this.reload();
   }
   canInvoice(entry: WorkEntry): boolean {
-    return !!entry.client && entry.status === "CONFIRMED" && !entry.invoiceId;
+    return (
+      !!entry.client &&
+      entry.status === "CONFIRMED" &&
+      !entry.invoiceId &&
+      entry.treatment !== "NON_BILLABLE"
+    );
   }
   view(entry: WorkEntry): void {
     this.capture
@@ -280,6 +285,37 @@ export class FinanceWorkReviewComponent {
 
   isSelected(entry: WorkEntry): boolean {
     return this.selected().has(entry.id);
+  }
+
+  readonly selectableEntries = computed(() => {
+    const entries = this.entries().filter(
+      (entry) => this.canInvoice(entry) && !!entry.client,
+    );
+    const clientId =
+      this.selected().values().next().value?.client?.id ??
+      entries[0]?.client?.id;
+    return entries.filter((entry) => entry.client?.id === clientId);
+  });
+  readonly allVisibleSelected = computed(
+    () =>
+      this.selectableEntries().length > 0 &&
+      this.selectableEntries().every((entry) => this.selected().has(entry.id)),
+  );
+  readonly someVisibleSelected = computed(
+    () =>
+      !this.allVisibleSelected() &&
+      this.selectableEntries().some((entry) => this.selected().has(entry.id)),
+  );
+
+  toggleAllVisible(): void {
+    if (this.loading()) return;
+    const selected = new Map(this.selected());
+    const remove = this.allVisibleSelected();
+    for (const entry of this.selectableEntries()) {
+      if (remove) selected.delete(entry.id);
+      else selected.set(entry.id, entry);
+    }
+    this.selected.set(selected);
   }
 
   toggle(entry: WorkEntry): void {
