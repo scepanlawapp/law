@@ -38,3 +38,4 @@ export * from "./lib/assistant/tools/link-case.tool";
 export * from "./lib/assistant/tools/create-deadline.tool";
 export * from "./lib/assistant/tools/create-tasks-from-brief.tool";
 export * from "./lib/conversation/conversation-summary";
+export * from "./lib/price-suggestion.agent";

@@ -1,3 +1,5 @@
+import { PriceSuggestionDto } from "./price-suggestion.dto";
+import { PriceSuggestionService } from "./price-suggestion.service";
 import {
   Body,
   Controller,
@@ -32,7 +34,14 @@ export class FinancialsController {
   constructor(
     private readonly financials: FinancialsService,
     private readonly sef: SefSubmissionService,
+    private readonly priceSuggestion: PriceSuggestionService,
   ) {}
+
+  @Post("price-suggestion")
+  @Header("Cache-Control", "no-store")
+  suggestPrice(@Body() body: PriceSuggestionDto) {
+    return this.priceSuggestion.suggest(body.workEvent);
+  }
 
   @Get("price-sources")
   priceSources() {
@@ -124,10 +133,7 @@ export class FinancialsController {
   @Get("invoices/:id/sef/ubl")
   @Header("Content-Type", "application/xml; charset=utf-8")
   @Header("Content-Disposition", 'attachment; filename="invoice-ubl.xml"')
-  ubl(
-    @Param("id") id: string,
-    @Query("bankAccountId") bankAccountId?: string,
-  ) {
+  ubl(@Param("id") id: string, @Query("bankAccountId") bankAccountId?: string) {
     return this.sef.xml(id, bankAccountId);
   }
 

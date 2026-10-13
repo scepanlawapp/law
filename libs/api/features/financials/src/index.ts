@@ -11,3 +11,6 @@ export * from "./lib/sef-invoice-validator";
 export * from "./lib/sef-submission.service";
 export * from "./lib/sef-ubl-builder";
 export * from "./lib/sef.types";
+export * from "./lib/price-suggestion-context.builder";
+export * from "./lib/price-suggestion.dto";
+export * from "./lib/price-suggestion.service";

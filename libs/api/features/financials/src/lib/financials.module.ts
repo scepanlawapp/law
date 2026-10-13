@@ -1,3 +1,5 @@
+import { PriceSuggestionContextBuilder } from "./price-suggestion-context.builder";
+import { PriceSuggestionService } from "./price-suggestion.service";
 import { Module } from "@nestjs/common";
 import { FinancialsController } from "./financials.controller";
 import { FinancialsService } from "./financials.service";
@@ -14,6 +16,8 @@ import { SefUblBuilder } from "./sef-ubl-builder";
   controllers: [FinancialsController, OrganizationSettingsController],
   providers: [
     FinancialsService,
+    PriceSuggestionContextBuilder,
+    PriceSuggestionService,
     InvoiceNumberingService,
     OrganizationSettingsService,
     SefApiClient,

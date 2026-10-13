@@ -4,7 +4,7 @@
       {{ "finance.priceSources" | translate }}
     </h1>
     <p class="mt-2 text-muted-foreground">
-      {{ "finance.aiLater" | translate }}
+      {{ "finance.priceSourcesDescription" | translate }}
     </p>
   </header>
   <div class="flex flex-wrap gap-2">
@@ -65,6 +65,11 @@
                   source.versions[0] ? "v" + source.versions[0].version : "—"
                 }}
               </span>
+              @if (source.caseId) {
+                <span class="block text-muted-foreground">
+                  {{ "finance.caseSpecificPrice" | translate }}
+                </span>
+              }
               <span class="block text-muted-foreground">
                 {{ source.updatedAt | date: "mediumDate" }}
               </span>
@@ -95,6 +100,7 @@
                 [value]="form.controls.clientId.value"
                 (valueChange)="setClientId($event)"
                 [itemToString]="clientItemToString"
+                [disabled]="!!selectedSource()"
               >
                 <hlm-combobox-trigger
                   buttonId="price-source-client"
@@ -125,6 +131,67 @@
                 </hlm-combobox-content>
               </div>
             </label>
+          }
+          @if (tab() === "CLIENT_AGREEMENT" && form.controls.clientId.value) {
+            <div class="space-y-1">
+              <label for="price-source-case">
+                {{ "finance.case" | translate }}
+              </label>
+              <div
+                hlmCombobox
+                [value]="form.controls.caseId.value"
+                (valueChange)="setCaseId($event)"
+                [itemToString]="caseItemToString"
+                [disabled]="
+                  !!selectedSource() || casesLoading() || casesError()
+                "
+              >
+                <hlm-combobox-trigger
+                  buttonId="price-source-case"
+                  class="w-full min-w-0 max-w-full"
+                >
+                  <hlm-combobox-value
+                    [placeholder]="'finance.allCases' | translate"
+                  />
+                </hlm-combobox-trigger>
+                <hlm-combobox-content *hlmComboboxPortal width="trigger">
+                  <hlm-combobox-input
+                    [placeholder]="'finance.case' | translate"
+                    [showTrigger]="false"
+                  />
+                  <hlm-combobox-empty>
+                    {{ "finance.noFilterOptions" | translate }}
+                  </hlm-combobox-empty>
+                  <div hlmComboboxList>
+                    <hlm-combobox-item value="">
+                      {{ "finance.allCases" | translate }}
+                    </hlm-combobox-item>
+                    @for (item of cases(); track item.id) {
+                      <hlm-combobox-item [value]="item.id">
+                        {{ item.caseNumber }} · {{ item.name }}
+                      </hlm-combobox-item>
+                    }
+                  </div>
+                </hlm-combobox-content>
+              </div>
+              @if (casesLoading()) {
+                <div role="status" class="flex items-center gap-2">
+                  <hlm-spinner />
+                  <span>{{ "finance.loading" | translate }}</span>
+                </div>
+              }
+              @if (casesError()) {
+                <p role="alert">{{ "finance.loadError" | translate }}</p>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  (click)="retryCases()"
+                >
+                  {{ "finance.retryCases" | translate }}
+                </button>
+              }
+            </div>
           }
           <label class="block space-y-1">
             <span>{{ "finance.sourceUrl" | translate }}</span>
@@ -160,7 +227,13 @@
               {{ message() | translate }}
             </p>
           }
-          <button hlmBtn type="submit" [disabled]="saving()">
+          <button
+            hlmBtn
+            type="submit"
+            [disabled]="
+              saving() || casesLoading() || (casesError() && !selectedSource())
+            "
+          >
             {{
               saving()
                 ? ("finance.loading" | translate)
