@@ -48,6 +48,11 @@ export class FinancialsController {
     return this.financials.listPriceSources();
   }
 
+  @Delete("price-sources/:id")
+  deletePriceSource(@Param("id") id: string) {
+    return this.financials.deletePriceSource(id);
+  }
+
   @Post("price-sources")
   createPriceSource(@Body() body: CreatePriceSourceDto) {
     return this.financials.createPriceSource(body);

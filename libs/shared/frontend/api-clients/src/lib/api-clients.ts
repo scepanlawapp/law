@@ -2147,6 +2147,13 @@ export class FinancialsApiClient {
     );
   }
 
+  deletePriceSource(sourceId: string): Observable<{ deleted: boolean }> {
+    return this.http.delete<{ deleted: boolean }>(
+      this.endpoint(`/financials/price-sources/${sourceId}`),
+      { withCredentials: true },
+    );
+  }
+
   createPriceSource(body: {
     scope: PriceSourceScope;
     title: string;

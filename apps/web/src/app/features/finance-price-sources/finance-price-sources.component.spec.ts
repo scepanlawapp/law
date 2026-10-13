@@ -1,3 +1,5 @@
+import { PriceCatalogDialogService } from "./price-catalog-dialog.service";
+import { PriceCatalogDeleteService } from "./price-catalog-delete.service";
 import { ActivatedRoute } from "@angular/router";
 import { TestBed } from "@angular/core/testing";
 import {
@@ -15,6 +17,8 @@ const page = (ids: string[], next = false, number = 1) => ({
 });
 describe("price source case selection", () => {
   let component: FinancePriceSourcesComponent;
+  const deletion = { remove: jest.fn(() => of(true)) };
+  const viewer = { open: jest.fn(() => of(false)) };
   const route = { snapshot: { queryParamMap: { get: jest.fn() } } };
   const casesApi = { list: jest.fn() };
   const financials = {
@@ -22,6 +26,12 @@ describe("price source case selection", () => {
     createPriceSource: jest.fn(),
     appendPriceSourceVersion: jest.fn(),
     priceSourceVersions: jest.fn(),
+  };
+  const clientsApi = {
+    list: jest.fn(() => of({ items: [] })),
+    get: jest.fn(() =>
+      of({ id: "linked-client", displayName: "Linked client" }),
+    ),
   };
   beforeEach(() => {
     jest.clearAllMocks();
@@ -33,10 +43,12 @@ describe("price source case selection", () => {
     financials.priceSourceVersions.mockReturnValue(of([]));
     TestBed.configureTestingModule({
       providers: [
+        { provide: PriceCatalogDialogService, useValue: viewer },
+        { provide: PriceCatalogDeleteService, useValue: deletion },
         { provide: ActivatedRoute, useValue: route },
         {
           provide: ClientsApiClient,
-          useValue: { list: () => of({ items: [] }) },
+          useValue: clientsApi,
         },
         { provide: CasesApiClient, useValue: casesApi },
         { provide: FinancialsApiClient, useValue: financials },
@@ -49,6 +61,26 @@ describe("price source case selection", () => {
     component = TestBed.runInInjectionContext(
       () => new FinancePriceSourcesComponent(),
     );
+  });
+  it("clears the selected catalog and content for a new catalog", () => {
+    component.selectSource({
+      id: "catalog",
+      versions: [],
+      title: "Old",
+    } as never);
+    component.form.controls.rawText.setValue("Old prices");
+    component.create();
+    expect(component.selectedSource()).toBeNull();
+    expect(component.form.controls.title.value).toBe("");
+    expect(component.form.controls.rawText.value).toBe("");
+  });
+  it("refreshes and clears a deleted selected catalog", () => {
+    const source = { id: "catalog", versions: [], title: "Old" } as never;
+    component.selectSource(source);
+    component.remove(source);
+    expect(deletion.remove).toHaveBeenCalledWith(source);
+    expect(component.selectedSource()).toBeNull();
+    expect(financials.priceSources).toHaveBeenCalledTimes(2);
   });
   it("opens the source named by a link in its matching tab", () => {
     const source = {
@@ -141,4 +173,87 @@ describe("price source case selection", () => {
     expect(component.casesError()).toBe(false);
     expect(component.cases()).toHaveLength(1);
   });
+  it("prefills the linked client even when it is outside the first client page", () => {
+    route.snapshot.queryParamMap.get.mockImplementation(
+      (key: string) =>
+        ({ clientId: "linked-client", scope: "CLIENT_AGREEMENT" })[key],
+    );
+    const linked = TestBed.runInInjectionContext(
+      () => new FinancePriceSourcesComponent(),
+    );
+    expect(linked.form.controls.clientId.value).toBe("linked-client");
+    expect(linked.form.controls.caseId.value).toBe("");
+    expect(linked.clientName("linked-client")).toBe("Linked client");
+    expect(clientsApi.get).toHaveBeenCalledWith("linked-client");
+    linked.sources.set([
+      { id: "one", scope: "CLIENT_AGREEMENT", clientId: "linked-client" },
+      {
+        id: "two",
+        scope: "CASE_OVERRIDE",
+        clientId: "linked-client",
+        caseId: "case",
+      },
+      { id: "other", scope: "CLIENT_AGREEMENT", clientId: "other-client" },
+    ] as never);
+    expect(linked.visibleSources().map((item) => item.id)).toEqual([
+      "one",
+      "two",
+    ]);
+    linked.form.patchValue({ title: "Client prices", rawText: "100 EUR" });
+    linked.save();
+    expect(financials.createPriceSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "CLIENT_AGREEMENT",
+        clientId: "linked-client",
+        caseId: undefined,
+      }),
+    );
+    expect(linked.form.controls.clientId.value).toBe("linked-client");
+  });
+
+  it("requires a case when creating a case-specific source from the client card", () => {
+    route.snapshot.queryParamMap.get.mockImplementation(
+      (key: string) =>
+        ({ clientId: "linked-client", scope: "CASE_OVERRIDE" })[key],
+    );
+    const linked = TestBed.runInInjectionContext(
+      () => new FinancePriceSourcesComponent(),
+    );
+    linked.form.patchValue({ title: "Case prices", rawText: "100 EUR" });
+    linked.save();
+    expect(financials.createPriceSource).not.toHaveBeenCalled();
+    expect(linked.form.controls.caseId.hasError("required")).toBe(true);
+    linked.setCaseId("case");
+    linked.save();
+    expect(financials.createPriceSource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        scope: "CASE_OVERRIDE",
+        clientId: "linked-client",
+        caseId: "case",
+      }),
+    );
+  });
+
+  it.each(["COMPANY_CATALOG", "WORKSPACE_PUBLIC_REFERENCE"])(
+    "opens the requested workspace category %s without associating it with a client",
+    (scope) => {
+      route.snapshot.queryParamMap.get.mockImplementation(
+        (key: string) => ({ clientId: "linked-client", scope })[key],
+      );
+      const linked = TestBed.runInInjectionContext(
+        () => new FinancePriceSourcesComponent(),
+      );
+      expect(linked.tab()).toBe(scope);
+      expect(linked.form.controls.clientId.value).toBe("");
+      linked.form.patchValue({ title: "Prices", rawText: "100 EUR" });
+      linked.save();
+      expect(financials.createPriceSource).toHaveBeenCalledWith(
+        expect.objectContaining({
+          scope,
+          clientId: undefined,
+          caseId: undefined,
+        }),
+      );
+    },
+  );
 });

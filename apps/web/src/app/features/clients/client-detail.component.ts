@@ -53,7 +53,7 @@ import { DocumentsComponent } from "../documents/documents.component";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 import { ClientFormTab } from "./client-create-edit-modal/client-form-dialog.models";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
-import { ClientRetainerCardComponent } from "./client-retainer-card/client-retainer-card.component";
+import { ClientBillingSectionComponent } from "./client-billing-section/client-billing-section.component";
 import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
@@ -102,7 +102,7 @@ type ClientTab =
     HlmTabsTrigger,
     CasesListComponent,
     DocumentsComponent,
-    ClientRetainerCardComponent,
+    ClientBillingSectionComponent,
     TranslatePipe,
   ],
 })
@@ -131,6 +131,8 @@ export class ClientDetailComponent {
   readonly confirming = signal(false);
   readonly mutationError = signal(false);
   readonly addressTypes = [
+    "HEADQUARTERS",
+    "HOME",
     "REGISTERED",
     "DELIVERY",
     "BILLING",

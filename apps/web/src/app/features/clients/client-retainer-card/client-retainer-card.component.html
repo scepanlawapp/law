@@ -250,6 +250,10 @@
         }
       }
 
+      @if (agreement()) {
+        <ng-content select="[retainerPricingReference]" />
+      }
+
       @if (profile()?.hourlyRate; as hourlyRate) {
         <p class="text-sm" data-testid="client-rate">
           <span class="font-medium">

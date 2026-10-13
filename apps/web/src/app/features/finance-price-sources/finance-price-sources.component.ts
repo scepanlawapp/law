@@ -1,3 +1,5 @@
+import { PriceCatalogDialogService } from "./price-catalog-dialog.service";
+import { PriceCatalogDeleteService } from "./price-catalog-delete.service";
 import { ActivatedRoute } from "@angular/router";
 import { EMPTY, catchError, expand, of, reduce, switchMap, tap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
@@ -67,8 +69,14 @@ type SourceTab =
   ],
 })
 export class FinancePriceSourcesComponent {
+  private readonly catalogDialog = inject(PriceCatalogDialogService);
+  private readonly catalogDelete = inject(PriceCatalogDeleteService);
+  readonly deleting = signal(false);
   private readonly route = inject(ActivatedRoute, { optional: true });
   private openedLinkedSource = false;
+  readonly contextClientId =
+    this.route?.snapshot.queryParamMap.get("clientId") ?? "";
+  readonly caseRequired = signal(false);
   private readonly api = inject(FinancialsApiClient);
   private readonly casesApi = inject(CasesApiClient);
   private readonly localization = inject(LocalizationService);
@@ -141,10 +149,77 @@ export class FinancePriceSourcesComponent {
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({ next: (response) => this.clients.set(response.items) });
+      .subscribe({
+        next: (response) => {
+          this.clients.set(response.items);
+          // A client detail link can reference a client outside the first list page.
+          if (
+            this.contextClientId &&
+            !response.items.some((client) => client.id === this.contextClientId)
+          ) {
+            this.clientsApi
+              .get(this.contextClientId)
+              .pipe(takeUntilDestroyed(this.destroyRef))
+              .subscribe({
+                next: (client) =>
+                  this.clients.update((clients) => [
+                    ...clients.filter((item) => item.id !== client.id),
+                    client,
+                  ]),
+                error: () => this.message.set("finance.loadError"),
+              });
+          }
+        },
+        error: () => this.message.set("finance.loadError"),
+      });
+    const scope = this.route?.snapshot.queryParamMap.get("scope");
+    if (scope === "COMPANY_CATALOG" || scope === "WORKSPACE_PUBLIC_REFERENCE")
+      this.selectTab(scope);
+    else {
+      this.selectTab("CLIENT_AGREEMENT");
+      if (scope === "CASE_OVERRIDE") {
+        this.caseRequired.set(true);
+        this.form.controls.caseId.addValidators(Validators.required);
+        this.form.controls.caseId.updateValueAndValidity();
+      }
+    }
     this.load();
   }
 
+  create(): void {
+    if (this.saving()) return;
+    this.selectTab(this.tab());
+    this.message.set("");
+  }
+  view(source: PriceSourceSummary): void {
+    this.catalogDialog
+      .open(source)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((deleted) => {
+        if (deleted) this.afterDelete(source);
+      });
+  }
+  remove(source: PriceSourceSummary): void {
+    if (this.deleting() || this.saving()) return;
+    this.deleting.set(true);
+    this.catalogDelete
+      .remove(source)
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe({
+        next: (deleted) => {
+          this.deleting.set(false);
+          if (deleted) this.afterDelete(source);
+        },
+        error: () => {
+          this.deleting.set(false);
+          this.message.set("finance.deleteCatalogError");
+        },
+      });
+  }
+  private afterDelete(source: PriceSourceSummary): void {
+    if (this.selectedSource()?.id === source.id) this.create();
+    this.load();
+  }
   load(): void {
     this.loading.set(true);
     this.api
@@ -177,6 +252,9 @@ export class FinancePriceSourcesComponent {
   }
   selectTab(tab: SourceTab): void {
     this.tab.set(tab);
+    this.caseRequired.set(false);
+    this.form.controls.caseId.clearValidators();
+    this.form.controls.caseId.updateValueAndValidity();
     this.selectedSource.set(null);
     if (tab === "CLIENT_AGREEMENT") {
       this.form.controls.clientId.addValidators(Validators.required);
@@ -186,7 +264,7 @@ export class FinancePriceSourcesComponent {
     this.form.controls.clientId.updateValueAndValidity();
     this.form.reset({
       title: "",
-      clientId: "",
+      clientId: tab === "CLIENT_AGREEMENT" ? this.contextClientId : "",
       caseId: "",
       rawText: "",
       sourceUrl: "",
@@ -194,6 +272,9 @@ export class FinancePriceSourcesComponent {
   }
   selectSource(source: PriceSourceSummary): void {
     this.selectedSource.set(source);
+    this.caseRequired.set(false);
+    this.form.controls.caseId.clearValidators();
+    this.form.controls.caseId.updateValueAndValidity();
     const version = source.versions[0];
     this.form.patchValue({
       title: source.title,
@@ -218,8 +299,11 @@ export class FinancePriceSourcesComponent {
     const scope: PriceSourceScope = this.tab();
     return this.sources().filter(
       (source) =>
-        source.scope === scope ||
-        (scope === "CLIENT_AGREEMENT" && source.scope === "CASE_OVERRIDE"),
+        (source.scope === scope ||
+          (scope === "CLIENT_AGREEMENT" && source.scope === "CASE_OVERRIDE")) &&
+        (scope !== "CLIENT_AGREEMENT" ||
+          !this.contextClientId ||
+          source.clientId === this.contextClientId),
     );
   }
   clientName(clientId: string | null): string {
@@ -294,7 +378,8 @@ export class FinancePriceSourcesComponent {
         this.selectedSource.set(null);
         this.form.reset({
           title: "",
-          clientId: "",
+          clientId:
+            this.tab() === "CLIENT_AGREEMENT" ? this.contextClientId : "",
           caseId: "",
           rawText: "",
           sourceUrl: "",

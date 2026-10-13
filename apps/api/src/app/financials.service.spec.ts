@@ -119,6 +119,8 @@ describe("FinancialsService", () => {
       updateMany: jest.fn(),
       aggregate: jest.fn(),
     },
+    priceSource: { findFirst: jest.fn(), deleteMany: jest.fn() },
+    priceSourceVersion: { deleteMany: jest.fn() },
     activityLog: { createMany: jest.fn() },
     invoiceLine: {
       create: jest.fn(),
@@ -233,6 +235,35 @@ describe("FinancialsService", () => {
       { workspaceId, userId, role: WorkspaceRole.ADMIN },
       fn,
     );
+
+  it("deletes catalog versions and catalog in one workspace-scoped transaction", async () => {
+    db.priceSource.findFirst.mockResolvedValue({ id: "catalog" });
+    await asAdmin(() => service.deletePriceSource("catalog"));
+    expect(db.priceSourceVersion.deleteMany).toHaveBeenCalledWith({
+      where: { priceSourceId: "catalog", workspaceId },
+    });
+    expect(db.priceSource.deleteMany).toHaveBeenCalledWith({
+      where: { id: "catalog", workspaceId },
+    });
+    expect(db.$transaction).toHaveBeenCalled();
+  });
+  it("does not delete a missing or another workspace's catalog", async () => {
+    db.priceSource.findFirst.mockResolvedValue(null);
+    await expect(
+      asAdmin(() => service.deletePriceSource("missing")),
+    ).rejects.toThrow("Price source not found");
+    expect(db.priceSourceVersion.deleteMany).not.toHaveBeenCalled();
+    expect(db.priceSource.deleteMany).not.toHaveBeenCalled();
+  });
+  it("denies catalog deletion to lawyers", async () => {
+    await expect(
+      WorkspaceContextService.run(
+        { workspaceId, userId, role: WorkspaceRole.LAWYER },
+        () => service.deletePriceSource("catalog"),
+      ),
+    ).rejects.toThrow();
+    expect(db.$transaction).not.toHaveBeenCalled();
+  });
 
   function mockCreate() {
     db.domainCounter.upsert.mockResolvedValue({ value: 1 });
