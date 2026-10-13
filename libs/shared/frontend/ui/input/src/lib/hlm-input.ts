@@ -1,11 +1,14 @@
+import { HlmNumberInput } from "./hlm-number-input";
 import { Directive } from "@angular/core";
 import { BrnFieldControlDescribedBy } from "@spartan-ng/brain/field";
 import { BrnInput } from "@spartan-ng/brain/input";
 import { classes } from "@spartan-ng/helm/utils";
 
 @Directive({
+  standalone: true,
   selector: "[hlmInput]",
   hostDirectives: [
+    HlmNumberInput,
     { directive: BrnInput, inputs: ["id", "forceInvalid"] },
     BrnFieldControlDescribedBy,
   ],

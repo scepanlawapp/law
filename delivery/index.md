@@ -156,3 +156,4 @@ Tracks are organized by implementation area and updated as work progresses.
 
 - [Client originator and finance versions](tracks/client_originator_finance_versions_20261012/index.md)
 - [Work price suggestions](./tracks/work_price_suggestions_20261013/index.md)
+- [Shared numeric input formatting](./tracks/numeric_input_formatting_20261013/index.md)
