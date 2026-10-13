@@ -239,15 +239,25 @@
           <th hlmTh>{{ "time.capture.workDescription" | translate }}</th>
           <th hlmTh>{{ "time.capture.duration" | translate }}</th>
           <th hlmTh>{{ "time.capture.treatment" | translate }}</th>
+          <th hlmTh>{{ "time.team.price" | translate }}</th>
           <th hlmTh>{{ "time.team.status" | translate }}</th>
           <th hlmTh>
-            <span class="sr-only">{{ "time.team.actions" | translate }}</span>
+            {{ "time.review.writeOff" | translate }}
           </th>
         </tr>
       </thead>
       <tbody hlmTBody>
         @for (entry of entries(); track entry.id) {
-          <tr hlmTr data-testid="team-entry">
+          <tr
+            hlmTr
+            data-testid="team-entry"
+            class="cursor-pointer"
+            tabindex="0"
+            [attr.aria-label]="entry.title"
+            (click)="openFromRow($event, entry)"
+            (keydown.enter)="openFromRow($event, entry)"
+            (keydown.space)="openFromRow($event, entry)"
+          >
             <td hlmTd class="whitespace-nowrap">
               {{ workDateLabel(entry.workDate) }}
             </td>
@@ -289,6 +299,9 @@
               }
             </td>
             <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
+            <td hlmTd class="whitespace-nowrap tabular-nums">
+              {{ priceLabel(entry) }}
+            </td>
             <td hlmTd>
               <span
                 class="rounded-full px-2 py-0.5 text-sm font-medium whitespace-nowrap"
@@ -305,29 +318,9 @@
                   size="sm"
                   variant="outline"
                   [disabled]="busyEntryId() === entry.id"
-                  (click)="edit(entry)"
-                >
-                  {{ "common.edit" | translate }}
-                </button>
-                <button
-                  hlmBtn
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  [disabled]="busyEntryId() === entry.id"
                   (click)="writeOff(entry)"
                 >
                   {{ "time.review.writeOff" | translate }}
-                </button>
-              } @else {
-                <button
-                  hlmBtn
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  (click)="edit(entry)"
-                >
-                  {{ "work.entries.view" | translate }}
                 </button>
               }
             </td>

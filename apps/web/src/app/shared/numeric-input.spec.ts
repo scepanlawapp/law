@@ -262,4 +262,25 @@ describe("shared hlmInput numeric formatting", () => {
     element.dispatchEvent(new Event("compositionend"));
     expect(form.money.value).toBe("12.34");
   });
+  it("keeps typed decimal aliases stable as a third digit is entered", () => {
+    const { input, form } = setup();
+    const element = input("money");
+    element.dispatchEvent(new Event("focus"));
+    for (const value of ["1.2", "1.23", "1.234", "1.2345"]) {
+      element.value = value;
+      element.dispatchEvent(
+        new InputEvent("input", {
+          inputType: "insertText",
+          data: value.at(-1),
+        }),
+      );
+      expect(form.money.value).toBe(value);
+    }
+    element.value = "1.234,56";
+    element.dispatchEvent(
+      new InputEvent("input", { inputType: "insertFromPaste" }),
+    );
+    expect(form.money.value).toBe("1234.56");
+    expect(element.value).toBe("1234,56");
+  });
 });

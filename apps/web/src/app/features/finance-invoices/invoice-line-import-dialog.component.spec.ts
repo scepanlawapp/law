@@ -283,4 +283,28 @@ describe("InvoiceLineImportDialogComponent", () => {
       }),
     );
   });
+  it("selects eligible visible rows, skips already imported work, and preserves off-page selection", () => {
+    const fixture = TestBed.createComponent(InvoiceLineImportDialogComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.toggle(entry("off-page"));
+    const header = fixture.nativeElement.querySelector(
+      "thead input[type=checkbox]",
+    ) as HTMLInputElement;
+    header.click();
+    fixture.detectChanges();
+    expect([...component.selected().keys()]).toEqual([
+      "off-page",
+      "entry-1",
+      "entry-3",
+    ]);
+    expect(header.checked).toBe(true);
+    component.toggle(entry("entry-1"));
+    fixture.detectChanges();
+    expect(header.indeterminate).toBe(true);
+    header.click();
+    fixture.detectChanges();
+    header.click();
+    expect([...component.selected().keys()]).toEqual(["off-page"]);
+  });
 });

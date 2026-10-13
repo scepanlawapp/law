@@ -34,7 +34,7 @@ export const HLM_INPUT_NUMBER_LOCALE = new InjectionToken<
   host: {
     "(focus)": "onFocus()",
     "(blur)": "onBlur()",
-    "(input)": "onInput()",
+    "(input)": "onInput($event)",
     "(keydown)": "onKeydown($event)",
     "(compositionstart)": "composing = true",
     "(compositionend)": "onCompositionEnd()",
@@ -71,9 +71,8 @@ export class HlmNumberInput implements ControlValueAccessor, OnInit, OnDestroy {
   private editingLocale: HlmNumberLocale = this.locale();
   private onChange: (value: number | string | null) => void = () => undefined;
   private onTouched: () => void = () => undefined;
-  private readonly numberValidator = (
-    _control: AbstractControl,
-  ): ValidationErrors | null => (this.invalid ? { hlmNumber: true } : null);
+  private readonly numberValidator = (): ValidationErrors | null =>
+    this.invalid ? { hlmNumber: true } : null;
 
   constructor() {
     // Only replace the built-in accessors, never another custom control's behavior.
@@ -158,7 +157,7 @@ export class HlmNumberInput implements ControlValueAccessor, OnInit, OnDestroy {
     this.onTouched();
   }
 
-  protected onInput(): void {
+  protected onInput(event?: Event): void {
     if (
       !this.enabled ||
       this.composing ||
@@ -166,10 +165,20 @@ export class HlmNumberInput implements ControlValueAccessor, OnInit, OnDestroy {
       this.element.disabled
     )
       return;
-    const parsed = parseInputNumber(
-      this.element.value,
-      this.focused ? this.editingLocale : this.locale(),
-    );
+    const typing =
+      this.focused &&
+      event instanceof InputEvent &&
+      /^(insertText|delete|history)/.test(event.inputType);
+    // Focused editing is ungrouped. A third decimal digit must never turn 1.234 into 1234.
+    const typed = this.element.value.trim();
+    const parsed = typing
+      ? /^[+-]?(?:\d+(?:[.,]\d*)?|[.,]\d+)$/.test(typed) || typed === ""
+        ? parseInputNumber(typed.replace(",", "."), "en")
+        : null
+      : parseInputNumber(
+          this.element.value,
+          this.focused ? this.editingLocale : this.locale(),
+        );
     this.invalid =
       parsed === null ||
       (this.numberModel && parsed !== "" && !Number.isFinite(Number(parsed)));
@@ -181,6 +190,14 @@ export class HlmNumberInput implements ControlValueAccessor, OnInit, OnDestroy {
           : Number(parsed)
         : (parsed ?? this.element.value),
     );
+    if (
+      this.focused &&
+      !this.invalid &&
+      event instanceof InputEvent &&
+      ["insertFromPaste", "insertFromDrop"].includes(event.inputType)
+    ) {
+      this.render(this.editingLocale);
+    }
     // Keep the typed text/caret untouched until blur, including incomplete '-' or '1,'.
   }
 

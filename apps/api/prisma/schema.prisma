@@ -443,6 +443,7 @@ model Workspace {
   fileLocations               FileLocation[]
   uploadOperations            UploadOperation[]
   invoiceLines                InvoiceLine[]
+  invoiceAllocations          InvoiceWorkEntryAllocation[]
   invoiceLineCases            InvoiceLineCase[]
   priceSources                PriceSource[]
   priceSourceVersions         PriceSourceVersion[]
@@ -1120,6 +1121,23 @@ model Invoice {
   @@index([workspaceId, status, dateOfMaturity])
 }
 
+model InvoiceWorkEntryAllocation {
+  id               String @id @default(uuid())
+  workspaceId      String
+  invoiceLineId    String
+  workEntryId      String
+  originalValue    Decimal? @db.Decimal(18, 2)
+  originalCurrency String?
+  invoiceValue     Decimal @db.Decimal(18, 2)
+  currency         String
+  workspace        Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  invoiceLine      InvoiceLine @relation(fields: [invoiceLineId], references: [id], onDelete: Cascade)
+  workEntry        WorkEntry @relation(fields: [workEntryId], references: [id], onDelete: Restrict)
+
+  @@unique([invoiceLineId, workEntryId])
+  @@index([workspaceId, workEntryId])
+}
+
 model InvoiceLine {
   id                     String            @id @default(uuid())
   workspaceId            String
@@ -1159,6 +1177,8 @@ model InvoiceLine {
   updatedBy              User              @relation("InvoiceLineUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
   caseLinks              InvoiceLineCase[]
   workEntries            WorkEntry[]
+  workEntryAllocations   InvoiceWorkEntryAllocation[]
+  additionalAmount       Decimal           @default(0) @db.Decimal(18, 2)
 
   @@unique([invoiceId, lineOrder])
   @@index([workspaceId, clientId, status, serviceDate])
@@ -2072,6 +2092,7 @@ model WorkEntry {
   event             Event?             @relation(fields: [eventId], references: [id], onDelete: SetNull)
   serviceCategory   ServiceCategory?   @relation(fields: [serviceCategoryId], references: [id], onDelete: SetNull)
   invoiceLine       InvoiceLine?       @relation(fields: [invoiceLineId], references: [id], onDelete: SetNull)
+  invoiceAllocations InvoiceWorkEntryAllocation[]
   createdBy         User               @relation("WorkEntryCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   updatedBy         User               @relation("WorkEntryUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
 

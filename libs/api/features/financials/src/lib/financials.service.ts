@@ -178,6 +178,22 @@ export class FinancialsService {
       lineOrder: line.lineOrder,
       description: line.description,
       serviceDate: line.serviceDate.toISOString().slice(0, 10),
+      additionalAmount: line.additionalAmount?.toString() ?? "0",
+      workEntryAllocations: (line.workEntryAllocations ?? []).map(
+        (allocation: {
+          workEntryId: string;
+          originalValue: Prisma.Decimal | null;
+          originalCurrency: string | null;
+          invoiceValue: Prisma.Decimal;
+          currency: string;
+        }) => ({
+          workEntryId: allocation.workEntryId,
+          originalValue: allocation.originalValue?.toString() ?? null,
+          originalCurrency: allocation.originalCurrency,
+          invoiceValue: allocation.invoiceValue.toString(),
+          currency: allocation.currency,
+        }),
+      ),
       netAmount: line.netAmount.toString(),
       vatRate: line.vatRate.toString(),
       taxCategoryCode: line.taxCategoryCode,
@@ -234,6 +250,7 @@ export class FinancialsService {
   }
 
   private lineInclude = {
+    workEntryAllocations: true,
     client: true,
     caseLinks: { include: { case: true } },
     performedBy: true,
@@ -489,6 +506,55 @@ export class FinancialsService {
     await this.logWorkEntries(tx, "WORK_ENTRY_UNBILLED", entries, invoiceId);
   }
 
+  /** Public composer requests must fully account for every imported entry. */
+  private validateWorkAllocations(lines: InternalInvoiceLineInput[]): void {
+    for (const line of lines) {
+      const ids = line.workEntryIds ?? [];
+      const allocations = line.workEntryAllocations ?? [];
+      const additional = new Prisma.Decimal(line.additionalAmount ?? 0);
+      if (
+        !additional.isFinite() ||
+        additional.isNegative() ||
+        additional.decimalPlaces() > 2
+      )
+        throw new ConflictException(
+          "Additional amount must be non-negative with at most two decimal places",
+        );
+      if (!ids.length) {
+        if (allocations.length || !additional.isZero())
+          throw new ConflictException(
+            "Work allocations require imported work entries",
+          );
+        continue;
+      }
+      if (
+        allocations.length !== ids.length ||
+        new Set(allocations.map((item) => item.workEntryId)).size !== ids.length
+      )
+        throw new ConflictException(
+          "Every imported work entry requires an invoice value",
+        );
+      let total = additional;
+      for (const allocation of allocations) {
+        const amount = new Prisma.Decimal(allocation.invoiceValue);
+        if (
+          !ids.includes(allocation.workEntryId) ||
+          !amount.isFinite() ||
+          !amount.isPositive() ||
+          amount.decimalPlaces() > 2
+        )
+          throw new ConflictException(
+            "Every imported work entry requires a positive invoice value with at most two decimal places",
+          );
+        total = total.plus(amount);
+      }
+      if (!total.equals(line.netAmount) || line.pricingRequired)
+        throw new ConflictException(
+          "Line net amount must equal work entry invoice values plus the additional amount",
+        );
+    }
+  }
+
   private async replaceInvoiceLines(
     tx: Prisma.TransactionClient,
     invoice: { id: string; clientId: string; currency: string },
@@ -523,6 +589,20 @@ export class FinancialsService {
       markedLines.flatMap((line) =>
         line.sourceId ? [[line.id, line.sourceId] as const] : [],
       ),
+    );
+
+    const previousAllocations = lines.some(
+      (line) => line.workEntryAllocations?.length,
+    )
+      ? await tx.invoiceWorkEntryAllocation.findMany({
+          where: {
+            workspaceId: this.workspaceId,
+            invoiceLine: { invoiceId: invoice.id },
+          },
+        })
+      : [];
+    const originals = new Map(
+      previousAllocations.map((item) => [item.workEntryId, item]),
     );
 
     // Release before deleting: onDelete SetNull alone would not reset status.
@@ -564,6 +644,7 @@ export class FinancialsService {
                 taxDefaults?.defaultTaxExemptionReasonText,
             },
         index,
+        originals,
       );
     }
   }
@@ -574,6 +655,10 @@ export class FinancialsService {
     invoice: { id: string; clientId: string; currency: string },
     input: InternalInvoiceLineInput,
     lineOrder: number,
+    originals = new Map<
+      string,
+      { originalValue: Prisma.Decimal | null; originalCurrency: string | null }
+    >(),
   ): Promise<string> {
     const lineEntryIds = input.workEntryIds ?? [];
     const line = await tx.invoiceLine.create({
@@ -585,6 +670,7 @@ export class FinancialsService {
         lineOrder,
         serviceDate: new Date(input.serviceDate),
         description: input.description.trim(),
+        additionalAmount: input.additionalAmount ?? 0,
         netAmount: input.netAmount,
         vatRate: input.vatRate,
         taxCategoryCode: input.taxCategoryCode?.trim() || null,
@@ -605,6 +691,47 @@ export class FinancialsService {
     });
     if (lineEntryIds.length)
       await this.claimForLine(tx, invoice, line.id, lineEntryIds);
+    if (input.workEntryAllocations?.length) {
+      // Claiming first protects the original-price snapshot from concurrent invoices.
+      const entries = await tx.workEntry.findMany({
+        where: { workspaceId: this.workspaceId, invoiceLineId: line.id },
+        select: { id: true, value: true, currency: true },
+      });
+      for (const allocation of input.workEntryAllocations) {
+        const entry = entries.find(
+          (item) => item.id === allocation.workEntryId,
+        );
+        if (!entry)
+          throw new ConflictException(
+            "Invoice work entry is no longer available",
+          );
+        const original = originals.get(entry.id);
+        await tx.invoiceWorkEntryAllocation.create({
+          data: {
+            workspaceId: this.workspaceId,
+            invoiceLineId: line.id,
+            workEntryId: entry.id,
+            originalValue: original ? original.originalValue : entry.value,
+            originalCurrency: original
+              ? original.originalCurrency
+              : entry.currency,
+            invoiceValue: allocation.invoiceValue,
+            currency: invoice.currency.toUpperCase(),
+          },
+        });
+        await tx.workEntry.updateMany({
+          where: {
+            id: entry.id,
+            workspaceId: this.workspaceId,
+            invoiceLineId: line.id,
+          },
+          data: {
+            value: allocation.invoiceValue,
+            currency: invoice.currency.toUpperCase(),
+          },
+        });
+      }
+    }
     return line.id;
   }
 
@@ -648,6 +775,7 @@ export class FinancialsService {
 
   async createInvoice(input: CreateInvoiceDto) {
     this.assertManager();
+    this.validateWorkAllocations(input.lines);
     await this.assertClient(input.clientId);
     verifyInvoiceMoney(input, input.lines);
     if (input.idempotencyKey) {
@@ -978,7 +1106,10 @@ export class FinancialsService {
             ? new Date(input.dateOfCreate)
             : new Date(invoice.dateOfCreate),
         );
-      if (input.lines) await this.replaceInvoiceLines(tx, invoice, input.lines);
+      if (input.lines) {
+        this.validateWorkAllocations(input.lines);
+        await this.replaceInvoiceLines(tx, invoice, input.lines);
+      }
     });
     return this.getInvoice(id);
   }

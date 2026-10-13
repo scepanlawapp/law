@@ -2885,5 +2885,17 @@
   "revenue.versionLoadError": "Verzija nije učitana. Možda nije dostupna ili nemate pravo pristupa.",
   "revenue.changedBy": "Izmenio",
   "revenue.noSavedAgreements": "Ova verzija nema pojedinačne ugovore.",
-  "revenue.noSavedRules": "Ova verzija nema posebna pravila."
+  "revenue.noSavedRules": "Ova verzija nema posebna pravila.",
+  "finance.originalWorkPrice": "Izvorna vrednost rada",
+  "finance.workInvoiceValue": "Vrednost na računu",
+  "finance.workInvoiceValueRequired": "Unesite vrednost na računu veću od 0, sa najviše dve decimale.",
+  "finance.additionalAmount": "Dodatni iznos",
+  "finance.additionalAmountInvalid": "Unesite 0 ili više, sa najviše dve decimale.",
+  "finance.selectAllVisibleWork": "Izaberi/poništi izbor svih dostupnih radova na ovoj stranici",
+  "finance.selectAllClientWork": "Izaberi/poništi izbor svih učitanih radova izabranog klijenta (ili prvog dostupnog klijenta)",
+  "time.team.price": "Cena",
+  "finance.lockedLineServiceDateExplanation": "Ovaj datum je preuzet iz uvezenog rada. Ako je više radova objedinjeno u jednu stavku, pri uvozu se koristi najraniji datum. Datum ovde ne možete menjati jer je stavka povezana sa tim radovima. Ispravan datum postavite na samom radu pre uvoza.",
+  "finance.lockedLineNetExplanation": "Ova stavka sadrži uvezene radove, pa se neto iznos računa automatski: zbir svih vrednosti radova na računu plus Dodatni iznos. Da biste promenili ukupan iznos, otvorite detalje povezanih radova i za svaki rad izmenite polje Vrednost na računu. Ako želite da naplatite više bez menjanja tih vrednosti, unesite Dodatni iznos ispod liste. Neto iznos se odmah ažurira i ne može se menjati direktno.",
+  "finance.lockedLineGrossExplanation": "Bruto iznos se računa automatski kao neto iznos plus PDV. Za ovu stavku neto iznos menjate kroz polja Vrednost na računu za povezane radove ili kroz Dodatni iznos. Porez menjate kroz PDV stopu ili PDV iznos. Bruto iznos se automatski ažurira i ne može se menjati direktno.",
+  "finance.lockedLineCurrencyExplanation": "Ova stavka i sve vrednosti povezanih radova na računu moraju biti u valuti računa, zato ovde nije moguće izabrati drugu valutu. Izvorna vrednost rada prikazana je u izvornoj valuti radi poređenja. Ako se valute razlikuju, iznos se ne preračunava automatski: sami unesite Vrednost na računu u valuti računa."
 }

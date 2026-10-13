@@ -20,7 +20,29 @@ import {
 } from "class-validator";
 import { PriceSourceScope } from "@prisma/client";
 
+export class InvoiceWorkEntryAllocationDto {
+  @IsUUID("4")
+  workEntryId!: string;
+
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.01)
+  invoiceValue!: number;
+}
+
 export class InvoiceLineInputDto {
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0)
+  additionalAmount?: number;
+
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => InvoiceWorkEntryAllocationDto)
+  workEntryAllocations?: InvoiceWorkEntryAllocationDto[];
+
   /** Identity of an existing line being edited; never stored. */
   @IsOptional()
   @IsUUID()

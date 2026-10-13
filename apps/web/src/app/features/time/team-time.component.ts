@@ -273,6 +273,23 @@ export class TeamTimeComponent {
     return formatWorkDate(date, this.localization.language());
   }
 
+  priceLabel(entry: WorkEntry): string {
+    if (entry.value == null)
+      return this.localization.translate("time.capture.noWorkValue");
+    return `${new Intl.NumberFormat(this.localization.language() === "EN" ? "en-US" : "sr-Latn-RS", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(entry.value))} ${entry.currency ?? ""}`;
+  }
+
+  openFromRow(event: Event, entry: WorkEntry): void {
+    if (
+      event.target instanceof Element &&
+      event.target.closest("button, input, a, select, textarea")
+    )
+      return;
+    if (this.busyEntryId() === entry.id) return;
+    if (event instanceof KeyboardEvent) event.preventDefault();
+    this.edit(entry);
+  }
+
   edit(entry: WorkEntry): void {
     this.capture
       .open({ mode: isEditable(entry) ? "edit" : "view", entryId: entry.id })

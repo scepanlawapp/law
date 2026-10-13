@@ -98,6 +98,16 @@ const savedLine: InvoiceLineSummary = {
   sourceId: null,
   pricingRequired: false,
   minutes: 90,
+  additionalAmount: "0",
+  workEntryAllocations: [
+    {
+      workEntryId: "44444444-4444-4444-8444-444444444444",
+      originalValue: "10000",
+      originalCurrency: "RSD",
+      invoiceValue: "12000",
+      currency: "RSD",
+    },
+  ],
   workEntries: [
     {
       id: "44444444-4444-4444-8444-444444444444",
@@ -113,8 +123,93 @@ const savedLine: InvoiceLineSummary = {
 };
 
 describe("billing invoice form helpers", () => {
+  it("allocates mixed currencies independently and calculates the 380 EUR example", () => {
+    const line = createGroupedWorkEntryLineForm(
+      [
+        entry({ id: "a", value: "100", currency: "EUR" }),
+        entry({ id: "b", value: "200", currency: "USD" }),
+        entry({ id: "c", value: "50", currency: "EUR" }),
+      ],
+      "EUR",
+      null,
+      20,
+    );
+    expect(
+      line.controls.workEntryAllocations
+        .getRawValue()
+        .map((item) => item.invoiceValue),
+    ).toEqual([100, 0, 50]);
+    expect(line.invalid).toBe(true);
+    line.controls.workEntryAllocations
+      .at(1)
+      .controls.invoiceValue.setValue(180);
+    line.controls.workEntryAllocations.at(2).controls.invoiceValue.setValue(70);
+    line.controls.additionalAmount.setValue(30);
+    expect(line.controls.netAmount.value).toBe(380);
+    expect(line.controls.vatAmount.value).toBe(76);
+    expect(line.controls.grossAmount.value).toBe(456);
+    expect(line.valid).toBe(true);
+    expect(toInvoiceLineInput(line)).toMatchObject({
+      netAmount: 380,
+      additionalAmount: 30,
+      currency: "EUR",
+      workEntryAllocations: [
+        { workEntryId: "a", invoiceValue: 100 },
+        { workEntryId: "b", invoiceValue: 180 },
+        { workEntryId: "c", invoiceValue: 70 },
+      ],
+    });
+    line.controls.netAmount.setValue(999);
+    recalculateInvoiceLine(line, "netAmount");
+    expect(line.controls.netAmount.value).toBe(380);
+    for (const invalid of [0, -1, null, 1.001, Infinity]) {
+      line.controls.workEntryAllocations
+        .at(0)
+        .controls.invoiceValue.setValue(invalid);
+      expect(line.invalid).toBe(true);
+    }
+    line.controls.workEntryAllocations
+      .at(0)
+      .controls.invoiceValue.setValue(100);
+    for (const invalid of [-1, null, 0.001]) {
+      line.controls.additionalAmount.setValue(invalid);
+      expect(line.invalid).toBe(true);
+    }
+  });
+
+  it("restores allocations and additional amount rather than reusing changed work prices", () => {
+    const line = createInvoiceLineForm({
+      ...savedLine,
+      additionalAmount: "30",
+      workEntryAllocations: [
+        {
+          workEntryId: savedLine.workEntries[0].id,
+          originalValue: "200",
+          originalCurrency: "USD",
+          invoiceValue: "180",
+          currency: "RSD",
+        },
+      ],
+      workEntries: [
+        { ...savedLine.workEntries[0], value: "999", currency: "RSD" },
+      ],
+    });
+    expect(
+      line.controls.workEntryAllocations.at(0).controls.invoiceValue.value,
+    ).toBe(180);
+    expect(line.controls.additionalAmount.value).toBe(30);
+    expect(line.controls.netAmount.value).toBe(210);
+  });
+
   it("maps a saved invoice line to an editable row", () => {
     expect(createInvoiceLineForm(savedLine).getRawValue()).toEqual({
+      additionalAmount: 0,
+      workEntryAllocations: [
+        {
+          workEntryId: "44444444-4444-4444-8444-444444444444",
+          invoiceValue: 12000,
+        },
+      ],
       id: "11111111-1111-4111-8111-111111111111",
       workEntryIds: ["44444444-4444-4444-8444-444444444444"],
       minutes: 90,
@@ -129,23 +224,13 @@ describe("billing invoice form helpers", () => {
     });
   });
 
-  it("prices an HOURLY entry at the client rate in the invoice currency", () => {
+  it("requires manual allocation when an hourly entry has no recorded price", () => {
     const form = createWorkEntryLineForm(entry(), "RSD", rate);
-
-    expect(form.getRawValue()).toEqual({
-      id: null,
-      workEntryIds: ["44444444-4444-4444-8444-444444444444"],
-      minutes: 90,
-      pricingRequired: false,
-      serviceDate: "2026-09-29",
-      description: "Zastupanje na ročištu (1 h 30 min)",
-      netAmount: 12000,
-      vatRate: 0,
-      vatAmount: 0,
-      grossAmount: 12000,
-      currency: "RSD",
-    });
-    expect(form.valid).toBe(true);
+    expect(form.controls.netAmount.value).toBe(0);
+    expect(
+      form.controls.workEntryAllocations.at(0).controls.invoiceValue.value,
+    ).toBe(0);
+    expect(form.valid).toBe(false);
   });
 
   it("flags a non-HOURLY entry for pricing instead of guessing", () => {
@@ -160,8 +245,8 @@ describe("billing invoice form helpers", () => {
     expect(form.controls.description.value).toBe(
       "Zastupanje na ročištu (0 h 45 min)",
     );
-    // A flagged line may stay unpriced until it is sent.
-    expect(form.valid).toBe(true);
+    // Imported work must be priced before even a draft is saved.
+    expect(form.valid).toBe(false);
   });
 
   it("flags an HOURLY entry when the rate is missing or in another currency", () => {
@@ -203,8 +288,8 @@ describe("billing invoice form helpers", () => {
     expect(explicit.controls.netAmount.value).toBe(12.3);
     expect(explicit.controls.pricingRequired.value).toBe(false);
     expect(zero.controls.netAmount.value).toBe(0);
-    expect(zero.controls.pricingRequired.value).toBe(false);
-    expect(zero.valid).toBe(true);
+    expect(zero.controls.pricingRequired.value).toBe(true);
+    expect(zero.valid).toBe(false);
     expect(missingCurrency.controls.pricingRequired.value).toBe(true);
   });
 
@@ -254,7 +339,7 @@ describe("billing invoice form helpers", () => {
     expect(sumDecimalValues(["0.10", "0.20"])).toBe("0.30");
   });
 
-  it("does not show partial grouped prices for missing or mixed-currency values", () => {
+  it("sums known grouped prices while blocking missing or mixed-currency allocations", () => {
     const known = entry({ value: "15.00", currency: "RSD" });
     const missing = entry({
       id: "missing",
@@ -273,7 +358,7 @@ describe("billing invoice form helpers", () => {
       [known, mixed],
     ]) {
       const line = createGroupedWorkEntryLineForm(entries, "RSD", rate);
-      expect(line.controls.netAmount.value).toBe(0);
+      expect(line.controls.netAmount.value).toBe(15);
       expect(line.controls.pricingRequired.value).toBe(true);
     }
 
@@ -286,19 +371,20 @@ describe("billing invoice form helpers", () => {
       rate,
     );
     expect(unsafeTotal.controls.pricingRequired.value).toBe(true);
-    expect(unsafeTotal.controls.netAmount.value).toBe(0);
+    expect(unsafeTotal.controls.netAmount.value).toBe(0.01);
+    expect(unsafeTotal.invalid).toBe(true);
   });
 
-  it("uses hourly pricing only for compatible entries and caps grouped titles", () => {
+  it("does not infer prices from hours and caps grouped titles", () => {
     const line = createGroupedWorkEntryLineForm(
       [entry({ id: "one", minutes: 60 }), entry({ id: "two", minutes: 30 })],
       "RSD",
       rate,
       20,
     );
-    expect(line.controls.netAmount.value).toBe(12000);
-    expect(line.controls.vatAmount.value).toBe(2400);
-    expect(line.controls.pricingRequired.value).toBe(false);
+    expect(line.controls.netAmount.value).toBe(0);
+    expect(line.controls.vatAmount.value).toBe(0);
+    expect(line.controls.pricingRequired.value).toBe(true);
 
     const overflow = concatenateWorkEntryTitles(
       [
@@ -319,7 +405,9 @@ describe("billing invoice form helpers", () => {
     );
     expect(hasPricingRequiredLines([form.getRawValue()])).toBe(true);
 
-    form.controls.netAmount.setValue(5000);
+    form.controls.workEntryAllocations
+      .at(0)
+      .controls.invoiceValue.setValue(5000);
     recalculateInvoiceLine(form, "netAmount");
 
     expect(form.controls.pricingRequired.value).toBe(false);
@@ -364,6 +452,13 @@ describe("billing invoice form helpers", () => {
       rate,
     );
     expect(toInvoiceLineInput(flagged)).toEqual({
+      additionalAmount: 0,
+      workEntryAllocations: [
+        {
+          workEntryId: "44444444-4444-4444-8444-444444444444",
+          invoiceValue: 0,
+        },
+      ],
       serviceDate: "2026-09-29",
       description: "Zastupanje na ročištu (1 h 30 min)",
       netAmount: 0,

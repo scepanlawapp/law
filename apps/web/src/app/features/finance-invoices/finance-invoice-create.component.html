@@ -429,6 +429,10 @@
                         hlmInput
                         type="date"
                         formControlName="serviceDate"
+                        [hlmTooltip]="lockedServiceDateTooltip"
+                        [tooltipDisabled]="
+                          line.controls.workEntryIds.value.length === 0
+                        "
                         class="w-36"
                         [readOnly]="line.controls.workEntryIds.value.length > 0"
                         required
@@ -450,6 +454,11 @@
                         step="0.01"
                         inputmode="decimal"
                         formControlName="netAmount"
+                        [hlmTooltip]="lockedNetAmountTooltip"
+                        [tooltipDisabled]="
+                          line.controls.workEntryIds.value.length === 0
+                        "
+                        [readOnly]="line.controls.workEntryIds.value.length > 0"
                         class="w-32 text-right tabular-nums"
                         required
                       />
@@ -487,35 +496,50 @@
                         step="0.01"
                         inputmode="decimal"
                         formControlName="grossAmount"
+                        [hlmTooltip]="lockedGrossAmountTooltip"
+                        [tooltipDisabled]="
+                          line.controls.workEntryIds.value.length === 0
+                        "
+                        [readOnly]="line.controls.workEntryIds.value.length > 0"
                         class="w-32 text-right tabular-nums"
                         required
                       />
                     </td>
                     <td hlmTd>
-                      <hlm-select
-                        formControlName="currency"
-                        [itemToString]="currencyItemToString"
-                      >
-                        <hlm-select-trigger
-                          [buttonId]="'invoice-line-currency-' + index"
-                          class="w-full min-w-0 max-w-full"
-                          [forceInvalid]="isCurrencyMismatch(index)"
+                      @if (line.controls.workEntryIds.value.length) {
+                        <span
+                          tabindex="0"
+                          class="cursor-help"
+                          [hlmTooltip]="lockedCurrencyTooltip"
                         >
-                          <hlm-select-value />
-                        </hlm-select-trigger>
-                        <hlm-select-content *hlmSelectPortal width="content">
-                          <hlm-select-group>
-                            @for (
-                              option of currencyOptions;
-                              track option.value
-                            ) {
-                              <hlm-select-item [value]="option.value">
-                                {{ option.label | translate }}
-                              </hlm-select-item>
-                            }
-                          </hlm-select-group>
-                        </hlm-select-content>
-                      </hlm-select>
+                          {{ form.controls.currency.value }}
+                        </span>
+                      } @else {
+                        <hlm-select
+                          formControlName="currency"
+                          [itemToString]="currencyItemToString"
+                        >
+                          <hlm-select-trigger
+                            [buttonId]="'invoice-line-currency-' + index"
+                            class="w-full min-w-0 max-w-full"
+                            [forceInvalid]="isCurrencyMismatch(index)"
+                          >
+                            <hlm-select-value />
+                          </hlm-select-trigger>
+                          <hlm-select-content *hlmSelectPortal width="content">
+                            <hlm-select-group>
+                              @for (
+                                option of currencyOptions;
+                                track option.value
+                              ) {
+                                <hlm-select-item [value]="option.value">
+                                  {{ option.label | translate }}
+                                </hlm-select-item>
+                              }
+                            </hlm-select-group>
+                          </hlm-select-content>
+                        </hlm-select>
+                      }
                       @if (isCurrencyMismatch(index)) {
                         <span class="mt-1 block text-destructive">
                           {{ "finance.currencyMismatchRow" | translate }}
@@ -568,7 +592,7 @@
                     </td>
                   </tr>
                   @if (isInvoiceLineExpanded(line)) {
-                    <tr hlmTr>
+                    <tr hlmTr class="hover:bg-transparent hover:text-inherit">
                       <td hlmTd colspan="8">
                         <ul
                           [id]="'invoice-line-work-' + index"
@@ -579,7 +603,7 @@
                             track entryId
                           ) {
                             <li
-                              class="flex flex-wrap items-start justify-between gap-3 border-b border-border-subtle pb-3 last:border-b-0 last:pb-0"
+                              class="flex flex-wrap items-start justify-between gap-3 border-b border-border-subtle pb-3 transition-colors hover:bg-surface-row-hover hover:text-primary last:border-b-0 last:pb-0"
                             >
                               <div class="min-w-0 flex-1">
                                 @if (workEntryDetail(entryId); as entry) {
@@ -661,19 +685,16 @@
                                     <div>
                                       <dt class="text-muted-foreground">
                                         {{
-                                          "time.capture.workValue" | translate
+                                          "finance.originalWorkPrice"
+                                            | translate
                                         }}
                                       </dt>
                                       <dd>
-                                        @if (entry.value !== null) {
-                                          {{ entry.value }}
-                                          {{ entry.currency ?? "" }}
-                                        } @else {
-                                          {{
-                                            "time.capture.noWorkValue"
-                                              | translate
-                                          }}
-                                        }
+                                        {{ entry.value ?? "0" }}
+                                        {{
+                                          entry.currency ??
+                                            form.controls.currency.value
+                                        }}
                                       </dd>
                                     </div>
                                   </dl>
@@ -684,6 +705,50 @@
                                         | translate
                                     }}
                                   </p>
+                                }
+                                @if (
+                                  allocationControl(line, entryId);
+                                  as invoiceValue
+                                ) {
+                                  <div
+                                    class="mt-3 flex max-w-sm flex-col gap-1"
+                                  >
+                                    <label
+                                      [for]="'invoice-value-' + entryId"
+                                      class="font-medium"
+                                    >
+                                      {{
+                                        "finance.workInvoiceValue" | translate
+                                      }}
+                                      ({{ form.controls.currency.value }})
+                                    </label>
+                                    <input
+                                      hlmInput
+                                      type="number"
+                                      min="0.01"
+                                      step="0.01"
+                                      inputmode="decimal"
+                                      required
+                                      [id]="'invoice-value-' + entryId"
+                                      [formControl]="invoiceValue"
+                                      [readOnly]="saving()"
+                                      [attr.aria-invalid]="invoiceValue.invalid"
+                                      [attr.aria-describedby]="
+                                        'invoice-value-error-' + entryId
+                                      "
+                                    />
+                                    @if (invoiceValue.invalid) {
+                                      <p
+                                        class="text-destructive"
+                                        [id]="'invoice-value-error-' + entryId"
+                                      >
+                                        {{
+                                          "finance.workInvoiceValueRequired"
+                                            | translate
+                                        }}
+                                      </p>
+                                    }
+                                  </div>
                                 }
                               </div>
                               <button
@@ -708,6 +773,37 @@
                             </li>
                           }
                         </ul>
+                        <div class="mt-4 flex max-w-sm flex-col gap-1">
+                          <label
+                            [for]="'invoice-additional-' + index"
+                            class="font-medium"
+                          >
+                            {{ "finance.additionalAmount" | translate }} ({{
+                              form.controls.currency.value
+                            }})
+                          </label>
+                          <input
+                            hlmInput
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            inputmode="decimal"
+                            required
+                            [id]="'invoice-additional-' + index"
+                            [formControl]="line.controls.additionalAmount"
+                            [readOnly]="saving()"
+                            [attr.aria-invalid]="
+                              line.controls.additionalAmount.invalid
+                            "
+                          />
+                          @if (line.controls.additionalAmount.invalid) {
+                            <p class="text-destructive">
+                              {{
+                                "finance.additionalAmountInvalid" | translate
+                              }}
+                            </p>
+                          }
+                        </div>
                       </td>
                     </tr>
                   }
@@ -1025,3 +1121,24 @@
     </div>
   </form>
 </div>
+
+<ng-template #lockedServiceDateTooltip>
+  <p class="max-w-sm text-sm leading-relaxed">
+    {{ "finance.lockedLineServiceDateExplanation" | translate }}
+  </p>
+</ng-template>
+<ng-template #lockedNetAmountTooltip>
+  <p class="max-w-sm text-sm leading-relaxed">
+    {{ "finance.lockedLineNetExplanation" | translate }}
+  </p>
+</ng-template>
+<ng-template #lockedGrossAmountTooltip>
+  <p class="max-w-sm text-sm leading-relaxed">
+    {{ "finance.lockedLineGrossExplanation" | translate }}
+  </p>
+</ng-template>
+<ng-template #lockedCurrencyTooltip>
+  <p class="max-w-sm text-sm leading-relaxed">
+    {{ "finance.lockedLineCurrencyExplanation" | translate }}
+  </p>
+</ng-template>

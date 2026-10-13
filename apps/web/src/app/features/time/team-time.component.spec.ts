@@ -1,3 +1,4 @@
+import { provideRouter } from "@angular/router";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import {
   CasesApiClient,
@@ -50,12 +51,12 @@ const page = (
   items: WorkEntry[],
   pageNumber: number,
   totalPages: number,
-  totalItems = totalPages > 1 ? (totalPages - 1) * 25 + 1 : items.length,
+  totalItems = totalPages > 1 ? (totalPages - 1) * 50 + 1 : items.length,
 ) => ({
   items,
   meta: {
     page: pageNumber,
-    pageSize: 25,
+    pageSize: 50,
     totalItems,
     totalPages,
     hasPreviousPage: pageNumber > 1,
@@ -89,7 +90,7 @@ describe("TeamTimeComponent", () => {
   });
 
   beforeEach(() => {
-    jest.clearAllMocks();
+    jest.resetAllMocks();
     api.list.mockReturnValue(of(page([entry("e1", "CONFIRMED")], 1, 1)));
     references.users.mockReturnValue(of([]));
     clients.list.mockReturnValue(of({ items: [], meta: {} }));
@@ -97,6 +98,7 @@ describe("TeamTimeComponent", () => {
     capture.open.mockReturnValue(of(null));
     TestBed.configureTestingModule({
       providers: [
+        provideRouter([]),
         { provide: WorkEntriesApiClient, useValue: api },
         { provide: ReferencesApiClient, useValue: references },
         { provide: ClientsApiClient, useValue: clients },
@@ -134,7 +136,7 @@ describe("TeamTimeComponent", () => {
 
     expect(api.list).toHaveBeenCalledWith({
       page: 1,
-      pageSize: 25,
+      pageSize: 50,
       userIds: undefined,
       clientIds: undefined,
       caseId: undefined,
@@ -159,7 +161,7 @@ describe("TeamTimeComponent", () => {
 
     expect(api.list).toHaveBeenLastCalledWith({
       page: 1,
-      pageSize: 25,
+      pageSize: 50,
       userIds: ["user-1"],
       clientIds: ["client-1", "client-2"],
       caseId: "case-1",
@@ -217,7 +219,7 @@ describe("TeamTimeComponent", () => {
     expect(rows(fixture)).toHaveLength(1);
     const next = (
       fixture.nativeElement as HTMLElement
-    ).querySelector<HTMLButtonElement>('button[aria-label="pagination.next"]');
+    ).querySelector<HTMLButtonElement>('[aria-label="pagination.next"]');
     expect(next).not.toBeNull();
     next?.click();
     fixture.detectChanges();
@@ -225,7 +227,7 @@ describe("TeamTimeComponent", () => {
     expect(api.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2 }),
     );
-    expect(rows(fixture)).toHaveLength(2);
+    expect(rows(fixture)).toHaveLength(1);
     expect(rows(fixture).map((row) => row.textContent)).toEqual([
       expect.stringContaining("Opis e2"),
     ]);
@@ -255,20 +257,20 @@ describe("TeamTimeComponent", () => {
     const fixture = create();
     fixture.componentInstance.changePage(2);
 
-    fixture.componentInstance.changePageSize(50);
+    fixture.componentInstance.changePageSize(100);
 
     expect(api.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 1, pageSize: 50 }),
+      expect.objectContaining({ page: 1, pageSize: 100 }),
     );
     expect(fixture.componentInstance.page()).toBe(1);
-    expect(fixture.componentInstance.pageSize()).toBe(50);
+    expect(fixture.componentInstance.pageSize()).toBe(100);
   });
 
   it("clamps to the last available page when the result count shrinks", () => {
     api.list
-      .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 3, 51)))
-      .mockReturnValueOnce(of(page([], 3, 2, 30)))
-      .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2, 30)));
+      .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 3, 101)))
+      .mockReturnValueOnce(of(page([], 3, 2, 70)))
+      .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2, 70)));
     const fixture = create();
     fixture.componentInstance.changePage(3);
 
@@ -276,13 +278,14 @@ describe("TeamTimeComponent", () => {
       [3, 2],
     );
     expect(fixture.componentInstance.page()).toBe(2);
-    expect(fixture.componentInstance.totalItems()).toBe(30);
+    expect(fixture.componentInstance.totalItems()).toBe(70);
+    fixture.detectChanges();
     expect(rows(fixture).map((row) => row.textContent)).toEqual([
       expect.stringContaining("Opis e2"),
     ]);
   });
 
-  it("offers edit and write-off only on editable rows", () => {
+  it("offers only write-off on editable rows", () => {
     api.list.mockReturnValue(
       of(
         page(
@@ -302,11 +305,11 @@ describe("TeamTimeComponent", () => {
 
     const [proposed, confirmed, billed, writtenOff, running] =
       rows(fixture).map(buttons);
-    expect(proposed).toEqual(["common.edit", "time.review.writeOff"]);
-    expect(confirmed).toEqual(["common.edit", "time.review.writeOff"]);
-    expect(billed).toEqual(["work.entries.view"]);
-    expect(writtenOff).toEqual(["work.entries.view"]);
-    expect(running).toEqual(["work.entries.view"]);
+    expect(proposed).toEqual(["time.review.writeOff"]);
+    expect(confirmed).toEqual(["time.review.writeOff"]);
+    expect(billed).toEqual([]);
+    expect(writtenOff).toEqual([]);
+    expect(running).toEqual([]);
   });
 
   it("opens non-editable entries for viewing without allowing write-off", () => {
@@ -334,7 +337,7 @@ describe("TeamTimeComponent", () => {
       reason: "Greška u unosu",
     });
     expect(fixture.componentInstance.entries()[0].status).toBe("WRITTEN_OFF");
-    expect(buttons(rows(fixture)[0])).toEqual(["work.entries.view"]);
+    expect(buttons(rows(fixture)[0])).toEqual([]);
   });
 
   it("does not write off when the reason dialog is dismissed", () => {
@@ -344,5 +347,33 @@ describe("TeamTimeComponent", () => {
     fixture.componentInstance.writeOff(fixture.componentInstance.entries()[0]);
 
     expect(api.writeOff).not.toHaveBeenCalled();
+  });
+  it("opens rows by mouse or keyboard and keeps write-off clicks separate", () => {
+    const priced = {
+      ...entry("e1", "CONFIRMED"),
+      value: "1234.50",
+      currency: "EUR",
+    };
+    api.list.mockReturnValue(of(page([priced, entry("b", "BILLED")], 1, 1)));
+    const fixture = create();
+    const [editable, billed] = rows(fixture);
+    expect(editable.textContent).toContain("1.234,50 EUR");
+    editable.click();
+    expect(capture.open).toHaveBeenLastCalledWith({
+      mode: "edit",
+      entryId: "e1",
+    });
+    billed.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+    );
+    expect(capture.open).toHaveBeenLastCalledWith({
+      mode: "view",
+      entryId: "b",
+    });
+    capture.open.mockClear();
+    writeOffDialog.open.mockReturnValue(of(null));
+    editable.querySelector("button")?.click();
+    expect(capture.open).not.toHaveBeenCalled();
+    expect(writeOffDialog.open).toHaveBeenCalled();
   });
 });
