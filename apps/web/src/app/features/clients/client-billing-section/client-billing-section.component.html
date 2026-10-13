@@ -1,0 +1,177 @@
+@if (canView()) {
+  <section class="min-w-0 space-y-4" aria-labelledby="client-billing-title">
+    <h3
+      id="client-billing-title"
+      class="flex items-center gap-2 text-lg font-semibold"
+    >
+      <ng-icon name="lucideWallet" aria-hidden="true" />
+      {{ "clients.pricing.title" | translate }}
+    </h3>
+
+    <law-client-retainer-card [clientId]="clientId()">
+      @if (canManage() && !loading() && !error()) {
+        <div
+          retainerPricingReference
+          class="space-y-2 border-t border-border pt-3"
+        >
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <span class="text-muted-foreground">
+              {{ "clients.pricing.otherServices" | translate }}
+            </span>
+            @if (generalReference(); as reference) {
+              @for (source of reference.sources; track source.id) {
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  (click)="view(source)"
+                >
+                  {{ source.title }}
+                </button>
+              }
+            } @else {
+              <span>{{ "clients.pricing.none" | translate }}</span>
+            }
+          </div>
+          <p class="text-muted-foreground">
+            {{ "clients.pricing.retainerRules" | translate }}
+          </p>
+        </div>
+      }
+    </law-client-retainer-card>
+
+    @if (canManage()) {
+      <section
+        class="space-y-4 rounded-lg border border-border bg-card p-4 text-sm"
+        aria-labelledby="client-price-sources-title"
+        data-testid="client-price-sources"
+      >
+        <h4 id="client-price-sources-title" class="text-base font-semibold">
+          {{ "clients.pricing.available" | translate }}
+        </h4>
+        @if (loading()) {
+          <div class="flex items-center gap-2" role="status">
+            <hlm-spinner [attr.aria-label]="'finance.loading' | translate" />
+            {{ "finance.loading" | translate }}
+          </div>
+        } @else if (error()) {
+          <div class="space-y-3" role="alert">
+            <p class="text-destructive">
+              {{ "clients.pricing.loadError" | translate }}
+            </p>
+            <button hlmBtn type="button" variant="outline" (click)="retry()">
+              {{ "finance.retry" | translate }}
+            </button>
+          </div>
+        } @else {
+          <div
+            class="space-y-3 rounded-lg border border-border bg-muted/40 p-4"
+            data-testid="client-pricing-basis"
+          >
+            <p class="text-muted-foreground">
+              {{ "clients.pricing.generalBasis" | translate }}
+            </p>
+            <p class="text-lg font-semibold">
+              {{
+                generalReference()?.label ?? "clients.pricing.none" | translate
+              }}
+            </p>
+            <p class="text-muted-foreground">
+              {{ "clients.pricing.priority" | translate }}
+            </p>
+            <div class="flex flex-wrap gap-2">
+              @if (generalReference(); as reference) {
+                @for (source of reference.sources; track source.id) {
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="outline"
+                    (click)="view(source)"
+                  >
+                    {{ "clients.pricing.view" | translate }} ·
+                    {{ source.title }}
+                  </button>
+                }
+              }
+              @if (!hasClientSources()) {
+                <a
+                  hlmBtn
+                  routerLink="/finance/price-sources"
+                  [queryParams]="createQuery('CLIENT_AGREEMENT')"
+                  data-testid="create-client-prices"
+                >
+                  <ng-icon name="lucidePlus" aria-hidden="true" />
+                  {{ "clients.pricing.createClient" | translate }}
+                </a>
+              }
+            </div>
+          </div>
+
+          <div class="divide-y divide-border">
+            @for (group of groups(); track group.scope) {
+              <div
+                class="space-y-3 py-4"
+                [attr.data-source-scope]="group.scope"
+              >
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <h5 class="flex items-center gap-2 font-semibold">
+                    <ng-icon [name]="group.icon" aria-hidden="true" />
+                    {{ group.label | translate }}
+                  </h5>
+                  <a
+                    hlmBtn
+                    variant="outline"
+                    size="sm"
+                    routerLink="/finance/price-sources"
+                    [queryParams]="createQuery(group.scope)"
+                    [attr.aria-label]="
+                      ('clients.pricing.create' | translate) +
+                      ': ' +
+                      (group.label | translate)
+                    "
+                  >
+                    <ng-icon name="lucidePlus" aria-hidden="true" />
+                    {{ "clients.pricing.create" | translate }}
+                  </a>
+                </div>
+                @if (group.scope === "CASE_OVERRIDE") {
+                  <p class="text-muted-foreground">
+                    {{ "clients.pricing.caseHint" | translate }}
+                  </p>
+                }
+                @if (!group.sources.length) {
+                  <p class="text-muted-foreground">
+                    {{ "clients.pricing.notCreated" | translate }}
+                  </p>
+                }
+                @for (source of group.sources; track source.id) {
+                  <div
+                    class="flex flex-wrap items-center justify-between gap-3 rounded-md bg-muted/30 p-3"
+                  >
+                    <span class="min-w-0 flex-1 break-words font-medium">
+                      {{ source.title }}
+                    </span>
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      (click)="view(source)"
+                      [attr.aria-label]="
+                        ('finance.viewCatalog' | translate) +
+                        ': ' +
+                        source.title
+                      "
+                    >
+                      {{ "finance.viewCatalog" | translate }}
+                    </button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        }
+      </section>
+    }
+  </section>
+}

@@ -1,12 +1,23 @@
 <div class="space-y-6 text-sm">
-  <header>
-    <h1 class="text-2xl font-semibold">
-      {{ "finance.priceSources" | translate }}
-    </h1>
-    <p class="mt-2 text-muted-foreground">
-      {{ "finance.priceSourcesDescription" | translate }}
-    </p>
+  <header class="flex flex-wrap items-start justify-between gap-4">
+    <div>
+      <h1 class="text-2xl font-semibold">
+        {{ "finance.priceSources" | translate }}
+      </h1>
+      <p class="mt-2 text-muted-foreground">
+        {{ "finance.priceSourcesDescription" | translate }}
+      </p>
+    </div>
+    <button hlmBtn type="button" [disabled]="saving()" (click)="create()">
+      {{ "finance.newPriceSource" | translate }}
+    </button>
   </header>
+  @if (contextClientId) {
+    <p class="text-muted-foreground">
+      {{ "clients.pricing.forClient" | translate }}:
+      {{ clientName(contextClientId) }}
+    </p>
+  }
   <div class="flex flex-wrap gap-2">
     <button
       hlmBtn
@@ -52,28 +63,49 @@
           </p>
         } @else {
           @for (source of visibleSources(); track source.id) {
-            <button
-              type="button"
-              class="block w-full rounded-lg border border-border p-4 text-left"
-              [class.bg-muted]="selectedSource()?.id === source.id"
-              (click)="selectSource(source)"
-            >
-              <span class="block font-semibold">{{ source.title }}</span>
-              <span class="block text-muted-foreground">
-                {{ clientName(source.clientId) }} ·
-                {{
-                  source.versions[0] ? "v" + source.versions[0].version : "—"
-                }}
-              </span>
-              @if (source.caseId) {
+            <div class="rounded-lg border border-border p-2">
+              <button
+                type="button"
+                class="block w-full rounded-lg border border-border p-4 text-left"
+                [class.bg-muted]="selectedSource()?.id === source.id"
+                (click)="selectSource(source)"
+              >
+                <span class="block font-semibold">{{ source.title }}</span>
                 <span class="block text-muted-foreground">
-                  {{ "finance.caseSpecificPrice" | translate }}
+                  {{ clientName(source.clientId) }} ·
+                  {{
+                    source.versions[0] ? "v" + source.versions[0].version : "—"
+                  }}
                 </span>
-              }
-              <span class="block text-muted-foreground">
-                {{ source.updatedAt | date: "mediumDate" }}
-              </span>
-            </button>
+                @if (source.caseId) {
+                  <span class="block text-muted-foreground">
+                    {{ "finance.caseSpecificPrice" | translate }}
+                  </span>
+                }
+                <span class="block text-muted-foreground">
+                  {{ source.updatedAt | date: "mediumDate" }}
+                </span>
+              </button>
+              <div class="mt-2 flex flex-wrap gap-2">
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="outline"
+                  (click)="view(source)"
+                >
+                  {{ "finance.viewCatalog" | translate }}
+                </button>
+                <button
+                  hlmBtn
+                  type="button"
+                  variant="destructive"
+                  [disabled]="deleting() || saving()"
+                  (click)="remove(source)"
+                >
+                  {{ "finance.deleteCatalog" | translate }}
+                </button>
+              </div>
+            </div>
           }
         }
       </section>
@@ -90,7 +122,11 @@
         <form [formGroup]="form" (ngSubmit)="save()" class="space-y-4">
           <label class="block space-y-1">
             <span>{{ "finance.title" | translate }}</span>
-            <input hlmInput formControlName="title" />
+            <input
+              hlmInput
+              formControlName="title"
+              [readOnly]="!!selectedSource()"
+            />
           </label>
           @if (tab() === "CLIENT_AGREEMENT") {
             <label class="block space-y-1" for="price-source-client">
@@ -100,7 +136,7 @@
                 [value]="form.controls.clientId.value"
                 (valueChange)="setClientId($event)"
                 [itemToString]="clientItemToString"
-                [disabled]="!!selectedSource()"
+                [disabled]="!!selectedSource() || !!contextClientId"
               >
                 <hlm-combobox-trigger
                   buttonId="price-source-client"
@@ -174,6 +210,11 @@
                   </div>
                 </hlm-combobox-content>
               </div>
+              @if (caseRequired()) {
+                <p class="text-muted-foreground">
+                  {{ "clients.pricing.chooseCase" | translate }}
+                </p>
+              }
               @if (casesLoading()) {
                 <div role="status" class="flex items-center gap-2">
                   <hlm-spinner />
@@ -195,7 +236,11 @@
           }
           <label class="block space-y-1">
             <span>{{ "finance.sourceUrl" | translate }}</span>
-            <input hlmInput formControlName="sourceUrl" />
+            <input
+              hlmInput
+              formControlName="sourceUrl"
+              [readOnly]="!!selectedSource()"
+            />
           </label>
           <label class="block space-y-1">
             <span>{{ "finance.rawText" | translate }}</span>

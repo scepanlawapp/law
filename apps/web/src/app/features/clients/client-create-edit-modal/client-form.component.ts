@@ -82,6 +82,8 @@ import { SelectOption, createSelectItemToString } from "../../../shared/utils";
 import { HlmDialogImports } from "@spartan-ng/helm/dialog";
 
 type ClientAddressType =
+  | "HEADQUARTERS"
+  | "HOME"
   | "REGISTERED"
   | "DELIVERY"
   | "BILLING"
@@ -167,6 +169,8 @@ export class ClientFormComponent {
   ];
   readonly addressTypeOptions: ReadonlyArray<SelectOption<ClientAddressType>> =
     [
+      { value: "HEADQUARTERS", label: "clients.addressType.HEADQUARTERS" },
+      { value: "HOME", label: "clients.addressType.HOME" },
       { value: "REGISTERED", label: "clients.addressType.REGISTERED" },
       { value: "DELIVERY", label: "clients.addressType.DELIVERY" },
       { value: "BILLING", label: "clients.addressType.BILLING" },

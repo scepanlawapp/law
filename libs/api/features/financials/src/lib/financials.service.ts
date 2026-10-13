@@ -296,6 +296,23 @@ export class FinancialsService {
     });
   }
 
+  async deletePriceSource(sourceId: string) {
+    this.assertManager();
+    return this.db.$transaction(async (tx) => {
+      const source = await tx.priceSource.findFirst({
+        where: { id: sourceId, workspaceId: this.workspaceId },
+      });
+      if (!source) throw new NotFoundException("Price source not found");
+      await tx.priceSourceVersion.deleteMany({
+        where: { priceSourceId: sourceId, workspaceId: this.workspaceId },
+      });
+      await tx.priceSource.deleteMany({
+        where: { id: sourceId, workspaceId: this.workspaceId },
+      });
+      return { deleted: true };
+    });
+  }
+
   async createPriceSource(input: CreatePriceSourceDto) {
     this.assertManager();
     if (input.scope === PriceSourceScope.CLIENT_AGREEMENT && !input.clientId)
