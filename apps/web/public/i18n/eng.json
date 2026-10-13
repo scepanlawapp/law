@@ -1,4 +1,25 @@
 {
+  "time.capture.applySuggestedPrice": "Apply suggested price",
+  "time.capture.priceSourceNewTab": "Opens in a new tab",
+
+  "time.capture.suggestPrice": "Suggest price",
+  "time.capture.suggestingPrice": "Calculating price…",
+  "time.capture.priceSuggestionFailed": "Could not suggest a price. Try again.",
+  "time.capture.suggestedPrice": "Suggested value",
+  "time.capture.priceUnavailable": "Not enough information",
+  "time.capture.priceConfidence": "Confidence",
+  "time.capture.priceConfidence.LOW": "Low",
+  "time.capture.priceConfidence.MEDIUM": "Medium",
+  "time.capture.priceConfidence.HIGH": "High",
+  "time.capture.priceReviewRequired": "Review this estimate. The work value has not been changed or saved.",
+  "time.capture.priceMissingInformation": "Missing information",
+  "time.capture.priceWarnings": "Warnings",
+  "time.capture.priceSources": "Sources",
+
+  "finance.priceSourcesDescription": "Maintain client and case agreements, the office catalog and public price references.",
+  "finance.caseSpecificPrice": "Case-specific agreement",
+  "finance.retryCases": "Reload cases",
+
   "pagination.totalItems": "total items",
   "pagination.pages": "pages",
   "pagination.previous": "Previous",

@@ -1,4 +1,25 @@
 {
+  "time.capture.applySuggestedPrice": "Primeni predloženu cenu",
+  "time.capture.priceSourceNewTab": "Otvara se u novoj kartici",
+
+  "time.capture.suggestPrice": "Predloži cenu",
+  "time.capture.suggestingPrice": "Procena cene…",
+  "time.capture.priceSuggestionFailed": "Procena cene nije uspela. Pokušajte ponovo.",
+  "time.capture.suggestedPrice": "Predložena vrednost",
+  "time.capture.priceUnavailable": "Nema dovoljno informacija",
+  "time.capture.priceConfidence": "Pouzdanost",
+  "time.capture.priceConfidence.LOW": "Niska",
+  "time.capture.priceConfidence.MEDIUM": "Srednja",
+  "time.capture.priceConfidence.HIGH": "Visoka",
+  "time.capture.priceReviewRequired": "Proverite procenu. Vrednost rada nije promenjena niti sačuvana.",
+  "time.capture.priceMissingInformation": "Podaci koji nedostaju",
+  "time.capture.priceWarnings": "Upozorenja",
+  "time.capture.priceSources": "Izvori",
+
+  "finance.priceSourcesDescription": "Upravljajte cenama za klijente i predmete, kancelarijskim cenovnikom i javnim izvorima cena.",
+  "finance.caseSpecificPrice": "Dogovor za određeni predmet",
+  "finance.retryCases": "Ponovo učitaj predmete",
+
   "pagination.totalItems": "ukupno stavki",
   "pagination.pages": "strana",
   "pagination.previous": "Prethodna",

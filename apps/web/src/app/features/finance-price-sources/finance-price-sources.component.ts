@@ -1,3 +1,6 @@
+import { ActivatedRoute } from "@angular/router";
+import { EMPTY, catchError, expand, of, reduce, switchMap, tap } from "rxjs";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { DatePipe } from "@angular/common";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
@@ -7,9 +10,14 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
+import {
+  ClientsApiClient,
+  CasesApiClient,
+  FinancialsApiClient,
+} from "@law/api-clients";
 import {
   ClientSummary,
+  CaseSummary,
   PriceSourceScope,
   PriceSourceSummary,
 } from "@law/api-interfaces";
@@ -59,7 +67,14 @@ type SourceTab =
   ],
 })
 export class FinancePriceSourcesComponent {
+  private readonly route = inject(ActivatedRoute, { optional: true });
+  private openedLinkedSource = false;
   private readonly api = inject(FinancialsApiClient);
+  private readonly casesApi = inject(CasesApiClient);
+  private readonly localization = inject(LocalizationService);
+  readonly cases = signal<CaseSummary[]>([]);
+  readonly casesLoading = signal(false);
+  readonly casesError = signal(false);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly destroyRef = inject(DestroyRef);
   readonly tab = signal<SourceTab>("CLIENT_AGREEMENT");
@@ -78,6 +93,7 @@ export class FinancePriceSourcesComponent {
       nonNullable: true,
       validators: Validators.required,
     }),
+    caseId: new FormControl("", { nonNullable: true }),
     rawText: new FormControl("", {
       nonNullable: true,
       validators: Validators.required,
@@ -86,6 +102,42 @@ export class FinancePriceSourcesComponent {
   });
 
   constructor() {
+    this.form.controls.clientId.valueChanges
+      .pipe(
+        tap(() => {
+          this.form.controls.caseId.setValue("");
+          this.cases.set([]);
+          this.casesError.set(false);
+        }),
+        switchMap((clientId) => {
+          this.casesLoading.set(!!clientId);
+          if (!clientId) return of([] as CaseSummary[]);
+          return this.casesApi.list({ clientId, page: 1, pageSize: 100 }).pipe(
+            expand((response) =>
+              response.meta.hasNextPage
+                ? this.casesApi.list({
+                    clientId,
+                    page: response.meta.page + 1,
+                    pageSize: 100,
+                  })
+                : EMPTY,
+            ),
+            reduce(
+              (items, response) => [...items, ...response.items],
+              [] as CaseSummary[],
+            ),
+            catchError(() => {
+              this.casesError.set(true);
+              return of([] as CaseSummary[]);
+            }),
+          );
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((items) => {
+        this.cases.set(items);
+        this.casesLoading.set(false);
+      });
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -101,6 +153,20 @@ export class FinancePriceSourcesComponent {
       .subscribe({
         next: (items) => {
           this.sources.set(items);
+          const sourceId = this.route?.snapshot.queryParamMap.get("sourceId");
+          const linkedSource =
+            sourceId && !this.openedLinkedSource
+              ? items.find((item) => item.id === sourceId)
+              : undefined;
+          if (linkedSource) {
+            this.openedLinkedSource = true;
+            this.selectTab(
+              linkedSource.scope === "CASE_OVERRIDE"
+                ? "CLIENT_AGREEMENT"
+                : linkedSource.scope,
+            );
+            this.selectSource(linkedSource);
+          }
           this.loading.set(false);
         },
         error: () => {
@@ -118,7 +184,13 @@ export class FinancePriceSourcesComponent {
       this.form.controls.clientId.clearValidators();
     }
     this.form.controls.clientId.updateValueAndValidity();
-    this.form.reset({ title: "", clientId: "", rawText: "", sourceUrl: "" });
+    this.form.reset({
+      title: "",
+      clientId: "",
+      caseId: "",
+      rawText: "",
+      sourceUrl: "",
+    });
   }
   selectSource(source: PriceSourceSummary): void {
     this.selectedSource.set(source);
@@ -126,6 +198,7 @@ export class FinancePriceSourcesComponent {
     this.form.patchValue({
       title: source.title,
       clientId: source.clientId ?? "",
+      caseId: source.caseId ?? "",
       rawText: version?.rawText ?? "",
       sourceUrl: source.sourceUrl ?? "",
     });
@@ -134,6 +207,7 @@ export class FinancePriceSourcesComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (versions) => {
+          if (this.selectedSource()?.id !== source.id) return;
           this.selectedSource.set({ ...source, versions });
           const current = versions[0];
           if (current) this.form.controls.rawText.setValue(current.rawText);
@@ -142,7 +216,11 @@ export class FinancePriceSourcesComponent {
   }
   visibleSources(): PriceSourceSummary[] {
     const scope: PriceSourceScope = this.tab();
-    return this.sources().filter((source) => source.scope === scope);
+    return this.sources().filter(
+      (source) =>
+        source.scope === scope ||
+        (scope === "CLIENT_AGREEMENT" && source.scope === "CASE_OVERRIDE"),
+    );
   }
   clientName(clientId: string | null): string {
     return (
@@ -153,11 +231,35 @@ export class FinancePriceSourcesComponent {
   readonly clientItemToString = (value: string | null | undefined): string =>
     value ? this.clientName(value) : "";
 
+  readonly caseItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("finance.allCases");
+    const item = this.cases().find((item) => item.id === value);
+    return item
+      ? `${item.caseNumber} · ${item.name}`
+      : this.localization.translate("finance.case");
+  };
+
+  retryCases(): void {
+    const caseId = this.form.controls.caseId.value;
+    this.form.controls.clientId.setValue(this.form.controls.clientId.value);
+    this.form.controls.caseId.setValue(caseId);
+  }
+
+  setCaseId(value: string | null | undefined): void {
+    this.form.controls.caseId.setValue(value ?? "");
+  }
+
   setClientId(value: string | null | undefined): void {
     this.form.controls.clientId.setValue(value ?? "");
     this.form.controls.clientId.markAsTouched();
   }
   save(): void {
+    if (
+      this.saving() ||
+      this.casesLoading() ||
+      (this.casesError() && !this.selectedSource())
+    )
+      return;
     if (this.tab() !== "CLIENT_AGREEMENT") {
       this.form.controls.clientId.setValue("");
     }
@@ -172,10 +274,17 @@ export class FinancePriceSourcesComponent {
     const operation = selectedSource
       ? this.api.appendPriceSourceVersion(selectedSource.id, value.rawText)
       : this.api.createPriceSource({
-          scope: this.tab(),
+          scope:
+            this.tab() === "CLIENT_AGREEMENT" && value.caseId
+              ? "CASE_OVERRIDE"
+              : this.tab(),
           title: value.title,
           rawText: value.rawText,
           clientId: value.clientId || undefined,
+          caseId:
+            this.tab() === "CLIENT_AGREEMENT"
+              ? value.caseId || undefined
+              : undefined,
           sourceUrl: value.sourceUrl || undefined,
         });
     operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
@@ -186,6 +295,7 @@ export class FinancePriceSourcesComponent {
         this.form.reset({
           title: "",
           clientId: "",
+          caseId: "",
           rawText: "",
           sourceUrl: "",
         });

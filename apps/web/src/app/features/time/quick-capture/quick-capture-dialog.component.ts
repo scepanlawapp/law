@@ -19,6 +19,7 @@ import {
   Validators,
 } from "@angular/forms";
 import {
+  FinancialsApiClient,
   ReferencesApiClient,
   BillingSetupApiClient,
   CasesApiClient,
@@ -29,6 +30,8 @@ import {
   OrganizationSettingsApiClient,
 } from "@law/api-clients";
 import {
+  PriceSuggestionResponse,
+  PriceSuggestionSource,
   CaseReference,
   TaskDetail,
   EventDetail,
@@ -83,6 +86,7 @@ import {
   Subject,
   switchMap,
   tap,
+  takeUntil,
   throwError,
 } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
@@ -207,6 +211,7 @@ export class QuickCaptureDialogComponent {
   private readonly eventsApi = inject(EventsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly tasksApi = inject(WorkManagementApiClient);
+  private readonly financialsApi = inject(FinancialsApiClient);
   private readonly entriesApi = inject(WorkEntriesApiClient);
   private readonly confirm = inject(ConfirmDialogService);
   private readonly billingApi = inject(BillingSetupApiClient);
@@ -427,6 +432,97 @@ export class QuickCaptureDialogComponent {
     },
     { validators: workValueCurrencyValidator },
   );
+  readonly suggestingPrice = signal(false);
+  readonly priceSuggestion = signal<PriceSuggestionResponse | null>(null);
+  readonly priceSuggestionFailed = signal(false);
+
+  applySuggestedPrice(): void {
+    const suggestion = this.priceSuggestion();
+    if (
+      !suggestion ||
+      suggestion.suggestedPrice === null ||
+      this.readOnly() ||
+      this.saving() ||
+      this.loadingEntry() ||
+      this.entryLoadFailed() ||
+      this.suggestingPrice()
+    )
+      return;
+    // Capture the suggestion before patching: form changes invalidate the displayed estimate.
+    this.form.patchValue({
+      value: suggestion.suggestedPrice.toFixed(2),
+      currency: suggestion.currency,
+    });
+    this.form.controls.value.markAsDirty();
+    this.form.controls.currency.markAsDirty();
+  }
+
+  priceSourceHref(source: PriceSuggestionSource): string {
+    const clientId = this.form.controls.clientId.value;
+    if (
+      (source.kind === "RETAINER" || source.kind === "CLIENT_HOURLY_RATE") &&
+      clientId
+    ) {
+      return `/clients/${encodeURIComponent(clientId)}`;
+    }
+    return `/finance/price-sources?sourceId=${encodeURIComponent(source.id)}`;
+  }
+
+  suggestPrice(): void {
+    if (
+      this.readOnly() ||
+      this.saving() ||
+      this.loadingEntry() ||
+      this.entryLoadFailed() ||
+      this.suggestingPrice()
+    )
+      return;
+    const controls = this.form.controls;
+    if (
+      !controls.clientId.value ||
+      controls.title.invalid ||
+      controls.workDate.invalid ||
+      controls.minutes.invalid
+    ) {
+      controls.clientId.markAsTouched();
+      controls.title.markAsTouched();
+      controls.workDate.markAsTouched();
+      controls.minutes.markAsTouched();
+      return;
+    }
+    const value = this.form.getRawValue();
+    this.priceSuggestion.set(null);
+    this.priceSuggestionFailed.set(false);
+    this.suggestingPrice.set(true);
+    this.financialsApi
+      .suggestWorkPrice({
+        workEvent: {
+          id: this.context.entryId,
+          clientId: value.clientId,
+          caseId: value.caseId || undefined,
+          taskId: this.linkedTaskId(),
+          eventId: this.linkedEventId(),
+          userId: value.userId || null,
+          title: value.title.trim(),
+          description: value.description,
+          workDate: value.workDate,
+          minutes: value.minutes,
+          serviceCategoryId: value.serviceCategoryId || undefined,
+          treatment: value.treatment,
+          currency: value.currency || undefined,
+        },
+      })
+      .pipe(
+        takeUntil(this.form.valueChanges),
+        finalize(() => this.suggestingPrice.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (result) => this.priceSuggestion.set(result),
+        error: () => this.priceSuggestionFailed.set(true),
+      });
+  }
+
   readonly saving = signal(false);
   readonly loadingEntry = signal(false);
   readonly parsing = signal(false);
@@ -573,6 +669,12 @@ export class QuickCaptureDialogComponent {
   }
 
   constructor() {
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => {
+        this.priceSuggestion.set(null);
+        this.priceSuggestionFailed.set(false);
+      });
     if (this.mode !== "view") this.loadUsers();
     effect((onCleanup) => {
       const id = this.linkedEventId();

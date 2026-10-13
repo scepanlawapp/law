@@ -155,3 +155,4 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Demo seed and retainer VAT fix](tracks/demo_seed_retainer_vat_20261009/index.md)
 
 - [Client originator and finance versions](tracks/client_originator_finance_versions_20261012/index.md)
+- [Work price suggestions](./tracks/work_price_suggestions_20261013/index.md)

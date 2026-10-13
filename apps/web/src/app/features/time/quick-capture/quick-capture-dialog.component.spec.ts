@@ -2,6 +2,7 @@ import { EventDialogService } from "../../calendar/event-dialog/event-dialog.ser
 import { signal } from "@angular/core";
 import { TestBed } from "@angular/core/testing";
 import {
+  FinancialsApiClient,
   ReferencesApiClient,
   BillingSetupApiClient,
   CasesApiClient,
@@ -12,6 +13,7 @@ import {
   WorkManagementApiClient,
 } from "@law/api-clients";
 import {
+  PriceSuggestionResponse,
   RetainerAgreement,
   WorkCaptureParseResponse,
   WorkEntry,
@@ -89,6 +91,7 @@ describe("QuickCaptureDialogComponent", () => {
   const tasks = {
     getTask: jest.fn(() => of({ id: "task-1", title: "Prepare submission" })),
   };
+  const financials = { suggestWorkPrice: jest.fn() };
   const dialogRef = { close: jest.fn() };
   const confirmation = { confirm: jest.fn() };
   const entries = {
@@ -121,6 +124,7 @@ describe("QuickCaptureDialogComponent", () => {
         { provide: TaskDialogService, useValue: taskDialog },
         { provide: WorkManagementApiClient, useValue: tasks },
         { provide: WorkEntriesApiClient, useValue: entries },
+        { provide: FinancialsApiClient, useValue: financials },
         { provide: BillingSetupApiClient, useValue: billing },
         {
           provide: OrganizationSettingsApiClient,
@@ -233,6 +237,168 @@ describe("QuickCaptureDialogComponent", () => {
       ...values,
     });
   }
+
+  it("requests a price from current unsaved fields without saving or changing the value", () => {
+    const response: PriceSuggestionResponse = {
+      suggestedPrice: 1500,
+      currency: "RSD",
+      explanation: "30 minuta rada",
+      reviewRequired: true,
+      confidence: "MEDIUM",
+      missingInformation: [],
+      warnings: [],
+      sources: [],
+    };
+    financials.suggestWorkPrice.mockReturnValue(of(response));
+    const fixture = render();
+    const component = fixture.componentInstance;
+    fillValid(component, {
+      value: "800",
+      description: "Priprema jednog člana",
+    });
+    fixture.detectChanges();
+    buttonWithText(fixture.nativeElement, "time.capture.suggestPrice")?.click();
+    fixture.detectChanges();
+    expect(financials.suggestWorkPrice).toHaveBeenCalledWith({
+      workEvent: expect.objectContaining({
+        id: undefined,
+        clientId: "client-1",
+        title: "Pregled ugovora",
+        minutes: 30,
+        description: "Priprema jednog člana",
+        currency: "RSD",
+      }),
+    });
+    expect(component.priceSuggestion()).toEqual(response);
+    expect(fixture.nativeElement.textContent).toContain("1500 RSD");
+    expect(component.form.controls.value.value).toBe("800");
+    expect(entries.create).not.toHaveBeenCalled();
+    expect(entries.update).not.toHaveBeenCalled();
+  });
+
+  it("includes the entry id when editing and cancels stale suggestions on form changes", () => {
+    context = { mode: "edit", entryId: "entry-1" };
+    const pending = new Subject<PriceSuggestionResponse>();
+    financials.suggestWorkPrice.mockReturnValue(pending);
+    const component = render().componentInstance;
+    component.loadingEntry.set(false);
+    fillValid(component);
+    component.suggestPrice();
+    component.suggestPrice();
+    expect(financials.suggestWorkPrice).toHaveBeenCalledTimes(1);
+    expect(financials.suggestWorkPrice.mock.calls[0][0].workEvent.id).toBe(
+      "entry-1",
+    );
+    component.form.controls.minutes.setValue(60);
+    expect(component.suggestingPrice()).toBe(false);
+    expect(pending.observed).toBe(false);
+    expect(component.priceSuggestion()).toBeNull();
+  });
+
+  it.each([20, 0])(
+    "applies the suggested amount %s and currency only to the form",
+    (amount) => {
+      const fixture = render();
+      const component = fixture.componentInstance;
+      fillValid(component);
+      component.priceSuggestion.set({
+        suggestedPrice: amount,
+        currency: "EUR",
+        explanation: "Procena",
+        reviewRequired: true,
+        confidence: "HIGH",
+        missingInformation: [],
+        warnings: [],
+        sources: [],
+      });
+      fixture.detectChanges();
+      buttonWithText(
+        fixture.nativeElement,
+        "time.capture.applySuggestedPrice",
+      )?.click();
+      expect(component.form.controls.value.value).toBe(amount.toFixed(2));
+      expect(component.form.controls.currency.value).toBe("EUR");
+      expect(component.form.controls.value.dirty).toBe(true);
+      expect(component.form.controls.currency.dirty).toBe(true);
+      expect(entries.create).not.toHaveBeenCalled();
+      expect(entries.update).not.toHaveBeenCalled();
+      expect(dialogRef.close).not.toHaveBeenCalled();
+    },
+  );
+
+  it("opens source names in a new tab without replacing the work modal", () => {
+    const fixture = render();
+    const component = fixture.componentInstance;
+    fillValid(component);
+    component.priceSuggestion.set({
+      suggestedPrice: 20,
+      currency: "EUR",
+      explanation: "Procena",
+      reviewRequired: true,
+      confidence: "HIGH",
+      missingInformation: [],
+      warnings: [],
+      sources: [
+        {
+          id: "retainer",
+          kind: "RETAINER",
+          title: "Retainer Serbia",
+          versionId: null,
+          sourceUrl: null,
+        },
+        {
+          id: "price-source",
+          kind: "CASE_OVERRIDE",
+          title: "Case prices",
+          versionId: "v1",
+          sourceUrl: null,
+        },
+      ],
+    });
+    fixture.detectChanges();
+    const links: HTMLAnchorElement[] = Array.from(
+      fixture.nativeElement.querySelectorAll('a[target="_blank"]'),
+    );
+    expect(links.map((link) => link.getAttribute("href"))).toEqual([
+      "/clients/client-1",
+      "/finance/price-sources?sourceId=price-source",
+    ]);
+    expect(links.every((link) => link.rel.includes("noopener"))).toBe(true);
+    expect(dialogRef.close).not.toHaveBeenCalled();
+  });
+
+  it("does not apply an unavailable or invalidated suggestion", () => {
+    const component = render().componentInstance;
+    fillValid(component, { value: "800" });
+    component.priceSuggestion.set({
+      suggestedPrice: null,
+      currency: "EUR",
+      explanation: "Missing information",
+      reviewRequired: true,
+      confidence: "LOW",
+      missingInformation: [],
+      warnings: [],
+      sources: [],
+    });
+    component.applySuggestedPrice();
+    expect(component.form.controls.value.value).toBe("800");
+    component.form.controls.minutes.setValue(90);
+    component.applySuggestedPrice();
+    expect(component.form.controls.currency.value).toBe("RSD");
+  });
+
+  it("shows request errors and allows retry", () => {
+    financials.suggestWorkPrice.mockReturnValue(
+      throwError(() => new Error("Unavailable")),
+    );
+    const component = render().componentInstance;
+    fillValid(component);
+    component.suggestPrice();
+    expect(component.priceSuggestionFailed()).toBe(true);
+    expect(component.suggestingPrice()).toBe(false);
+    component.suggestPrice();
+    expect(financials.suggestWorkPrice).toHaveBeenCalledTimes(2);
+  });
 
   it("is invalid without a client", () => {
     const { componentInstance: component } = render();
