@@ -92,17 +92,6 @@ export class FinancialsService {
     return client;
   }
 
-  private async assertCase(caseId: string | undefined, clientId: string) {
-    if (!caseId) return null;
-    const caseRecord = await this.db.case.findFirst({
-      where: { id: caseId, workspaceId: this.workspaceId },
-    });
-    if (!caseRecord) throw new NotFoundException("Case not found");
-    if (caseRecord.clientId !== clientId)
-      throw new ConflictException("Case does not belong to client");
-    return caseRecord;
-  }
-
   private clientReference(client: {
     id: string;
     clientNumber: string;
@@ -299,6 +288,7 @@ export class FinancialsService {
   async deletePriceSource(sourceId: string) {
     this.assertManager();
     return this.db.$transaction(async (tx) => {
+      await this.lockPriceSources(tx);
       const source = await tx.priceSource.findFirst({
         where: { id: sourceId, workspaceId: this.workspaceId },
       });
@@ -313,55 +303,105 @@ export class FinancialsService {
     });
   }
 
+  private async lockPriceSources(tx: Prisma.TransactionClient): Promise<void> {
+    // Serialize catalog identity lookup and version allocation, including first creation.
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${this.workspaceId}), hashtext('price-sources'))`;
+  }
+
   async createPriceSource(input: CreatePriceSourceDto) {
     this.assertManager();
-    if (input.scope === PriceSourceScope.CLIENT_AGREEMENT && !input.clientId)
-      throw new ConflictException("Client agreement requires a client");
-    if (input.scope === PriceSourceScope.CASE_OVERRIDE && !input.caseId)
-      throw new ConflictException("Case override requires a case");
-    if (
-      (input.scope === PriceSourceScope.WORKSPACE_PUBLIC_REFERENCE ||
-        input.scope === PriceSourceScope.COMPANY_CATALOG) &&
-      (input.clientId || input.caseId)
-    )
+    const clientScope =
+      input.scope === PriceSourceScope.CLIENT_AGREEMENT ||
+      input.scope === PriceSourceScope.CASE_OVERRIDE;
+    if (!clientScope && (input.clientId || input.caseId))
       throw new ConflictException(
         "Workspace price sources cannot belong to a client or case",
       );
-    if (input.clientId) await this.assertClient(input.clientId);
-    await this.assertCase(input.caseId, input.clientId ?? "");
-    return this.db.$transaction(async (tx) => {
-      const source = await tx.priceSource.create({
-        data: {
-          workspaceId: this.workspaceId,
-          scope: input.scope,
-          clientId: input.clientId,
-          caseId: input.caseId,
-          title: input.title,
-          sourceUrl: input.sourceUrl,
-          documentId: input.documentId,
-          createdByUserId: this.context.userId,
-        },
+    if (input.scope === PriceSourceScope.CASE_OVERRIDE && !input.caseId)
+      throw new ConflictException("Case override requires a case");
+    let clientId = input.clientId;
+    if (input.caseId) {
+      const caseRecord = await this.db.case.findFirst({
+        where: { id: input.caseId, workspaceId: this.workspaceId },
       });
+      if (!caseRecord) throw new NotFoundException("Case not found");
+      if (clientId && clientId !== caseRecord.clientId)
+        throw new ConflictException("Case does not belong to client");
+      clientId = caseRecord.clientId;
+    }
+    if (clientScope && !clientId)
+      throw new ConflictException("Client agreement requires a client");
+    if (clientId) await this.assertClient(clientId);
+    return this.db.$transaction(async (tx) => {
+      await this.lockPriceSources(tx);
+      // Include legacy case-scoped CLIENT_AGREEMENT records in exact identity matching.
+      const existing = clientScope
+        ? await tx.priceSource.findFirst({
+            where: {
+              workspaceId: this.workspaceId,
+              clientId,
+              caseId: input.caseId ?? null,
+              scope: {
+                in: [
+                  PriceSourceScope.CLIENT_AGREEMENT,
+                  PriceSourceScope.CASE_OVERRIDE,
+                ],
+              },
+            },
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          })
+        : null;
+      const source =
+        existing ??
+        (await tx.priceSource.create({
+          data: {
+            workspaceId: this.workspaceId,
+            scope:
+              clientScope && input.caseId
+                ? PriceSourceScope.CASE_OVERRIDE
+                : input.scope,
+            clientId,
+            caseId: input.caseId,
+            title: input.title,
+            sourceUrl: input.sourceUrl,
+            documentId: input.documentId,
+            createdByUserId: this.context.userId,
+          },
+        }));
+      const latest = existing
+        ? await tx.priceSourceVersion.findFirst({
+            where: { workspaceId: this.workspaceId, priceSourceId: source.id },
+            orderBy: { version: "desc" },
+          })
+        : null;
       return tx.priceSourceVersion.create({
-        data: {
-          workspaceId: this.workspaceId,
-          priceSourceId: source.id,
-          version: 1,
-          rawText: input.rawText,
-          effectiveFrom: input.effectiveFrom
-            ? new Date(input.effectiveFrom)
-            : undefined,
-          effectiveTo: input.effectiveTo
-            ? new Date(input.effectiveTo)
-            : undefined,
-          publishedAt: input.publishedAt
-            ? new Date(input.publishedAt)
-            : undefined,
-          createdByUserId: this.context.userId,
-        },
+        data: this.priceVersionData(
+          source.id,
+          (latest?.version ?? 0) + 1,
+          input,
+        ),
         include: { priceSource: true },
       });
     });
+  }
+
+  private priceVersionData(
+    sourceId: string,
+    version: number,
+    input: AppendPriceSourceVersionDto,
+  ) {
+    return {
+      workspaceId: this.workspaceId,
+      priceSourceId: sourceId,
+      version,
+      rawText: input.rawText,
+      effectiveFrom: input.effectiveFrom
+        ? new Date(input.effectiveFrom)
+        : undefined,
+      effectiveTo: input.effectiveTo ? new Date(input.effectiveTo) : undefined,
+      publishedAt: input.publishedAt ? new Date(input.publishedAt) : undefined,
+      createdByUserId: this.context.userId,
+    };
   }
 
   async appendPriceSourceVersion(
@@ -369,31 +409,23 @@ export class FinancialsService {
     input: AppendPriceSourceVersionDto,
   ) {
     this.assertManager();
-    const source = await this.db.priceSource.findFirst({
-      where: { id: sourceId, workspaceId: this.workspaceId },
-    });
-    if (!source) throw new NotFoundException("Price source not found");
-    const latest = await this.db.priceSourceVersion.findFirst({
-      where: { priceSourceId: sourceId },
-      orderBy: { version: "desc" },
-    });
-    return this.db.priceSourceVersion.create({
-      data: {
-        workspaceId: this.workspaceId,
-        priceSourceId: sourceId,
-        version: (latest?.version ?? 0) + 1,
-        rawText: input.rawText,
-        effectiveFrom: input.effectiveFrom
-          ? new Date(input.effectiveFrom)
-          : undefined,
-        effectiveTo: input.effectiveTo
-          ? new Date(input.effectiveTo)
-          : undefined,
-        publishedAt: input.publishedAt
-          ? new Date(input.publishedAt)
-          : undefined,
-        createdByUserId: this.context.userId,
-      },
+    return this.db.$transaction(async (tx) => {
+      await this.lockPriceSources(tx);
+      const source = await tx.priceSource.findFirst({
+        where: { id: sourceId, workspaceId: this.workspaceId },
+      });
+      if (!source) throw new NotFoundException("Price source not found");
+      const latest = await tx.priceSourceVersion.findFirst({
+        where: { workspaceId: this.workspaceId, priceSourceId: sourceId },
+        orderBy: { version: "desc" },
+      });
+      return tx.priceSourceVersion.create({
+        data: this.priceVersionData(
+          sourceId,
+          (latest?.version ?? 0) + 1,
+          input,
+        ),
+      });
     });
   }
 

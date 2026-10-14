@@ -3,7 +3,7 @@ import { PriceCatalogDeleteService } from "./price-catalog-delete.service";
 import { ActivatedRoute } from "@angular/router";
 import { EMPTY, catchError, expand, of, reduce, switchMap, tap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
-import { Component, DestroyRef, inject, signal } from "@angular/core";
+import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { DatePipe } from "@angular/common";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
@@ -76,6 +76,24 @@ export class FinancePriceSourcesComponent {
   private openedLinkedSource = false;
   readonly contextClientId =
     this.route?.snapshot.queryParamMap.get("clientId") ?? "";
+  readonly filterClientId = signal(this.contextClientId);
+  readonly filterCaseId = signal("");
+  readonly directoryCases = signal<CaseSummary[]>([]);
+  readonly directoryLoading = signal(false);
+  readonly directoryError = signal(false);
+  readonly filterCases = computed(() =>
+    this.directoryCases().filter(
+      (item) =>
+        !this.filterClientId() || item.client.id === this.filterClientId(),
+    ),
+  );
+  readonly filterValue = computed(() =>
+    this.filterCaseId()
+      ? `case:${this.filterCaseId()}`
+      : this.filterClientId()
+        ? `client:${this.filterClientId()}`
+        : "",
+  );
   readonly caseRequired = signal(false);
   private readonly api = inject(FinancialsApiClient);
   private readonly casesApi = inject(CasesApiClient);
@@ -118,27 +136,29 @@ export class FinancePriceSourcesComponent {
           this.casesError.set(false);
         }),
         switchMap((clientId) => {
-          this.casesLoading.set(!!clientId);
-          if (!clientId) return of([] as CaseSummary[]);
-          return this.casesApi.list({ clientId, page: 1, pageSize: 100 }).pipe(
-            expand((response) =>
-              response.meta.hasNextPage
-                ? this.casesApi.list({
-                    clientId,
-                    page: response.meta.page + 1,
-                    pageSize: 100,
-                  })
-                : EMPTY,
-            ),
-            reduce(
-              (items, response) => [...items, ...response.items],
-              [] as CaseSummary[],
-            ),
-            catchError(() => {
-              this.casesError.set(true);
-              return of([] as CaseSummary[]);
-            }),
-          );
+          this.casesLoading.set(true);
+
+          return this.casesApi
+            .list({ clientId: clientId || undefined, page: 1, pageSize: 100 })
+            .pipe(
+              expand((response) =>
+                response.meta.hasNextPage
+                  ? this.casesApi.list({
+                      clientId: clientId || undefined,
+                      page: response.meta.page + 1,
+                      pageSize: 100,
+                    })
+                  : EMPTY,
+              ),
+              reduce(
+                (items, response) => [...items, ...response.items],
+                [] as CaseSummary[],
+              ),
+              catchError(() => {
+                this.casesError.set(true);
+                return of([] as CaseSummary[]);
+              }),
+            );
         }),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -148,14 +168,28 @@ export class FinancePriceSourcesComponent {
       });
     this.clientsApi
       .list({ page: 1, pageSize: 100 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
+      .pipe(
+        expand((response) =>
+          response.meta?.hasNextPage
+            ? this.clientsApi.list({
+                page: response.meta.page + 1,
+                pageSize: 100,
+              })
+            : EMPTY,
+        ),
+        reduce(
+          (items, response) => [...items, ...response.items],
+          [] as ClientSummary[],
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
       .subscribe({
-        next: (response) => {
-          this.clients.set(response.items);
+        next: (items) => {
+          this.clients.set(items);
           // A client detail link can reference a client outside the first list page.
           if (
             this.contextClientId &&
-            !response.items.some((client) => client.id === this.contextClientId)
+            !items.some((client) => client.id === this.contextClientId)
           ) {
             this.clientsApi
               .get(this.contextClientId)
@@ -184,11 +218,13 @@ export class FinancePriceSourcesComponent {
       }
     }
     this.load();
+    this.loadDirectoryCases();
   }
 
   create(): void {
     if (this.saving()) return;
     this.selectTab(this.tab());
+    if (this.tab() === "CLIENT_AGREEMENT") this.setCaseId(this.filterCaseId());
     this.message.set("");
   }
   view(source: PriceSourceSummary): void {
@@ -242,6 +278,7 @@ export class FinancePriceSourcesComponent {
             );
             this.selectSource(linkedSource);
           }
+          if (!this.selectedSource()) this.matchCatalog();
           this.loading.set(false);
         },
         error: () => {
@@ -264,7 +301,7 @@ export class FinancePriceSourcesComponent {
     this.form.controls.clientId.updateValueAndValidity();
     this.form.reset({
       title: "",
-      clientId: tab === "CLIENT_AGREEMENT" ? this.contextClientId : "",
+      clientId: tab === "CLIENT_AGREEMENT" ? this.filterClientId() : "",
       caseId: "",
       rawText: "",
       sourceUrl: "",
@@ -302,8 +339,9 @@ export class FinancePriceSourcesComponent {
         (source.scope === scope ||
           (scope === "CLIENT_AGREEMENT" && source.scope === "CASE_OVERRIDE")) &&
         (scope !== "CLIENT_AGREEMENT" ||
-          !this.contextClientId ||
-          source.clientId === this.contextClientId),
+          ((!this.filterClientId() ||
+            source.clientId === this.filterClientId()) &&
+            (!this.filterCaseId() || source.caseId === this.filterCaseId()))),
     );
   }
   clientName(clientId: string | null): string {
@@ -317,7 +355,9 @@ export class FinancePriceSourcesComponent {
 
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("finance.allCases");
-    const item = this.cases().find((item) => item.id === value);
+    const item = [...this.cases(), ...this.directoryCases()].find(
+      (item) => item.id === value,
+    );
     return item
       ? `${item.caseNumber} · ${item.name}`
       : this.localization.translate("finance.case");
@@ -329,13 +369,102 @@ export class FinancePriceSourcesComponent {
     this.form.controls.caseId.setValue(caseId);
   }
 
-  setCaseId(value: string | null | undefined): void {
-    this.form.controls.caseId.setValue(value ?? "");
+  loadDirectoryCases(): void {
+    this.directoryLoading.set(true);
+    this.directoryError.set(false);
+    this.casesApi
+      .list({ page: 1, pageSize: 100 })
+      .pipe(
+        expand((response) =>
+          response.meta.hasNextPage
+            ? this.casesApi.list({
+                page: response.meta.page + 1,
+                pageSize: 100,
+              })
+            : EMPTY,
+        ),
+        reduce(
+          (items, response) => [...items, ...response.items],
+          [] as CaseSummary[],
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (items) => {
+          this.directoryCases.set(items);
+          this.directoryLoading.set(false);
+        },
+        error: () => {
+          this.directoryError.set(true);
+          this.directoryLoading.set(false);
+        },
+      });
   }
-
+  readonly filterItemToString = (value: string | null | undefined): string => {
+    if (!value) return this.localization.translate("finance.catalogFilterAll");
+    return value.startsWith("client:")
+      ? this.clientName(value.slice(7))
+      : this.caseItemToString(value.slice(5));
+  };
+  setFilter(value: string | null | undefined): void {
+    if (this.saving()) return;
+    if (!value) {
+      this.filterClientId.set("");
+      this.filterCaseId.set("");
+      this.setClientId("");
+    } else if (value.startsWith("client:")) {
+      this.filterClientId.set(value.slice(7));
+      this.filterCaseId.set("");
+      this.setClientId(value.slice(7));
+    } else {
+      const item = this.directoryCases().find(
+        (item) => item.id === value.slice(5),
+      );
+      if (
+        !item ||
+        (this.filterClientId() && item.client.id !== this.filterClientId())
+      )
+        return;
+      this.filterClientId.set(item.client.id);
+      this.filterCaseId.set(item.id);
+      this.setClientId(item.client.id);
+      this.setCaseId(item.id);
+    }
+  }
+  private matchCatalog(): void {
+    if (this.tab() !== "CLIENT_AGREEMENT") return;
+    const { clientId, caseId } = this.form.getRawValue();
+    if (this.caseRequired() && !caseId) return;
+    const match = this.sources()
+      .filter(
+        (source) =>
+          ["CLIENT_AGREEMENT", "CASE_OVERRIDE"].includes(source.scope) &&
+          source.clientId === clientId &&
+          (source.caseId ?? "") === caseId,
+      )
+      .sort(
+        (a, b) =>
+          a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id),
+      )[0];
+    if (match) this.selectSource(match);
+    else if (this.selectedSource()) {
+      this.selectedSource.set(null);
+      this.form.patchValue({ title: "", rawText: "", sourceUrl: "" });
+    }
+  }
+  setCaseId(value: string | null | undefined): void {
+    const item = [...this.cases(), ...this.directoryCases()].find(
+      (item) => item.id === value,
+    );
+    if (item?.client && this.form.controls.clientId.value !== item.client.id)
+      this.form.controls.clientId.setValue(item.client.id);
+    this.form.controls.caseId.setValue(value ?? "");
+    this.matchCatalog();
+  }
   setClientId(value: string | null | undefined): void {
     this.form.controls.clientId.setValue(value ?? "");
     this.form.controls.clientId.markAsTouched();
+    this.matchCatalog();
   }
   save(): void {
     if (
@@ -375,12 +504,16 @@ export class FinancePriceSourcesComponent {
       next: () => {
         this.saving.set(false);
         this.message.set("finance.saved");
+        if (this.tab() === "CLIENT_AGREEMENT") {
+          this.filterClientId.set(value.clientId);
+          this.filterCaseId.set(value.caseId);
+        }
         this.selectedSource.set(null);
         this.form.reset({
           title: "",
           clientId:
-            this.tab() === "CLIENT_AGREEMENT" ? this.contextClientId : "",
-          caseId: "",
+            this.tab() === "CLIENT_AGREEMENT" ? this.filterClientId() : "",
+          caseId: this.tab() === "CLIENT_AGREEMENT" ? value.caseId : "",
           rawText: "",
           sourceUrl: "",
         });

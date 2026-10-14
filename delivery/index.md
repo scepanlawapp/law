@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Primary panel borders](./tracks/primary_panel_borders_20261014/index.md)
+
 - [Frontend Numbered Pagination](./tracks/frontend_numbered_pagination_20261009/index.md)
 - [Reports UI Prototype](./tracks/reports_ui_prototype_20261009/index.md)
 - [Event Work Entry Without Client](./tracks/event_work_entry_no_client_20261009/index.md)

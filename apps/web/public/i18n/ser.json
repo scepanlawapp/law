@@ -2921,5 +2921,8 @@
   "finance.deleteCatalog": "Obriši cenovnik",
   "finance.deleteCatalogConfirm": "Trajno obrisati ovaj cenovnik i sve njegove verzije? Više neće biti dostupan za predloge cena. Postojeće vrednosti rada i iznosi računa neće biti promenjeni.",
   "finance.deleteCatalogError": "Cenovnik nije moguće obrisati. Pokušajte ponovo.",
-  "finance.catalogViewDescription": "Pregledajte cene iz cenovnika. Najnovija verzija je otvorena; otvorite ranije verzije za pregled istorije."
+  "finance.catalogViewDescription": "Pregledajte cene iz cenovnika. Najnovija verzija je otvorena; otvorite ranije verzije za pregled istorije.",
+  "finance.catalogFilter": "Pretražite klijente i predmete",
+  "finance.catalogFilterAll": "Svi klijenti i predmeti",
+  "finance.catalogFilterClear": "Poništi izbor"
 }

@@ -12,12 +12,6 @@
       {{ "finance.newPriceSource" | translate }}
     </button>
   </header>
-  @if (contextClientId) {
-    <p class="text-muted-foreground">
-      {{ "clients.pricing.forClient" | translate }}:
-      {{ clientName(contextClientId) }}
-    </p>
-  }
   <div class="flex flex-wrap gap-2">
     <button
       hlmBtn
@@ -57,6 +51,83 @@
         <h2 class="text-lg font-semibold">
           {{ "finance.priceSources" | translate }}
         </h2>
+        @if (tab() === "CLIENT_AGREEMENT") {
+          <div class="space-y-2">
+            <label for="catalog-client-case-filter">
+              {{ "finance.catalogFilter" | translate }}
+            </label>
+            <div
+              hlmCombobox
+              [value]="filterValue()"
+              [itemToString]="filterItemToString"
+              (valueChange)="setFilter($event)"
+              [disabled]="saving()"
+            >
+              <hlm-combobox-trigger
+                buttonId="catalog-client-case-filter"
+                class="w-full min-w-0"
+              >
+                <hlm-combobox-value
+                  [placeholder]="'finance.catalogFilterAll' | translate"
+                />
+              </hlm-combobox-trigger>
+              <hlm-combobox-content *hlmComboboxPortal width="trigger">
+                <hlm-combobox-input
+                  [placeholder]="'finance.catalogFilter' | translate"
+                  [showTrigger]="false"
+                />
+                <hlm-combobox-empty>
+                  {{ "finance.noFilterOptions" | translate }}
+                </hlm-combobox-empty>
+                <div hlmComboboxList>
+                  <hlm-combobox-item value="">
+                    {{ "finance.catalogFilterAll" | translate }}
+                  </hlm-combobox-item>
+                  @for (client of clients(); track client.id) {
+                    @if (!filterClientId() || filterClientId() === client.id) {
+                      <hlm-combobox-item [value]="'client:' + client.id">
+                        {{ "finance.client" | translate }}:
+                        {{ client.displayName }} ·
+                        {{ "finance.allCases" | translate }}
+                      </hlm-combobox-item>
+                    }
+                  }
+                  @for (item of filterCases(); track item.id) {
+                    <hlm-combobox-item [value]="'case:' + item.id">
+                      {{ "finance.case" | translate }}: {{ item.caseNumber }} ·
+                      {{ item.name }} · {{ item.client.displayName }}
+                    </hlm-combobox-item>
+                  }
+                </div>
+              </hlm-combobox-content>
+            </div>
+            @if (filterClientId() || filterCaseId()) {
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                [disabled]="saving()"
+                (click)="setFilter('')"
+              >
+                {{ "finance.catalogFilterClear" | translate }}
+              </button>
+            }
+            @if (directoryLoading()) {
+              <hlm-spinner />
+            }
+            @if (directoryError()) {
+              <p role="alert">{{ "finance.loadError" | translate }}</p>
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                (click)="loadDirectoryCases()"
+              >
+                {{ "finance.retryCases" | translate }}
+              </button>
+            }
+          </div>
+        }
         @if (!visibleSources().length) {
           <p class="rounded-lg bg-muted p-4 text-muted-foreground">
             {{ "finance.noPriceSources" | translate }}
@@ -79,7 +150,7 @@
                 </span>
                 @if (source.caseId) {
                   <span class="block text-muted-foreground">
-                    {{ "finance.caseSpecificPrice" | translate }}
+                    {{ caseItemToString(source.caseId) }}
                   </span>
                 }
                 <span class="block text-muted-foreground">
@@ -136,7 +207,7 @@
                 [value]="form.controls.clientId.value"
                 (valueChange)="setClientId($event)"
                 [itemToString]="clientItemToString"
-                [disabled]="!!selectedSource() || !!contextClientId"
+                [disabled]="saving()"
               >
                 <hlm-combobox-trigger
                   buttonId="price-source-client"
@@ -168,7 +239,7 @@
               </div>
             </label>
           }
-          @if (tab() === "CLIENT_AGREEMENT" && form.controls.clientId.value) {
+          @if (tab() === "CLIENT_AGREEMENT") {
             <div class="space-y-1">
               <label for="price-source-case">
                 {{ "finance.case" | translate }}
@@ -178,9 +249,7 @@
                 [value]="form.controls.caseId.value"
                 (valueChange)="setCaseId($event)"
                 [itemToString]="caseItemToString"
-                [disabled]="
-                  !!selectedSource() || casesLoading() || casesError()
-                "
+                [disabled]="saving() || casesLoading() || casesError()"
               >
                 <hlm-combobox-trigger
                   buttonId="price-source-case"
