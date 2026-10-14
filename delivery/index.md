@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Sidebar user menu collapse](./tracks/sidebar_user_menu_collapse_20261014/index.md)
+
 - [Table text truncation](./tracks/table_text_truncation_20261014/index.md)
 
 - [Current-user dashboard](./tracks/dashboard_current_user_20261014/index.md)

@@ -15,7 +15,7 @@ import {
   lucideSettings,
 } from "@ng-icons/lucide";
 import { HlmDropdownMenuImports } from "@spartan-ng/helm/dropdown-menu";
-import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmSidebarMenuButton } from "@spartan-ng/helm/sidebar";
 import { RouterLink } from "@angular/router";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { UserAvatarComponent } from "../user-avatar/user-avatar.component";
@@ -24,10 +24,11 @@ import { UserSettingsStore } from "../../../core/user-settings/user-settings.sto
 @Component({
   selector: "law-user-menu",
   standalone: true,
+  host: { class: "block min-w-0" },
   imports: [
     NgIcon,
     ...HlmDropdownMenuImports,
-    HlmButton,
+    HlmSidebarMenuButton,
     RouterLink,
     TranslatePipe,
     UserAvatarComponent,

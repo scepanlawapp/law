@@ -166,7 +166,11 @@
 
   <hlm-sidebar-footer>
     @if (session()?.user; as user) {
-      <law-user-menu [user]="user" (logoutRequested)="logout()" />
+      <ul hlmSidebarMenu>
+        <li hlmSidebarMenuItem>
+          <law-user-menu [user]="user" (logoutRequested)="logout()" />
+        </li>
+      </ul>
     }
   </hlm-sidebar-footer>
 </hlm-sidebar>
