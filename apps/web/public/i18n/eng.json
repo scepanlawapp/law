@@ -2924,5 +2924,19 @@
   "finance.catalogViewDescription": "Read the catalog prices below. The latest version is expanded; open earlier versions to review their history.",
   "finance.catalogFilter": "Search clients and cases",
   "finance.catalogFilterAll": "All clients and cases",
-  "finance.catalogFilterClear": "Clear selection"
+  "finance.catalogFilterClear": "Clear selection",
+  "nav.financePayments": "Uplate",
+  "payments.bank": "Bankovni prenos",
+  "payments.cash": "Gotovina",
+  "payments.card": "Kartica",
+  "payments.other": "Ostalo",
+  "payments.regular": "Redovna uplata",
+  "payments.advance": "Avans",
+  "payments.unallocated": "Neraspoređeno",
+  "payments.partial": "Delimično raspoređeno",
+  "payments.full": "Potpuno raspoređeno",
+  "payments.all": "Sve",
+  "payments.active": "Aktivna",
+  "payments.voided": "Poništena",
+  "payments.none": "Bez bankovnog računa"
 }

@@ -201,6 +201,15 @@ export class SidebarComponent {
               label: "nav.financeInvoices",
               icon: "lucideFileText",
             },
+            ...(canManageBilling(this.authState.activeWorkspace()?.role)
+              ? [
+                  {
+                    route: "/finance/payments",
+                    label: "nav.financePayments",
+                    icon: "lucideLandmark",
+                  },
+                ]
+              : []),
             {
               route: "/finance/price-sources",
               label: "nav.financePriceSources",

@@ -134,6 +134,38 @@ export const appRoutes: Route[] = [
             component: FinanceInvoiceDetailComponent,
           },
           { path: "invoices", component: FinanceInvoicesComponent },
+          {
+            path: "payments",
+            canActivate: [revenueSettingsGuard],
+            loadComponent: () =>
+              import("./features/finance-payments/payments.component").then(
+                (m) => m.PaymentsComponent,
+              ),
+          },
+          {
+            path: "payments/new",
+            canActivate: [revenueSettingsGuard],
+            loadComponent: () =>
+              import("./features/finance-payments/payment-form.component").then(
+                (m) => m.PaymentFormComponent,
+              ),
+          },
+          {
+            path: "payments/:id/edit",
+            canActivate: [revenueSettingsGuard],
+            loadComponent: () =>
+              import("./features/finance-payments/payment-form.component").then(
+                (m) => m.PaymentFormComponent,
+              ),
+          },
+          {
+            path: "payments/:id",
+            canActivate: [revenueSettingsGuard],
+            loadComponent: () =>
+              import(
+                "./features/finance-payments/payment-detail.component"
+              ).then((m) => m.PaymentDetailComponent),
+          },
           { path: "retainers", component: FinanceRetainersComponent },
           {
             path: "month-end",

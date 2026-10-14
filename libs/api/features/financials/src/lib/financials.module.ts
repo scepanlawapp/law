@@ -1,3 +1,5 @@
+import { PaymentsService } from "./payments.service";
+import { PaymentsController } from "./payments.controller";
 import { PriceSuggestionContextBuilder } from "./price-suggestion-context.builder";
 import { PriceSuggestionService } from "./price-suggestion.service";
 import { Module } from "@nestjs/common";
@@ -13,8 +15,13 @@ import { SefSubmissionService } from "./sef-submission.service";
 import { SefUblBuilder } from "./sef-ubl-builder";
 
 @Module({
-  controllers: [FinancialsController, OrganizationSettingsController],
+  controllers: [
+    PaymentsController,
+    FinancialsController,
+    OrganizationSettingsController,
+  ],
   providers: [
+    PaymentsService,
     FinancialsService,
     PriceSuggestionContextBuilder,
     PriceSuggestionService,

@@ -1,3 +1,4 @@
+import { CollectionPanelComponent } from "../finance-payments/collection-panel.component";
 import {
   Component,
   DestroyRef,
@@ -90,6 +91,7 @@ type ClientTab =
     }),
   ],
   imports: [
+    CollectionPanelComponent,
     NgIcon,
     HlmDropdownMenuImports,
     HlmTooltip,

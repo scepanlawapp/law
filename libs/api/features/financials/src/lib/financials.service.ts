@@ -1,3 +1,4 @@
+import { PaymentsService } from "./payments.service";
 import {
   ConflictException,
   ForbiddenException,
@@ -56,6 +57,7 @@ export class FinancialsService {
     private readonly db: PlatformPrismaService,
     private readonly invoiceNumbering: InvoiceNumberingService,
     @Optional() private readonly sefSubmissions?: SefSubmissionService,
+    @Optional() private readonly payments?: PaymentsService,
   ) {}
 
   private get context() {
@@ -462,7 +464,12 @@ export class FinancialsService {
       include: this.invoiceInclude,
       orderBy: { createdAt: "desc" },
     });
-    return invoices.map((invoice) => this.invoiceResponse(invoice));
+    const collections = await this.payments?.collections();
+    const byId = new Map(collections?.map((c) => [c.id, c]));
+    return invoices.map((invoice) => ({
+      ...this.invoiceResponse(invoice),
+      collection: byId.get(invoice.id),
+    }));
   }
 
   private async logWorkEntries(
@@ -1107,6 +1114,14 @@ export class FinancialsService {
     await this.db.$transaction(async (tx) => {
       await this.sefSubmissions?.lockInvoice(tx, id);
       await this.sefSubmissions?.assertMutable(tx, id, "edit");
+      const lockedInvoice = await tx.invoice.findFirst({
+        where: { id, workspaceId: this.workspaceId },
+        select: { status: true },
+      });
+      if (lockedInvoice?.status !== InvoiceStatus.DRAFT)
+        throw new ConflictException(
+          "Račun je u međuvremenu poslat ili poništen i ne može da se menja.",
+        );
       const calculatedTotals = input.lines
         ? calculateInvoiceMoney(input.lines)
         : null;
@@ -1259,6 +1274,19 @@ export class FinancialsService {
     return this.db.$transaction(async (tx) => {
       await this.sefSubmissions?.lockInvoice(tx, id);
       await this.sefSubmissions?.assertMutable(tx, id, "void");
+      if (
+        await tx.paymentAllocation.count({
+          where: {
+            workspaceId: this.workspaceId,
+            invoiceId: id,
+            removedAt: null,
+            payment: { status: "ACTIVE", workspaceId: this.workspaceId },
+          },
+        })
+      )
+        throw new ConflictException(
+          "Pre poništavanja računa uklonite raspodele ili poništite povezane uplate.",
+        );
       await tx.invoice.update({
         where: { id },
         data: {

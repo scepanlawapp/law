@@ -149,6 +149,7 @@ describe("FinancialsService", () => {
       update: jest.fn(),
       delete: jest.fn(),
     },
+    paymentAllocation: { count: jest.fn().mockResolvedValue(0) },
     financeMutationRequest: {
       findUnique: jest.fn(),
       create: jest.fn(),
@@ -604,6 +605,16 @@ describe("FinancialsService", () => {
       ),
     ).rejects.toBeInstanceOf(ConflictException);
     expect(db.workEntry.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("rejects a draft edit when the invoice becomes sent before its lock is acquired", async () => {
+    db.invoice.findFirst
+      .mockResolvedValueOnce(fullInvoice())
+      .mockResolvedValueOnce({ ...fullInvoice(), status: "SENT" });
+    await expect(
+      asAdmin(() => service.updateInvoice(invoiceId, { comment: "Changed" })),
+    ).rejects.toThrow("u međuvremenu");
+    expect(db.invoice.update).not.toHaveBeenCalled();
   });
 
   it("releases entries before replacing lines on update", async () => {

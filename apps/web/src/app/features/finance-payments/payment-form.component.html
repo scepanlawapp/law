@@ -1,0 +1,298 @@
+<div class="mx-auto max-w-6xl space-y-4 p-4 md:p-6">
+  <h1 class="text-2xl font-semibold">
+    {{ id ? "Izmeni uplatu" : "Nova uplata" }}
+  </h1>
+  @if (error()) {
+    <div role="alert" class="rounded-lg border border-destructive p-3">
+      {{ error() }}
+      @if (!options()) {
+        <button hlmBtn variant="outline" (click)="load()">
+          Pokušaj ponovo
+        </button>
+      }
+    </div>
+  }
+  @if (loading()) {
+    <hlm-spinner aria-label="Učitavanje uplate" />
+  }
+  @if (!loading() && options()) {
+    <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
+      <fieldset [disabled]="saving()" class="space-y-4">
+        <section class="app-section-surface grid gap-4 p-4 md:grid-cols-3">
+          <law-payment-client-picker
+            [value]="form.controls.clientId.value"
+            (valueChange)="
+              form.controls.clientId.setValue($event); form.markAsDirty()
+            "
+            [selectedLabel]="original()?.clientName ?? ''"
+          />
+          <label class="space-y-1">
+            Uplatilac
+            <input
+              hlmInput
+              class="w-full"
+              formControlName="payerName"
+              maxlength="250"
+            />
+          </label>
+          <label class="space-y-1">
+            Datum uplate
+            <input
+              hlmInput
+              class="w-full"
+              type="date"
+              formControlName="receivedAt"
+              required
+            />
+          </label>
+          <label class="space-y-1">
+            Iznos
+            <input
+              hlmInput
+              class="w-full"
+              formControlName="amount"
+              inputmode="decimal"
+              required
+              aria-describedby="payment-amount-help"
+            />
+            <span
+              id="payment-amount-help"
+              class="text-sm text-muted-foreground"
+            >
+              Pozitivan iznos, najviše dve decimale (npr. 1.250,50).
+            </span>
+          </label>
+          <law-payment-select
+            controlId="payment-currency"
+            label="Valuta"
+            [control]="form.controls.currency"
+            [options]="currencies()"
+          />
+          <law-payment-select
+            controlId="payment-method"
+            label="Način plaćanja"
+            [control]="form.controls.paymentMethod"
+            [options]="methods"
+          />
+          <law-payment-select
+            controlId="payment-bank"
+            label="Bankovni račun"
+            [control]="form.controls.bankAccountId"
+            [options]="banks()"
+          />
+          <law-payment-select
+            controlId="payment-purpose"
+            label="Svrha uplate"
+            [control]="form.controls.purpose"
+            [options]="purposes"
+          />
+          <label class="space-y-1">
+            Poziv na broj / Referenca
+            <input
+              hlmInput
+              class="w-full"
+              formControlName="reference"
+              maxlength="250"
+            />
+          </label>
+          <label class="space-y-1 md:col-span-3">
+            Napomena
+            <textarea
+              hlmTextarea
+              class="w-full"
+              formControlName="note"
+              maxlength="5000"
+            ></textarea>
+          </label>
+        </section>
+        <section class="app-section-surface space-y-3 p-4">
+          <h2 class="text-lg font-semibold">Raspodela uplate na račune</h2>
+          <p class="text-sm text-muted-foreground">
+            Uplatu možete sačuvati bez raspodele. Za raspodelu izaberite
+            klijenta i valutu. Promena klijenta ili valute zahteva ručnu proveru
+            postojećih raspodela.
+          </p>
+          @for (
+            row of form.controls.allocations.controls;
+            track row;
+            let index = $index
+          ) {
+            @let item = invoice(row.controls.invoiceId.value);
+            <div
+              class="flex flex-wrap items-end gap-3 rounded-lg border p-3"
+              [formGroup]="row"
+            >
+              <div class="min-w-0 flex-1">
+                <a
+                  class="font-medium underline"
+                  [routerLink]="[
+                    '/finance/invoices',
+                    row.controls.invoiceId.value,
+                  ]"
+                >
+                  {{ item?.invoiceNumber ?? "Račun" }}
+                </a>
+                <p class="text-sm text-muted-foreground">
+                  Dostupno za raspodelu:
+                  {{
+                    money(
+                      item?.remainingAmount ?? "0",
+                      item?.currency ?? form.controls.currency.value
+                    )
+                  }}
+                </p>
+              </div>
+              <label>
+                Iznos raspodele
+                <input
+                  hlmInput
+                  formControlName="amount"
+                  inputmode="decimal"
+                  required
+                />
+              </label>
+              <button
+                hlmBtn
+                type="button"
+                variant="outline"
+                (click)="fill(index)"
+              >
+                Rasporedi preostali dug
+              </button>
+              <button
+                hlmBtn
+                type="button"
+                variant="ghost"
+                (click)="remove(index)"
+              >
+                Ukloni raspodelu
+              </button>
+            </div>
+          }
+          @if (eligibleLoading()) {
+            <hlm-spinner aria-label="Učitavanje računa" />
+          }
+          @if (eligibleError()) {
+            <p role="alert">{{ eligibleError() }}</p>
+            <button
+              hlmBtn
+              type="button"
+              variant="outline"
+              (click)="loadEligible()"
+            >
+              Pokušaj ponovo
+            </button>
+          }
+          @if (!eligibleLoading() && form.controls.clientId.value) {
+            <div hlmTableContainer>
+              <table hlmTable>
+                <thead hlmTHead>
+                  <tr hlmTr>
+                    <th hlmTh>Račun / Datum</th>
+                    <th hlmTh>Dospeće</th>
+                    <th hlmTh>Ukupno</th>
+                    <th hlmTh>Naplaćeno</th>
+                    <th hlmTh>Preostalo za raspodelu</th>
+                    <th hlmTh>Radnja</th>
+                  </tr>
+                </thead>
+                <tbody hlmTBody>
+                  @for (i of invoices(); track i.id) {
+                    <tr hlmTr>
+                      <td hlmTd>
+                        {{ i.invoiceNumber }}
+                        <p class="text-muted-foreground">
+                          {{ date(i.dateOfCreate) }}
+                        </p>
+                      </td>
+                      <td hlmTd>{{ date(i.dateOfMaturity) }}</td>
+                      <td hlmTd>{{ money(i.grossAmount, i.currency) }}</td>
+                      <td hlmTd>{{ money(i.paidAmount, i.currency) }}</td>
+                      <td hlmTd>{{ money(i.remainingAmount, i.currency) }}</td>
+                      <td hlmTd>
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="outline"
+                          [disabled]="has(i.id)"
+                          (click)="add(i)"
+                        >
+                          {{ has(i.id) ? "Dodato" : "Dodaj raspodelu" }}
+                        </button>
+                      </td>
+                    </tr>
+                  } @empty {
+                    <tr hlmTr>
+                      <td hlmTd colspan="6">
+                        Nema poslatih računa sa dostupnim dugom u izabranoj
+                        valuti.
+                      </td>
+                    </tr>
+                  }
+                </tbody>
+              </table>
+            </div>
+          }
+          <div
+            class="grid gap-3 rounded-lg bg-muted p-3 sm:grid-cols-3"
+            aria-live="polite"
+          >
+            <p>
+              Ukupna uplata
+              <br />
+              <strong>
+                {{
+                  money(
+                    form.controls.amount.value || "0",
+                    form.controls.currency.value
+                  )
+                }}
+              </strong>
+            </p>
+            <p>
+              Ukupno raspoređeno
+              <br />
+              <strong>
+                {{ money(allocatedText(), form.controls.currency.value) }}
+              </strong>
+            </p>
+            <p>
+              Preostalo neraspoređeno
+              <br />
+              <strong>
+                {{ money(remainingText(), form.controls.currency.value) }}
+              </strong>
+            </p>
+          </div>
+          @if (remaining() > 0) {
+            <p class="text-sm text-muted-foreground">
+              Preostali neraspoređeni iznos biće dostupan za naknadnu raspodelu.
+            </p>
+          }
+          @if (remaining() < 0) {
+            <p role="alert" class="text-destructive">
+              Raspodela premašuje iznos uplate.
+            </p>
+          }
+        </section>
+      </fieldset>
+      <div class="flex justify-end gap-2">
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          [disabled]="saving()"
+          (click)="cancel()"
+        >
+          Otkaži
+        </button>
+        <button hlmBtn type="submit" [disabled]="saving()">
+          @if (saving()) {
+            <hlm-spinner />
+          }
+          Sačuvaj uplatu
+        </button>
+      </div>
+    </form>
+  }
+</div>
