@@ -1,3 +1,4 @@
+import type { ActivityLogListQuery, CaseListQuery } from "@law/api-interfaces";
 import type {
   PriceSuggestionRequest,
   PriceSuggestionResponse,
@@ -240,12 +241,7 @@ export interface DeadlineRequest {
   sourceDescription?: string;
 }
 
-export interface ActivityLogListQuery {
-  page?: number;
-  pageSize?: number;
-  caseId?: string;
-  clientId?: string;
-}
+export type { ActivityLogListQuery } from "@law/api-interfaces";
 
 @Injectable({ providedIn: "root" })
 export class AuthApiClient {
@@ -916,20 +912,7 @@ export interface ClientListQuery {
   tags?: string[];
 }
 
-export interface CaseListQuery {
-  page?: number;
-  pageSize?: number;
-  search?: string;
-  sort?: string;
-  status?: CaseStatus;
-  priority?: CasePriority;
-  clientId?: string;
-  clientIds?: string[];
-  responsibleUserId?: string;
-  caseTypeId?: string;
-  practiceAreaId?: string;
-  tags?: string[];
-}
+export type { CaseListQuery } from "@law/api-interfaces";
 
 export type { ClientRequest } from "@law/api-interfaces";
 

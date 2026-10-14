@@ -1329,6 +1329,7 @@ export type DocumentVersionListResponse =
   PaginatedResponse<DocumentVersionSummary>;
 
 export interface DocumentListQuery extends PaginationQuery {
+  createdByUserId?: string;
   /** Omitted means all locations; "root" means direct root files. */
   folderId?: string;
   view?: "recent" | "needs-linking";
@@ -1848,3 +1849,27 @@ export interface ClientRequest {
 }
 
 export * from "./payments";
+
+export interface ActivityLogListQuery {
+  page?: number;
+  pageSize?: number;
+  actorUserId?: string;
+  caseId?: string;
+  clientId?: string;
+}
+
+export interface CaseListQuery {
+  page?: number;
+  pageSize?: number;
+  search?: string;
+  sort?: string;
+  status?: CaseStatus;
+  priority?: CasePriority;
+  clientId?: string;
+  clientIds?: string[];
+  assignedUserId?: string;
+  responsibleUserId?: string;
+  caseTypeId?: string;
+  practiceAreaId?: string;
+  tags?: string[];
+}

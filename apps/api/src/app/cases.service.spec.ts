@@ -93,6 +93,40 @@ describe("CasesService", () => {
     ]);
   });
 
+  it("includes primary and active additional assignments before sorting and pagination", async () => {
+    db.case.count.mockResolvedValue(0);
+    db.case.findMany.mockResolvedValue([]);
+    await WorkspaceContextService.run(context as never, () =>
+      service.list({
+        assignedUserId: userId,
+        search: "test",
+        sort: "updatedAt:desc",
+        page: 1,
+        pageSize: 5,
+      } as never),
+    );
+    const where = db.case.count.mock.calls[0][0].where;
+    expect(where.workspaceId).toBe(workspaceId);
+    expect(where.AND).toEqual([
+      {
+        OR: [
+          { responsibleUserId: userId },
+          {
+            responsibilities: { some: { workspaceId, userId, endedAt: null } },
+          },
+        ],
+      },
+    ]);
+    expect(where.OR).toHaveLength(3);
+    expect(db.case.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where,
+        take: 5,
+        orderBy: [{ updatedAt: "desc" }],
+      }),
+    );
+  });
+
   it("scopes detail lookups to the authenticated workspace", async () => {
     db.case.findFirst.mockResolvedValue(null);
     await WorkspaceContextService.run(context as never, async () => {

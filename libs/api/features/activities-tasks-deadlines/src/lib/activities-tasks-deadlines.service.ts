@@ -1415,6 +1415,7 @@ export class ActivitiesTasksDeadlinesService {
       // Work-entry activity carries minutes, treatment and write-off reasons;
       // it stays on the time screens, never in the shared feeds.
       entityType: { not: "WORK_ENTRY" },
+      ...(query.actorUserId && { actorUserId: query.actorUserId }),
       ...(query.caseId && { caseId: query.caseId }),
       ...(query.clientId && { clientId: query.clientId }),
     };

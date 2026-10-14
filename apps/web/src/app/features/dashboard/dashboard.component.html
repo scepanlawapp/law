@@ -86,7 +86,7 @@
       icon="lucideFolderOpen"
       [value]="store.activeCasesCount() ?? undefined"
       [loading]="store.statsLoading()"
-      subtitleKey="dashboard.scopeWorkspace"
+      subtitleKey="dashboard.scopeMine"
       routerLink="/cases"
       [queryParams]="{ caseStatus: 'ACTIVE' }"
     />
@@ -111,7 +111,7 @@
       icon="lucideFileText"
       [value]="store.totalDocumentsCount() ?? undefined"
       [loading]="store.statsLoading()"
-      subtitleKey="dashboard.scopeWorkspace"
+      subtitleKey="dashboard.scopeCreatedByYou"
       routerLink="/documents"
     />
   </div>
