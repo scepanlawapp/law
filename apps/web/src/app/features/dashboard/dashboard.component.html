@@ -233,7 +233,7 @@
 
   <!-- Row 4: Cases overview and Quick actions -->
   <div class="grid grid-cols-1 gap-4 lg:grid-cols-4">
-    <div class="lg:col-span-3">
+    <div class="min-w-0 lg:col-span-3">
       <law-section-panel
         titleKey="dashboard.casesOverview"
         actionLabelKey="dashboard.viewAllCases"
@@ -243,14 +243,31 @@
         [empty]="!store.casesLoading() && store.casesPreview().length === 0"
         (retry)="store.loadCasesPreview()"
       >
-        <div hlmTableContainer class="app-data-region">
-          <table hlmTable>
+        <div
+          hlmTableContainer
+          class="app-data-region min-w-0 max-w-full overflow-x-auto"
+        >
+          <table hlmTable class="min-w-[40rem] table-fixed">
+            <colgroup>
+              <col class="w-[35%]" />
+              <col class="w-[25%]" />
+              <col class="w-[18%]" />
+              <col class="w-[22%]" />
+            </colgroup>
             <thead hlmTHead>
               <tr hlmTr>
-                <th hlmTh>{{ "dashboard.caseNumber" | translate }}</th>
-                <th hlmTh>{{ "dashboard.client" | translate }}</th>
-                <th hlmTh>{{ "dashboard.status" | translate }}</th>
-                <th hlmTh>{{ "dashboard.responsibleLawyer" | translate }}</th>
+                <th hlmTh class="whitespace-normal">
+                  {{ "dashboard.caseNumber" | translate }}
+                </th>
+                <th hlmTh class="whitespace-normal">
+                  {{ "dashboard.client" | translate }}
+                </th>
+                <th hlmTh class="whitespace-normal">
+                  {{ "dashboard.status" | translate }}
+                </th>
+                <th hlmTh class="whitespace-normal">
+                  {{ "dashboard.responsibleLawyer" | translate }}
+                </th>
               </tr>
             </thead>
             <tbody hlmTBody>
@@ -259,15 +276,23 @@
                   <td hlmTd>
                     <a
                       [routerLink]="['/cases', row.id]"
-                      class="font-medium hover:underline"
+                      class="block truncate font-medium hover:underline"
+                      [title]="row.caseNumber"
                     >
                       {{ row.caseNumber }}
                     </a>
-                    <span class="block text-muted-foreground">
+                    <span
+                      class="block truncate text-muted-foreground"
+                      [title]="row.name"
+                    >
                       {{ row.name }}
                     </span>
                   </td>
-                  <td hlmTd>{{ row.clientName }}</td>
+                  <td hlmTd>
+                    <span class="block truncate" [title]="row.clientName">
+                      {{ row.clientName }}
+                    </span>
+                  </td>
                   <td hlmTd>
                     <span
                       [class]="
@@ -279,7 +304,14 @@
                       {{ "cases.status." + row.status | translate }}
                     </span>
                   </td>
-                  <td hlmTd>{{ row.responsibleUserName }}</td>
+                  <td hlmTd>
+                    <span
+                      class="block truncate"
+                      [title]="row.responsibleUserName"
+                    >
+                      {{ row.responsibleUserName }}
+                    </span>
+                  </td>
                 </tr>
               }
             </tbody>

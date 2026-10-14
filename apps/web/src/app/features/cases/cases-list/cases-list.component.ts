@@ -72,6 +72,7 @@ type CaseSort =
 @Component({
   selector: "law-cases-list",
   standalone: true,
+  host: { class: "block min-w-0 max-w-full" },
   templateUrl: "./cases-list.component.html",
   imports: [
     ReactiveFormsModule,

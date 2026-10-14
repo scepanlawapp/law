@@ -62,41 +62,99 @@
       </hlm-empty-content>
     </hlm-empty>
   } @else {
-    <div hlmTableContainer class="app-data-region">
-      <table hlmTable>
+    <div
+      hlmTableContainer
+      class="app-data-region min-w-0 max-w-full overflow-x-auto"
+    >
+      <table hlmTable class="min-w-[72rem] table-fixed">
+        <colgroup>
+          <col class="w-[10%]" />
+          <col class="w-[28%]" />
+          <col class="w-[6%]" />
+          <col class="w-[9%]" />
+          <col class="w-[17%]" />
+          <col class="w-[11%]" />
+          <col class="w-[10%]" />
+          <col class="w-[9%]" />
+        </colgroup>
         <thead hlmTHead>
           <tr hlmTr>
-            <th hlmTh>{{ "clients.number" | translate }}</th>
-            <th hlmTh>{{ "clients.name" | translate }}</th>
-            <th hlmTh>{{ "clients.type" | translate }}</th>
-            <th hlmTh>{{ "clients.responsible" | translate }}</th>
-            <th hlmTh>{{ "clients.email" | translate }}</th>
-            <th hlmTh>{{ "clients.phone" | translate }}</th>
-            <th hlmTh>{{ "clients.status" | translate }}</th>
-            <th hlmTh>{{ "clients.activeCases" | translate }}</th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.number" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.name" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.type" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.responsible" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.email" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.phone" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.status" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "clients.activeCases" | translate }}
+            </th>
           </tr>
         </thead>
         <tbody hlmTBody>
           @for (client of items(); track client.id) {
             <tr hlmTr class="cursor-pointer" (click)="openClient(client.id)">
-              <td hlmTd>{{ client.clientNumber }}</td>
+              <td hlmTd>
+                <span class="block truncate" [title]="client.clientNumber">
+                  {{ client.clientNumber }}
+                </span>
+              </td>
               <td hlmTd>
                 <a
+                  class="block truncate"
+                  [title]="client.displayName"
                   [routerLink]="['/clients', client.id]"
                   (click)="$event.stopPropagation()"
                 >
                   {{ client.displayName }}
                 </a>
               </td>
-              <td hlmTd>{{ "clients.type." + client.type | translate }}</td>
               <td hlmTd>
-                {{
-                  client.responsibleUser?.displayName ||
-                    ("common.notProvided" | translate)
-                }}
+                <span
+                  class="block truncate"
+                  [title]="'clients.type.' + client.type | translate"
+                >
+                  {{ "clients.type." + client.type | translate }}
+                </span>
               </td>
-              <td hlmTd>{{ client.email }}</td>
-              <td hlmTd>{{ client.phone }}</td>
+              <td hlmTd>
+                <span
+                  class="block truncate"
+                  [title]="
+                    client.responsibleUser?.displayName ||
+                    ('common.notProvided' | translate)
+                  "
+                >
+                  {{
+                    client.responsibleUser?.displayName ||
+                      ("common.notProvided" | translate)
+                  }}
+                </span>
+              </td>
+              <td hlmTd>
+                <span class="block truncate" [title]="client.email">
+                  {{ client.email }}
+                </span>
+              </td>
+              <td hlmTd>
+                <span class="block truncate" [title]="client.phone">
+                  {{ client.phone }}
+                </span>
+              </td>
               <td hlmTd>
                 <span
                   [class]="

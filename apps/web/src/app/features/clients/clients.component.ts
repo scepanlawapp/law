@@ -42,6 +42,7 @@ import {
 @Component({
   selector: "law-clients",
   standalone: true,
+  host: { class: "block min-w-0 max-w-full" },
   templateUrl: "./clients.component.html",
   imports: [
     ReactiveFormsModule,

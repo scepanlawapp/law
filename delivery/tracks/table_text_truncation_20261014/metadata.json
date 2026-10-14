@@ -1,0 +1,14 @@
+{
+  "track_id": "table_text_truncation_20261014",
+  "parent_track_id": "dashboard_current_user_20261014",
+  "type": "fix",
+  "status": "completed",
+  "created_at": "2026-10-14",
+  "updated_at": "2026-10-14",
+  "keywords": [
+    "tables",
+    "truncation",
+    "dashboard",
+    "clients"
+  ]
+}

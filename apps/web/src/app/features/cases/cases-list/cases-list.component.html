@@ -127,17 +127,44 @@
       </hlm-empty-content>
     </hlm-empty>
   } @else {
-    <div hlmTableContainer class="app-data-region" [attr.aria-busy]="loading()">
-      <table hlmTable>
+    <div
+      hlmTableContainer
+      class="app-data-region min-w-0 max-w-full overflow-x-auto"
+      [attr.aria-busy]="loading()"
+    >
+      <table hlmTable class="min-w-[72rem] table-fixed">
+        <colgroup>
+          <col class="w-[7.2%]" />
+          <col class="w-[40.2%]" />
+          <col class="w-[18%]" />
+          <col class="w-[16%]" />
+          <col class="w-[6.6%]" />
+          <col class="w-[6.6%]" />
+          <col class="w-[5.4%]" />
+        </colgroup>
         <thead hlmTHead>
           <tr hlmTr>
-            <th hlmTh>{{ "cases.number" | translate }}</th>
-            <th hlmTh>{{ "cases.name" | translate }}</th>
-            <th hlmTh>{{ "cases.client" | translate }}</th>
-            <th hlmTh>{{ "cases.responsible" | translate }}</th>
-            <th hlmTh>{{ "cases.priority" | translate }}</th>
-            <th hlmTh>{{ "cases.status" | translate }}</th>
-            <th hlmTh>{{ "cases.opened" | translate }}</th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "cases.number" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "cases.name" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "cases.client" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "cases.responsible" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "cases.priority" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "cases.status" | translate }}
+            </th>
+            <th hlmTh class="break-words whitespace-normal">
+              {{ "cases.opened" | translate }}
+            </th>
           </tr>
         </thead>
         <tbody hlmTBody>
@@ -145,7 +172,8 @@
             <tr hlmTr>
               <td hlmTd>
                 <a
-                  class="font-medium underline-offset-4 hover:underline"
+                  class="block truncate font-medium underline-offset-4 hover:underline"
+                  [title]="caseItem.caseNumber"
                   [routerLink]="['/cases', caseItem.id]"
                 >
                   {{ caseItem.caseNumber }}
@@ -153,7 +181,8 @@
               </td>
               <td hlmTd>
                 <a
-                  class="underline-offset-4 hover:underline"
+                  class="block truncate underline-offset-4 hover:underline"
+                  [title]="caseItem.name"
                   [routerLink]="['/cases', caseItem.id]"
                 >
                   {{ caseItem.name }}
@@ -161,37 +190,56 @@
               </td>
               <td hlmTd>
                 <a
-                  class="underline-offset-4 hover:underline"
+                  class="block truncate underline-offset-4 hover:underline"
+                  [title]="caseItem.client.displayName"
                   [routerLink]="['/clients', caseItem.client.id]"
                 >
                   {{ caseItem.client.displayName }}
                 </a>
               </td>
-              <td hlmTd>{{ caseItem.responsibleUser.displayName }}</td>
               <td hlmTd>
                 <span
+                  class="block truncate"
+                  [title]="caseItem.responsibleUser.displayName"
+                >
+                  {{ caseItem.responsibleUser.displayName }}
+                </span>
+              </td>
+              <td hlmTd>
+                <span
+                  [title]="'cases.priority.' + caseItem.priority | translate"
                   [class]="
                     statusBadgeBaseClasses +
-                    ' ' +
+                    ' max-w-full ' +
                     priorityBadgeClass(caseItem.priority)
                   "
                 >
-                  {{ "cases.priority." + caseItem.priority | translate }}
+                  <span class="truncate">
+                    {{ "cases.priority." + caseItem.priority | translate }}
+                  </span>
                 </span>
               </td>
               <td hlmTd>
                 <span
+                  [title]="'cases.status.' + caseItem.status | translate"
                   [class]="
                     statusBadgeBaseClasses +
-                    ' ' +
+                    ' max-w-full ' +
                     statusBadgeClass(caseItem.status)
                   "
                 >
-                  {{ "cases.status." + caseItem.status | translate }}
+                  <span class="truncate">
+                    {{ "cases.status." + caseItem.status | translate }}
+                  </span>
                 </span>
               </td>
               <td hlmTd>
-                {{ formatDate(caseItem.openedDate) }}
+                <span
+                  class="block truncate"
+                  [title]="formatDate(caseItem.openedDate)"
+                >
+                  {{ formatDate(caseItem.openedDate) }}
+                </span>
               </td>
             </tr>
           }
