@@ -66,10 +66,11 @@ import {
           hlmBtn
           type="button"
           variant="ghost"
+          size="icon"
           (click)="value.set('')"
           aria-label="Ukloni klijenta"
         >
-          Ukloni
+          <span aria-hidden="true">×</span>
         </button>
       }
     </div>
@@ -84,10 +85,10 @@ export class PaymentClientPickerComponent {
   readonly error = signal(false);
   readonly search = new Subject<string>();
   private readonly api = inject(ClientsApiClient);
-  private readonly names = new Map<string, string>();
+  private readonly names = signal(new Map<string, string>());
   readonly keepResults = () => true;
   readonly display = (id: string) =>
-    this.names.get(id) || this.selectedLabel() || "Izabrani klijent";
+    this.names().get(id) || this.selectedLabel() || "Izabrani klijent";
   constructor() {
     this.search
       .pipe(
@@ -108,7 +109,9 @@ export class PaymentClientPickerComponent {
         takeUntilDestroyed(inject(DestroyRef)),
       )
       .subscribe((r) => {
-        r.items.forEach((c) => this.names.set(c.id, c.displayName));
+        const names = new Map(this.names());
+        r.items.forEach((c) => names.set(c.id, c.displayName));
+        this.names.set(names);
         this.clients.set(r.items);
         this.loading.set(false);
       });

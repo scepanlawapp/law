@@ -240,6 +240,7 @@ test("advance form preserves input on failure, retries and voids with confirmati
   const state = await shell(page);
   await page.goto("/finance/payments/new");
   await page.locator('[formcontrolname="amount"]').fill("100.00");
+  await page.getByText("Dodatni podaci o uplati", { exact: true }).click();
   await page.locator("#payment-purpose").click();
   await page.getByRole("option", { name: "Avans", exact: true }).click();
   state.failNextSave();
@@ -281,25 +282,17 @@ test("searchable client picker and multi-invoice allocation keep exact totals", 
   await page.locator('[formcontrolname="amount"]').fill("150.00");
   await page.locator("#payment-client").click();
   await page.getByRole("option", { name: "Klijent A", exact: true }).click();
-  const add = page.getByRole("button", {
-    name: "Dodaj raspodelu",
-    exact: true,
-  });
-  await expect(add).toHaveCount(2);
-  await add.first().click();
-  await expect(add).toHaveCount(1);
-  await add.first().click();
-  await expect(
-    page.getByRole("button", { name: "Ukloni raspodelu", exact: true }),
-  ).toHaveCount(2);
-  await expect(page.getByText("Preostalo neraspoređeno")).toHaveText(
-    /Preostalo neraspoređeno\s+0,00/,
+  const fill = page.getByRole("button", { name: /^Puno za / });
+  await expect(fill).toHaveCount(2);
+  await fill.first().click();
+  await fill.last().click();
+  const clear = page.getByRole("button", { name: /^Obriši raspodelu za / });
+  await expect(clear).toHaveCount(2);
+  await expect(page.getByText("Preostalo za raspodelu").last()).toContainText(
+    "0,00",
   );
-  await page
-    .getByRole("button", { name: "Ukloni raspodelu", exact: true })
-    .last()
-    .click();
-  await expect(page.getByText("Preostalo neraspoređeno")).toContainText(
+  await clear.last().click();
+  await expect(page.getByText("Preostalo za raspodelu").last()).toContainText(
     "50,00",
   );
   await page

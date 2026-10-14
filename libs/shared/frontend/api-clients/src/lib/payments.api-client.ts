@@ -2,6 +2,8 @@ import { inject, Injectable } from "@angular/core";
 import { HttpClient } from "@angular/common/http";
 import {
   CollectionTotals,
+  PaymentAllocationPreview,
+  PaymentAllocationPreviewRequest,
   InvoiceCollection,
   InvoicePaymentHistory,
   PaymentDetail,
@@ -70,6 +72,13 @@ export class PaymentsApiClient {
       withCredentials: true,
       params: this.params({ clientId, currency, paymentId }),
     });
+  }
+  preview(body: PaymentAllocationPreviewRequest) {
+    return this.http.post<PaymentAllocationPreview>(
+      this.url("/allocation-preview"),
+      body,
+      { withCredentials: true },
+    );
   }
   save(id: string | null, body: SavePaymentRequest, key: string) {
     const options = {

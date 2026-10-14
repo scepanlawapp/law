@@ -24,7 +24,12 @@ const invoice: InvoiceCollection = {
 };
 describe("PaymentFormComponent", () => {
   let component: PaymentFormComponent;
-  let api: { options: jest.Mock; eligible: jest.Mock; save: jest.Mock };
+  let api: {
+    options: jest.Mock;
+    eligible: jest.Mock;
+    save: jest.Mock;
+    preview: jest.Mock;
+  };
   let navigate: jest.Mock;
   beforeEach(async () => {
     api = {
@@ -37,6 +42,14 @@ describe("PaymentFormComponent", () => {
         }),
       ),
       eligible: jest.fn(() => of([invoice])),
+      preview: jest.fn(() =>
+        of({
+          allocations: [{ invoiceId: invoice.id, amount: "50.00" }],
+          unallocatedAmount: "50.00",
+          allocatedAmount: "50.00",
+          warning: null,
+        }),
+      ),
       save: jest.fn(() => of({ id: "saved" } as PaymentDetail)),
     };
     navigate = jest.fn().mockResolvedValue(true);
@@ -61,6 +74,58 @@ describe("PaymentFormComponent", () => {
     });
     component = TestBed.runInInjectionContext(() => new PaymentFormComponent());
     await component.load();
+  });
+  it("starts at zero, previews without saving, and preserves allocations when deselected", async () => {
+    component.form.patchValue({ clientId: "client-1", amount: "100.00" });
+    await component.loadEligible();
+    expect(component.allocatedText()).toBe("0.00");
+    component.toggleSelection(invoice.id, true);
+    await component.distribute("EQUAL");
+    expect(api.preview).toHaveBeenCalledWith(
+      expect.objectContaining({ mode: "EQUAL", invoiceIds: [invoice.id] }),
+    );
+    expect(api.save).not.toHaveBeenCalled();
+    expect(component.allocatedText()).toBe("50.00");
+    component.toggleSelection(invoice.id, false);
+    expect(component.allocatedText()).toBe("50.00");
+    component.allocation(invoice.id)!.controls.amount.setValue("30.00");
+    expect(component.remainingText()).toBe("70.00");
+    expect(component.feedback()).toBe("");
+    component.clearProposal();
+    expect(component.allocatedText()).toBe("0.00");
+    await component.submit();
+    expect(api.save.mock.calls[0][1].allocations).toEqual([]);
+  });
+  it("clears the statement when the bank changes and prevents new advance previews", async () => {
+    component.form.patchValue({
+      bankAccountId: "bank-1",
+      bankStatementNumber: "015",
+      purpose: "ADVANCE",
+    });
+    component.form.controls.bankAccountId.setValue("bank-2");
+    expect(component.form.controls.bankStatementNumber.value).toBe("");
+    await component.distribute("AUTOMATIC");
+    expect(api.preview).not.toHaveBeenCalled();
+  });
+  it("keeps the manual proposal if replacement is declined or the preview fails", async () => {
+    component.form.patchValue({ clientId: "client-1", amount: "100.00" });
+    await component.loadEligible();
+    component.allocation(invoice.id)!.controls.amount.setValue("25.00");
+    const confirmation = jest.spyOn(
+      TestBed.inject(ConfirmDialogService),
+      "confirm",
+    );
+    confirmation.mockReturnValueOnce(of(false));
+    await component.distribute("AUTOMATIC");
+    expect(api.preview).not.toHaveBeenCalled();
+    expect(component.allocatedText()).toBe("25.00");
+    api.preview.mockReturnValueOnce(
+      throwError(() => ({ error: { message: "Veza je prekinuta." } })),
+    );
+    await component.distribute("AUTOMATIC");
+    expect(component.allocatedText()).toBe("25.00");
+    expect(component.error()).toBe("Veza je prekinuta.");
+    expect(component.feedback()).toBe("");
   });
   it("saves an unidentified advance with no invoice and keeps the full available balance", async () => {
     component.form.patchValue({ amount: "100.10", purpose: "ADVANCE" });

@@ -167,3 +167,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Shared numeric input formatting](./tracks/numeric_input_formatting_20261013/index.md)
 
 - [Payment management and invoice collection](./tracks/payment_collection_20261014/index.md)
+
+- [Payment form design](tracks/payment_form_design_20261014/index.md)

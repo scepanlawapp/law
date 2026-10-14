@@ -178,6 +178,125 @@ integration("payments PostgreSQL transactions", () => {
     await db.user.delete({ where: { id: userId } });
     await db.$disconnect();
   });
+  it("previews without writes, matches references, and validates selected invoice scope", async () => {
+    await db.invoice.update({
+      where: { id: invoiceB },
+      data: { externalReference: "preview-001" },
+    });
+    const before = await db.payment.count({ where: { workspaceId } });
+    const audits = await db.paymentAuditEvent.count({ where: { workspaceId } });
+    const input = {
+      clientId,
+      currency: "RSD",
+      amount: "150.00",
+      purpose: "REGULAR" as const,
+      mode: "AUTOMATIC" as const,
+      reference: " PREVIEW-001 ",
+    };
+    const result = await asAdmin(() => service.preview(input));
+    expect(result.allocations[0]).toEqual({
+      invoiceId: invoiceB,
+      amount: "100.00",
+    });
+    expect(result.allocatedAmount).toBe("150.00");
+    expect(await db.payment.count({ where: { workspaceId } })).toBe(before);
+    expect(await db.paymentAuditEvent.count({ where: { workspaceId } })).toBe(
+      audits,
+    );
+    for (const invalid of [draftId, voidedId, eurId, foreignInvoice]) {
+      await expect(
+        asAdmin(() =>
+          service.preview({ ...input, mode: "EQUAL", invoiceIds: [invalid] }),
+        ),
+      ).rejects.toThrow("dostupne");
+    }
+    const equal = await asAdmin(() =>
+      service.preview({
+        ...input,
+        mode: "EQUAL",
+        invoiceIds: [invoiceId, invoiceB],
+      }),
+    );
+    expect(equal.allocations.map((a) => a.amount)).toEqual(["75.00", "75.00"]);
+    const saved = await create(
+      request({ amount: "150.00", allocations: equal.allocations }),
+    );
+    expect(saved.allocatedAmount).toBe("150.00");
+    const edited = await asAdmin(() =>
+      service.preview({
+        ...input,
+        paymentId: saved.id,
+        mode: "EQUAL",
+        invoiceIds: [invoiceId, invoiceB],
+      }),
+    );
+    expect(edited.allocatedAmount).toBe("150.00");
+    await expect(
+      asAdmin(() => service.preview({ ...input, purpose: "ADVANCE" })),
+    ).rejects.toThrow("Avans");
+    await expect(
+      create(
+        request({
+          purpose: "ADVANCE",
+          allocations: [{ invoiceId, amount: "1.00" }],
+        }),
+      ),
+    ).rejects.toThrow("Avans");
+    await expect(
+      asAdmin(() => service.preview({ ...input, clientId: foreignClient })),
+    ).rejects.toThrow("Klijent");
+  });
+  it("persists optional bank statement numbers, preserves leading zeros, and requires an account", async () => {
+    const bank = await db.bankAccount.create({
+      data: { workspaceId, name: "Izvodi", currencyCode: "RSD" },
+    });
+    const body = request({
+      bankAccountId: bank.id,
+      bankStatementNumber: " 015/2026 ",
+    });
+    const first = await create(body);
+    const second = await create(body);
+    expect(first.bankStatementNumber).toBe("015/2026");
+    expect(second.bankStatementNumber).toBe("015/2026");
+    const updated = await asAdmin(() =>
+      service.save(
+        first.id,
+        request({
+          version: first.version,
+          bankAccountId: bank.id,
+          bankStatementNumber: "016",
+        }),
+        randomUUID(),
+      ),
+    );
+    expect(updated.bankStatementNumber).toBe("016");
+    expect(updated.auditEvents[0].newData).toMatchObject({
+      bankStatementNumber: "016",
+    });
+    const cleared = await asAdmin(() =>
+      service.save(
+        first.id,
+        request({
+          version: updated.version,
+          bankAccountId: null,
+          bankStatementNumber: null,
+        }),
+        randomUUID(),
+      ),
+    );
+    expect(cleared.bankStatementNumber).toBeNull();
+    await expect(
+      create(request({ bankStatementNumber: "15" })),
+    ).rejects.toThrow("Broj izvoda");
+    await expect(
+      create(
+        request({
+          bankAccountId: bank.id,
+          bankStatementNumber: "a".repeat(51),
+        }),
+      ),
+    ).rejects.toThrow("Broj izvoda");
+  });
   it("records unidentified receipts and advances without allocations", async () => {
     const p = await create(
       request({ clientId: null, payerName: "Treće lice", purpose: "ADVANCE" }),

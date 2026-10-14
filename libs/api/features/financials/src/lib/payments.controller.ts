@@ -13,6 +13,7 @@ import { AuthGuard, CsrfOriginGuard } from "@law/auth";
 import { WorkspaceAccess, WorkspaceAccessGuard } from "@law/core";
 import {
   PaymentQueryDto,
+  PaymentAllocationPreviewDto,
   SavePaymentDto,
   VoidPaymentDto,
 } from "./payments.dto";
@@ -46,6 +47,11 @@ export class PaymentsController {
   }
   @Get("invoice/:id/history") history(@Param("id") id: string) {
     return this.payments.invoiceHistory(id);
+  }
+  @Post("allocation-preview") preview(
+    @Body() body: PaymentAllocationPreviewDto,
+  ) {
+    return this.payments.preview(body);
   }
   @Get(":id") detail(@Param("id") id: string) {
     return this.payments.detail(id);
