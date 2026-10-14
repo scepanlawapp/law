@@ -34,6 +34,7 @@ const toArray = ({ value }: { value: unknown }): string[] | undefined =>
       : [String(value)];
 
 export class CaseListQueryDto extends PaginationQueryDto {
+  @IsOptional() @IsUUID() assignedUserId?: string;
   @IsOptional() @IsEnum(CaseStatus) status?: CaseStatus;
   @IsOptional() @IsEnum(CasePriority) priority?: CasePriority;
   @IsOptional() @IsUUID() clientId?: string;

@@ -292,6 +292,34 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
   });
 
   describe("listActivity", () => {
+    it("filters both activity rows and their total by actor before pagination", async () => {
+      db.$transaction.mockImplementation((queries: Promise<unknown>[]) =>
+        Promise.all(queries),
+      );
+      db.activityLog.count.mockResolvedValue(0);
+      db.activityLog.findMany.mockResolvedValue([]);
+      await run(() =>
+        service.listActivity({
+          page: 1,
+          pageSize: 4,
+          actorUserId: userId,
+        } as never),
+      );
+      const where = {
+        workspaceId,
+        actorUserId: userId,
+        entityType: { not: "WORK_ENTRY" },
+      };
+      expect(db.activityLog.count).toHaveBeenCalledWith({ where });
+      expect(db.activityLog.findMany).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where,
+          take: 4,
+          orderBy: { occurredAt: "desc" },
+        }),
+      );
+    });
+
     it("leaves work-entry activity out of the shared feed", async () => {
       db.$transaction.mockImplementation((queries: Promise<unknown>[]) =>
         Promise.all(queries),

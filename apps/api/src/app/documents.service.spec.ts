@@ -311,6 +311,22 @@ describe("DocumentsService", () => {
     );
   });
 
+  it("filters documents and totals by creator within the workspace", async () => {
+    await run(() =>
+      service.list({
+        createdByUserId: "current-user",
+        archived: "all",
+        page: 1,
+        pageSize: 1,
+      } as never),
+    );
+    const where = { workspaceId, createdByUserId: "current-user" };
+    expect(prisma.document.count).toHaveBeenCalledWith({ where });
+    expect(prisma.document.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where, take: 1 }),
+    );
+  });
+
   it("scopes direct-child listing before pagination and keeps global lists compatible", async () => {
     await run(() =>
       service.list({

@@ -215,6 +215,7 @@ export class CalendarQueryDto {
 }
 
 export class ActivityListQueryDto extends PaginationQueryDto {
+  @IsOptional() @IsUUID() actorUserId?: string;
   @IsOptional() @IsUUID() clientId?: string;
   @IsOptional() @IsUUID() caseId?: string;
 }

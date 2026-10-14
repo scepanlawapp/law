@@ -8,6 +8,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Current-user dashboard](./tracks/dashboard_current_user_20261014/index.md)
+
 - [Primary panel borders](./tracks/primary_panel_borders_20261014/index.md)
 
 - [Frontend Numbered Pagination](./tracks/frontend_numbered_pagination_20261009/index.md)

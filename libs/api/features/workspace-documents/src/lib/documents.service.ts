@@ -291,6 +291,7 @@ export class DocumentsService {
       { field: "updatedAt", direction: "desc" },
     ]);
     const where: Prisma.DocumentWhereInput = { workspaceId };
+    if (query.createdByUserId) where.createdByUserId = query.createdByUserId;
     if (query.folderId !== undefined)
       where.folderId = query.folderId === "root" ? null : query.folderId;
     if (query.view === "recent")

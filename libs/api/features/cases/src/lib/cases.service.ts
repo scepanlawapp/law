@@ -331,6 +331,24 @@ export class CasesService {
     const clientFilter = clientIdFilter(query);
     const where: Prisma.CaseWhereInput = {
       workspaceId,
+      ...(query.assignedUserId && {
+        AND: [
+          {
+            OR: [
+              { responsibleUserId: query.assignedUserId },
+              {
+                responsibilities: {
+                  some: {
+                    workspaceId,
+                    userId: query.assignedUserId,
+                    endedAt: null,
+                  },
+                },
+              },
+            ],
+          },
+        ],
+      }),
       ...(query.status && { status: query.status }),
       ...(query.priority && { priority: query.priority }),
       ...(clientFilter && { clientId: clientFilter }),

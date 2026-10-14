@@ -35,6 +35,10 @@ const toBoolean = ({ value }: { value: unknown }): boolean | undefined => {
 
 export class DocumentListQueryDto extends PaginationQueryDto {
   @IsOptional()
+  @IsUUID()
+  createdByUserId?: string;
+
+  @IsOptional()
   @ValidateIf((_, value) => value !== "root")
   @IsUUID()
   folderId?: string;

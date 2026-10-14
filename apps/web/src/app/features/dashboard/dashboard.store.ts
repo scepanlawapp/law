@@ -3,7 +3,6 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   CalendarApiClient,
   CasesApiClient,
-  ClientsApiClient,
   DocumentsApiClient,
   EventsApiClient,
   ReferencesApiClient,
@@ -11,7 +10,7 @@ import {
 } from "@law/api-clients";
 import { AuthState } from "@law/security";
 import { forkJoin, of } from "rxjs";
-import { catchError, map } from "rxjs/operators";
+import { catchError } from "rxjs/operators";
 import {
   ActivityFeedItem,
   CasePreviewRow,
@@ -21,7 +20,7 @@ import {
   caseSummaryToPreviewRow,
 } from "./dashboard.models";
 
-const UPCOMING_WINDOW_DAYS = 365;
+const UPCOMING_WINDOW_DAYS = 7;
 const UNFINISHED_EVENT_TASK_DEADLINE_STATUSES = [
   "SCHEDULED",
   "TODO",
@@ -36,7 +35,6 @@ const UNFINISHED_EVENT_TASK_DEADLINE_STATUSES = [
 @Injectable()
 export class DashboardStore {
   private readonly casesApi = inject(CasesApiClient);
-  private readonly clientsApi = inject(ClientsApiClient);
   private readonly workApi = inject(WorkManagementApiClient);
   private readonly eventsApi = inject(EventsApiClient);
   private readonly calendarApi = inject(CalendarApiClient);
@@ -115,6 +113,7 @@ export class DashboardStore {
     forkJoin({
       activeCases: this.casesApi.list({
         status: "ACTIVE",
+        assignedUserId: userId,
         page: 1,
         pageSize: 1,
       }),
@@ -135,6 +134,7 @@ export class DashboardStore {
       }),
       documents: this.documentsApi.list({
         archived: "all",
+        createdByUserId: userId,
         page: 1,
         pageSize: 1,
       }),
@@ -206,11 +206,17 @@ export class DashboardStore {
   }
 
   loadActivity(): void {
+    const userId = this.currentUserId();
+    if (!userId) return;
     this.activityLoading.set(true);
     this.activityError.set(false);
 
     forkJoin({
-      activity: this.workApi.listActivity({ page: 1, pageSize: 4 }),
+      activity: this.workApi.listActivity({
+        actorUserId: userId,
+        page: 1,
+        pageSize: 4,
+      }),
       users: this.referencesApi.users().pipe(catchError(() => of([]))),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -244,21 +250,21 @@ export class DashboardStore {
   }
 
   loadCasesPreview(): void {
+    const userId = this.currentUserId();
+    if (!userId) return;
     this.casesLoading.set(true);
     this.casesError.set(false);
 
-    forkJoin({
-      cases: this.casesApi.list({ page: 1, pageSize: 5 }),
-      clients: this.clientsApi
-        .list({ page: 1, pageSize: 100 })
-        .pipe(map((response) => response.items)),
-      users: this.referencesApi.users(),
-    })
+    this.casesApi
+      .list({
+        assignedUserId: userId,
+        sort: "updatedAt:desc",
+        page: 1,
+        pageSize: 5,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: ({ cases, clients, users }) => {
-          void clients;
-          void users;
+        next: (cases) => {
           this.casesPreview.set(cases.items.map(caseSummaryToPreviewRow));
           this.casesLoading.set(false);
         },

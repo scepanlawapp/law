@@ -876,6 +876,7 @@
   "dashboard.statUpcomingHearings": "Upcoming hearings",
   "dashboard.statPendingTasks": "Pending tasks",
   "dashboard.statTotalDocuments": "Total documents",
+  "dashboard.scopeCreatedByYou": "Created by you",
   "dashboard.scopeWorkspace": "Workspace-wide",
   "dashboard.scopeNextSevenDays": "You, next 7 days",
   "dashboard.scopeMine": "Assigned to you",
