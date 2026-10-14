@@ -119,8 +119,16 @@ describe("FinancialsService", () => {
       updateMany: jest.fn(),
       aggregate: jest.fn(),
     },
-    priceSource: { findFirst: jest.fn(), deleteMany: jest.fn() },
-    priceSourceVersion: { deleteMany: jest.fn() },
+    priceSource: {
+      findFirst: jest.fn(),
+      deleteMany: jest.fn(),
+      create: jest.fn(),
+    },
+    priceSourceVersion: {
+      deleteMany: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
+    },
     activityLog: { createMany: jest.fn() },
     invoiceLine: {
       create: jest.fn(),
@@ -148,6 +156,7 @@ describe("FinancialsService", () => {
     },
     organizationSettings: { findUnique: jest.fn() },
     domainCounter: { upsert: jest.fn() },
+    $queryRaw: jest.fn(),
     $transaction: jest.fn(async (input: unknown) => {
       if (typeof input === "function") return input(db);
       return Promise.all(input as Promise<unknown>[]);
@@ -263,6 +272,109 @@ describe("FinancialsService", () => {
       ),
     ).rejects.toThrow();
     expect(db.$transaction).not.toHaveBeenCalled();
+  });
+
+  it("creates a separate catalog for each case and infers the case client", async () => {
+    db.case.findFirst.mockResolvedValue({ id: caseId, clientId });
+    db.priceSource.findFirst.mockResolvedValue(null);
+    db.priceSource.create.mockResolvedValue({ id: "case-catalog" });
+    await asAdmin(() =>
+      service.createPriceSource({
+        scope: "CASE_OVERRIDE",
+        caseId,
+        title: "Case prices",
+        rawText: "100 EUR",
+      } as never),
+    );
+    expect(db.priceSource.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ workspaceId, clientId, caseId }),
+      }),
+    );
+    expect(db.priceSource.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          clientId,
+          caseId,
+          scope: "CASE_OVERRIDE",
+        }),
+      }),
+    );
+    expect(db.priceSourceVersion.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          version: 1,
+          priceSourceId: "case-catalog",
+        }),
+      }),
+    );
+  });
+  it.each([undefined, caseId])(
+    "appends only to an exact client/case catalog identity (%s)",
+    async (selectedCase) => {
+      db.case.findFirst.mockResolvedValue({ id: caseId, clientId });
+      db.priceSource.findFirst.mockResolvedValue({ id: "existing" });
+      db.priceSourceVersion.findFirst.mockResolvedValue({ version: 3 });
+      await asAdmin(() =>
+        service.createPriceSource({
+          scope: selectedCase ? "CASE_OVERRIDE" : "CLIENT_AGREEMENT",
+          clientId,
+          caseId: selectedCase,
+          title: "Ignored new title",
+          rawText: "200 EUR",
+        } as never),
+      );
+      expect(db.priceSource.findFirst).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            workspaceId,
+            clientId,
+            caseId: selectedCase ?? null,
+          }),
+        }),
+      );
+      expect(db.priceSource.create).not.toHaveBeenCalled();
+      expect(db.priceSourceVersion.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            version: 4,
+            priceSourceId: "existing",
+            rawText: "200 EUR",
+          }),
+        }),
+      );
+      expect(db.$queryRaw).toHaveBeenCalled();
+    },
+  );
+  it("rejects a case that belongs to a different client", async () => {
+    db.case.findFirst.mockResolvedValue({
+      id: caseId,
+      clientId: "another-client",
+    });
+    await expect(
+      asAdmin(() =>
+        service.createPriceSource({
+          scope: "CASE_OVERRIDE",
+          clientId,
+          caseId,
+          title: "Prices",
+          rawText: "200 EUR",
+        } as never),
+      ),
+    ).rejects.toThrow("Case does not belong to client");
+    expect(db.priceSource.create).not.toHaveBeenCalled();
+  });
+  it("keeps office catalogs independent instead of matching client identities", async () => {
+    db.priceSource.create.mockResolvedValue({ id: "office" });
+    await asAdmin(() =>
+      service.createPriceSource({
+        scope: "COMPANY_CATALOG",
+        title: "Prices",
+        rawText: "200 EUR",
+      } as never),
+    );
+    expect(db.priceSource.findFirst).not.toHaveBeenCalled();
+    expect(db.priceSource.create).toHaveBeenCalled();
   });
 
   function mockCreate() {

@@ -2921,5 +2921,8 @@
   "finance.deleteCatalog": "Delete catalog",
   "finance.deleteCatalogConfirm": "Delete this catalog and all its versions permanently? It will no longer be available for price suggestions. Existing work-event prices and invoice amounts will not change.",
   "finance.deleteCatalogError": "The catalog could not be deleted. Please try again.",
-  "finance.catalogViewDescription": "Read the catalog prices below. The latest version is expanded; open earlier versions to review their history."
+  "finance.catalogViewDescription": "Read the catalog prices below. The latest version is expanded; open earlier versions to review their history.",
+  "finance.catalogFilter": "Search clients and cases",
+  "finance.catalogFilterAll": "All clients and cases",
+  "finance.catalogFilterClear": "Clear selection"
 }

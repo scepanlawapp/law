@@ -62,6 +62,92 @@ describe("price source case selection", () => {
       () => new FinancePriceSourcesComponent(),
     );
   });
+  const catalog = (id: string, selectedCase: string | null = null) => ({
+    id,
+    scope: selectedCase ? "CASE_OVERRIDE" : "CLIENT_AGREEMENT",
+    clientId: "client",
+    caseId: selectedCase,
+    title: id,
+    createdAt: "2026-10-14",
+    versions: [{ rawText: id }],
+  });
+  it("matches general client and each case separately, and permits another case catalog", () => {
+    component.sources.set([
+      catalog("general"),
+      catalog("specific", "case-a"),
+    ] as never);
+    component.setClientId("client");
+    expect(component.selectedSource()?.id).toBe("general");
+    component.setCaseId("case-a");
+    expect(component.selectedSource()?.id).toBe("specific");
+    component.setCaseId("case-b");
+    expect(component.selectedSource()).toBeNull();
+    expect(component.form.controls.clientId.value).toBe("client");
+    component.form.patchValue({ title: "Case B", rawText: "300 EUR" });
+    component.save();
+    expect(financials.createPriceSource).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: "client", caseId: "case-b" }),
+    );
+    expect(component.filterClientId()).toBe("client");
+    expect(component.filterCaseId()).toBe("case-b");
+    expect(component.form.controls.caseId.value).toBe("case-b");
+  });
+  it("selects a case without first selecting a client and supports clearing just the case or all filters", () => {
+    component.directoryCases.set([
+      {
+        id: "case-a",
+        name: "Case A",
+        caseNumber: "1",
+        client: { id: "client", displayName: "Client" },
+      },
+      { id: "case-b", client: { id: "other" } },
+    ] as never);
+    component.sources.set([
+      catalog("general"),
+      catalog("specific", "case-a"),
+    ] as never);
+    component.setFilter("case:case-a");
+    expect(component.filterClientId()).toBe("client");
+    expect(component.form.controls.clientId.value).toBe("client");
+    expect(component.form.controls.caseId.value).toBe("case-a");
+    expect(component.visibleSources().map((source) => source.id)).toEqual([
+      "specific",
+    ]);
+    expect(component.filterCases().map((item) => item.id)).toEqual(["case-a"]);
+    component.setFilter("client:client");
+    expect(component.filterCaseId()).toBe("");
+    expect(component.visibleSources()).toHaveLength(2);
+    expect(component.selectedSource()?.id).toBe("general");
+    component.setFilter("");
+    expect(component.filterClientId()).toBe("");
+    expect(component.filterCases()).toHaveLength(2);
+  });
+  it("infers the client when choosing a case directly in the editor", () => {
+    component.cases.set([{ id: "case", client: { id: "client" } }] as never);
+    component.setCaseId("case");
+    expect(component.form.controls.clientId.value).toBe("client");
+    expect(component.form.controls.caseId.value).toBe("case");
+  });
+  it("does not allow selecting another clients case while the filter is scoped", () => {
+    component.directoryCases.set([
+      { id: "case", client: { id: "other" } },
+    ] as never);
+    component.setFilter("client:client");
+    component.setFilter("case:case");
+    expect(component.filterClientId()).toBe("client");
+    expect(component.filterCaseId()).toBe("");
+  });
+  it("ignores client and case list filters in workspace catalog tabs", () => {
+    component.filterClientId.set("client");
+    component.filterCaseId.set("case");
+    component.sources.set([
+      { id: "office", scope: "COMPANY_CATALOG" },
+    ] as never);
+    component.selectTab("COMPANY_CATALOG");
+    expect(component.visibleSources().map((item) => item.id)).toEqual([
+      "office",
+    ]);
+  });
   it("clears the selected catalog and content for a new catalog", () => {
     component.selectSource({
       id: "catalog",

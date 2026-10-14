@@ -1,7 +1,9 @@
-import { Component, inject } from "@angular/core";
+import { toSignal } from "@angular/core/rxjs-interop";
+import { filter, map } from "rxjs";
+import { Component, computed, inject } from "@angular/core";
 import { SidebarComponent } from "../sidebar/sidebar.component";
 import { HeaderComponent } from "../header/header.component";
-import { RouterModule } from "@angular/router";
+import { NavigationEnd, Router, RouterModule } from "@angular/router";
 import { HlmSidebarInset, HlmSidebarWrapper } from "@spartan-ng/helm/sidebar";
 import { QuickCaptureDialogService } from "../../features/time/quick-capture/quick-capture-dialog.service";
 import { WorkTimerStore } from "../../features/time/timer/work-timer.store";
@@ -23,6 +25,17 @@ import { WorkTimerStore } from "../../features/time/timer/work-timer.store";
   ],
 })
 export class MainLayoutComponent {
+  private readonly router = inject(Router);
+  private readonly pageUrl = toSignal(
+    this.router.events.pipe(
+      filter((event): event is NavigationEnd => event instanceof NavigationEnd),
+      map((event) => event.urlAfterRedirects),
+    ),
+    { initialValue: this.router.url },
+  );
+  readonly accentPanels = computed(
+    () => !/^\/(assistant|calendar)(?:[/?#;]|$)/.test(this.pageUrl()),
+  );
   private readonly quickCapture = inject(QuickCaptureDialogService);
 
   constructor() {

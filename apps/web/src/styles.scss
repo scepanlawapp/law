@@ -996,3 +996,28 @@ select optgroup {
     transition: transform 180ms cubic-bezier(0, 0, 0.2, 1) !important;
   }
 }
+
+/* Content panels only: the layout omits this scope on assistant/calendar routes.
+ * Keep controls, dividers, semantic status borders and interactive states intact.
+ */
+main .app-accent-panels {
+  --panel-accent-border: color-mix(in oklab, var(--primary) 32%, var(--border));
+}
+
+main
+  .app-accent-panels
+  :is(
+    .app-section-surface,
+    .app-card-surface,
+    .app-filter-toolbar,
+    .app-data-region,
+    .app-empty-state,
+    .app-stat-card,
+    .detail-section,
+    .app-detail-hierarchy .record,
+    .app-interactive-card:not(:hover):not(:focus-within),
+    law-work-view .work-board-card:not(:hover):not(:focus-within),
+    :is(section, article, aside, div, dl, ul, form).border.border-border
+  ):not([class*="border-primary"]):not([class*="border-destructive"]) {
+  border-color: var(--panel-accent-border);
+}
