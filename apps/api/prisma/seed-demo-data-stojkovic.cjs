@@ -3625,7 +3625,8 @@ async function seedData(db, workspaceId, users, refs) {
 
   // Payments are independent, user-entered financial records. This additive seed
   // deliberately creates no Payment/PaymentAllocation/PaymentAuditEvent rows and
-  // never infers receipts from SENT invoices; existing payments remain untouched.
+  // never infers receipts from SENT invoices; existing payments (including optional
+  // bankStatementNumber associations) remain untouched.
   // --------------------------------------------------------------- invoices
   const sequenceState = await db.invoiceNumberSequenceState.findUnique({
     where: { workspaceId_periodKey: { workspaceId, periodKey: "2026" } },

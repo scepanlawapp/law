@@ -60,6 +60,9 @@
         Bankovni račun
         <br />
         {{ p.bankAccountName ?? "—" }}
+        @if (p.bankStatementNumber) {
+          <p>Broj izvoda: {{ p.bankStatementNumber }}</p>
+        }
       </p>
       <p>
         Referenca

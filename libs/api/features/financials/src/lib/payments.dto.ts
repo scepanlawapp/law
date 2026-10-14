@@ -1,4 +1,4 @@
-import { Type } from "class-transformer";
+import { Transform, Type } from "class-transformer";
 import {
   ArrayMaxSize,
   IsArray,
@@ -15,6 +15,7 @@ import {
 } from "class-validator";
 import {
   PaymentMethod,
+  PaymentAllocationMode,
   PaymentPurpose,
   PaymentQuery,
 } from "@law/api-interfaces";
@@ -63,6 +64,11 @@ export class SavePaymentDto {
   @IsOptional()
   @IsUUID("all", { message: "Izabrani zapis nije ispravan." })
   bankAccountId?: string | null;
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === "string" ? value.trim() : value))
+  @IsString()
+  @MaxLength(50)
+  bankStatementNumber?: string | null;
   @IsArray({ message: "Raspodele moraju biti lista." })
   @ArrayMaxSize(100, { message: "Dozvoljeno je najviše 100 raspodela." })
   @ValidateNested({ each: true })
@@ -142,4 +148,29 @@ export class PaymentQueryDto implements PaymentQuery {
   @IsOptional()
   @IsIn(["asc", "desc"], { message: "Izabrana vrednost nije dozvoljena." })
   direction?: "asc" | "desc";
+}
+
+export class PaymentAllocationPreviewDto {
+  @IsUUID()
+  clientId!: string;
+  @Matches(/^[A-Z]{3}$/)
+  currency!: string;
+  @Matches(/^\d{1,16}(\.\d{1,2})?$/)
+  amount!: string;
+  @IsIn(["REGULAR", "ADVANCE"])
+  purpose!: PaymentPurpose;
+  @IsOptional()
+  @IsUUID()
+  paymentId?: string;
+  @IsOptional()
+  @IsString()
+  @MaxLength(250)
+  reference?: string | null;
+  @IsIn(["AUTOMATIC", "SELECTED_OLDEST", "EQUAL"])
+  mode!: PaymentAllocationMode;
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(100)
+  @IsUUID("all", { each: true })
+  invoiceIds?: string[];
 }

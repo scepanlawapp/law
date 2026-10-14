@@ -1,3 +1,5 @@
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideWandSparkles, lucideSplit, lucideCheck } from "@ng-icons/lucide";
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed, toSignal } from "@angular/core/rxjs-interop";
 import {
@@ -11,11 +13,13 @@ import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { PaymentsApiClient } from "@law/api-clients";
 import {
   InvoiceCollection,
+  PaymentAllocationMode,
   PaymentDetail,
   PaymentOptions,
   SavePaymentRequest,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { HlmProgressImports } from "@spartan-ng/helm/progress";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
@@ -32,15 +36,18 @@ const control = (value = "") => new FormControl(value, { nonNullable: true });
   standalone: true,
   imports: [
     ReactiveFormsModule,
+    NgIcon,
     RouterLink,
     HlmButton,
     HlmInput,
+    HlmProgressImports,
     HlmSpinner,
     HlmTableImports,
     HlmTextarea,
     PaymentSelectComponent,
     PaymentClientPickerComponent,
   ],
+  providers: [provideIcons({ lucideWandSparkles, lucideSplit, lucideCheck })],
   templateUrl: "./payment-form.component.html",
 })
 export class PaymentFormComponent {
@@ -58,6 +65,24 @@ export class PaymentFormComponent {
   readonly original = signal<PaymentDetail | null>(null);
   readonly options = signal<PaymentOptions | null>(null);
   readonly invoices = signal<InvoiceCollection[]>([]);
+  readonly selected = signal(new Set<string>());
+  readonly previewing = signal(false);
+  readonly feedback = signal("");
+  readonly previewWarning = signal("");
+  readonly newAdvance = computed(() => {
+    this.values();
+    return !this.id && this.form.controls.purpose.value === "ADVANCE";
+  });
+  readonly allSelected = computed(
+    () =>
+      this.invoices().length > 0 &&
+      this.invoices().every((i) => this.selected().has(i.id)),
+  );
+  readonly someSelected = computed(
+    () =>
+      !this.allSelected() &&
+      this.invoices().some((i) => this.selected().has(i.id)),
+  );
   readonly methods = methods;
   readonly purposes = purposes;
   readonly money = money;
@@ -77,6 +102,7 @@ export class PaymentFormComponent {
     paymentMethod: control("BANK_TRANSFER"),
     purpose: control("REGULAR"),
     bankAccountId: control(),
+    bankStatementNumber: control(),
     reference: control(),
     note: control(),
     allocations: new FormArray<
@@ -98,6 +124,12 @@ export class PaymentFormComponent {
     return minor(this.form.controls.amount.value) - this.allocated();
   });
   readonly allocatedText = computed(() => decimal(this.allocated()));
+  readonly allocatedPercent = computed(() => {
+    this.values();
+    const total = minor(this.form.controls.amount.value);
+    if (total <= 0n) return 0;
+    return Math.min(100, Number((this.allocated() * 100n) / total));
+  });
   readonly remainingText = computed(() => decimal(this.remaining()));
   readonly currencies = computed(
     () =>
@@ -119,6 +151,22 @@ export class PaymentFormComponent {
       c.valueChanges
         .pipe(takeUntilDestroyed(this.destroy))
         .subscribe(() => void this.loadEligible());
+    this.form.controls.bankAccountId.valueChanges
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe(() => {
+        this.form.controls.bankStatementNumber.setValue("");
+      });
+    this.form.controls.purpose.valueChanges
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe((value) => {
+        if (!this.id && value === "ADVANCE") this.clearProposal();
+      });
+    this.form.valueChanges
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe(() => {
+        this.feedback.set("");
+        this.previewWarning.set("");
+      });
     void this.load();
   }
   async load() {
@@ -144,6 +192,7 @@ export class PaymentFormComponent {
             clientId: payment.clientId ?? "",
             payerName: payment.payerName ?? "",
             bankAccountId: payment.bankAccountId ?? "",
+            bankStatementNumber: payment.bankStatementNumber ?? "",
             reference: payment.reference ?? "",
             note: payment.note ?? "",
             allocations: [],
@@ -169,7 +218,6 @@ export class PaymentFormComponent {
         const i = this.invoices().find((i) => i.id === invoiceId);
         if (i) {
           this.form.controls.amount.setValue(i.remainingAmount);
-          this.add(i, i.remainingAmount);
         }
       }
       this.form.markAsPristine();
@@ -181,6 +229,7 @@ export class PaymentFormComponent {
   }
   async loadEligible() {
     const request = ++this.sequence;
+    this.selected.set(new Set());
     const { clientId, currency } = this.form.getRawValue();
     this.eligibleError.set("");
     if (!clientId || !currency) {
@@ -193,7 +242,10 @@ export class PaymentFormComponent {
       const invoices = await firstValueFrom(
         this.api.eligible(clientId, currency, this.id ?? undefined),
       );
-      if (request === this.sequence) this.invoices.set(invoices);
+      if (request === this.sequence) {
+        this.invoices.set(invoices);
+        for (const i of invoices) this.add(i, "0.00");
+      }
     } catch (e) {
       if (request === this.sequence) {
         this.invoices.set([]);
@@ -208,6 +260,18 @@ export class PaymentFormComponent {
       this.invoices().find((i) => i.id === id) ||
       this.original()?.allocations.find((i) => i.id === id)
     );
+  }
+  isEligible(id: string) {
+    return this.invoices().some((invoice) => invoice.id === id);
+  }
+  allocationIndex(id: string) {
+    return this.form.controls.allocations.controls.findIndex(
+      (row) => row.controls.invoiceId.value === id,
+    );
+  }
+  allocation(id: string) {
+    const index = this.allocationIndex(id);
+    return index < 0 ? null : this.form.controls.allocations.at(index);
   }
   has(id: string) {
     return this.form.controls.allocations.controls.some(
@@ -240,7 +304,10 @@ export class PaymentFormComponent {
     this.form.markAsDirty();
   }
   remove(index: number) {
-    this.form.controls.allocations.removeAt(index);
+    const row = this.form.controls.allocations.at(index);
+    if (this.isEligible(row.controls.invoiceId.value))
+      row.controls.amount.setValue("0.00");
+    else this.form.controls.allocations.removeAt(index);
     this.form.markAsDirty();
   }
   fill(index: number) {
@@ -258,6 +325,114 @@ export class PaymentFormComponent {
       ),
     );
     this.form.markAsDirty();
+  }
+  positive(id: string) {
+    return minor(this.allocation(id)?.controls.amount.value ?? "0") > 0n;
+  }
+  fullyAllocated(i: InvoiceCollection) {
+    return (
+      minor(i.remainingAmount) > 0n &&
+      minor(this.allocation(i.id)?.controls.amount.value ?? "0") ===
+        minor(i.remainingAmount)
+    );
+  }
+  toggleSelection(id: string, checked: boolean) {
+    const selected = new Set(this.selected());
+    if (checked) selected.add(id);
+    else selected.delete(id);
+    this.selected.set(selected);
+  }
+  selectAll(checked: boolean) {
+    this.selected.set(new Set(checked ? this.invoices().map((i) => i.id) : []));
+  }
+  clearProposal() {
+    for (const row of this.form.controls.allocations.controls)
+      row.controls.amount.setValue("0.00");
+    this.form.markAsDirty();
+    this.feedback.set("");
+    this.previewWarning.set("");
+  }
+  async distribute(mode: PaymentAllocationMode) {
+    if (
+      this.previewing() ||
+      this.saving() ||
+      this.eligibleLoading() ||
+      this.newAdvance()
+    )
+      return;
+    const value = this.form.getRawValue();
+    if (
+      !value.clientId ||
+      this.form.controls.amount.invalid ||
+      minor(value.amount) <= 0n
+    ) {
+      this.error.set("Izaberite klijenta i unesite pozitivan iznos uplate.");
+      return;
+    }
+    if (mode !== "AUTOMATIC" && !this.selected().size) {
+      this.error.set("Izaberite najmanje jednu fakturu.");
+      return;
+    }
+    this.previewing.set(true);
+    this.error.set("");
+    try {
+      if (
+        this.form.controls.allocations.controls.some(
+          (row) =>
+            (row.controls.amount.dirty && row.controls.amount.invalid) ||
+            minor(row.controls.amount.value) > 0n,
+        ) &&
+        !(await firstValueFrom(
+          this.confirm.confirm({
+            title: "Zameni postojeću raspodelu?",
+            message:
+              "Predlog će zameniti trenutne iznose raspodele. Promene se čuvaju tek kada sačuvate uplatu.",
+            confirmText: "Zameni raspodelu",
+            cancelText: "Odustani",
+          }),
+        ))
+      )
+        return;
+      const snapshot = JSON.stringify(this.form.getRawValue());
+      const result = await firstValueFrom(
+        this.api.preview({
+          clientId: value.clientId,
+          currency: value.currency,
+          amount: value.amount,
+          purpose: value.purpose as "REGULAR" | "ADVANCE",
+          reference: value.reference,
+          paymentId: this.id ?? undefined,
+          mode,
+          invoiceIds: mode === "AUTOMATIC" ? undefined : [...this.selected()],
+        }),
+      );
+      if (snapshot !== JSON.stringify(this.form.getRawValue())) {
+        this.error.set(
+          "Podaci su izmenjeni tokom računanja. Ponovite raspodelu.",
+        );
+        return;
+      }
+      if (result.allocations.some((a) => !this.allocation(a.invoiceId))) {
+        this.error.set(
+          "Lista faktura je izmenjena. Osvežite fakture i ponovite raspodelu.",
+        );
+        return;
+      }
+      this.clearProposal();
+      for (const a of result.allocations) {
+        const row = this.allocation(a.invoiceId);
+        if (!row) throw new Error("Faktura nije dostupna. Osvežite listu.");
+        row.controls.amount.setValue(a.amount);
+      }
+      this.previewWarning.set(result.warning ?? "");
+      this.feedback.set(
+        `Predlog raspodele na ${result.allocations.length} faktura. Preostali iznos ${money(result.unallocatedAmount, value.currency)} možete rasporediti naknadno. Promene još nisu sačuvane.`,
+      );
+    } catch (e) {
+      this.error.set(paymentError(e));
+    } finally {
+      this.previewing.set(false);
+    }
   }
   async cancel() {
     if (this.saving()) return;
@@ -278,10 +453,15 @@ export class PaymentFormComponent {
     );
   }
   async submit() {
-    if (this.saving() || this.loading()) return;
+    if (this.saving() || this.loading() || this.previewing()) return;
     this.form.markAllAsTouched();
     this.error.set("");
     const value = this.form.getRawValue();
+    value.allocations = value.allocations.filter((a) => minor(a.amount) > 0n);
+    if (this.newAdvance() && value.allocations.length) {
+      this.error.set("Avans se kreira bez raspodele.");
+      return;
+    }
     if (
       this.form.invalid ||
       minor(value.amount) <= 0n ||
@@ -311,6 +491,9 @@ export class PaymentFormComponent {
       purpose: value.purpose as SavePaymentRequest["purpose"],
       clientId: value.clientId || null,
       bankAccountId: value.bankAccountId || null,
+      bankStatementNumber: value.bankAccountId
+        ? value.bankStatementNumber.trim() || null
+        : null,
       version: this.original()?.version,
     };
     const serialized = JSON.stringify(body);

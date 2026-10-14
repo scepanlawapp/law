@@ -17,6 +17,7 @@ export interface SavePaymentRequest {
   payerName?: string | null;
   note?: string | null;
   bankAccountId?: string | null;
+  bankStatementNumber?: string | null;
   allocations: PaymentAllocationInput[];
   version?: number;
 }
@@ -50,6 +51,7 @@ export interface PaymentSummary {
   reference: string | null;
   note: string | null;
   bankAccountId: string | null;
+  bankStatementNumber?: string | null;
   allocatedAmount: string;
   unallocatedAmount: string;
   allocationState: AllocationState;
@@ -123,4 +125,22 @@ export interface InvoicePaymentHistory {
   reference: string | null;
   status: PaymentStatus;
   removedAt: string | null;
+}
+
+export type PaymentAllocationMode = "AUTOMATIC" | "SELECTED_OLDEST" | "EQUAL";
+export interface PaymentAllocationPreviewRequest {
+  clientId: string;
+  currency: string;
+  amount: string;
+  purpose: PaymentPurpose;
+  paymentId?: string;
+  reference?: string | null;
+  mode: PaymentAllocationMode;
+  invoiceIds?: string[];
+}
+export interface PaymentAllocationPreview {
+  allocations: PaymentAllocationInput[];
+  allocatedAmount: string;
+  unallocatedAmount: string;
+  warning: string | null;
 }

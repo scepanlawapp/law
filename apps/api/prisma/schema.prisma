@@ -2284,6 +2284,7 @@ model Payment {
   reference       String?
   payerName       String?
   note            String?             @db.Text
+  bankStatementNumber String? @db.VarChar(50)
   bankAccountId   String?
   createdByUserId String
   updatedByUserId String

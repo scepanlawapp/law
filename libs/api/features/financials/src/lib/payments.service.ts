@@ -1,3 +1,4 @@
+import { allocatePayment } from "./payment-allocation";
 import { toLatin } from "@law/transliteration";
 import {
   BadRequestException,
@@ -24,6 +25,7 @@ import { Prisma } from "@prisma/client";
 import { createHash } from "node:crypto";
 import {
   PaymentQueryDto,
+  PaymentAllocationPreviewDto,
   SavePaymentDto,
   VoidPaymentDto,
 } from "./payments.dto";
@@ -259,11 +261,16 @@ export class PaymentsService {
       ),
     }));
   }
-  async eligible(clientId: string, currency: string, paymentId?: string) {
+  async eligible(
+    clientId: string,
+    currency: string,
+    paymentId?: string,
+    tx: Prisma.TransactionClient = this.db,
+  ) {
     this.authorize();
-    const rows = await this.collections(clientId);
+    const rows = await this.collections(clientId, undefined, tx);
     const current = paymentId
-      ? await this.db.paymentAllocation.findMany({
+      ? await tx.paymentAllocation.findMany({
           where: {
             workspaceId: this.workspaceId,
             paymentId,
@@ -291,6 +298,76 @@ export class PaymentsService {
           )
           .toFixed(2),
       }));
+  }
+  async preview(input: PaymentAllocationPreviewDto) {
+    this.authorize();
+    this.money(input.amount);
+    if (!input.paymentId && input.purpose === "ADVANCE")
+      throw new BadRequestException(
+        "Avans se kreira bez raspodele. Rasporedite ga nakon čuvanja.",
+      );
+    return this.db.$transaction(
+      async (tx) => {
+        if (input.paymentId) {
+          const payment = await tx.payment.findFirst({
+            where: {
+              id: input.paymentId,
+              workspaceId: this.workspaceId,
+              status: "ACTIVE",
+            },
+          });
+          if (!payment) throw new NotFoundException("Uplata nije dostupna.");
+        }
+        if (
+          !(await tx.client.findFirst({
+            where: { id: input.clientId, workspaceId: this.workspaceId },
+          }))
+        )
+          throw new BadRequestException("Klijent nije dostupan.");
+        const eligible = await this.eligible(
+          input.clientId,
+          input.currency,
+          input.paymentId,
+          tx,
+        );
+        const ids = new Set(input.invoiceIds ?? []);
+        if (
+          input.mode !== "AUTOMATIC" &&
+          (!ids.size ||
+            [...ids].some((id) => !eligible.some((i) => i.id === id)))
+        )
+          throw new BadRequestException(
+            "Izaberite dostupne fakture istog klijenta i valute.",
+          );
+        const rows =
+          input.mode === "AUTOMATIC"
+            ? eligible
+            : eligible.filter((i) => ids.has(i.id));
+        const references = await tx.invoice.findMany({
+          where: {
+            workspaceId: this.workspaceId,
+            id: { in: rows.map((i) => i.id) },
+          },
+          select: {
+            id: true,
+            externalInvoiceNumber: true,
+            externalReference: true,
+          },
+        });
+        const result = allocatePayment(
+          input.amount,
+          rows.map((i) => ({ ...i, ...references.find((r) => r.id === i.id) })),
+          input.mode,
+          input.reference,
+        );
+        if (result.allocations.length > 100)
+          throw new BadRequestException(
+            "Dozvoljeno je najviše 100 raspodela. Izaberite do 100 faktura.",
+          );
+        return result;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
+    );
   }
   async summary(q: PaymentQueryDto): Promise<CollectionTotals[]> {
     this.authorize();
@@ -544,6 +621,15 @@ export class PaymentsService {
             },
           });
         } else {
+          if (!id && body.purpose === "ADVANCE" && body.allocations.length)
+            throw new BadRequestException(
+              "Avans se kreira bez raspodele. Rasporedite ga nakon čuvanja.",
+            );
+          const statement = body.bankStatementNumber?.trim() || null;
+          if (statement && (!body.bankAccountId || statement.length > 50))
+            throw new BadRequestException(
+              "Broj izvoda zahteva bankovni račun i najviše 50 znakova.",
+            );
           const amount = this.money(body.amount);
           const receivedAt = this.date(body.receivedAt);
           if (
@@ -632,6 +718,7 @@ export class PaymentsService {
             payerName: body.payerName ? toLatin(body.payerName.trim()) : null,
             note: body.note ? toLatin(body.note.trim()) : null,
             bankAccountId: body.bankAccountId || null,
+            bankStatementNumber: statement ? toLatin(statement) : null,
             updatedByUserId: this.context.userId,
           };
           const payment = id
