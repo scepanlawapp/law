@@ -1,29 +1,43 @@
 <button
-  hlmBtn
-  variant="ghost"
+  hlmSidebarMenuButton
+  size="lg"
+  [closeMobileSidebarOnClick]="false"
+  [tooltip]="'header.userMenu' | translate"
   type="button"
-  class="flex items-center gap-2"
+  class="group-data-[collapsible=icon]:justify-center"
   [hlmDropdownMenuTrigger]="userMenu"
+  side="right"
+  align="end"
   (hlmDropdownMenuOpened)="menuOpen.set(true)"
   (hlmDropdownMenuClosed)="menuOpen.set(false)"
   [attr.aria-label]="'header.userMenu' | translate"
 >
-  <law-user-avatar [user]="avatarUser()" size="sm" />
-  <span class="truncate">{{ displayName() }}</span>
+  <law-user-avatar class="shrink-0" [user]="avatarUser()" size="sm" />
+  <span class="min-w-0 flex-1 truncate group-data-[collapsible=icon]:hidden">
+    {{ displayName() }}
+  </span>
   <ng-icon
+    class="ms-auto group-data-[collapsible=icon]:hidden"
     [name]="menuOpen() ? 'lucideChevronUp' : 'lucideChevronDown'"
     aria-hidden="true"
   />
 </button>
 
 <ng-template #userMenu>
-  <hlm-dropdown-menu width="content" aria-label="User menu">
+  <hlm-dropdown-menu
+    width="content"
+    [attr.aria-label]="'header.userMenu' | translate"
+  >
     <hlm-dropdown-menu-group>
       <div class="flex items-center gap-2 p-2">
         <law-user-avatar [user]="avatarUser()" size="sm" />
         <div class="min-w-0">
-          <strong class="block truncate text-sm font-medium">{{ displayName() }}</strong>
-          <small class="text-muted-foreground block truncate text-xs">{{ user().email }}</small>
+          <strong class="block truncate text-sm font-medium">
+            {{ displayName() }}
+          </strong>
+          <small class="text-muted-foreground block truncate text-sm">
+            {{ user().email }}
+          </small>
         </div>
       </div>
       <div class="p-1">
