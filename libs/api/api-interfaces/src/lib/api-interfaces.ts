@@ -1480,6 +1480,7 @@ export interface InvoiceWorkEntrySummary {
 }
 
 export interface InvoiceSummary {
+  collection?: import("./payments").InvoiceCollection;
   id: string;
   invoiceNumber: string;
   client: FinancialClientReference;
@@ -1845,3 +1846,5 @@ export interface ClientRequest {
   referringLawyerId?: string | null;
   tagIds?: string[];
 }
+
+export * from "./payments";

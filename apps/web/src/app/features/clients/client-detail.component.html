@@ -901,12 +901,7 @@
         </p>
       </section>
       <section hlmTabsContent="financials" class="space-y-3 pt-6">
-        <h2 class="text-xl font-semibold">
-          {{ "clients.financials" | translate }}
-        </h2>
-        <p class="text-muted-foreground">
-          {{ "common.notAvailableYet" | translate }}
-        </p>
+        <law-collection-panel [clientId]="item.id" />
       </section>
     </div>
   </div>

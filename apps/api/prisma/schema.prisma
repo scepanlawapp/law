@@ -145,6 +145,9 @@ enum InvoiceStatus {
 }
 
 enum FinanceMutationOperation {
+  CREATE_PAYMENT
+  UPDATE_PAYMENT
+  VOID_PAYMENT
   CREATE_INVOICE
   SEND_INVOICE
 }
@@ -317,6 +320,12 @@ enum UploadOperationPurpose {
 }
 
 model User {
+  createdPayments    Payment[]           @relation("PaymentCreator")
+  updatedPayments    Payment[]           @relation("PaymentUpdater")
+  voidedPayments     Payment[]           @relation("PaymentVoider")
+  paymentAllocations PaymentAllocation[]
+  paymentAuditEvents PaymentAuditEvent[]
+
   id                    String                 @id @default(uuid())
   email                 String                 @unique
   passwordHash          String?
@@ -392,6 +401,10 @@ model UserSettings {
 }
 
 model Workspace {
+  payments           Payment[]
+  paymentAllocations PaymentAllocation[]
+  paymentAuditEvents PaymentAuditEvent[]
+
   id                          String                       @id @default(uuid())
   name                        String
   createdAt                   DateTime                     @default(now()) @db.Timestamptz(3)
@@ -527,6 +540,8 @@ model OrganizationSettings {
 }
 
 model BankAccount {
+  payments Payment[]
+
   id            String                 @id @default(uuid())
   workspaceId   String
   name          String
@@ -544,6 +559,7 @@ model BankAccount {
 
   @@index([workspaceId, active])
   @@index([workspaceId, isDefault])
+  @@unique([workspaceId, id])
 }
 
 model InvoiceNumberSequenceState {
@@ -659,6 +675,8 @@ model PracticeArea {
 }
 
 model Client {
+  payments Payment[]
+
   id                      String                         @id @default(uuid())
   workspaceId             String
   clientNumber            String
@@ -712,6 +730,7 @@ model Client {
   @@index([workspaceId, responsibleUserId, status])
   @@index([workspaceId, email])
   @@index([workspaceId, phone])
+  @@unique([workspaceId, id])
 }
 
 model ClientAddress {
@@ -1070,6 +1089,8 @@ model PriceSourceVersion {
 }
 
 model Invoice {
+  paymentAllocations PaymentAllocation[]
+
   id                     String                 @id @default(uuid())
   workspaceId            String
   clientId               String
@@ -1119,6 +1140,7 @@ model Invoice {
   @@unique([workspaceId, invoiceNumber])
   @@index([workspaceId, clientId, status, dateOfMaturity])
   @@index([workspaceId, status, dateOfMaturity])
+  @@unique([workspaceId, id])
 }
 
 model InvoiceWorkEntryAllocation {
@@ -2230,4 +2252,93 @@ model RevenueSharingRule {
   @@unique([versionId, ruleId])
   @@index([workspaceId, memberId, effectiveFrom, effectiveTo])
   @@index([workspaceId, scopeType, scopeId, earningType])
+}
+
+enum PaymentStatus {
+  ACTIVE
+  VOIDED
+}
+
+enum ReceiptMethod {
+  BANK_TRANSFER
+  CASH
+  CARD
+  OTHER
+}
+
+enum PaymentPurpose {
+  REGULAR
+  ADVANCE
+}
+
+model Payment {
+  id              String              @id @default(uuid())
+  workspaceId     String
+  clientId        String?
+  amount          Decimal             @db.Decimal(18, 2)
+  currency        String
+  receivedAt      DateTime            @db.Date
+  paymentMethod   ReceiptMethod
+  purpose         PaymentPurpose      @default(REGULAR)
+  status          PaymentStatus       @default(ACTIVE)
+  reference       String?
+  payerName       String?
+  note            String?             @db.Text
+  bankAccountId   String?
+  createdByUserId String
+  updatedByUserId String
+  version         Int                 @default(1)
+  createdAt       DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime            @updatedAt @db.Timestamptz(3)
+  voidedAt        DateTime?           @db.Timestamptz(3)
+  voidedByUserId  String?
+  voidReason      String?
+  workspace       Workspace           @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  client          Client?             @relation(fields: [workspaceId, clientId], references: [workspaceId, id], onDelete: Restrict)
+  bankAccount     BankAccount?        @relation(fields: [workspaceId, bankAccountId], references: [workspaceId, id], onDelete: Restrict)
+  createdBy       User                @relation("PaymentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy       User                @relation("PaymentUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  voidedBy        User?               @relation("PaymentVoider", fields: [voidedByUserId], references: [id], onDelete: Restrict)
+  allocations     PaymentAllocation[]
+  auditEvents     PaymentAuditEvent[]
+
+  @@unique([workspaceId, id])
+  @@index([workspaceId, status, receivedAt])
+  @@index([workspaceId, clientId, currency])
+}
+
+model PaymentAllocation {
+  id              String    @id @default(uuid())
+  workspaceId     String
+  paymentId       String
+  invoiceId       String
+  amount          Decimal   @db.Decimal(18, 2)
+  createdByUserId String
+  createdAt       DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @db.Timestamptz(3)
+  removedAt       DateTime? @db.Timestamptz(3)
+  workspace       Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  payment         Payment   @relation(fields: [workspaceId, paymentId], references: [workspaceId, id], onDelete: Restrict)
+  invoice         Invoice   @relation(fields: [workspaceId, invoiceId], references: [workspaceId, id], onDelete: Restrict)
+  createdBy       User      @relation(fields: [createdByUserId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, paymentId, removedAt])
+  @@index([workspaceId, invoiceId, removedAt])
+}
+
+model PaymentAuditEvent {
+  id                String    @id @default(uuid())
+  workspaceId       String
+  paymentId         String
+  action            String
+  performedByUserId String
+  previousData      Json?
+  newData           Json
+  reason            String?
+  createdAt         DateTime  @default(now()) @db.Timestamptz(3)
+  workspace         Workspace @relation(fields: [workspaceId], references: [id], onDelete: Restrict)
+  payment           Payment   @relation(fields: [workspaceId, paymentId], references: [workspaceId, id], onDelete: Restrict)
+  performedBy       User      @relation(fields: [performedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, paymentId, createdAt])
 }

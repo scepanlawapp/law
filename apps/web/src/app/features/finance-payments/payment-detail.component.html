@@ -1,0 +1,223 @@
+<div class="mx-auto max-w-6xl space-y-4 p-4 md:p-6">
+  <a hlmBtn variant="ghost" routerLink="/finance/payments">← Uplate</a>
+  @if (loading()) {
+    <hlm-spinner aria-label="Učitavanje uplate" />
+  }
+  @if (error()) {
+    <div role="alert" class="border border-destructive p-3">
+      {{ error() }}
+      <button hlmBtn variant="outline" (click)="load()">Osveži podatke</button>
+    </div>
+  }
+  @if (payment(); as p) {
+    <header class="flex flex-wrap items-center justify-between gap-3">
+      <div>
+        <h1 class="text-2xl font-semibold">
+          Uplata · {{ money(p.amount, p.currency) }}
+        </h1>
+        <p>
+          {{ p.status === "VOIDED" ? "Poništena" : state(p.allocationState) }} ·
+          {{ p.purpose === "ADVANCE" ? "Avans" : "Redovna uplata" }}
+        </p>
+      </div>
+      @if (p.status === "ACTIVE") {
+        <div class="flex flex-wrap gap-2">
+          <a hlmBtn [routerLink]="['/finance/payments', p.id, 'edit']">
+            {{
+              p.unallocatedAmount !== "0.00"
+                ? "Rasporedi preostali iznos"
+                : "Izmeni uplatu / raspodelu"
+            }}
+          </a>
+          <button hlmBtn variant="outline" (click)="showVoid.set(!showVoid())">
+            Poništi uplatu
+          </button>
+        </div>
+      }
+    </header>
+    <section class="app-section-surface grid gap-3 p-4 md:grid-cols-3">
+      <p>
+        Klijent
+        <br />
+        <strong>{{ p.clientName ?? "Neidentifikovan klijent" }}</strong>
+      </p>
+      <p>
+        Uplatilac
+        <br />
+        {{ p.payerName ?? "—" }}
+      </p>
+      <p>
+        Datum uplate
+        <br />
+        {{ date(p.receivedAt) }}
+      </p>
+      <p>
+        Način plaćanja
+        <br />
+        {{ method(p.paymentMethod) }}
+      </p>
+      <p>
+        Bankovni račun
+        <br />
+        {{ p.bankAccountName ?? "—" }}
+      </p>
+      <p>
+        Referenca
+        <br />
+        {{ p.reference ?? "—" }}
+      </p>
+      <p class="whitespace-pre-wrap md:col-span-3">
+        Napomena: {{ p.note ?? "—" }}
+      </p>
+      <p>
+        Kreirao: {{ p.createdBy }}
+        <br />
+        {{ date(p.createdAt) }}
+      </p>
+      <p>
+        Izmenio: {{ p.updatedBy }}
+        <br />
+        {{ date(p.updatedAt) }}
+      </p>
+      @if (p.voidReason) {
+        <p>Razlog poništavanja: {{ p.voidReason }}</p>
+      }
+    </section>
+    <section class="grid gap-3 sm:grid-cols-3">
+      <p class="app-section-surface p-3">
+        Ukupno
+        <br />
+        <strong>{{ money(p.amount, p.currency) }}</strong>
+      </p>
+      <p class="app-section-surface p-3">
+        Raspoređeno
+        <br />
+        <strong>{{ money(p.allocatedAmount, p.currency) }}</strong>
+      </p>
+      <p class="app-section-surface p-3">
+        Neraspoređeno
+        <br />
+        <strong>{{ money(p.unallocatedAmount, p.currency) }}</strong>
+      </p>
+    </section>
+    @if (showVoid() && p.status === "ACTIVE") {
+      <section class="app-section-surface space-y-3 p-4">
+        <label for="void-reason">Razlog poništavanja (obavezno)</label>
+        <input
+          hlmInput
+          id="void-reason"
+          class="w-full"
+          [formControl]="reason"
+          maxlength="1000"
+        />
+        @if (reason.touched && reason.invalid) {
+          <p role="alert">Unesite razlog poništavanja.</p>
+        }
+        <button hlmBtn [disabled]="saving()" (click)="voidPayment()">
+          @if (saving()) {
+            <hlm-spinner />
+          }
+          Potvrdi poništavanje
+        </button>
+      </section>
+    }
+    <section class="app-section-surface space-y-3 p-4">
+      <h2 class="text-lg font-semibold">Raspodele i istorija raspodele</h2>
+      <div hlmTableContainer>
+        <table hlmTable>
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh>Račun / Klijent</th>
+              <th hlmTh>Ukupno</th>
+              <th hlmTh>Raspodela</th>
+              <th hlmTh>Preostali dug</th>
+              <th hlmTh>Status</th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (a of p.allocations; track a.allocationId) {
+              <tr hlmTr>
+                <td hlmTd>
+                  <a
+                    class="underline"
+                    [routerLink]="['/finance/invoices', a.id]"
+                  >
+                    {{ a.invoiceNumber }}
+                  </a>
+                  <p>{{ a.clientName }}</p>
+                </td>
+                <td hlmTd>{{ money(a.grossAmount, a.currency) }}</td>
+                <td hlmTd>{{ money(a.amount, a.currency) }}</td>
+                <td hlmTd>{{ money(a.remainingAmount, a.currency) }}</td>
+                <td hlmTd>
+                  {{
+                    a.removedAt
+                      ? "Uklonjena / zamenjena"
+                      : p.status === "VOIDED"
+                        ? "Uplata poništena"
+                        : "Aktivna"
+                  }}
+                </td>
+              </tr>
+            } @empty {
+              <tr hlmTr><td hlmTd colspan="5">Uplata nema raspodela.</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <section class="app-section-surface space-y-3 p-4">
+      <h2 class="text-lg font-semibold">Istorija izmena</h2>
+      @for (a of p.auditEvents; track a.id) {
+        <article class="border-b pb-3">
+          <p>
+            {{ timestamp(a.createdAt) }} · {{ a.actor }} ·
+            {{ action(a.action) }}
+          </p>
+          @if (a.reason) {
+            <p>{{ a.reason }}</p>
+          }
+          <details>
+            <summary class="cursor-pointer text-sm">
+              Prethodni i novi podaci
+            </summary>
+            <div class="grid gap-3 md:grid-cols-2">
+              @for (
+                side of [
+                  { title: "Pre promene", data: a.previousData },
+                  { title: "Posle promene", data: a.newData },
+                ];
+                track side.title
+              ) {
+                <div class="space-y-2">
+                  <h3 class="font-semibold">{{ side.title }}</h3>
+                  @if (snapshot(side.data); as s) {
+                    @for (field of s.fields; track field.label) {
+                      <p class="text-sm break-words">
+                        {{ field.label }}: {{ field.value }}
+                      </p>
+                    }
+                    <h4 class="font-medium">Raspodele</h4>
+                    @for (
+                      allocation of s.allocations;
+                      track allocation.allocationId
+                    ) {
+                      <p class="text-sm">
+                        {{ allocation.invoiceNumber }}:
+                        {{ money(allocation.amount, allocation.currency) }}
+                      </p>
+                    } @empty {
+                      <p>Nema raspodela.</p>
+                    }
+                  } @else {
+                    <p>—</p>
+                  }
+                </div>
+              }
+            </div>
+          </details>
+        </article>
+      }
+    </section>
+  }
+</div>

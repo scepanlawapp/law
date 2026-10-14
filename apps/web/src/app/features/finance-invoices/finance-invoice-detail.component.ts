@@ -1,3 +1,4 @@
+import { CollectionPanelComponent } from "../finance-payments/collection-panel.component";
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute, RouterLink } from "@angular/router";
@@ -29,6 +30,7 @@ import {
   standalone: true,
   templateUrl: "./finance-invoice-detail.component.html",
   imports: [
+    CollectionPanelComponent,
     RouterLink,
     HlmButton,
     HlmSpinner,

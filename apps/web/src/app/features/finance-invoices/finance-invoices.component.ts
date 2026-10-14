@@ -7,7 +7,7 @@ import {
   ClientSummary,
 } from "@law/api-interfaces";
 import { ClientsApiClient, FinancialsApiClient } from "@law/api-clients";
-import { RouterLink } from "@angular/router";
+import { ActivatedRoute, RouterLink } from "@angular/router";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucidePencil, lucideTrash2 } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -155,6 +155,9 @@ export class FinanceInvoicesComponent {
   });
 
   constructor() {
+    const clientId =
+      inject(ActivatedRoute).snapshot.queryParamMap.get("clientId");
+    if (clientId) this.clientIds.set([clientId]);
     const controls = [
       this.search,
       this.status,

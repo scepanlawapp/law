@@ -1,0 +1,286 @@
+<div class="space-y-4 p-4 md:p-6">
+  <header class="flex flex-wrap items-center justify-between gap-3">
+    <div>
+      <h1 class="text-2xl font-semibold">Uplate</h1>
+      <p class="text-muted-foreground">
+        Pregled i evidencija primljenih uplata klijenata.
+      </p>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <span title="Uvoz bankovnih izvoda biće dostupan uskoro.">
+        <button hlmBtn variant="outline" disabled>
+          Uvezi bankovni izvod · Uskoro
+        </button>
+      </span>
+      <a hlmBtn routerLink="/finance/payments/new">Nova uplata</a>
+    </div>
+  </header>
+  <p class="text-sm text-muted-foreground">
+    Primljeno i raspoređeno: prema datumu prijema u izabranom periodu.
+    Neraspoređeno, avansi i dug: trenutno stanje za sve datume. Sažetak prati
+    klijenta i valutu; ostali filteri važe za tabelu.
+  </p>
+  @if (!error()) {
+    @for (t of totals(); track t.currency) {
+      <section
+        class="grid grid-cols-2 gap-2 lg:grid-cols-6"
+        [attr.aria-label]="'Sažetak ' + t.currency"
+      >
+        @for (
+          card of [
+            { label: "Ukupno primljeno", value: t.received },
+            { label: "Ukupno raspoređeno", value: t.allocated },
+            { label: "Neraspoređena sredstva", value: t.unallocated },
+            { label: "Neraspoređeni avansi", value: t.advances },
+            { label: "Preostali dug", value: t.outstanding },
+            { label: "Dospeo dug", value: t.overdue },
+          ];
+          track card.label
+        ) {
+          <div class="app-section-surface p-3">
+            <p class="text-sm text-muted-foreground">{{ card.label }}</p>
+            <strong>{{ money(card.value, t.currency) }}</strong>
+          </div>
+        }
+      </section>
+    }
+  }
+  <div class="flex flex-wrap gap-2" aria-label="Brzi filteri">
+    <button hlmBtn variant="outline" (click)="quick('ALL')">Sve uplate</button>
+    <button hlmBtn variant="outline" (click)="quick('UNALLOCATED')">
+      Neraspoređene
+    </button>
+    <button hlmBtn variant="outline" (click)="quick('PARTIAL')">
+      Delimično raspoređene
+    </button>
+    <button hlmBtn variant="outline" (click)="quick('ADVANCE')">Avansi</button>
+    <button hlmBtn variant="outline" (click)="quick('VOIDED')">
+      Poništene
+    </button>
+  </div>
+  <form
+    [formGroup]="filters"
+    class="app-section-surface space-y-3 p-3"
+    (submit)="$event.preventDefault()"
+  >
+    <div class="grid items-end gap-3 md:grid-cols-4">
+      <label>
+        Pretraga
+        <input
+          hlmInput
+          class="w-full"
+          formControlName="search"
+          placeholder="Klijent, uplatilac, referenca, napomena"
+        />
+      </label>
+      <law-payment-client-picker
+        controlId="filter-client"
+        [value]="filters.controls.clientId.value"
+        (valueChange)="filters.controls.clientId.setValue($event)"
+      />
+      <label>
+        Od datuma
+        <input hlmInput type="date" class="w-full" formControlName="from" />
+      </label>
+      <label>
+        Do datuma
+        <input hlmInput type="date" class="w-full" formControlName="to" />
+      </label>
+    </div>
+    <div class="flex gap-2">
+      <button
+        hlmBtn
+        type="button"
+        variant="ghost"
+        [attr.aria-expanded]="advanced()"
+        (click)="advanced.set(!advanced())"
+      >
+        Dodatni filteri
+      </button>
+      <button hlmBtn type="button" variant="ghost" (click)="reset()">
+        Obriši filtere
+      </button>
+    </div>
+    @if (advanced()) {
+      <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <law-payment-select
+          controlId="filter-method"
+          label="Način plaćanja"
+          [control]="filters.controls.paymentMethod"
+          [options]="methodOptions"
+        />
+        <law-payment-select
+          controlId="filter-purpose"
+          label="Svrha"
+          [control]="filters.controls.purpose"
+          [options]="purposeOptions"
+        />
+        <law-payment-select
+          controlId="filter-state"
+          label="Status raspodele"
+          [control]="filters.controls.allocationState"
+          [options]="stateOptions"
+        />
+        <law-payment-select
+          controlId="filter-status"
+          label="Status uplate"
+          [control]="filters.controls.status"
+          [options]="statusOptions"
+        />
+        <law-payment-select
+          controlId="filter-currency"
+          label="Valuta"
+          [control]="filters.controls.currency"
+          [options]="currencies()"
+        />
+        <law-payment-select
+          controlId="filter-bank"
+          label="Bankovni račun"
+          [control]="filters.controls.bankAccountId"
+          [options]="banks()"
+        />
+      </div>
+    }
+  </form>
+  @if (loading()) {
+    <hlm-spinner aria-label="Učitavanje uplata" />
+  }
+  @if (error()) {
+    <div role="alert" class="rounded-lg border border-destructive p-4">
+      Uplate nisu učitane.
+      <button hlmBtn variant="outline" (click)="load()">Pokušaj ponovo</button>
+    </div>
+  } @else {
+    <div hlmTableContainer class="app-section-surface">
+      <table hlmTable>
+        <thead hlmTHead>
+          <tr hlmTr>
+            <th
+              hlmTh
+              [attr.aria-sort]="
+                sort() === 'receivedAt'
+                  ? direction() === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+                  : 'none'
+              "
+            >
+              <button (click)="order('receivedAt')">Datum uplate ↕</button>
+            </th>
+            <th
+              hlmTh
+              [attr.aria-sort]="
+                sort() === 'clientName'
+                  ? direction() === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+                  : 'none'
+              "
+            >
+              <button (click)="order('clientName')">
+                Klijent / Uplatilac ↕
+              </button>
+            </th>
+            <th hlmTh>Način / Referenca</th>
+            <th
+              hlmTh
+              [attr.aria-sort]="
+                sort() === 'amount'
+                  ? direction() === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+                  : 'none'
+              "
+            >
+              <button (click)="order('amount')">Iznos ↕</button>
+            </th>
+            <th hlmTh>Raspoređeno</th>
+            <th
+              hlmTh
+              [attr.aria-sort]="
+                sort() === 'unallocatedAmount'
+                  ? direction() === 'asc'
+                    ? 'ascending'
+                    : 'descending'
+                  : 'none'
+              "
+            >
+              <button (click)="order('unallocatedAmount')">
+                Neraspoređeno ↕
+              </button>
+            </th>
+            <th hlmTh>Status</th>
+            <th hlmTh>Radnje</th>
+          </tr>
+        </thead>
+        <tbody hlmTBody>
+          @for (p of result().items; track p.id) {
+            <tr hlmTr>
+              <td hlmTd>{{ date(p.receivedAt) }}</td>
+              <td hlmTd>
+                {{ p.clientName ?? "Neidentifikovan klijent" }}
+                <p class="text-sm text-muted-foreground">{{ p.payerName }}</p>
+              </td>
+              <td hlmTd>
+                {{ methodLabel(p.paymentMethod) }}
+                <p class="text-sm text-muted-foreground">{{ p.reference }}</p>
+              </td>
+              <td hlmTd>{{ money(p.amount, p.currency) }}</td>
+              <td hlmTd>{{ money(p.allocatedAmount, p.currency) }}</td>
+              <td hlmTd class="font-semibold">
+                {{ money(p.unallocatedAmount, p.currency) }}
+              </td>
+              <td hlmTd>
+                <span class="rounded-md border px-2 py-1 text-sm">
+                  {{
+                    p.status === "VOIDED"
+                      ? "Poništena"
+                      : stateLabel(p.allocationState)
+                  }}
+                </span>
+                @if (p.purpose === "ADVANCE") {
+                  <span class="rounded-md bg-secondary px-2 py-1 text-sm">
+                    Avans
+                  </span>
+                }
+              </td>
+              <td hlmTd>
+                <a
+                  hlmBtn
+                  variant="ghost"
+                  [routerLink]="['/finance/payments', p.id]"
+                >
+                  Detalji
+                </a>
+                @if (p.status === "ACTIVE") {
+                  <a
+                    hlmBtn
+                    variant="ghost"
+                    [routerLink]="['/finance/payments', p.id, 'edit']"
+                  >
+                    Izmeni / Rasporedi
+                  </a>
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr hlmTr>
+              <td hlmTd colspan="8">
+                <p class="py-6">Nema uplata za izabrane filtere.</p>
+                <a hlmBtn routerLink="/finance/payments/new">Dodaj uplatu</a>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+    <law-pagination
+      [currentPage]="page()"
+      (currentPageChange)="changePage($event)"
+      [itemsPerPage]="pageSize()"
+      (itemsPerPageChange)="changeSize($event)"
+      [totalItems]="result().meta.totalItems"
+      [disabled]="loading()"
+    />
+  }
+</div>
