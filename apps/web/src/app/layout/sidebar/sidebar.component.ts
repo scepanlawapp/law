@@ -161,26 +161,31 @@ export class SidebarComponent {
       ],
     },
     {
-      label: "nav.work",
+      label: "nav.tasks",
       items: [
         {
           route: "/work/team",
-          label: "nav.teamWork",
+          label: "nav.teamTasks",
           icon: "lucideSquareCheck",
         },
-        { route: "/work/my", label: "nav.myWork", icon: "lucideUserCheck" },
+        { route: "/work/my", label: "nav.myTasks", icon: "lucideUserCheck" },
+        { route: "/calendar", label: "nav.calendar", icon: "lucideCalendar" },
+      ],
+    },
+    {
+      label: "nav.work",
+      items: [
         {
           route: "/work/time/team",
-          label: "nav.teamTime",
+          label: "nav.teamWork",
           icon: "lucideUsers",
         },
         {
           route: "/work/time",
-          label: "nav.myTime",
+          label: "nav.myWork",
           icon: "lucideClock",
           exact: true,
         },
-        { route: "/calendar", label: "nav.calendar", icon: "lucideCalendar" },
       ],
     },
     {
