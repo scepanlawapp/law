@@ -13,6 +13,6 @@ export interface EventDialogContext {
   event?: EventDetail;
   /** Values for a new event, e.g. proposed by the assistant. */
   initial?: AssistantEventRequest;
-  /** Saves the new event instead of the events API (e.g. completing an assistant form). */
+  /** Saves the event instead of the events API (e.g. completing an assistant form). */
   save?: (request: EventRequest) => Observable<unknown>;
 }

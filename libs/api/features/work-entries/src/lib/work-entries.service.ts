@@ -600,7 +600,14 @@ export class WorkEntriesService {
     });
   }
 
-  async create(input: CreateWorkEntryRequest): Promise<WorkEntry> {
+  /**
+   * `status: "PROPOSED"` is for internal callers (work the assistant saved
+   * without review); the lawyer confirms it in the time review.
+   */
+  async create(
+    input: CreateWorkEntryRequest,
+    options: { status?: "PROPOSED" } = {},
+  ): Promise<WorkEntry> {
     if (input.eventId && input.taskId)
       throw new BadRequestException("Choose either an event or a task");
     const minutes = input.minutes ?? null;
@@ -668,7 +675,7 @@ export class WorkEntriesService {
           treatment,
           value: money.value,
           currency: money.currency,
-          status: "CONFIRMED",
+          status: options.status ?? "CONFIRMED",
           taskId: input.taskId ?? null,
           source: input.eventId
             ? "EVENT"

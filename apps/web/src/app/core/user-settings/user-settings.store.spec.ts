@@ -31,6 +31,7 @@ const mockResponse: UserSettingsResponse = {
     timeZone: "Europe/Belgrade",
     timeReviewReminderEnabled: false,
     timeReviewReminderTime: "17:30",
+    assistantPermissionMode: "ASK",
   },
 };
 

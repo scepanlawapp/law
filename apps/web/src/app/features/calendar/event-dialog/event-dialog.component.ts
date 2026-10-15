@@ -181,6 +181,13 @@ export class EventDialogComponent {
         location: event.location ?? "",
         meetingUrl: event.meetingUrl ?? "",
       });
+      // An assistant proposal to move this event: show the new time.
+      if (this.context.initial) {
+        this.form.patchValue({
+          startsAt: localDateTime(this.context.initial.startsAt),
+          endsAt: localDateTime(this.context.initial.endsAt),
+        });
+      }
     } else if (item?.sourceType === "EVENT") {
       this.form.patchValue({
         title: item.title,
@@ -307,7 +314,7 @@ export class EventDialogComponent {
       return;
     }
     this.saving.set(true);
-    if (this.context.save && !this.eventId) {
+    if (this.context.save) {
       this.context
         .save(request)
         .pipe(takeUntilDestroyed(this.destroyRef))

@@ -173,3 +173,4 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Payment modals and period summary](tracks/payment_modals_summary_20261015/index.md)
 
 - [Assistant permission modes](tracks/assistant_permission_modes_20261015/index.md)
+- [Assistant actions on permission modes](tracks/assistant_actions_modes_20261015/index.md)

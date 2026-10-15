@@ -287,6 +287,11 @@ function setup() {
     createDeadline: jest.fn().mockResolvedValue({ id: "deadline-1" }),
   };
   const queue = { enqueue: jest.fn().mockResolvedValue(undefined) };
+  const workEntries = {
+    create: jest.fn().mockImplementation((input: Record<string, unknown>) =>
+      Promise.resolve({ id: "entry-1", title: input["title"], minutes: input["minutes"] }),
+    ),
+  };
   const documents = {
     getDocumentFacts: jest.fn().mockResolvedValue(factsResult()),
   };
@@ -301,8 +306,18 @@ function setup() {
     queue,
     work as never,
     documents as never,
+    workEntries as never,
   );
-  return { service, prisma, emitted, matterLink, work, queue, documents };
+  return {
+    service,
+    prisma,
+    emitted,
+    matterLink,
+    work,
+    queue,
+    documents,
+    workEntries,
+  };
 }
 
 const deadline = () => ({
@@ -493,7 +508,11 @@ describe("AssistantActionsService.decide", () => {
         entityId: "deadline-1",
       }),
       data: {
-        metadata: { source: "AI_ASSISTED", pendingActionId: "action-1" },
+        metadata: {
+          source: "AI_ASSISTED",
+          pendingActionId: "action-1",
+          mode: "CARD",
+        },
       },
     });
     const final = prisma.actions.get("action-1");
@@ -1418,11 +1437,40 @@ describe("AssistantActionsService create_event and permission modes", () => {
     expect((work as unknown as Record<string, jest.Mock>)["createEvent"]).not.toHaveBeenCalled();
   });
 
-  it("keeps legacy actions on the card whatever the mode", async () => {
-    const { service, prisma } = eventSetup({ permissionMode: "AUTO" });
+  it("never saves a deadline automatically", async () => {
+    const { service, prisma, work } = eventSetup({ permissionMode: "AUTO" });
     const result = await service.propose(owner, deadline());
     expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
     expect(prisma.actions.get("action-1")).toMatchObject({ mode: "CARD" });
+    expect(work.createDeadline).not.toHaveBeenCalled();
+  });
+
+  it("MANUAL mode opens a deadline form unless the caller forces a card", async () => {
+    const { service, prisma } = eventSetup({ permissionMode: "MANUAL" });
+
+    const form = await service.propose(owner, deadline());
+    const card = await service.propose(
+      owner,
+      { ...deadline(), title: "Žalba" },
+      { forceCard: true },
+    );
+
+    expect(form).toMatchObject({ status: "FORM_REQUIRED" });
+    expect(card).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    expect(prisma.actions.get("action-2")).toMatchObject({ mode: "CARD" });
+  });
+
+  it("AUTO mode links the case directly", async () => {
+    const { service, matterLink } = eventSetup({ permissionMode: "AUTO" });
+    matterLink.sessionCaseId.mockResolvedValue(null);
+    const result = await service.propose(owner, {
+      type: "link_case",
+      caseReference: "2026-21",
+    });
+    expect(result).toMatchObject({ status: "EXECUTED" });
+    expect(matterLink.linkSession).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: "user-owner", caseId: "case-21" }),
+    );
   });
 
   it("saves the edited form, marks it edited, and resumes the agent", async () => {
@@ -1431,15 +1479,18 @@ describe("AssistantActionsService create_event and permission modes", () => {
     const prefill = prisma.actions.get("action-1")!["payload"] as Record<string, unknown>;
     const later = new Date(new Date(String(prefill["startsAt"])).getTime() + 3600_000);
 
-    const summary = await service.completeEventForm({
+    const summary = await service.completeForm({
       workspaceId: "workspace-1",
       userId: "user-owner",
       actionId: "action-1",
-      event: {
+      body: {
         ...prefill,
+        // The form sends real record ids.
+        clientIds: ["3f9a2c1e-8b7d-4e6f-a5c4-1d2e3f4a5b6c"],
+        assigneeUserIds: ["0b6c4f2e-6f1d-4c8e-9a51-2f0f0b7f3a11"],
         startsAt: later.toISOString(),
         endsAt: new Date(later.getTime() + 3600_000).toISOString(),
-      } as never,
+      },
     });
 
     expect(summary).toMatchObject({ status: "APPROVED", mode: "FORM" });
@@ -1456,16 +1507,354 @@ describe("AssistantActionsService create_event and permission modes", () => {
     );
   });
 
+  it("rejects a form body the event DTO does not accept", async () => {
+    const { service, prisma, work } = eventSetup({ userDefault: "MANUAL" });
+    await service.propose(owner, event());
+    await expect(
+      service.completeForm({
+        workspaceId: "workspace-1",
+        userId: "user-owner",
+        actionId: "action-1",
+        body: { title: "Sastanak", startsAt: "sutra" },
+      }),
+    ).rejects.toThrow("Bad Request");
+    expect(prisma.actions.get("action-1")).toMatchObject({ status: "PENDING" });
+    expect((work as unknown as Record<string, jest.Mock>)["createEvent"]).not.toHaveBeenCalled();
+  });
+
   it("refuses to complete an action that is not a form", async () => {
     const { service } = eventSetup();
     await service.propose(owner, event());
     await expect(
-      service.completeEventForm({
+      service.completeForm({
         workspaceId: "workspace-1",
         userId: "user-owner",
         actionId: "action-1",
-        event: {} as never,
+        body: {},
       }),
     ).rejects.toThrow("not a prefilled form");
+  });
+});
+
+describe("AssistantActionsService tasks, work entries, and event changes", () => {
+  const owner: AssistantTurnScope = {
+    ...scope,
+    userId: "user-owner",
+    userDisplayName: "Ana Jović",
+  };
+  const marko = {
+    id: "user-marko",
+    firstName: "Marko",
+    lastName: "Marković",
+    email: "marko@example.test",
+  };
+  const borkoClient = {
+    id: "client-borko",
+    displayName: "Borko Petrović",
+    clientNumber: "K-0012",
+  };
+  const upcoming = (overrides: Record<string, unknown> = {}) => {
+    const startsAt = new Date(`${nextYearDate()}T10:00:00Z`);
+    return {
+      id: "event-7",
+      type: "MEETING",
+      title: "Sastanak sa Borkom",
+      description: null,
+      startsAt,
+      endsAt: new Date(startsAt.getTime() + 3600_000),
+      timeZone: "Europe/Belgrade",
+      isAllDay: false,
+      location: "Kancelarija",
+      meetingUrl: null,
+      courtName: null,
+      courtroom: null,
+      organizerUserId: "user-owner",
+      caseId: null,
+      clients: [{ clientId: "client-borko", client: { displayName: "Borko Petrović" } }],
+      assignees: [{ userId: "user-owner" }],
+      attendees: [],
+      ...overrides,
+    };
+  };
+
+  function modeSetup(
+    options: {
+      permissionMode?: "MANUAL" | "ASK" | "AUTO";
+      users?: Array<Record<string, unknown>>;
+      clients?: Array<Record<string, unknown>>;
+      events?: Array<Record<string, unknown>>;
+      conflicts?: Array<Record<string, unknown>>;
+      linkedCase?: boolean;
+    } = {},
+  ) {
+    const context = setup();
+    const prisma = context.prisma as unknown as Record<
+      string,
+      Record<string, jest.Mock>
+    >;
+    prisma["chatSession"].findFirst.mockResolvedValue({
+      id: "session-1",
+      permissionMode: options.permissionMode ?? "ASK",
+      createdBy: { settings: null },
+    });
+    if (options.linkedCase === false) {
+      context.matterLink.sessionCaseId.mockResolvedValue(null);
+    }
+    prisma["user"].findMany = jest.fn().mockResolvedValue(options.users ?? []);
+    prisma["client"].findMany = jest
+      .fn()
+      .mockResolvedValue(options.clients ?? []);
+    prisma["clientContact"] = { findMany: jest.fn().mockResolvedValue([]) };
+    prisma["event"] = {
+      findMany: jest
+        .fn()
+        .mockResolvedValueOnce(options.events ?? [])
+        .mockResolvedValue(options.conflicts ?? []),
+    };
+    prisma["workspaceMember"] = {
+      findFirst: jest.fn().mockResolvedValue({ role: "MEMBER" }),
+    };
+    const work = context.work as unknown as Record<string, jest.Mock>;
+    work["createTask"] = jest
+      .fn()
+      .mockImplementation((input: Record<string, unknown>) =>
+        Promise.resolve({ id: "task-1", title: input["title"] }),
+      );
+    work["updateEvent"] = jest
+      .fn()
+      .mockImplementation((id: string, input: Record<string, unknown>) =>
+        Promise.resolve({ id, title: input["title"], startsAt: input["startsAt"] }),
+      );
+    work["transitionEvent"] = jest
+      .fn()
+      .mockResolvedValue({ id: "event-7", title: "Sastanak sa Borkom" });
+    return { ...context, work };
+  }
+
+  it("AUTO mode saves work as PROPOSED for the conversation owner", async () => {
+    const { service, prisma, workEntries } = modeSetup({
+      permissionMode: "AUTO",
+      clients: [borkoClient],
+      linkedCase: false,
+    });
+
+    const result = await service.propose(owner, {
+      type: "log_work_entry",
+      title: "Pregled ugovora",
+      minutes: 90,
+      client: "Borko",
+    });
+
+    expect(result).toMatchObject({
+      status: "EXECUTED",
+      message: expect.stringContaining("pregledu vremena"),
+    });
+    expect(workEntries.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        clientId: "client-borko",
+        userId: "user-owner",
+        minutes: 90,
+        workDate: belgradeToday(),
+        aiParsed: true,
+      }),
+      { status: "PROPOSED" },
+    );
+    expect(prisma.actions.get("action-1")).toMatchObject({
+      result: expect.objectContaining({ workEntryId: "entry-1" }),
+    });
+  });
+
+  it("an approved work entry card is saved as confirmed work", async () => {
+    const { service, workEntries } = modeSetup({ clients: [borkoClient] });
+    await service.propose(owner, {
+      type: "log_work_entry",
+      title: "Pregled ugovora",
+      minutes: 60,
+    });
+
+    await service.decide({
+      workspaceId: "workspace-1",
+      userId: "user-owner",
+      actionId: "action-1",
+      decision: "APPROVE",
+    });
+
+    // The linked case gives the client when no client is named.
+    expect(workEntries.create).toHaveBeenCalledWith(
+      expect.objectContaining({ clientId: "client-1", caseId: "case-21" }),
+      {},
+    );
+  });
+
+  it("asks for the client of work when none can be found", async () => {
+    const { service, prisma } = modeSetup({ linkedCase: false });
+    const result = await service.propose(owner, {
+      type: "log_work_entry",
+      title: "Pregled ugovora",
+      minutes: 60,
+    });
+    expect(result).toMatchObject({
+      status: "INVALID",
+      message: expect.stringContaining("Za kog klijenta"),
+    });
+    expect(prisma.actions.size).toBe(0);
+  });
+
+  it("refuses work dated in the future", async () => {
+    const { service } = modeSetup({ clients: [borkoClient] });
+    const result = await service.propose(owner, {
+      type: "log_work_entry",
+      title: "Pregled ugovora",
+      minutes: 60,
+      date: nextYearDate(),
+    });
+    expect(result).toMatchObject({
+      status: "INVALID",
+      message: expect.stringContaining("u budućnosti"),
+    });
+  });
+
+  it("assigns a task to the named colleague", async () => {
+    const { service, prisma } = modeSetup({ users: [marko], linkedCase: false });
+
+    const result = await service.propose(owner, {
+      type: "create_task",
+      title: "Poslati ugovor",
+      assignee: "Marko",
+      dueDate: nextYearDate(),
+    });
+
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    expect(prisma.actions.get("action-1")!["payload"]).toEqual({
+      title: "Poslati ugovor",
+      assigneeUserId: "user-marko",
+      priority: "NORMAL",
+      dueDate: nextYearDate(),
+    });
+  });
+
+  it("refuses an ambiguous assignee with the candidates", async () => {
+    const { service } = modeSetup({
+      users: [marko, { ...marko, id: "user-marko-2", lastName: "Ilić" }],
+    });
+    const result = await service.propose(owner, {
+      type: "create_task",
+      title: "Poslati ugovor",
+      assignee: "Marko",
+    });
+    expect(result).toMatchObject({
+      status: "INVALID",
+      message: expect.stringContaining("Marko Ilić (kolega)"),
+    });
+  });
+
+  it("MANUAL mode opens the task form and saves it", async () => {
+    const { service, work } = modeSetup({ permissionMode: "MANUAL", linkedCase: false });
+    const result = await service.propose(owner, {
+      type: "create_task",
+      title: "Poslati ugovor",
+    });
+    expect(result).toMatchObject({ status: "FORM_REQUIRED" });
+
+    const summary = await service.completeForm({
+      workspaceId: "workspace-1",
+      userId: "user-owner",
+      actionId: "action-1",
+      body: {
+        title: "Poslati ugovor",
+        assigneeUserId: "0b6c4f2e-6f1d-4c8e-9a51-2f0f0b7f3a11",
+        priority: "NORMAL",
+      },
+    });
+
+    expect(summary).toMatchObject({ status: "APPROVED", resultEntityType: "TASK" });
+    expect(work.createTask).toHaveBeenCalled();
+  });
+
+  it("moves the only matching event to the new time and keeps its length", async () => {
+    const { service, prisma } = modeSetup({ events: [upcoming()] });
+
+    const result = await service.propose(owner, {
+      type: "reschedule_event",
+      participant: "Borko",
+      newStartTime: "14:00",
+    });
+
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    const payload = prisma.actions.get("action-1")!["payload"] as Record<string, unknown>;
+    expect(payload).toMatchObject({
+      eventId: "event-7",
+      title: "Sastanak sa Borkom",
+      location: "Kancelarija",
+      clientIds: ["client-borko"],
+      assigneeUserIds: ["user-owner"],
+    });
+    const startsAt = new Date(String(payload["startsAt"]));
+    expect(new Date(String(payload["endsAt"])).getTime() - startsAt.getTime()).toBe(3600_000);
+    expect(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Belgrade",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(startsAt),
+    ).toBe("14:00");
+    // The conflict check leaves out the event being moved.
+    expect(
+      (prisma as unknown as Record<string, Record<string, jest.Mock>>)["event"].findMany.mock
+        .calls[1][0].where,
+    ).toMatchObject({ id: { not: "event-7" } });
+  });
+
+  it("asks which event when several match", async () => {
+    const { service, prisma } = modeSetup({
+      events: [upcoming(), upcoming({ id: "event-8", title: "Poziv sa Borkom" })],
+    });
+    const result = await service.propose(owner, {
+      type: "cancel_event",
+      participant: "Borko",
+    });
+    expect(result).toMatchObject({
+      status: "INVALID",
+      message: expect.stringContaining("Poziv sa Borkom – Borko Petrović"),
+    });
+    expect(prisma.actions.size).toBe(0);
+  });
+
+  it("AUTO mode asks instead when the new time overlaps", async () => {
+    const { service, prisma, work } = modeSetup({
+      permissionMode: "AUTO",
+      events: [upcoming()],
+      conflicts: [
+        {
+          title: "Ročište",
+          startsAt: new Date("2030-01-01T13:00:00Z"),
+          endsAt: new Date("2030-01-01T14:00:00Z"),
+        },
+      ],
+    });
+    const result = await service.propose(owner, {
+      type: "reschedule_event",
+      participant: "Borko",
+      newStartTime: "14:00",
+    });
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    expect(prisma.actions.get("action-1")).toMatchObject({ mode: "CARD" });
+    expect(work.updateEvent).not.toHaveBeenCalled();
+  });
+
+  it("cancelling an event is always a card", async () => {
+    for (const permissionMode of ["AUTO", "MANUAL"] as const) {
+      const { service, prisma, work } = modeSetup({
+        permissionMode,
+        events: [upcoming()],
+      });
+      const result = await service.propose(owner, {
+        type: "cancel_event",
+        participant: "Borko",
+      });
+      expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+      expect(prisma.actions.get("action-1")).toMatchObject({ mode: "CARD" });
+      expect(work.transitionEvent).not.toHaveBeenCalled();
+    }
   });
 });

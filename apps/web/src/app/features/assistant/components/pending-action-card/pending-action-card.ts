@@ -52,11 +52,16 @@ export class PendingActionCardComponent {
 
   protected readonly isForm = computed(() => this.action().mode === "FORM");
   protected readonly isAuto = computed(() => this.action().mode === "AUTO");
-  protected readonly canOpenResult = computed(
-    () =>
-      this.action().status === "APPROVED" &&
-      this.action().actionType === "create_event" &&
-      !!this.action().resultEntityId,
+  protected readonly resultType = computed(() =>
+    this.action().status === "APPROVED" && this.action().resultEntityId
+      ? (this.action().resultEntityType ?? null)
+      : null,
+  );
+  /** Work saved without review is only proposed until the lawyer confirms it. */
+  protected readonly autoLabel = computed(() =>
+    this.action().actionType === "log_work_entry"
+      ? "assistant.pendingAction.status.AUTO_PROPOSED"
+      : "assistant.pendingAction.status.AUTO",
   );
 
   protected readonly pending = computed(

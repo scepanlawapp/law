@@ -56,7 +56,11 @@ import {
   HlmSheetTitle,
   HlmSheetTrigger,
 } from "@spartan-ng/helm/sheet";
-import { ChatApiClient, EventRequest, EventsApiClient } from "@law/api-clients";
+import {
+  ChatApiClient,
+  EventsApiClient,
+  WorkManagementApiClient,
+} from "@law/api-clients";
 import {
   AssistantPermissionMode,
   ChatMessageResponse,
@@ -66,6 +70,8 @@ import {
   ChatSessionSummary,
   ChatStreamEvent,
   PendingActionSummary,
+  AssistantFormPrefill,
+  PendingActionResultEntityType,
   DocumentAiStatus,
   DocumentAnalysisResponse,
   DocumentScript,
@@ -74,7 +80,7 @@ import {
   WorkflowJobResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
-import { finalize, from, Observable, of, switchMap } from "rxjs";
+import { finalize, forkJoin, from, Observable, of, switchMap } from "rxjs";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 import { createSelectItemToString } from "../../shared/utils";
@@ -238,6 +244,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly authState = inject(AuthState);
   private readonly chat = inject(ChatApiClient);
   private readonly eventsApi = inject(EventsApiClient);
+  private readonly workApi = inject(WorkManagementApiClient);
   private readonly injector = inject(Injector);
   private readonly userSettings = inject(UserSettingsStore);
   private readonly destroyRef = inject(DestroyRef);
@@ -1117,28 +1124,21 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       });
   }
 
-  /** FORM mode: the user checks the prefilled event and saves it from the dialog. */
+  /** FORM mode: the user checks the prefilled record and saves it from its dialog. */
   protected openPendingActionForm(action: PendingActionSummary): void {
     const workspaceId = this.workspaceId();
-    const initial = action.eventPrefill;
-    if (!workspaceId || !initial || this.decidingActionId()) return;
+    const prefill = action.prefill;
+    if (!workspaceId || !prefill || this.decidingActionId()) return;
     this.decidingActionId.set(action.id);
-    from(import("../calendar/event-dialog/event-dialog.service"))
+    const save = (request: object) =>
+      this.chat.completePendingAction(workspaceId, action.id, request).pipe(
+        switchMap((updated) => {
+          this.upsertPendingAction(updated);
+          return of(updated);
+        }),
+      );
+    this.openPrefilledDialog(prefill, save)
       .pipe(
-        switchMap(({ EventDialogService }) =>
-          this.injector.get(EventDialogService).open({
-            initial,
-            save: (request: EventRequest) =>
-              this.chat
-                .completePendingActionEvent(workspaceId, action.id, request)
-                .pipe(
-                  switchMap((updated) => {
-                    this.upsertPendingAction(updated);
-                    return of(updated);
-                  }),
-                ),
-          }),
-        ),
         finalize(() => this.decidingActionId.set(null)),
         takeUntilDestroyed(this.destroyRef),
       )
@@ -1150,28 +1150,131 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       });
   }
 
-  /** Opens the event an executed action created. */
-  protected openPendingActionResult(action: PendingActionSummary): void {
-    const eventId = action.resultEntityId;
-    if (!eventId) return;
-    this.eventsApi
-      .get(eventId)
-      .pipe(
-        switchMap((event) =>
-          from(import("../calendar/event-dialog/event-dialog.service")).pipe(
-            switchMap(({ EventDialogService }) =>
-              this.injector.get(EventDialogService).open({ event }),
-            ),
+  /** The dialog that saves this kind of record, prefilled and saving through `save`. */
+  private openPrefilledDialog(
+    prefill: AssistantFormPrefill,
+    save: (request: object) => Observable<unknown>,
+  ): Observable<unknown> {
+    switch (prefill.kind) {
+      case "event": {
+        const eventId = prefill.eventId;
+        const existing$ = eventId ? this.eventsApi.get(eventId) : of(undefined);
+        return forkJoin([
+          existing$,
+          from(import("../calendar/event-dialog/event-dialog.service")),
+        ]).pipe(
+          switchMap(([event, { EventDialogService }]) =>
+            this.injector
+              .get(EventDialogService)
+              .open({ event, initial: prefill.request, save }),
           ),
-        ),
-        takeUntilDestroyed(this.destroyRef),
-      )
+        );
+      }
+      case "task":
+        return from(
+          import("../work-management/task-dialog/task-dialog.service"),
+        ).pipe(
+          switchMap(({ TaskDialogService }) =>
+            this.injector
+              .get(TaskDialogService)
+              .open({ initial: prefill.request, save }),
+          ),
+        );
+      case "deadline":
+        return from(
+          import("../work-management/deadline-dialog/deadline-dialog.service"),
+        ).pipe(
+          switchMap(({ DeadlineDialogService }) =>
+            this.injector
+              .get(DeadlineDialogService)
+              .open({ initial: prefill.request, save }),
+          ),
+        );
+      case "work_entry": {
+        const request = prefill.request;
+        return from(
+          import("../time/quick-capture/quick-capture-dialog.service"),
+        ).pipe(
+          switchMap(({ QuickCaptureDialogService }) =>
+            this.injector.get(QuickCaptureDialogService).open({
+              mode: "create",
+              userId: request.userId,
+              clientId: request.clientId ?? undefined,
+              caseId: request.caseId,
+              minutes: request.minutes ?? undefined,
+              title: request.title,
+              description: request.description,
+              workDate: request.workDate,
+              save,
+            }),
+          ),
+        );
+      }
+    }
+  }
+
+  /** Opens the record an executed action created or changed. */
+  protected openPendingActionResult(action: PendingActionSummary): void {
+    const id = action.resultEntityId;
+    if (!id) return;
+    this.openResultDialog(action.resultEntityType ?? "EVENT", id)
+      .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         error: () =>
           this.toast.error(
-            this.localization.translate("assistant.pendingAction.openEventError"),
+            this.localization.translate("assistant.pendingAction.openResultError"),
           ),
       });
+  }
+
+  private openResultDialog(
+    type: PendingActionResultEntityType,
+    id: string,
+  ): Observable<unknown> {
+    switch (type) {
+      case "EVENT":
+        return forkJoin([
+          this.eventsApi.get(id),
+          from(import("../calendar/event-dialog/event-dialog.service")),
+        ]).pipe(
+          switchMap(([event, { EventDialogService }]) =>
+            this.injector.get(EventDialogService).open({ event }),
+          ),
+        );
+      case "TASK":
+        return forkJoin([
+          this.workApi.getTask(id),
+          from(import("../work-management/task-dialog/task-dialog.service")),
+        ]).pipe(
+          switchMap(([task, { TaskDialogService }]) =>
+            this.injector.get(TaskDialogService).open({ task }),
+          ),
+        );
+      case "DEADLINE":
+        return forkJoin([
+          this.workApi.getDeadline(id),
+          from(
+            import("../work-management/deadline-dialog/deadline-dialog.service"),
+          ),
+        ]).pipe(
+          switchMap(([deadline, { DeadlineDialogService }]) =>
+            this.injector.get(DeadlineDialogService).open({ deadline }),
+          ),
+        );
+      case "WORK_ENTRY":
+        return from(
+          import("../time/quick-capture/quick-capture-dialog.service"),
+        ).pipe(
+          switchMap(({ QuickCaptureDialogService }) =>
+            this.injector
+              .get(QuickCaptureDialogService)
+              .open({ mode: "view", entryId: id }),
+          ),
+        );
+      case "CASE":
+        void this.router.navigate(["/cases", id]);
+        return of(null);
+    }
   }
 
   protected setPermissionMode(

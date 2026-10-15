@@ -4,6 +4,12 @@ import type { LegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateEventTool } from "./tools/create-event.tool";
+import {
+  createCancelEventTool,
+  createRescheduleEventTool,
+} from "./tools/change-event.tool";
+import { createCreateTaskTool } from "./tools/create-task.tool";
+import { createLogWorkEntryTool } from "./tools/log-work-entry.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
@@ -79,6 +85,10 @@ export function createLegalAssistantAgent(options: {
       link_case: createLinkCaseTool(options.deps),
       create_deadline: createCreateDeadlineTool(options.deps),
       create_event: createCreateEventTool(options.deps),
+      reschedule_event: createRescheduleEventTool(options.deps),
+      cancel_event: createCancelEventTool(options.deps),
+      create_task: createCreateTaskTool(options.deps),
+      log_work_entry: createLogWorkEntryTool(options.deps),
       create_tasks_from_brief: createCreateTasksFromBriefTool(options.deps),
       propose_client_update_from_document: createProposeClientUpdateTool(
         options.deps,

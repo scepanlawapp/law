@@ -163,8 +163,8 @@ export class AssistantDeadlineDetectionService {
       dueDate: outcome.dueDate,
       deadlineType: outcome.rule.deadlineType,
       description: deadlineProposalDescription(outcome, documentTitle),
-    });
-    // create_deadline is not mode-aware, so a valid proposal is always a card.
+    }, { forceCard: true });
+    // Detected deadlines are always cards, whatever the permission mode.
     if (proposal.status !== "CONFIRMATION_REQUIRED") {
       return {
         status: "NOT_PROPOSED",

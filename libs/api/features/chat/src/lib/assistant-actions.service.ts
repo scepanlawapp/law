@@ -18,12 +18,18 @@ import {
   ActivitiesTasksDeadlinesService,
   CreateDeadlineDto,
   CreateEventDto,
+  CreateTaskDto,
+  UpdateEventDto,
 } from "@law/activities-tasks-deadlines";
+import { CreateWorkEntryDto, WorkEntriesService } from "@law/work-entries";
+import { plainToInstance } from "class-transformer";
+import { validate } from "class-validator";
 import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { digitsOnly, singleIsoDate } from "@law/document-intelligence";
 import type {
   ActionProposalResult,
   AssistantActionRequest,
+  AssistantEventLookup,
   AssistantTurnScope,
 } from "@law/mastra";
 import { Prisma } from "@prisma/client";
@@ -57,9 +63,51 @@ const OFFICE_TIME_ZONE = "Europe/Belgrade";
 const DEFAULT_EVENT_MINUTES = 60;
 const PARTICIPANT_CANDIDATES = 5;
 const CONFLICT_LINES = 5;
-/** Actions that honour the permission mode; every other action is always a card. */
-const MODE_AWARE_ACTIONS = new Set<AssistantActionRequest["type"]>([
-  "create_event",
+const EVENT_CANDIDATES = 5;
+type ActionType = AssistantActionRequest["type"];
+/**
+ * Modes each action supports besides the card. MANUAL needs a dialog that can
+ * save the action; AUTO is withheld where a mistake is costly or final.
+ */
+const MODE_POLICY: Record<ActionType, { form: boolean; auto: boolean }> = {
+  link_case: { form: false, auto: true },
+  // A missed procedural deadline is a malpractice risk: never saved unseen.
+  create_deadline: { form: true, auto: false },
+  create_tasks_from_brief: { form: false, auto: true },
+  update_client_from_document: { form: false, auto: true },
+  create_event: { form: true, auto: true },
+  reschedule_event: { form: true, auto: true },
+  // Cancelling cannot be undone.
+  cancel_event: { form: false, auto: false },
+  create_task: { form: true, auto: true },
+  log_work_entry: { form: true, auto: true },
+};
+/** The DTO a saved form is validated against, by action type. */
+const FORM_DTOS: Partial<Record<ActionType, new () => object>> = {
+  create_event: CreateEventDto,
+  reschedule_event: UpdateEventDto,
+  create_task: CreateTaskDto,
+  create_deadline: CreateDeadlineDto,
+  log_work_entry: CreateWorkEntryDto,
+};
+/** Fields a user may add in the form although the proposal left them empty. */
+const FORM_OPTIONAL_KEYS = [
+  "description",
+  "location",
+  "caseId",
+  "clientId",
+  "dueDate",
+  "dueAt",
+];
+/** Payload keys a form does not show; they never count as an edit. */
+const FORM_HIDDEN_KEYS = new Set([
+  "eventId",
+  "timeZone",
+  "attendees",
+  "source",
+  "aiParsed",
+  "sourceDescription",
+  "isAllDay",
 ]);
 const MODE_BY_PERMISSION: Record<AssistantPermissionMode, PendingActionMode> = {
   MANUAL: "FORM",
@@ -71,6 +119,13 @@ const EVENT_TYPE_LABELS: Record<string, string> = {
   CALL: "poziv",
   HEARING: "ročište",
   OTHER: "ostalo",
+};
+
+const PRIORITY_LABELS: Record<string, string> = {
+  LOW: "nizak",
+  NORMAL: "normalan",
+  HIGH: "visok",
+  URGENT: "hitno",
 };
 
 const DEADLINE_TYPE_LABELS: Record<string, string> = {
@@ -301,11 +356,17 @@ export class AssistantActionsService {
     private readonly workflowQueue: WorkflowQueuePort,
     @Optional() private readonly work?: ActivitiesTasksDeadlinesService,
     @Optional() private readonly documents?: AssistantDocumentReadsService,
+    @Optional() private readonly workEntries?: WorkEntriesService,
   ) {}
 
+  /**
+   * Stores a proposal in the conversation's permission mode. `forceCard` keeps
+   * the approval card (deadline detection proposes several at once).
+   */
   async propose(
     scope: AssistantTurnScope,
     request: AssistantActionRequest,
+    options: { forceCard?: boolean } = {},
   ): Promise<ActionProposalResult> {
     let proposal: Proposal;
     try {
@@ -316,7 +377,9 @@ export class AssistantActionsService {
       }
       throw error;
     }
-    const mode = await this.pendingMode(scope, proposal);
+    const mode = options.forceCard
+      ? "CARD"
+      : await this.pendingMode(scope, proposal);
     const idempotencyKey = createHash("sha256")
       .update(
         `${scope.jobId}|${proposal.actionType}|${stableStringify(proposal.payload)}${
@@ -370,18 +433,21 @@ export class AssistantActionsService {
 
   /**
    * MANUAL mode: the user saved the prefilled form. The edited values are
-   * executed as they are; the agent resumes as after an approval.
+   * validated like the domain endpoint would, executed as they are, and the
+   * agent resumes as after an approval.
    */
-  async completeEventForm(input: {
+  async completeForm(input: {
     workspaceId: string;
     userId: string;
     actionId: string;
-    event: CreateEventDto;
+    body: unknown;
   }): Promise<PendingActionSummary> {
     const action = await this.requireAction(input.workspaceId, input.actionId);
-    if (action.actionType !== "create_event" || action.mode !== "FORM") {
+    const dto = FORM_DTOS[action.actionType as ActionType];
+    if (action.mode !== "FORM" || !dto) {
       throw new BadRequestException("This action is not a prefilled form");
     }
+    const form = await validForm(dto, input.body);
     if (action.status !== "PENDING") return toPendingAction(action);
     const now = new Date();
     if (action.expiresAt <= now) return this.expire(action);
@@ -397,10 +463,21 @@ export class AssistantActionsService {
     if (claimed.count === 0) {
       return toPendingAction(await this.reload(action.id));
     }
-    const edited = eventFingerprint(action.payload) !== eventFingerprint(input.event);
+    const proposed = (action.payload ?? {}) as Record<string, unknown>;
+    // The form cannot change which record it edits.
+    const payload =
+      action.actionType === "reschedule_event"
+        ? { ...form, eventId: proposed["eventId"] }
+        : action.actionType === "log_work_entry"
+          ? { ...form, source: "QUICK_CAPTURE", aiParsed: true }
+          : form;
+    // Defaults the dialog adds (e.g. a work treatment) are not edits.
+    const keys = new Set([...Object.keys(proposed), ...FORM_OPTIONAL_KEYS]);
+    const edited =
+      formFingerprint(proposed, keys) !== formFingerprint(payload, keys);
     await this.runAndRecord(action, async () => {
       const result = (await this.execute(
-        { ...action, payload: { ...input.event } as unknown as Prisma.JsonValue },
+        { ...action, payload: payload as unknown as Prisma.JsonValue },
         input.userId,
       )) as Prisma.InputJsonObject;
       return { ...result, edited };
@@ -416,7 +493,8 @@ export class AssistantActionsService {
     scope: AssistantTurnScope,
     proposal: Proposal,
   ): Promise<PendingActionMode> {
-    if (!MODE_AWARE_ACTIONS.has(proposal.actionType)) return "CARD";
+    const policy = MODE_POLICY[proposal.actionType];
+    if (!policy.form && !policy.auto) return "CARD";
     const session = await this.prisma.chatSession.findFirst({
       where: { id: scope.sessionId, workspaceId: scope.workspaceId },
       select: {
@@ -426,11 +504,15 @@ export class AssistantActionsService {
     });
     const permission: AssistantPermissionMode =
       session?.permissionMode ??
-      session?.createdBy.settings?.assistantPermissionMode ??
+      session?.createdBy?.settings?.assistantPermissionMode ??
       "ASK";
     const mode = MODE_BY_PERMISSION[permission];
+    if (mode === "FORM" && !policy.form) return "CARD";
     // AUTO needs someone to act as, and never skips a warning.
-    if (mode === "AUTO" && (!scope.userId || proposal.hasWarnings)) {
+    if (
+      mode === "AUTO" &&
+      (!policy.auto || !scope.userId || proposal.hasWarnings)
+    ) {
       return "CARD";
     }
     return mode;
@@ -600,7 +682,9 @@ export class AssistantActionsService {
             title,
             dueDate,
             type,
-            description: request.description?.trim() || null,
+            ...(request.description?.trim()
+              ? { description: request.description.trim() }
+              : {}),
             caseId: target.id,
             clientId: target.clientId,
             responsibleUserId: target.responsibleUserId,
@@ -676,6 +760,14 @@ export class AssistantActionsService {
         return this.clientUpdateProposal(scope, request);
       case "create_event":
         return this.eventProposal(scope, request);
+      case "reschedule_event":
+        return this.rescheduleProposal(scope, request);
+      case "cancel_event":
+        return this.cancelProposal(scope, request);
+      case "create_task":
+        return this.taskProposal(scope, request);
+      case "log_work_entry":
+        return this.workEntryProposal(scope, request);
     }
   }
 
@@ -797,7 +889,13 @@ export class AssistantActionsService {
   private async resolveParticipant(
     scope: AssistantTurnScope,
     reference: string,
+    options: {
+      kinds?: ReadonlyArray<Participant["kind"]>;
+      /** The current user may be named (an assignee or performer). */
+      includeSelf?: boolean;
+    } = {},
   ): Promise<Participant | null> {
+    const kinds = options.kinds ?? ["USER", "CLIENT", "CONTACT"];
     const ref = reference.trim();
     const tokens = ref.split(/\s+/).filter((token) => token.length > 1);
     if (!tokens.length) return null;
@@ -847,12 +945,13 @@ export class AssistantActionsService {
         take: PARTICIPANT_CANDIDATES,
       }),
     ]);
-    const candidates: Array<Participant & { name: string }> = [
+    const allCandidates: Array<Participant & { name: string }> = [
       ...users
-        .filter((user) => user.id !== scope.userId)
+        .filter((user) => options.includeSelf || user.id !== scope.userId)
         .map((user) => {
           const name = displayName(user) ?? user.email;
-          return { kind: "USER" as const, id: user.id, name, label: `${name} (kolega)` };
+          const role = user.id === scope.userId ? "vi" : "kolega";
+          return { kind: "USER" as const, id: user.id, name, label: `${name} (${role})` };
         }),
       ...clients.map((client) => ({
         kind: "CLIENT" as const,
@@ -873,9 +972,10 @@ export class AssistantActionsService {
         };
       }),
     ];
+    const candidates = allCandidates.filter((item) => kinds.includes(item.kind));
     if (!candidates.length) {
       throw new InvalidProposal(
-        `Nema kolege, klijenta ni kontakt osobe za „${ref}“. Proverite ime.`,
+        `Nema ${kinds.includes("USER") ? (kinds.length === 1 ? "kolege" : "kolege, klijenta ni kontakt osobe") : "klijenta ni kontakt osobe"} za „${ref}“. Proverite ime.`,
       );
     }
     const exact = candidates.filter(
@@ -892,17 +992,381 @@ export class AssistantActionsService {
     );
   }
 
+  /** Client for a name (a contact person stands for their client), with its display name. */
+  private async resolveClient(
+    scope: AssistantTurnScope,
+    reference: string | undefined,
+  ): Promise<{ id: string; label: string } | null> {
+    if (!reference?.trim()) return null;
+    const match = await this.resolveParticipant(scope, reference, {
+      kinds: ["CLIENT", "CONTACT"],
+    });
+    if (!match) return null;
+    if (match.kind === "CONTACT") {
+      const client = await this.prisma.client.findFirst({
+        where: { id: match.clientId, workspaceId: scope.workspaceId },
+        select: { displayName: true },
+      });
+      return { id: match.clientId, label: client?.displayName ?? match.label };
+    }
+    return { id: match.id, label: match.label };
+  }
+
+  /** A colleague by name, or the current user when no name is given. */
+  private async resolveUser(
+    scope: AssistantTurnScope,
+    reference: string | undefined,
+    missing: string,
+  ): Promise<{ id: string; label: string }> {
+    if (reference?.trim()) {
+      const match = await this.resolveParticipant(scope, reference, {
+        kinds: ["USER"],
+        includeSelf: true,
+      });
+      if (match) return { id: match.id, label: match.label };
+    }
+    if (!scope.userId) throw new InvalidProposal(missing);
+    const user = await this.prisma.user.findFirst({
+      where: { id: scope.userId },
+      select: { firstName: true, lastName: true, email: true },
+    });
+    return { id: scope.userId, label: `${displayName(user) ?? "vi"} (vi)` };
+  }
+
+  /**
+   * Case for a task or work entry: an explicit case must belong to the named
+   * client; the linked case is used only when it does.
+   */
+  private async caseForClient(
+    scope: AssistantTurnScope,
+    caseReference: string | undefined,
+    clientId: string | undefined,
+  ): Promise<CaseMatch | null> {
+    if (caseReference?.trim()) {
+      const target = await this.resolveCase(scope.workspaceId, caseReference);
+      if (clientId && target.clientId !== clientId) {
+        throw new InvalidProposal(
+          `Predmet ${target.caseNumber} pripada klijentu ${target.client.displayName}, ne navedenom klijentu.`,
+        );
+      }
+      return target;
+    }
+    const linked = await this.optionalLinkedCase(scope);
+    return linked && (!clientId || linked.clientId === clientId) ? linked : null;
+  }
+
+  private async taskProposal(
+    scope: AssistantTurnScope,
+    request: Extract<AssistantActionRequest, { type: "create_task" }>,
+  ): Promise<Proposal> {
+    const dueDate = request.dueDate?.trim();
+    if (dueDate && !isIsoDate(dueDate)) {
+      throw new InvalidProposal(`Datum „${dueDate}“ nije ispravan (YYYY-MM-DD).`);
+    }
+    if (dueDate && dueDate < belgradeToday()) {
+      throw new InvalidProposal(`Rok zadatka ${formatDate(dueDate)} je u prošlosti.`);
+    }
+    const assignee = await this.resolveUser(
+      scope,
+      request.assignee,
+      "Navedite kome je zadatak namenjen.",
+    );
+    const client = await this.resolveClient(scope, request.client);
+    const target = await this.caseForClient(
+      scope,
+      request.caseReference,
+      client?.id,
+    );
+    const clientId = target?.clientId ?? client?.id;
+    const title = request.title.trim();
+    const description = request.description?.trim() || undefined;
+    const priority = request.priority ?? "NORMAL";
+    return {
+      actionType: "create_task",
+      payload: {
+        title,
+        assigneeUserId: assignee.id,
+        priority,
+        ...(dueDate ? { dueDate } : {}),
+        ...(target ? { caseId: target.id } : {}),
+        ...(clientId ? { clientId } : {}),
+        ...(description ? { description } : {}),
+      },
+      summary: `Novi zadatak: ${title}${dueDate ? ` — rok ${formatDate(dueDate)}` : ""}`,
+      details: [
+        `Izvršilac: ${assignee.label}`,
+        ...(priority !== "NORMAL" ? [`Prioritet: ${PRIORITY_LABELS[priority] ?? priority}`] : []),
+        ...(target
+          ? [`Predmet: ${target.caseNumber} – ${target.name}`]
+          : client
+            ? [`Klijent: ${client.label}`]
+            : []),
+        ...(description ? [`Opis: ${description}`] : []),
+      ],
+    };
+  }
+
+  private async workEntryProposal(
+    scope: AssistantTurnScope,
+    request: Extract<AssistantActionRequest, { type: "log_work_entry" }>,
+  ): Promise<Proposal> {
+    const minutes = request.minutes;
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      throw new InvalidProposal("Trajanje rada mora biti između 1 i 1440 minuta.");
+    }
+    const workDate = request.date?.trim() || belgradeToday();
+    if (!isIsoDate(workDate)) {
+      throw new InvalidProposal(`Datum „${workDate}“ nije ispravan (YYYY-MM-DD).`);
+    }
+    if (workDate > belgradeToday()) {
+      throw new InvalidProposal(`Datum rada ${formatDate(workDate)} je u budućnosti.`);
+    }
+    const performer = await this.resolveUser(
+      scope,
+      request.performer,
+      "Navedite ko je obavio rad.",
+    );
+    const client = await this.resolveClient(scope, request.client);
+    const target = await this.caseForClient(
+      scope,
+      request.caseReference,
+      client?.id,
+    );
+    const clientId = target?.clientId ?? client?.id;
+    if (!clientId) {
+      throw new InvalidProposal(
+        "Za kog klijenta je rad? Navedite klijenta ili predmet.",
+      );
+    }
+    const clientLabel =
+      client?.label ?? (target ? target.client.displayName : clientId);
+    const title = request.title.trim();
+    const description = request.description?.trim() || undefined;
+    return {
+      actionType: "log_work_entry",
+      payload: {
+        title,
+        minutes,
+        workDate,
+        clientId,
+        userId: performer.id,
+        source: "QUICK_CAPTURE",
+        aiParsed: true,
+        ...(target ? { caseId: target.id } : {}),
+        ...(description ? { description } : {}),
+      },
+      summary: `Upis rada: ${title} — ${formatMinutes(minutes)}, ${formatDate(workDate)}`,
+      details: [
+        `Klijent: ${clientLabel}`,
+        ...(target ? [`Predmet: ${target.caseNumber} – ${target.name}`] : []),
+        `Izvršilac: ${performer.label}`,
+        ...(description ? [`Opis: ${description}`] : []),
+      ],
+    };
+  }
+
+  /**
+   * One upcoming scheduled event of the conversation's owner, matched by what
+   * the user said about it. Zero or several matches are refused with the
+   * candidates, so the agent asks.
+   */
+  private async findEventForChange(
+    scope: AssistantTurnScope,
+    lookup: AssistantEventLookup,
+  ) {
+    if (!scope.userId) {
+      throw new InvalidProposal("Nije poznato čiji kalendar treba promeniti.");
+    }
+    const date = lookup.date?.trim();
+    const time = lookup.startTime?.trim();
+    const title = lookup.title?.trim();
+    const participant = lookup.participant?.trim();
+    if (!date && !time && !title && !participant) {
+      throw new InvalidProposal(
+        "Navedite o kom događaju je reč (učesnik, datum, vreme ili naziv).",
+      );
+    }
+    if (date && !isIsoDate(date)) {
+      throw new InvalidProposal(`Datum „${date}“ nije ispravan (YYYY-MM-DD).`);
+    }
+    const tokens = (participant ?? "")
+      .split(/\s+/)
+      .filter((token) => token.length > 1);
+    const nameMatch = (fields: string[]) => ({
+      AND: tokens.map((token) => ({
+        OR: fields.map((field) => ({
+          [field]: { contains: token, mode: "insensitive" as const },
+        })),
+      })),
+    });
+    const now = new Date();
+    const dayStart = date ? belgradeLocalToDate(date, "00:00") : null;
+    const dayEnd = date ? belgradeLocalToDate(nextIsoDate(date), "00:00") : null;
+    const events = await this.prisma.event.findMany({
+      where: {
+        workspaceId: scope.workspaceId,
+        status: "SCHEDULED",
+        startsAt: {
+          gte: dayStart && dayStart > now ? dayStart : now,
+          ...(dayEnd ? { lt: dayEnd } : {}),
+        },
+        AND: [
+          {
+            OR: [
+              { organizerUserId: scope.userId },
+              { assignees: { some: { userId: scope.userId } } },
+            ],
+          },
+          ...(title
+            ? [{ title: { contains: title, mode: "insensitive" as const } }]
+            : []),
+          ...(tokens.length
+            ? [
+                {
+                  OR: [
+                    nameMatch(["title"]),
+                    { clients: { some: { client: nameMatch(["displayName"]) } } },
+                    { attendees: { some: nameMatch(["displayName"]) } },
+                    {
+                      assignees: {
+                        some: { user: nameMatch(["firstName", "lastName"]) },
+                      },
+                    },
+                  ],
+                },
+              ]
+            : []),
+        ],
+      },
+      include: {
+        clients: { select: { clientId: true, client: { select: { displayName: true } } } },
+        assignees: { select: { userId: true } },
+        attendees: { select: { clientContactId: true, displayName: true, email: true } },
+      },
+      orderBy: { startsAt: "asc" },
+      take: 20,
+    });
+    const matches = time
+      ? events.filter((event) => BELGRADE_TIME.format(event.startsAt) === time)
+      : events;
+    if (matches.length === 1) return matches[0];
+    if (!matches.length) {
+      throw new InvalidProposal(
+        "Nisam našao takav zakazan događaj u vašem kalendaru. Proverite učesnika, datum ili vreme.",
+      );
+    }
+    throw new InvalidProposal(
+      `Više događaja odgovara: ${matches
+        .slice(0, EVENT_CANDIDATES)
+        .map(eventLabel)
+        .join("; ")}. Pitajte korisnika na koji misli (datum i vreme).`,
+    );
+  }
+
+  private async rescheduleProposal(
+    scope: AssistantTurnScope,
+    request: Extract<AssistantActionRequest, { type: "reschedule_event" }>,
+  ): Promise<Proposal> {
+    const newDate = request.newDate?.trim();
+    const newTime = request.newStartTime?.trim();
+    if (!newDate && !newTime && !request.durationMinutes) {
+      throw new InvalidProposal("Navedite novi datum, vreme ili trajanje.");
+    }
+    if (newDate && !isIsoDate(newDate)) {
+      throw new InvalidProposal(`Datum „${newDate}“ nije ispravan (YYYY-MM-DD).`);
+    }
+    if (newTime && !/^([01]\d|2[0-3]):[0-5]\d$/.test(newTime)) {
+      throw new InvalidProposal(`Vreme „${newTime}“ nije ispravno (HH:mm).`);
+    }
+    const event = await this.findEventForChange(scope, request);
+    const date = newDate ?? belgradeToday(event.startsAt);
+    const time = newTime ?? BELGRADE_TIME.format(event.startsAt);
+    const startsAt = belgradeLocalToDate(date, time);
+    if (startsAt.getTime() <= Date.now()) {
+      throw new InvalidProposal(`Termin ${formatDate(date)} u ${time} je u prošlosti.`);
+    }
+    const minutes =
+      request.durationMinutes ??
+      Math.round((event.endsAt.getTime() - event.startsAt.getTime()) / 60_000);
+    const endsAt = new Date(startsAt.getTime() + minutes * 60_000);
+    const assigneeUserIds = unique([
+      ...event.assignees.map((item) => item.userId),
+    ]);
+    const conflicts = await this.eventConflicts(
+      scope.workspaceId,
+      unique([event.organizerUserId, ...assigneeUserIds]),
+      startsAt,
+      endsAt,
+      event.id,
+    );
+    return {
+      actionType: "reschedule_event",
+      payload: {
+        eventId: event.id,
+        type: event.type,
+        title: event.title,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        timeZone: event.timeZone,
+        isAllDay: event.isAllDay,
+        assigneeUserIds,
+        clientIds: event.clients.map((item) => item.clientId),
+        attendees: event.attendees.map((item) => ({
+          ...(item.clientContactId ? { clientContactId: item.clientContactId } : {}),
+          displayName: item.displayName,
+          ...(item.email ? { email: item.email } : {}),
+        })),
+        ...(event.caseId ? { caseId: event.caseId } : {}),
+        ...(event.description ? { description: event.description } : {}),
+        ...(event.location ? { location: event.location } : {}),
+        ...(event.meetingUrl ? { meetingUrl: event.meetingUrl } : {}),
+        ...(event.courtName ? { courtName: event.courtName } : {}),
+        ...(event.courtroom ? { courtroom: event.courtroom } : {}),
+      },
+      summary: `Pomeranje: ${event.title} — ${formatDate(date)} u ${time}`,
+      details: [
+        `Bilo: ${eventWhen(event.startsAt, event.endsAt)}`,
+        `Novo: ${formatDate(date)} ${time}–${BELGRADE_TIME.format(endsAt)}`,
+        ...(event.clients.length
+          ? [`Klijenti: ${event.clients.map((item) => item.client.displayName).join(", ")}`]
+          : []),
+        ...conflicts,
+      ],
+      hasWarnings: conflicts.length > 0,
+    };
+  }
+
+  private async cancelProposal(
+    scope: AssistantTurnScope,
+    request: Extract<AssistantActionRequest, { type: "cancel_event" }>,
+  ): Promise<Proposal> {
+    const event = await this.findEventForChange(scope, request);
+    return {
+      actionType: "cancel_event",
+      payload: { eventId: event.id },
+      summary: `Otkazivanje: ${event.title} — ${eventWhen(event.startsAt, event.endsAt)}`,
+      details: [
+        ...(event.clients.length
+          ? [`Klijenti: ${event.clients.map((item) => item.client.displayName).join(", ")}`]
+          : []),
+        "Otkazan događaj se ne može vratiti.",
+      ],
+    };
+  }
+
   /** Scheduled events of these users that overlap the slot, as warning lines. */
   private async eventConflicts(
     workspaceId: string,
     userIds: string[],
     startsAt: Date,
     endsAt: Date,
+    excludeEventId?: string,
   ): Promise<string[]> {
     if (!userIds.length) return [];
     const overlapping = await this.prisma.event.findMany({
       where: {
         workspaceId,
+        ...(excludeEventId ? { id: { not: excludeEventId } } : {}),
         status: "SCHEDULED",
         startsAt: { lt: endsAt },
         endsAt: { gt: startsAt },
@@ -1018,6 +1482,7 @@ export class AssistantActionsService {
         ...skippedNotes(match.skipped),
         ...conflictWarnings(match.conflicts, "upisana vrednost se ne menja."),
       ],
+      hasWarnings: match.conflicts.length > 0,
     };
   }
 
@@ -1282,7 +1747,7 @@ export class AssistantActionsService {
             entityType: "ChatSession",
             entityId: action.sessionId,
             action: "CHAT_SESSION_LINKED",
-            createdAt: { gte: startedAt },
+            occurredAt: { gte: startedAt },
           },
           data: { metadata: aiMetadata },
         });
@@ -1304,16 +1769,10 @@ export class AssistantActionsService {
       }
       case "create_deadline": {
         if (!this.work) throw new Error("Deadlines are not available");
+        const { description, ...deadlineFields } = payload;
         const deadline = await this.work.createDeadline(
-          Object.assign(new CreateDeadlineDto(), {
-            title: payload["title"],
-            dueDate: payload["dueDate"],
-            type: payload["type"],
-            description: payload["description"] ?? undefined,
-            timeZone: payload["timeZone"],
-            responsibleUserId: payload["responsibleUserId"],
-            caseId: payload["caseId"],
-            clientId: payload["clientId"],
+          Object.assign(new CreateDeadlineDto(), deadlineFields, {
+            ...(description ? { description } : {}),
             sourceDescription: "Predložio AI asistent, odobrio korisnik.",
           }),
         );
@@ -1324,10 +1783,11 @@ export class AssistantActionsService {
             entityId: deadline.id,
             action: "DEADLINE_CREATED",
           },
-          data: { metadata: aiMetadata },
+          data: { metadata: { ...aiMetadata, mode: action.mode } },
         });
+        const due = String(payload["dueDate"] ?? payload["dueAt"] ?? "").slice(0, 10);
         return {
-          message: `Rok „${String(payload["title"])}“ je kreiran za ${formatDate(String(payload["dueDate"]))}`,
+          message: `Rok „${String(payload["title"])}“ je kreiran${isIsoDate(due) ? ` za ${formatDate(due)}` : "."}`,
           deadlineId: deadline.id,
         };
       }
@@ -1371,6 +1831,79 @@ export class AssistantActionsService {
             belgradeToday(startsAt),
           )} u ${BELGRADE_TIME.format(startsAt)}.`,
           eventId: event.id,
+        };
+      }
+      case "reschedule_event": {
+        if (!this.work) throw new Error("Events are not available");
+        const { eventId, ...fields } = payload;
+        const startedAt = new Date();
+        const event = await this.work.updateEvent(
+          String(eventId),
+          Object.assign(new UpdateEventDto(), fields),
+        );
+        await this.prisma.activityLog.updateMany({
+          where: {
+            workspaceId: action.workspaceId,
+            entityType: "Event",
+            entityId: event.id,
+            action: "EVENT_UPDATED",
+            occurredAt: { gte: startedAt },
+          },
+          data: { metadata: { ...aiMetadata, mode: action.mode } },
+        });
+        const startsAt = new Date(event.startsAt);
+        return {
+          message: `Događaj „${event.title}“ je pomeren na ${formatDate(
+            belgradeToday(startsAt),
+          )} u ${BELGRADE_TIME.format(startsAt)}.`,
+          eventId: event.id,
+        };
+      }
+      case "cancel_event": {
+        if (!this.work) throw new Error("Events are not available");
+        const event = await this.work.transitionEvent(
+          String(payload["eventId"]),
+          "CANCELLED",
+        );
+        return {
+          message: `Događaj „${event.title}“ je otkazan.`,
+          eventId: event.id,
+        };
+      }
+      case "create_task": {
+        if (!this.work) throw new Error("Tasks are not available");
+        const task = await this.work.createTask(
+          Object.assign(new CreateTaskDto(), payload),
+        );
+        await this.prisma.activityLog.updateMany({
+          where: {
+            workspaceId: action.workspaceId,
+            entityType: "Task",
+            entityId: task.id,
+            action: "TASK_CREATED",
+          },
+          data: { metadata: { ...aiMetadata, mode: action.mode } },
+        });
+        return {
+          message: `Zadatak „${task.title}“ je kreiran.`,
+          taskId: task.id,
+        };
+      }
+      case "log_work_entry": {
+        if (!this.workEntries) throw new Error("Work entries are not available");
+        // Saved unseen (AUTO), the entry is only proposed: the lawyer confirms
+        // it in the time review. A human-approved entry is confirmed.
+        const entry = await this.workEntries.create(
+          Object.assign(new CreateWorkEntryDto(), payload),
+          action.mode === "AUTO" ? { status: "PROPOSED" } : {},
+        );
+        const minutes = entry.minutes ?? Number(payload["minutes"]);
+        return {
+          message:
+            action.mode === "AUTO"
+              ? `Rad „${entry.title}“ (${formatMinutes(minutes)}) je upisan kao predlog; potvrdite ga u pregledu vremena.`
+              : `Rad „${entry.title}“ (${formatMinutes(minutes)}) je upisan.`,
+          workEntryId: entry.id,
         };
       }
       default:
@@ -1551,25 +2084,86 @@ function proposalResult(row: PendingActionRow): ActionProposalResult {
   };
 }
 
-/** Event fields the user can change in the form, compared order-insensitively. */
-function eventFingerprint(value: unknown): string {
-  const event = (value ?? {}) as Record<string, unknown>;
-  const text = (key: string) => String(event[key] ?? "").trim() || null;
-  const time = (key: string) =>
-    event[key] ? new Date(String(event[key])).getTime() : null;
-  const ids = (key: string) =>
-    [...((event[key] as string[] | undefined) ?? [])].sort();
-  return stableStringify({
-    type: text("type"),
-    title: text("title"),
-    description: text("description"),
-    location: text("location"),
-    caseId: text("caseId"),
-    startsAt: time("startsAt"),
-    endsAt: time("endsAt"),
-    clientIds: ids("clientIds"),
-    assigneeUserIds: ids("assigneeUserIds"),
+/** Validates a saved form like the domain endpoint (whitelist, no extra fields). */
+async function validForm(
+  dto: new () => object,
+  body: unknown,
+): Promise<Record<string, unknown>> {
+  if (!body || typeof body !== "object" || Array.isArray(body)) {
+    throw new BadRequestException("The form body must be an object");
+  }
+  const instance = plainToInstance(dto, body);
+  const errors = await validate(instance, {
+    whitelist: true,
+    forbidNonWhitelisted: true,
   });
+  if (errors.length) {
+    throw new BadRequestException(
+      errors.flatMap((error) => Object.values(error.constraints ?? {})),
+    );
+  }
+  return { ...(instance as Record<string, unknown>) };
+}
+
+/**
+ * The visible fields of a form, compared without empty values, id order, or
+ * timestamp formatting, so an untouched form never counts as edited.
+ */
+function formFingerprint(
+  value: Record<string, unknown>,
+  keys: ReadonlySet<string>,
+): string {
+  const visible: Record<string, unknown> = {};
+  for (const [key, raw] of Object.entries(value)) {
+    if (FORM_HIDDEN_KEYS.has(key) || !keys.has(key)) continue;
+    if (raw === null || raw === undefined) continue;
+    if (typeof raw === "string") {
+      const text = raw.trim();
+      if (!text) continue;
+      visible[key] = /^\d{4}-\d{2}-\d{2}T/.test(text)
+        ? new Date(text).getTime()
+        : text;
+    } else if (Array.isArray(raw)) {
+      if (!raw.length) continue;
+      visible[key] = raw.every((item) => typeof item === "string")
+        ? [...(raw as string[])].sort()
+        : raw;
+    } else {
+      visible[key] = raw;
+    }
+  }
+  return stableStringify(visible);
+}
+
+function formatMinutes(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (!hours) return `${rest} min`;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function nextIsoDate(value: string): string {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
+}
+
+function eventWhen(startsAt: Date, endsAt: Date): string {
+  return `${formatDate(belgradeToday(startsAt))} ${BELGRADE_TIME.format(startsAt)}–${BELGRADE_TIME.format(endsAt)}`;
+}
+
+function eventLabel(event: {
+  title: string;
+  startsAt: Date;
+  endsAt: Date;
+  clients: Array<{ client: { displayName: string } }>;
+  attendees: Array<{ displayName: string }>;
+}): string {
+  const people = [
+    ...event.clients.map((item) => item.client.displayName),
+    ...event.attendees.map((item) => item.displayName),
+  ];
+  return `${event.title}${people.length ? ` – ${unique(people).join(", ")}` : ""}, ${eventWhen(event.startsAt, event.endsAt)}`;
 }
 
 function unique<T>(values: T[]): T[] {

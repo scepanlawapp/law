@@ -530,12 +530,13 @@
                     </hlm-select-label>
                     @for (option of permissionModeOptions; track option.value) {
                       <hlm-select-item [value]="option.value">
-                        <span class="flex flex-col">
-                          <span>{{ option.label | translate }}</span>
-                          <span class="text-sm text-muted-foreground">
+                        <!-- A div: the item centres a span child as one row. -->
+                        <div class="flex w-64 flex-col items-start gap-0.5 pe-6 text-left">
+                          <span class="font-medium">{{ option.label | translate }}</span>
+                          <span class="text-xs font-normal leading-snug text-muted-foreground">
                             {{ option.label + "Description" | translate }}
                           </span>
-                        </span>
+                        </div>
                       </hlm-select-item>
                     }
                   </hlm-select-group>

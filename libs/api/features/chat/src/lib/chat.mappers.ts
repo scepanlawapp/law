@@ -3,7 +3,12 @@ import {
   PendingActionSummary,
   ChatAttachmentSummary,
   ChatMessageResponse,
+  AssistantDeadlineRequest,
   AssistantEventRequest,
+  AssistantFormPrefill,
+  CreateWorkEntryRequest,
+  PendingActionResultEntityType,
+  TaskRequest,
   ChatSessionSummary,
   CaseTimelineAnalysis,
   CaseTimelineResult,
@@ -459,11 +464,8 @@ export function toPendingAction(action: {
     status: action.status,
     mode,
     // The form is prefilled from the proposal; only FORM actions need it.
-    eventPrefill:
-      mode === "FORM" && action.actionType === "create_event"
-        ? (action.payload as AssistantEventRequest)
-        : null,
-    resultEntityId: resultEntityId(result),
+    prefill: mode === "FORM" ? formPrefill(action.actionType, action.payload) : null,
+    ...resultEntity(result),
     resultMessage:
       typeof result?.["message"] === "string" ? result["message"] : null,
     errorMessage: action.errorMessage ?? null,
@@ -473,10 +475,59 @@ export function toPendingAction(action: {
   };
 }
 
-/** Id of the record an executed action created (event, deadline, case). */
-function resultEntityId(result: Record<string, unknown> | null): string | null {
-  const id = result?.["eventId"] ?? result?.["deadlineId"] ?? result?.["caseId"];
-  return typeof id === "string" ? id : null;
+/** Dialog values for a FORM action; the payload already has the dialog's request shape. */
+function formPrefill(
+  actionType: string,
+  payload: unknown,
+): AssistantFormPrefill | null {
+  if (!payload || typeof payload !== "object") return null;
+  const record = payload as Record<string, unknown>;
+  switch (actionType) {
+    case "create_event":
+      return { kind: "event", request: record as unknown as AssistantEventRequest };
+    case "reschedule_event": {
+      const { eventId, ...request } = record;
+      return {
+        kind: "event",
+        eventId: String(eventId),
+        request: request as unknown as AssistantEventRequest,
+      };
+    }
+    case "create_task":
+      return { kind: "task", request: record as unknown as TaskRequest };
+    case "create_deadline":
+      return {
+        kind: "deadline",
+        request: record as unknown as AssistantDeadlineRequest,
+      };
+    case "log_work_entry":
+      return {
+        kind: "work_entry",
+        request: record as unknown as CreateWorkEntryRequest,
+      };
+    default:
+      return null;
+  }
+}
+
+const RESULT_ENTITY_KEYS: Array<[string, PendingActionResultEntityType]> = [
+  ["eventId", "EVENT"],
+  ["taskId", "TASK"],
+  ["deadlineId", "DEADLINE"],
+  ["workEntryId", "WORK_ENTRY"],
+  ["caseId", "CASE"],
+];
+
+/** The record an executed action created or changed (event, task, deadline, …). */
+function resultEntity(result: Record<string, unknown> | null): {
+  resultEntityId: string | null;
+  resultEntityType: PendingActionResultEntityType | null;
+} {
+  for (const [key, type] of RESULT_ENTITY_KEYS) {
+    const id = result?.[key];
+    if (typeof id === "string") return { resultEntityId: id, resultEntityType: type };
+  }
+  return { resultEntityId: null, resultEntityType: null };
 }
 
 type AnalysisRow = {

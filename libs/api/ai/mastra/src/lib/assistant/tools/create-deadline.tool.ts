@@ -14,12 +14,12 @@ type DeadlineRequest = Extract<
 
 export const CREATE_DEADLINE_TOOL_ID = "create_deadline";
 
-/** Side effect: confirm (proposal only; a user must approve it). */
+/** Side effect: confirm. The user's permission mode decides how it is applied. */
 export function createCreateDeadlineTool(deps: LegalAssistantToolDeps) {
   return createTool({
     id: CREATE_DEADLINE_TOOL_ID,
     description:
-      "Proposes a new deadline (rok) on the linked case or on a named case. The case's responsible lawyer becomes responsible. Nothing changes until the user approves the confirmation card.",
+      "Proposes a new deadline (rok) on the linked case or on a named case. The case's responsible lawyer becomes responsible. Never saved automatically: depending on the user's permission mode it opens as a prefilled form (FORM_REQUIRED) or a confirmation card (CONFIRMATION_REQUIRED).",
     inputSchema: z.object({
       title: z
         .string()

@@ -105,4 +105,36 @@ describe("TaskDialogComponent completion", () => {
     expect(completion.complete).not.toHaveBeenCalled();
     expect(api.updateTask).toHaveBeenCalled();
   });
+  it("prefills a new task from the assistant and saves it through the hook", () => {
+    const save = jest.fn().mockReturnValue(of({ id: "action-1" }));
+    context = {
+      initial: {
+        title: "Poslati ugovor",
+        assigneeUserId: "colleague",
+        priority: "HIGH",
+        dueDate: "2030-01-15",
+      },
+      save,
+    };
+    const component = create();
+
+    expect(component.form.getRawValue()).toMatchObject({
+      title: "Poslati ugovor",
+      assigneeUserId: "colleague",
+      priority: "HIGH",
+      dueMode: "DATE",
+      dueDate: "2030-01-15",
+    });
+    component.submit();
+
+    expect(save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: "Poslati ugovor",
+        assigneeUserId: "colleague",
+        dueDate: "2030-01-15",
+      }),
+    );
+    expect(api.createTask).not.toHaveBeenCalled();
+    expect(dialog.close).toHaveBeenCalled();
+  });
 });
