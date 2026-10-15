@@ -29,7 +29,8 @@
                 form.controls.clientId.setValue($event); form.markAsDirty()
               "
               [selectedLabel]="
-                original()?.clientName ?? invoices()[0]?.clientName ?? ''
+                original()?.clientName ??
+                (invoices().length ? invoices()[0].clientName : '')
               "
             />
             <label class="space-y-1">

@@ -85,6 +85,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Revenue Sharing Settings UX](./tracks/revenue_sharing_ux_20261015/index.md)
+
 - [Settings Content Scrolling](./tracks/settings_content_scroll_20261009/index.md)
 - [Case Document Ingestion (epic)](./tracks/case_document_ingestion_20261008/index.md)
 - [Assistant Conversation Organizer](./tracks/assistant_conversation_organizer_20261007/index.md)

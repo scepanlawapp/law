@@ -345,6 +345,30 @@ describe("RevenueSharingService publication boundary", () => {
       }),
     );
   });
+  it("lets the nested version relation supply workspaceId for agreement and rule projections", async () => {
+    const c = configuration();
+    c.agreements = [
+      agreement({
+        agreementType: "EXCLUDED",
+        rates: revenueEmptyRates(true),
+      }),
+    ];
+    c.specialRules = [rule()];
+
+    await withContext(() =>
+      service.publish({
+        expectedVersion: 0,
+        effectiveFrom: date,
+        reason: "",
+        configuration: c,
+      }),
+    );
+
+    const createData = db.revenueSharingVersion.create.mock.calls[0][0].data;
+    expect(createData.workspaceId).toBe(workspaceId);
+    expect(createData.agreements.create[0]).not.toHaveProperty("workspaceId");
+    expect(createData.rules.create[0]).not.toHaveProperty("workspaceId");
+  });
   it("creates new immutable agreement snapshots without updating past terms", async () => {
     const c = configuration();
     c.agreements = [agreement({ effectiveTo: "2099-03-31" })];

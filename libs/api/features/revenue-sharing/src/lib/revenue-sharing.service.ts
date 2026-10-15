@@ -354,7 +354,6 @@ export class RevenueSharingService {
               reason: body.reason,
               agreements: {
                 create: body.configuration.agreements.map((a) => ({
-                  workspaceId,
                   agreementId: a.id,
                   memberId: a.memberId,
                   effectiveFrom: new Date(a.effectiveFrom),
@@ -364,7 +363,6 @@ export class RevenueSharingService {
               },
               rules: {
                 create: body.configuration.specialRules.map((r) => ({
-                  workspaceId,
                   ruleId: r.id,
                   memberId: r.memberId,
                   scopeType: r.scopeType,

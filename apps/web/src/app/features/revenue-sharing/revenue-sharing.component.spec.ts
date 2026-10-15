@@ -1,7 +1,9 @@
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { provideRouter } from "@angular/router";
 import { of, throwError } from "rxjs";
 import { RevenueSharingApiClient } from "@law/api-clients";
+import { HlmDialogService } from "@spartan-ng/helm/dialog";
 import {
   defaultRevenueConfiguration,
   RevenueSettingsResponse,
@@ -19,6 +21,7 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { RevenueSharingComponent } from "./revenue-sharing.component";
+import { RevenueRoleModelSheetComponent } from "./revenue-role-model-sheet.component";
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -83,6 +86,10 @@ describe("Revenue sharing page", () => {
       providers: [
         provideRouter([]),
         { provide: RevenueSharingApiClient, useValue: api },
+        {
+          provide: HlmDialogService,
+          useValue: { open: jest.fn(() => ({ closed$: of(undefined) })) },
+        },
         { provide: ConfirmDialogService, useValue: { confirm: confirmation } },
         { provide: ToastService, useValue: { success: jest.fn() } },
       ],
@@ -96,7 +103,75 @@ describe("Revenue sharing page", () => {
     expect(component.form.controls.enabled.value).toBe(false);
     expect(component.loading()).toBe(false);
     expect(component.dirty()).toBe(false);
+    expect(component.memberRoles()).toEqual(["LAWYER"]);
+    expect(component.tabs).toEqual([
+      "overview",
+      "models",
+      "team",
+      "special",
+      "history",
+    ]);
     expect(fixture.nativeElement.textContent).toContain("revenue.title");
+  });
+  it("opens the matching role editor from both overview and model cards without publishing", () => {
+    const original = component.configuration();
+    const overviewCard = fixture.nativeElement.querySelector(
+      '[data-overview-role="LAWYER"]',
+    ) as HTMLButtonElement;
+    overviewCard.click();
+    fixture.detectChanges();
+    expect(component.tab()).toBe("models");
+    expect(component.selectedRoleModel()).toBe("LAWYER");
+
+    component.closeRoleModel();
+    component.tab.set("models");
+    fixture.detectChanges();
+    const modelCard = fixture.nativeElement.querySelector(
+      '[data-model-role="LAWYER"]',
+    ) as HTMLButtonElement;
+    modelCard.click();
+    fixture.detectChanges();
+    expect(component.selectedRoleModel()).toBe("LAWYER");
+    expect(component.configuration()).toEqual(original);
+    expect(api.publish).not.toHaveBeenCalled();
+  });
+  it("shows conditional role-model preview fields without changing saved configuration", () => {
+    const original = component.configuration();
+    component.openRoleModel("LAWYER");
+    fixture.detectChanges();
+    const sheet = fixture.debugElement.query(
+      By.directive(RevenueRoleModelSheetComponent),
+    ).componentInstance as RevenueRoleModelSheetComponent;
+
+    sheet.form.controls.compensationType.setValue("FIXED");
+    expect(sheet.showsFixedAmount()).toBe(true);
+    expect(sheet.showsPercentages()).toBe(false);
+    sheet.form.controls.compensationType.setValue("PERCENTAGE");
+    expect(sheet.showsFixedAmount()).toBe(false);
+    expect(sheet.showsPercentages()).toBe(true);
+    sheet.form.controls.compensationType.setValue("COMBINED");
+    expect(sheet.showsFixedAmount()).toBe(true);
+    expect(sheet.showsPercentages()).toBe(true);
+    expect(component.configuration()).toEqual(original);
+    expect(api.publish).not.toHaveBeenCalled();
+  });
+  it("marks the effective version by date instead of treating the highest number as current", () => {
+    const effective = {
+      ...defaultRevenueConfiguration(),
+      id: "effective-version",
+      version: 2,
+      effectiveFrom: "2026-01-01",
+    } as unknown as RevenueHistoryEntry;
+    const scheduled = {
+      ...effective,
+      id: "scheduled-version",
+      version: 9,
+      effectiveFrom: "2099-01-01",
+    };
+    component.history.set([scheduled, effective]);
+    expect(component.effectiveVersion()?.id).toBe(effective.id);
+    expect(component.versionStatus(effective)).toBe("CURRENT");
+    expect(component.versionStatus(scheduled)).toBe("SCHEDULED");
   });
   it("updates the typed form and unsaved state through the actual enable switch", () => {
     const control = fixture.nativeElement.querySelector(
@@ -120,8 +195,14 @@ describe("Revenue sharing page", () => {
     component.form.controls.enabled.setValue(true);
     component.form.markAsDirty();
     component.formChanged.set(true);
-    await component.publish();
-    expect(confirmation).toHaveBeenCalled();
+    expect(component.publicationSummary().length).toBeGreaterThan(0);
+    expect(component.publicationSummary()[0].oldValue).not.toBe(
+      component.publicationSummary()[0].newValue,
+    );
+    await component.publish({
+      effectiveFrom: "2026-10-15",
+      reason: "Policy update",
+    });
     expect(api.publish).toHaveBeenCalledWith(
       expect.objectContaining({
         expectedVersion: 0,
@@ -137,7 +218,10 @@ describe("Revenue sharing page", () => {
     );
     component.form.controls.enabled.setValue(true);
     component.formChanged.set(true);
-    await component.publish();
+    await component.publish({
+      effectiveFrom: "2026-10-15",
+      reason: "Policy update",
+    });
     expect(component.form.controls.enabled.value).toBe(true);
     expect(component.error()).toBe("revenue.error.VERSION_CONFLICT");
     expect(component.saving()).toBe(false);
@@ -145,7 +229,7 @@ describe("Revenue sharing page", () => {
   it("can cancel publication and protect unsaved navigation", async () => {
     confirmation.mockReturnValue(of(false));
     component.formChanged.set(true);
-    await component.publish();
+    component.openPublicationDialog();
     expect(api.publish).not.toHaveBeenCalled();
     expect(await component.confirmLeave()).toBe(false);
   });
@@ -192,7 +276,10 @@ describe("Revenue sharing page", () => {
   it("prevents publication of an unstaged agreement edit", async () => {
     await component.editAgreement(memberId);
     component.editorChanged.set(true);
-    await component.publish();
+    await component.publish({
+      effectiveFrom: "2026-10-15",
+      reason: "Policy update",
+    });
     expect(api.publish).not.toHaveBeenCalled();
     expect(component.error()).toBe("revenue.unstaged");
   });
@@ -234,6 +321,10 @@ describe("Revenue localization", () => {
     for (const file of [
       "revenue-sharing.component.ts",
       "revenue-sharing.component.html",
+      "revenue-publish-dialog.component.ts",
+      "revenue-agreement-dialog.component.ts",
+      "revenue-rule-dialog.component.ts",
+      "revenue-role-model-sheet.component.ts",
       "revenue-rate.component.ts",
       "revenue-select.component.ts",
     ]) {
