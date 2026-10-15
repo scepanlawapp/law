@@ -12,8 +12,10 @@ import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines"
 import { WorkspaceDocumentsModule } from "@law/workspace-documents";
 import { DocumentIngestionModule } from "@law/document-ingestion";
 import { WorkEntriesModule } from "@law/work-entries";
+import { FinancialsModule } from "@law/financials";
 import { AgentTurnRunner } from "./agent-turn.runner";
 import { AssistantActionsService } from "./assistant-actions.service";
+import { AssistantBillingReadsService } from "./assistant-billing-reads.service";
 import { AssistantContextBuilder } from "./assistant-context.builder";
 import { ConversationSummaryService } from "./conversation-summary.service";
 import { AssistantDraftingService } from "./assistant-drafting.service";
@@ -46,6 +48,7 @@ import {
     ClientsModule,
     ActivitiesTasksDeadlinesModule,
     WorkEntriesModule,
+    FinancialsModule,
     WorkspaceDocumentsModule,
     DocumentIngestionModule,
     FileStorageModule,
@@ -69,6 +72,7 @@ import {
     AssistantDeadlineDetectionService,
     AssistantActionsService,
     AssistantOfficeReadsService,
+    AssistantBillingReadsService,
     AssistantDocumentReadsService,
     ChatDocumentPromotionService,
     DocumentContentListener,

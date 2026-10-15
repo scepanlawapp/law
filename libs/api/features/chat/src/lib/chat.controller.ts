@@ -354,6 +354,19 @@ export class ChatController {
     });
   }
 
+  /** Reverts an automatic assistant save (conversation owner, within 24 h). */
+  @Post("pending-actions/:actionId/undo")
+  undoPendingAction(
+    @Req() request: WorkspaceRequest,
+    @Param("actionId") actionId: string,
+  ): Promise<PendingActionSummary> {
+    return this.actions.undo({
+      workspaceId: request.workspace!.workspaceId,
+      userId: request.auth!.user.id,
+      actionId,
+    });
+  }
+
   @Post("messages/:messageId/regenerate")
   regenerateAnswer(
     @Req() request: WorkspaceRequest,

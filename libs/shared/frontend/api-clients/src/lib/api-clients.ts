@@ -595,6 +595,18 @@ export class ChatApiClient {
     );
   }
 
+  /** Reverts an automatic assistant save (conversation owner, within 24 h). */
+  undoPendingAction(
+    workspaceId: string,
+    actionId: string,
+  ): Observable<PendingActionSummary> {
+    return this.http.post<PendingActionSummary>(
+      this.endpoint(`/chat/pending-actions/${actionId}/undo`),
+      {},
+      this.workspaceOptions(workspaceId),
+    );
+  }
+
   approvePendingAction(
     workspaceId: string,
     actionId: string,

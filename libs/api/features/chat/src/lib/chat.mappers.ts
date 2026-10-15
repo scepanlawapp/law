@@ -445,6 +445,7 @@ export function toPendingAction(action: {
   errorMessage?: string | null;
   expiresAt: Date;
   decidedAt?: Date | null;
+  undoneAt?: Date | null;
   createdAt: Date;
 }): PendingActionSummary {
   const mode = action.mode ?? "CARD";
@@ -466,6 +467,14 @@ export function toPendingAction(action: {
     // The form is prefilled from the proposal; only FORM actions need it.
     prefill: mode === "FORM" ? formPrefill(action.actionType, action.payload) : null,
     ...resultEntity(result),
+    canUndo:
+      mode === "AUTO" &&
+      action.status === "APPROVED" &&
+      !action.undoneAt &&
+      UNDOABLE_ACTIONS.has(action.actionType) &&
+      Date.now() - (action.decidedAt ?? action.createdAt).getTime() <
+        UNDO_WINDOW_MS,
+    undoneAt: action.undoneAt?.toISOString() ?? null,
     resultMessage:
       typeof result?.["message"] === "string" ? result["message"] : null,
     errorMessage: action.errorMessage ?? null,
@@ -474,6 +483,17 @@ export function toPendingAction(action: {
     createdAt: action.createdAt.toISOString(),
   };
 }
+
+export const UNDO_WINDOW_MS = 24 * 60 * 60 * 1000;
+/** Automatic saves the conversation owner can undo through the domain services. */
+export const UNDOABLE_ACTIONS: ReadonlySet<string> = new Set([
+  "create_event",
+  "reschedule_event",
+  "create_task",
+  "create_tasks_from_brief",
+  "log_work_entry",
+  "log_work_entries",
+]);
 
 /** Dialog values for a FORM action; the payload already has the dialog's request shape. */
 function formPrefill(
@@ -523,6 +543,10 @@ function resultEntity(result: Record<string, unknown> | null): {
   resultEntityId: string | null;
   resultEntityType: PendingActionResultEntityType | null;
 } {
+  const entryIds = result?.["workEntryIds"];
+  if (Array.isArray(entryIds) && typeof entryIds[0] === "string") {
+    return { resultEntityId: entryIds[0], resultEntityType: "TIME_REVIEW" };
+  }
   for (const [key, type] of RESULT_ENTITY_KEYS) {
     const id = result?.[key];
     if (typeof id === "string") return { resultEntityId: id, resultEntityType: type };

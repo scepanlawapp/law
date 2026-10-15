@@ -12,6 +12,7 @@ import {
   lucideClock,
   lucideSquarePen,
   lucideShieldQuestion,
+  lucideUndo2,
   lucideX,
   lucideZap,
 } from "@ng-icons/lucide";
@@ -34,6 +35,7 @@ import { TranslatePipe } from "../../../../core/localization/translate.pipe";
       lucideClock,
       lucideSquarePen,
       lucideShieldQuestion,
+      lucideUndo2,
       lucideX,
       lucideZap,
     }),
@@ -49,11 +51,17 @@ export class PendingActionCardComponent {
   readonly openForm = output<void>();
   /** Opens the record an executed action created. */
   readonly openResult = output<void>();
+  /** AUTO: reverts the automatic save. */
+  readonly undo = output<void>();
+
+  protected readonly undone = computed(() => !!this.action().undoneAt);
 
   protected readonly isForm = computed(() => this.action().mode === "FORM");
   protected readonly isAuto = computed(() => this.action().mode === "AUTO");
   protected readonly resultType = computed(() =>
-    this.action().status === "APPROVED" && this.action().resultEntityId
+    this.action().status === "APPROVED" &&
+    !this.undone() &&
+    this.action().resultEntityId
       ? (this.action().resultEntityType ?? null)
       : null,
   );
@@ -71,6 +79,7 @@ export class PendingActionCardComponent {
   protected readonly icon = computed(() => {
     switch (this.action().status) {
       case "APPROVED":
+        if (this.undone()) return "lucideUndo2";
         return this.isAuto() ? "lucideZap" : "lucideCheck";
       case "DECLINED":
         return "lucideX";

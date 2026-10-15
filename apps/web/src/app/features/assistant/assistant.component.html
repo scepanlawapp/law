@@ -197,6 +197,7 @@
                       (decline)="decidePendingAction(action, 'decline')"
                       (openForm)="openPendingActionForm(action)"
                       (openResult)="openPendingActionResult(action)"
+                      (undo)="undoPendingAction(action)"
                     />
                   }
                   <time>{{ message.createdAt | date: "HH:mm" }}</time>

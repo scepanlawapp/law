@@ -10,6 +10,14 @@ import {
 } from "./tools/change-event.tool";
 import { createCreateTaskTool } from "./tools/create-task.tool";
 import { createLogWorkEntryTool } from "./tools/log-work-entry.tool";
+import {
+  createGetDayWorkTool,
+  createLogWorkEntriesTool,
+} from "./tools/day-work.tool";
+import {
+  createGetClientBillingTool,
+  createListReceivablesTool,
+} from "./tools/billing.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
@@ -69,6 +77,9 @@ export function createLegalAssistantAgent(options: {
       get_client: createGetClientTool(options.deps),
       list_work_items: createListWorkItemsTool(options.deps),
       get_agenda: createGetAgendaTool(options.deps),
+      get_day_work: createGetDayWorkTool(options.deps),
+      get_client_billing: createGetClientBillingTool(options.deps),
+      list_receivables: createListReceivablesTool(options.deps),
       list_activity: createListActivityTool(options.deps),
       list_documents: createListDocumentsTool(options.deps),
       read_document: createReadDocumentTool(options.deps),
@@ -89,6 +100,7 @@ export function createLegalAssistantAgent(options: {
       cancel_event: createCancelEventTool(options.deps),
       create_task: createCreateTaskTool(options.deps),
       log_work_entry: createLogWorkEntryTool(options.deps),
+      log_work_entries: createLogWorkEntriesTool(options.deps),
       create_tasks_from_brief: createCreateTasksFromBriefTool(options.deps),
       propose_client_update_from_document: createProposeClientUpdateTool(
         options.deps,

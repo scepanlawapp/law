@@ -15,6 +15,14 @@ import {
 } from "./tools/change-event.tool";
 import { createCreateTaskTool } from "./tools/create-task.tool";
 import { createLogWorkEntryTool } from "./tools/log-work-entry.tool";
+import {
+  createGetDayWorkTool,
+  createLogWorkEntriesTool,
+} from "./tools/day-work.tool";
+import {
+  createGetClientBillingTool,
+  createListReceivablesTool,
+} from "./tools/billing.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
@@ -143,6 +151,18 @@ function deps(
     getClient: jest.fn().mockResolvedValue({ found: "none", message: "none" }),
     listWorkItems: jest.fn().mockResolvedValue(emptyList),
     getAgenda: jest.fn().mockResolvedValue(emptyList),
+    getDayWork: jest.fn().mockResolvedValue({
+      status: "UNAVAILABLE",
+      message: "n/a",
+    }),
+    getClientBilling: jest.fn().mockResolvedValue({
+      status: "UNAVAILABLE",
+      message: "n/a",
+    }),
+    listReceivables: jest.fn().mockResolvedValue({
+      status: "UNAVAILABLE",
+      message: "n/a",
+    }),
     listActivity: jest.fn().mockResolvedValue(emptyList),
     listDocuments: jest.fn().mockResolvedValue({
       status: "OK",
@@ -491,6 +511,46 @@ describe("assistant tools", () => {
     expect(workSchema.safeParse({ title: "Pregled", minutes: 1.5 }).success).toBe(false);
   });
 
+  it("passes day work, billing reads, and work batches through", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+
+    await createGetDayWorkTool(toolDeps).execute?.({ date: "2026-10-15" }, context);
+    await createGetClientBillingTool(toolDeps).execute?.(
+      { client: "Alfa", month: "2026-10" },
+      context,
+    );
+    await createListReceivablesTool(toolDeps).execute?.({ overdueOnly: true }, context);
+    await createLogWorkEntriesTool(toolDeps).execute?.(
+      {
+        entries: [
+          { eventRef: "event:0b6c4f2e-6f1d-4c8e-9a51-2f0f0b7f3a11" },
+          { title: "Pregled ugovora", minutes: 45, client: "Alfa" },
+        ],
+      },
+      context,
+    );
+
+    expect(toolDeps.getDayWork).toHaveBeenCalledWith(turn, { date: "2026-10-15" });
+    expect(toolDeps.getClientBilling).toHaveBeenCalledWith(turn, {
+      client: "Alfa",
+      month: "2026-10",
+    });
+    expect(toolDeps.listReceivables).toHaveBeenCalledWith(turn, { overdueOnly: true });
+    expect(toolDeps.proposeAction).toHaveBeenCalledWith(turn, {
+      type: "log_work_entries",
+      entries: [
+        { eventRef: "event:0b6c4f2e-6f1d-4c8e-9a51-2f0f0b7f3a11" },
+        { title: "Pregled ugovora", minutes: 45, client: "Alfa" },
+      ],
+    });
+    const batch = createLogWorkEntriesTool(toolDeps).inputSchema as unknown as ZodTypeAny;
+    expect(batch.safeParse({ entries: [] }).success).toBe(false);
+    expect(
+      batch.safeParse({ entries: [{ eventRef: "meeting-1" }] }).success,
+    ).toBe(false);
+  });
+
   it("declares a side-effect level for every agent tool", async () => {
     const agent = createLegalAssistantAgent({
       model: createScriptedModel([{ text: "ok" }]).model as never,
@@ -514,6 +574,7 @@ describe("assistant tools", () => {
       "create_tasks_from_brief",
       "detect_deadlines",
       "link_case",
+      "log_work_entries",
       "log_work_entry",
       "propose_client_update_from_document",
       "reschedule_event",

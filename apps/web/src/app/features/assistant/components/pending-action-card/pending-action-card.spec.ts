@@ -137,4 +137,35 @@ describe("PendingActionCardComponent", () => {
       "assistant.pendingAction.openResult.WORK_ENTRY",
     );
   });
+
+  it("offers undo on an automatic save and shows it once undone", () => {
+    const auto = {
+      ...pending,
+      actionType: "create_task" as const,
+      mode: "AUTO" as const,
+      status: "APPROVED" as const,
+      resultEntityId: "task-1",
+      resultEntityType: "TASK" as const,
+      resultMessage: "Zadatak je kreiran.",
+      canUndo: true,
+    };
+    const { fixture, buttons } = render(auto);
+    const events: string[] = [];
+    fixture.componentInstance.undo.subscribe(() => events.push("undo"));
+
+    expect(buttons.map((button) => button.textContent?.trim())).toEqual([
+      "assistant.pendingAction.openResult.TASK",
+      "assistant.pendingAction.undo",
+    ]);
+    buttons[1].click();
+    expect(events).toEqual(["undo"]);
+
+    const undone = render({
+      ...auto,
+      canUndo: false,
+      undoneAt: "2026-10-15T12:00:00.000Z",
+    });
+    expect(undone.element.textContent).toContain("assistant.pendingAction.undone");
+    expect(undone.buttons).toHaveLength(0);
+  });
 });

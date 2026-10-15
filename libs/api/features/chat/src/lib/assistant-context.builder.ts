@@ -60,7 +60,7 @@ export class AssistantContextBuilder {
         },
       },
     });
-    const [messages, sessionCaseId, caseContext, workspaceState] =
+    const [messages, sessionCaseId, caseContext, workspaceState, undone] =
       await Promise.all([
         // Summarized turns are represented by the summary, not repeated.
         this.conversation(
@@ -72,6 +72,7 @@ export class AssistantContextBuilder {
         this.matterLink.caseContextBlock(input.workspaceId, input.sessionId),
         this.drafting?.workspaceState(input.workspaceId, input.sessionId) ??
           null,
+        this.undoneNote(input.workspaceId, input.sessionId),
       ]);
     const hint =
       caseContext && sessionCaseId
@@ -87,7 +88,8 @@ export class AssistantContextBuilder {
       caseContext: caseContext
         ? [toLatin(caseContext), hint].filter(Boolean).join("\n")
         : null,
-      workspaceState,
+      workspaceState:
+        [workspaceState, undone].filter(Boolean).join("\n\n") || null,
       conversationSummary: session?.summary?.trim()
         ? toLatin(session.summary)
         : null,
@@ -125,6 +127,24 @@ export class AssistantContextBuilder {
     } catch (error) {
       this.logger.warn(
         `Client update hint was skipped: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return null;
+    }
+  }
+
+  /** Automatic saves the user undid, so the agent never reports them as done. */
+  private async undoneNote(
+    workspaceId: string,
+    sessionId: string,
+  ): Promise<string | null> {
+    if (!this.actions?.undoneNote) return null;
+    try {
+      return await this.actions.undoneNote(workspaceId, sessionId);
+    } catch (error) {
+      this.logger.warn(
+        `Undone saves note was skipped: ${
           error instanceof Error ? error.message : String(error)
         }`,
       );

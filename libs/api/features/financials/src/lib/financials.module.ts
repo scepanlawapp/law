@@ -33,6 +33,11 @@ import { SefUblBuilder } from "./sef-ubl-builder";
     SefSubmissionService,
     SefUblBuilder,
   ],
-  exports: [FinancialsService, InvoiceNumberingService, SefSubmissionService],
+  exports: [
+    FinancialsService,
+    InvoiceNumberingService,
+    PaymentsService,
+    SefSubmissionService,
+  ],
 })
 export class FinancialsModule {}

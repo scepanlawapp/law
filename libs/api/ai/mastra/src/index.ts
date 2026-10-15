@@ -40,6 +40,8 @@ export * from "./lib/assistant/tools/create-event.tool";
 export * from "./lib/assistant/tools/change-event.tool";
 export * from "./lib/assistant/tools/create-task.tool";
 export * from "./lib/assistant/tools/log-work-entry.tool";
+export * from "./lib/assistant/tools/day-work.tool";
+export * from "./lib/assistant/tools/billing.tool";
 export * from "./lib/assistant/tools/create-tasks-from-brief.tool";
 export * from "./lib/conversation/conversation-summary";
 export * from "./lib/price-suggestion.agent";
