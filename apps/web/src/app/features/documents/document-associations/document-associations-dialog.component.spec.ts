@@ -108,7 +108,7 @@ describe("DocumentAssociationsDialogComponent", () => {
     expect(fixture.componentInstance.selectedClientIds()).toContain("client-1");
     expect(cases.list).toHaveBeenCalledWith({
       page: 1,
-      pageSize: 20,
+      pageSize: 50,
       search: undefined,
       clientIds: ["client-1"],
     });

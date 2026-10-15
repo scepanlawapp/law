@@ -92,7 +92,7 @@ export class PaymentsComponent {
       totalItems: 0,
       totalPages: 0,
       page: 1,
-      pageSize: 25,
+      pageSize: 50,
       hasPreviousPage: false,
       hasNextPage: false,
       sort: [],

@@ -1151,7 +1151,7 @@ export class DocumentsComponent implements OnInit {
 
   loadVersions(documentId: string): void {
     this.documentsApi
-      .listVersions(documentId, { page: 1, pageSize: 20 })
+      .listVersions(documentId, { page: 1, pageSize: 50 })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => this.detailVersions.set(response.items),

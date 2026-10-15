@@ -590,7 +590,7 @@ export class DocumentUploadDialogComponent {
     this.clientOptionsLoading.set(true);
     this.clientOptionsError.set(false);
     this.clientsApi
-      .list({ search: term || undefined, pageSize: 20, page: 1 })
+      .list({ search: term || undefined, pageSize: 50, page: 1 })
       .pipe(
         catchError(() => {
           this.clientOptionsError.set(true);
