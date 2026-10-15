@@ -8,6 +8,7 @@ import {
   signal,
   output,
 } from "@angular/core";
+import { NgTemplateOutlet } from "@angular/common";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   FormControl,
@@ -45,6 +46,10 @@ import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTabsImports } from "@spartan-ng/helm/tabs";
 import { HlmTableImports } from "@spartan-ng/helm/table";
+import { HlmDialogService } from "@spartan-ng/helm/dialog";
+import { BrnDialogRef } from "@spartan-ng/brain/dialog";
+import { NgIcon, provideIcons } from "@ng-icons/core";
+import { lucideChevronLeft, lucideChevronRight } from "@ng-icons/lucide";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
@@ -62,6 +67,20 @@ import {
   RevenueRateForm,
 } from "./revenue-rate.component";
 import { officeToday } from "../time/time-utils";
+import {
+  RevenuePublishDialogComponent,
+  RevenuePublishDialogContext,
+  RevenuePublishDialogResult,
+} from "./revenue-publish-dialog.component";
+import {
+  RevenueRuleDialogComponent,
+  RevenueRuleDialogContext,
+} from "./revenue-rule-dialog.component";
+import {
+  RevenueAgreementDialogComponent,
+  RevenueAgreementDialogContext,
+} from "./revenue-agreement-dialog.component";
+import { RevenueRoleModelSheetComponent } from "./revenue-role-model-sheet.component";
 
 const textControl = (value = "", required = false) =>
   new FormControl<string>(value, {
@@ -88,6 +107,8 @@ const writeRates = (form: ReturnType<typeof ratesForm>, rates: RevenueRates) =>
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    NgTemplateOutlet,
+    NgIcon,
     ReactiveFormsModule,
     HlmButton,
     HlmInput,
@@ -96,10 +117,12 @@ const writeRates = (form: ReturnType<typeof ratesForm>, rates: RevenueRates) =>
     HlmSpinner,
     HlmTabsImports,
     HlmTableImports,
+    RevenueRoleModelSheetComponent,
     TranslatePipe,
     RevenueSelectComponent,
     RevenueRateComponent,
   ],
+  providers: [provideIcons({ lucideChevronLeft, lucideChevronRight })],
   templateUrl: "./revenue-sharing.component.html",
 })
 export class RevenueSharingComponent {
@@ -109,6 +132,12 @@ export class RevenueSharingComponent {
   readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly dialogs = inject(HlmDialogService);
+  private ruleDialogRef: BrnDialogRef<boolean | undefined> | null = null;
+  private agreementDialogRef: BrnDialogRef<boolean | undefined> | null = null;
+  readonly selectedRoleModel = signal<string | null>(null);
+  readonly simulatorWide = signal(false);
+  readonly simulatorExpanded = signal(false);
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly previewing = signal(false);
@@ -127,18 +156,23 @@ export class RevenueSharingComponent {
   readonly draftChanged = signal(false);
   readonly formChanged = signal(false);
   readonly tab = signal("overview");
-  readonly tabs = [
-    "overview",
-    "general",
-    "team",
-    "special",
-    "simulator",
-    "history",
-  ];
+  readonly tabs = ["overview", "models", "team", "special", "history"];
   readonly origins = REVENUE_ORIGINS;
   readonly filter = textControl("ACTIVE");
   readonly filterOptions = revenueOptions(["ACTIVE", "FORMER", "ALL"]);
   readonly filteredMembers = signal<RevenueReferences["members"]>([]);
+  // TODO(revenue-sharing): Requires versioned role-default fields in the API. Purpose: define standard compensation by actual team role. Needed: persisted role-keyed fixed/percentage model fields.
+  // TODO(revenue-sharing): Requires monthly compensation fields in RevenueConfiguration and RevenueAgreement. Purpose: support fixed or combined monthly pay. Needed: versioned amounts and calculation semantics; UserRate is hourly and must not be repurposed.
+  // TODO(revenue-sharing): Requires a server-side draft resource and save endpoint. Purpose: resume unpublished edits across sessions. Needed: persisted draft lifecycle separate from immutable publication.
+  readonly memberRoles = computed(() =>
+    [
+      ...new Set(
+        this.references()
+          .members.filter((member) => member.status === "ACTIVE")
+          .map((member) => member.role),
+      ),
+    ].sort(),
+  );
   readonly modes = revenueOptions(REVENUE_MODES);
   readonly bases = revenueOptions(REVENUE_BASES);
   readonly agreementTypes = revenueOptions(REVENUE_AGREEMENT_TYPES);
@@ -197,7 +231,7 @@ export class RevenueSharingComponent {
   });
   readonly publication = new FormGroup({
     effectiveFrom: textControl(officeToday(), true),
-    reason: textControl(),
+    reason: textControl("", true),
   });
   readonly agreementEditor = new FormGroup({
     id: textControl(),
@@ -254,6 +288,7 @@ export class RevenueSharingComponent {
   readonly advancedMode = signal(false);
 
   constructor() {
+    this.syncSimulatorViewport();
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => {
@@ -283,10 +318,28 @@ export class RevenueSharingComponent {
       .subscribe(() => this.updateMembers());
     this.load();
   }
+  @HostListener("window:resize")
+  syncSimulatorViewport() {
+    if (typeof window === "undefined") return;
+    const wide = window.matchMedia("(min-width: 1700px)").matches;
+    if (wide === this.simulatorWide()) return;
+    this.simulatorWide.set(wide);
+    this.simulatorExpanded.set(wide);
+  }
+  toggleSimulator() {
+    this.simulatorExpanded.update((expanded) => !expanded);
+  }
   updateMode() {
     const mode = this.form.controls.configurationMode.value;
     this.individualMode.set(mode !== "SHARED_RULES");
     this.advancedMode.set(mode === "ADVANCED");
+  }
+  openRoleModel(role: string) {
+    this.tab.set("models");
+    this.selectedRoleModel.set(role);
+  }
+  closeRoleModel() {
+    this.selectedRoleModel.set(null);
   }
   updateMembers() {
     const filter = this.filter.value;
@@ -297,6 +350,74 @@ export class RevenueSharingComponent {
           (filter === "ACTIVE" ? m.status === "ACTIVE" : m.status === "FORMER"),
       ),
     );
+  }
+  openPublicationDialog() {
+    const loaded = this.loaded();
+    if (!loaded || this.saving() || !this.dirty() || this.editorChanged()) {
+      if (this.editorChanged()) this.error.set("revenue.unstaged");
+      return;
+    }
+    const minimumDate =
+      loaded.effectiveFrom && loaded.effectiveFrom > officeToday()
+        ? loaded.effectiveFrom
+        : officeToday();
+    const context: RevenuePublishDialogContext = {
+      version: loaded.version + 1,
+      effectiveFrom: this.publication.controls.effectiveFrom.value,
+      minimumDate,
+      reason: this.publication.controls.reason.value,
+      summary: this.publicationSummary(),
+    };
+    this.dialogs
+      .open<RevenuePublishDialogResult, RevenuePublishDialogContext>(
+        RevenuePublishDialogComponent,
+        {
+          context,
+          contentClass:
+            "w-[calc(100vw-2rem)] sm:max-w-xl h-[90dvh] max-h-[90dvh] min-h-0 overflow-hidden flex flex-col",
+        },
+      )
+      .closed$.pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((result) => {
+        if (result) void this.publish(result);
+      });
+  }
+  publicationSummary(): {
+    label: string;
+    oldValue: string;
+    newValue: string;
+  }[] {
+    const loaded = this.loaded();
+    if (!loaded) return [];
+    return this.historyChanges({
+      id: "pending-publication",
+      version: loaded.version + 1,
+      effectiveFrom: this.publication.controls.effectiveFrom.value,
+      createdAt: "",
+      reason: "",
+      changedBy: "",
+      configuration: this.configuration(),
+    });
+  }
+  effectiveVersion(): RevenueHistoryEntry | null {
+    const today = officeToday();
+    return (
+      this.history()
+        .filter(
+          (entry): entry is RevenueHistoryEntry & { effectiveFrom: string } =>
+            entry.effectiveFrom !== null && entry.effectiveFrom <= today,
+        )
+        .sort(
+          (a, b) =>
+            b.effectiveFrom.localeCompare(a.effectiveFrom) ||
+            b.version - a.version,
+        )[0] ?? null
+    );
+  }
+  versionStatus(entry: RevenueHistoryEntry) {
+    if (!entry.effectiveFrom) return "UNKNOWN";
+    if (entry.effectiveFrom > officeToday()) return "SCHEDULED";
+    return this.effectiveVersion()?.id === entry.id ? "CURRENT" : "HISTORICAL";
   }
   load() {
     if (this.saving()) return;
@@ -365,6 +486,23 @@ export class RevenueSharingComponent {
       this.localization.translate("revenue.unavailable")
     );
   }
+  rateSummary(origin: (typeof REVENUE_ORIGINS)[number]) {
+    const rate = readRate(this.form.controls.rates.controls[origin]);
+    return rate.state === "PERCENTAGE"
+      ? this.percent(rate.percentage)
+      : this.localization.translate("revenue.enum." + rate.state);
+  }
+  originationSummary() {
+    return this.form.controls.originationEnabled.value
+      ? this.rateSummaryForOrigination()
+      : this.localization.translate("revenue.originationDisabled");
+  }
+  private rateSummaryForOrigination() {
+    const rate = readRate(this.form.controls.originationRate);
+    return rate.state === "PERCENTAGE"
+      ? this.percent(rate.percentage)
+      : this.localization.translate("revenue.enum." + rate.state);
+  }
   memberOptions(optional = false): SelectOption[] {
     return [
       ...(optional ? [{ value: "", label: "revenue.none" }] : []),
@@ -432,6 +570,69 @@ export class RevenueSharingComponent {
   agreementsFor(id: string) {
     return this.agreements().filter((a) => a.memberId === id);
   }
+  individualAgreements() {
+    return this.agreements().filter((agreement) =>
+      ["INDIVIDUAL", "EXCLUDED", "UNCONFIGURED"].includes(
+        agreement.agreementType,
+      ),
+    );
+  }
+  individualAgreementMemberCount() {
+    return new Set(
+      this.individualAgreements().map((agreement) => agreement.memberId),
+    ).size;
+  }
+  agreementSummary(agreement: RevenueAgreement) {
+    const rates = REVENUE_ORIGINS.filter(
+      (origin) =>
+        agreement.rates[origin].state === "PERCENTAGE" ||
+        agreement.rates[origin].state === "EXCLUDED",
+    ).map((origin) => {
+      const rate = agreement.rates[origin];
+      return `${this.localization.translate("revenue.enum." + origin)} ${rate.state === "PERCENTAGE" ? this.percent(rate.percentage) : this.localization.translate("revenue.enum.EXCLUDED")}`;
+    });
+    if (
+      agreement.originationRate.state === "PERCENTAGE" ||
+      agreement.originationRate.state === "EXCLUDED"
+    ) {
+      rates.push(
+        `${this.localization.translate("revenue.originationRate")} ${agreement.originationRate.state === "PERCENTAGE" ? this.percent(agreement.originationRate.percentage) : this.localization.translate("revenue.enum.EXCLUDED")}`,
+      );
+    }
+    return rates.length
+      ? rates.join(" · ")
+      : this.localization.translate("revenue.noRateOverrides");
+  }
+  private previewShareWidth(value: string | null) {
+    const amount = Number(this.simulator.controls.amount.value);
+    const share = Number(value);
+    if (!Number.isFinite(amount) || amount <= 0 || !Number.isFinite(share))
+      return 0;
+    return Math.max(0, Math.min(100, (share / amount) * 100));
+  }
+  previewWorkWidth(result: RevenuePreviewResult) {
+    return this.previewShareWidth(result.workAmount);
+  }
+  previewOriginationWidth(result: RevenuePreviewResult) {
+    return this.previewShareWidth(result.originationAmount);
+  }
+  previewResidualWidth(result: RevenuePreviewResult) {
+    return this.previewShareWidth(result.residual);
+  }
+  memberAgreementLabel(memberId: string) {
+    const today = officeToday();
+    const agreement = this.agreementsFor(memberId)
+      .filter(
+        (row) =>
+          row.effectiveFrom <= today &&
+          (!row.effectiveTo || row.effectiveTo >= today),
+      )
+      .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
+    if (!agreement) return this.localization.translate("revenue.sharedModel");
+    return this.localization.translate(
+      "revenue.enum." + agreement.agreementType,
+    );
+  }
   async editAgreement(memberId: string, agreement?: RevenueAgreement) {
     if (this.editorChanged() && !(await this.ask("revenue.discard"))) return;
     this.agreementEditor.enable({ emitEvent: false });
@@ -491,12 +692,38 @@ export class RevenueSharingComponent {
     this.editorChanged.set(false);
     this.editingAgreement.set(true);
     this.editingRule.set(false);
+    this.openAgreementDialog();
   }
-  stageAgreement() {
+  memberRoleName(memberId: string) {
+    const role = this.references().members.find(
+      (member) => member.id === memberId,
+    )?.role;
+    return role
+      ? this.localization.translate("revenue.enum." + role)
+      : this.localization.translate("revenue.unavailable");
+  }
+  private openAgreementDialog() {
+    if (this.agreementDialogRef) return;
+    this.agreementDialogRef = this.dialogs.open<
+      boolean | undefined,
+      RevenueAgreementDialogContext
+    >(RevenueAgreementDialogComponent, {
+      context: { editor: this },
+      contentClass:
+        "w-[calc(100vw-2rem)] sm:max-w-2xl max-h-[calc(100dvh-2rem)] overflow-hidden flex flex-col",
+      showCloseButton: false,
+      disableClose: true,
+      closeOnOutsidePointerEvents: false,
+    });
+    this.agreementDialogRef.closed$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => (this.agreementDialogRef = null));
+  }
+  stageAgreement(): boolean {
     this.agreementEditor.markAllAsTouched();
     if (this.agreementEditor.invalid) {
       this.error.set("revenue.error.INVALID_INPUT");
-      return;
+      return false;
     }
     const v = this.agreementEditor.getRawValue();
     const a = {
@@ -514,6 +741,7 @@ export class RevenueSharingComponent {
         : [...rows, a],
     );
     this.stageDone();
+    return true;
   }
   async editRule(rule?: RevenueSpecialRule) {
     if (this.editorChanged() && !(await this.ask("revenue.discard"))) return;
@@ -559,6 +787,23 @@ export class RevenueSharingComponent {
     this.editorChanged.set(false);
     this.editingRule.set(true);
     this.editingAgreement.set(false);
+    this.openRuleDialog();
+  }
+  private openRuleDialog() {
+    if (this.ruleDialogRef) return;
+    this.ruleDialogRef = this.dialogs.open<
+      boolean | undefined,
+      RevenueRuleDialogContext
+    >(RevenueRuleDialogComponent, {
+      context: { editor: this },
+      contentClass: "sm:max-w-2xl max-h-[90dvh] overflow-y-auto",
+      showCloseButton: false,
+      disableClose: true,
+      closeOnOutsidePointerEvents: false,
+    });
+    this.ruleDialogRef.closed$
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => (this.ruleDialogRef = null));
   }
   stageRule() {
     this.ruleEditor.markAllAsTouched();
@@ -594,11 +839,13 @@ export class RevenueSharingComponent {
     this.previewResult.set(null);
     this.error.set("");
   }
-  async cancelEditor() {
-    if (this.editorChanged() && !(await this.ask("revenue.discard"))) return;
+  async cancelEditor(): Promise<boolean> {
+    if (this.editorChanged() && !(await this.ask("revenue.discard")))
+      return false;
     this.editorChanged.set(false);
     this.editingAgreement.set(false);
     this.editingRule.set(false);
+    return true;
   }
   private ask(message: string) {
     return firstValueFrom(
@@ -611,9 +858,13 @@ export class RevenueSharingComponent {
     );
   }
   async confirmLeave() {
-    return (
-      !this.saving() && (!this.dirty() || (await this.ask("revenue.discard")))
-    );
+    if (this.saving() || (this.dirty() && !(await this.ask("revenue.discard"))))
+      return false;
+    this.ruleDialogRef?.close(undefined);
+    this.ruleDialogRef = null;
+    this.agreementDialogRef?.close(undefined);
+    this.agreementDialogRef = null;
+    return true;
   }
   @HostListener("window:beforeunload", ["$event"]) beforeUnload(
     event: BeforeUnloadEvent,
@@ -623,7 +874,7 @@ export class RevenueSharingComponent {
   async discard() {
     if (await this.ask("revenue.discard")) this.load();
   }
-  async publish() {
+  async publish(publication: RevenuePublishDialogResult) {
     const loaded = this.loaded();
     if (this.saving() || !loaded) return;
     if (this.editorChanged()) {
@@ -631,13 +882,13 @@ export class RevenueSharingComponent {
       return;
     }
     this.form.markAllAsTouched();
+    this.publication.patchValue(publication, { emitEvent: false });
     this.publication.markAllAsTouched();
     if (this.form.invalid || this.publication.invalid) {
-      this.tab.set("general");
+      this.tab.set("models");
       this.error.set("revenue.error.INVALID_INPUT");
       return;
     }
-    if (!(await this.ask("revenue.publishConfirm"))) return;
     this.saving.set(true);
     this.error.set("");
     this.api
@@ -651,6 +902,10 @@ export class RevenueSharingComponent {
         next: (saved) => {
           this.apply(saved);
           this.saving.set(false);
+          this.api
+            .history()
+            .pipe(takeUntilDestroyed(this.destroyRef))
+            .subscribe({ next: (history) => this.history.set(history) });
           this.toast.success(this.localization.translate("revenue.saved"));
           this.published.emit();
         },
