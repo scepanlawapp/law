@@ -202,7 +202,7 @@ test("payment listing applies real server filters and has an unavailable import 
   await page.getByRole("button", { name: "Dodatni filteri" }).click();
   await page.locator("#filter-currency").focus();
   await page.keyboard.press("Enter");
-  await page.getByRole("option", { name: "EUR", exact: true }).click();
+  await page.getByRole("option", { name: "Evro", exact: true }).click();
   await expect
     .poll(() =>
       state.requests.some(
@@ -254,19 +254,22 @@ test("advance form preserves input on failure, retries and voids with confirmati
   await page
     .getByRole("button", { name: "Sačuvaj uplatu", exact: true })
     .click();
-  await expect(page).toHaveURL(/payments\/payment-1$/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(/finance\/payments$/);
   const saves = state.requests.filter(
     (r) => r.method === "POST" && r.path.endsWith("/payments"),
   );
   expect(saves).toHaveLength(2);
   expect(saves[0].key).toBe(saves[1].key);
+  await page.locator("tr[tabindex]").first().click();
+  await expect(page.getByRole("dialog")).toBeVisible();
   await page
     .getByRole("button", { name: "Poništi uplatu", exact: true })
     .click();
   await page.getByLabel("Razlog poništavanja (obavezno)").fill("Pogrešan unos");
   await page.getByRole("button", { name: "Potvrdi poništavanje" }).click();
   await page
-    .getByRole("dialog")
+    .getByRole("dialog").filter({ has: page.getByRole("heading", { name: "Poništi uplatu?", exact: true }) })
     .getByRole("button", { name: "Poništi uplatu", exact: true })
     .click();
   await expect(
@@ -298,10 +301,52 @@ test("searchable client picker and multi-invoice allocation keep exact totals", 
   await page
     .getByRole("button", { name: "Sačuvaj uplatu", exact: true })
     .click();
-  await expect(page).toHaveURL(/payments\/payment-1$/);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page).toHaveURL(/finance\/payments$/);
   const body = state.requests.find(
     (r) => r.method === "POST" && r.path.endsWith("/payments"),
   )?.body as { allocations: unknown[] };
   expect(body.allocations).toHaveLength(1);
+  expect(state.errors).toEqual([]);
+});
+
+test("summary defaults, period filters, currency selection and modal entry points", async ({ page }) => {
+  const state = await shell(page);
+  await page.goto("/finance/payments");
+  await expect(page.locator("tr[tabindex]")).toHaveCount(1);
+  await expect(page.locator("#payment-summary")).toHaveCount(0);
+  expect(state.requests.filter(r => r.path.includes("/payments/summary"))).toHaveLength(0);
+  expect(state.requests.some(r => r.path.includes("from=2026-01-01") && r.path.includes("to=2026-12-31"))).toBeTruthy();
+  await page.getByRole("button", { name: "Prikaži sažetak" }).click();
+  await expect(page.getByRole("region", { name: "Sažetak RSD", exact: true })).toBeVisible();
+  await expect(page.getByRole("region", { name: "Sažetak EUR", exact: true })).toBeVisible();
+  await expect(page.locator("#payment-summary")).toContainText("Period:");
+  await page.locator("#summary-currencies").click();
+  await page.getByRole("option", { name: "Švajcarski franak", exact: true }).click();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("region", { name: "Sažetak CHF", exact: true })).toBeVisible();
+  await page.locator('[formcontrolname="from"]').fill("2026-02-01");
+  await expect.poll(() => state.requests.some(r => r.path.includes("/payments/summary?") && r.path.includes("from=2026-02-01"))).toBeTruthy();
+  await page.getByRole("button", { name: "Sakrij sažetak" }).click();
+  await page.locator("tr[tabindex]").first().focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("heading", { name: "Pregled uplate", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.getByRole("button", { name: "Nova uplata", exact: true }).click();
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await page.locator("#payment-currency").click();
+  await page.getByRole("option", { name: "Švajcarski franak", exact: true }).click();
+  await expect(page.locator("#payment-currency")).toContainText("Švajcarski franak");
+  await page.screenshot({ path: "/tmp/payment-modal-desktop.png", animations: "disabled" });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/tmp/payment-modal-mobile.png", animations: "disabled" });
+  await page.getByRole("button", { name: "Otkaži", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(2);
+  await page.getByRole("button", { name: "Nastavi unos", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(1);
+  await page.keyboard.press("Escape");
+  await page.getByRole("button", { name: "Odbaci", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(state.errors).toEqual([]);
 });

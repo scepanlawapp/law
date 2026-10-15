@@ -1,6 +1,10 @@
-import { Component, inject, signal } from "@angular/core";
+import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
+import { HlmDialogImports } from "@spartan-ng/helm/dialog";
+import { PaymentViewContext, PaymentViewResult } from "./payment-dialog.models";
+import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
-import { ActivatedRoute, RouterLink } from "@angular/router";
+import { RouterLink } from "@angular/router";
 import { PaymentsApiClient } from "@law/api-clients";
 import { PaymentDetail } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -21,6 +25,7 @@ import {
   standalone: true,
   imports: [
     ReactiveFormsModule,
+    HlmDialogImports,
     RouterLink,
     HlmButton,
     HlmInput,
@@ -32,7 +37,10 @@ import {
 export class PaymentDetailComponent {
   private readonly api = inject(PaymentsApiClient);
   private readonly confirm = inject(ConfirmDialogService);
-  readonly id = inject(ActivatedRoute).snapshot.paramMap.get("id") ?? "";
+  private readonly dialog =
+    inject<BrnDialogRef<PaymentViewResult>>(BrnDialogRef);
+  readonly id = injectBrnDialogContext<PaymentViewContext>().id;
+  private allowClose = false;
   readonly payment = signal<PaymentDetail | null>(null);
   readonly loading = signal(false);
   readonly saving = signal(false);
@@ -79,7 +87,24 @@ export class PaymentDetailComponent {
     }).format(new Date(value));
   private key = crypto.randomUUID();
   private lastReason = "";
+  edit() {
+    if (this.saving()) return;
+    this.allowClose = true;
+    this.dialog.close({ edit: true });
+  }
+  close() {
+    if (this.saving()) return;
+    this.allowClose = true;
+    this.dialog.close({ payment: this.payment() ?? undefined });
+  }
   constructor() {
+    this.dialog.closing$
+      .pipe(takeUntilDestroyed(inject(DestroyRef)))
+      .subscribe(() => {
+        if (this.allowClose) return;
+        this.dialog.reopen();
+        this.close();
+      });
     void this.load();
   }
   async load() {

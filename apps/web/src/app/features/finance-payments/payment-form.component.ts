@@ -1,3 +1,7 @@
+import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
+import { HlmDialogImports } from "@spartan-ng/helm/dialog";
+import { PaymentFormContext } from "./payment-dialog.models";
+import { CURRENCY_OPTIONS } from "../../shared/currency";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideWandSparkles, lucideSplit, lucideCheck } from "@ng-icons/lucide";
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
@@ -9,7 +13,7 @@ import {
   ReactiveFormsModule,
   Validators,
 } from "@angular/forms";
-import { ActivatedRoute, Router, RouterLink } from "@angular/router";
+import { RouterLink } from "@angular/router";
 import { PaymentsApiClient } from "@law/api-clients";
 import {
   InvoiceCollection,
@@ -36,6 +40,7 @@ const control = (value = "") => new FormControl(value, { nonNullable: true });
   standalone: true,
   imports: [
     ReactiveFormsModule,
+    HlmDialogImports,
     NgIcon,
     RouterLink,
     HlmButton,
@@ -52,11 +57,12 @@ const control = (value = "") => new FormControl(value, { nonNullable: true });
 })
 export class PaymentFormComponent {
   private readonly api = inject(PaymentsApiClient);
-  private readonly router = inject(Router);
-  private readonly route = inject(ActivatedRoute);
+  private readonly dialog = inject<BrnDialogRef<PaymentDetail>>(BrnDialogRef);
+  private readonly context = injectBrnDialogContext<PaymentFormContext>();
+  private allowClose = false;
   private readonly confirm = inject(ConfirmDialogService);
   private readonly destroy = inject(DestroyRef);
-  readonly id = this.route.snapshot.paramMap.get("id");
+  readonly id = this.context.id ?? null;
   readonly loading = signal(true);
   readonly saving = signal(false);
   readonly error = signal("");
@@ -131,11 +137,7 @@ export class PaymentFormComponent {
     return Math.min(100, Number((this.allocated() * 100n) / total));
   });
   readonly remainingText = computed(() => decimal(this.remaining()));
-  readonly currencies = computed(
-    () =>
-      this.options()?.currencies.map((value) => ({ value, label: value })) ??
-      [],
-  );
+  readonly currencies = () => CURRENCY_OPTIONS;
   readonly banks = computed(() => [
     { value: "", label: "payments.none" },
     ...(this.options()?.bankAccounts.map((b) => ({
@@ -147,6 +149,13 @@ export class PaymentFormComponent {
   private key = "";
   private sequence = 0;
   constructor() {
+    this.dialog.closing$
+      .pipe(takeUntilDestroyed(this.destroy))
+      .subscribe(() => {
+        if (this.allowClose) return;
+        this.dialog.reopen();
+        void this.cancel();
+      });
     for (const c of [this.form.controls.clientId, this.form.controls.currency])
       c.valueChanges
         .pipe(takeUntilDestroyed(this.destroy))
@@ -182,7 +191,9 @@ export class PaymentFormComponent {
       this.options.set(options);
       this.original.set(payment);
       if (payment?.status === "VOIDED") {
-        await this.router.navigate(["/finance/payments", payment.id]);
+        this.error.set("Poništena uplata ne može da se menja.");
+        this.allowClose = true;
+        this.dialog.close();
         return;
       }
       if (payment) {
@@ -205,16 +216,14 @@ export class PaymentFormComponent {
         this.form.patchValue(
           {
             receivedAt: options.today,
-            currency:
-              this.route.snapshot.queryParamMap.get("currency") ||
-              options.defaultCurrency,
-            clientId: this.route.snapshot.queryParamMap.get("clientId") || "",
+            currency: this.context.currency || options.defaultCurrency,
+            clientId: this.context.clientId || "",
           },
           { emitEvent: false },
         );
       await this.loadEligible();
       if (!payment) {
-        const invoiceId = this.route.snapshot.queryParamMap.get("invoiceId");
+        const invoiceId = this.context.invoiceId;
         const i = this.invoices().find((i) => i.id === invoiceId);
         if (i) {
           this.form.controls.amount.setValue(i.remainingAmount);
@@ -435,7 +444,7 @@ export class PaymentFormComponent {
     }
   }
   async cancel() {
-    if (this.saving()) return;
+    if (this.saving() || this.previewing()) return;
     if (
       this.form.dirty &&
       !(await firstValueFrom(
@@ -448,9 +457,8 @@ export class PaymentFormComponent {
       ))
     )
       return;
-    await this.router.navigate(
-      this.id ? ["/finance/payments", this.id] : ["/finance/payments"],
-    );
+    this.allowClose = true;
+    this.dialog.close();
   }
   async submit() {
     if (this.saving() || this.loading() || this.previewing()) return;
@@ -524,7 +532,8 @@ export class PaymentFormComponent {
         this.api.save(this.id, body, this.key),
       );
       this.form.markAsPristine();
-      await this.router.navigate(["/finance/payments", result.id]);
+      this.allowClose = true;
+      this.dialog.close(result);
     } catch (e) {
       this.error.set(paymentError(e));
     } finally {

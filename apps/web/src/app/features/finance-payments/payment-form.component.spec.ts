@@ -1,11 +1,15 @@
 import { TestBed } from "@angular/core/testing";
-import { ActivatedRoute, Router, convertToParamMap } from "@angular/router";
+import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { PaymentsApiClient } from "@law/api-clients";
 import { InvoiceCollection, PaymentDetail } from "@law/api-interfaces";
-import { of, throwError } from "rxjs";
+import { of, throwError, Subject } from "rxjs";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { PaymentFormComponent } from "./payment-form.component";
 import { decimal, minor } from "./payment-ui";
+jest.mock("@spartan-ng/brain/dialog", () => ({
+  ...jest.requireActual("@spartan-ng/brain/dialog"),
+  injectBrnDialogContext: () => ({}),
+}));
 const invoice: InvoiceCollection = {
   id: "invoice-1",
   invoiceNumber: "R-1",
@@ -57,15 +61,13 @@ describe("PaymentFormComponent", () => {
       providers: [
         { provide: PaymentsApiClient, useValue: api },
         {
-          provide: ActivatedRoute,
+          provide: BrnDialogRef,
           useValue: {
-            snapshot: {
-              paramMap: convertToParamMap({}),
-              queryParamMap: convertToParamMap({}),
-            },
+            close: navigate,
+            reopen: jest.fn(),
+            closing$: new Subject<void>(),
           },
         },
-        { provide: Router, useValue: { navigate } },
         {
           provide: ConfirmDialogService,
           useValue: { confirm: () => of(true) },
@@ -74,6 +76,25 @@ describe("PaymentFormComponent", () => {
     });
     component = TestBed.runInInjectionContext(() => new PaymentFormComponent());
     await component.load();
+  });
+  it("keeps the modal open while saving or distributing", async () => {
+    component.saving.set(true);
+    await component.cancel();
+    expect(navigate).not.toHaveBeenCalled();
+    component.saving.set(false);
+    component.previewing.set(true);
+    await component.cancel();
+    expect(navigate).not.toHaveBeenCalled();
+  });
+  it("preserves dirty input when discard is declined", async () => {
+    const confirm = TestBed.inject(ConfirmDialogService);
+    jest.spyOn(confirm, "confirm").mockReturnValue(of(false));
+    component.form.markAsDirty();
+    await component.cancel();
+    expect(navigate).not.toHaveBeenCalled();
+    jest.spyOn(confirm, "confirm").mockReturnValue(of(true));
+    await component.cancel();
+    expect(navigate).toHaveBeenCalledWith();
   });
   it("starts at zero, previews without saving, and preserves allocations when deselected", async () => {
     component.form.patchValue({ clientId: "client-1", amount: "100.00" });
@@ -136,7 +157,9 @@ describe("PaymentFormComponent", () => {
       amount: "100.10",
       allocations: [],
     });
-    expect(navigate).toHaveBeenCalledWith(["/finance/payments", "saved"]);
+    expect(navigate).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "saved" }),
+    );
   });
   it("calculates multiple allocations without floating-point rounding and caps the quick action", () => {
     component.form.controls.amount.setValue("0.30");

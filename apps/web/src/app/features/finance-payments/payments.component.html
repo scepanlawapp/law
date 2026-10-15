@@ -12,39 +12,9 @@
           Uvezi bankovni izvod · Uskoro
         </button>
       </span>
-      <a hlmBtn routerLink="/finance/payments/new">Nova uplata</a>
+      <button hlmBtn type="button" (click)="create()">Nova uplata</button>
     </div>
   </header>
-  <p class="text-sm text-muted-foreground">
-    Primljeno i raspoređeno: prema datumu prijema u izabranom periodu.
-    Neraspoređeno, avansi i dug: trenutno stanje za sve datume. Sažetak prati
-    klijenta i valutu; ostali filteri važe za tabelu.
-  </p>
-  @if (!error()) {
-    @for (t of totals(); track t.currency) {
-      <section
-        class="grid grid-cols-2 gap-2 lg:grid-cols-6"
-        [attr.aria-label]="'Sažetak ' + t.currency"
-      >
-        @for (
-          card of [
-            { label: "Ukupno primljeno", value: t.received },
-            { label: "Ukupno raspoređeno", value: t.allocated },
-            { label: "Neraspoređena sredstva", value: t.unallocated },
-            { label: "Neraspoređeni avansi", value: t.advances },
-            { label: "Preostali dug", value: t.outstanding },
-            { label: "Dospeo dug", value: t.overdue },
-          ];
-          track card.label
-        ) {
-          <div class="app-section-surface p-3">
-            <p class="text-sm text-muted-foreground">{{ card.label }}</p>
-            <strong>{{ money(card.value, t.currency) }}</strong>
-          </div>
-        }
-      </section>
-    }
-  }
   <div class="flex flex-wrap gap-2" aria-label="Brzi filteri">
     <button hlmBtn variant="outline" (click)="quick('ALL')">Sve uplate</button>
     <button hlmBtn variant="outline" (click)="quick('UNALLOCATED')">
@@ -57,7 +27,105 @@
     <button hlmBtn variant="outline" (click)="quick('VOIDED')">
       Poništene
     </button>
+    <button
+      hlmBtn
+      type="button"
+      variant="outline"
+      class="sm:ml-auto"
+      [attr.aria-expanded]="summaryExpanded()"
+      aria-controls="payment-summary"
+      (click)="toggleSummary()"
+    >
+      {{ summaryExpanded() ? "Sakrij sažetak" : "Prikaži sažetak" }}
+    </button>
   </div>
+  @if (summaryExpanded()) {
+    <section id="payment-summary" class="space-y-3" aria-label="Sažetak uplata">
+      <div class="flex flex-wrap items-end justify-between gap-3">
+        <p class="max-w-3xl text-sm text-muted-foreground">
+          Period:
+          {{
+            filters.controls.from.value
+              ? date(filters.controls.from.value)
+              : "bez početnog datuma"
+          }}
+          –
+          {{
+            filters.controls.to.value
+              ? date(filters.controls.to.value)
+              : "bez krajnjeg datuma"
+          }}. Uplate i avansi prema datumu prijema; dug prema datumu izdavanja
+          fakture. Prikazani su trenutni preostali iznosi tih zapisa. Sažetak
+          prati period i klijenta, uz valute izabrane ovde; ostali filteri važe
+          za tabelu.
+        </p>
+        <div class="w-72 max-w-full">
+          <label for="summary-currencies" class="mb-1 block text-sm">
+            Valute sažetka
+          </label>
+          <div
+            hlmComboboxMultiple
+            [value]="summaryCurrencies()"
+            (valueChange)="summaryCurrencies.set($event ?? [])"
+            [itemToString]="currencyLabel"
+          >
+            <hlm-combobox-trigger
+              buttonId="summary-currencies"
+              class="w-full min-w-0"
+            >
+              <span class="truncate">
+                {{ summaryCurrencies().join(", ") || "Izaberite valute" }}
+              </span>
+            </hlm-combobox-trigger>
+            <hlm-combobox-content *hlmComboboxPortal>
+              <hlm-combobox-input
+                placeholder="Pretraži valute"
+                [showTrigger]="false"
+              />
+              <hlm-combobox-empty>Nema rezultata.</hlm-combobox-empty>
+              <div hlmComboboxList>
+                @for (option of currencyOptions; track option.value) {
+                  <hlm-combobox-item [value]="option.value">
+                    {{ currencyLabel(option.value) }}
+                  </hlm-combobox-item>
+                }
+              </div>
+            </hlm-combobox-content>
+          </div>
+        </div>
+      </div>
+      @if (!error() && !loading()) {
+        @for (t of visibleTotals(); track t.currency) {
+          <section
+            class="grid grid-cols-2 gap-2 lg:grid-cols-6"
+            [attr.aria-label]="'Sažetak ' + t.currency"
+          >
+            @for (
+              card of [
+                { label: "Ukupno primljeno", value: t.received },
+                { label: "Ukupno raspoređeno", value: t.allocated },
+                { label: "Neraspoređena sredstva", value: t.unallocated },
+                { label: "Neraspoređeni avansi", value: t.advances },
+                { label: "Preostali dug", value: t.outstanding },
+                { label: "Dospeo dug", value: t.overdue },
+              ];
+              track card.label
+            ) {
+              <div class="app-section-surface p-3">
+                <p class="text-sm text-muted-foreground">{{ card.label }}</p>
+                <strong>{{ money(card.value, t.currency) }}</strong>
+              </div>
+            }
+          </section>
+        }
+      }
+      @if (!summaryCurrencies().length) {
+        <p class="text-sm text-muted-foreground">
+          Izaberite najmanje jednu valutu za prikaz sažetka.
+        </p>
+      }
+    </section>
+  }
   <form
     [formGroup]="filters"
     class="app-section-surface space-y-3 p-3"
@@ -215,7 +283,20 @@
         </thead>
         <tbody hlmTBody>
           @for (p of result().items; track p.id) {
-            <tr hlmTr>
+            <tr
+              hlmTr
+              class="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
+              tabindex="0"
+              [attr.aria-label]="
+                'Pregled uplate: ' +
+                (p.clientName ?? p.payerName ?? '') +
+                ', ' +
+                money(p.amount, p.currency)
+              "
+              (click)="view(p.id)"
+              (keydown.enter)="openFromKeyboard($event, p.id)"
+              (keydown.space)="openFromKeyboard($event, p.id)"
+            >
               <td hlmTd>{{ date(p.receivedAt) }}</td>
               <td hlmTd>
                 {{ p.clientName ?? "Neidentifikovan klijent" }}
@@ -245,21 +326,14 @@
                 }
               </td>
               <td hlmTd>
-                <a
-                  hlmBtn
-                  variant="ghost"
-                  [routerLink]="['/finance/payments', p.id]"
-                >
-                  Detalji
-                </a>
                 @if (p.status === "ACTIVE") {
-                  <a
+                  <button
                     hlmBtn
-                    variant="ghost"
-                    [routerLink]="['/finance/payments', p.id, 'edit']"
+                    type="button"
+                    (click)="$event.stopPropagation(); edit(p.id)"
                   >
                     Izmeni / Rasporedi
-                  </a>
+                  </button>
                 }
               </td>
             </tr>
@@ -267,7 +341,9 @@
             <tr hlmTr>
               <td hlmTd colspan="8">
                 <p class="py-6">Nema uplata za izabrane filtere.</p>
-                <a hlmBtn routerLink="/finance/payments/new">Dodaj uplatu</a>
+                <button hlmBtn type="button" (click)="create()">
+                  Dodaj uplatu
+                </button>
               </td>
             </tr>
           }

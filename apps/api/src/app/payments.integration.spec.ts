@@ -521,6 +521,76 @@ integration("payments PostgreSQL transactions", () => {
     ]);
     expect(updates.filter((r) => r.status === "fulfilled")).toHaveLength(1);
   });
+  it("limits every summary metric to the selected period and supports catalog currencies", async () => {
+    const isolated = await db.client.create({
+      data: {
+        workspaceId,
+        clientNumber: randomUUID(),
+        type: "INDIVIDUAL",
+        displayName: "Period test",
+        createdByUserId: userId,
+        updatedByUserId: userId,
+      },
+    });
+    const oldInvoice = await invoice("SENT", "RSD", isolated.id);
+    const newInvoice = await invoice("SENT", "RSD", isolated.id);
+    await db.invoice.update({
+      where: { id: newInvoice.id },
+      data: { dateOfCreate: new Date("2026-02-02") },
+    });
+    await create(
+      request({
+        clientId: isolated.id,
+        receivedAt: "2026-01-10",
+        amount: "10.00",
+        purpose: "ADVANCE",
+      }),
+    );
+    await create(
+      request({
+        clientId: isolated.id,
+        receivedAt: "2026-02-10",
+        amount: "40.00",
+        purpose: "ADVANCE",
+      }),
+    );
+    await create(
+      request({
+        clientId: isolated.id,
+        receivedAt: "2026-02-11",
+        amount: "30.00",
+        allocations: [{ invoiceId: newInvoice.id, amount: "20.00" }],
+      }),
+    );
+    const totals = await asAdmin(() =>
+      service.summary({
+        clientId: isolated.id,
+        from: "2026-02-01",
+        to: "2026-02-28",
+      } as never),
+    );
+    expect(totals).toEqual([
+      expect.objectContaining({
+        received: "70.00",
+        allocated: "20.00",
+        unallocated: "50.00",
+        advances: "40.00",
+        outstanding: "80.00",
+        overdue: "80.00",
+        unpaidInvoices: 1,
+      }),
+    ]);
+    expect(oldInvoice.id).not.toBe(newInvoice.id);
+    const options = await asAdmin(() => service.options());
+    expect(options.currencies).toContain("CHF");
+    const chf = await create(
+      request({ clientId: isolated.id, currency: "CHF", allocations: [] }),
+    );
+    expect(chf.currency).toBe("CHF");
+    await expect(create(request({ currency: "XYZ" }))).rejects.toThrow(
+      "Valuta",
+    );
+  });
   it("filters and paginates on the server and separates summary currencies/date scopes", async () => {
     const marker = randomUUID();
     await create(

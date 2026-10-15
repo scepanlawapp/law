@@ -14,6 +14,7 @@ import {
 } from "@law/core";
 import {
   CollectionTotals,
+  SUPPORTED_PAYMENT_CURRENCIES,
   InvoiceCollection,
   PaymentDetail,
   PaymentOptions,
@@ -108,9 +109,7 @@ export class PaymentsService {
       }),
     ]);
     return {
-      currencies: Array.isArray(settings?.allowedCurrencyCodes)
-        ? (settings.allowedCurrencyCodes as string[])
-        : ["RSD"],
+      currencies: [...SUPPORTED_PAYMENT_CURRENCIES],
       defaultCurrency: settings?.defaultCurrencyCode ?? "RSD",
       today: new Intl.DateTimeFormat("en-CA", {
         timeZone: config?.timeZone || "Europe/Belgrade",
@@ -371,13 +370,16 @@ export class PaymentsService {
   }
   async summary(q: PaymentQueryDto): Promise<CollectionTotals[]> {
     this.authorize();
-    // Receipts/allocated use received-date range. Available funds and receivables are current all-date balances.
+    // Receipt metrics use receipt dates; debt covers invoices issued in the period.
+    // Remaining balances are current, not historical ledger snapshots.
     return this.db.$transaction(
       async (tx) => {
         const scoped = new PaymentQueryDto();
         scoped.clientId = q.clientId;
         scoped.currency = q.currency;
         scoped.status = "ACTIVE";
+        scoped.from = q.from;
+        scoped.to = q.to;
         const scope = this.filters(scoped);
         const period = new PaymentQueryDto();
         period.from = q.from;
@@ -415,7 +417,12 @@ export class PaymentsService {
             advances: r.advances.toFixed(2),
           });
         for (const i of await this.collections(q.clientId, undefined, tx)) {
-          if (i.status !== "SENT" || (q.currency && i.currency !== q.currency))
+          if (
+            i.status !== "SENT" ||
+            (q.currency && i.currency !== q.currency) ||
+            (q.from && i.dateOfCreate < q.from) ||
+            (q.to && i.dateOfCreate > q.to)
+          )
             continue;
           const t = totals.get(i.currency) ?? empty(i.currency);
           t.outstanding = new D(t.outstanding)
@@ -648,16 +655,12 @@ export class PaymentsService {
             }))
           )
             throw new BadRequestException("Klijent nije dostupan.");
-          const settings = await tx.organizationSettings.findUnique({
-            where: { workspaceId: this.workspaceId },
-          });
-          const currencies = Array.isArray(settings?.allowedCurrencyCodes)
-            ? settings.allowedCurrencyCodes
-            : ["RSD"];
-          if (!currencies.includes(body.currency))
-            throw new BadRequestException(
-              "Valuta nije omogućena u podešavanjima kancelarije.",
-            );
+          if (
+            !(SUPPORTED_PAYMENT_CURRENCIES as readonly string[]).includes(
+              body.currency,
+            )
+          )
+            throw new BadRequestException("Valuta nije podržana.");
           if (
             body.bankAccountId &&
             !(await tx.bankAccount.findFirst({

@@ -169,3 +169,5 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Payment management and invoice collection](./tracks/payment_collection_20261014/index.md)
 
 - [Payment form design](tracks/payment_form_design_20261014/index.md)
+
+- [Payment modals and period summary](tracks/payment_modals_summary_20261015/index.md)

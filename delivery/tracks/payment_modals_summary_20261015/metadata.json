@@ -1,0 +1,14 @@
+{
+  "track_id": "payment_modals_summary_20261015",
+  "parent_track_id": "payment_form_design_20261014",
+  "type": "feature",
+  "status": "in_progress",
+  "created_at": "2026-10-15",
+  "updated_at": "2026-10-15",
+  "keywords": [
+    "payments",
+    "dialogs",
+    "summary",
+    "currencies"
+  ]
+}

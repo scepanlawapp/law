@@ -1,3 +1,4 @@
+import { SUPPORTED_PAYMENT_CURRENCIES } from "@law/api-interfaces";
 import { createSelectItemToString, SelectOption } from "./utils";
 
 export enum Currency {
@@ -33,9 +34,9 @@ export enum Currency {
 export type CurrencyCode = keyof typeof Currency;
 
 export const CURRENCY_OPTIONS: ReadonlyArray<SelectOption<CurrencyCode>> =
-  Object.entries(Currency).map(([value, label]) => ({
-    value: value as CurrencyCode,
-    label,
+  SUPPORTED_PAYMENT_CURRENCIES.map((value) => ({
+    value,
+    label: Currency[value],
   }));
 
 export const CURRENCY_FILTER_OPTIONS: ReadonlyArray<
