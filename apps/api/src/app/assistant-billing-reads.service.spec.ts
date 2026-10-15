@@ -45,6 +45,7 @@ function setup(role = "OWNER") {
   const prisma = {
     workspaceMember: { findFirst: jest.fn().mockResolvedValue({ role }) },
     client: { findMany: jest.fn().mockResolvedValue([alfa]) },
+    $queryRaw: jest.fn().mockResolvedValue([]),
   };
   const workEntries = {
     review: jest.fn(),
@@ -228,6 +229,10 @@ describe("AssistantBillingReadsService", () => {
     expect(result).toMatchObject({
       status: "AMBIGUOUS",
       candidates: ["Alfa doo (K-0001)", "Alfa Plus doo (K-0002)"],
+      choices: [
+        { label: "Alfa doo (K-0001)", reply: "Alfa doo (K-0001)" },
+        { label: "Alfa Plus doo (K-0002)", reply: "Alfa Plus doo (K-0002)" },
+      ],
     });
   });
 
@@ -254,5 +259,24 @@ describe("AssistantBillingReadsService", () => {
     await expect(service.listReceivables(owner, {})).resolves.toMatchObject({
       status: "NOT_ALLOWED",
     });
+  });
+
+  it("finds a client without diacritics through the folded search", async () => {
+    const { service, prisma } = setup();
+    prisma.$queryRaw.mockResolvedValue([{ id: "client-ilic" }]);
+    prisma.client.findMany.mockResolvedValue([
+      { id: "client-ilic", displayName: "Marko Ilić", clientNumber: "K-0009" },
+    ]);
+
+    const result = await service.getClientBilling(owner, { client: "Ilic" });
+
+    expect(result).toMatchObject({ status: "OK", client: "Marko Ilić" });
+    expect(prisma.client.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([{ id: { in: ["client-ilic"] } }]),
+        }),
+      }),
+    );
   });
 });

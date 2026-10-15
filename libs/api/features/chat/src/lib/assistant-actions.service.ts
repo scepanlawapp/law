@@ -25,11 +25,12 @@ import {
 import { CreateWorkEntryDto, WorkEntriesService } from "@law/work-entries";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
-import { PlatformPrismaService } from "@law/core";
+import { foldedMatchIds, normalize, PlatformPrismaService } from "@law/core";
 import { digitsOnly, singleIsoDate } from "@law/document-intelligence";
 import type {
   ActionProposalResult,
   AssistantActionRequest,
+  AssistantChoice,
   AssistantEventLookup,
   AssistantTurnScope,
 } from "@law/mastra";
@@ -189,7 +190,15 @@ type CaseMatch = {
   client: { displayName: string };
 };
 
-class InvalidProposal extends Error {}
+/** A proposal that cannot be made; `choices` lets the user pick a candidate. */
+class InvalidProposal extends Error {
+  constructor(
+    message: string,
+    readonly choices?: AssistantChoice[],
+  ) {
+    super(message);
+  }
+}
 
 /** Line the context builder adds when case documents can fill empty client fields. */
 export const CLIENT_UPDATE_HINT =
@@ -392,7 +401,11 @@ export class AssistantActionsService {
       proposal = await this.normalize(scope, request);
     } catch (error) {
       if (error instanceof InvalidProposal) {
-        return { status: "INVALID", message: error.message };
+        return {
+          status: "INVALID",
+          message: error.message,
+          ...(error.choices?.length ? { choices: error.choices } : {}),
+        };
       }
       throw error;
     }
@@ -1069,10 +1082,34 @@ export class AssistantActionsService {
         })),
       })),
     });
+    // Diacritics are folded too: "Ilic" finds "Ilić".
+    const [userIds, clientIds, contactIds] = await Promise.all([
+      foldedMatchIds(this.prisma, {
+        table: "User",
+        columns: ["firstName", "lastName", "email"],
+        search: ref,
+        workspaceId: scope.workspaceId,
+      }),
+      foldedMatchIds(this.prisma, {
+        table: "Client",
+        columns: ["displayName"],
+        search: ref,
+        workspaceId: scope.workspaceId,
+      }),
+      foldedMatchIds(this.prisma, {
+        table: "ClientContact",
+        columns: ["firstName", "lastName"],
+        search: ref,
+        workspaceId: scope.workspaceId,
+      }),
+    ]);
     const [users, clients, contacts] = await Promise.all([
       this.prisma.user.findMany({
         where: {
-          ...nameMatch(["firstName", "lastName", "email"]),
+          OR: [
+            nameMatch(["firstName", "lastName", "email"]),
+            ...orIds(userIds),
+          ],
           memberships: {
             some: { workspaceId: scope.workspaceId, status: "ACTIVE" },
           },
@@ -1086,6 +1123,7 @@ export class AssistantActionsService {
           OR: [
             nameMatch(["displayName"]),
             { clientNumber: { equals: ref, mode: "insensitive" } },
+            ...orIds(clientIds),
           ],
         },
         select: { id: true, displayName: true, clientNumber: true },
@@ -1093,7 +1131,7 @@ export class AssistantActionsService {
       }),
       this.prisma.clientContact.findMany({
         where: {
-          ...nameMatch(["firstName", "lastName"]),
+          OR: [nameMatch(["firstName", "lastName"]), ...orIds(contactIds)],
           status: "ACTIVE",
           client: { workspaceId: scope.workspaceId },
         },
@@ -1142,16 +1180,18 @@ export class AssistantActionsService {
       );
     }
     const exact = candidates.filter(
-      (item) => item.name.toLowerCase() === ref.toLowerCase(),
+      (item) => normalize(item.name) === normalize(ref),
     );
     const match =
       candidates.length === 1 ? candidates[0] : exact.length === 1 ? exact[0] : null;
     if (match) return match;
+    const shown = candidates.slice(0, PARTICIPANT_CANDIDATES);
     throw new InvalidProposal(
-      `Više osoba odgovara „${ref}“: ${candidates
-        .slice(0, PARTICIPANT_CANDIDATES)
+      `Više osoba odgovara „${ref}“: ${shown
         .map((item) => item.label)
         .join("; ")}. Pitajte korisnika na koga misli.`,
+      // The label carries the client number, so a picked reply resolves to one record.
+      shown.map((item) => ({ label: item.label, reply: item.label })),
     );
   }
 
@@ -1478,6 +1518,28 @@ export class AssistantActionsService {
         })),
       })),
     });
+    const folded = (
+      table: "Event" | "Client" | "EventAttendee" | "User",
+      columns: string[],
+      search: string,
+    ) =>
+      foldedMatchIds(this.prisma, {
+        table,
+        columns: columns as never,
+        search,
+        workspaceId: scope.workspaceId,
+      });
+    const [titleIds, eventIds, clientIds, attendeeIds, userIds] = await Promise.all([
+      title ? folded("Event", ["title"], title) : Promise.resolve([]),
+      tokens.length ? folded("Event", ["title"], participant ?? "") : Promise.resolve([]),
+      tokens.length ? folded("Client", ["displayName"], participant ?? "") : Promise.resolve([]),
+      tokens.length
+        ? folded("EventAttendee", ["displayName"], participant ?? "")
+        : Promise.resolve([]),
+      tokens.length
+        ? folded("User", ["firstName", "lastName"], participant ?? "")
+        : Promise.resolve([]),
+    ]);
     const now = new Date();
     const dayStart = date ? belgradeLocalToDate(date, "00:00") : null;
     const dayEnd = date ? belgradeLocalToDate(nextIsoDate(date), "00:00") : null;
@@ -1497,7 +1559,14 @@ export class AssistantActionsService {
             ],
           },
           ...(title
-            ? [{ title: { contains: title, mode: "insensitive" as const } }]
+            ? [
+                {
+                  OR: [
+                    { title: { contains: title, mode: "insensitive" as const } },
+                    ...orIds(titleIds),
+                  ],
+                },
+              ]
             : []),
           ...(tokens.length
             ? [
@@ -1511,6 +1580,16 @@ export class AssistantActionsService {
                         some: { user: nameMatch(["firstName", "lastName"]) },
                       },
                     },
+                    ...orIds(eventIds),
+                    ...(clientIds.length
+                      ? [{ clients: { some: { clientId: { in: clientIds } } } }]
+                      : []),
+                    ...(attendeeIds.length
+                      ? [{ attendees: { some: { id: { in: attendeeIds } } } }]
+                      : []),
+                    ...(userIds.length
+                      ? [{ assignees: { some: { userId: { in: userIds } } } }]
+                      : []),
                   ],
                 },
               ]
@@ -1530,11 +1609,15 @@ export class AssistantActionsService {
         "Nisam našao takav zakazan događaj u vašem kalendaru. Proverite učesnika, datum ili vreme.",
       );
     }
+    const shown = matches.slice(0, EVENT_CANDIDATES);
     throw new InvalidProposal(
-      `Više događaja odgovara: ${matches
-        .slice(0, EVENT_CANDIDATES)
+      `Više događaja odgovara: ${shown
         .map(eventLabel)
         .join("; ")}. Pitajte korisnika na koji misli (datum i vreme).`,
+      shown.map((event) => ({
+        label: eventLabel(event),
+        reply: `${event.title}, ${formatDate(belgradeToday(event.startsAt))} u ${BELGRADE_TIME.format(event.startsAt)}`,
+      })),
     );
   }
 
@@ -2261,6 +2344,12 @@ export class AssistantActionsService {
     reference: string,
   ): Promise<CaseMatch> {
     const ref = reference.trim();
+    const caseIds = await foldedMatchIds(this.prisma, {
+      table: "Case",
+      columns: ["name"],
+      search: ref,
+      workspaceId,
+    });
     const matches = await this.prisma.case.findMany({
       where: {
         workspaceId,
@@ -2268,6 +2357,7 @@ export class AssistantActionsService {
           { caseNumber: { contains: ref, mode: "insensitive" } },
           { name: { contains: ref, mode: "insensitive" } },
           { externalReference: { contains: ref, mode: "insensitive" } },
+          ...orIds(caseIds),
         ],
       },
       include: { client: { select: { displayName: true } } },
@@ -2286,6 +2376,10 @@ export class AssistantActionsService {
       `Više predmeta odgovara „${ref}“: ${matches
         .map((item) => `${item.caseNumber} (${item.name})`)
         .join("; ")}. Navedite broj predmeta.`,
+      matches.map((item) => ({
+        label: `${item.caseNumber} (${item.name})`,
+        reply: `Predmet ${item.caseNumber}`,
+      })),
     );
   }
 
@@ -2508,6 +2602,11 @@ function eventLabel(event: {
     ...event.attendees.map((item) => item.displayName),
   ];
   return `${event.title}${people.length ? ` – ${unique(people).join(", ")}` : ""}, ${eventWhen(event.startsAt, event.endsAt)}`;
+}
+
+/** An extra `OR` branch for ids the folded (diacritics-free) search found. */
+function orIds(ids: string[]): Array<{ id: { in: string[] } }> {
+  return ids.length ? [{ id: { in: ids } }] : [];
 }
 
 function unique<T>(values: T[]): T[] {

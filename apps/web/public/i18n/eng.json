@@ -1019,6 +1019,7 @@
   "assistant.pendingAction.status.AUTO": "Saved automatically",
   "assistant.pendingAction.formHint": "Nothing is saved until you check and save the form.",
   "assistant.pendingAction.openForm": "Open and save",
+  "assistant.choices.label": "Suggested choices",
   "assistant.pendingAction.undo": "Undo",
   "assistant.pendingAction.undone": "Undone",
   "assistant.pendingAction.undoError": "The undo failed.",

@@ -34,6 +34,7 @@ import type {
   ActivityQuery,
   AssistantActivityEntry,
   AssistantCaseFacts,
+  AssistantChoice,
   AssistantClientFacts,
   AssistantClientLookup,
   AssistantListResult,
@@ -207,7 +208,14 @@ export class AssistantOfficeReadsService {
       const match = pickClient(items, args.reference);
       if (!match) {
         return items.length
-          ? ({ found: "many", candidates: items.map(clientFacts) } as const)
+          ? ({
+              found: "many",
+              candidates: items.map(clientFacts),
+              choices: items.map((item) => {
+                const text = `${item.clientNumber} · ${toLatin(item.displayName)}`;
+                return { label: text, reply: text };
+              }),
+            } as const)
           : ({
               found: "none",
               message: `Nema klijenta za "${args.reference}".`,
@@ -595,7 +603,7 @@ export class AssistantOfficeReadsService {
         ? {
             status: "AMBIGUOUS",
             message: `Više osoba odgovara imenu "${reference}".`,
-            candidates: matches.slice(0, CANDIDATE_LIMIT).map((m) => m.name),
+            ...withChoices(matches.slice(0, CANDIDATE_LIMIT).map((m) => m.name)),
           }
         : {
             status: "NOT_FOUND",
@@ -624,8 +632,10 @@ export class AssistantOfficeReadsService {
         ? {
             status: "AMBIGUOUS",
             message: `Više klijenata odgovara "${reference}".`,
-            candidates: items.map(
-              (item) => `${item.clientNumber} · ${toLatin(item.displayName)}`,
+            ...withChoices(
+              items.map(
+                (item) => `${item.clientNumber} · ${toLatin(item.displayName)}`,
+              ),
             ),
           }
         : { status: "NOT_FOUND", message: `Nema klijenta za "${reference}".` },
@@ -653,7 +663,7 @@ export class AssistantOfficeReadsService {
         ? {
             status: "AMBIGUOUS",
             message: `Više predmeta odgovara "${reference}".`,
-            candidates: items.map(caseLabel),
+            ...withChoices(items.map(caseLabel)),
           }
         : { status: "NOT_FOUND", message: `Nema predmeta za "${reference}".` },
     };
@@ -777,6 +787,17 @@ function clientFacts(item: ClientSummary): AssistantClientFacts {
     email: item.email,
     phone: item.phone,
     activeCaseCount: item.activeCaseCount,
+  };
+}
+
+/** Candidates for the model, and the same as one-click choices for the user. */
+function withChoices(candidates: string[]): {
+  candidates: string[];
+  choices: AssistantChoice[];
+} {
+  return {
+    candidates,
+    choices: candidates.map((candidate) => ({ label: candidate, reply: candidate })),
   };
 }
 

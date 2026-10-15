@@ -386,6 +386,55 @@ describe("AssistantComponent review state", () => {
     expect(component["rightRailExpanded"]()).toBe(true);
   });
 
+  it("offers one-click choices on the latest answer and sends the picked one", () => {
+    const fixture = TestBed.createComponent(AssistantComponent);
+    const component = fixture.componentInstance;
+    const answer: ChatMessageResponse = {
+      id: "message-answer",
+      sessionId: "session-1",
+      role: "ASSISTANT",
+      content: "Na kog Borka mislite?",
+      status: "COMPLETED",
+      correlationId: "corr-1",
+      createdAt: "2026-09-15T12:00:00.000Z",
+      attachments: [],
+      choices: [
+        { label: "Borko Ilić (kolega)", reply: "Borko Ilić (kolega)" },
+        {
+          label: "Borko Petrović (klijent K-0012)",
+          reply: "Borko Petrović (klijent K-0012)",
+        },
+      ],
+    };
+    component["selectedSessionId"].set("session-1");
+    component["messages"].set([answer]);
+    fixture.detectChanges();
+    const choiceButtons = () => [
+      ...fixture.nativeElement.querySelectorAll<HTMLButtonElement>(
+        '[aria-label="assistant.choices.label"] button',
+      ),
+    ];
+
+    expect(choiceButtons().map((button) => button.textContent?.trim())).toEqual([
+      "Borko Ilić (kolega)",
+      "Borko Petrović (klijent K-0012)",
+    ]);
+    choiceButtons()[1].click();
+    expect(chat.sendMessage).toHaveBeenCalledWith(
+      "workspace-1",
+      "session-1",
+      "Borko Petrović (klijent K-0012)",
+      [],
+    );
+
+    component["messages"].set([
+      answer,
+      { ...answer, id: "message-user", role: "USER", content: "Borko", choices: undefined },
+    ]);
+    fixture.detectChanges();
+    expect(choiceButtons()).toHaveLength(0);
+  });
+
   it("jumps from a citation marker to the same message's source without navigating", () => {
     const fixture = TestBed.createComponent(AssistantComponent);
     const component = fixture.componentInstance;

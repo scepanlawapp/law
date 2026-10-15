@@ -74,10 +74,23 @@ export interface AssistantClientDetail extends AssistantClientFacts {
   }>;
 }
 
+/**
+ * A candidate the user can pick with one click instead of typing: `label` is
+ * shown on the button, `reply` is sent as the user's message.
+ */
+export interface AssistantChoice {
+  label: string;
+  reply: string;
+}
+
 export type AssistantClientLookup =
   | { found: "none"; message: string }
   | { found: "one"; client: AssistantClientDetail }
-  | { found: "many"; candidates: AssistantClientFacts[] };
+  | {
+      found: "many";
+      candidates: AssistantClientFacts[];
+      choices?: AssistantChoice[];
+    };
 
 /** A task, deadline, or event, flattened for the model. */
 export interface AssistantWorkItem {
@@ -119,6 +132,7 @@ export type AssistantListResult<T> =
       status: "NOT_FOUND" | "AMBIGUOUS" | "INVALID" | "UNAVAILABLE";
       message: string;
       candidates?: string[];
+      choices?: AssistantChoice[];
     };
 
 export const ASSISTANT_WORK_KINDS = [
@@ -625,6 +639,7 @@ export type AssistantClientBillingResult =
       status: "NOT_FOUND" | "AMBIGUOUS" | "UNAVAILABLE";
       message: string;
       candidates?: string[];
+      choices?: AssistantChoice[];
     };
 
 export type AssistantReceivablesResult =
@@ -676,7 +691,7 @@ export type ActionProposalResult =
       summary: string;
       message: string;
     }
-  | { status: "INVALID"; message: string };
+  | { status: "INVALID"; message: string; choices?: AssistantChoice[] };
 
 /**
  * Business operations the assistant tools call. Implemented by the Nest chat

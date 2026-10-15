@@ -236,6 +236,10 @@ describe("AssistantOfficeReadsService", () => {
       status: "AMBIGUOUS",
       message: expect.any(String),
       candidates: ["Ana Anić", "Ana Petrović"],
+      choices: [
+        { label: "Ana Anić", reply: "Ana Anić" },
+        { label: "Ana Petrović", reply: "Ana Petrović" },
+      ],
     });
     expect(unknown).toMatchObject({ status: "NOT_FOUND" });
     expect(office).toMatchObject({
@@ -315,6 +319,10 @@ describe("AssistantOfficeReadsService", () => {
       status: "AMBIGUOUS",
       message: expect.any(String),
       candidates: ["P-3/2026 · Razvod", "P-4/2026 · Razvod"],
+      choices: [
+        { label: "P-3/2026 · Razvod", reply: "P-3/2026 · Razvod" },
+        { label: "P-4/2026 · Razvod", reply: "P-4/2026 · Razvod" },
+      ],
     });
     expect(work.listTasks).not.toHaveBeenCalled();
   });

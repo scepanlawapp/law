@@ -4,7 +4,7 @@ import type {
   WorkEntry,
   WorkEntryTreatment,
 } from "@law/api-interfaces";
-import { PlatformPrismaService } from "@law/core";
+import { foldedMatchIds, normalize, PlatformPrismaService } from "@law/core";
 import { PaymentsService } from "@law/financials";
 import type {
   AssistantClientBillingResult,
@@ -253,15 +253,24 @@ export class AssistantBillingReadsService {
         status: "NOT_FOUND" | "AMBIGUOUS";
         message: string;
         candidates?: string[];
+        choices?: Array<{ label: string; reply: string }>;
       }
   > {
     const ref = reference.trim();
     const tokens = ref.split(/\s+/).filter((token) => token.length > 1);
+    // Diacritics are folded too: "Ilic" finds "Ilić".
+    const foldedIds = await foldedMatchIds(this.prisma, {
+      table: "Client",
+      columns: ["displayName"],
+      search: ref,
+      workspaceId,
+    });
     const matches = await this.prisma.client.findMany({
       where: {
         workspaceId,
         OR: [
           { clientNumber: { equals: ref, mode: "insensitive" } },
+          ...(foldedIds.length ? [{ id: { in: foldedIds } }] : []),
           ...(tokens.length
             ? [
                 {
@@ -279,7 +288,7 @@ export class AssistantBillingReadsService {
     });
     const exact = matches.filter(
       (item) =>
-        item.displayName.toLowerCase() === ref.toLowerCase() ||
+        normalize(item.displayName) === normalize(ref) ||
         item.clientNumber.toLowerCase() === ref.toLowerCase(),
     );
     if (matches.length === 1) return matches[0];
@@ -287,12 +296,14 @@ export class AssistantBillingReadsService {
     if (!matches.length) {
       return { status: "NOT_FOUND", message: `Nema klijenta za „${ref}“.` };
     }
+    const candidates = matches
+      .slice(0, CLIENT_CANDIDATES)
+      .map((item) => `${item.displayName} (${item.clientNumber})`);
     return {
       status: "AMBIGUOUS",
       message: `Više klijenata odgovara „${ref}“. Pitajte korisnika na kog misli.`,
-      candidates: matches
-        .slice(0, CLIENT_CANDIDATES)
-        .map((item) => `${item.displayName} (${item.clientNumber})`),
+      candidates,
+      choices: candidates.map((candidate) => ({ label: candidate, reply: candidate })),
     };
   }
 }

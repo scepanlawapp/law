@@ -175,3 +175,4 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Assistant permission modes](tracks/assistant_permission_modes_20261015/index.md)
 - [Assistant actions on permission modes](tracks/assistant_actions_modes_20261015/index.md)
 - [Assistant time capture, billing answers, and undo](tracks/assistant_time_billing_undo_20261015/index.md)
+- [Assistant chat choices and accent-insensitive names](tracks/assistant_chat_choices_20261015/index.md)

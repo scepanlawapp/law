@@ -7,5 +7,6 @@ export * from "./lib/workspace-context";
 export * from "./lib/workspace-context.interceptor";
 export * from "./lib/workspace.constants";
 export * from "./lib/text-match";
+export * from "./lib/folded-search";
 export * from "./lib/number-pattern";
 export * from "./lib/queue-root.module";

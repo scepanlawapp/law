@@ -7,6 +7,7 @@ import {
   Optional,
 } from "@nestjs/common";
 import type {
+  AssistantChoice,
   ChatAttachmentSummary,
   ChatStreamEvent,
   WorkflowJobStatus,
@@ -34,6 +35,7 @@ import { ChatRuntimeConfig } from "./chat.config";
 import { ConversationSummaryService } from "./conversation-summary.service";
 import { ChatEventBus } from "./chat.events";
 import { belgradeToday } from "./assistant-actions.service";
+import { toolChoices } from "./assistant-choices";
 import { toMessage, toPendingAction, toToolCall } from "./chat.mappers";
 import type { WorkflowJobPayload } from "./workflow-queue.types";
 
@@ -132,6 +134,7 @@ export class AgentTurnRunner implements OnModuleDestroy {
     let usage: TokenUsage = {};
     let toolCalls: ToolCallRecorder | undefined;
     let draftId: string | null = null;
+    let choices: AssistantChoice[] | null = null;
     let proposal: { id: string; waits: boolean } | null = null;
     /** Every proposal of the turn, shown under the answer. */
     const pendingActionIds: string[] = [];
@@ -220,6 +223,9 @@ export class AgentTurnRunner implements OnModuleDestroy {
               error: chunk.payload.isError ? chunk.payload.result : undefined,
             });
             draftId = readyDraftId(chunk.payload.result) ?? draftId;
+            // Only the latest result counts: a later call without choices
+            // means the question was resolved.
+            choices = toolChoices(chunk.payload.result);
             proposal = proposedAction(chunk.payload.result);
             if (proposal) {
               pendingActionIds.push(proposal.id);
@@ -253,6 +259,11 @@ export class AgentTurnRunner implements OnModuleDestroy {
               ? { outcome: "DRAFT_READY", draftId }
               : { outcome: "ANSWER" }),
             ...(pendingActionIds.length ? { pendingActionIds } : {}),
+            ...(choices && !waitingActionIds.length
+              ? {
+                  choices: choices.map(({ label, reply }) => ({ label, reply })),
+                }
+              : {}),
             ...(used.length
               ? {
                   citations: used.map((citation) => ({
