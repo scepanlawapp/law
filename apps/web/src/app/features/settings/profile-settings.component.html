@@ -184,6 +184,70 @@
 
       <form
         class="flex flex-col gap-6 border-t border-border pt-8"
+        [formGroup]="assistantForm"
+        (ngSubmit)="saveAssistant()"
+        novalidate
+      >
+        <div>
+          <h3 class="text-sm font-semibold">
+            {{ "settings.assistant" | translate }}
+          </h3>
+          <p class="text-muted-foreground mt-1 text-sm leading-snug">
+            {{ "settings.assistantPermissionModeDescription" | translate }}
+          </p>
+        </div>
+        <div class="flex max-w-md flex-col gap-4">
+          <div hlmField>
+            <label hlmFieldLabel for="assistant-permission-mode-default">
+              {{ "assistant.permissionMode.label" | translate }}
+            </label>
+            <hlm-select
+              formControlName="assistantPermissionMode"
+              [itemToString]="permissionModeItemToString"
+            >
+              <hlm-select-trigger
+                buttonId="assistant-permission-mode-default"
+                class="w-full min-w-0 max-w-full"
+              >
+                <hlm-select-value class="min-w-0 truncate" />
+              </hlm-select-trigger>
+              <hlm-select-content *hlmSelectPortal>
+                <hlm-select-group>
+                  @for (option of permissionModeOptions; track option.value) {
+                    <hlm-select-item [value]="option.value">
+                      <span class="flex flex-col">
+                        <span>{{ option.label | translate }}</span>
+                        <span class="text-sm text-muted-foreground">
+                          {{ option.label + "Description" | translate }}
+                        </span>
+                      </span>
+                    </hlm-select-item>
+                  }
+                </hlm-select-group>
+              </hlm-select-content>
+            </hlm-select>
+          </div>
+        </div>
+        <div class="flex justify-end">
+          <button
+            hlmBtn
+            variant="outline"
+            type="submit"
+            [disabled]="savingAssistant()"
+          >
+            @if (savingAssistant()) {
+              <hlm-spinner class="size-4" aria-hidden="true" />
+            }
+            {{
+              (savingAssistant() ? "settings.saving" : "settings.saveChanges")
+                | translate
+            }}
+          </button>
+        </div>
+      </form>
+
+      <form
+        class="flex flex-col gap-6 border-t border-border pt-8"
         [formGroup]="passwordForm"
         (ngSubmit)="changePassword()"
         novalidate

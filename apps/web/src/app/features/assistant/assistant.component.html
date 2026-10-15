@@ -195,6 +195,8 @@
                       [busy]="decidingActionId() === action.id"
                       (approve)="decidePendingAction(action, 'approve')"
                       (decline)="decidePendingAction(action, 'decline')"
+                      (openForm)="openPendingActionForm(action)"
+                      (openResult)="openPendingActionResult(action)"
                     />
                   }
                   <time>{{ message.createdAt | date: "HH:mm" }}</time>
@@ -508,6 +510,37 @@
                   "
                 />
               </button>
+              <hlm-select
+                class="permission-mode"
+                [value]="permissionMode()"
+                (valueChange)="setPermissionMode($event)"
+                [itemToString]="permissionModeItemToString"
+              >
+                <hlm-select-trigger
+                  buttonId="assistant-permission-mode"
+                  class="w-full min-w-0 max-w-full"
+                  [attr.aria-label]="'assistant.permissionMode.label' | translate"
+                >
+                  <hlm-select-value class="min-w-0 truncate" />
+                </hlm-select-trigger>
+                <hlm-select-content *hlmSelectPortal width="content">
+                  <hlm-select-group>
+                    <hlm-select-label>
+                      {{ "assistant.permissionMode.label" | translate }}
+                    </hlm-select-label>
+                    @for (option of permissionModeOptions; track option.value) {
+                      <hlm-select-item [value]="option.value">
+                        <span class="flex flex-col">
+                          <span>{{ option.label | translate }}</span>
+                          <span class="text-sm text-muted-foreground">
+                            {{ option.label + "Description" | translate }}
+                          </span>
+                        </span>
+                      </hlm-select-item>
+                    }
+                  </hlm-select-group>
+                </hlm-select-content>
+              </hlm-select>
               <button
                 hlmBtn
                 size="icon"

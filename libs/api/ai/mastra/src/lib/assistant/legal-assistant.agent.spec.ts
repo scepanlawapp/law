@@ -8,6 +8,7 @@ import { createLegalAssistantAgent } from "./legal-assistant.agent";
 import { createLegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
+import { createCreateEventTool } from "./tools/create-event.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
@@ -420,6 +421,35 @@ describe("assistant tools", () => {
     );
   });
 
+  it("proposes an event with the resolved local time and participants", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+    const tool = createCreateEventTool(toolDeps);
+
+    await tool.execute?.(
+      {
+        title: "Sastanak sa Borkom",
+        date: "2026-10-16",
+        startTime: "12:00",
+        participants: ["Borko"],
+      },
+      context,
+    );
+
+    expect(toolDeps.proposeAction).toHaveBeenCalledWith(turn, {
+      type: "create_event",
+      title: "Sastanak sa Borkom",
+      date: "2026-10-16",
+      startTime: "12:00",
+      participants: ["Borko"],
+    });
+    const schema = tool.inputSchema as unknown as ZodTypeAny;
+    expect(
+      schema.safeParse({ title: "Sastanak", date: "2026-10-16", startTime: "24:00" })
+        .success,
+    ).toBe(false);
+  });
+
   it("declares a side-effect level for every agent tool", async () => {
     const agent = createLegalAssistantAgent({
       model: createScriptedModel([{ text: "ok" }]).model as never,
@@ -437,6 +467,7 @@ describe("assistant tools", () => {
         .sort(),
     ).toEqual([
       "create_deadline",
+      "create_event",
       "create_tasks_from_brief",
       "detect_deadlines",
       "link_case",

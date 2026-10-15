@@ -1207,3 +1207,265 @@ describe("AssistantActionsService.clientUpdateHint", () => {
     ).resolves.toBe(false);
   });
 });
+
+describe("AssistantActionsService create_event and permission modes", () => {
+  const owner: AssistantTurnScope = {
+    ...scope,
+    userId: "user-owner",
+    userDisplayName: "Ana Jović",
+  };
+  const borkoClient = {
+    id: "client-borko",
+    displayName: "Borko Petrović",
+    clientNumber: "K-0012",
+  };
+  const event = (overrides: Record<string, unknown> = {}) => ({
+    type: "create_event" as const,
+    title: "Sastanak sa Borkom",
+    date: nextYearDate(),
+    startTime: "12:00",
+    participants: ["Borko"],
+    ...overrides,
+  });
+
+  function eventSetup(
+    options: {
+      permissionMode?: "MANUAL" | "ASK" | "AUTO" | null;
+      userDefault?: "MANUAL" | "ASK" | "AUTO";
+      clients?: Array<Record<string, unknown>>;
+      colleagues?: Array<Record<string, unknown>>;
+      conflicts?: Array<Record<string, unknown>>;
+    } = {},
+  ) {
+    const context = setup();
+    const prisma = context.prisma as unknown as Record<
+      string,
+      Record<string, jest.Mock>
+    >;
+    prisma["chatSession"].findFirst.mockResolvedValue({
+      id: "session-1",
+      permissionMode: options.permissionMode ?? null,
+      createdBy: {
+        settings: options.userDefault
+          ? { assistantPermissionMode: options.userDefault }
+          : null,
+      },
+    });
+    prisma["user"].findMany = jest
+      .fn()
+      .mockResolvedValue(options.colleagues ?? []);
+    prisma["client"].findMany = jest
+      .fn()
+      .mockResolvedValue(options.clients ?? [borkoClient]);
+    prisma["clientContact"] = {
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma["event"] = {
+      findMany: jest.fn().mockResolvedValue(options.conflicts ?? []),
+    };
+    prisma["workspaceMember"] = {
+      findFirst: jest.fn().mockResolvedValue({ role: "MEMBER" }),
+    };
+    // The linked case belongs to another client, so it is not attached.
+    (context.work as unknown as Record<string, jest.Mock>)["createEvent"] = jest
+      .fn()
+      .mockImplementation((input: Record<string, unknown>) =>
+        Promise.resolve({
+          id: "event-1",
+          title: input["title"],
+          startsAt: input["startsAt"],
+        }),
+      );
+    return context;
+  }
+
+  it("resolves one client, converts Belgrade time, and asks by default", async () => {
+    const { service, prisma, work } = eventSetup();
+
+    const result = await service.propose(owner, event());
+
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    const row = prisma.actions.get("action-1")!;
+    expect(row).toMatchObject({ mode: "CARD", status: "PENDING" });
+    expect(row["payload"]).toMatchObject({
+      type: "MEETING",
+      clientIds: ["client-borko"],
+      assigneeUserIds: ["user-owner"],
+      timeZone: "Europe/Belgrade",
+    });
+    expect(row["payload"]).not.toHaveProperty("caseId");
+    const startsAt = new Date(String((row["payload"] as Record<string, unknown>)["startsAt"]));
+    expect(
+      new Intl.DateTimeFormat("en-GB", {
+        timeZone: "Europe/Belgrade",
+        hour: "2-digit",
+        minute: "2-digit",
+      }).format(startsAt),
+    ).toBe("12:00");
+    expect(row["details"]).toEqual(
+      expect.arrayContaining(["Učesnici: Borko Petrović (klijent K-0012)"]),
+    );
+    expect((work as unknown as Record<string, jest.Mock>)["createEvent"]).not.toHaveBeenCalled();
+  });
+
+  it("refuses an ambiguous name with every candidate and stores nothing", async () => {
+    const { service, prisma } = eventSetup({
+      clients: [borkoClient],
+      colleagues: [
+        { id: "user-borko", firstName: "Borko", lastName: "Ilić", email: "b@x.test" },
+      ],
+    });
+
+    const result = await service.propose(owner, event());
+
+    expect(result.status).toBe("INVALID");
+    expect(result).toMatchObject({
+      message: expect.stringContaining("Borko Ilić (kolega)"),
+    });
+    expect(result).toMatchObject({
+      message: expect.stringContaining("Borko Petrović (klijent K-0012)"),
+    });
+    expect(prisma.actions.size).toBe(0);
+  });
+
+  it("refuses a time in the past", async () => {
+    const { service } = eventSetup();
+    const result = await service.propose(owner, event({ date: "2020-01-01" }));
+    expect(result).toMatchObject({
+      status: "INVALID",
+      message: expect.stringContaining("u prošlosti"),
+    });
+  });
+
+  it("MANUAL mode stores a form with the prefill and waits", async () => {
+    const { service, prisma, work } = eventSetup({ userDefault: "MANUAL" });
+
+    const result = await service.propose(owner, event());
+
+    expect(result).toMatchObject({ status: "FORM_REQUIRED" });
+    expect(prisma.actions.get("action-1")).toMatchObject({
+      mode: "FORM",
+      status: "PENDING",
+    });
+    expect((work as unknown as Record<string, jest.Mock>)["createEvent"]).not.toHaveBeenCalled();
+  });
+
+  it("AUTO mode saves as the conversation owner without waiting", async () => {
+    const { service, prisma, work, queue, emitted } = eventSetup({
+      userDefault: "ASK",
+      permissionMode: "AUTO",
+    });
+    const actors: Array<string | undefined> = [];
+    const createEvent = (work as unknown as Record<string, jest.Mock>)["createEvent"];
+    const { WorkspaceContextService } = await import("@law/core");
+    createEvent.mockImplementation((input: Record<string, unknown>) => {
+      actors.push(WorkspaceContextService.current?.userId);
+      return Promise.resolve({
+        id: "event-1",
+        title: input["title"],
+        startsAt: input["startsAt"],
+      });
+    });
+
+    const result = await service.propose(owner, event());
+
+    expect(result).toMatchObject({
+      status: "EXECUTED",
+      message: expect.stringContaining("12:00"),
+    });
+    expect(actors).toEqual(["user-owner"]);
+    expect(prisma.actions.get("action-1")).toMatchObject({
+      mode: "AUTO",
+      status: "APPROVED",
+      decidedByUserId: "user-owner",
+      result: expect.objectContaining({ eventId: "event-1" }),
+    });
+    expect(prisma.activityLog.updateMany).toHaveBeenCalledWith({
+      where: expect.objectContaining({ entityType: "Event", entityId: "event-1" }),
+      data: {
+        metadata: {
+          source: "AI_ASSISTED",
+          pendingActionId: "action-1",
+          mode: "AUTO",
+        },
+      },
+    });
+    expect(queue.enqueue).not.toHaveBeenCalled();
+    expect(emitted.map((item) => item.type)).toContain("confirmation.required");
+  });
+
+  it("AUTO mode asks instead when the slot overlaps another event", async () => {
+    const { service, prisma, work } = eventSetup({
+      permissionMode: "AUTO",
+      conflicts: [
+        {
+          title: "Ročište P-123/26",
+          startsAt: new Date("2030-01-01T10:30:00Z"),
+          endsAt: new Date("2030-01-01T11:30:00Z"),
+        },
+      ],
+    });
+
+    const result = await service.propose(owner, event());
+
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    expect(prisma.actions.get("action-1")).toMatchObject({ mode: "CARD" });
+    expect(prisma.actions.get("action-1")!["details"]).toEqual(
+      expect.arrayContaining([
+        expect.stringMatching(/^⚠ Preklapa se sa: Ročište P-123\/26/),
+      ]),
+    );
+    expect((work as unknown as Record<string, jest.Mock>)["createEvent"]).not.toHaveBeenCalled();
+  });
+
+  it("keeps legacy actions on the card whatever the mode", async () => {
+    const { service, prisma } = eventSetup({ permissionMode: "AUTO" });
+    const result = await service.propose(owner, deadline());
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    expect(prisma.actions.get("action-1")).toMatchObject({ mode: "CARD" });
+  });
+
+  it("saves the edited form, marks it edited, and resumes the agent", async () => {
+    const { service, prisma, work, queue } = eventSetup({ userDefault: "MANUAL" });
+    await service.propose(owner, event());
+    const prefill = prisma.actions.get("action-1")!["payload"] as Record<string, unknown>;
+    const later = new Date(new Date(String(prefill["startsAt"])).getTime() + 3600_000);
+
+    const summary = await service.completeEventForm({
+      workspaceId: "workspace-1",
+      userId: "user-owner",
+      actionId: "action-1",
+      event: {
+        ...prefill,
+        startsAt: later.toISOString(),
+        endsAt: new Date(later.getTime() + 3600_000).toISOString(),
+      } as never,
+    });
+
+    expect(summary).toMatchObject({ status: "APPROVED", mode: "FORM" });
+    expect((work as unknown as Record<string, jest.Mock>)["createEvent"]).toHaveBeenCalledWith(
+      expect.objectContaining({ startsAt: later.toISOString() }),
+    );
+    expect(prisma.actions.get("action-1")).toMatchObject({
+      result: expect.objectContaining({ edited: true, eventId: "event-1" }),
+    });
+    expect(queue.enqueue).toHaveBeenCalledWith(
+      "agent-resume",
+      "job-resume",
+      expect.anything(),
+    );
+  });
+
+  it("refuses to complete an action that is not a form", async () => {
+    const { service } = eventSetup();
+    await service.propose(owner, event());
+    await expect(
+      service.completeEventForm({
+        workspaceId: "workspace-1",
+        userId: "user-owner",
+        actionId: "action-1",
+        event: {} as never,
+      }),
+    ).rejects.toThrow("not a prefilled form");
+  });
+});

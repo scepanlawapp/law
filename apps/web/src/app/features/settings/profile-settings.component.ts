@@ -20,7 +20,10 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { AuthApiClient, UserSettingsApiClient } from "@law/api-clients";
-import { UserProfileGender } from "@law/api-interfaces";
+import {
+  AssistantPermissionMode,
+  UserProfileGender,
+} from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
@@ -107,6 +110,21 @@ export class ProfileSettingsComponent {
     }),
   });
   readonly savingReminder = signal(false);
+  readonly assistantForm = new FormGroup({
+    assistantPermissionMode: new FormControl<AssistantPermissionMode>("ASK", {
+      nonNullable: true,
+    }),
+  });
+  readonly savingAssistant = signal(false);
+  readonly permissionModeOptions: SelectOption<AssistantPermissionMode>[] = [
+    { value: "MANUAL", label: "assistant.permissionMode.MANUAL" },
+    { value: "ASK", label: "assistant.permissionMode.ASK" },
+    { value: "AUTO", label: "assistant.permissionMode.AUTO" },
+  ];
+  readonly permissionModeItemToString = createSelectItemToString(
+    this.permissionModeOptions,
+    (key) => this.localization.translate(key),
+  );
   readonly passwordForm = new FormGroup({
     currentPassword: new FormControl("", {
       nonNullable: true,
@@ -140,6 +158,14 @@ export class ProfileSettingsComponent {
         this.reminderForm.patchValue({
           timeReviewReminderEnabled: preferences.timeReviewReminderEnabled,
           timeReviewReminderTime: preferences.timeReviewReminderTime,
+        });
+      }
+    });
+    effect(() => {
+      const preferences = this.settingsStore.preferences();
+      if (preferences && this.assistantForm.pristine) {
+        this.assistantForm.patchValue({
+          assistantPermissionMode: preferences.assistantPermissionMode,
         });
       }
     });
@@ -192,6 +218,31 @@ export class ProfileSettingsComponent {
           );
           this.saving.set(false);
         },
+      });
+  }
+
+  saveAssistant(): void {
+    if (this.savingAssistant()) {
+      return;
+    }
+    this.savingAssistant.set(true);
+    this.settingsStore
+      .update({ preferences: this.assistantForm.getRawValue() })
+      .pipe(
+        finalize(() => this.savingAssistant.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: () => {
+          this.assistantForm.markAsPristine();
+          this.toast.success(
+            this.localization.translate("settings.profileSaved"),
+          );
+        },
+        error: () =>
+          this.toast.error(
+            this.localization.translate("settings.profileSaveError"),
+          ),
       });
   }
 

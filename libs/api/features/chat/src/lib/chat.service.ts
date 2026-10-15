@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -485,9 +486,19 @@ export class ChatService {
     workspaceId: string,
     sessionId: string,
     changes: ChatSessionUpdateRequest,
+    userId?: string,
   ): Promise<ChatSessionSummary> {
     const session = await this.requireSession(workspaceId, sessionId);
     const data: Prisma.ChatSessionUpdateInput = {};
+    if (changes.permissionMode !== undefined) {
+      // AUTO saves run as the conversation's owner, so only the owner may change the mode.
+      if (userId && session.createdByUserId !== userId) {
+        throw new ForbiddenException(
+          "Only the conversation owner can change its permission mode",
+        );
+      }
+      data.permissionMode = changes.permissionMode;
+    }
     if (changes.title !== undefined) {
       data.title = changes.title.trim() || "New chat";
     }

@@ -51,6 +51,7 @@ import {
   UpdateMessageFeedbackDto,
   PendingActionDecisionDto,
 } from "./chat.dto";
+import { CreateEventDto } from "@law/activities-tasks-deadlines";
 import { AssistantActionsService } from "./assistant-actions.service";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
@@ -128,6 +129,7 @@ export class ChatController {
       request.workspace!.workspaceId,
       sessionId,
       body,
+      request.auth!.user.id,
     );
   }
 
@@ -319,6 +321,21 @@ export class ChatController {
       userId: request.auth!.user.id,
       actionId,
       decision: "APPROVE",
+    });
+  }
+
+  /** MANUAL mode: saves the event the user checked in the prefilled form. */
+  @Post("pending-actions/:actionId/complete")
+  completePendingAction(
+    @Req() request: WorkspaceRequest,
+    @Param("actionId") actionId: string,
+    @Body() body: CreateEventDto,
+  ): Promise<PendingActionSummary> {
+    return this.actions.completeEventForm({
+      workspaceId: request.workspace!.workspaceId,
+      userId: request.auth!.user.id,
+      actionId,
+      event: body,
     });
   }
 

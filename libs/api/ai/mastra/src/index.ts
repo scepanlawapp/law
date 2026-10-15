@@ -36,6 +36,7 @@ export * from "./lib/assistant/tools/review-contract.tool";
 export * from "./lib/assistant/tools/side-effects";
 export * from "./lib/assistant/tools/link-case.tool";
 export * from "./lib/assistant/tools/create-deadline.tool";
+export * from "./lib/assistant/tools/create-event.tool";
 export * from "./lib/assistant/tools/create-tasks-from-brief.tool";
 export * from "./lib/conversation/conversation-summary";
 export * from "./lib/price-suggestion.agent";
