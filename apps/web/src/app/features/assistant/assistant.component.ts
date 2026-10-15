@@ -70,6 +70,7 @@ import {
   ChatSessionSummary,
   ChatStreamEvent,
   PendingActionSummary,
+  AssistantChoice,
   AssistantFormPrefill,
   PendingActionResultEntityType,
   DocumentAiStatus,
@@ -285,6 +286,16 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   /** Summary of the open conversation, kept when filters hide it. */
   private readonly openSessionSummary = signal<ChatSessionSummary | null>(null);
   protected readonly messages = signal<ChatMessageResponse[]>([]);
+  /** The latest message, when it is an answer offering one-click choices. */
+  protected readonly choicesMessageId = computed(() => {
+    const messages = this.messages();
+    const last = messages[messages.length - 1];
+    return last?.role === "ASSISTANT" &&
+      last.status === "COMPLETED" &&
+      last.choices?.length
+      ? last.id
+      : null;
+  });
   protected readonly selectedSessionId = signal<string | null>(null);
   protected readonly pendingCaseId = signal<string | null>(null);
   protected readonly latestBriefId = signal<string | null>(null);
@@ -1633,6 +1644,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       textarea.setSelectionRange(text.length, text.length);
       this.resizeTextareaElement(textarea);
     });
+  }
+
+  /** Sends a candidate the assistant offered, as if the user typed it. */
+  protected pickChoice(choice: AssistantChoice): void {
+    if (this.sending()) return;
+    this.composerForm.controls.draft.setValue(choice.reply);
+    this.send();
   }
 
   protected send(): void {

@@ -200,6 +200,27 @@
                       (undo)="undoPendingAction(action)"
                     />
                   }
+                  @if (choicesMessageId() === message.id) {
+                    <div
+                      class="mt-2 flex flex-wrap gap-2"
+                      role="group"
+                      [attr.aria-label]="'assistant.choices.label' | translate"
+                    >
+                      @for (choice of message.choices; track $index) {
+                        <button
+                          hlmBtn
+                          variant="outline"
+                          size="sm"
+                          type="button"
+                          class="h-auto max-w-full whitespace-normal py-1.5 text-left"
+                          [disabled]="sending()"
+                          (click)="pickChoice(choice)"
+                        >
+                          {{ choice.label }}
+                        </button>
+                      }
+                    </div>
+                  }
                   <time>{{ message.createdAt | date: "HH:mm" }}</time>
                   @if (
                     message.role === "ASSISTANT" &&

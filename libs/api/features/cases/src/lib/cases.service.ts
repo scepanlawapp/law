@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { ActivityType, Case, Prisma } from "@prisma/client";
 import {
+  foldedMatchIds,
   PlatformPrismaService,
   NumberPatternFormatter,
   paginationMeta,
@@ -315,6 +316,16 @@ export class CasesService {
 
   async list(query: CaseListQueryDto): Promise<CaseListResponse> {
     const { workspaceId } = this.context;
+    const search = query.search?.trim();
+    // Case names also match without diacritics.
+    const foldedIds = search
+      ? await foldedMatchIds(this.db, {
+          table: "Case",
+          columns: ["name"],
+          search,
+          workspaceId,
+        })
+      : [];
     const sort = parseSort(
       query.sort,
       [
@@ -360,10 +371,14 @@ export class CasesService {
       ...(query.tags?.length && {
         tags: { some: { tagId: { in: query.tags } } },
       }),
-      ...(query.search?.trim() && {
-        OR: ["caseNumber", "name", "externalReference"].map((field) => ({
-          [field]: { contains: query.search!.trim(), mode: "insensitive" },
-        })),
+      ...(search && {
+        OR: ["caseNumber", "name", "externalReference"]
+          .map(
+            (field): Prisma.CaseWhereInput => ({
+              [field]: { contains: search, mode: "insensitive" },
+            }),
+          )
+          .concat(foldedIds.length ? [{ id: { in: foldedIds } }] : []),
       }),
     };
     const [totalItems, items] = await this.db.$transaction([

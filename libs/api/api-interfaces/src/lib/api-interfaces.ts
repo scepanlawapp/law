@@ -344,6 +344,8 @@ export interface ChatMessageResponse {
   citations?: LegalCitationResponse[];
   /** Assistant proposals made in this message, shown as confirmation cards. */
   pendingActionIds?: string[];
+  /** Candidates the user can pick with one click (latest assistant answer only). */
+  choices?: AssistantChoice[];
   createdAt: string;
   attachments: ChatAttachmentSummary[];
 }
@@ -621,6 +623,15 @@ export type PendingActionResultEntityType =
   | "CASE"
   /** Several work entries: opens the time review. */
   | "TIME_REVIEW";
+
+/**
+ * A candidate the user can pick with one click (ambiguous name, case, event):
+ * `label` is shown on the button, `reply` is sent as the user's message.
+ */
+export interface AssistantChoice {
+  label: string;
+  reply: string;
+}
 
 /** A record change proposed by the assistant, awaiting the user's decision. */
 export interface PendingActionSummary {

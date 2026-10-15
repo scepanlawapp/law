@@ -1019,6 +1019,7 @@
   "assistant.pendingAction.status.AUTO": "Sačuvano automatski",
   "assistant.pendingAction.formHint": "Ništa se ne čuva dok ne proverite i sačuvate formu.",
   "assistant.pendingAction.openForm": "Otvori i sačuvaj",
+  "assistant.choices.label": "Ponuđeni izbori",
   "assistant.pendingAction.undo": "Poništi",
   "assistant.pendingAction.undone": "Poništeno",
   "assistant.pendingAction.undoError": "Poništavanje nije uspelo.",

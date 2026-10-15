@@ -236,6 +236,8 @@ function prismaMock() {
     },
     clientAddress: { create: jest.fn().mockResolvedValue({}) },
     clientIdentificationDocument: { create: jest.fn().mockResolvedValue({}) },
+    // Folded (diacritics-free) name search; no extra matches by default.
+    $queryRaw: jest.fn().mockResolvedValue([]),
     clientActivity: { create: jest.fn().mockResolvedValue({}) },
     $transaction: jest.fn(),
     workflowJob: {
@@ -1345,8 +1347,38 @@ describe("AssistantActionsService create_event and permission modes", () => {
     });
     expect(result).toMatchObject({
       message: expect.stringContaining("Borko Petrović (klijent K-0012)"),
+      choices: [
+        { label: "Borko Ilić (kolega)", reply: "Borko Ilić (kolega)" },
+        {
+          label: "Borko Petrović (klijent K-0012)",
+          reply: "Borko Petrović (klijent K-0012)",
+        },
+      ],
     });
     expect(prisma.actions.size).toBe(0);
+  });
+
+  it("finds a name typed without diacritics through the folded search", async () => {
+    const { service, prisma } = eventSetup({
+      clients: [{ id: "client-ilic", displayName: "Marko Ilić", clientNumber: "K-0009" }],
+    });
+    (prisma as unknown as Record<string, jest.Mock>)["$queryRaw"].mockImplementation(
+      (query: { text: string }) =>
+        Promise.resolve(query.text.includes(`FROM "Client"`) ? [{ id: "client-ilic" }] : []),
+    );
+
+    const result = await service.propose(owner, event({ participants: ["Ilic"] }));
+
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    expect(
+      (prisma.client as unknown as Record<string, jest.Mock>)["findMany"],
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          OR: expect.arrayContaining([{ id: { in: ["client-ilic"] } }]),
+        }),
+      }),
+    );
   });
 
   it("refuses a time in the past", async () => {
@@ -1818,6 +1850,10 @@ describe("AssistantActionsService tasks, work entries, and event changes", () =>
     expect(result).toMatchObject({
       status: "INVALID",
       message: expect.stringContaining("Poziv sa Borkom – Borko Petrović"),
+      choices: [
+        expect.objectContaining({ reply: expect.stringMatching(/^Sastanak sa Borkom, .* u \d\d:\d\d$/) }),
+        expect.objectContaining({ label: expect.stringContaining("Poziv sa Borkom – Borko Petrović") }),
+      ],
     });
     expect(prisma.actions.size).toBe(0);
   });

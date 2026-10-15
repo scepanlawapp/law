@@ -43,6 +43,7 @@ describe("CasesService", () => {
     organizationSettings: { findUnique: jest.fn() },
     workspaceMember: { findUnique: jest.fn() },
     user: { findMany: jest.fn() },
+    $queryRaw: jest.fn().mockResolvedValue([]),
     case: {
       findFirst: jest.fn(),
       findMany: jest.fn(),

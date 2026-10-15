@@ -60,7 +60,7 @@ Implemented in `libs/api/features/auth` and used by the web application:
 
 The clients backend and frontend are connected and provide a usable client-management workflow:
 
-- Paginated client listing with search.
+- Paginated client listing with search. Name search ignores case and diacritics ("Ilic" finds "Ilić"; "Djordje" and "Dordje" find "Đorđe"), through the core `foldedMatchIds` helper (SQL `translate`, allowlisted tables and columns, user text always bound).
 - Create, read, update, archive, and activate client records.
 - Individual and organization client data support.
 - Client addresses: list, create, update, and delete.
@@ -78,7 +78,7 @@ The clients backend and frontend are connected and provide a usable client-manag
 
 The cases backend and frontend implement the main case lifecycle:
 
-- Paginated case listing and case search/filter support through the API client.
+- Paginated case listing and case search/filter support through the API client. Case-name search ignores diacritics like client search.
 - Case number suggestions and configurable case-number formatting.
 - Case creation, detail loading, and editing.
 - Case status transitions: activate, put on hold, resume, close, reopen, and archive.
@@ -341,7 +341,8 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
     - Proposals expire after 24 h, and double approvals execute once.
     - After the last decision, an `agent-resume` job lets the agent confirm the outcome.
   - The agent can schedule a calendar event with `create_event` (title, type, local Europe/Belgrade date and time, duration (default 60 min), participants by name, optional case, location, description).
-    - Each participant name must match exactly one active colleague, client, or active client contact person (contacts become attendees and add their client). Zero or several matches return `INVALID` with up to five labelled candidates and store nothing; the agent asks the user to choose.
+    - Each participant name must match exactly one active colleague, client, or active client contact person (contacts become attendees and add their client). Zero or several matches return `INVALID` with up to five labelled candidates and store nothing; the agent asks the user to choose. Names match without diacritics (participants, clients, contacts, cases, events, billing clients).
+  - **One-click choices:** tool results with candidates (ambiguous participant, case, event, client, colleague) carry `choices` (`label`, `reply`). When the turn's last tool result offers them and nothing waits on a card or form, the answer stores up to five in `metadata.choices` (`ChatMessageResponse.choices`). The chat shows them as buttons under the latest assistant answer while no newer message exists; a click sends the reply as the user's message. Typing still works.
     - The organizer and first assignee is the conversation owner; colleagues are added as assignees. A named case is always attached; the linked case only when it belongs to the same client.
     - Overlapping `SCHEDULED` events of the organizer or assignees are listed as `⚠ Preklapa se sa: …` lines on the proposal.
   - `reschedule_event` / `cancel_event` change one upcoming `SCHEDULED` event where the conversation owner is organizer or assignee, identified by participant name (client, attendee, colleague, or title words), current date, start time, and/or title. Zero or several matches return `INVALID` with up to five candidates (title, people, date and time). Rescheduling keeps every other field and the length unless a new duration is given, rejects past times, and lists overlaps with other events (excluding itself). Cancelling uses the existing event transition.

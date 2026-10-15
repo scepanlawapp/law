@@ -5,6 +5,7 @@ import {
 } from "@nestjs/common";
 import { ActivityType, Client, Prisma } from "@prisma/client";
 import {
+  foldedMatchIds,
   PlatformPrismaService,
   paginationMeta,
   parseSort,
@@ -204,6 +205,15 @@ export class ClientsService {
       [{ field: "updatedAt", direction: "desc" }],
     );
     const search = query.search?.trim();
+    // Names also match without diacritics ("Ilic" finds "Ilić").
+    const foldedIds = search
+      ? await foldedMatchIds(this.db, {
+          table: "Client",
+          columns: ["displayName", "firstName", "lastName", "organizationName"],
+          search,
+          workspaceId,
+        })
+      : [];
     const where: Prisma.ClientWhereInput = {
       workspaceId,
       ...(query.status && { status: query.status }),
@@ -223,9 +233,13 @@ export class ClientsService {
           "organizationName",
           "email",
           "phone",
-        ].map((field) => ({
-          [field]: { contains: search, mode: "insensitive" },
-        })),
+        ]
+          .map(
+            (field): Prisma.ClientWhereInput => ({
+              [field]: { contains: search, mode: "insensitive" },
+            }),
+          )
+          .concat(foldedIds.length ? [{ id: { in: foldedIds } }] : []),
       }),
     };
     const [totalItems, clients] = await this.db.$transaction([

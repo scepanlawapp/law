@@ -23,6 +23,7 @@ import {
   isDraftDocumentType,
 } from "@law/api-interfaces";
 import { isContractReviewType } from "@law/contract-review";
+import { choicesFromMetadata } from "./assistant-choices";
 import {
   DEFAULT_DOCUMENT_TYPE,
   getDocumentType,
@@ -194,6 +195,7 @@ export function toMessage(message: {
     outcome: outcomeFromMetadata(message.metadata),
     citations: citationsFromMetadata(message.metadata),
     pendingActionIds: pendingActionIdsFromMetadata(message.metadata),
+    choices: choicesFromMetadata(message.metadata),
     createdAt: message.createdAt.toISOString(),
     attachments: message.attachments.map((attachment) =>
       toAttachment(attachment),
