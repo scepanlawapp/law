@@ -579,15 +579,18 @@ export class ChatApiClient {
     );
   }
 
-  /** Saves the event of an assistant form (MANUAL permission mode) with the user's edits. */
-  completePendingActionEvent(
+  /**
+   * Saves an assistant form (MANUAL permission mode) with the user's edits:
+   * the event, task, deadline, or work-entry request its dialog produced.
+   */
+  completePendingAction(
     workspaceId: string,
     actionId: string,
-    event: EventRequest,
+    request: object,
   ): Observable<PendingActionSummary> {
     return this.http.post<PendingActionSummary>(
       this.endpoint(`/chat/pending-actions/${actionId}/complete`),
-      event,
+      request,
       this.workspaceOptions(workspaceId),
     );
   }

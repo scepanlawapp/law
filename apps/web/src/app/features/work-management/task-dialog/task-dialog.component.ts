@@ -186,6 +186,20 @@ export class TaskDialogComponent {
   });
 
   constructor() {
+    const initial = this.context.task ? undefined : this.context.initial;
+    if (initial) {
+      this.form.patchValue({
+        title: initial.title,
+        description: initial.description ?? "",
+        priority: initial.priority ?? "NORMAL",
+        assigneeUserId: initial.assigneeUserId,
+        caseId: initial.caseId ?? "",
+        clientId: initial.clientId ?? "",
+        dueMode: initial.dueAt ? "DATE_TIME" : initial.dueDate ? "DATE" : "NONE",
+        dueDate: dateInputValue(initial.dueDate),
+        dueAt: dateTimeInputValue(initial.dueAt),
+      });
+    }
     this.form.controls.dueMode.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((mode) => {
@@ -278,6 +292,16 @@ export class TaskDialogComponent {
       return;
     }
     this.saving.set(true);
+    if (this.context.save && !this.context.task) {
+      this.context
+        .save(request)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => this.dialogRef.close(),
+          error: () => this.saving.set(false),
+        });
+      return;
+    }
     const completing =
       value.status === "DONE" && this.context.task?.status !== "DONE";
     const operation = completing

@@ -9,6 +9,12 @@ import { createLegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
 import { createCreateEventTool } from "./tools/create-event.tool";
+import {
+  createCancelEventTool,
+  createRescheduleEventTool,
+} from "./tools/change-event.tool";
+import { createCreateTaskTool } from "./tools/create-task.tool";
+import { createLogWorkEntryTool } from "./tools/log-work-entry.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
@@ -450,6 +456,41 @@ describe("assistant tools", () => {
     ).toBe(false);
   });
 
+  it("proposes tasks, work entries, and event changes with the user's words", async () => {
+    const toolDeps = deps();
+    const context = { requestContext: requestContext() } as never;
+
+    await createCreateTaskTool(toolDeps).execute?.(
+      { title: "Poslati ugovor", assignee: "Marko", dueDate: "2026-10-17" },
+      context,
+    );
+    await createLogWorkEntryTool(toolDeps).execute?.(
+      { title: "Pregled ugovora", minutes: 90, client: "Borko" },
+      context,
+    );
+    await createRescheduleEventTool(toolDeps).execute?.(
+      { participant: "Borko", newStartTime: "14:00" },
+      context,
+    );
+    await createCancelEventTool(toolDeps).execute?.(
+      { participant: "Borko", date: "2026-10-16" },
+      context,
+    );
+
+    expect(
+      (toolDeps.proposeAction as jest.Mock).mock.calls.map(([, request]) => request),
+    ).toEqual([
+      { type: "create_task", title: "Poslati ugovor", assignee: "Marko", dueDate: "2026-10-17" },
+      { type: "log_work_entry", title: "Pregled ugovora", minutes: 90, client: "Borko" },
+      { type: "reschedule_event", participant: "Borko", newStartTime: "14:00" },
+      { type: "cancel_event", participant: "Borko", date: "2026-10-16" },
+    ]);
+    const workSchema = createLogWorkEntryTool(toolDeps)
+      .inputSchema as unknown as ZodTypeAny;
+    expect(workSchema.safeParse({ title: "Rad", minutes: 0 }).success).toBe(false);
+    expect(workSchema.safeParse({ title: "Pregled", minutes: 1.5 }).success).toBe(false);
+  });
+
   it("declares a side-effect level for every agent tool", async () => {
     const agent = createLegalAssistantAgent({
       model: createScriptedModel([{ text: "ok" }]).model as never,
@@ -466,12 +507,16 @@ describe("assistant tools", () => {
         .map(([name]) => name)
         .sort(),
     ).toEqual([
+      "cancel_event",
       "create_deadline",
       "create_event",
+      "create_task",
       "create_tasks_from_brief",
       "detect_deadlines",
       "link_case",
+      "log_work_entry",
       "propose_client_update_from_document",
+      "reschedule_event",
     ]);
   });
 

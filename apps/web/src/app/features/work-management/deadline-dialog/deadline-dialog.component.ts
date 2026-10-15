@@ -180,6 +180,20 @@ export class DeadlineDialogComponent {
   });
 
   constructor() {
+    const initial = this.context.deadline ? undefined : this.context.initial;
+    if (initial) {
+      this.form.patchValue({
+        title: initial.title,
+        description: initial.description ?? "",
+        type: initial.type,
+        dueMode: initial.dueAt ? "DATE_TIME" : "DATE",
+        dueDate: dateInputValue(initial.dueDate),
+        dueAt: dateTimeInputValue(initial.dueAt),
+        responsibleUserId: initial.responsibleUserId,
+        caseId: initial.caseId ?? "",
+        clientId: initial.clientId ?? "",
+      });
+    }
     this.form.controls.dueMode.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((mode) => {
@@ -270,6 +284,16 @@ export class DeadlineDialogComponent {
       return;
     }
     this.saving.set(true);
+    if (this.context.save && !this.context.deadline) {
+      this.context
+        .save(request)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => this.dialogRef.close(),
+          error: () => this.saving.set(false),
+        });
+      return;
+    }
     const operation = this.context.deadline
       ? this.api.updateDeadline(this.context.deadline.id, request)
       : this.api.createDeadline(request);

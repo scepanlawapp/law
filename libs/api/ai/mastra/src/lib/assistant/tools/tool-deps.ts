@@ -436,6 +436,13 @@ export const ASSISTANT_DEADLINE_TYPES = [
   "OTHER",
 ] as const;
 
+export const ASSISTANT_TASK_PRIORITIES = [
+  "LOW",
+  "NORMAL",
+  "HIGH",
+  "URGENT",
+] as const;
+
 export const ASSISTANT_EVENT_TYPES = [
   "MEETING",
   "CALL",
@@ -477,7 +484,54 @@ export type AssistantActionRequest =
       caseReference?: string;
       location?: string;
       description?: string;
+    }
+  | ({
+      type: "reschedule_event";
+      /** YYYY-MM-DD, Europe/Belgrade; omit to keep the date. */
+      newDate?: string;
+      /** HH:mm, Europe/Belgrade; omit to keep the time. */
+      newStartTime?: string;
+      durationMinutes?: number;
+    } & AssistantEventLookup)
+  | ({ type: "cancel_event" } & AssistantEventLookup)
+  | {
+      type: "create_task";
+      title: string;
+      /** YYYY-MM-DD */
+      dueDate?: string;
+      priority?: (typeof ASSISTANT_TASK_PRIORITIES)[number];
+      /** Colleague by name; omit for the current user. */
+      assignee?: string;
+      /** Client by name or number. */
+      client?: string;
+      caseReference?: string;
+      description?: string;
+    }
+  | {
+      type: "log_work_entry";
+      title: string;
+      minutes: number;
+      /** YYYY-MM-DD, Europe/Belgrade; omit for today. */
+      date?: string;
+      /** Client by name or number. */
+      client?: string;
+      caseReference?: string;
+      /** Colleague who did the work; omit for the current user. */
+      performer?: string;
+      description?: string;
     };
+
+/** How the user names an existing event of theirs; every given field must match. */
+export interface AssistantEventLookup {
+  /** Colleague, client, or contact person on the event, by name. */
+  participant?: string;
+  /** YYYY-MM-DD, Europe/Belgrade */
+  date?: string;
+  /** HH:mm, Europe/Belgrade */
+  startTime?: string;
+  /** Words from the event title. */
+  title?: string;
+}
 
 export type ActionProposalResult =
   | {

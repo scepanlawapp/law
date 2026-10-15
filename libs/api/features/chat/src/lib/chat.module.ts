@@ -11,6 +11,7 @@ import { ClientsModule } from "@law/clients";
 import { ActivitiesTasksDeadlinesModule } from "@law/activities-tasks-deadlines";
 import { WorkspaceDocumentsModule } from "@law/workspace-documents";
 import { DocumentIngestionModule } from "@law/document-ingestion";
+import { WorkEntriesModule } from "@law/work-entries";
 import { AgentTurnRunner } from "./agent-turn.runner";
 import { AssistantActionsService } from "./assistant-actions.service";
 import { AssistantContextBuilder } from "./assistant-context.builder";
@@ -44,6 +45,7 @@ import {
     CasesModule,
     ClientsModule,
     ActivitiesTasksDeadlinesModule,
+    WorkEntriesModule,
     WorkspaceDocumentsModule,
     DocumentIngestionModule,
     FileStorageModule,

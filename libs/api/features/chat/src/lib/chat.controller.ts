@@ -51,7 +51,6 @@ import {
   UpdateMessageFeedbackDto,
   PendingActionDecisionDto,
 } from "./chat.dto";
-import { CreateEventDto } from "@law/activities-tasks-deadlines";
 import { AssistantActionsService } from "./assistant-actions.service";
 import { ChatService, UploadedChatFile } from "./chat.service";
 
@@ -329,13 +328,14 @@ export class ChatController {
   completePendingAction(
     @Req() request: WorkspaceRequest,
     @Param("actionId") actionId: string,
-    @Body() body: CreateEventDto,
+    // Validated per action type by the actions service (event, task, deadline, work entry).
+    @Body() body: Record<string, unknown>,
   ): Promise<PendingActionSummary> {
-    return this.actions.completeEventForm({
+    return this.actions.completeForm({
       workspaceId: request.workspace!.workspaceId,
       userId: request.auth!.user.id,
       actionId,
-      event: body,
+      body,
     });
   }
 

@@ -559,7 +559,11 @@ export type PendingActionType =
   | "create_deadline"
   | "create_tasks_from_brief"
   | "update_client_from_document"
-  | "create_event";
+  | "create_event"
+  | "reschedule_event"
+  | "cancel_event"
+  | "create_task"
+  | "log_work_entry";
 
 /** FORM: prefilled form the user saves; CARD: approval card; AUTO: saved without asking. */
 export type PendingActionMode = "FORM" | "CARD" | "AUTO";
@@ -583,6 +587,39 @@ export interface AssistantEventRequest {
   }>;
 }
 
+/** Deadline fields the assistant proposed; the shape the deadline dialog saves. */
+export interface AssistantDeadlineRequest {
+  title: string;
+  description?: string;
+  type: DeadlineType;
+  dueDate?: string;
+  dueAt?: string;
+  timeZone: string;
+  responsibleUserId: string;
+  caseId?: string;
+  clientId?: string;
+}
+
+/** Values a FORM action opens its dialog with, by the dialog that saves it. */
+export type AssistantFormPrefill =
+  | {
+      kind: "event";
+      /** Set when the form edits an existing event (reschedule). */
+      eventId?: string;
+      request: AssistantEventRequest;
+    }
+  | { kind: "task"; request: TaskRequest }
+  | { kind: "deadline"; request: AssistantDeadlineRequest }
+  | { kind: "work_entry"; request: CreateWorkEntryRequest };
+
+/** Kind of record an executed action created or changed. */
+export type PendingActionResultEntityType =
+  | "EVENT"
+  | "TASK"
+  | "DEADLINE"
+  | "WORK_ENTRY"
+  | "CASE";
+
 /** A record change proposed by the assistant, awaiting the user's decision. */
 export interface PendingActionSummary {
   id: string;
@@ -594,10 +631,11 @@ export interface PendingActionSummary {
   details: string[];
   status: PendingActionStatus;
   mode: PendingActionMode;
-  /** `create_event` in FORM mode: the values to prefill the event dialog with. */
-  eventPrefill?: AssistantEventRequest | null;
-  /** Id of the record the action created, once executed. */
+  /** FORM mode: the dialog to open and the values to prefill it with. */
+  prefill?: AssistantFormPrefill | null;
+  /** Id of the record the action created or changed, once executed. */
   resultEntityId?: string | null;
+  resultEntityType?: PendingActionResultEntityType | null;
   /** Human-readable outcome after execution. */
   resultMessage: string | null;
   errorMessage: string | null;

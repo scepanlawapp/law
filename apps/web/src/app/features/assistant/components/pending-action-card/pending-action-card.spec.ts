@@ -104,6 +104,7 @@ describe("PendingActionCardComponent", () => {
       mode: "AUTO",
       status: "APPROVED",
       resultEntityId: "event-1",
+      resultEntityType: "EVENT",
       resultMessage: "Događaj „Sastanak“ je zakazan za 16.10.2026. u 12:00.",
     });
     const events: string[] = [];
@@ -111,7 +112,29 @@ describe("PendingActionCardComponent", () => {
 
     expect(element.textContent).toContain("assistant.pendingAction.status.AUTO");
     expect(buttons).toHaveLength(1);
+    expect(buttons[0].textContent).toContain(
+      "assistant.pendingAction.openResult.EVENT",
+    );
     buttons[0].click();
     expect(events).toEqual(["open"]);
+  });
+
+  it("says automatically logged work still needs confirming", () => {
+    const { element, buttons } = render({
+      ...pending,
+      actionType: "log_work_entry",
+      mode: "AUTO",
+      status: "APPROVED",
+      resultEntityId: "entry-1",
+      resultEntityType: "WORK_ENTRY",
+      resultMessage: "Rad je upisan kao predlog.",
+    });
+
+    expect(element.textContent).toContain(
+      "assistant.pendingAction.status.AUTO_PROPOSED",
+    );
+    expect(buttons[0].textContent).toContain(
+      "assistant.pendingAction.openResult.WORK_ENTRY",
+    );
   });
 });
