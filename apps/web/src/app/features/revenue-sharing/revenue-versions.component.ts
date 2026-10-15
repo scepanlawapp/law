@@ -43,7 +43,7 @@ export class RevenueVersionsComponent {
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly page = signal(1);
-  readonly pageSize = signal(20);
+  readonly pageSize = signal(50);
   readonly total = signal(0);
   constructor() {
     this.load();

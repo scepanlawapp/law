@@ -49,7 +49,7 @@ function entry(id: string, clientId: string, name: string): WorkEntry {
 
 const page = (items: WorkEntry[]) => ({
   items,
-  meta: { page: 1, pageSize: 25, totalItems: items.length, totalPages: 1 },
+  meta: { page: 1, pageSize: 50, totalItems: items.length, totalPages: 1 },
 });
 
 describe("FinanceWorkReviewComponent (unbilled work)", () => {

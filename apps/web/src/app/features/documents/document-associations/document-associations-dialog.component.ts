@@ -189,7 +189,7 @@ export class DocumentAssociationsDialogComponent {
     this.casesApi
       .list({
         page: 1,
-        pageSize: 20,
+        pageSize: 50,
         search: term || undefined,
         ...(this.context.fixedClientId
           ? { clientIds: [this.context.fixedClientId] }
@@ -222,7 +222,7 @@ export class DocumentAssociationsDialogComponent {
     this.clientOptionsLoading.set(true);
     this.clientOptionsError.set(false);
     this.clientsApi
-      .list({ page: 1, pageSize: 20, search: term || undefined })
+      .list({ page: 1, pageSize: 50, search: term || undefined })
       .pipe(
         catchError(() => {
           this.clientOptionsError.set(true);
