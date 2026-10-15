@@ -43,6 +43,7 @@ const DEFAULT_SETTINGS: UserSettingsRecord = {
   timeZone: "Europe/Belgrade",
   timeReviewReminderEnabled: false,
   timeReviewReminderTime: "17:30",
+  assistantPermissionMode: "ASK",
 };
 
 @Injectable()
@@ -264,6 +265,7 @@ export class UserSettingsService {
         timeZone: settings.timeZone,
         timeReviewReminderEnabled: settings.timeReviewReminderEnabled,
         timeReviewReminderTime: settings.timeReviewReminderTime,
+        assistantPermissionMode: settings.assistantPermissionMode,
       },
     };
   }

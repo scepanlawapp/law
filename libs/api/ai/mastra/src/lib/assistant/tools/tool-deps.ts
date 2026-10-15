@@ -436,6 +436,13 @@ export const ASSISTANT_DEADLINE_TYPES = [
   "OTHER",
 ] as const;
 
+export const ASSISTANT_EVENT_TYPES = [
+  "MEETING",
+  "CALL",
+  "HEARING",
+  "OTHER",
+] as const;
+
 /** Record changes the agent may only propose (AI_ARCHITECTURE.md §5). */
 export type AssistantActionRequest =
   | { type: "link_case"; caseReference: string }
@@ -455,6 +462,21 @@ export type AssistantActionRequest =
       documentRef: string;
       /** `subjectKey` of a subject from get_document_facts. */
       subjectKey: string;
+    }
+  | {
+      type: "create_event";
+      title: string;
+      eventType?: (typeof ASSISTANT_EVENT_TYPES)[number];
+      /** YYYY-MM-DD, Europe/Belgrade */
+      date: string;
+      /** HH:mm, Europe/Belgrade */
+      startTime: string;
+      durationMinutes?: number;
+      /** Colleagues, clients, or client contact persons by name, as the user wrote them. */
+      participants?: string[];
+      caseReference?: string;
+      location?: string;
+      description?: string;
     };
 
 export type ActionProposalResult =
@@ -463,6 +485,20 @@ export type ActionProposalResult =
       pendingActionId: string;
       summary: string;
       details: string[];
+    }
+  /** MANUAL mode: the user saves the prefilled form; the turn waits like for a card. */
+  | {
+      status: "FORM_REQUIRED";
+      pendingActionId: string;
+      summary: string;
+      details: string[];
+    }
+  /** AUTO mode: the change was saved without asking. */
+  | {
+      status: "EXECUTED";
+      pendingActionId: string;
+      summary: string;
+      message: string;
     }
   | { status: "INVALID"; message: string };
 

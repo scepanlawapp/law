@@ -24,6 +24,7 @@ const themes = [
 ] as const;
 const languages = ["SR", "EN"] as const;
 const dateTimeFormats = ["TWELVE_HOUR", "TWENTY_FOUR_HOUR"] as const;
+const assistantPermissionModes = ["MANUAL", "ASK", "AUTO"] as const;
 const accentColors = [
   "GOLD",
   "EMERALD",
@@ -91,6 +92,9 @@ export class UpdatePreferencesDto {
   @IsOptional()
   @Matches(/^([01]\d|2[0-3]):[0-5]\d$/)
   timeReviewReminderTime?: string;
+  @IsOptional()
+  @IsIn(assistantPermissionModes)
+  assistantPermissionMode?: (typeof assistantPermissionModes)[number];
 }
 
 export class UpdateUserSettingsDto {

@@ -13,6 +13,7 @@ import {
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
+import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { AssistantComponent } from "./assistant.component";
@@ -169,6 +170,10 @@ describe("AssistantComponent review state", () => {
           },
         },
         { provide: ChatApiClient, useValue: chat },
+        {
+          provide: UserSettingsStore,
+          useValue: { preferences: signal(null) },
+        },
         {
           provide: CasesApiClient,
           useValue: { list: jest.fn(() => NEVER) },

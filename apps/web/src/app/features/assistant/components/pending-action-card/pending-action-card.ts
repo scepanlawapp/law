@@ -10,8 +10,10 @@ import {
   lucideCheck,
   lucideCircleAlert,
   lucideClock,
+  lucideSquarePen,
   lucideShieldQuestion,
   lucideX,
+  lucideZap,
 } from "@ng-icons/lucide";
 import { PendingActionSummary } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -30,8 +32,10 @@ import { TranslatePipe } from "../../../../core/localization/translate.pipe";
       lucideCheck,
       lucideCircleAlert,
       lucideClock,
+      lucideSquarePen,
       lucideShieldQuestion,
       lucideX,
+      lucideZap,
     }),
   ],
 })
@@ -41,6 +45,19 @@ export class PendingActionCardComponent {
   readonly busy = input(false);
   readonly approve = output<void>();
   readonly decline = output<void>();
+  /** FORM mode: open the prefilled form so the user can check and save it. */
+  readonly openForm = output<void>();
+  /** Opens the record an executed action created. */
+  readonly openResult = output<void>();
+
+  protected readonly isForm = computed(() => this.action().mode === "FORM");
+  protected readonly isAuto = computed(() => this.action().mode === "AUTO");
+  protected readonly canOpenResult = computed(
+    () =>
+      this.action().status === "APPROVED" &&
+      this.action().actionType === "create_event" &&
+      !!this.action().resultEntityId,
+  );
 
   protected readonly pending = computed(
     () => this.action().status === "PENDING",
@@ -49,7 +66,7 @@ export class PendingActionCardComponent {
   protected readonly icon = computed(() => {
     switch (this.action().status) {
       case "APPROVED":
-        return "lucideCheck";
+        return this.isAuto() ? "lucideZap" : "lucideCheck";
       case "DECLINED":
         return "lucideX";
       case "FAILED":
@@ -57,7 +74,7 @@ export class PendingActionCardComponent {
       case "EXPIRED":
         return "lucideClock";
       default:
-        return "lucideShieldQuestion";
+        return this.isForm() ? "lucideSquarePen" : "lucideShieldQuestion";
     }
   });
 }

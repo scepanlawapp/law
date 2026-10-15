@@ -10,6 +10,7 @@ import {
   ViewChild,
   effect,
   inject,
+  Injector,
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
@@ -55,8 +56,9 @@ import {
   HlmSheetTitle,
   HlmSheetTrigger,
 } from "@spartan-ng/helm/sheet";
-import { ChatApiClient } from "@law/api-clients";
+import { ChatApiClient, EventRequest, EventsApiClient } from "@law/api-clients";
 import {
+  AssistantPermissionMode,
   ChatMessageResponse,
   ChatMessageFeedback,
   ChatSessionDetail,
@@ -72,7 +74,10 @@ import {
   WorkflowJobResponse,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
-import { finalize } from "rxjs";
+import { finalize, from, Observable, of, switchMap } from "rxjs";
+import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
+import { createSelectItemToString } from "../../shared/utils";
 import { DocumentAiStatusComponent } from "../../shared/components/document-ai-status/document-ai-status.component";
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import {
@@ -182,6 +187,7 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
     CaseTimelinePanelComponent,
     CitationListComponent,
     PendingActionCardComponent,
+    HlmSelectImports,
     StarterPromptsComponent,
     DocumentAiStatusComponent,
   ],
@@ -231,6 +237,9 @@ const FILE_EXTENSION_MIME_TYPES: Record<string, string> = {
 export class AssistantComponent implements OnInit, AfterViewInit {
   private readonly authState = inject(AuthState);
   private readonly chat = inject(ChatApiClient);
+  private readonly eventsApi = inject(EventsApiClient);
+  private readonly injector = inject(Injector);
+  private readonly userSettings = inject(UserSettingsStore);
   private readonly destroyRef = inject(DestroyRef);
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
@@ -295,6 +304,31 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     Readonly<Record<string, PendingActionSummary>>
   >({});
   protected readonly decidingActionId = signal<string | null>(null);
+  /** How the assistant applies record changes; labels are translation keys. */
+  protected readonly permissionModeOptions: ReadonlyArray<{
+    value: AssistantPermissionMode;
+    label: string;
+  }> = [
+    { value: "MANUAL", label: "assistant.permissionMode.MANUAL" },
+    { value: "ASK", label: "assistant.permissionMode.ASK" },
+    { value: "AUTO", label: "assistant.permissionMode.AUTO" },
+  ];
+  protected readonly permissionModeItemToString = createSelectItemToString(
+    this.permissionModeOptions,
+    (key) => this.localization.translate(key),
+  );
+  /** Mode picked before the conversation exists; saved once it is created. */
+  private readonly draftPermissionMode = signal<AssistantPermissionMode | null>(
+    null,
+  );
+  protected readonly permissionMode = computed<AssistantPermissionMode>(
+    () =>
+      (this.selectedSessionId()
+        ? this.selectedSession()?.permissionMode
+        : this.draftPermissionMode()) ??
+      this.userSettings.preferences()?.assistantPermissionMode ??
+      "ASK",
+  );
   private readonly clock = signal(Date.now());
   protected readonly expandedActivities = signal<ReadonlySet<string>>(
     new Set(),
@@ -605,7 +639,12 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   private updateSessionFromSidebar(
     session: ChatSessionSummary,
-    changes: { title?: string; pinned?: boolean; archived?: boolean },
+    changes: {
+      title?: string;
+      pinned?: boolean;
+      archived?: boolean;
+      permissionMode?: AssistantPermissionMode | null;
+    },
     successKey?: string,
   ): void {
     const workspaceId = this.workspaceId();
@@ -1078,6 +1117,88 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       });
   }
 
+  /** FORM mode: the user checks the prefilled event and saves it from the dialog. */
+  protected openPendingActionForm(action: PendingActionSummary): void {
+    const workspaceId = this.workspaceId();
+    const initial = action.eventPrefill;
+    if (!workspaceId || !initial || this.decidingActionId()) return;
+    this.decidingActionId.set(action.id);
+    from(import("../calendar/event-dialog/event-dialog.service"))
+      .pipe(
+        switchMap(({ EventDialogService }) =>
+          this.injector.get(EventDialogService).open({
+            initial,
+            save: (request: EventRequest) =>
+              this.chat
+                .completePendingActionEvent(workspaceId, action.id, request)
+                .pipe(
+                  switchMap((updated) => {
+                    this.upsertPendingAction(updated);
+                    return of(updated);
+                  }),
+                ),
+          }),
+        ),
+        finalize(() => this.decidingActionId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        error: () =>
+          this.toast.error(
+            this.localization.translate("assistant.pendingAction.error"),
+          ),
+      });
+  }
+
+  /** Opens the event an executed action created. */
+  protected openPendingActionResult(action: PendingActionSummary): void {
+    const eventId = action.resultEntityId;
+    if (!eventId) return;
+    this.eventsApi
+      .get(eventId)
+      .pipe(
+        switchMap((event) =>
+          from(import("../calendar/event-dialog/event-dialog.service")).pipe(
+            switchMap(({ EventDialogService }) =>
+              this.injector.get(EventDialogService).open({ event }),
+            ),
+          ),
+        ),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        error: () =>
+          this.toast.error(
+            this.localization.translate("assistant.pendingAction.openEventError"),
+          ),
+      });
+  }
+
+  protected setPermissionMode(
+    mode: AssistantPermissionMode | null | undefined,
+  ): void {
+    if (!mode) return;
+    const session = this.selectedSession();
+    if (!session) {
+      this.draftPermissionMode.set(mode);
+      return;
+    }
+    this.updateSessionFromSidebar(session, { permissionMode: mode });
+  }
+
+  /** Saves a mode picked before the conversation existed. */
+  private withDraftPermissionMode(
+    session: ChatSessionSummary,
+  ): Observable<ChatSessionSummary> {
+    const mode = this.draftPermissionMode();
+    const workspaceId = this.workspaceId();
+    this.draftPermissionMode.set(null);
+    if (!mode || !workspaceId) return of(session);
+    return this.chat
+      .updateSession(workspaceId, session.id, { permissionMode: mode })
+      .pipe(takeUntilDestroyed(this.destroyRef));
+  }
+
   private upsertPendingAction(action: PendingActionSummary): void {
     this.pendingActions.update((actions) => ({
       ...actions,
@@ -1242,13 +1363,14 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         .createSession({ workspaceId, caseId: this.pendingCaseId() })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
-          next: (session) => {
+          next: (created) =>
+            this.withDraftPermissionMode(created).subscribe((session) => {
             this.sessions.update((items) => [session, ...items]);
             this.selectedSessionId.set(session.id);
             this.pendingFiles.set(accepted);
             this.error.set("");
             this.loadSessions();
-          },
+          }),
           error: () => {
             this.error.set("Unable to create a conversation.");
           },
@@ -1401,12 +1523,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .createSession({ workspaceId, caseId: this.pendingCaseId() })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (session) => {
-          this.sessions.update((items) => [session, ...items]);
-          this.selectedSessionId.set(session.id);
-          this.workflowState.set({});
-          this.sendMessage(session.id);
-        },
+        next: (created) =>
+          this.withDraftPermissionMode(created).subscribe((session) => {
+            this.sessions.update((items) => [session, ...items]);
+            this.selectedSessionId.set(session.id);
+            this.workflowState.set({});
+            this.sendMessage(session.id);
+          }),
         error: () => {
           this.error.set("Unable to create a conversation.");
         },

@@ -187,6 +187,22 @@ export class EventDialogComponent {
         startsAt: item.startsAt ? localDateTime(item.startsAt) : "",
         endsAt: item.endsAt ? localDateTime(item.endsAt) : "",
       });
+    } else if (this.context.initial) {
+      const initial = this.context.initial;
+      this.form.patchValue({
+        type: initial.type,
+        title: initial.title,
+        description: initial.description ?? "",
+        startsAt: localDateTime(initial.startsAt),
+        endsAt: localDateTime(initial.endsAt),
+        timeZone: initial.timeZone,
+        location: initial.location ?? "",
+        responsibleUserId:
+          initial.assigneeUserIds?.[0] ??
+          this.form.controls.responsibleUserId.value,
+        caseId: initial.caseId ?? "",
+        clientIds: initial.clientIds ?? [],
+      });
     } else if (this.context.date) {
       const hour = String(this.context.hour ?? 9).padStart(2, "0");
       this.form.patchValue({
@@ -274,14 +290,33 @@ export class EventDialogComponent {
       startsAt: new Date(value.startsAt).toISOString(),
       endsAt: new Date(value.endsAt).toISOString(),
       caseId: caseId || undefined,
-      assigneeUserIds: [responsibleUserId],
+      // Colleagues and contact persons from a prefill have no field in this form; keep them.
+      assigneeUserIds: [
+        ...new Set([
+          responsibleUserId,
+          ...(this.context.initial?.assigneeUserIds ?? []),
+        ]),
+      ],
       clientIds,
+      ...(this.context.initial?.attendees?.length
+        ? { attendees: this.context.initial.attendees }
+        : {}),
     };
     if (new Date(request.endsAt) <= new Date(request.startsAt)) {
       this.form.controls.endsAt.setErrors({ order: true });
       return;
     }
     this.saving.set(true);
+    if (this.context.save && !this.eventId) {
+      this.context
+        .save(request)
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: () => this.dialogRef.close(),
+          error: () => this.saving.set(false),
+        });
+      return;
+    }
     const operation = this.eventId
       ? this.api.update(this.eventId, request)
       : this.api.create(request);

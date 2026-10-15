@@ -3,6 +3,7 @@ import {
   PendingActionSummary,
   ChatAttachmentSummary,
   ChatMessageResponse,
+  AssistantEventRequest,
   ChatSessionSummary,
   CaseTimelineAnalysis,
   CaseTimelineResult,
@@ -50,6 +51,7 @@ export function toSessionSummary(session: {
   caseId?: string | null;
   title: string | null;
   status: "ACTIVE" | "ARCHIVED";
+  permissionMode?: "MANUAL" | "ASK" | "AUTO" | null;
   isDeleted: boolean;
   pinnedAt?: Date | null;
   createdBy?: {
@@ -86,6 +88,7 @@ export function toSessionSummary(session: {
     status: session.status,
     isDeleted: session.isDeleted,
     pinnedAt: session.pinnedAt?.toISOString() ?? null,
+    permissionMode: session.permissionMode ?? null,
     ...(session.createdBy
       ? {
           createdBy: {
@@ -431,12 +434,15 @@ export function toPendingAction(action: {
   summary: string;
   details: string[];
   status: PendingActionSummary["status"];
+  mode?: PendingActionSummary["mode"];
+  payload?: unknown;
   result?: unknown;
   errorMessage?: string | null;
   expiresAt: Date;
   decidedAt?: Date | null;
   createdAt: Date;
 }): PendingActionSummary {
+  const mode = action.mode ?? "CARD";
   const result =
     action.result &&
     typeof action.result === "object" &&
@@ -451,6 +457,13 @@ export function toPendingAction(action: {
     summary: action.summary,
     details: action.details,
     status: action.status,
+    mode,
+    // The form is prefilled from the proposal; only FORM actions need it.
+    eventPrefill:
+      mode === "FORM" && action.actionType === "create_event"
+        ? (action.payload as AssistantEventRequest)
+        : null,
+    resultEntityId: resultEntityId(result),
     resultMessage:
       typeof result?.["message"] === "string" ? result["message"] : null,
     errorMessage: action.errorMessage ?? null,
@@ -458,6 +471,12 @@ export function toPendingAction(action: {
     decidedAt: action.decidedAt?.toISOString() ?? null,
     createdAt: action.createdAt.toISOString(),
   };
+}
+
+/** Id of the record an executed action created (event, deadline, case). */
+function resultEntityId(result: Record<string, unknown> | null): string | null {
+  const id = result?.["eventId"] ?? result?.["deadlineId"] ?? result?.["caseId"];
+  return typeof id === "string" ? id : null;
 }
 
 type AnalysisRow = {

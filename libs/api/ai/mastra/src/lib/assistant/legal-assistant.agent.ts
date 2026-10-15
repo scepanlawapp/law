@@ -3,6 +3,7 @@ import type { MastraModelConfig } from "@mastra/core/llm";
 import type { LegalAssistantRequestContext } from "./legal-assistant.context";
 import { buildLegalAssistantInstructions } from "./legal-assistant.prompt";
 import { createCreateDeadlineTool } from "./tools/create-deadline.tool";
+import { createCreateEventTool } from "./tools/create-event.tool";
 import { createCreateTasksFromBriefTool } from "./tools/create-tasks-from-brief.tool";
 import { createDetectDeadlinesTool } from "./tools/detect-deadlines.tool";
 import { createDraftDocumentTool } from "./tools/draft-document.tool";
@@ -77,6 +78,7 @@ export function createLegalAssistantAgent(options: {
       list_conversation_drafts: createListDraftsTool(options.deps),
       link_case: createLinkCaseTool(options.deps),
       create_deadline: createCreateDeadlineTool(options.deps),
+      create_event: createCreateEventTool(options.deps),
       create_tasks_from_brief: createCreateTasksFromBriefTool(options.deps),
       propose_client_update_from_document: createProposeClientUpdateTool(
         options.deps,

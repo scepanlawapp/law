@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Inject,
   Injectable,
   Logger,
@@ -6,15 +7,19 @@ import {
   Optional,
 } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { WorkspaceRole } from "@law/api-interfaces";
 import type {
+  AssistantPermissionMode,
   ChatStreamEvent,
+  PendingActionMode,
   PendingActionSummary,
 } from "@law/api-interfaces";
 import {
   ActivitiesTasksDeadlinesService,
   CreateDeadlineDto,
+  CreateEventDto,
 } from "@law/activities-tasks-deadlines";
-import { PlatformPrismaService } from "@law/core";
+import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
 import { digitsOnly, singleIsoDate } from "@law/document-intelligence";
 import type {
   ActionProposalResult,
@@ -48,6 +53,25 @@ const BELGRADE_DATE = new Intl.DateTimeFormat("en-CA", {
   timeZone: "Europe/Belgrade",
 });
 const AI_SOURCE = { source: "AI_ASSISTED" } as const;
+const OFFICE_TIME_ZONE = "Europe/Belgrade";
+const DEFAULT_EVENT_MINUTES = 60;
+const PARTICIPANT_CANDIDATES = 5;
+const CONFLICT_LINES = 5;
+/** Actions that honour the permission mode; every other action is always a card. */
+const MODE_AWARE_ACTIONS = new Set<AssistantActionRequest["type"]>([
+  "create_event",
+]);
+const MODE_BY_PERMISSION: Record<AssistantPermissionMode, PendingActionMode> = {
+  MANUAL: "FORM",
+  ASK: "CARD",
+  AUTO: "AUTO",
+};
+const EVENT_TYPE_LABELS: Record<string, string> = {
+  MEETING: "sastanak",
+  CALL: "poziv",
+  HEARING: "ročište",
+  OTHER: "ostalo",
+};
 
 const DEADLINE_TYPE_LABELS: Record<string, string> = {
   COURT: "sudski",
@@ -66,7 +90,21 @@ type Proposal = {
   payload: Record<string, unknown>;
   summary: string;
   details: string[];
+  /** Something the user should look at (e.g. a calendar overlap): never saved automatically. */
+  hasWarnings?: boolean;
 };
+
+type Participant =
+  | { kind: "USER"; id: string; label: string }
+  | { kind: "CLIENT"; id: string; label: string }
+  | {
+      kind: "CONTACT";
+      id: string;
+      clientId: string;
+      displayName: string;
+      email: string | null;
+      label: string;
+    };
 
 type CaseMatch = {
   id: string;
@@ -207,6 +245,45 @@ export function belgradeToday(now = new Date()): string {
   return BELGRADE_DATE.format(now);
 }
 
+/** UTC instant of a wall-clock date and time (YYYY-MM-DD, HH:mm) in Belgrade. */
+export function belgradeLocalToDate(date: string, time: string): Date {
+  const [year, month, day] = date.split("-").map(Number);
+  const [hour, minute] = time.split(":").map(Number);
+  const wallClockAsUtc = Date.UTC(year, month - 1, day, hour, minute);
+  // The zone's offset at that instant; one correction pass is exact outside the DST gap.
+  const offset = (instant: number) => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: OFFICE_TIME_ZONE,
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    }).formatToParts(new Date(instant));
+    const value = (type: string) =>
+      Number(parts.find((part) => part.type === type)?.value);
+    return (
+      Date.UTC(
+        value("year"),
+        value("month") - 1,
+        value("day"),
+        value("hour"),
+        value("minute"),
+      ) - instant
+    );
+  };
+  const guess = wallClockAsUtc - offset(wallClockAsUtc);
+  return new Date(wallClockAsUtc - offset(guess));
+}
+
+const BELGRADE_TIME = new Intl.DateTimeFormat("sr-Latn-RS", {
+  timeZone: OFFICE_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
 /**
  * Record changes proposed by the assistant (AI_ARCHITECTURE.md §5). A tool
  * only stores a validated, normalized proposal; approval executes it through
@@ -239,39 +316,196 @@ export class AssistantActionsService {
       }
       throw error;
     }
+    const mode = await this.pendingMode(scope, proposal);
     const idempotencyKey = createHash("sha256")
       .update(
-        `${scope.jobId}|${proposal.actionType}|${stableStringify(proposal.payload)}`,
+        `${scope.jobId}|${proposal.actionType}|${stableStringify(proposal.payload)}${
+          mode === "CARD" ? "" : `|${mode}`
+        }`,
       )
       .digest("hex");
     const existing = await this.prisma.pendingAction.findUnique({
       where: { idempotencyKey },
     });
-    const row =
-      existing ??
-      (await this.prisma.pendingAction.create({
-        data: {
-          workspaceId: scope.workspaceId,
-          sessionId: scope.sessionId,
-          jobId: scope.jobId,
-          correlationId: scope.correlationId,
-          actionType: proposal.actionType,
-          payload: proposal.payload as Prisma.InputJsonValue,
-          summary: proposal.summary,
-          details: proposal.details,
-          idempotencyKey,
-          expiresAt: new Date(Date.now() + EXPIRY_MS),
-        },
-      }));
-    if (!existing) {
+    if (existing) return proposalResult(existing);
+
+    const now = new Date();
+    const row = await this.prisma.pendingAction.create({
+      data: {
+        workspaceId: scope.workspaceId,
+        sessionId: scope.sessionId,
+        jobId: scope.jobId,
+        correlationId: scope.correlationId,
+        actionType: proposal.actionType,
+        payload: proposal.payload as Prisma.InputJsonValue,
+        summary: proposal.summary,
+        details: proposal.details,
+        mode,
+        idempotencyKey,
+        expiresAt: new Date(now.getTime() + EXPIRY_MS),
+        // AUTO: the conversation owner's standing permission is the decision.
+        ...(mode === "AUTO"
+          ? {
+              status: "EXECUTING" as const,
+              decidedByUserId: scope.userId,
+              decidedAt: now,
+            }
+          : {}),
+      },
+    });
+    if (mode !== "AUTO") {
       this.emit(row, "confirmation.required");
+      return proposalResult(row);
     }
-    return {
-      status: "CONFIRMATION_REQUIRED",
-      pendingActionId: row.id,
-      summary: row.summary,
-      details: row.details,
-    };
+
+    await this.runAndRecord(row, () =>
+      this.asUser(scope, String(scope.userId), () =>
+        this.execute(row, String(scope.userId)),
+      ),
+    );
+    const executed = await this.reload(row.id);
+    this.emit(executed, "confirmation.required");
+    return proposalResult(executed);
+  }
+
+  /**
+   * MANUAL mode: the user saved the prefilled form. The edited values are
+   * executed as they are; the agent resumes as after an approval.
+   */
+  async completeEventForm(input: {
+    workspaceId: string;
+    userId: string;
+    actionId: string;
+    event: CreateEventDto;
+  }): Promise<PendingActionSummary> {
+    const action = await this.requireAction(input.workspaceId, input.actionId);
+    if (action.actionType !== "create_event" || action.mode !== "FORM") {
+      throw new BadRequestException("This action is not a prefilled form");
+    }
+    if (action.status !== "PENDING") return toPendingAction(action);
+    const now = new Date();
+    if (action.expiresAt <= now) return this.expire(action);
+
+    const claimed = await this.prisma.pendingAction.updateMany({
+      where: { id: action.id, status: "PENDING" },
+      data: {
+        status: "EXECUTING",
+        decidedByUserId: input.userId,
+        decidedAt: now,
+      },
+    });
+    if (claimed.count === 0) {
+      return toPendingAction(await this.reload(action.id));
+    }
+    const edited = eventFingerprint(action.payload) !== eventFingerprint(input.event);
+    await this.runAndRecord(action, async () => {
+      const result = (await this.execute(
+        { ...action, payload: { ...input.event } as unknown as Prisma.JsonValue },
+        input.userId,
+      )) as Prisma.InputJsonObject;
+      return { ...result, edited };
+    });
+    const decided = await this.reload(action.id);
+    this.emit(decided, "confirmation.updated");
+    await this.afterDecision(decided);
+    return toPendingAction(decided);
+  }
+
+  /** FORM / CARD / AUTO for a proposal, from the conversation's permission mode. */
+  private async pendingMode(
+    scope: AssistantTurnScope,
+    proposal: Proposal,
+  ): Promise<PendingActionMode> {
+    if (!MODE_AWARE_ACTIONS.has(proposal.actionType)) return "CARD";
+    const session = await this.prisma.chatSession.findFirst({
+      where: { id: scope.sessionId, workspaceId: scope.workspaceId },
+      select: {
+        permissionMode: true,
+        createdBy: { select: { settings: { select: { assistantPermissionMode: true } } } },
+      },
+    });
+    const permission: AssistantPermissionMode =
+      session?.permissionMode ??
+      session?.createdBy.settings?.assistantPermissionMode ??
+      "ASK";
+    const mode = MODE_BY_PERMISSION[permission];
+    // AUTO needs someone to act as, and never skips a warning.
+    if (mode === "AUTO" && (!scope.userId || proposal.hasWarnings)) {
+      return "CARD";
+    }
+    return mode;
+  }
+
+  /** Runs an action with the user as the workspace actor (the worker runs as the system). */
+  private async asUser<T>(
+    scope: AssistantTurnScope,
+    userId: string,
+    run: () => Promise<T>,
+  ): Promise<T> {
+    const member = await this.prisma.workspaceMember.findFirst({
+      where: { workspaceId: scope.workspaceId, userId, status: "ACTIVE" },
+      select: { role: true },
+    });
+    if (!member) throw new Error("User is not an active workspace member");
+    return WorkspaceContextService.run(
+      {
+        workspaceId: scope.workspaceId,
+        userId,
+        role: member.role as WorkspaceRole,
+      },
+      run,
+    );
+  }
+
+  /** Executes a claimed (EXECUTING) action and stores APPROVED or FAILED. */
+  private async runAndRecord(
+    action: PendingActionRow,
+    run: () => Promise<Prisma.InputJsonValue>,
+  ): Promise<void> {
+    try {
+      const result = await run();
+      await this.prisma.pendingAction.update({
+        where: { id: action.id },
+        data: { status: "APPROVED", result },
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Pending action ${action.id} failed: ${message}`);
+      await this.prisma.pendingAction.update({
+        where: { id: action.id },
+        data: { status: "FAILED", errorMessage: message.slice(0, 500) },
+      });
+    }
+  }
+
+  private async requireAction(
+    workspaceId: string,
+    actionId: string,
+  ): Promise<PendingActionRow> {
+    const action = await this.prisma.pendingAction.findFirst({
+      where: { id: actionId, workspaceId },
+    });
+    const session = action
+      ? await this.prisma.chatSession.findFirst({
+          where: { id: action.sessionId, workspaceId, isDeleted: false },
+          select: { id: true },
+        })
+      : null;
+    if (!action || !session) {
+      throw new NotFoundException("Pending action not found");
+    }
+    return action;
+  }
+
+  private async expire(action: PendingActionRow): Promise<PendingActionSummary> {
+    await this.prisma.pendingAction.updateMany({
+      where: { id: action.id, status: "PENDING" },
+      data: { status: "EXPIRED" },
+    });
+    const expired = await this.reload(action.id);
+    this.emit(expired, "confirmation.updated");
+    await this.afterDecision(expired);
+    return toPendingAction(expired);
   }
 
   async decide(input: {
@@ -281,36 +515,12 @@ export class AssistantActionsService {
     decision: "APPROVE" | "DECLINE";
     reason?: string;
   }): Promise<PendingActionSummary> {
-    const action = await this.prisma.pendingAction.findFirst({
-      where: { id: input.actionId, workspaceId: input.workspaceId },
-    });
-    const session = action
-      ? await this.prisma.chatSession.findFirst({
-          where: {
-            id: action.sessionId,
-            workspaceId: input.workspaceId,
-            isDeleted: false,
-          },
-          select: { id: true },
-        })
-      : null;
-    if (!action || !session) {
-      throw new NotFoundException("Pending action not found");
-    }
+    const action = await this.requireAction(input.workspaceId, input.actionId);
     // Already decided (double click, second tab): report the current state.
     if (action.status !== "PENDING") return toPendingAction(action);
 
     const now = new Date();
-    if (action.expiresAt <= now) {
-      await this.prisma.pendingAction.updateMany({
-        where: { id: action.id, status: "PENDING" },
-        data: { status: "EXPIRED" },
-      });
-      const expired = await this.reload(action.id);
-      this.emit(expired, "confirmation.updated");
-      await this.afterDecision(expired);
-      return toPendingAction(expired);
-    }
+    if (action.expiresAt <= now) return this.expire(action);
 
     // Atomic claim: only one request can move PENDING forward.
     const claimed = await this.prisma.pendingAction.updateMany({
@@ -328,20 +538,7 @@ export class AssistantActionsService {
     }
 
     if (input.decision === "APPROVE") {
-      try {
-        const result = await this.execute(action, input.userId);
-        await this.prisma.pendingAction.update({
-          where: { id: action.id },
-          data: { status: "APPROVED", result },
-        });
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        this.logger.error(`Pending action ${action.id} failed: ${message}`);
-        await this.prisma.pendingAction.update({
-          where: { id: action.id },
-          data: { status: "FAILED", errorMessage: message.slice(0, 500) },
-        });
-      }
+      await this.runAndRecord(action, () => this.execute(action, input.userId));
     }
 
     const decided = await this.reload(action.id);
@@ -477,7 +674,251 @@ export class AssistantActionsService {
       }
       case "update_client_from_document":
         return this.clientUpdateProposal(scope, request);
+      case "create_event":
+        return this.eventProposal(scope, request);
     }
+  }
+
+  /**
+   * A calendar event for the conversation's owner. Every name must match one
+   * record; overlapping scheduled events are listed as warnings.
+   */
+  private async eventProposal(
+    scope: AssistantTurnScope,
+    request: Extract<AssistantActionRequest, { type: "create_event" }>,
+  ): Promise<Proposal> {
+    const date = request.date.trim();
+    const time = request.startTime.trim();
+    if (!isIsoDate(date) || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) {
+      throw new InvalidProposal(
+        `Datum i vreme „${date} ${time}“ nisu ispravni (YYYY-MM-DD, HH:mm).`,
+      );
+    }
+    const startsAt = belgradeLocalToDate(date, time);
+    if (startsAt.getTime() <= Date.now()) {
+      throw new InvalidProposal(
+        `Termin ${formatDate(date)} u ${time} je u prošlosti.`,
+      );
+    }
+    const minutes = request.durationMinutes ?? DEFAULT_EVENT_MINUTES;
+    const endsAt = new Date(startsAt.getTime() + minutes * 60_000);
+
+    const participants: Participant[] = [];
+    for (const reference of request.participants ?? []) {
+      const participant = await this.resolveParticipant(scope, reference);
+      if (participant && !participants.some((item) => item.id === participant.id)) {
+        participants.push(participant);
+      }
+    }
+    const colleagueIds = participants
+      .filter((item) => item.kind === "USER")
+      .map((item) => item.id);
+    const clientIds = unique(
+      participants.flatMap((item) =>
+        item.kind === "CLIENT" ? [item.id] : item.kind === "CONTACT" ? [item.clientId] : [],
+      ),
+    );
+    const attendees = participants.flatMap((item) =>
+      item.kind === "CONTACT"
+        ? [
+            {
+              clientContactId: item.id,
+              displayName: item.displayName,
+              ...(item.email ? { email: item.email } : {}),
+            },
+          ]
+        : [],
+    );
+
+    // An explicit case always applies; the linked case only when it belongs to the same client.
+    let target: CaseMatch | null = request.caseReference
+      ? await this.resolveCase(scope.workspaceId, request.caseReference)
+      : await this.optionalLinkedCase(scope);
+    if (
+      target &&
+      !request.caseReference &&
+      clientIds.length &&
+      !clientIds.includes(target.clientId)
+    ) {
+      target = null;
+    }
+    if (target && !clientIds.includes(target.clientId)) {
+      clientIds.push(target.clientId);
+    }
+
+    const assigneeUserIds = unique([
+      ...(scope.userId ? [scope.userId] : []),
+      ...colleagueIds,
+    ]);
+    const conflicts = await this.eventConflicts(
+      scope.workspaceId,
+      assigneeUserIds,
+      startsAt,
+      endsAt,
+    );
+    const type = request.eventType ?? "MEETING";
+    const title = request.title.trim();
+    const location = request.location?.trim() || undefined;
+    const description = request.description?.trim() || undefined;
+    return {
+      actionType: "create_event",
+      payload: {
+        type,
+        title,
+        startsAt: startsAt.toISOString(),
+        endsAt: endsAt.toISOString(),
+        timeZone: OFFICE_TIME_ZONE,
+        assigneeUserIds,
+        clientIds,
+        attendees,
+        ...(target ? { caseId: target.id } : {}),
+        ...(location ? { location } : {}),
+        ...(description ? { description } : {}),
+      },
+      summary: `Novi događaj: ${title} — ${formatDate(date)} u ${time}`,
+      details: [
+        `Vrsta: ${EVENT_TYPE_LABELS[type] ?? type}, ${time}–${BELGRADE_TIME.format(endsAt)}`,
+        ...(participants.length
+          ? [`Učesnici: ${participants.map((item) => item.label).join(", ")}`]
+          : []),
+        ...(target ? [`Predmet: ${target.caseNumber} – ${target.name}`] : []),
+        ...(location ? [`Mesto: ${location}`] : []),
+        ...(description ? [`Opis: ${description}`] : []),
+        ...conflicts,
+      ],
+      hasWarnings: conflicts.length > 0,
+    };
+  }
+
+  /**
+   * One colleague, client, or client contact person for a name. Zero or
+   * several matches are refused with the candidates, so the agent asks.
+   */
+  private async resolveParticipant(
+    scope: AssistantTurnScope,
+    reference: string,
+  ): Promise<Participant | null> {
+    const ref = reference.trim();
+    const tokens = ref.split(/\s+/).filter((token) => token.length > 1);
+    if (!tokens.length) return null;
+    const nameMatch = (fields: string[]) => ({
+      AND: tokens.map((token) => ({
+        OR: fields.map((field) => ({
+          [field]: { contains: token, mode: "insensitive" as const },
+        })),
+      })),
+    });
+    const [users, clients, contacts] = await Promise.all([
+      this.prisma.user.findMany({
+        where: {
+          ...nameMatch(["firstName", "lastName", "email"]),
+          memberships: {
+            some: { workspaceId: scope.workspaceId, status: "ACTIVE" },
+          },
+        },
+        select: { id: true, firstName: true, lastName: true, email: true },
+        take: PARTICIPANT_CANDIDATES,
+      }),
+      this.prisma.client.findMany({
+        where: {
+          workspaceId: scope.workspaceId,
+          OR: [
+            nameMatch(["displayName"]),
+            { clientNumber: { equals: ref, mode: "insensitive" } },
+          ],
+        },
+        select: { id: true, displayName: true, clientNumber: true },
+        take: PARTICIPANT_CANDIDATES,
+      }),
+      this.prisma.clientContact.findMany({
+        where: {
+          ...nameMatch(["firstName", "lastName"]),
+          status: "ACTIVE",
+          client: { workspaceId: scope.workspaceId },
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          email: true,
+          clientId: true,
+          client: { select: { displayName: true } },
+        },
+        take: PARTICIPANT_CANDIDATES,
+      }),
+    ]);
+    const candidates: Array<Participant & { name: string }> = [
+      ...users
+        .filter((user) => user.id !== scope.userId)
+        .map((user) => {
+          const name = displayName(user) ?? user.email;
+          return { kind: "USER" as const, id: user.id, name, label: `${name} (kolega)` };
+        }),
+      ...clients.map((client) => ({
+        kind: "CLIENT" as const,
+        id: client.id,
+        name: client.displayName,
+        label: `${client.displayName} (klijent ${client.clientNumber})`,
+      })),
+      ...contacts.map((contact) => {
+        const name = `${contact.firstName} ${contact.lastName}`.trim();
+        return {
+          kind: "CONTACT" as const,
+          id: contact.id,
+          clientId: contact.clientId,
+          displayName: name,
+          email: contact.email,
+          name,
+          label: `${name} (kontakt osoba klijenta ${contact.client.displayName})`,
+        };
+      }),
+    ];
+    if (!candidates.length) {
+      throw new InvalidProposal(
+        `Nema kolege, klijenta ni kontakt osobe za „${ref}“. Proverite ime.`,
+      );
+    }
+    const exact = candidates.filter(
+      (item) => item.name.toLowerCase() === ref.toLowerCase(),
+    );
+    const match =
+      candidates.length === 1 ? candidates[0] : exact.length === 1 ? exact[0] : null;
+    if (match) return match;
+    throw new InvalidProposal(
+      `Više osoba odgovara „${ref}“: ${candidates
+        .slice(0, PARTICIPANT_CANDIDATES)
+        .map((item) => item.label)
+        .join("; ")}. Pitajte korisnika na koga misli.`,
+    );
+  }
+
+  /** Scheduled events of these users that overlap the slot, as warning lines. */
+  private async eventConflicts(
+    workspaceId: string,
+    userIds: string[],
+    startsAt: Date,
+    endsAt: Date,
+  ): Promise<string[]> {
+    if (!userIds.length) return [];
+    const overlapping = await this.prisma.event.findMany({
+      where: {
+        workspaceId,
+        status: "SCHEDULED",
+        startsAt: { lt: endsAt },
+        endsAt: { gt: startsAt },
+        OR: [
+          { organizerUserId: { in: userIds } },
+          { assignees: { some: { userId: { in: userIds } } } },
+        ],
+      },
+      select: { title: true, startsAt: true, endsAt: true },
+      orderBy: { startsAt: "asc" },
+      take: CONFLICT_LINES,
+    });
+    return overlapping.map(
+      (event) =>
+        `⚠ Preklapa se sa: ${event.title} (${BELGRADE_TIME.format(event.startsAt)}–${BELGRADE_TIME.format(event.endsAt)})`,
+    );
   }
 
   /**
@@ -910,6 +1351,28 @@ export class AssistantActionsService {
       }
       case "update_client_from_document":
         return this.applyClientUpdate(action, userId, aiMetadata);
+      case "create_event": {
+        if (!this.work) throw new Error("Events are not available");
+        const event = await this.work.createEvent(
+          Object.assign(new CreateEventDto(), payload),
+        );
+        await this.prisma.activityLog.updateMany({
+          where: {
+            workspaceId: action.workspaceId,
+            entityType: "Event",
+            entityId: event.id,
+            action: "EVENT_CREATED",
+          },
+          data: { metadata: { ...aiMetadata, mode: action.mode } },
+        });
+        const startsAt = new Date(event.startsAt);
+        return {
+          message: `Događaj „${event.title}“ je zakazan za ${formatDate(
+            belgradeToday(startsAt),
+          )} u ${BELGRADE_TIME.format(startsAt)}.`,
+          eventId: event.id,
+        };
+      }
       default:
         throw new Error(`Unsupported action ${action.actionType}`);
     }
@@ -1017,6 +1480,18 @@ export class AssistantActionsService {
     return linked;
   }
 
+  /** The linked case, or null when the conversation has none. */
+  private async optionalLinkedCase(
+    scope: AssistantTurnScope,
+  ): Promise<CaseMatch | null> {
+    try {
+      return await this.linkedCase(scope);
+    } catch (error) {
+      if (error instanceof InvalidProposal) return null;
+      throw error;
+    }
+  }
+
   private async reload(id: string): Promise<PendingActionRow> {
     return this.prisma.pendingAction.findUniqueOrThrow({ where: { id } });
   }
@@ -1050,6 +1525,55 @@ export class AssistantActionsService {
       job: mapped,
     });
   }
+}
+
+/** What the tool tells the model for a stored proposal, by mode and outcome. */
+function proposalResult(row: PendingActionRow): ActionProposalResult {
+  if (row.mode === "AUTO") {
+    const summary = toPendingAction(row);
+    return row.status === "APPROVED"
+      ? {
+          status: "EXECUTED",
+          pendingActionId: row.id,
+          summary: row.summary,
+          message: summary.resultMessage ?? row.summary,
+        }
+      : {
+          status: "INVALID",
+          message: `Čuvanje nije uspelo: ${row.errorMessage ?? "nepoznata greška"}`,
+        };
+  }
+  return {
+    status: row.mode === "FORM" ? "FORM_REQUIRED" : "CONFIRMATION_REQUIRED",
+    pendingActionId: row.id,
+    summary: row.summary,
+    details: row.details,
+  };
+}
+
+/** Event fields the user can change in the form, compared order-insensitively. */
+function eventFingerprint(value: unknown): string {
+  const event = (value ?? {}) as Record<string, unknown>;
+  const text = (key: string) => String(event[key] ?? "").trim() || null;
+  const time = (key: string) =>
+    event[key] ? new Date(String(event[key])).getTime() : null;
+  const ids = (key: string) =>
+    [...((event[key] as string[] | undefined) ?? [])].sort();
+  return stableStringify({
+    type: text("type"),
+    title: text("title"),
+    description: text("description"),
+    location: text("location"),
+    caseId: text("caseId"),
+    startsAt: time("startsAt"),
+    endsAt: time("endsAt"),
+    clientIds: ids("clientIds"),
+    assigneeUserIds: ids("assigneeUserIds"),
+  });
+}
+
+function unique<T>(values: T[]): T[] {
+  return [...new Set(values)];
 }
 
 function isIsoDate(value: string): boolean {

@@ -1,7 +1,8 @@
 /**
  * Side-effect level of every assistant tool (AI_ARCHITECTURE.md §5):
  * `none` and `reversible` run immediately; `confirm` only stores a pending
- * action that a user must approve before anything changes.
+ * action that a user must approve before anything changes. `create_event`
+ * honours the user's permission mode, so AUTO may save it without a card.
  */
 export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   search_legal_sources: "none",
@@ -25,6 +26,7 @@ export const ASSISTANT_TOOL_SIDE_EFFECTS = {
   summarize_case_documents: "reversible",
   link_case: "confirm",
   create_deadline: "confirm",
+  create_event: "confirm",
   detect_deadlines: "confirm",
   create_tasks_from_brief: "confirm",
   propose_client_update_from_document: "confirm",

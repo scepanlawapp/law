@@ -10,6 +10,7 @@ const pending: PendingActionSummary = {
   summary: "Novi rok: Odgovor na tužbu — 15.10.2026.",
   details: ["Predmet: 2026-21 – Poništaj rešenja", "Vrsta roka: sudski"],
   status: "PENDING",
+  mode: "CARD",
   resultMessage: null,
   errorMessage: null,
   expiresAt: "2026-09-28T12:00:00.000Z",
@@ -77,5 +78,40 @@ describe("PendingActionCardComponent", () => {
     expect(element.querySelector('[role="alert"]')?.textContent).toContain(
       "Responsible user is not a member",
     );
+  });
+
+  it("offers to open the prefilled form instead of approving", () => {
+    const { fixture, element, buttons } = render({
+      ...pending,
+      actionType: "create_event",
+      mode: "FORM",
+      summary: "Novi događaj: Sastanak sa Borkom — 16.10.2026. u 12:00",
+    });
+    const events: string[] = [];
+    fixture.componentInstance.openForm.subscribe(() => events.push("form"));
+    fixture.componentInstance.approve.subscribe(() => events.push("approve"));
+
+    expect(buttons).toHaveLength(2);
+    expect(element.textContent).toContain("assistant.pendingAction.openForm");
+    buttons[0].click();
+    expect(events).toEqual(["form"]);
+  });
+
+  it("marks an automatic save and links to the created event", () => {
+    const { fixture, element, buttons } = render({
+      ...pending,
+      actionType: "create_event",
+      mode: "AUTO",
+      status: "APPROVED",
+      resultEntityId: "event-1",
+      resultMessage: "Događaj „Sastanak“ je zakazan za 16.10.2026. u 12:00.",
+    });
+    const events: string[] = [];
+    fixture.componentInstance.openResult.subscribe(() => events.push("open"));
+
+    expect(element.textContent).toContain("assistant.pendingAction.status.AUTO");
+    expect(buttons).toHaveLength(1);
+    buttons[0].click();
+    expect(events).toEqual(["open"]);
   });
 });

@@ -132,8 +132,11 @@ export class AgentTurnRunner implements OnModuleDestroy {
     let usage: TokenUsage = {};
     let toolCalls: ToolCallRecorder | undefined;
     let draftId: string | null = null;
-    let proposalId: string | null = null;
+    let proposal: { id: string; waits: boolean } | null = null;
+    /** Every proposal of the turn, shown under the answer. */
     const pendingActionIds: string[] = [];
+    /** Proposals the user still has to decide (cards and forms). */
+    const waitingActionIds: string[] = [];
     const model = this.config.assistantModel;
     try {
       const resuming = !!input.resumeActionIds?.length;
@@ -217,8 +220,11 @@ export class AgentTurnRunner implements OnModuleDestroy {
               error: chunk.payload.isError ? chunk.payload.result : undefined,
             });
             draftId = readyDraftId(chunk.payload.result) ?? draftId;
-            proposalId = proposedActionId(chunk.payload.result);
-            if (proposalId) pendingActionIds.push(proposalId);
+            proposal = proposedAction(chunk.payload.result);
+            if (proposal) {
+              pendingActionIds.push(proposal.id);
+              if (proposal.waits) waitingActionIds.push(proposal.id);
+            }
             break;
           case "tool-error":
             await toolCalls.finish(chunk.payload.toolCallId, {
@@ -268,13 +274,15 @@ export class AgentTurnRunner implements OnModuleDestroy {
         createdAt: mapped.createdAt,
         message: mapped,
       });
-      // Proposals keep the run open until every one is decided.
+      // Proposals keep the run open until every one is decided; AUTO saves are already done.
       await job.transition(
-        pendingActionIds.length ? "WAITING_CONFIRMATION" : "COMPLETED",
+        waitingActionIds.length ? "WAITING_CONFIRMATION" : "COMPLETED",
         {
           progressStage: "PREPARING_ANSWER",
           messageId: assistant.id,
-          ...(pendingActionIds.length ? { pendingActionIds } : {}),
+          ...(waitingActionIds.length
+            ? { pendingActionIds: waitingActionIds }
+            : {}),
         },
         null,
         { model, ...usage },
@@ -321,9 +329,18 @@ export class AgentTurnRunner implements OnModuleDestroy {
     });
     const lines = actions.map((action) => {
       const summary = toPendingAction(action);
+      const edited =
+        (action.result as { edited?: unknown } | null)?.edited === true;
       switch (summary.status) {
         case "APPROVED":
-          return `Odobreno i izvršeno: ${summary.summary}. ${summary.resultMessage ?? ""}`.trim();
+          if (summary.mode === "AUTO") {
+            return `Sačuvano automatski: ${summary.summary}. ${summary.resultMessage ?? ""}`.trim();
+          }
+          return `${
+            edited
+              ? "Korisnik je izmenio podatke u formi i sačuvao"
+              : "Odobreno i izvršeno"
+          }: ${summary.summary}. ${summary.resultMessage ?? ""}`.trim();
         case "DECLINED":
           return `Odbijeno: ${summary.summary}.${
             action.declineReason ? ` Razlog: ${action.declineReason}` : ""
@@ -512,12 +529,23 @@ function readyDraftId(result: unknown): string | null {
     : null;
 }
 
-/** Pending action id from a CONFIRMATION_REQUIRED tool result. */
-function proposedActionId(result: unknown): string | null {
+/**
+ * Pending action from a proposal tool result. Cards and forms wait for the
+ * user; an AUTO save (EXECUTED) is shown under the answer but does not wait.
+ */
+function proposedAction(
+  result: unknown,
+): { id: string; waits: boolean } | null {
   if (!result || typeof result !== "object") return null;
   const value = result as { status?: unknown; pendingActionId?: unknown };
-  return value.status === "CONFIRMATION_REQUIRED" &&
-    typeof value.pendingActionId === "string"
-    ? value.pendingActionId
-    : null;
+  if (typeof value.pendingActionId !== "string") return null;
+  switch (value.status) {
+    case "CONFIRMATION_REQUIRED":
+    case "FORM_REQUIRED":
+      return { id: value.pendingActionId, waits: true };
+    case "EXECUTED":
+      return { id: value.pendingActionId, waits: false };
+    default:
+      return null;
+  }
 }

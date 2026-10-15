@@ -91,6 +91,20 @@ enum PendingActionStatus {
   EXPIRED
 }
 
+/// How the assistant applies record changes it proposes.
+enum AssistantPermissionMode {
+  MANUAL
+  ASK
+  AUTO
+}
+
+/// How a pending action is presented: a prefilled form, an approval card, or saved automatically.
+enum PendingActionMode {
+  FORM
+  CARD
+  AUTO
+}
+
 enum AgentToolCallStatus {
   RUNNING
   COMPLETED
@@ -395,6 +409,7 @@ model UserSettings {
   timeZone                  String                   @default("Europe/Belgrade")
   timeReviewReminderEnabled Boolean                  @default(false)
   timeReviewReminderTime    String                   @default("17:30")
+  assistantPermissionMode   AssistantPermissionMode  @default(ASK)
   createdAt                 DateTime                 @default(now()) @db.Timestamptz(3)
   updatedAt                 DateTime                 @updatedAt @db.Timestamptz(3)
   user                      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -1453,6 +1468,8 @@ model ChatSession {
   isDeleted              Boolean                 @default(false)
   /// Set when the conversation is pinned to the top of the assistant sidebar.
   pinnedAt               DateTime?               @db.Timestamptz(3)
+  /// Conversation override of the owner's assistant permission mode; null uses the user setting.
+  permissionMode         AssistantPermissionMode?
   createdAt              DateTime                @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                @updatedAt @db.Timestamptz(3)
   workspace              Workspace               @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1575,7 +1592,8 @@ model AgentToolCall {
   @@index([workspaceId, toolName, startedAt])
 }
 
-// A record change proposed by the assistant agent; executed only after a user approves it.
+// A record change proposed by the assistant agent. FORM and CARD rows execute only after a
+// user saves or approves them; AUTO rows were executed directly under the AUTO permission mode.
 model PendingAction {
   id              String              @id @default(uuid())
   workspaceId     String
@@ -1587,6 +1605,7 @@ model PendingAction {
   summary         String
   details         String[]            @default([])
   status          PendingActionStatus @default(PENDING)
+  mode            PendingActionMode   @default(CARD)
   idempotencyKey  String              @unique
   result          Json?
   errorMessage    String?

@@ -127,7 +127,21 @@ export interface UserSettingsPreferences {
   timeReviewReminderEnabled: boolean;
   /** `HH:mm` in the user's time zone. */
   timeReviewReminderTime: string;
+  /** Default for how the assistant applies record changes it proposes. */
+  assistantPermissionMode: AssistantPermissionMode;
 }
+
+/**
+ * How the assistant applies a record change: MANUAL prefills the form for the user to save,
+ * ASK shows an approval card, AUTO saves directly when nothing is ambiguous.
+ */
+export type AssistantPermissionMode = "MANUAL" | "ASK" | "AUTO";
+
+export const ASSISTANT_PERMISSION_MODES: readonly AssistantPermissionMode[] = [
+  "MANUAL",
+  "ASK",
+  "AUTO",
+];
 
 export interface NotificationMetadata {
   caseId?: string;
@@ -355,6 +369,8 @@ export interface ChatSessionSummary {
   updatedAt: string;
   /** Set when the conversation is pinned to the top of the sidebar. */
   pinnedAt?: string | null;
+  /** Conversation override of the user's assistant permission mode; null uses the setting. */
+  permissionMode?: AssistantPermissionMode | null;
   /** Who started the conversation; present on list responses. */
   createdBy?: { id: string; displayName: string } | null;
   activity?: ChatSessionActivitySummary | null;
@@ -394,6 +410,8 @@ export interface ChatSessionUpdateRequest {
   title?: string;
   pinned?: boolean;
   archived?: boolean;
+  /** null clears the override and falls back to the user setting. */
+  permissionMode?: AssistantPermissionMode | null;
 }
 
 export interface ChatSessionFacetsQuery {
@@ -540,7 +558,30 @@ export type PendingActionType =
   | "link_case"
   | "create_deadline"
   | "create_tasks_from_brief"
-  | "update_client_from_document";
+  | "update_client_from_document"
+  | "create_event";
+
+/** FORM: prefilled form the user saves; CARD: approval card; AUTO: saved without asking. */
+export type PendingActionMode = "FORM" | "CARD" | "AUTO";
+
+/** Event fields the assistant proposed; the shape the event dialog saves. */
+export interface AssistantEventRequest {
+  type: EventType;
+  title: string;
+  description?: string;
+  startsAt: string;
+  endsAt: string;
+  timeZone: string;
+  location?: string;
+  caseId?: string;
+  assigneeUserIds?: string[];
+  clientIds?: string[];
+  attendees?: Array<{
+    clientContactId?: string;
+    displayName: string;
+    email?: string;
+  }>;
+}
 
 /** A record change proposed by the assistant, awaiting the user's decision. */
 export interface PendingActionSummary {
@@ -552,6 +593,11 @@ export interface PendingActionSummary {
   summary: string;
   details: string[];
   status: PendingActionStatus;
+  mode: PendingActionMode;
+  /** `create_event` in FORM mode: the values to prefill the event dialog with. */
+  eventPrefill?: AssistantEventRequest | null;
+  /** Id of the record the action created, once executed. */
+  resultEntityId?: string | null;
   /** Human-readable outcome after execution. */
   resultMessage: string | null;
   errorMessage: string | null;

@@ -14,6 +14,8 @@ import {
 import { Transform, Type } from "class-transformer";
 import { PaginationQueryDto } from "@law/core";
 import {
+  ASSISTANT_PERMISSION_MODES,
+  AssistantPermissionMode,
   ChatMessageFeedback,
   ChatSessionScope,
   ChatSessionStateFilter,
@@ -172,6 +174,11 @@ export class UpdateChatSessionDto {
   @IsOptional()
   @IsBoolean()
   archived?: boolean;
+
+  /** null clears the override. */
+  @IsOptional()
+  @IsIn([...ASSISTANT_PERMISSION_MODES])
+  permissionMode?: AssistantPermissionMode | null;
 }
 
 export class UpdateDraftDto {
