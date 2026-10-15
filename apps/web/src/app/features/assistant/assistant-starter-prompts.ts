@@ -43,6 +43,7 @@ export const GENERAL_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
   { id: "myTasks", icon: "lucideListChecks", mode: "send", group: "work" },
   { id: "overdue", icon: "lucideCircleAlert", mode: "send", group: "work" },
   { id: "hearingsWeek", icon: "lucideGavel", mode: "send", group: "work" },
+  { id: "logDayWork", icon: "lucideClock", mode: "send", group: "work" },
   {
     id: "colleagueAgenda",
     icon: "lucideUsers",
@@ -75,6 +76,13 @@ export const GENERAL_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
   {
     id: "clientOverview",
     icon: "lucideUser",
+    mode: "send",
+    pick: "client",
+    group: "matters",
+  },
+  {
+    id: "clientBilling",
+    icon: "lucideReceipt",
     mode: "send",
     pick: "client",
     group: "matters",

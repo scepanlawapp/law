@@ -13,7 +13,9 @@
       <p
         class="text-xs font-medium uppercase tracking-wide text-muted-foreground"
       >
-        @if (isAuto() && action().status === "APPROVED") {
+        @if (undone()) {
+        {{ "assistant.pendingAction.undone" | translate }}
+        } @else if (isAuto() && action().status === "APPROVED") {
         {{ autoLabel() | translate }}
         } @else if (isForm() && pending()) {
         {{ "assistant.pendingAction.status.FORM" | translate }}
@@ -37,11 +39,28 @@
   <p class="mt-2 pl-6 text-sm text-destructive" role="alert">
     {{ action().errorMessage }}
   </p>
-  } @if (resultType(); as type) {
-  <div class="mt-3 pl-6">
+  } @if (resultType() || action().canUndo) {
+  <div class="mt-3 flex flex-wrap gap-2 pl-6">
+    @if (resultType(); as type) {
     <button hlmBtn variant="outline" size="sm" type="button" (click)="openResult.emit()">
       {{ "assistant.pendingAction.openResult." + type | translate }}
     </button>
+    } @if (action().canUndo) {
+    <button
+      hlmBtn
+      variant="ghost"
+      size="sm"
+      type="button"
+      [disabled]="busy()"
+      (click)="undo.emit()"
+    >
+      @if (busy()) {
+      <hlm-spinner class="size-4" aria-hidden="true" />
+      } @else {
+      <ng-icon name="lucideUndo2" aria-hidden="true" />
+      } {{ "assistant.pendingAction.undo" | translate }}
+    </button>
+    }
   </div>
   } @if (pending()) {
   <p class="mt-2 pl-6 text-xs text-muted-foreground">

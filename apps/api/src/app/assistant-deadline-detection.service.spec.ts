@@ -107,7 +107,7 @@ describe("AssistantDeadlineDetectionService", () => {
       dueDate: "2026-10-19",
       deadlineType: "COURT",
       description: expect.stringContaining("ZPP čl. 367 st. 1"),
-    });
+    }, { forceCard: true });
     expect(result).toMatchObject({
       status: "PROPOSED",
       pendingActionId: "action-1",

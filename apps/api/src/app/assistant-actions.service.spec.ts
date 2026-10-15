@@ -141,6 +141,8 @@ function prismaMock() {
           decidedAt: null,
           decidedByUserId: null,
           declineReason: null,
+          undoneAt: null,
+          undoneByUserId: null,
           createdAt: new Date(Date.now() + actions.size),
           ...data,
         };
@@ -1856,5 +1858,209 @@ describe("AssistantActionsService tasks, work entries, and event changes", () =>
       expect(prisma.actions.get("action-1")).toMatchObject({ mode: "CARD" });
       expect(work.transitionEvent).not.toHaveBeenCalled();
     }
+  });
+});
+
+describe("AssistantActionsService day work batches and undo", () => {
+  const owner: AssistantTurnScope = {
+    ...scope,
+    userId: "user-owner",
+    userDisplayName: "Ana Jović",
+  };
+  const meetingId = "0b6c4f2e-6f1d-4c8e-9a51-2f0f0b7f3a11";
+  const pastMeeting = {
+    id: meetingId,
+    title: "Sastanak sa Alfom",
+    startsAt: new Date("2020-01-01T09:00:00Z"),
+    endsAt: new Date("2020-01-01T10:30:00Z"),
+    caseId: "case-21",
+    clients: [{ clientId: "client-1", client: { displayName: "Alfa doo" } }],
+  };
+
+  function batchSetup(
+    options: {
+      permissionMode?: "MANUAL" | "ASK" | "AUTO";
+      meeting?: Record<string, unknown> | null;
+      logged?: boolean;
+    } = {},
+  ) {
+    const context = setup();
+    const prisma = context.prisma as unknown as Record<
+      string,
+      Record<string, jest.Mock>
+    >;
+    prisma["chatSession"].findFirst.mockResolvedValue({
+      id: "session-1",
+      createdByUserId: "user-owner",
+      permissionMode: options.permissionMode ?? "AUTO",
+      createdBy: { settings: null },
+    });
+    prisma["user"].findMany = jest.fn().mockResolvedValue([]);
+    prisma["client"].findMany = jest
+      .fn()
+      .mockResolvedValue([{ id: "client-beta", displayName: "Beta doo", clientNumber: "K-2" }]);
+    prisma["clientContact"] = { findMany: jest.fn().mockResolvedValue([]) };
+    prisma["event"] = {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue(options.meeting === undefined ? pastMeeting : options.meeting),
+      findMany: jest.fn().mockResolvedValue([]),
+    };
+    prisma["workEntry"] = {
+      findFirst: jest.fn().mockResolvedValue(options.logged ? { id: "old" } : null),
+      findMany: jest.fn(),
+    };
+    prisma["task"] = { findMany: jest.fn() };
+    prisma["workspaceMember"] = {
+      findFirst: jest.fn().mockResolvedValue({ role: "MEMBER" }),
+    };
+    let created = 0;
+    context.workEntries.create.mockImplementation((input: Record<string, unknown>) =>
+      Promise.resolve({ id: `entry-${++created}`, title: input["title"], minutes: input["minutes"] }),
+    );
+    const work = context.work as unknown as Record<string, jest.Mock>;
+    work["createEvent"] = jest.fn().mockImplementation((input: Record<string, unknown>) =>
+      Promise.resolve({ id: "event-new", title: input["title"], startsAt: input["startsAt"] }),
+    );
+    work["transitionEvent"] = jest.fn().mockResolvedValue({ id: "event-new" });
+    work["transitionTask"] = jest.fn().mockResolvedValue({ id: "task-1" });
+    const workEntries = context.workEntries as typeof context.workEntries & {
+      remove: jest.Mock;
+    };
+    workEntries.remove = jest.fn().mockResolvedValue(undefined);
+    return {
+      ...context,
+      actions: context.prisma.actions,
+      prisma,
+      work,
+      workEntries,
+    };
+  }
+
+  const batch = () => ({
+    type: "log_work_entries" as const,
+    entries: [
+      { eventRef: `event:${meetingId}` },
+      { title: "Pregled ugovora", minutes: 45, client: "Beta" },
+    ],
+  });
+
+  it("AUTO saves a meeting and described work as PROPOSED in one action", async () => {
+    const { service, workEntries, emitted } = batchSetup();
+
+    const result = await service.propose(owner, batch());
+
+    expect(result).toMatchObject({
+      status: "EXECUTED",
+      message: expect.stringContaining("Upisano stavki: 2 od 2"),
+    });
+    expect(workEntries.create).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({
+        eventId: meetingId,
+        minutes: 90,
+        title: "Sastanak sa Alfom",
+        workDate: "2020-01-01",
+        clientId: "client-1",
+        caseId: "case-21",
+      }),
+      { status: "PROPOSED" },
+    );
+    expect(workEntries.create).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ clientId: "client-beta", minutes: 45 }),
+      { status: "PROPOSED" },
+    );
+    expect(emitted.at(-1)?.pendingAction).toMatchObject({
+      resultEntityType: "TIME_REVIEW",
+      canUndo: true,
+    });
+  });
+
+  it("MANUAL falls back to the card for a batch", async () => {
+    const { service, actions } = batchSetup({ permissionMode: "MANUAL" });
+    const result = await service.propose(owner, batch());
+    expect(result).toMatchObject({ status: "CONFIRMATION_REQUIRED" });
+    expect(actions.get("action-1")).toMatchObject({ mode: "CARD" });
+  });
+
+  it("names the entry that cannot be logged and proposes nothing", async () => {
+    const { service, actions } = batchSetup({ logged: true });
+    const result = await service.propose(owner, batch());
+    expect(result).toMatchObject({
+      status: "INVALID",
+      message: expect.stringMatching(/^Stavka 1: .*već upisan/),
+    });
+    expect(actions.size).toBe(0);
+  });
+
+  it("undoes an automatic event once, for the owner only", async () => {
+    const { service, prisma, work, actions } = batchSetup();
+    await service.propose(owner, {
+      type: "create_event",
+      title: "Sastanak",
+      date: nextYearDate(),
+      startTime: "12:00",
+    });
+    prisma["event"].findFirst.mockResolvedValue({ status: "SCHEDULED" });
+
+    await expect(
+      service.undo({ workspaceId: "workspace-1", userId: "someone-else", actionId: "action-1" }),
+    ).rejects.toThrow("Samo vlasnik");
+
+    const [first, second] = await Promise.all([
+      service.undo({ workspaceId: "workspace-1", userId: "user-owner", actionId: "action-1" }),
+      service.undo({ workspaceId: "workspace-1", userId: "user-owner", actionId: "action-1" }),
+    ]);
+
+    expect(work["transitionEvent"]).toHaveBeenCalledTimes(1);
+    expect(work["transitionEvent"]).toHaveBeenCalledWith("event-new", "CANCELLED");
+    expect(first.undoneAt).toEqual(expect.any(String));
+    expect(second.undoneAt).toEqual(first.undoneAt);
+    expect(first.canUndo).toBe(false);
+    expect(actions.get("action-1")).toMatchObject({ undoneByUserId: "user-owner" });
+  });
+
+  it("refuses to undo work that was confirmed since, and keeps it undoable", async () => {
+    const { service, prisma, workEntries, actions } = batchSetup();
+    await service.propose(owner, batch());
+    prisma["workEntry"].findMany.mockResolvedValue([
+      { id: "entry-1", status: "PROPOSED" },
+      { id: "entry-2", status: "CONFIRMED" },
+    ]);
+
+    await expect(
+      service.undo({ workspaceId: "workspace-1", userId: "user-owner", actionId: "action-1" }),
+    ).rejects.toThrow("potvrđen");
+
+    expect(workEntries.remove).not.toHaveBeenCalled();
+    expect(actions.get("action-1")).toMatchObject({ undoneAt: null });
+  });
+
+  it("refuses to undo after 24 hours or a save that was not automatic", async () => {
+    const { service, actions } = batchSetup();
+    await service.propose(owner, batch());
+    actions.set("action-1", {
+      ...actions.get("action-1"),
+      decidedAt: new Date(Date.now() - 25 * 3600_000),
+    });
+    await expect(
+      service.undo({ workspaceId: "workspace-1", userId: "user-owner", actionId: "action-1" }),
+    ).rejects.toThrow("24 sata");
+
+    actions.set("action-1", { ...actions.get("action-1"), mode: "CARD" });
+    await expect(
+      service.undo({ workspaceId: "workspace-1", userId: "user-owner", actionId: "action-1" }),
+    ).rejects.toThrow("ne može poništiti");
+  });
+
+  it("tells the agent which automatic saves were undone", async () => {
+    const { service, prisma } = batchSetup();
+    prisma["pendingAction"].findMany.mockResolvedValueOnce([
+      { summary: "Novi događaj: Sastanak — 16.10.2026. u 12:00" },
+    ]);
+    await expect(service.undoneNote("workspace-1", "session-1")).resolves.toContain(
+      "- Novi događaj: Sastanak",
+    );
   });
 });

@@ -20,7 +20,7 @@ function setup(
   rows: ReturnType<typeof row>[],
   configOverrides: Partial<ChatRuntimeConfig> = {},
   drafting?: { workspaceState: jest.Mock },
-  actions?: { clientUpdateHint: jest.Mock },
+  actions?: { clientUpdateHint: jest.Mock; undoneNote?: jest.Mock },
 ) {
   const prisma = {
     chatSession: { findFirst: jest.fn().mockResolvedValue(null) },
@@ -209,6 +209,23 @@ describe("AssistantContextBuilder", () => {
       { role: "user", content: "Pitanje o otkazu" },
       { role: "assistant", content: "Odgovor o otkazu" },
     ]);
+  });
+
+  it("tells the agent which automatic saves the user undid", async () => {
+    const actions = {
+      clientUpdateHint: jest.fn().mockResolvedValue(false),
+      undoneNote: jest
+        .fn()
+        .mockResolvedValue("Korisnik je poništio ove automatske izmene (više ne postoje):\n- Novi zadatak: Poslati ugovor"),
+    };
+    const { builder } = setup([row("USER", "Šta smo uradili?", 1)], {}, undefined, actions);
+
+    const context = await builder.build({
+      workspaceId: "workspace-1",
+      sessionId: "session-1",
+    });
+
+    expect(context.workspaceState).toContain("- Novi zadatak: Poslati ugovor");
   });
 
   describe("client update hint", () => {

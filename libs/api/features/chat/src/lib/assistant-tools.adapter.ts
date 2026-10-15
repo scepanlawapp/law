@@ -21,7 +21,10 @@ import type {
   AssistantDocumentList,
   AssistantDocumentRead,
   AssistantDocumentSearch,
+  AssistantClientBillingResult,
+  AssistantDayWorkResult,
   AssistantListResult,
+  AssistantReceivablesResult,
   AssistantTurnScope,
   AssistantWorkItem,
   CaseTimelineToolResult,
@@ -34,6 +37,7 @@ import type {
   WorkItemQuery,
 } from "@law/mastra";
 import { AssistantActionsService } from "./assistant-actions.service";
+import { AssistantBillingReadsService } from "./assistant-billing-reads.service";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
 import { AssistantCaseTimelineService } from "./assistant-case-timeline.service";
 import { AssistantContractReviewService } from "./assistant-contract-review.service";
@@ -63,6 +67,11 @@ const OFFICE_UNAVAILABLE = {
  * services. CasesService scopes by the workspace context that
  * WorkflowProcessor sets for the job.
  */
+const BILLING_UNAVAILABLE = {
+  status: "UNAVAILABLE" as const,
+  message: "Podaci o vremenu i finansijama trenutno nisu dostupni.",
+};
+
 @Injectable()
 export class AssistantToolsAdapter implements LegalAssistantToolDeps {
   constructor(
@@ -75,7 +84,35 @@ export class AssistantToolsAdapter implements LegalAssistantToolDeps {
     @Optional() private readonly review?: AssistantContractReviewService,
     @Optional() private readonly timeline?: AssistantCaseTimelineService,
     @Optional() private readonly deadlines?: AssistantDeadlineDetectionService,
+    @Optional() private readonly billing?: AssistantBillingReadsService,
   ) {}
+
+  getDayWork(
+    scope: AssistantTurnScope,
+    args: { date?: string },
+  ): Promise<AssistantDayWorkResult> {
+    return this.billing
+      ? this.billing.getDayWork(scope, args)
+      : Promise.resolve(BILLING_UNAVAILABLE);
+  }
+
+  getClientBilling(
+    scope: AssistantTurnScope,
+    args: { client: string; month?: string },
+  ): Promise<AssistantClientBillingResult> {
+    return this.billing
+      ? this.billing.getClientBilling(scope, args)
+      : Promise.resolve(BILLING_UNAVAILABLE);
+  }
+
+  listReceivables(
+    scope: AssistantTurnScope,
+    args: { overdueOnly?: boolean },
+  ): Promise<AssistantReceivablesResult> {
+    return this.billing
+      ? this.billing.listReceivables(scope, args)
+      : Promise.resolve(BILLING_UNAVAILABLE);
+  }
 
   listDocuments(scope: AssistantTurnScope): Promise<AssistantDocumentList> {
     return this.documents

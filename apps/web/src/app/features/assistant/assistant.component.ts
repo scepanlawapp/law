@@ -1124,6 +1124,26 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       });
   }
 
+  /** Reverts an automatic save; the card then shows it as undone. */
+  protected undoPendingAction(action: PendingActionSummary): void {
+    const workspaceId = this.workspaceId();
+    if (!workspaceId || this.decidingActionId()) return;
+    this.decidingActionId.set(action.id);
+    this.chat
+      .undoPendingAction(workspaceId, action.id)
+      .pipe(
+        finalize(() => this.decidingActionId.set(null)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe({
+        next: (updated) => this.upsertPendingAction(updated),
+        error: () =>
+          this.toast.error(
+            this.localization.translate("assistant.pendingAction.undoError"),
+          ),
+      });
+  }
+
   /** FORM mode: the user checks the prefilled record and saves it from its dialog. */
   protected openPendingActionForm(action: PendingActionSummary): void {
     const workspaceId = this.workspaceId();
@@ -1273,6 +1293,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         );
       case "CASE":
         void this.router.navigate(["/cases", id]);
+        return of(null);
+      case "TIME_REVIEW":
+        void this.router.navigate(["/work/time"]);
         return of(null);
     }
   }

@@ -1,5 +1,7 @@
 import {
   BadRequestException,
+  ConflictException,
+  ForbiddenException,
   Inject,
   Injectable,
   Logger,
@@ -7,7 +9,6 @@ import {
   Optional,
 } from "@nestjs/common";
 import { createHash } from "node:crypto";
-import { WorkspaceRole } from "@law/api-interfaces";
 import type {
   AssistantPermissionMode,
   ChatStreamEvent,
@@ -24,7 +25,7 @@ import {
 import { CreateWorkEntryDto, WorkEntriesService } from "@law/work-entries";
 import { plainToInstance } from "class-transformer";
 import { validate } from "class-validator";
-import { PlatformPrismaService, WorkspaceContextService } from "@law/core";
+import { PlatformPrismaService } from "@law/core";
 import { digitsOnly, singleIsoDate } from "@law/document-intelligence";
 import type {
   ActionProposalResult,
@@ -34,6 +35,7 @@ import type {
 } from "@law/mastra";
 import { Prisma } from "@prisma/client";
 import { AssistantDocumentReadsService } from "./assistant-document-reads.service";
+import { runAsMember } from "./assistant-actor";
 import { ChatEventBus } from "./chat.events";
 import {
   clientEmptyFillFields,
@@ -45,7 +47,12 @@ import {
   type ClientFillField,
   type ClientFillItem,
 } from "./client-fact-match";
-import { toJob, toPendingAction } from "./chat.mappers";
+import {
+  toJob,
+  toPendingAction,
+  UNDO_WINDOW_MS,
+  UNDOABLE_ACTIONS,
+} from "./chat.mappers";
 import { MatterLinkService } from "./matter-link.service";
 import {
   WORKFLOW_QUEUE_PORT,
@@ -64,6 +71,16 @@ const DEFAULT_EVENT_MINUTES = 60;
 const PARTICIPANT_CANDIDATES = 5;
 const CONFLICT_LINES = 5;
 const EVENT_CANDIDATES = 5;
+const EVENT_CHANGE_INCLUDE = {
+  clients: {
+    select: { clientId: true, client: { select: { displayName: true } } },
+  },
+  assignees: { select: { userId: true } },
+  attendees: {
+    select: { clientContactId: true, displayName: true, email: true },
+  },
+} as const;
+const MAX_BATCH_ENTRIES = 10;
 type ActionType = AssistantActionRequest["type"];
 /**
  * Modes each action supports besides the card. MANUAL needs a dialog that can
@@ -81,6 +98,8 @@ const MODE_POLICY: Record<ActionType, { form: boolean; auto: boolean }> = {
   cancel_event: { form: false, auto: false },
   create_task: { form: true, auto: true },
   log_work_entry: { form: true, auto: true },
+  // No dialog edits several entries; automatic entries are only proposed.
+  log_work_entries: { form: false, auto: true },
 };
 /** The DTO a saved form is validated against, by action type. */
 const FORM_DTOS: Partial<Record<ActionType, new () => object>> = {
@@ -488,6 +507,160 @@ export class AssistantActionsService {
     return toPendingAction(decided);
   }
 
+  /**
+   * Reverts an automatic save for the conversation owner within 24 hours:
+   * events and tasks are cancelled, a move restores the previous time, and
+   * proposed work entries are deleted. A record that has moved on since (a
+   * confirmed entry, a started task, an event changed again) is refused.
+   */
+  async undo(input: {
+    workspaceId: string;
+    userId: string;
+    actionId: string;
+  }): Promise<PendingActionSummary> {
+    const action = await this.requireAction(input.workspaceId, input.actionId);
+    if (action.undoneAt) return toPendingAction(action);
+    if (
+      action.mode !== "AUTO" ||
+      action.status !== "APPROVED" ||
+      !UNDOABLE_ACTIONS.has(action.actionType)
+    ) {
+      throw new BadRequestException("Ova izmena se ne može poništiti.");
+    }
+    const session = await this.prisma.chatSession.findFirst({
+      where: { id: action.sessionId, workspaceId: input.workspaceId },
+      select: { createdByUserId: true },
+    });
+    if (session?.createdByUserId !== input.userId) {
+      throw new ForbiddenException("Samo vlasnik razgovora može poništiti izmenu.");
+    }
+    const now = new Date();
+    const savedAt = action.decidedAt ?? action.createdAt;
+    if (now.getTime() - savedAt.getTime() > UNDO_WINDOW_MS) {
+      throw new BadRequestException("Rok od 24 sata za poništavanje je istekao.");
+    }
+    // Atomic claim: a double click undoes once.
+    const claimed = await this.prisma.pendingAction.updateMany({
+      where: { id: action.id, undoneAt: null },
+      data: { undoneAt: now, undoneByUserId: input.userId },
+    });
+    if (claimed.count === 0) return toPendingAction(await this.reload(action.id));
+    try {
+      await this.revert(action);
+    } catch (error) {
+      await this.prisma.pendingAction.update({
+        where: { id: action.id },
+        data: { undoneAt: null, undoneByUserId: null },
+      });
+      const message = error instanceof Error ? error.message : String(error);
+      throw new ConflictException(`Poništavanje nije uspelo: ${message}`);
+    }
+    const undone = await this.reload(action.id);
+    this.emit(undone, "confirmation.updated");
+    return toPendingAction(undone);
+  }
+
+  /** Lines for the agent: automatic saves of this conversation the user undid. */
+  async undoneNote(workspaceId: string, sessionId: string): Promise<string | null> {
+    const undone = await this.prisma.pendingAction.findMany({
+      where: { workspaceId, sessionId, undoneAt: { not: null } },
+      orderBy: { undoneAt: "desc" },
+      select: { summary: true },
+      take: 5,
+    });
+    return undone.length
+      ? [
+          "Korisnik je poništio ove automatske izmene (više ne postoje):",
+          ...undone.map((item) => `- ${item.summary}`),
+        ].join("\n")
+      : null;
+  }
+
+  private async revert(action: PendingActionRow): Promise<void> {
+    const result = (action.result ?? {}) as Record<string, unknown>;
+    const ids = (key: string) =>
+      ((result[key] as string[] | undefined) ?? []).filter(Boolean);
+    switch (action.actionType) {
+      case "create_event": {
+        if (!this.work) throw new Error("Events are not available");
+        const eventId = String(result["eventId"]);
+        const event = await this.prisma.event.findFirst({
+          where: { id: eventId, workspaceId: action.workspaceId },
+          select: { status: true },
+        });
+        if (event?.status !== "SCHEDULED") {
+          throw new Error("događaj više nije zakazan.");
+        }
+        await this.work.transitionEvent(eventId, "CANCELLED");
+        return;
+      }
+      case "reschedule_event": {
+        if (!this.work) throw new Error("Events are not available");
+        const previous = result["previous"] as Record<string, unknown> | undefined;
+        const moved = (action.payload ?? {}) as Record<string, unknown>;
+        if (!previous) throw new Error("prethodni termin nije sačuvan.");
+        const current = await this.prisma.event.findFirst({
+          where: { id: String(previous["eventId"]), workspaceId: action.workspaceId },
+          select: { status: true, startsAt: true, endsAt: true },
+        });
+        if (
+          current?.status !== "SCHEDULED" ||
+          current.startsAt.toISOString() !== String(moved["startsAt"]) ||
+          current.endsAt.toISOString() !== String(moved["endsAt"])
+        ) {
+          throw new Error("događaj je u međuvremenu promenjen.");
+        }
+        const { eventId, ...fields } = previous;
+        await this.work.updateEvent(
+          String(eventId),
+          Object.assign(new UpdateEventDto(), fields),
+        );
+        return;
+      }
+      case "create_task":
+      case "create_tasks_from_brief": {
+        if (!this.work) throw new Error("Tasks are not available");
+        const taskIds =
+          action.actionType === "create_task"
+            ? [String(result["taskId"])]
+            : ids("taskIds");
+        const tasks = await this.prisma.task.findMany({
+          where: { id: { in: taskIds }, workspaceId: action.workspaceId },
+          select: { id: true, status: true },
+        });
+        if (tasks.length !== taskIds.length || tasks.some((task) => task.status !== "TODO")) {
+          throw new Error("zadatak je u međuvremenu započet ili promenjen.");
+        }
+        for (const task of tasks) {
+          await this.work.transitionTask(task.id, "CANCELLED");
+        }
+        return;
+      }
+      case "log_work_entry":
+      case "log_work_entries": {
+        if (!this.workEntries) throw new Error("Work entries are not available");
+        const entryIds =
+          action.actionType === "log_work_entry"
+            ? [String(result["workEntryId"])]
+            : ids("workEntryIds");
+        const entries = await this.prisma.workEntry.findMany({
+          where: { id: { in: entryIds }, workspaceId: action.workspaceId },
+          select: { id: true, status: true },
+        });
+        if (
+          entries.length !== entryIds.length ||
+          entries.some((entry) => entry.status !== "PROPOSED")
+        ) {
+          throw new Error("upis rada je u međuvremenu potvrđen ili obrisan.");
+        }
+        for (const entry of entries) await this.workEntries.remove(entry.id);
+        return;
+      }
+      default:
+        throw new Error(`Unsupported undo for ${action.actionType}`);
+    }
+  }
+
   /** FORM / CARD / AUTO for a proposal, from the conversation's permission mode. */
   private async pendingMode(
     scope: AssistantTurnScope,
@@ -519,24 +692,12 @@ export class AssistantActionsService {
   }
 
   /** Runs an action with the user as the workspace actor (the worker runs as the system). */
-  private async asUser<T>(
+  private asUser<T>(
     scope: AssistantTurnScope,
     userId: string,
     run: () => Promise<T>,
   ): Promise<T> {
-    const member = await this.prisma.workspaceMember.findFirst({
-      where: { workspaceId: scope.workspaceId, userId, status: "ACTIVE" },
-      select: { role: true },
-    });
-    if (!member) throw new Error("User is not an active workspace member");
-    return WorkspaceContextService.run(
-      {
-        workspaceId: scope.workspaceId,
-        userId,
-        role: member.role as WorkspaceRole,
-      },
-      run,
-    );
+    return runAsMember(this.prisma, scope.workspaceId, userId, run);
   }
 
   /** Executes a claimed (EXECUTING) action and stores APPROVED or FAILED. */
@@ -768,6 +929,8 @@ export class AssistantActionsService {
         return this.taskProposal(scope, request);
       case "log_work_entry":
         return this.workEntryProposal(scope, request);
+      case "log_work_entries":
+        return this.workEntriesProposal(scope, request);
     }
   }
 
@@ -1166,6 +1329,122 @@ export class AssistantActionsService {
   }
 
   /**
+   * Several work entries in one proposal. Every entry must resolve; an error
+   * names the entry, and nothing is proposed.
+   */
+  private async workEntriesProposal(
+    scope: AssistantTurnScope,
+    request: Extract<AssistantActionRequest, { type: "log_work_entries" }>,
+  ): Promise<Proposal> {
+    if (!request.entries.length || request.entries.length > MAX_BATCH_ENTRIES) {
+      throw new InvalidProposal(
+        `Navedite od 1 do ${MAX_BATCH_ENTRIES} stavki rada.`,
+      );
+    }
+    const entries: Array<Record<string, unknown>> = [];
+    const lines: string[] = [];
+    const eventIds = new Set<string>();
+    for (const [index, entry] of request.entries.entries()) {
+      try {
+        if ("eventRef" in entry) {
+          const resolved = await this.meetingWorkEntry(scope, entry);
+          if (eventIds.has(String(resolved.payload["eventId"]))) {
+            throw new InvalidProposal("Isti sastanak je naveden dva puta.");
+          }
+          eventIds.add(String(resolved.payload["eventId"]));
+          entries.push(resolved.payload);
+          lines.push(resolved.line);
+        } else {
+          const proposal = await this.workEntryProposal(scope, {
+            type: "log_work_entry",
+            ...entry,
+          });
+          entries.push(proposal.payload);
+          lines.push(
+            `• ${proposal.payload["title"]} — ${formatMinutes(Number(proposal.payload["minutes"]))}, ${formatDate(String(proposal.payload["workDate"]))} (${proposal.details[0].replace(/^Klijent: /, "")})`,
+          );
+        }
+      } catch (error) {
+        if (error instanceof InvalidProposal) {
+          throw new InvalidProposal(`Stavka ${index + 1}: ${error.message}`);
+        }
+        throw error;
+      }
+    }
+    const total = entries.reduce((sum, item) => sum + Number(item["minutes"]), 0);
+    return {
+      actionType: "log_work_entries",
+      payload: { entries },
+      summary: `Upis rada: ${entries.length} ${entries.length === 1 ? "stavka" : "stavke"}, ukupno ${formatMinutes(total)}`,
+      details: lines,
+    };
+  }
+
+  /** A finished meeting of the owner that has no work entry yet. */
+  private async meetingWorkEntry(
+    scope: AssistantTurnScope,
+    entry: { eventRef: string; minutes?: number; title?: string },
+  ): Promise<{ payload: Record<string, unknown>; line: string }> {
+    const eventId = entry.eventRef.startsWith("event:")
+      ? entry.eventRef.slice("event:".length)
+      : "";
+    if (!scope.userId || !eventId) {
+      throw new InvalidProposal(`Sastanak „${entry.eventRef}“ nije prepoznat.`);
+    }
+    const event = await this.prisma.event.findFirst({
+      where: {
+        id: eventId,
+        workspaceId: scope.workspaceId,
+        status: { not: "CANCELLED" },
+        OR: [
+          { organizerUserId: scope.userId },
+          { assignees: { some: { userId: scope.userId } } },
+        ],
+      },
+      include: {
+        clients: { select: { clientId: true, client: { select: { displayName: true } } } },
+      },
+    });
+    if (!event) {
+      throw new InvalidProposal("Sastanak nije pronađen u vašem kalendaru.");
+    }
+    if (event.endsAt.getTime() > Date.now()) {
+      throw new InvalidProposal(`Sastanak „${event.title}“ još nije završen.`);
+    }
+    const logged = await this.prisma.workEntry.findFirst({
+      where: { workspaceId: scope.workspaceId, eventId },
+      select: { id: true },
+    });
+    if (logged) {
+      throw new InvalidProposal(`Za sastanak „${event.title}“ rad je već upisan.`);
+    }
+    const minutes =
+      entry.minutes ??
+      Math.round((event.endsAt.getTime() - event.startsAt.getTime()) / 60_000);
+    if (!Number.isInteger(minutes) || minutes < 1 || minutes > 1440) {
+      throw new InvalidProposal("Trajanje rada mora biti između 1 i 1440 minuta.");
+    }
+    const title = entry.title?.trim() || event.title;
+    const workDate = belgradeToday(event.startsAt);
+    // A meeting with one client bills that client; otherwise it is office time.
+    const client = event.clients.length === 1 ? event.clients[0] : null;
+    return {
+      payload: {
+        eventId,
+        title,
+        minutes,
+        workDate,
+        userId: scope.userId,
+        aiParsed: true,
+        ...(client
+          ? { clientId: client.clientId, ...(event.caseId ? { caseId: event.caseId } : {}) }
+          : {}),
+      },
+      line: `• ${title} — ${formatMinutes(minutes)}, ${formatDate(workDate)} (${client ? client.client.displayName : "bez klijenta, nenaplativo"})`,
+    };
+  }
+
+  /**
    * One upcoming scheduled event of the conversation's owner, matched by what
    * the user said about it. Zero or several matches are refused with the
    * candidates, so the agent asks.
@@ -1238,11 +1517,7 @@ export class AssistantActionsService {
             : []),
         ],
       },
-      include: {
-        clients: { select: { clientId: true, client: { select: { displayName: true } } } },
-        assignees: { select: { userId: true } },
-        attendees: { select: { clientContactId: true, displayName: true, email: true } },
-      },
+      include: EVENT_CHANGE_INCLUDE,
       orderBy: { startsAt: "asc" },
       take: 20,
     });
@@ -1302,26 +1577,10 @@ export class AssistantActionsService {
     return {
       actionType: "reschedule_event",
       payload: {
-        eventId: event.id,
-        type: event.type,
-        title: event.title,
+        ...eventUpdatePayload(event),
         startsAt: startsAt.toISOString(),
         endsAt: endsAt.toISOString(),
-        timeZone: event.timeZone,
-        isAllDay: event.isAllDay,
         assigneeUserIds,
-        clientIds: event.clients.map((item) => item.clientId),
-        attendees: event.attendees.map((item) => ({
-          ...(item.clientContactId ? { clientContactId: item.clientContactId } : {}),
-          displayName: item.displayName,
-          ...(item.email ? { email: item.email } : {}),
-        })),
-        ...(event.caseId ? { caseId: event.caseId } : {}),
-        ...(event.description ? { description: event.description } : {}),
-        ...(event.location ? { location: event.location } : {}),
-        ...(event.meetingUrl ? { meetingUrl: event.meetingUrl } : {}),
-        ...(event.courtName ? { courtName: event.courtName } : {}),
-        ...(event.courtroom ? { courtroom: event.courtroom } : {}),
       },
       summary: `Pomeranje: ${event.title} — ${formatDate(date)} u ${time}`,
       details: [
@@ -1836,6 +2095,11 @@ export class AssistantActionsService {
       case "reschedule_event": {
         if (!this.work) throw new Error("Events are not available");
         const { eventId, ...fields } = payload;
+        // Kept so an automatic move can be undone.
+        const before = await this.prisma.event.findFirst({
+          where: { id: String(eventId), workspaceId: action.workspaceId },
+          include: EVENT_CHANGE_INCLUDE,
+        });
         const startedAt = new Date();
         const event = await this.work.updateEvent(
           String(eventId),
@@ -1857,6 +2121,9 @@ export class AssistantActionsService {
             belgradeToday(startsAt),
           )} u ${BELGRADE_TIME.format(startsAt)}.`,
           eventId: event.id,
+          ...(before
+            ? { previous: eventUpdatePayload(before) as Prisma.InputJsonObject }
+            : {}),
         };
       }
       case "cancel_event": {
@@ -1904,6 +2171,34 @@ export class AssistantActionsService {
               ? `Rad „${entry.title}“ (${formatMinutes(minutes)}) je upisan kao predlog; potvrdite ga u pregledu vremena.`
               : `Rad „${entry.title}“ (${formatMinutes(minutes)}) je upisan.`,
           workEntryId: entry.id,
+        };
+      }
+      case "log_work_entries": {
+        if (!this.workEntries) throw new Error("Work entries are not available");
+        const items = (payload["entries"] as Array<Record<string, unknown>>) ?? [];
+        const created: string[] = [];
+        const failed: string[] = [];
+        for (const item of items) {
+          try {
+            const entry = await this.workEntries.create(
+              Object.assign(new CreateWorkEntryDto(), item),
+              action.mode === "AUTO" ? { status: "PROPOSED" } : {},
+            );
+            created.push(entry.id);
+          } catch (error) {
+            failed.push(
+              `${String(item["title"])} (${error instanceof Error ? error.message : String(error)})`,
+            );
+          }
+        }
+        if (!created.length) {
+          throw new Error(`Nijedna stavka nije upisana: ${failed.join("; ")}`);
+        }
+        return {
+          message: `Upisano stavki: ${created.length} od ${items.length}${
+            action.mode === "AUTO" ? " (kao predlog; potvrdite u pregledu vremena)" : ""
+          }.${failed.length ? ` Nije upisano: ${failed.join("; ")}.` : ""}`,
+          workEntryIds: created,
         };
       }
       default:
@@ -2133,6 +2428,55 @@ function formFingerprint(
     }
   }
   return stableStringify(visible);
+}
+
+type EventRow = {
+  id: string;
+  type: string;
+  title: string;
+  description: string | null;
+  startsAt: Date;
+  endsAt: Date;
+  timeZone: string;
+  isAllDay: boolean;
+  location: string | null;
+  meetingUrl: string | null;
+  courtName: string | null;
+  courtroom: string | null;
+  caseId: string | null;
+  clients: Array<{ clientId: string }>;
+  assignees: Array<{ userId: string }>;
+  attendees: Array<{
+    clientContactId: string | null;
+    displayName: string;
+    email: string | null;
+  }>;
+};
+
+/** The full update request that keeps an event exactly as it is. */
+function eventUpdatePayload(event: EventRow): Record<string, unknown> {
+  return {
+    eventId: event.id,
+    type: event.type,
+    title: event.title,
+    startsAt: event.startsAt.toISOString(),
+    endsAt: event.endsAt.toISOString(),
+    timeZone: event.timeZone,
+    isAllDay: event.isAllDay,
+    assigneeUserIds: unique(event.assignees.map((item) => item.userId)),
+    clientIds: event.clients.map((item) => item.clientId),
+    attendees: event.attendees.map((item) => ({
+      ...(item.clientContactId ? { clientContactId: item.clientContactId } : {}),
+      displayName: item.displayName,
+      ...(item.email ? { email: item.email } : {}),
+    })),
+    ...(event.caseId ? { caseId: event.caseId } : {}),
+    ...(event.description ? { description: event.description } : {}),
+    ...(event.location ? { location: event.location } : {}),
+    ...(event.meetingUrl ? { meetingUrl: event.meetingUrl } : {}),
+    ...(event.courtName ? { courtName: event.courtName } : {}),
+    ...(event.courtroom ? { courtroom: event.courtroom } : {}),
+  };
 }
 
 function formatMinutes(minutes: number): string {

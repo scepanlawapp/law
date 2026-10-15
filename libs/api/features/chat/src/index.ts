@@ -18,6 +18,7 @@ export * from "./lib/assistant-case-timeline.service";
 export * from "./lib/assistant-deadline-detection.service";
 export * from "./lib/assistant-actions.service";
 export * from "./lib/assistant-office-reads.service";
+export * from "./lib/assistant-billing-reads.service";
 export * from "./lib/conversation-summary.service";
 export * from "./lib/assistant-document-reads.service";
 export * from "./lib/chat-document-promotion.service";

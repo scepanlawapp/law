@@ -14,6 +14,7 @@ import {
   lucideCalendarPlus,
   lucideChevronRight,
   lucideCircleAlert,
+  lucideClock,
   lucideFilePen,
   lucideFileSearch,
   lucideFileText,
@@ -47,6 +48,7 @@ interface StarterPromptSection {
   providers: [
     provideIcons({
       lucideAlarmClock,
+      lucideClock,
       lucideBookOpen,
       lucideBriefcase,
       lucideCalendarDays,

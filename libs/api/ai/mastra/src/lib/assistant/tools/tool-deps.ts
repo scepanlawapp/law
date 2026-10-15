@@ -508,6 +508,11 @@ export type AssistantActionRequest =
       description?: string;
     }
   | {
+      type: "log_work_entries";
+      /** At most 10; each one must resolve before anything is proposed. */
+      entries: AssistantWorkEntryInput[];
+    }
+  | {
       type: "log_work_entry";
       title: string;
       minutes: number;
@@ -520,6 +525,123 @@ export type AssistantActionRequest =
       performer?: string;
       description?: string;
     };
+
+/** One entry of a batch: a past meeting by ref, or work described by the user. */
+export type AssistantWorkEntryInput =
+  | {
+      /** `event:<id>` from get_day_work. */
+      eventRef: string;
+      /** Defaults to the meeting's length. */
+      minutes?: number;
+      /** Defaults to the meeting's title. */
+      title?: string;
+    }
+  | {
+      title: string;
+      minutes: number;
+      /** YYYY-MM-DD, Europe/Belgrade; omit for today. */
+      date?: string;
+      client?: string;
+      caseReference?: string;
+      description?: string;
+    };
+
+/** A day's work as the time review sees it, for the current user. */
+export type AssistantDayWorkResult =
+  | {
+      status: "OK";
+      date: string;
+      loggedMinutes: number;
+      loggedEntries: number;
+      /** Entries saved as proposals, still to confirm in the time review. */
+      openProposed: number;
+      unloggedMeetings: Array<{
+        /** `event:<id>`, for log_work_entries only. */
+        ref: string;
+        title: string;
+        /** HH:mm–HH:mm, Europe/Belgrade */
+        time: string;
+        minutes: number;
+        client: string | null;
+        case: string | null;
+      }>;
+      /** Clients worked on that day without a time entry, and how. */
+      untrackedClients: Array<{
+        client: string;
+        reasons: Array<"aktivnost" | "dokument" | "razgovor">;
+      }>;
+    }
+  | { status: "INVALID" | "UNAVAILABLE"; message: string };
+
+/** A part of a billing answer the user may not be allowed to see. */
+export type AssistantBillingSection<T> =
+  | ({ status: "OK" } & T)
+  | { status: "NOT_ALLOWED"; message: string };
+
+export interface AssistantMoneyTotal {
+  currency: string;
+  /** Decimal string, exactly as stored. */
+  amount: string;
+}
+
+export type AssistantClientBillingResult =
+  | {
+      status: "OK";
+      client: string;
+      /** YYYY-MM */
+      month: string;
+      receivables: AssistantBillingSection<{
+        openInvoices: Array<{
+          invoiceNumber: string;
+          dueDate: string;
+          currency: string;
+          remaining: string;
+          daysOverdue: number;
+        }>;
+        open: AssistantMoneyTotal[];
+        overdue: AssistantMoneyTotal[];
+        truncated: boolean;
+      }>;
+      unbilledWork: AssistantBillingSection<{
+        /** Confirmed, not invoiced, billable (hourly, AT, or undecided). */
+        minutes: number;
+        entries: number;
+        value: AssistantMoneyTotal[];
+        /** Entries with no recorded value (priced on the invoice). */
+        unpricedEntries: number;
+        truncated: boolean;
+      }>;
+      retainer: AssistantBillingSection<{
+        agreement: null | {
+          currency: string;
+          fee: string;
+          includedMinutes: number | null;
+          coveredMinutes: number;
+          outOfScopeMinutes: number;
+        };
+      }>;
+    }
+  | {
+      status: "NOT_FOUND" | "AMBIGUOUS" | "UNAVAILABLE";
+      message: string;
+      candidates?: string[];
+    };
+
+export type AssistantReceivablesResult =
+  | {
+      status: "OK";
+      overdueOnly: boolean;
+      clients: Array<{
+        client: string;
+        invoices: number;
+        open: AssistantMoneyTotal[];
+        overdue: AssistantMoneyTotal[];
+        maxDaysOverdue: number;
+      }>;
+      total: AssistantMoneyTotal[];
+      truncated: boolean;
+    }
+  | { status: "NOT_ALLOWED" | "UNAVAILABLE"; message: string };
 
 /** How the user names an existing event of theirs; every given field must match. */
 export interface AssistantEventLookup {
@@ -663,6 +785,21 @@ export interface LegalAssistantToolDeps {
     args: { draftId?: string },
   ): Promise<DraftReadResult>;
   listDrafts(scope: AssistantTurnScope): Promise<{ drafts: DraftListItem[] }>;
+  /** The current user's day as the time review sees it. */
+  getDayWork(
+    scope: AssistantTurnScope,
+    args: { date?: string },
+  ): Promise<AssistantDayWorkResult>;
+  /** Receivables, unbilled work, and retainer usage of one client, within the user's permissions. */
+  getClientBilling(
+    scope: AssistantTurnScope,
+    args: { client: string; month?: string },
+  ): Promise<AssistantClientBillingResult>;
+  /** Clients with open invoice balances, most overdue first; owners and admins only. */
+  listReceivables(
+    scope: AssistantTurnScope,
+    args: { overdueOnly?: boolean },
+  ): Promise<AssistantReceivablesResult>;
   /** Validates and stores a proposal; nothing changes until a user approves it. */
   proposeAction(
     scope: AssistantTurnScope,

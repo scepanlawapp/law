@@ -618,7 +618,9 @@ export type PendingActionResultEntityType =
   | "TASK"
   | "DEADLINE"
   | "WORK_ENTRY"
-  | "CASE";
+  | "CASE"
+  /** Several work entries: opens the time review. */
+  | "TIME_REVIEW";
 
 /** A record change proposed by the assistant, awaiting the user's decision. */
 export interface PendingActionSummary {
@@ -636,6 +638,10 @@ export interface PendingActionSummary {
   /** Id of the record the action created or changed, once executed. */
   resultEntityId?: string | null;
   resultEntityType?: PendingActionResultEntityType | null;
+  /** AUTO: the conversation owner may still undo the save (24 h window). */
+  canUndo?: boolean;
+  /** AUTO: when the save was undone. */
+  undoneAt?: string | null;
   /** Human-readable outcome after execution. */
   resultMessage: string | null;
   errorMessage: string | null;
