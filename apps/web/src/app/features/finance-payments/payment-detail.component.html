@@ -1,5 +1,6 @@
-<div class="mx-auto max-w-6xl space-y-4 p-4 md:p-6">
-  <a hlmBtn variant="ghost" routerLink="/finance/payments">← Uplate</a>
+<div class="min-h-0 overflow-y-auto space-y-4 p-1 md:p-3">
+  <h1 hlmDialogTitle class="pr-8 text-2xl font-semibold">Pregled uplate</h1>
+  <p hlmDialogDescription>Podaci o uplati, raspodele i istorija izmena.</p>
   @if (loading()) {
     <hlm-spinner aria-label="Učitavanje uplate" />
   }
@@ -12,9 +13,9 @@
   @if (payment(); as p) {
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
-        <h1 class="text-2xl font-semibold">
+        <h2 class="text-xl font-semibold">
           Uplata · {{ money(p.amount, p.currency) }}
-        </h1>
+        </h2>
         <p>
           {{ p.status === "VOIDED" ? "Poništena" : state(p.allocationState) }} ·
           {{ p.purpose === "ADVANCE" ? "Avans" : "Redovna uplata" }}
@@ -22,13 +23,13 @@
       </div>
       @if (p.status === "ACTIVE") {
         <div class="flex flex-wrap gap-2">
-          <a hlmBtn [routerLink]="['/finance/payments', p.id, 'edit']">
+          <button hlmBtn [disabled]="saving()" (click)="edit()">
             {{
               p.unallocatedAmount !== "0.00"
                 ? "Rasporedi preostali iznos"
                 : "Izmeni uplatu / raspodelu"
             }}
-          </a>
+          </button>
           <button hlmBtn variant="outline" (click)="showVoid.set(!showVoid())">
             Poništi uplatu
           </button>
@@ -61,7 +62,7 @@
         <br />
         {{ p.bankAccountName ?? "—" }}
         @if (p.bankStatementNumber) {
-          <p>Broj izvoda: {{ p.bankStatementNumber }}</p>
+          <span class="block">Broj izvoda: {{ p.bankStatementNumber }}</span>
         }
       </p>
       <p>
@@ -144,6 +145,7 @@
                   <a
                     class="underline"
                     [routerLink]="['/finance/invoices', a.id]"
+                    (click)="close()"
                   >
                     {{ a.invoiceNumber }}
                   </a>
@@ -223,4 +225,13 @@
       }
     </section>
   }
+  <button
+    hlmBtn
+    type="button"
+    variant="outline"
+    [disabled]="saving()"
+    (click)="close()"
+  >
+    Zatvori
+  </button>
 </div>

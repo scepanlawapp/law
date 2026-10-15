@@ -144,3 +144,34 @@ export interface PaymentAllocationPreview {
   unallocatedAmount: string;
   warning: string | null;
 }
+
+/** Supported payment currencies; shared by API validation and UI catalogs. */
+export const SUPPORTED_PAYMENT_CURRENCIES = [
+  "RSD",
+  "EUR",
+  "USD",
+  "CHF",
+  "GBP",
+  "JPY",
+  "CAD",
+  "AUD",
+  "CNY",
+  "HKD",
+  "SGD",
+  "NZD",
+  "SEK",
+  "NOK",
+  "DKK",
+  "PLN",
+  "CZK",
+  "HUF",
+  "RON",
+  "BGN",
+  "TRY",
+  "AED",
+  "SAR",
+  "INR",
+  "BRL",
+  "MXN",
+  "ZAR",
+] as const;

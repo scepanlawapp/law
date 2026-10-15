@@ -3,7 +3,8 @@ import {
   revenueSettingsGuard,
   revenueUnsavedGuard,
 } from "./features/revenue-sharing/revenue-sharing.guard";
-import { Route } from "@angular/router";
+import { inject } from "@angular/core";
+import { Route, Router } from "@angular/router";
 import { AcceptInvitationComponent } from "./accept-invitation.component";
 import { ForgotPasswordComponent } from "./auth/forgot-password/forgot-password.component";
 import { ResetPasswordComponent } from "./auth/reset-password/reset-password.component";
@@ -144,27 +145,32 @@ export const appRoutes: Route[] = [
           },
           {
             path: "payments/new",
-            canActivate: [revenueSettingsGuard],
-            loadComponent: () =>
-              import("./features/finance-payments/payment-form.component").then(
-                (m) => m.PaymentFormComponent,
-              ),
+            redirectTo: ({ queryParams }) =>
+              inject(Router).createUrlTree(["/finance/payments"], {
+                queryParams: { ...queryParams, paymentDialog: "new" },
+              }),
           },
           {
             path: "payments/:id/edit",
-            canActivate: [revenueSettingsGuard],
-            loadComponent: () =>
-              import("./features/finance-payments/payment-form.component").then(
-                (m) => m.PaymentFormComponent,
-              ),
+            redirectTo: ({ params, queryParams }) =>
+              inject(Router).createUrlTree(["/finance/payments"], {
+                queryParams: {
+                  ...queryParams,
+                  paymentDialog: "edit",
+                  paymentId: params["id"],
+                },
+              }),
           },
           {
             path: "payments/:id",
-            canActivate: [revenueSettingsGuard],
-            loadComponent: () =>
-              import(
-                "./features/finance-payments/payment-detail.component"
-              ).then((m) => m.PaymentDetailComponent),
+            redirectTo: ({ params, queryParams }) =>
+              inject(Router).createUrlTree(["/finance/payments"], {
+                queryParams: {
+                  ...queryParams,
+                  paymentDialog: "view",
+                  paymentId: params["id"],
+                },
+              }),
           },
           { path: "retainers", component: FinanceRetainersComponent },
           {

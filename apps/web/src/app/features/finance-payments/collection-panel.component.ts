@@ -1,3 +1,5 @@
+import { PaymentDialogService } from "./payment-dialog.service";
+import { PaymentFormContext } from "./payment-dialog.models";
 import { Component, effect, inject, input, signal } from "@angular/core";
 import { RouterLink } from "@angular/router";
 import { PaymentsApiClient } from "@law/api-clients";
@@ -52,17 +54,19 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
               }
             </p>
             @if (i.status === "SENT" && i.collectionStatus !== "PAID") {
-              <a
+              <button
                 hlmBtn
-                routerLink="/finance/payments/new"
-                [queryParams]="{
-                  clientId: i.clientId,
-                  invoiceId: i.id,
-                  currency: i.currency,
-                }"
+                type="button"
+                (click)="
+                  create({
+                    clientId: i.clientId,
+                    invoiceId: i.id,
+                    currency: i.currency,
+                  })
+                "
               >
                 Evidentiraj uplatu
-              </a>
+              </button>
               <a
                 hlmBtn
                 variant="outline"
@@ -103,12 +107,9 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                         }}
                       </td>
                       <td hlmTd>
-                        <a
-                          class="underline"
-                          [routerLink]="['/finance/payments', p.paymentId]"
-                        >
+                        <button class="underline" (click)="view(p.paymentId)">
                           Pregled uplate
-                        </a>
+                        </button>
                       </td>
                     </tr>
                   } @empty {
@@ -182,13 +183,13 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
               >
                 Neraspoređene uplate
               </a>
-              <a
+              <button
                 hlmBtn
-                routerLink="/finance/payments/new"
-                [queryParams]="{ clientId: clientId() }"
+                type="button"
+                (click)="create({ clientId: clientId() })"
               >
                 Nova uplata
-              </a>
+              </button>
             </div>
           }
         }
@@ -205,6 +206,15 @@ export class CollectionPanelComponent {
   readonly clientId = input<string>();
   readonly invoiceId = input<string>();
   private readonly api = inject(PaymentsApiClient);
+  private readonly dialogs = inject(PaymentDialogService);
+  async create(context: PaymentFormContext) {
+    await firstValueFrom(this.dialogs.form(context));
+    await this.load();
+  }
+  async view(id: string) {
+    await firstValueFrom(this.dialogs.view(id));
+    await this.load();
+  }
   private readonly auth = inject(AuthState);
   readonly allowed = () => canManageBilling(this.auth.activeWorkspace()?.role);
   readonly totals = signal<CollectionTotals[]>([]);
