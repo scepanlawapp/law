@@ -113,7 +113,8 @@ const contentBuilders: Record<
       subject: `Lozinka je promenjena – ${officeName}`,
       heading: "Vaša lozinka je promenjena",
       paragraphs: [
-        `Lozinka za Vaš nalog promenjena je ${formatDateTime(message.changedAt, "SR")}.`,
+        "Lozinka za Vaš nalog je promenjena.",
+        `Datum i vreme promene: ${formatDateTime(message.changedAt, "SR")}.`,
         "Ako to niste bili Vi, odmah kontaktirajte administratora kancelarije kako bi se Vaš nalog obezbedio.",
       ],
       footer: officeName,
@@ -122,7 +123,8 @@ const contentBuilders: Record<
       subject: `Your password was changed – ${officeName}`,
       heading: "Your password was changed",
       paragraphs: [
-        `The password for your account was changed on ${formatDateTime(message.changedAt, "EN")}.`,
+        "The password for your account was changed.",
+        `Date and time of change: ${formatDateTime(message.changedAt, "EN")}.`,
         "If this wasn't you, contact the office administrator immediately so your account can be secured.",
       ],
       footer: officeName,
