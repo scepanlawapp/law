@@ -315,3 +315,16 @@
 - [x] **Step 5: Full checks:** `npx nx test api`, `npx nx test web`, `npx nx run-many -t lint -p api api-e2e web web-e2e`. Expected: no new failures versus the pre-existing list in [auth_email_delivery_20261016/plan.md](../auth_email_delivery_20261016/plan.md) Task 6.
   - Result: no new failures. Pre-existing api failures: config.validation, sef-api.client, sef-invoice-validator. Pre-existing web failures: calendar, finance-statement-create, my-time (NG0303 `collapsibleSidebar`; not touched by this branch). Lint counts unchanged: api 34 errors, web 6 problems; api-e2e and web-e2e clean.
 - [x] **Step 6: Commit** `docs(auth): TOTP two-factor authentication done`.
+
+## Final review fixes
+
+Fixes from the final whole-branch review (TDD; each behaviour change started from a failing test):
+
+- [x] R7 per-account throttle: more than 10 failed second-factor checks in 15 min (`auth:rl:mfa-fail:user:<userId>`, new `AuthRateLimitStore.peek`) answer 429 `MFA_ACCOUNT_THROTTLED` on login (after the password, instead of a challenge), verify, email-code and challenge confirm; audited once per window; store fault 503. Web shows a specific message.
+- [x] R8 email fallback withheld for 72 h after a password change: no `EMAIL` in `methods`, silent email-code no-op, `EMAIL` verify fails as a wrong code; login page never sends an unoffered email code.
+- [x] Password-confirm dialog cannot be closed (Esc, backdrop, X, Cancel) while its action runs.
+- [x] Invitation acceptance routes `MFA_REQUIRED` to `/login` with a notice and `MFA_ENROLLMENT_REQUIRED` to `/mfa-setup`.
+- [x] `acceptInvitation` claims the token, sets the password, activates the membership and revokes trusted devices in one interactive transaction.
+- [x] Disabling 2FA consumes open `MFA_CHALLENGE` / `MFA_EMAIL_CODE` tokens.
+- [x] Admin policy switch and member reset require the admin's current password (`MfaPolicyUpdateRequest`, `{ currentPassword }`); the web asks for it in the password dialog.
+- [x] Docs: business-logic doc (throttle, 72 h email suppression, admin password, policy switch location as an intentional deviation from the spec), README 2FA break-glass runbook and reverse-proxy `trust proxy` note; api-e2e clears the per-account counter and tolerates the withheld email fallback.

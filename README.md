@@ -44,6 +44,33 @@ Optional TOTP two-factor authentication needs `AUTH_MFA_ENCRYPTION_KEY`: at leas
 
 End-to-end checks (the account is left with 2FA disabled; use a dedicated e2e user): start the API with `AUTH_MFA_ENCRYPTION_KEY` set, then run `AUTH_E2E_EMAIL=<e2e user> AUTH_E2E_PASSWORD=<its password> MAILPIT_URL=http://localhost:8025 npx jest -c apps/api-e2e/jest.config.cts auth-mfa`. The browser spec `apps/web-e2e/src/auth-mfa.spec.ts` additionally needs the web app on `http://localhost:4200` and `AUTH_E2E_API_URL` (default `http://localhost:3001`); run it with `npx playwright test -c apps/web-e2e/playwright.config.mts auth-mfa --project=chromium`.
 
+#### 2FA break-glass
+
+An OWNER or ADMIN resets a member's 2FA from Settings → Security. If the only OWNER lost both the phone and the recovery codes and nobody else can reset them, clear it in the database (replace the e-mail; run in one transaction):
+
+```sql
+BEGIN;
+-- Look the id up first and use it below.
+SELECT id FROM "User" WHERE email = 'owner@example.com';
+
+DELETE FROM "MfaRecoveryCode" WHERE "userId" = '<userId>';
+DELETE FROM "UserMfa" WHERE "userId" = '<userId>';
+UPDATE "TrustedDevice" SET "revokedAt" = now()
+  WHERE "userId" = '<userId>' AND "revokedAt" IS NULL;
+UPDATE "AuthSession" SET "revokedAt" = now()
+  WHERE "userId" = '<userId>' AND "revokedAt" IS NULL;
+UPDATE "AuthToken" SET "consumedAt" = now()
+  WHERE "userId" = '<userId>' AND purpose IN ('MFA_CHALLENGE', 'MFA_EMAIL_CODE')
+  AND "consumedAt" IS NULL;
+COMMIT;
+```
+
+Then add an `AuditEvent` row by hand if your process requires one. If the account is also throttled, delete the Redis key `auth:rl:mfa-fail:user:<userId>`. The user signs in with the password and, when the office requires 2FA, enrolls again.
+
+#### Behind a reverse proxy
+
+Auth rate limits are per client IP (`request.ip`). Behind a reverse proxy or load balancer, configure Express `trust proxy` (for example `app.set("trust proxy", 1)` on the Nest Express instance for one proxy hop) or every user shares the proxy's IP and one busy client throttles everyone. Trust only the hops you control, so clients cannot spoof `X-Forwarded-For`.
+
 ### Production email
 
 Auth email (invitations, password reset, password-changed notices) goes through the `auth-mail` BullMQ queue and a standard SMTP provider. Configure the provider with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM`. Set `SMTP_FROM` to an address on the domain you authenticate with the provider, and publish SPF, DKIM and DMARC records for that domain, otherwise reset and invitation mail is likely to land in spam. Redis must be reachable in production: it carries the mail queue and the auth rate limits (the login and forgot-password endpoints answer 503 when Redis is down).
