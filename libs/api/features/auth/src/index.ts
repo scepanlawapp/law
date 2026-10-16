@@ -5,3 +5,7 @@ export * from "./lib/csrf.guard";
 export * from "./lib/rate-limit.guard";
 export * from "./lib/auth.config";
 export * from "./lib/mail/auth-mail.templates";
+export * from "./lib/mail/auth-mail.queue";
+export * from "./lib/mail/auth-mail.transport";
+export * from "./lib/mail/auth-mail.service";
+export * from "./lib/mail/auth-mail.processor";

@@ -8,7 +8,7 @@ import {
 import { promisify } from "node:util";
 import { PrismaService } from "@law/core";
 import { AuthSessionResponse, WorkspaceRole } from "@law/api-interfaces";
-import { AuthMailService } from "./mail.service";
+import { AuthMailService } from "./mail/auth-mail.service";
 
 const scrypt = promisify(scryptCallback);
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
@@ -264,7 +264,7 @@ export class AuthService {
         expiresAt: new Date(Date.now() + RESET_TTL_MS),
       },
     });
-    await this.mail.sendPasswordReset(user.email, token);
+    await this.mail.sendPasswordReset(user, token);
     await this.audit({
       eventType: "PASSWORD_RESET_REQUESTED",
       outcome: "SUCCESS",
