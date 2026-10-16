@@ -18,7 +18,10 @@ export class AuthRateLimitGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const key = `ip:${request.ip}:${request.path}`;
+    // Express routes are case-insensitive and ignore trailing slashes, so
+    // normalise the path to keep one bucket per route.
+    const path = request.path.toLowerCase().replace(/\/+$/, "") || "/";
+    const key = `ip:${request.ip}:${path}`;
     let count: number;
     try {
       count = await this.store.hit(key, this.windowMs);

@@ -59,6 +59,25 @@ describe("AuthRateLimitGuard", () => {
     ).resolves.toBe(true);
   });
 
+  it("case and trailing-slash path variants share one bucket", async () => {
+    const guard = new AuthRateLimitGuard(new InMemoryAuthRateLimitStore());
+    const variants = [
+      "/api/auth/login",
+      "/api/auth/LOGIN",
+      "/api/auth/login/",
+      "/api/auth/Login//",
+      "/api/auth/login",
+    ];
+    for (const path of variants) {
+      await expect(
+        guard.canActivate(contextFor(request("10.0.0.9", path))),
+      ).resolves.toBe(true);
+    }
+    await expect(
+      guard.canActivate(contextFor(request("10.0.0.9", "/API/auth/login/"))),
+    ).rejects.toBeInstanceOf(HttpException);
+  });
+
   it("store failure answers 503", async () => {
     const store: AuthRateLimitStore = {
       hit: jest.fn().mockRejectedValue(new Error("redis down")),

@@ -1,4 +1,4 @@
-import { Inject, Injectable, OnModuleDestroy } from "@nestjs/common";
+import { Inject, Injectable, Logger, OnModuleDestroy } from "@nestjs/common";
 import Redis from "ioredis";
 
 export const AUTH_REDIS = Symbol("AUTH_REDIS");
@@ -9,12 +9,30 @@ export abstract class AuthRateLimitStore {
   abstract hit(key: string, windowMs: number): Promise<number>;
 }
 
+/**
+ * Version-agnostic (Redis < 7 has no `PEXPIRE ... NX`): INCR and, on the first
+ * hit of a window, set the TTL atomically in one script.
+ */
+const HIT_SCRIPT = `local c = redis.call('INCR', KEYS[1])
+if c == 1 then redis.call('PEXPIRE', KEYS[1], ARGV[1]) end
+return c`;
+
 export function createAuthRedisClient(): Redis {
-  return new Redis(process.env["REDIS_URL"] ?? "redis://localhost:6379", {
-    lazyConnect: true,
-    maxRetriesPerRequest: 1,
-    enableOfflineQueue: false,
+  const logger = new Logger("AuthRedis");
+  const redis = new Redis(
+    process.env["REDIS_URL"] ?? "redis://localhost:6379",
+    {
+      lazyConnect: true,
+      maxRetriesPerRequest: 1,
+      enableOfflineQueue: false,
+      connectTimeout: 2000,
+    },
+  );
+  // Without a listener ioredis prints "Unhandled error event" on every reconnect.
+  redis.on("error", (error: Error) => {
+    logger.warn(`Auth Redis client error: ${error.message}`);
   });
+  return redis;
 }
 
 @Injectable()
@@ -31,14 +49,16 @@ export class RedisAuthRateLimitStore
   async hit(key: string, windowMs: number): Promise<number> {
     await this.ensureConnected();
     const redisKey = `${KEY_PREFIX}${key}`;
-    const results = await this.redis
-      .multi()
-      .incr(redisKey)
-      .pexpire(redisKey, windowMs, "NX")
-      .exec();
-    const [error, count] = results?.[0] ?? [new Error("Empty MULTI result")];
-    if (error) throw error;
-    return Number(count);
+    const count: unknown = await this.redis.eval(
+      HIT_SCRIPT,
+      1,
+      redisKey,
+      String(windowMs),
+    );
+    if (typeof count !== "number" || !Number.isFinite(count)) {
+      throw new Error("Unexpected rate limit counter");
+    }
+    return count;
   }
 
   async onModuleDestroy(): Promise<void> {
