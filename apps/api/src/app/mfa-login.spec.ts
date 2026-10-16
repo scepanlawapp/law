@@ -777,7 +777,12 @@ describe("login and verify controllers", () => {
         userId: user.id,
       }),
     };
-    const controller = new MfaController(verification as never, config);
+    const controller = new MfaController(
+      verification as never,
+      config,
+      {} as never,
+      {} as never,
+    );
     const res = response();
     const dto = {
       method: "TOTP" as const,

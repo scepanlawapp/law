@@ -15,6 +15,7 @@ import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
 import { AuthSessionIssuer } from "./auth-session.issuer";
 import { MfaChallengeService } from "./mfa/mfa-challenge.service";
 import { MfaVerificationService } from "./mfa/mfa-verification.service";
+import { MfaEnrollmentService } from "./mfa/mfa-enrollment.service";
 import { MfaController } from "./mfa/mfa.controller";
 import {
   AUTH_REDIS,
@@ -43,6 +44,7 @@ import {
     AuthSessionIssuer,
     MfaChallengeService,
     MfaVerificationService,
+    MfaEnrollmentService,
     { provide: AUTH_REDIS, useFactory: createAuthRedisClient },
     { provide: AuthRateLimitStore, useClass: RedisAuthRateLimitStore },
   ],

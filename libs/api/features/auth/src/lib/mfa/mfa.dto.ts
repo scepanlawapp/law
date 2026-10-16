@@ -1,5 +1,19 @@
-import { IsBoolean, IsIn, IsString, Matches, MaxLength } from "class-validator";
-import { MfaMethod, MfaVerifyRequest } from "@law/api-interfaces";
+import {
+  IsBoolean,
+  IsIn,
+  IsOptional,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from "class-validator";
+import {
+  MfaEnrollmentConfirmRequest,
+  MfaEnrollmentStartRequest,
+  MfaMethod,
+  MfaPasswordRequest,
+  MfaVerifyRequest,
+} from "@law/api-interfaces";
 
 export const MFA_METHODS: MfaMethod[] = ["TOTP", "RECOVERY", "EMAIL"];
 
@@ -15,4 +29,24 @@ export class MfaVerifyDto implements MfaVerifyRequest {
 
   @IsBoolean()
   rememberDevice!: boolean;
+}
+
+export class MfaEnrollmentStartDto implements MfaEnrollmentStartRequest {
+  @IsOptional()
+  @IsString()
+  @MaxLength(256)
+  currentPassword?: string;
+}
+
+export class MfaEnrollmentConfirmDto implements MfaEnrollmentConfirmRequest {
+  @IsString()
+  @Matches(/^\d{6}$/)
+  code!: string;
+}
+
+export class MfaPasswordDto implements MfaPasswordRequest {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(256)
+  currentPassword!: string;
 }

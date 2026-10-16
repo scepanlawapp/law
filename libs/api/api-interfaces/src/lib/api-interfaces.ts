@@ -237,6 +237,54 @@ export interface MfaVerifyRequest {
   rememberDevice: boolean;
 }
 
+export interface MfaEnrollmentStartRequest {
+  /** Required when enrolling from a signed-in session. */
+  currentPassword?: string;
+}
+
+export interface MfaEnrollmentStartResponse {
+  otpauthUrl: string;
+  qrCodeDataUrl: string;
+  /** Base32 secret for manual entry; shown only while enrolling. */
+  secret: string;
+}
+
+export interface MfaEnrollmentConfirmRequest {
+  code: string;
+}
+
+export interface MfaEnrollmentConfirmResponse {
+  /** Plaintext recovery codes; returned exactly once. */
+  recoveryCodes: string[];
+  /** Present when confirming from an enrollment challenge (login step). */
+  session?: AuthSessionResponse;
+}
+
+export interface MfaPasswordRequest {
+  currentPassword: string;
+}
+
+export interface MfaRecoveryCodesResponse {
+  recoveryCodes: string[];
+}
+
+export interface TrustedDeviceSummary {
+  id: string;
+  userAgent: string | null;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string;
+  current: boolean;
+}
+
+export interface MfaStatusResponse {
+  enabled: boolean;
+  enabledAt: string | null;
+  recoveryCodesRemaining: number;
+  policyRequired: boolean;
+  trustedDevices: TrustedDeviceSummary[];
+}
+
 export interface InvitationAcceptRequest {
   token: string;
   password: string;

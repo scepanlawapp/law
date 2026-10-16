@@ -3,13 +3,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
-import {
-  createHash,
-  randomBytes,
-  scrypt as scryptCallback,
-  timingSafeEqual,
-} from "node:crypto";
-import { promisify } from "node:util";
+import { createHash, randomBytes } from "node:crypto";
 import { HARDCODED_WORKSPACE_ID, PrismaService } from "@law/core";
 import { AuthSessionResponse, LoginResponse } from "@law/api-interfaces";
 import { AuthMailService } from "./mail/auth-mail.service";
@@ -18,8 +12,8 @@ import { AuthSessionIssuer, toSessionResponse } from "./auth-session.issuer";
 import { SESSION_TTL_MS } from "./cookies";
 import { MfaChallengeService } from "./mfa/mfa-challenge.service";
 import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
+import { hashPassword, verifyPassword } from "./passwords";
 
-const scrypt = promisify(scryptCallback);
 const RESET_TTL_MS = 1000 * 60 * 30;
 const RESET_EMAIL_LIMIT = 3;
 const RESET_EMAIL_WINDOW_MS = 1000 * 60 * 60;
@@ -35,26 +29,6 @@ function hashToken(token: string): string {
 /** Keeps plaintext emails out of Redis key names and audit metadata. */
 function hashEmail(normalizedEmail: string): string {
   return createHash("sha256").update(normalizedEmail).digest("hex");
-}
-
-async function hashPassword(password: string): Promise<string> {
-  const salt = randomBytes(16).toString("hex");
-  const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
-  return `${salt}:${derivedKey.toString("hex")}`;
-}
-
-async function verifyPassword(
-  password: string,
-  storedHash: string,
-): Promise<boolean> {
-  const [salt, key] = storedHash.split(":");
-  if (!salt || !key) return false;
-  const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
-  const expected = Buffer.from(key, "hex");
-  return (
-    expected.length === derivedKey.length &&
-    timingSafeEqual(expected, derivedKey)
-  );
 }
 
 @Injectable()
