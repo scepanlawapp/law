@@ -85,39 +85,40 @@ async function mfaStatus(jar: CookieJar): Promise<MfaStatusResponse> {
     let secret = "";
     let recoveryCodes: string[] = [];
 
-    /** Best effort: leave the account with 2FA disabled even when a step failed. */
+    /**
+     * Best effort: leave the account with 2FA disabled even when a step failed.
+     * Every second-factor attempt starts from a fresh login (a new challenge),
+     * so an earlier failed attempt cannot exhaust the attempt budget.
+     */
     async function disableTwoFactor(): Promise<void> {
-      const jar = new CookieJar();
+      const attempts: Array<["TOTP" | "RECOVERY", string]> = [];
+      if (secret) {
+        for (const offset of [1, 0, -1]) {
+          attempts.push(["TOTP", totpCode(secret, offset)]);
+        }
+      }
+      for (const code of recoveryCodes) attempts.push(["RECOVERY", code]);
+
+      let jar = new CookieJar();
       let result = await login(jar);
-      if (result.status === "MFA_REQUIRED") {
-        let verified = false;
-        if (secret) {
-          for (const offset of [1, 0, -1]) {
-            try {
-              await verify(jar, "TOTP", totpCode(secret, offset));
-              verified = true;
-              break;
-            } catch {
-              // The step may have been used already; try another one.
-            }
-          }
-        }
-        for (const code of recoveryCodes) {
-          if (verified) break;
-          try {
-            await verify(jar, "RECOVERY", code);
-            verified = true;
-          } catch {
-            // Already used.
-          }
-        }
-        if (!verified) {
+      let next = 0;
+      while (result.status === "MFA_REQUIRED") {
+        if (next >= attempts.length) {
           throw new Error(
             "Could not sign in to disable 2FA; disable it manually for " +
               address,
           );
         }
-        result = { status: "AUTHENTICATED" } as LoginResponse;
+        const [method, code] = attempts[next];
+        next += 1;
+        try {
+          await verify(jar, method, code);
+          result = { status: "AUTHENTICATED" } as LoginResponse;
+        } catch {
+          // Used step or code: start over with a fresh challenge.
+          jar = new CookieJar();
+          result = await login(jar);
+        }
       }
       if (result.status !== "AUTHENTICATED") return;
       const status = await mfaStatus(jar);
@@ -235,9 +236,14 @@ async function mfaStatus(jar: CookieJar): Promise<MfaStatusResponse> {
         });
         expect((await mfaStatus(reuse)).enabled).toBe(false);
         await reuse.request("post", "/api/auth/logout");
-      } finally {
-        await disableTwoFactor();
+      } catch (error) {
+        // Never mask the assertion error that got us here.
+        await disableTwoFactor().catch((cleanupError: unknown) => {
+          console.error("2FA cleanup failed:", cleanupError);
+        });
+        throw error;
       }
+      await disableTwoFactor();
 
       // The account is left as found: password-only login works again.
       const after = new CookieJar();
