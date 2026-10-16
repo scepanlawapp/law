@@ -136,6 +136,7 @@ test.describe("MFA login", () => {
     await page.getByRole("button", { name: "Verify" }).click();
 
     await expect(page).not.toHaveURL(/\/login/);
-    await expect(page).toHaveURL(/localhost:\d+\/?$/);
+    // "/" redirects to the dashboard once a session exists.
+    await expect(page).toHaveURL(/\/dashboard$/);
   });
 });
