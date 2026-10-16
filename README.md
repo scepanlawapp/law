@@ -36,6 +36,12 @@ The API is available at `http://localhost:3001/api`, with health at `http://loca
 
 Email invitations and password-reset messages are delivered via Mailpit (`http://localhost:8025`), a local SMTP sink that captures outbound mail. No actual email is sent in development.
 
+Local end-to-end check: with the API running, run `AUTH_E2E_EMAIL=<seeded user> AUTH_E2E_PASSWORD=<its password> MAILPIT_URL=http://localhost:8025 npx nx e2e api-e2e --testPathPatterns=auth-email`. Mailpit can take several seconds per delivery on some setups (for example WSL reverse DNS lookups); `MP_SMTP_DISABLE_RDNS=true` on the Mailpit container removes the delay.
+
+### Production email
+
+Auth email (invitations, password reset, password-changed notices) goes through the `auth-mail` BullMQ queue and a standard SMTP provider. Configure the provider with `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and `SMTP_FROM`. Set `SMTP_FROM` to an address on the domain you authenticate with the provider, and publish SPF, DKIM and DMARC records for that domain, otherwise reset and invitation mail is likely to land in spam. Redis must be reachable in production: it carries the mail queue and the auth rate limits (the login and forgot-password endpoints answer 503 when Redis is down).
+
 ## Document file storage
 
 Workspace documents stream to a local directory (`FILE_STORAGE_ROOT`, absolute path required in production; development default is `<repo>/tmp/file-storage`). Chat attachments stay under `CHAT_UPLOAD_DIR` and are a separate store.

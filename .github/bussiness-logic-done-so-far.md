@@ -53,7 +53,9 @@ Implemented in `libs/api/features/auth` and used by the web application:
 - Current-session lookup (`/auth/me`), session refresh, and logout.
 - Invitation acceptance and authenticated invitation creation.
 - Forgot-password, reset-password, and authenticated password-change flows.
-- Rate limiting on login and password-forgot requests.
+- Rate limiting on login and password-forgot requests, backed by Redis (`auth:rl:` keys): 5 attempts per 60 s per IP and path; forgot-password is additionally limited to 3 per hour per normalized email. A throttled forgot-password request returns the normal success response and is audited as `PASSWORD_RESET_THROTTLED`. When Redis is unavailable these endpoints answer 503 instead of letting requests through.
+- Auth email (invitation, password reset, password changed) is queued on the BullMQ queue `auth-mail` (5 attempts, exponential backoff, failed jobs kept 1 hour) and sent over SMTP. Messages are localized to Serbian Latin or English from the user's language setting (invitations are always Serbian), use the office name from organization settings, and have HTML and plain-text parts. A final delivery failure is audited as `EMAIL_DELIVERY_FAILED` without the token; the forgot-password response never depends on delivery. Locally, mail is captured by Mailpit (`http://localhost:8025`).
+- Password reset hardening: a new reset request, a completed reset, and a password change all consume every open reset link. A password change also revokes the user's other sessions (the current one stays). A "password changed" email is sent after reset and after change.
 - Authenticated route protection in the Angular router through `authGuard`.
 
 ## Clients
