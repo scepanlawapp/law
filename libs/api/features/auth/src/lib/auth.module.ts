@@ -11,6 +11,12 @@ import { AuthGuard } from "./auth.guard";
 import { CsrfOriginGuard } from "./csrf.guard";
 import { AuthRateLimitGuard } from "./rate-limit.guard";
 import { AuthRuntimeConfig } from "./auth.config";
+import {
+  AUTH_REDIS,
+  AuthRateLimitStore,
+  RedisAuthRateLimitStore,
+  createAuthRedisClient,
+} from "./rate-limit.store";
 
 @Global()
 @Module({
@@ -28,6 +34,8 @@ import { AuthRuntimeConfig } from "./auth.config";
     CsrfOriginGuard,
     AuthRateLimitGuard,
     AuthRuntimeConfig,
+    { provide: AUTH_REDIS, useFactory: createAuthRedisClient },
+    { provide: AuthRateLimitStore, useClass: RedisAuthRateLimitStore },
   ],
   exports: [
     AuthService,

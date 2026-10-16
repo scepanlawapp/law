@@ -4,31 +4,28 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  ServiceUnavailableException,
 } from "@nestjs/common";
 import { Request } from "express";
-
-interface AttemptWindow {
-  count: number;
-  startedAt: number;
-}
+import { AuthRateLimitStore } from "./rate-limit.store";
 
 @Injectable()
 export class AuthRateLimitGuard implements CanActivate {
-  private readonly attempts = new Map<string, AttemptWindow>();
   private readonly limit = 5;
   private readonly windowMs = 60_000;
 
-  canActivate(context: ExecutionContext): boolean {
+  constructor(private readonly store: AuthRateLimitStore) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest<Request>();
-    const key = `${request.ip}:${request.path}`;
-    const now = Date.now();
-    const window = this.attempts.get(key);
-    if (!window || now - window.startedAt >= this.windowMs) {
-      this.attempts.set(key, { count: 1, startedAt: now });
-      return true;
+    const key = `ip:${request.ip}:${request.path}`;
+    let count: number;
+    try {
+      count = await this.store.hit(key, this.windowMs);
+    } catch {
+      throw new ServiceUnavailableException("Rate limiting unavailable");
     }
-    window.count += 1;
-    if (window.count > this.limit) {
+    if (count > this.limit) {
       throw new HttpException(
         "Too many attempts",
         HttpStatus.TOO_MANY_REQUESTS,

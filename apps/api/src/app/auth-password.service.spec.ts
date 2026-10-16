@@ -34,7 +34,12 @@ function createService() {
     sendPasswordReset: jest.fn().mockResolvedValue(undefined),
     sendPasswordChanged: jest.fn().mockResolvedValue(undefined),
   };
-  const service = new AuthService(prisma as never, mail as never);
+  const rateLimit = { hit: jest.fn().mockResolvedValue(1) };
+  const service = new AuthService(
+    prisma as never,
+    mail as never,
+    rateLimit as never,
+  );
   return { service, prisma, mail };
 }
 

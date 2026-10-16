@@ -1,4 +1,8 @@
-import { Injectable, UnauthorizedException } from "@nestjs/common";
+import {
+  Injectable,
+  ServiceUnavailableException,
+  UnauthorizedException,
+} from "@nestjs/common";
 import {
   createHash,
   randomBytes,
@@ -9,10 +13,13 @@ import { promisify } from "node:util";
 import { PrismaService } from "@law/core";
 import { AuthSessionResponse, WorkspaceRole } from "@law/api-interfaces";
 import { AuthMailService } from "./mail/auth-mail.service";
+import { AuthRateLimitStore } from "./rate-limit.store";
 
 const scrypt = promisify(scryptCallback);
 const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const RESET_TTL_MS = 1000 * 60 * 30;
+const RESET_EMAIL_LIMIT = 3;
+const RESET_EMAIL_WINDOW_MS = 1000 * 60 * 60;
 
 function normalizeEmail(email: string): string {
   return email.trim().toLowerCase();
@@ -47,6 +54,7 @@ export class AuthService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly mail: AuthMailService,
+    private readonly rateLimit: AuthRateLimitStore,
   ) {}
 
   async createInvitation(
@@ -251,8 +259,25 @@ export class AuthService {
   }
 
   async requestPasswordReset(email: string): Promise<void> {
+    const normalizedEmail = normalizeEmail(email);
+    let attempts: number;
+    try {
+      attempts = await this.rateLimit.hit(
+        `pwreset-email:${normalizedEmail}`,
+        RESET_EMAIL_WINDOW_MS,
+      );
+    } catch {
+      throw new ServiceUnavailableException("Rate limiting unavailable");
+    }
+    if (attempts > RESET_EMAIL_LIMIT) {
+      await this.audit({
+        eventType: "PASSWORD_RESET_THROTTLED",
+        outcome: "FAILURE",
+      });
+      return;
+    }
     const user = await this.prisma.user.findUnique({
-      where: { email: normalizeEmail(email) },
+      where: { email: normalizedEmail },
     });
     if (!user || user.status === "DISABLED") return;
     const token = randomBytes(32).toString("base64url");
