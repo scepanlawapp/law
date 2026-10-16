@@ -7,6 +7,7 @@ function stubRedis(overrides: Record<string, unknown> = {}) {
       redis.status = "ready";
     }),
     eval: jest.fn().mockResolvedValue(1),
+    get: jest.fn().mockResolvedValue(null),
     quit: jest.fn().mockResolvedValue("OK"),
     disconnect: jest.fn(),
     ...overrides,
@@ -62,4 +63,35 @@ describe("RedisAuthRateLimitStore", () => {
       await expect(store.hit("a", 1000)).rejects.toThrow();
     },
   );
+
+  it("peek reads the prefixed counter without incrementing", async () => {
+    const redis = stubRedis();
+    redis.get.mockResolvedValue("7");
+    const store = new RedisAuthRateLimitStore(redis as never);
+
+    await expect(store.peek("mfa-fail:user:u1")).resolves.toBe(7);
+
+    expect(redis.get).toHaveBeenCalledWith("auth:rl:mfa-fail:user:u1");
+    expect(redis.eval).not.toHaveBeenCalled();
+  });
+
+  it("peek returns 0 for a missing counter", async () => {
+    const redis = stubRedis();
+    const store = new RedisAuthRateLimitStore(redis as never);
+
+    await expect(store.peek("missing")).resolves.toBe(0);
+  });
+
+  it("peek rejects a non-numeric value and a Redis failure", async () => {
+    const garbage = stubRedis({ get: jest.fn().mockResolvedValue("abc") });
+    await expect(
+      new RedisAuthRateLimitStore(garbage as never).peek("a"),
+    ).rejects.toThrow();
+    const down = stubRedis({
+      get: jest.fn().mockRejectedValue(new Error("redis down")),
+    });
+    await expect(
+      new RedisAuthRateLimitStore(down as never).peek("a"),
+    ).rejects.toThrow("redis down");
+  });
 });

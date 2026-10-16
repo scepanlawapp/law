@@ -82,6 +82,7 @@ describe("AuthRateLimitGuard", () => {
   it("store failure answers 503", async () => {
     const store: AuthRateLimitStore = {
       hit: jest.fn().mockRejectedValue(new Error("redis down")),
+      peek: jest.fn().mockRejectedValue(new Error("redis down")),
     };
     const guard = new AuthRateLimitGuard(store);
 
@@ -105,6 +106,22 @@ describe("InMemoryAuthRateLimitStore", () => {
       jest.useRealTimers();
     }
   });
+
+  it("peek reads the current count without incrementing and expires with the window", async () => {
+    jest.useFakeTimers();
+    try {
+      const store = new InMemoryAuthRateLimitStore();
+      expect(await store.peek("k")).toBe(0);
+      await store.hit("k", 1000);
+      await store.hit("k", 1000);
+      expect(await store.peek("k")).toBe(2);
+      expect(await store.peek("k")).toBe(2);
+      jest.advanceTimersByTime(1000);
+      expect(await store.peek("k")).toBe(0);
+    } finally {
+      jest.useRealTimers();
+    }
+  });
 });
 
 function createService(store: AuthRateLimitStore) {
@@ -122,6 +139,7 @@ function createService(store: AuthRateLimitStore) {
     prisma as never,
     mail as never,
     store,
+    {} as never,
     {} as never,
     {} as never,
     {} as never,
@@ -201,6 +219,7 @@ describe("per-email password reset throttle", () => {
   it("store failure answers 503", async () => {
     const { service, prisma } = createService({
       hit: jest.fn().mockRejectedValue(new Error("redis down")),
+      peek: jest.fn().mockRejectedValue(new Error("redis down")),
     });
 
     await expect(

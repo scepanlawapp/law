@@ -7,6 +7,8 @@ const KEY_PREFIX = "auth:rl:";
 export abstract class AuthRateLimitStore {
   /** Increments `auth:rl:${key}`; sets TTL on first hit; returns the count in the current window. */
   abstract hit(key: string, windowMs: number): Promise<number>;
+  /** Reads `auth:rl:${key}` without incrementing; 0 when no window is open. */
+  abstract peek(key: string): Promise<number>;
 }
 
 /**
@@ -61,6 +63,17 @@ export class RedisAuthRateLimitStore
     return count;
   }
 
+  async peek(key: string): Promise<number> {
+    await this.ensureConnected();
+    const value = await this.redis.get(`${KEY_PREFIX}${key}`);
+    if (value === null) return 0;
+    const count = Number(value);
+    if (!Number.isFinite(count)) {
+      throw new Error("Unexpected rate limit counter");
+    }
+    return count;
+  }
+
   async onModuleDestroy(): Promise<void> {
     if (this.redis.status === "end") return;
     try {
@@ -103,6 +116,12 @@ export class InMemoryAuthRateLimitStore extends AuthRateLimitStore {
       return 1;
     }
     current.count += 1;
+    return current.count;
+  }
+
+  async peek(key: string): Promise<number> {
+    const current = this.windows.get(key);
+    if (!current || Date.now() >= current.expiresAt) return 0;
     return current.count;
   }
 }

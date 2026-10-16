@@ -15,6 +15,7 @@ import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
 import { AuthSessionIssuer } from "./auth-session.issuer";
 import { MfaChallengeService } from "./mfa/mfa-challenge.service";
 import { MfaVerificationService } from "./mfa/mfa-verification.service";
+import { MfaFailureThrottle } from "./mfa/mfa-failure-throttle";
 import { MfaEnrollmentService } from "./mfa/mfa-enrollment.service";
 import { MfaController } from "./mfa/mfa.controller";
 import { TrustedDeviceService } from "./mfa/trusted-device.service";
@@ -47,6 +48,7 @@ import {
     AuthSessionIssuer,
     MfaChallengeService,
     MfaVerificationService,
+    MfaFailureThrottle,
     MfaEnrollmentService,
     TrustedDeviceService,
     MfaAdminService,

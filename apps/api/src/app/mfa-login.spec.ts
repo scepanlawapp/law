@@ -1,4 +1,5 @@
 import {
+  HttpException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -6,11 +7,14 @@ import { createHash, randomBytes, scryptSync } from "node:crypto";
 import { Secret, TOTP } from "otpauth";
 import {
   AuthController,
+  AuthRateLimitStore,
   AuthService,
+  InMemoryAuthRateLimitStore,
   AuthSessionIssuer,
   MFA_CHALLENGE_COOKIE,
   MfaChallengeService,
   MfaController,
+  MfaFailureThrottle,
   MfaSecretCipher,
   MfaVerificationService,
   TrustedDeviceService,
@@ -60,8 +64,11 @@ const user = {
   ],
 };
 
-function createHarness(options: { key?: string | undefined } = {}) {
+function createHarness(
+  options: { key?: string | undefined; store?: AuthRateLimitStore } = {},
+) {
   const key = "key" in options ? options.key : TEST_KEY;
+  const store = options.store ?? new InMemoryAuthRateLimitStore();
   const prisma = {
     user: {
       findUnique: jest.fn().mockResolvedValue(user),
@@ -96,14 +103,16 @@ function createHarness(options: { key?: string | undefined } = {}) {
   const sessions = new AuthSessionIssuer(prisma as never);
   const challenges = new MfaChallengeService(prisma as never);
   const trustedDevices = new TrustedDeviceService(prisma as never);
+  const throttle = new MfaFailureThrottle(prisma as never, store);
   const authService = new AuthService(
     prisma as never,
     {} as never,
-    { hit: jest.fn().mockResolvedValue(1) } as never,
+    store,
     sessions,
     challenges,
     cipher,
     trustedDevices,
+    throttle,
   );
   const verification = new MfaVerificationService(
     prisma as never,
@@ -112,9 +121,10 @@ function createHarness(options: { key?: string | undefined } = {}) {
     sessions,
     trustedDevices,
     { sendMfaEmailCode: jest.fn() } as never,
-    { hit: jest.fn().mockResolvedValue(1) } as never,
+    store,
+    throttle,
   );
-  return { prisma, cipher, authService, verification };
+  return { prisma, cipher, authService, verification, store };
 }
 
 function enabledMfa(
@@ -685,6 +695,190 @@ describe("MfaVerificationService.verify", () => {
       expect(prisma.authSession.create).not.toHaveBeenCalled();
     },
   );
+});
+
+describe("per-account MFA failure throttle", () => {
+  const failKey = `mfa-fail:user:${user.id}`;
+
+  function totpHarness(store?: AuthRateLimitStore) {
+    const harness = createHarness(store ? { store } : {});
+    const secret = generateTotpSecret();
+    harness.prisma.userMfa.findUnique.mockResolvedValue(
+      enabledMfa(harness.cipher, secret),
+    );
+    harness.prisma.authToken.findFirst.mockResolvedValue(loginChallenge);
+    const code = new TOTP({ secret: Secret.fromBase32(secret) }).generate();
+    return { ...harness, code };
+  }
+
+  const wrong = {
+    method: "TOTP" as const,
+    code: "000000",
+    rememberDevice: false,
+  };
+
+  function throttled(error: unknown) {
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getStatus()).toBe(429);
+    expect((error as HttpException).getResponse()).toMatchObject({
+      error: "MFA_ACCOUNT_THROTTLED",
+    });
+  }
+
+  it("the 11th failed check throttles the account: next verify and next login → 429, audited once", async () => {
+    const { verification, authService, prisma, store } = totpHarness();
+    for (let i = 0; i < 11; i += 1) {
+      await expect(
+        verification.verify("raw-challenge", wrong),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    }
+    expect(await store.peek(failKey)).toBe(11);
+    prisma.authToken.updateMany.mockClear();
+    prisma.authToken.create.mockClear();
+
+    throttled(
+      await verification
+        .verify("raw-challenge", wrong)
+        .catch((caught: unknown) => caught),
+    );
+    // Rejected before an attempt is reserved.
+    expect(prisma.authToken.updateMany).not.toHaveBeenCalled();
+
+    throttled(
+      await authService
+        .login(user.email, PASSWORD)
+        .catch((caught: unknown) => caught),
+    );
+    expect(prisma.authToken.create).not.toHaveBeenCalled();
+    expect(prisma.authSession.create).not.toHaveBeenCalled();
+
+    const throttleAudits = prisma.auditEvent.create.mock.calls.filter(
+      ([arg]: [{ data: { eventType: string } }]) =>
+        arg.data.eventType === "MFA_ACCOUNT_THROTTLED",
+    );
+    expect(throttleAudits).toEqual([
+      [
+        {
+          data: {
+            eventType: "MFA_ACCOUNT_THROTTLED",
+            outcome: "FAILURE",
+            userId: user.id,
+          },
+        },
+      ],
+    ]);
+  });
+
+  it("ten failures do not throttle: a correct code still signs in", async () => {
+    const { verification, store, code } = totpHarness();
+    for (let i = 0; i < 10; i += 1) {
+      await expect(
+        verification.verify("raw-challenge", wrong),
+      ).rejects.toBeInstanceOf(UnauthorizedException);
+    }
+
+    await expect(
+      verification.verify("raw-challenge", {
+        method: "TOTP",
+        code,
+        rememberDevice: false,
+      }),
+    ).resolves.toMatchObject({ userId: user.id });
+    expect(await store.peek(failKey)).toBe(10);
+  });
+
+  it("a successful verify does not increment the counter", async () => {
+    const { verification, store, code } = totpHarness();
+
+    await verification.verify("raw-challenge", {
+      method: "TOTP",
+      code,
+      rememberDevice: false,
+    });
+
+    expect(await store.peek(failKey)).toBe(0);
+  });
+
+  it("failed recovery and email checks count too", async () => {
+    const { verification, store, prisma } = totpHarness();
+    prisma.authToken.findFirst.mockImplementation(
+      async (arg: { where: { purpose: string } }) =>
+        arg.where.purpose === "MFA_CHALLENGE" ? loginChallenge : null,
+    );
+
+    await expect(
+      verification.verify("raw-challenge", {
+        method: "RECOVERY",
+        code: "abcd-efgh",
+        rememberDevice: false,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    await expect(
+      verification.verify("raw-challenge", {
+        method: "EMAIL",
+        code: "123456",
+        rememberDevice: false,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(await store.peek(failKey)).toBe(2);
+  });
+
+  it("a throttled user under the 2FA policy gets 429 instead of an ENROLLMENT challenge", async () => {
+    const store = new InMemoryAuthRateLimitStore();
+    for (let i = 0; i < 11; i += 1) await store.hit(failKey, 60_000);
+    const { authService, prisma } = createHarness({ store });
+    prisma.organizationSettings.findUnique.mockResolvedValue({
+      mfaRequired: true,
+    });
+
+    throttled(
+      await authService
+        .login(user.email, PASSWORD)
+        .catch((caught: unknown) => caught),
+    );
+    expect(prisma.authToken.create).not.toHaveBeenCalled();
+  });
+
+  it("a throttled user still gets 401 for a wrong password (password checked first)", async () => {
+    const store = new InMemoryAuthRateLimitStore();
+    for (let i = 0; i < 11; i += 1) await store.hit(failKey, 60_000);
+    const { authService } = createHarness({ store });
+
+    await expect(
+      authService.login(user.email, "wrong-password"),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+  });
+
+  it("store failure → 503 on verify (no reservation) and on login (no challenge)", async () => {
+    const down: AuthRateLimitStore = {
+      hit: jest.fn().mockRejectedValue(new Error("redis down")),
+      peek: jest.fn().mockRejectedValue(new Error("redis down")),
+    };
+    const { verification, authService, prisma } = totpHarness(down);
+
+    await expect(
+      verification.verify("raw-challenge", wrong),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(prisma.authToken.updateMany).not.toHaveBeenCalled();
+
+    await expect(
+      authService.login(user.email, PASSWORD),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(prisma.authToken.create).not.toHaveBeenCalled();
+  });
+
+  it("a failing counter increment after a wrong code → 503", async () => {
+    const flaky: AuthRateLimitStore = {
+      hit: jest.fn().mockRejectedValue(new Error("redis down")),
+      peek: jest.fn().mockResolvedValue(0),
+    };
+    const { verification } = totpHarness(flaky);
+
+    await expect(
+      verification.verify("raw-challenge", wrong),
+    ).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
 });
 
 describe("login and verify controllers", () => {

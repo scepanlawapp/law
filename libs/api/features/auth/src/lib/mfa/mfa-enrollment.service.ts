@@ -22,6 +22,7 @@ import {
   MFA_CHALLENGE_INVALID,
   MfaChallengeService,
 } from "./mfa-challenge.service";
+import { MfaFailureThrottle } from "./mfa-failure-throttle";
 import { MfaSecretCipher } from "./mfa-secret.cipher";
 import { generateRecoveryCodes, hashRecoveryCode } from "./recovery-codes";
 import { generateTotpSecret, totpUri, verifyTotp } from "./totp";
@@ -58,6 +59,7 @@ export class MfaEnrollmentService {
     private readonly sessions: AuthSessionIssuer,
     private readonly mail: AuthMailService,
     private readonly trustedDevices: TrustedDeviceService,
+    private readonly throttle: MfaFailureThrottle,
   ) {}
 
   async start(
@@ -126,6 +128,7 @@ export class MfaEnrollmentService {
         : null;
     const userId =
       actor.kind === "session" ? actor.userId : (challenge?.userId as string);
+    if (challenge) await this.throttle.assertNotThrottled(userId);
 
     const mfa = await this.prisma.userMfa.findUnique({ where: { userId } });
     if (!mfa) throw new BadRequestException("Enrollment has not been started");
@@ -139,6 +142,7 @@ export class MfaEnrollmentService {
     const step = verifyTotp(secret, code, null);
     if (step === null) {
       if (challenge && reserved) {
+        await this.throttle.recordFailure(userId);
         const { locked } = await this.challenges.recordFailure(
           challenge,
           reserved.attempts,

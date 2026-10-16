@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  HttpException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -12,7 +13,9 @@ import {
   MFA_CHALLENGE_COOKIE,
   MfaChallengeService,
   MfaController,
+  InMemoryAuthRateLimitStore,
   MfaEnrollmentService,
+  MfaFailureThrottle,
   MfaSecretCipher,
   TrustedDeviceService,
   generateTotpSecret,
@@ -92,6 +95,7 @@ const user = {
 
 function createHarness(options: { key?: string | undefined } = {}) {
   const key = "key" in options ? options.key : TEST_KEY;
+  const store = new InMemoryAuthRateLimitStore();
   const prisma = {
     user: { findUnique: jest.fn().mockResolvedValue(user) },
     userMfa: {
@@ -130,8 +134,9 @@ function createHarness(options: { key?: string | undefined } = {}) {
     sessions,
     mail as never,
     new TrustedDeviceService(prisma as never),
+    new MfaFailureThrottle(prisma as never, store),
   );
-  return { prisma, cipher, service, mail };
+  return { prisma, cipher, service, mail, store };
 }
 
 function pendingMfa(cipher: MfaSecretCipher, secret: string) {
@@ -490,6 +495,54 @@ describe("MfaEnrollmentService.confirm", () => {
     ).rejects.toBeInstanceOf(ConflictException);
     expect(prisma.mfaRecoveryCode.createMany).not.toHaveBeenCalled();
     expect(auditTypes(prisma)).not.toContain("MFA_ENROLLED");
+  });
+});
+
+describe("MfaEnrollmentService.confirm and the per-account failure throttle", () => {
+  const failKey = `mfa-fail:user:${user.id}`;
+
+  it("a wrong code via the ENROLLMENT challenge counts as a failure", async () => {
+    const { service, prisma, cipher, store } = createHarness();
+    const secret = generateTotpSecret();
+    prisma.userMfa.findUnique.mockResolvedValue(pendingMfa(cipher, secret));
+    prisma.authToken.findFirst.mockResolvedValue(enrollmentChallengeRow);
+
+    await expect(
+      service.confirm(challengeActor, wrongCode(secret)),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(await store.peek(failKey)).toBe(1);
+  });
+
+  it("a correct code via the challenge does not count", async () => {
+    const { service, prisma, cipher, store } = createHarness();
+    const secret = generateTotpSecret();
+    prisma.userMfa.findUnique.mockResolvedValue(pendingMfa(cipher, secret));
+    prisma.authToken.findFirst.mockResolvedValue(enrollmentChallengeRow);
+
+    await service.confirm(challengeActor, currentCode(secret));
+
+    expect(await store.peek(failKey)).toBe(0);
+  });
+
+  it("a throttled account → 429 before an attempt is reserved", async () => {
+    const { service, prisma, cipher, store } = createHarness();
+    for (let i = 0; i < 11; i += 1) await store.hit(failKey, 60_000);
+    const secret = generateTotpSecret();
+    prisma.userMfa.findUnique.mockResolvedValue(pendingMfa(cipher, secret));
+    prisma.authToken.findFirst.mockResolvedValue(enrollmentChallengeRow);
+
+    const error = await service
+      .confirm(challengeActor, currentCode(secret))
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getStatus()).toBe(429);
+    expect((error as HttpException).getResponse()).toMatchObject({
+      error: "MFA_ACCOUNT_THROTTLED",
+    });
+    expect(prisma.authToken.updateMany).not.toHaveBeenCalled();
+    expect(prisma.userMfa.updateMany).not.toHaveBeenCalled();
   });
 });
 

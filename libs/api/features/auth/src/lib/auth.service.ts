@@ -11,6 +11,7 @@ import { AuthRateLimitStore } from "./rate-limit.store";
 import { AuthSessionIssuer, toSessionResponse } from "./auth-session.issuer";
 import { SESSION_TTL_MS } from "./cookies";
 import { MfaChallengeService } from "./mfa/mfa-challenge.service";
+import { MfaFailureThrottle } from "./mfa/mfa-failure-throttle";
 import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
 import { TrustedDeviceService } from "./mfa/trusted-device.service";
 import { hashPassword, verifyPassword } from "./passwords";
@@ -42,6 +43,7 @@ export class AuthService {
     private readonly challenges: MfaChallengeService,
     private readonly mfaCipher: MfaSecretCipher,
     private readonly trustedDevices: TrustedDeviceService,
+    private readonly mfaThrottle: MfaFailureThrottle,
   ) {}
 
   async createInvitation(
@@ -176,6 +178,7 @@ export class AuthService {
           sessionToken: trusted.token,
         };
       }
+      await this.mfaThrottle.assertNotThrottled(userId);
       return {
         result: {
           status: "MFA_REQUIRED",
@@ -186,6 +189,7 @@ export class AuthService {
     }
 
     if (await this.mfaRequiredByPolicy()) {
+      await this.mfaThrottle.assertNotThrottled(userId);
       return {
         result: { status: "MFA_ENROLLMENT_REQUIRED" },
         challengeToken: await this.challenges.create(userId, "ENROLLMENT"),

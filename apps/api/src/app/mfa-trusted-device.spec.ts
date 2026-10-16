@@ -11,9 +11,11 @@ import {
   AuthGuard,
   AuthService,
   AuthSessionIssuer,
+  InMemoryAuthRateLimitStore,
   MfaChallengeService,
   MfaController,
   MfaEnrollmentService,
+  MfaFailureThrottle,
   MfaSecretCipher,
   MfaVerificationService,
   TrustedDeviceService,
@@ -308,6 +310,7 @@ describe("login with a trusted device", () => {
       new MfaChallengeService(prisma as never),
       cipherWithKey(key),
       trusted,
+      new MfaFailureThrottle(prisma as never, new InMemoryAuthRateLimitStore()),
     );
     return { prisma, table, service };
   }
@@ -437,6 +440,7 @@ describe("verify with rememberDevice", () => {
       new TrustedDeviceService(prisma as never),
       { sendMfaEmailCode: jest.fn() } as never,
       { hit: jest.fn().mockResolvedValue(1) } as never,
+      new MfaFailureThrottle(prisma as never, new InMemoryAuthRateLimitStore()),
     );
     return { prisma, table, service };
   }
@@ -538,6 +542,7 @@ describe("revocation rules", () => {
       {} as never,
       {} as never,
       trusted as never,
+      {} as never,
     );
     return { service, prisma, tx, trusted, mail };
   }
@@ -632,6 +637,7 @@ describe("MfaEnrollmentService trusted devices", () => {
       new AuthSessionIssuer(prisma as never),
       mail as never,
       trusted,
+      new MfaFailureThrottle(prisma as never, new InMemoryAuthRateLimitStore()),
     );
     return { prisma, table, tx, service, revokeAll };
   }
@@ -970,7 +976,7 @@ describe("controllers and trusted-device cookie", () => {
 describe("AuthRateLimitGuard on parameterised routes", () => {
   it("shares one bucket across ids by keying on the route pattern", async () => {
     const hit = jest.fn().mockResolvedValue(1);
-    const guard = new AuthRateLimitGuard({ hit });
+    const guard = new AuthRateLimitGuard({ hit, peek: jest.fn() });
     const contextFor = (path: string) =>
       ({
         switchToHttp: () => ({

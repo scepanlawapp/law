@@ -20,6 +20,7 @@ import {
   MFA_CHALLENGE_INVALID,
   MfaChallengeService,
 } from "./mfa-challenge.service";
+import { MfaFailureThrottle } from "./mfa-failure-throttle";
 import { MfaSecretCipher } from "./mfa-secret.cipher";
 import { hashRecoveryCode } from "./recovery-codes";
 import { TrustedDeviceService } from "./trusted-device.service";
@@ -58,6 +59,7 @@ export class MfaVerificationService {
     private readonly trustedDevices: TrustedDeviceService,
     private readonly mail: AuthMailService,
     private readonly rateLimit: AuthRateLimitStore,
+    private readonly throttle: MfaFailureThrottle,
   ) {}
 
   /**
@@ -69,6 +71,7 @@ export class MfaVerificationService {
   async sendEmailCode(challengeToken: string | undefined): Promise<void> {
     const challenge = await this.challenges.find(challengeToken, "LOGIN");
     const { userId } = challenge;
+    await this.throttle.assertNotThrottled(userId);
 
     const mfa = await this.prisma.userMfa.findUnique({ where: { userId } });
     if (!mfa?.enabledAt) return;
@@ -138,6 +141,7 @@ export class MfaVerificationService {
   }> {
     const challenge = await this.challenges.find(challengeToken, "LOGIN");
     const { userId } = challenge;
+    await this.throttle.assertNotThrottled(userId);
     const mfa = await this.prisma.userMfa.findUnique({ where: { userId } });
     // Decrypt before reserving: a server-side fault must not burn an attempt.
     const secret =
@@ -156,6 +160,7 @@ export class MfaVerificationService {
 
     if (!accepted) {
       await this.audit("FAILURE", userId, request.method);
+      await this.throttle.recordFailure(userId);
       const { locked } = await this.challenges.recordFailure(
         challenge,
         attempts,

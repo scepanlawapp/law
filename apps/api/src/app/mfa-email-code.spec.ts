@@ -1,4 +1,5 @@
 import {
+  HttpException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -9,6 +10,7 @@ import {
   InMemoryAuthRateLimitStore,
   MfaChallengeService,
   MfaController,
+  MfaFailureThrottle,
   MfaSecretCipher,
   MfaVerificationService,
   TrustedDeviceService,
@@ -93,6 +95,7 @@ function createHarness(
     new TrustedDeviceService(prisma as never),
     mail as never,
     store,
+    new MfaFailureThrottle(prisma as never, store),
   );
   return { prisma, mail, verification, store };
 }
@@ -184,7 +187,10 @@ describe("MfaVerificationService.sendEmailCode", () => {
   });
 
   it("counts under the documented store keys", async () => {
-    const store = { hit: jest.fn().mockResolvedValue(1) };
+    const store = {
+      hit: jest.fn().mockResolvedValue(1),
+      peek: jest.fn().mockResolvedValue(0),
+    };
     const { verification } = createHarness(store);
 
     await verification.sendEmailCode("raw-challenge");
@@ -256,11 +262,34 @@ describe("MfaVerificationService.sendEmailCode", () => {
   it("rate-limit store failure → 503 and nothing sent", async () => {
     const { verification, prisma, mail } = createHarness({
       hit: jest.fn().mockRejectedValue(new Error("redis down")),
+      peek: jest.fn().mockRejectedValue(new Error("redis down")),
     });
 
     await expect(
       verification.sendEmailCode("raw-challenge"),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
+    expect(mail.sendMfaEmailCode).not.toHaveBeenCalled();
+    expect(prisma.authToken.create).not.toHaveBeenCalled();
+  });
+});
+
+describe("MfaVerificationService.sendEmailCode for a throttled account", () => {
+  it("→ 429 MFA_ACCOUNT_THROTTLED and nothing sent", async () => {
+    const store = new InMemoryAuthRateLimitStore();
+    for (let i = 0; i < 11; i += 1) {
+      await store.hit("mfa-fail:user:user-1", 60_000);
+    }
+    const { verification, prisma, mail } = createHarness(store);
+
+    const error = await verification
+      .sendEmailCode("raw-challenge")
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(HttpException);
+    expect((error as HttpException).getStatus()).toBe(429);
+    expect((error as HttpException).getResponse()).toMatchObject({
+      error: "MFA_ACCOUNT_THROTTLED",
+    });
     expect(mail.sendMfaEmailCode).not.toHaveBeenCalled();
     expect(prisma.authToken.create).not.toHaveBeenCalled();
   });

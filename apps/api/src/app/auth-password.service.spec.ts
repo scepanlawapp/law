@@ -50,6 +50,7 @@ function createService() {
     {} as never,
     {} as never,
     trustedDevices as never,
+    {} as never,
   );
   return { service, prisma, mail, trustedDevices };
 }
