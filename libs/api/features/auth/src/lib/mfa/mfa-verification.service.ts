@@ -53,16 +53,25 @@ export class MfaVerificationService {
     const challenge = await this.challenges.find(challengeToken, "LOGIN");
     const { userId } = challenge;
     const mfa = await this.prisma.userMfa.findUnique({ where: { userId } });
+    // Decrypt before reserving: a server-side fault must not burn an attempt.
+    const secret =
+      mfa?.enabledAt && request.method === "TOTP"
+        ? this.decryptSecret(mfa)
+        : null;
 
+    const { attempts } = await this.challenges.reserveAttempt(challenge.id);
     const accepted =
       !!mfa?.enabledAt &&
       (request.method === "TOTP"
-        ? await this.acceptTotp(mfa, request.code)
+        ? secret !== null && (await this.acceptTotp(mfa, secret, request.code))
         : await this.acceptRecoveryCode(userId, request.code));
 
     if (!accepted) {
       await this.audit("FAILURE", userId, request.method);
-      const { locked } = await this.challenges.recordFailure(challenge.id);
+      const { locked } = await this.challenges.recordFailure(
+        challenge,
+        attempts,
+      );
       if (locked) {
         throw new UnauthorizedException(
           "Verification session expired",
@@ -85,8 +94,11 @@ export class MfaVerificationService {
   }
 
   /** Verifies the code and claims its time step atomically (replay guard). */
-  private async acceptTotp(mfa: EnabledMfa, code: string): Promise<boolean> {
-    const secret = this.decryptSecret(mfa);
+  private async acceptTotp(
+    mfa: EnabledMfa,
+    secret: string,
+    code: string,
+  ): Promise<boolean> {
     const step = verifyTotp(secret, code, mfa.lastUsedStep);
     if (step === null) return false;
     const claimed = await this.prisma.userMfa.updateMany({

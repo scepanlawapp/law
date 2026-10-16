@@ -285,8 +285,8 @@ export class AuthApiClient {
 
   acceptInvitation(
     request: InvitationAcceptRequest,
-  ): Observable<AuthSessionResponse> {
-    return this.http.post<AuthSessionResponse>(
+  ): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(
       this.endpoint("/auth/invitations/accept"),
       request,
       { withCredentials: true },

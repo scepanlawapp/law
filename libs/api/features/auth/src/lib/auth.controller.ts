@@ -52,41 +52,48 @@ export class AuthController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ): Promise<LoginResponse> {
-    const { result, sessionToken, challengeToken } =
-      await this.authService.login(
-        body.email,
-        body.password,
-        readCookie(request, TRUSTED_DEVICE_COOKIE),
-      );
-    if (sessionToken) {
-      response.cookie(SESSION_COOKIE, sessionToken, {
+    const step = await this.authService.login(
+      body.email,
+      body.password,
+      readCookie(request, TRUSTED_DEVICE_COOKIE),
+    );
+    return this.applyPasswordStep(step, response);
+  }
+
+  /** Sets the session or the second-factor challenge cookie. */
+  private applyPasswordStep(
+    step: {
+      result: LoginResponse;
+      sessionToken?: string;
+      challengeToken?: string;
+    },
+    response: Response,
+  ): LoginResponse {
+    if (step.sessionToken) {
+      response.cookie(SESSION_COOKIE, step.sessionToken, {
         ...this.cookieOptions(),
         maxAge: SESSION_TTL_MS,
       });
     }
-    if (challengeToken) {
-      response.cookie(MFA_CHALLENGE_COOKIE, challengeToken, {
+    if (step.challengeToken) {
+      response.cookie(MFA_CHALLENGE_COOKIE, step.challengeToken, {
         ...mfaChallengeCookieOptions(this.config.production),
         maxAge: MFA_CHALLENGE_TTL_MS,
       });
     }
-    return result;
+    return step.result;
   }
 
   @Post("invitations/accept")
   async acceptInvitation(
     @Body() body: InvitationAcceptDto,
     @Res({ passthrough: true }) response: Response,
-  ) {
-    const result = await this.authService.acceptInvitation(
+  ): Promise<LoginResponse> {
+    const step = await this.authService.acceptInvitation(
       body.token,
       body.password,
     );
-    response.cookie(SESSION_COOKIE, result.token, {
-      ...this.cookieOptions(),
-      maxAge: SESSION_TTL_MS,
-    });
-    return result.session;
+    return this.applyPasswordStep(step, response);
   }
 
   @Post("invitations")

@@ -63,7 +63,10 @@ const user = {
 function createHarness(options: { key?: string | undefined } = {}) {
   const key = "key" in options ? options.key : TEST_KEY;
   const prisma = {
-    user: { findUnique: jest.fn().mockResolvedValue(user) },
+    user: {
+      findUnique: jest.fn().mockResolvedValue(user),
+      update: jest.fn().mockResolvedValue(user),
+    },
     userMfa: {
       findUnique: jest.fn().mockResolvedValue(null),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
@@ -76,9 +79,12 @@ function createHarness(options: { key?: string | undefined } = {}) {
     authToken: {
       create: jest.fn().mockResolvedValue({}),
       findFirst: jest.fn().mockResolvedValue(null),
-      update: jest.fn(),
+      findUnique: jest.fn().mockResolvedValue({ attempts: 1 }),
+      update: jest.fn((arg: unknown) => arg),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    workspaceMember: { updateMany: jest.fn((arg: unknown) => arg) },
+    $transaction: jest.fn(async (ops: unknown[]) => ops),
     authSession: { create: jest.fn().mockResolvedValue({}) },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
   };
@@ -124,6 +130,17 @@ const loginChallenge = {
   scope: "LOGIN",
   attempts: 0,
   createdAt: new Date(),
+};
+
+const reserveAttempt = {
+  where: {
+    id: "challenge-1",
+    purpose: "MFA_CHALLENGE",
+    consumedAt: null,
+    expiresAt: { gt: expect.any(Date) },
+    attempts: { lt: 5 },
+  },
+  data: { attempts: { increment: 1 } },
 };
 
 const auditTypes = (prisma: { auditEvent: { create: jest.Mock } }) =>
@@ -262,6 +279,61 @@ describe("AuthService.login with two-factor enforcement", () => {
   });
 });
 
+describe("AuthService.acceptInvitation honours the 2FA policy", () => {
+  const invitation = {
+    id: "invite-1",
+    userId: user.id,
+    user: { ...user, status: "INVITED" },
+  };
+
+  it("policy off → AUTHENTICATED with session token", async () => {
+    const { authService, prisma } = createHarness();
+    prisma.authToken.findFirst.mockResolvedValue(invitation);
+
+    const result = await authService.acceptInvitation(
+      "raw-invitation",
+      PASSWORD,
+    );
+
+    expect(result.result.status).toBe("AUTHENTICATED");
+    expect(result.sessionToken).toEqual(expect.any(String));
+    expect(result.challengeToken).toBeUndefined();
+    expect(prisma.authSession.create).toHaveBeenCalledTimes(1);
+    expect(prisma.authToken.create).not.toHaveBeenCalled();
+  });
+
+  it("policy on → MFA_ENROLLMENT_REQUIRED with ENROLLMENT challenge and no session", async () => {
+    const { authService, prisma } = createHarness();
+    prisma.authToken.findFirst.mockResolvedValue(invitation);
+    prisma.organizationSettings.findUnique.mockResolvedValue({
+      mfaRequired: true,
+    });
+
+    const result = await authService.acceptInvitation(
+      "raw-invitation",
+      PASSWORD,
+    );
+
+    expect(result.result).toEqual({ status: "MFA_ENROLLMENT_REQUIRED" });
+    expect(result.sessionToken).toBeUndefined();
+    expect(prisma.authSession.create).not.toHaveBeenCalled();
+    expect(prisma.authToken.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: user.id,
+        purpose: "MFA_CHALLENGE",
+        scope: "ENROLLMENT",
+        tokenHash: sha256(result.challengeToken as string),
+      }),
+    });
+    // The invitation itself is still accepted and consumed.
+    expect(prisma.authToken.update).toHaveBeenCalledWith({
+      where: { id: "invite-1" },
+      data: { consumedAt: expect.any(Date) },
+    });
+    expect(prisma.workspaceMember.updateMany).toHaveBeenCalled();
+  });
+});
+
 describe("MfaVerificationService.verify", () => {
   function totpHarness(lastUsedStep: bigint | null = null) {
     const harness = createHarness();
@@ -333,7 +405,6 @@ describe("MfaVerificationService.verify", () => {
   it("verify replay: lastUsedStep conditional update count 0 → 401", async () => {
     const { verification, prisma, code } = totpHarness();
     prisma.userMfa.updateMany.mockResolvedValue({ count: 0 });
-    prisma.authToken.update.mockResolvedValue({ attempts: 1, userId: user.id });
 
     await expect(
       verification.verify("raw-challenge", {
@@ -343,17 +414,12 @@ describe("MfaVerificationService.verify", () => {
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.authSession.create).not.toHaveBeenCalled();
-    expect(prisma.authToken.update).toHaveBeenCalledWith({
-      where: { id: "challenge-1" },
-      data: { attempts: { increment: 1 } },
-      select: { attempts: true, userId: true },
-    });
+    expect(prisma.authToken.updateMany).toHaveBeenCalledWith(reserveAttempt);
   });
 
   it("rejects a TOTP code whose step is not newer than lastUsedStep", async () => {
     const future = BigInt(Math.floor(Date.now() / 30_000)) + BigInt(5);
     const { verification, prisma, code } = totpHarness(future);
-    prisma.authToken.update.mockResolvedValue({ attempts: 1, userId: user.id });
 
     await expect(
       verification.verify("raw-challenge", {
@@ -401,7 +467,6 @@ describe("MfaVerificationService.verify", () => {
     expect(prisma.authSession.create).toHaveBeenCalledTimes(1);
 
     // Reuse: the code is consumed so the lookup finds nothing.
-    prisma.authToken.update.mockResolvedValue({ attempts: 1, userId: user.id });
     await expect(
       verification.verify("raw-challenge", {
         method: "RECOVERY",
@@ -416,7 +481,6 @@ describe("MfaVerificationService.verify", () => {
     const { verification, prisma } = totpHarness();
     prisma.mfaRecoveryCode.findFirst.mockResolvedValue({ id: "code-7" });
     prisma.mfaRecoveryCode.updateMany.mockResolvedValue({ count: 0 });
-    prisma.authToken.update.mockResolvedValue({ attempts: 1, userId: user.id });
 
     await expect(
       verification.verify("raw-challenge", {
@@ -430,29 +494,48 @@ describe("MfaVerificationService.verify", () => {
 
   it("wrong code increments attempts; 5th failure locks (challenge consumed, audit MFA_CHALLENGE_LOCKED, 401)", async () => {
     const { verification, prisma } = totpHarness();
+    const errors: unknown[] = [];
     for (let attempt = 1; attempt <= 5; attempt += 1) {
-      prisma.authToken.update.mockResolvedValueOnce({
-        attempts: attempt,
-        userId: user.id,
-      });
-      await expect(
-        verification.verify("raw-challenge", {
-          method: "TOTP",
-          code: "000000",
-          rememberDevice: false,
-        }),
-      ).rejects.toBeInstanceOf(UnauthorizedException);
+      prisma.authToken.findUnique.mockResolvedValueOnce({ attempts: attempt });
+      errors.push(
+        await verification
+          .verify("raw-challenge", {
+            method: "TOTP",
+            code: "000000",
+            rememberDevice: false,
+          })
+          .catch((caught: unknown) => caught),
+      );
     }
 
-    expect(prisma.authToken.update).toHaveBeenCalledTimes(5);
-    expect(prisma.authToken.updateMany).toHaveBeenCalledTimes(1);
-    expect(prisma.authToken.updateMany).toHaveBeenCalledWith({
+    for (const error of errors) {
+      expect(error).toBeInstanceOf(UnauthorizedException);
+    }
+    expect(
+      errors.map(
+        (error) =>
+          ((error as UnauthorizedException).getResponse() as { error: string })
+            .error,
+      ),
+    ).toEqual([
+      "MFA_CODE_INVALID",
+      "MFA_CODE_INVALID",
+      "MFA_CODE_INVALID",
+      "MFA_CODE_INVALID",
+      "MFA_CHALLENGE_INVALID",
+    ]);
+    const calls = prisma.authToken.updateMany.mock.calls.map(([arg]) => arg);
+    expect(calls.slice(0, 5)).toEqual(Array(5).fill(reserveAttempt));
+    expect(calls).toHaveLength(6);
+    expect(calls[5]).toEqual({
       where: { id: "challenge-1", consumedAt: null },
       data: { consumedAt: expect.any(Date) },
     });
     const types = auditTypes(prisma);
     expect(types.filter((type) => type === "MFA_VERIFY")).toHaveLength(5);
-    expect(types).toContain("MFA_CHALLENGE_LOCKED");
+    expect(
+      types.filter((type) => type === "MFA_CHALLENGE_LOCKED"),
+    ).toHaveLength(1);
     expect(prisma.auditEvent.create).toHaveBeenCalledWith({
       data: {
         eventType: "MFA_VERIFY",
@@ -469,6 +552,23 @@ describe("MfaVerificationService.verify", () => {
       },
     });
     expect(prisma.authSession.create).not.toHaveBeenCalled();
+  });
+
+  it("lock is conditional: an already consumed challenge is not audited twice", async () => {
+    const { verification, prisma } = totpHarness();
+    prisma.authToken.findUnique.mockResolvedValueOnce({ attempts: 5 });
+    prisma.authToken.updateMany
+      .mockResolvedValueOnce({ count: 1 }) // reservation
+      .mockResolvedValueOnce({ count: 0 }); // lock lost to a concurrent request
+
+    await expect(
+      verification.verify("raw-challenge", {
+        method: "TOTP",
+        code: "000000",
+        rememberDevice: false,
+      }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(auditTypes(prisma)).not.toContain("MFA_CHALLENGE_LOCKED");
   });
 
   it("ENROLLMENT challenge on verify → 401", async () => {
@@ -547,9 +647,48 @@ describe("MfaVerificationService.verify", () => {
         rememberDevice: false,
       }),
     ).rejects.toBeInstanceOf(ServiceUnavailableException);
-    expect(prisma.authToken.update).not.toHaveBeenCalled();
+    expect(prisma.authToken.updateMany).not.toHaveBeenCalled();
     expect(prisma.authSession.create).not.toHaveBeenCalled();
   });
+
+  it("reserves the attempt before the code is evaluated", async () => {
+    const { verification, prisma, code } = totpHarness();
+
+    await verification.verify("raw-challenge", {
+      method: "TOTP",
+      code,
+      rememberDevice: false,
+    });
+
+    expect(prisma.authToken.updateMany.mock.calls[0][0]).toEqual(
+      reserveAttempt,
+    );
+    expect(
+      prisma.authToken.updateMany.mock.invocationCallOrder[0],
+    ).toBeLessThan(prisma.userMfa.updateMany.mock.invocationCallOrder[0]);
+  });
+
+  it.each([["TOTP"], ["RECOVERY"]] as const)(
+    "no attempt left to reserve (count 0) → 401 without evaluating the %s code",
+    async (method) => {
+      const { verification, prisma, code } = totpHarness();
+      prisma.authToken.updateMany.mockResolvedValueOnce({ count: 0 });
+
+      const error = await verification
+        .verify("raw-challenge", { method, code, rememberDevice: false })
+        .catch((caught: unknown) => caught);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect((error as UnauthorizedException).getResponse()).toMatchObject({
+        error: "MFA_CHALLENGE_INVALID",
+      });
+      expect(prisma.userMfa.updateMany).not.toHaveBeenCalled();
+      expect(prisma.mfaRecoveryCode.findFirst).not.toHaveBeenCalled();
+      expect(prisma.authToken.updateMany).toHaveBeenCalledTimes(1);
+      expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+      expect(prisma.authSession.create).not.toHaveBeenCalled();
+    },
+  );
 });
 
 describe("login and verify controllers", () => {
@@ -667,6 +806,54 @@ describe("login and verify controllers", () => {
       path: "/",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     });
+  });
+
+  it("invitation acceptance sets law_session for AUTHENTICATED", async () => {
+    const authService = {
+      acceptInvitation: jest.fn().mockResolvedValue({
+        result: { status: "AUTHENTICATED", session },
+        sessionToken: "session-token",
+      }),
+    };
+    const controller = new AuthController(authService as never, config);
+    const res = response();
+
+    const body = await controller.acceptInvitation(
+      { token: "raw-invitation", password: PASSWORD },
+      res as never,
+    );
+
+    expect(body).toEqual({ status: "AUTHENTICATED", session });
+    expect(res.cookie).toHaveBeenCalledTimes(1);
+    expect(res.cookie).toHaveBeenCalledWith(
+      "law_session",
+      "session-token",
+      expect.objectContaining({ sameSite: "lax", path: "/" }),
+    );
+  });
+
+  it("invitation acceptance under policy sets only law_mfa_challenge", async () => {
+    const authService = {
+      acceptInvitation: jest.fn().mockResolvedValue({
+        result: { status: "MFA_ENROLLMENT_REQUIRED" },
+        challengeToken: "challenge-token",
+      }),
+    };
+    const controller = new AuthController(authService as never, config);
+    const res = response();
+
+    const body = await controller.acceptInvitation(
+      { token: "raw-invitation", password: PASSWORD },
+      res as never,
+    );
+
+    expect(body).toEqual({ status: "MFA_ENROLLMENT_REQUIRED" });
+    expect(res.cookie).toHaveBeenCalledTimes(1);
+    expect(res.cookie).toHaveBeenCalledWith(
+      "law_mfa_challenge",
+      "challenge-token",
+      challengeOptions,
+    );
   });
 
   it("readCookie finds a named cookie among several", () => {

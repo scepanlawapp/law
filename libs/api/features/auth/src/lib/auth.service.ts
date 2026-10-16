@@ -143,59 +143,67 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
+    const step = await this.secondFactorStep(user.id, "LOGIN");
+    await this.audit(
+      step.result.status === "AUTHENTICATED"
+        ? { eventType: "LOGIN", outcome: "SUCCESS", userId: user.id }
+        : {
+            eventType: "LOGIN",
+            outcome: "PENDING",
+            userId: user.id,
+            metadata: { next: step.result.status },
+          },
+    );
+    return step;
+  }
+
+  /**
+   * Decides what follows a verified password (login or invitation
+   * acceptance): a LOGIN challenge for enabled 2FA, an ENROLLMENT challenge
+   * when the office requires 2FA, otherwise a session.
+   */
+  private async secondFactorStep(
+    userId: string,
+    auditEventType: string,
+  ): Promise<{
+    result: LoginResponse;
+    sessionToken?: string;
+    challengeToken?: string;
+  }> {
     const mfa = await this.prisma.userMfa.findUnique({
-      where: { userId: user.id },
+      where: { userId },
       select: { enabledAt: true },
     });
     if (mfa?.enabledAt) {
       // Never bypass an enabled second factor, even when it cannot be checked.
       if (!this.mfaCipher.available) {
         await this.audit({
-          eventType: "LOGIN",
+          eventType: auditEventType,
           outcome: "FAILURE",
-          userId: user.id,
+          userId,
           metadata: { reason: "MFA_UNAVAILABLE" },
         });
         throw new ServiceUnavailableException(
           "Two-factor authentication is not configured",
         );
       }
-      const challengeToken = await this.challenges.create(user.id, "LOGIN");
-      await this.audit({
-        eventType: "LOGIN",
-        outcome: "PENDING",
-        userId: user.id,
-        metadata: { next: "MFA_REQUIRED" },
-      });
       return {
         result: {
           status: "MFA_REQUIRED",
           methods: ["TOTP", "RECOVERY", "EMAIL"],
         },
-        challengeToken,
+        challengeToken: await this.challenges.create(userId, "LOGIN"),
       };
     }
 
     if (await this.mfaRequiredByPolicy()) {
-      const challengeToken = await this.challenges.create(
-        user.id,
-        "ENROLLMENT",
-      );
-      await this.audit({
-        eventType: "LOGIN",
-        outcome: "PENDING",
-        userId: user.id,
-        metadata: { next: "MFA_ENROLLMENT_REQUIRED" },
-      });
-      return { result: { status: "MFA_ENROLLMENT_REQUIRED" }, challengeToken };
+      return {
+        result: { status: "MFA_ENROLLMENT_REQUIRED" },
+        challengeToken: await this.challenges.create(userId, "ENROLLMENT"),
+      };
     }
 
-    const issued = await this.sessions.issue(user.id);
-    await this.audit({
-      eventType: "LOGIN",
-      outcome: "SUCCESS",
-      userId: user.id,
-    });
+    const issued = await this.sessions.issue(userId);
     return {
       result: { status: "AUTHENTICATED", session: issued.session },
       sessionToken: issued.token,
@@ -210,10 +218,15 @@ export class AuthService {
     return settings?.mfaRequired ?? false;
   }
 
+  /** Sets the password, then follows the same 2FA rules as `login`. */
   async acceptInvitation(
     token: string,
     password: string,
-  ): Promise<{ token: string; session: AuthSessionResponse }> {
+  ): Promise<{
+    result: LoginResponse;
+    sessionToken?: string;
+    challengeToken?: string;
+  }> {
     const invitation = await this.prisma.authToken.findFirst({
       where: {
         purpose: "INVITATION",
@@ -247,12 +260,16 @@ export class AuthService {
         data: { status: "ACTIVE" },
       }),
     ]);
+    const step = await this.secondFactorStep(user.id, "INVITATION_ACCEPTED");
     await this.audit({
       eventType: "INVITATION_ACCEPTED",
       outcome: "SUCCESS",
       userId: user.id,
+      ...(step.result.status === "AUTHENTICATED"
+        ? {}
+        : { metadata: { next: step.result.status } }),
     });
-    return this.sessions.issue(user.id);
+    return step;
   }
 
   async currentUser(token: string | undefined): Promise<AuthSessionResponse> {

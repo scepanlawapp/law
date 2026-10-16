@@ -67,16 +67,41 @@ export class MfaChallengeService {
     };
   }
 
-  /** Counts a wrong code; the attempt that reaches the limit consumes it. */
-  async recordFailure(id: string): Promise<{ locked: boolean }> {
-    const { attempts, userId } = await this.prisma.authToken.update({
-      where: { id },
+  /**
+   * Reserves one attempt before a code is evaluated, so parallel requests
+   * cannot get more than MFA_CHALLENGE_MAX_ATTEMPTS guesses. Returns the
+   * attempt count after the reservation; 401 when none is left.
+   */
+  async reserveAttempt(id: string): Promise<{ attempts: number }> {
+    const reserved = await this.prisma.authToken.updateMany({
+      where: {
+        id,
+        purpose: "MFA_CHALLENGE",
+        consumedAt: null,
+        expiresAt: { gt: new Date() },
+        attempts: { lt: MFA_CHALLENGE_MAX_ATTEMPTS },
+      },
       data: { attempts: { increment: 1 } },
-      select: { attempts: true, userId: true },
     });
+    if (reserved.count === 0) throw invalidChallenge();
+    const current = await this.prisma.authToken.findUnique({
+      where: { id },
+      select: { attempts: true },
+    });
+    return { attempts: current?.attempts ?? MFA_CHALLENGE_MAX_ATTEMPTS };
+  }
+
+  /**
+   * Called after a wrong code on a reserved attempt; the attempt that used
+   * up the limit consumes the challenge (once) and audits the lock.
+   */
+  async recordFailure(
+    challenge: { id: string; userId: string },
+    attempts: number,
+  ): Promise<{ locked: boolean }> {
     if (attempts < MFA_CHALLENGE_MAX_ATTEMPTS) return { locked: false };
     const locked = await this.prisma.authToken.updateMany({
-      where: { id, consumedAt: null },
+      where: { id: challenge.id, consumedAt: null },
       data: { consumedAt: new Date() },
     });
     if (locked.count > 0) {
@@ -84,7 +109,7 @@ export class MfaChallengeService {
         data: {
           eventType: "MFA_CHALLENGE_LOCKED",
           outcome: "FAILURE",
-          userId,
+          userId: challenge.userId,
         },
       });
     }
