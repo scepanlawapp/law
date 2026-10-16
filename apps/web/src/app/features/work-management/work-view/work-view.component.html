@@ -160,12 +160,12 @@
               <button
                 hlmBtn
                 type="button"
-                [variant]="presentation() === 'list' ? 'default' : 'outline'"
-                [hlmTooltip]="'work.view.showList' | translate"
-                [attr.aria-label]="'work.view.showList' | translate"
-                (click)="setPresentation('list')"
+                [variant]="presentation() === 'table' ? 'default' : 'outline'"
+                [hlmTooltip]="'work.view.showTable' | translate"
+                [attr.aria-label]="'work.view.showTable' | translate"
+                (click)="setPresentation('table')"
               >
-                <ng-icon name="lucideList" />
+                <ng-icon name="lucideTable2" />
               </button>
             </div>
           </div>
@@ -177,133 +177,207 @@
       </div>
     </div>
 
-    @if (loading() && workItems().length === 0) {
+    @if (presentation() === "board" && hasTableOnlyStatuses()) {
+      <div
+        role="status"
+        class="flex flex-wrap items-center justify-between gap-3 border-s-2 border-primary bg-muted p-3 text-sm"
+      >
+        <span>{{ "work.board.tableOnlyStatuses" | translate }}</span>
+        <button
+          hlmBtn
+          type="button"
+          variant="outline"
+          (click)="setPresentation('table')"
+        >
+          <ng-icon name="lucideTable2" />
+          {{ "work.view.showTable" | translate }}
+        </button>
+      </div>
+    }
+
+    @if (presentation() === "table" && loading() && workItems().length === 0) {
       <div class="flex justify-center py-8">
         <hlm-spinner />
       </div>
-    } @else if (workItems().length === 0) {
+    } @else if (
+      presentation() === "table" && tasksError() && workItems().length === 0
+    ) {
+      <div
+        role="alert"
+        class="flex items-center justify-center gap-3 py-8 text-sm"
+      >
+        {{ "work.loadError" | translate }}
+        <button hlmBtn type="button" variant="outline" (click)="retryTasks()">
+          {{ "work.retry" | translate }}
+        </button>
+      </div>
+    } @else if (presentation() === "table" && workItems().length === 0) {
       <p class="py-8 text-center text-sm text-muted-foreground">
         {{ "work.empty" | translate }}
       </p>
-    } @else if (presentation() === "list") {
+    } @else if (presentation() === "table") {
       <div
-        appBottomReached
-        (bottomReached)="loadMore()"
-        class="flex min-h-0 min-w-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain pe-1"
+        class="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto overscroll-contain"
       >
-        <ul class="flex shrink-0 flex-col gap-2">
-          @for (item of workItems(); track item.sourceType + item.id) {
-            <li
-              class="app-section-surface flex flex-wrap items-center justify-between gap-3 p-3"
-            >
-              <button
-                type="button"
-                class="flex min-w-0 flex-1 flex-col items-start text-start wrap-break-word"
-                (click)="openItem(item)"
+        <table
+          hlmTable
+          class="work-table"
+          [attr.aria-label]="'work.tasks.title' | translate"
+        >
+          <thead hlmTHead>
+            <tr hlmTr>
+              <th hlmTh scope="col">{{ "work.title" | translate }}</th>
+              <th hlmTh scope="col" class="work-table-case">
+                {{ "work.case" | translate }}
+              </th>
+              <th hlmTh scope="col" class="work-table-user">
+                {{ "work.responsible" | translate }}
+              </th>
+              <th hlmTh scope="col" class="work-table-compact">
+                {{ "work.priority" | translate }}
+              </th>
+              <th hlmTh scope="col" class="work-table-compact">
+                {{ "work.status" | translate }}
+              </th>
+              <th hlmTh scope="col" class="work-table-compact">
+                {{ "work.actions" | translate }}
+              </th>
+            </tr>
+          </thead>
+          <tbody hlmTBody>
+            @for (item of workItems(); track item.id) {
+              @let task = taskFor(item);
+              <tr
+                hlmTr
+                class="cursor-pointer"
+                (click)="onItemClick($event, item)"
               >
-                <span class="text-sm font-medium">{{ item.title }}</span>
-                <span class="text-sm text-muted-foreground">
-                  {{ formatDue(item) }}
-                  @if (item.overdue) {
-                    ·
-                    <span class="text-destructive">
-                      {{ "work.overdue" | translate }}
-                    </span>
-                  }
-                </span>
-              </button>
-              <div class="flex shrink-0 flex-wrap items-center gap-2">
-                <label
-                  class="sr-only"
-                  [for]="'work-view-status-' + item.sourceType + item.id"
-                >
-                  {{ "work.status" | translate }}
-                </label>
-                <hlm-select
-                  [formControl]="statusControlFor(item)"
-                  [itemToString]="statusItemToString"
-                >
-                  <hlm-select-trigger
-                    [id]="'work-view-status-' + item.sourceType + item.id"
-                    class="w-36"
+                <td hlmTd>
+                  <button
+                    type="button"
+                    class="block w-full min-w-0 text-start"
+                    (click)="openItem(item)"
                   >
+                    <span class="block truncate font-medium">
+                      {{ item.title }}
+                    </span>
+                  </button>
+                  <span
+                    class="block truncate text-muted-foreground"
+                    [class.text-destructive]="item.overdue"
+                    [hlmTooltip]="formatDue(item)"
+                  >
+                    {{ formatDue(item) }}
+                  </span>
+                </td>
+                <td hlmTd class="work-table-case">
+                  <span class="block truncate">
+                    {{
+                      task.case
+                        ? task.case.caseNumber + " - " + task.case.name
+                        : ("work.noCase" | translate)
+                    }}
+                  </span>
+                </td>
+                <td hlmTd class="work-table-user">
+                  <div class="flex min-w-0 items-center gap-2">
+                    <law-user-avatar
+                      class="shrink-0"
+                      [user]="{
+                        name: task.assigneeUser.displayName,
+                        email: task.assigneeUser.email,
+                      }"
+                      size="xs"
+                    />
+                    <span class="truncate">
+                      {{ task.assigneeUser.displayName }}
+                    </span>
+                  </div>
+                </td>
+                <td hlmTd class="work-table-compact">
+                  @if (item.priority; as priority) {
                     <span
-                      data-slot="select-value"
                       [class]="
                         statusBadgeBaseClasses +
                         ' ' +
-                        statusBadgeClass(item.presentationStatus)
+                        priorityBadgeClass(priority)
                       "
                     >
-                      {{ statusItemToString(item.presentationStatus) }}
+                      {{
+                        "work.priority." + priority.toLowerCase() | translate
+                      }}
                     </span>
-                  </hlm-select-trigger>
-                  <hlm-select-content *hlmSelectPortal>
-                    <hlm-select-group>
-                      @for (target of statusTargetsFor(item); track target) {
-                        <hlm-select-item [value]="target">
-                          <span
-                            [class]="
-                              statusBadgeBaseClasses +
-                              ' ' +
-                              statusBadgeClass(target)
-                            "
-                          >
+                  }
+                </td>
+                <td hlmTd class="work-table-compact">
+                  <label class="sr-only" [for]="'work-view-status-' + item.id">
+                    {{ "work.status" | translate }}: {{ item.title }}
+                  </label>
+                  <hlm-select
+                    [formControl]="statusControlFor(item)"
+                    [itemToString]="statusItemToString"
+                  >
+                    <hlm-select-trigger
+                      [buttonId]="'work-view-status-' + item.id"
+                      class="w-auto"
+                    >
+                      <span
+                        data-slot="select-value"
+                        [class]="
+                          statusBadgeBaseClasses +
+                          ' ' +
+                          statusBadgeClass(item.presentationStatus)
+                        "
+                      >
+                        {{ statusItemToString(item.presentationStatus) }}
+                      </span>
+                    </hlm-select-trigger>
+                    <hlm-select-content *hlmSelectPortal width="content">
+                      <hlm-select-group>
+                        @for (target of statusTargetsFor(); track target) {
+                          <hlm-select-item [value]="target">
                             {{ statusItemToString(target) }}
-                          </span>
-                        </hlm-select-item>
-                      }
-                    </hlm-select-group>
-                  </hlm-select-content>
-                </hlm-select>
-                <button
-                  hlmBtn
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  (click)="openQuickCapture(item)"
-                >
-                  {{ "work.addWork" | translate }}
-                </button>
-                @if (canComplete(item)) {
-                  <button
-                    hlmBtn
-                    type="button"
-                    variant="outline"
-                    (click)="complete(item)"
-                  >
-                    {{ "work.actions.complete" | translate }}
-                  </button>
-                }
-                @if (canCancel(item)) {
-                  <button
-                    hlmBtn
-                    type="button"
-                    variant="outline"
-                    (click)="cancel(item)"
-                  >
-                    {{ "work.actions.cancel" | translate }}
-                  </button>
-                }
-                @if (canReopen(item)) {
-                  <button
-                    hlmBtn
-                    type="button"
-                    variant="outline"
-                    (click)="reopen(item)"
-                  >
-                    {{ "work.actions.reopen" | translate }}
-                  </button>
-                }
-              </div>
-            </li>
-          }
-        </ul>
-        @if (hasMore() && loading()) {
-          <div class="flex shrink-0 justify-center py-2">
-            <hlm-spinner aria-label="{{ 'work.loadMore' | translate }}" />
-          </div>
-        }
+                          </hlm-select-item>
+                        }
+                      </hlm-select-group>
+                    </hlm-select-content>
+                  </hlm-select>
+                </td>
+                <td hlmTd class="work-table-compact">
+                  <div class="flex items-center gap-2">
+                    <button
+                      hlmBtn
+                      type="button"
+                      variant="outline"
+                      (click)="openQuickCapture(item)"
+                    >
+                      <ng-icon name="lucidePlus" />
+                      {{ "work.addWork" | translate }}
+                    </button>
+                    @if (item.presentationStatus !== "ARCHIVED") {
+                      <button
+                        hlmBtn
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        [disabled]="archivingTaskIds().has(item.id)"
+                        [hlmTooltip]="'work.actions.archive' | translate"
+                        [attr.aria-label]="'work.actions.archive' | translate"
+                        (click)="archive(item)"
+                      >
+                        @if (archivingTaskIds().has(item.id)) {
+                          <hlm-spinner />
+                        } @else {
+                          <ng-icon name="lucideArchive" />
+                        }
+                      </button>
+                    }
+                  </div>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
       </div>
     } @else {
       <div
@@ -331,11 +405,7 @@
               <h3 class="px-1 text-sm font-semibold">
                 {{ "work.board." + column.toLowerCase() | translate }}
               </h3>
-              <div
-                appBottomReached
-                (bottomReached)="loadMore()"
-                class="flex min-h-24 flex-1 flex-col gap-2 pe-1"
-              >
+              <div class="flex min-h-24 flex-1 flex-col gap-2 pe-1">
                 @for (
                   item of itemsForColumn(column);
                   track item.sourceType + item.id
@@ -346,25 +416,28 @@
                     [cdkDragData]="item"
                     (cdkDragStarted)="onDragStarted(item)"
                     (cdkDragEnded)="onDragEnded()"
-                    class="work-board-card rounded-lg border border-border-subtle bg-surface-card p-3 transition-[background-color,border-color,color,transform,box-shadow] hover:border-border-interactive hover:bg-surface-field hover:text-primary hover:shadow-sm"
+                    (click)="onItemClick($event, item)"
+                    class="work-board-card cursor-pointer rounded-lg border border-border-subtle bg-surface-card p-3 transition-[background-color,border-color,color,transform,box-shadow] hover:border-border-interactive hover:bg-surface-field hover:text-primary hover:shadow-sm"
                   >
-                    <div class="flex flex-wrap items-start gap-2">
-                      <div class="flex w-full justify-end gap-2">
+                    <div class="flex min-w-0 flex-col gap-3">
+                      <div class="flex min-w-0 items-start gap-3">
                         <button
-                          hlmBtn
                           type="button"
-                          variant="outline"
-                          size="sm"
-                          [disabled]="archivingTaskIds().has(item.id)"
-                          (click)="openQuickCapture(item)"
+                          class="min-w-0 flex-1 text-start"
+                          (click)="openItem(item)"
                         >
-                          {{ "work.addWork" | translate }}
+                          <span
+                            class="line-clamp-2 h-10 text-sm font-medium leading-5 wrap-anywhere"
+                          >
+                            {{ item.title }}
+                          </span>
                         </button>
                         <button
                           hlmBtn
                           type="button"
                           variant="outline"
-                          size="icon-sm"
+                          size="icon"
+                          class="shrink-0"
                           [disabled]="archivingTaskIds().has(item.id)"
                           [attr.aria-label]="'work.actions.archive' | translate"
                           [hlmTooltip]="'work.actions.archive' | translate"
@@ -377,18 +450,10 @@
                           }
                         </button>
                       </div>
-                      <button
-                        type="button"
-                        class="flex w-full flex-col items-start text-start"
-                        (click)="openItem(item)"
-                      >
-                        <span class="text-sm font-medium">
-                          {{ item.title }}
-                        </span>
+                      <div class="flex min-w-0 flex-wrap items-center gap-2">
                         @if (item.priority; as priority) {
                           <span
                             [class]="
-                              'mt-2 ' +
                               statusBadgeBaseClasses +
                               ' ' +
                               priorityBadgeClass(priority)
@@ -400,25 +465,93 @@
                             }}
                           </span>
                         }
-                        <span class="text-sm text-muted-foreground">
-                          {{ formatDue(item) }}
-                        </span>
-                      </button>
+                      </div>
+                      <div
+                        class="flex min-w-0 items-center justify-between gap-2"
+                      >
+                        @let assignee = taskFor(item).assigneeUser;
+                        <div class="flex min-w-0 items-center gap-2">
+                          <law-user-avatar
+                            class="shrink-0"
+                            [user]="{
+                              name: assignee.displayName,
+                              email: assignee.email,
+                            }"
+                            size="sm"
+                          />
+                          <span class="truncate text-sm">
+                            {{ assignee.displayName }}
+                          </span>
+                        </div>
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="outline"
+                          class="h-10 shrink-0 px-4"
+                          [disabled]="archivingTaskIds().has(item.id)"
+                          (click)="openQuickCapture(item)"
+                        >
+                          <ng-icon name="lucidePlus" />
+                          {{ "work.addWork" | translate }}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 }
-                @if (hasMore() && loading()) {
+                @if (columnPages()[column]?.loading) {
                   <div class="flex shrink-0 justify-center py-2">
                     <hlm-spinner
                       aria-label="{{ 'work.loadMore' | translate }}"
                     />
                   </div>
                 }
+                @if (columnPages()[column]?.error) {
+                  <p role="alert" class="px-1 text-sm">
+                    {{ "work.loadError" | translate }}
+                  </p>
+                } @else if (
+                  !columnPages()[column]?.loading &&
+                  itemsForColumn(column).length === 0
+                ) {
+                  <p class="px-1 py-4 text-sm text-muted-foreground">
+                    {{ "work.empty" | translate }}
+                  </p>
+                }
+                @if (
+                  columnPages()[column]?.hasMore || columnPages()[column]?.error
+                ) {
+                  <button
+                    hlmBtn
+                    type="button"
+                    variant="outline"
+                    class="mt-auto w-full"
+                    [disabled]="columnPages()[column]?.loading"
+                    (click)="loadMoreColumn(column)"
+                  >
+                    {{
+                      (columnPages()[column]?.error
+                        ? "work.retry"
+                        : "work.loadMore"
+                      ) | translate
+                    }}
+                  </button>
+                }
               </div>
             </div>
           }
         </div>
       </div>
+    }
+    @if (presentation() === "table" && tasksTotalItems() > 0) {
+      <law-pagination
+        class="shrink-0"
+        [currentPage]="tasksPage()"
+        [itemsPerPage]="tasksPageSize()"
+        [totalItems]="tasksTotalItems()"
+        [disabled]="tasksLoading()"
+        (currentPageChange)="changeTaskPage($event)"
+        (itemsPerPageChange)="changeTaskPageSize($event)"
+      />
     }
   </div>
 

@@ -8,6 +8,7 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Work View Table and Columns](./tracks/work_view_table_columns_20261016/index.md)
 - [Task Archive and Work Defaults](./tracks/task_archive_work_defaults_20261016/index.md)
 - [Responsive Sidebar Children](./tracks/sidebar_responsive_children_20261016/index.md)
 - [Sidebar Child Route Menus](./tracks/sidebar_child_route_menus_20261016/index.md)

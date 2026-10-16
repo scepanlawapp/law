@@ -8,3 +8,31 @@
   // resize the board.
   border-width: 2px;
 }
+
+.work-table {
+  table-layout: auto;
+  min-width: 68rem;
+
+  th:first-child,
+  td:first-child {
+    width: 100%;
+    max-width: 0;
+  }
+
+  .work-table-case {
+    width: 20rem;
+    min-width: 20rem;
+    max-width: 20rem;
+  }
+
+  .work-table-user {
+    width: 11rem;
+    min-width: 11rem;
+    max-width: 11rem;
+  }
+
+  .work-table-compact {
+    width: 1%;
+    white-space: nowrap;
+  }
+}
