@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   ServiceUnavailableException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -112,6 +111,8 @@ function createHarness(options: { key?: string | undefined } = {}) {
     cipher,
     sessions,
     trustedDevices,
+    { sendMfaEmailCode: jest.fn() } as never,
+    { hit: jest.fn().mockResolvedValue(1) } as never,
   );
   return { prisma, cipher, authService, verification };
 }
@@ -611,19 +612,6 @@ describe("MfaVerificationService.verify", () => {
       }),
     ).rejects.toBeInstanceOf(UnauthorizedException);
     expect(prisma.authToken.findFirst).not.toHaveBeenCalled();
-  });
-
-  it("EMAIL method → 400 until email codes exist", async () => {
-    const { verification, prisma } = totpHarness();
-
-    await expect(
-      verification.verify("raw-challenge", {
-        method: "EMAIL",
-        code: "123456",
-        rememberDevice: false,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
-    expect(prisma.authSession.create).not.toHaveBeenCalled();
   });
 
   it("does not issue a session for a user who is no longer ACTIVE", async () => {

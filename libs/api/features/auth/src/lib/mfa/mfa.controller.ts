@@ -80,6 +80,16 @@ export class MfaController {
     return result.session;
   }
 
+  /** Always 204: the response never reveals whether a code was sent. */
+  @Post("email-code")
+  @HttpCode(204)
+  @UseGuards(AuthRateLimitGuard)
+  emailCode(@Req() request: Request): Promise<void> {
+    return this.verification.sendEmailCode(
+      readCookie(request, MFA_CHALLENGE_COOKIE),
+    );
+  }
+
   @Get()
   @UseGuards(AuthGuard)
   status(

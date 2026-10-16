@@ -435,6 +435,8 @@ describe("verify with rememberDevice", () => {
       cipher,
       new AuthSessionIssuer(prisma as never),
       new TrustedDeviceService(prisma as never),
+      { sendMfaEmailCode: jest.fn() } as never,
+      { hit: jest.fn().mockResolvedValue(1) } as never,
     );
     return { prisma, table, service };
   }
