@@ -214,4 +214,43 @@ describe("LoginComponent", () => {
     expect(component.canUse("EMAIL")).toBe(false);
     expect(component.canUse("TOTP")).toBe(true);
   });
+
+  it("hides the e-mail fallback when the server withholds it (password changed recently)", () => {
+    const component = createOnCodeStep(["TOTP", "RECOVERY"]);
+
+    expect(component.canUse("RECOVERY")).toBe(true);
+    expect(component.canUse("EMAIL")).toBe(false);
+
+    component.sendEmailCode();
+
+    expect(api.sendMfaEmailCode).not.toHaveBeenCalled();
+    expect(component.method()).toBe("TOTP");
+  });
+
+  const throttled = () =>
+    new HttpErrorResponse({
+      status: 429,
+      error: { statusCode: 429, error: "MFA_ACCOUNT_THROTTLED" },
+    });
+
+  it("a throttled account (429 MFA_ACCOUNT_THROTTLED) gets a specific message on login", () => {
+    const component = create();
+    auth.login.mockReturnValue(throwError(throttled));
+
+    component.login();
+
+    expect(component.error()).toBe("auth.mfa.accountThrottled");
+    expect(component.step()).toBe("password");
+  });
+
+  it("a throttled account gets a specific message on verify and stays on the code step", () => {
+    const component = createOnCodeStep();
+    api.verifyMfa.mockReturnValue(throwError(throttled));
+    component.codeForm.patchValue({ code: "123456" });
+
+    component.verify();
+
+    expect(component.error()).toBe("auth.mfa.accountThrottled");
+    expect(component.step()).toBe("code");
+  });
 });

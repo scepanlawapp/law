@@ -3087,6 +3087,7 @@
   "auth.mfa.backToPassword": "Back to sign in",
   "auth.mfa.codeInvalid": "That code is not valid. Try again.",
   "auth.mfa.challengeExpired": "The verification expired or was locked. Please sign in again.",
+  "auth.mfa.accountThrottled": "Too many failed verification attempts. Wait 15 minutes and try again.",
   "auth.mfa.setupTitle": "Set up two-step verification",
   "auth.mfa.setupRequiredDescription": "Your office requires two-step verification. Set it up to continue.",
   "auth.mfa.setupUnavailable": "Setup is unavailable or has expired. Please sign in again.",

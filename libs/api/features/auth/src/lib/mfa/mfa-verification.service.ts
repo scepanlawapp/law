@@ -20,6 +20,7 @@ import {
   MFA_CHALLENGE_INVALID,
   MfaChallengeService,
 } from "./mfa-challenge.service";
+import { emailFallbackSuppressed } from "./email-fallback";
 import { MfaFailureThrottle } from "./mfa-failure-throttle";
 import { MfaSecretCipher } from "./mfa-secret.cipher";
 import { hashRecoveryCode } from "./recovery-codes";
@@ -65,8 +66,10 @@ export class MfaVerificationService {
   /**
    * Sends a one-time sign-in code to the account email. Silent by design:
    * limits, an unenrolled user or a disabled account all look like success so
-   * the endpoint reveals nothing. Only an invalid challenge (the caller never
-   * passed the password step) is an error.
+   * the endpoint reveals nothing. So does a password change within the last
+   * 72 h (the email fallback is suppressed then). Only an invalid challenge
+   * (the caller never passed the password step) or a throttled account is an
+   * error.
    */
   async sendEmailCode(challengeToken: string | undefined): Promise<void> {
     const challenge = await this.challenges.find(challengeToken, "LOGIN");
@@ -77,9 +80,10 @@ export class MfaVerificationService {
     if (!mfa?.enabledAt) return;
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, status: true },
+      select: { id: true, email: true, status: true, passwordChangedAt: true },
     });
     if (!user || user.status !== "ACTIVE") return;
+    if (emailFallbackSuppressed(user.passwordChangedAt)) return;
 
     if (
       (await this.hitLimit(
@@ -148,6 +152,9 @@ export class MfaVerificationService {
       mfa?.enabledAt && request.method === "TOTP"
         ? this.decryptSecret(mfa)
         : null;
+    // Within 72 h of a password change an email code is never accepted.
+    const emailAllowed =
+      request.method === "EMAIL" && (await this.emailFallbackAllowed(userId));
 
     const { attempts } = await this.challenges.reserveAttempt(challenge.id);
     const accepted =
@@ -155,7 +162,8 @@ export class MfaVerificationService {
       (request.method === "TOTP"
         ? secret !== null && (await this.acceptTotp(mfa, secret, request.code))
         : request.method === "EMAIL"
-          ? await this.acceptEmailCode(userId, challenge.id, request.code)
+          ? emailAllowed &&
+            (await this.acceptEmailCode(userId, challenge.id, request.code))
           : await this.acceptRecoveryCode(userId, request.code));
 
     if (!accepted) {
@@ -187,6 +195,14 @@ export class MfaVerificationService {
       ? await this.rememberDevice(userId, meta)
       : undefined;
     return { ...issued, userId, trustedDeviceToken };
+  }
+
+  private async emailFallbackAllowed(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { passwordChangedAt: true },
+    });
+    return !!user && !emailFallbackSuppressed(user.passwordChangedAt);
   }
 
   /** The login already succeeded; a storage fault must not undo it. */

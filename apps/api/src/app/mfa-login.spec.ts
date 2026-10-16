@@ -229,6 +229,47 @@ describe("AuthService.login with two-factor enforcement", () => {
     expect(ttl).toBeLessThanOrEqual(5 * 60_000 + 1000);
   });
 
+  it("password changed within 72 h → MFA_REQUIRED without the EMAIL method", async () => {
+    const { authService, prisma, cipher } = createHarness();
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      passwordChangedAt: new Date(Date.now() - 71 * 60 * 60 * 1000),
+    });
+    prisma.userMfa.findUnique.mockResolvedValue(
+      enabledMfa(cipher, generateTotpSecret()),
+    );
+
+    const result = await authService.login(user.email, PASSWORD);
+
+    expect(result.result).toEqual({
+      status: "MFA_REQUIRED",
+      methods: ["TOTP", "RECOVERY"],
+    });
+    expect(prisma.user.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({
+        select: expect.objectContaining({ passwordChangedAt: true }),
+      }),
+    );
+  });
+
+  it("password changed more than 72 h ago → EMAIL offered again", async () => {
+    const { authService, prisma, cipher } = createHarness();
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      passwordChangedAt: new Date(Date.now() - 73 * 60 * 60 * 1000),
+    });
+    prisma.userMfa.findUnique.mockResolvedValue(
+      enabledMfa(cipher, generateTotpSecret()),
+    );
+
+    const result = await authService.login(user.email, PASSWORD);
+
+    expect(result.result).toEqual({
+      status: "MFA_REQUIRED",
+      methods: ["TOTP", "RECOVERY", "EMAIL"],
+    });
+  });
+
   it("policy on and user not enrolled → MFA_ENROLLMENT_REQUIRED, challenge scope ENROLLMENT", async () => {
     const { authService, prisma } = createHarness();
     prisma.organizationSettings.findUnique.mockResolvedValue({

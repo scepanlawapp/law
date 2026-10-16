@@ -10,6 +10,7 @@ import { AuthMailService } from "./mail/auth-mail.service";
 import { AuthRateLimitStore } from "./rate-limit.store";
 import { AuthSessionIssuer, toSessionResponse } from "./auth-session.issuer";
 import { SESSION_TTL_MS } from "./cookies";
+import { emailFallbackSuppressed } from "./mfa/email-fallback";
 import { MfaChallengeService } from "./mfa/mfa-challenge.service";
 import { MfaFailureThrottle } from "./mfa/mfa-failure-throttle";
 import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
@@ -109,7 +110,12 @@ export class AuthService {
   }> {
     const user = await this.prisma.user.findUnique({
       where: { email: normalizeEmail(email) },
-      select: { id: true, status: true, passwordHash: true },
+      select: {
+        id: true,
+        status: true,
+        passwordHash: true,
+        passwordChangedAt: true,
+      },
     });
     if (
       !user?.passwordHash ||
@@ -123,6 +129,7 @@ export class AuthService {
     const step = await this.secondFactorStep(
       user.id,
       "LOGIN",
+      user.passwordChangedAt,
       trustedDeviceToken,
     );
     await this.audit(
@@ -143,11 +150,13 @@ export class AuthService {
    * acceptance): a LOGIN challenge for enabled 2FA, an ENROLLMENT challenge
    * when the office requires 2FA, otherwise a session. Only a login passes a
    * trusted-device token: a password set from an emailed link is always
-   * challenged.
+   * challenged. The email fallback is not offered within 72 h of a password
+   * change.
    */
   private async secondFactorStep(
     userId: string,
     auditEventType: string,
+    passwordChangedAt: Date | null,
     trustedDeviceToken?: string,
   ): Promise<{
     result: LoginResponse;
@@ -182,7 +191,9 @@ export class AuthService {
       return {
         result: {
           status: "MFA_REQUIRED",
-          methods: ["TOTP", "RECOVERY", "EMAIL"],
+          methods: emailFallbackSuppressed(passwordChangedAt)
+            ? ["TOTP", "RECOVERY"]
+            : ["TOTP", "RECOVERY", "EMAIL"],
         },
         challengeToken: await this.challenges.create(userId, "LOGIN"),
       };
@@ -253,7 +264,11 @@ export class AuthService {
         data: { status: "ACTIVE" },
       }),
     ]);
-    const step = await this.secondFactorStep(user.id, "INVITATION_ACCEPTED");
+    const step = await this.secondFactorStep(
+      user.id,
+      "INVITATION_ACCEPTED",
+      user.passwordChangedAt,
+    );
     await this.audit({
       eventType: "INVITATION_ACCEPTED",
       outcome: "SUCCESS",

@@ -162,6 +162,10 @@ export class LoginComponent {
             this.toast.error(
               this.localization.translate("auth.invalidCredentials"),
             );
+          } else if (accountThrottled(error)) {
+            this.error.set(
+              this.localization.translate("auth.mfa.accountThrottled"),
+            );
           } else {
             this.error.set(this.localization.translate("auth.loginFailed"));
           }
@@ -207,6 +211,9 @@ export class LoginComponent {
   }
 
   sendEmailCode(): void {
+    // The server withholds the e-mail fallback (e.g. after a recent password
+    // change); never offer it then.
+    if (!this.canUse("EMAIL")) return;
     this.error.set("");
     this.submitting.set(true);
     this.api
@@ -267,6 +274,10 @@ export class LoginComponent {
 
   private handleCodeError(error: HttpErrorResponse): void {
     this.submitting.set(false);
+    if (accountThrottled(error)) {
+      this.error.set(this.localization.translate("auth.mfa.accountThrottled"));
+      return;
+    }
     if (error.status === 401 && mfaErrorCode(error) === "MFA_CODE_INVALID") {
       this.error.set(this.localization.translate("auth.mfa.codeInvalid"));
       this.codeForm.controls.code.setValue("");
@@ -290,4 +301,11 @@ export class LoginComponent {
     this.notice.set(notice);
     this.step.set("password");
   }
+}
+
+/** Too many failed second-factor checks on this account (server R7). */
+function accountThrottled(error: HttpErrorResponse): boolean {
+  return (
+    error.status === 429 && mfaErrorCode(error) === "MFA_ACCOUNT_THROTTLED"
+  );
 }

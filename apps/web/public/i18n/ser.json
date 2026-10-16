@@ -3087,6 +3087,7 @@
   "auth.mfa.backToPassword": "Nazad na prijavu",
   "auth.mfa.codeInvalid": "Kod nije ispravan. Pokušajte ponovo.",
   "auth.mfa.challengeExpired": "Provera je istekla ili je zaključana. Prijavite se ponovo.",
+  "auth.mfa.accountThrottled": "Previše neuspešnih pokušaja provere. Sačekajte 15 minuta pa pokušajte ponovo.",
   "auth.mfa.setupTitle": "Podesite dvostepenu potvrdu",
   "auth.mfa.setupRequiredDescription": "Vaša kancelarija zahteva dvostepenu potvrdu. Podesite je da biste nastavili.",
   "auth.mfa.setupUnavailable": "Podešavanje nije dostupno ili je isteklo. Prijavite se ponovo.",

@@ -273,6 +273,78 @@ describe("MfaVerificationService.sendEmailCode", () => {
   });
 });
 
+describe("email fallback within 72 h of a password change", () => {
+  const HOUR = 60 * 60 * 1000;
+  const recent = () => new Date(Date.now() - HOUR);
+
+  it("sendEmailCode silently does nothing (still resolves)", async () => {
+    const { verification, prisma, mail } = createHarness();
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      passwordChangedAt: recent(),
+    });
+
+    await expect(
+      verification.sendEmailCode("raw-challenge"),
+    ).resolves.toBeUndefined();
+
+    expect(mail.sendMfaEmailCode).not.toHaveBeenCalled();
+    expect(prisma.authToken.create).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("sendEmailCode works again once 72 h have passed", async () => {
+    const { verification, prisma, mail } = createHarness();
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      passwordChangedAt: new Date(Date.now() - 73 * HOUR),
+    });
+
+    await verification.sendEmailCode("raw-challenge");
+
+    expect(mail.sendMfaEmailCode).toHaveBeenCalledTimes(1);
+  });
+
+  it("verify with method EMAIL → 401 MFA_CODE_INVALID even for a valid code, counted as a failed attempt", async () => {
+    const { verification, prisma, store } = createHarness();
+    prisma.user.findUnique.mockResolvedValue({
+      ...user,
+      passwordChangedAt: recent(),
+    });
+    prisma.authToken.findFirst.mockImplementation(
+      async (arg: { where: { purpose: string } }) =>
+        arg.where.purpose === "MFA_EMAIL_CODE"
+          ? { id: "email-code-1" }
+          : loginChallenge(),
+    );
+
+    const error = await verification
+      .verify("raw-challenge", {
+        method: "EMAIL",
+        code: "123456",
+        rememberDevice: false,
+      })
+      .catch((caught: unknown) => caught);
+
+    expect(error).toBeInstanceOf(UnauthorizedException);
+    expect((error as UnauthorizedException).getResponse()).toMatchObject({
+      error: "MFA_CODE_INVALID",
+    });
+    expect(prisma.authToken.updateMany).toHaveBeenCalledWith(reserveAttempt);
+    expect(prisma.authToken.updateMany).toHaveBeenCalledTimes(1);
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith({
+      data: {
+        eventType: "MFA_VERIFY",
+        outcome: "FAILURE",
+        userId: user.id,
+        metadata: { method: "EMAIL" },
+      },
+    });
+    expect(await store.peek("mfa-fail:user:user-1")).toBe(1);
+    expect(prisma.authSession.create).not.toHaveBeenCalled();
+  });
+});
+
 describe("MfaVerificationService.sendEmailCode for a throttled account", () => {
   it("→ 429 MFA_ACCOUNT_THROTTLED and nothing sent", async () => {
     const store = new InMemoryAuthRateLimitStore();
