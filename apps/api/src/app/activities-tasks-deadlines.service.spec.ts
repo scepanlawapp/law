@@ -435,6 +435,38 @@ describe("ActivitiesTasksDeadlinesService work entries from completed work", () 
       workDate: "2026-10-08",
       minutes: null,
     };
+    it("archives a task in its workspace without capturing work", async () => {
+      tx.task.findFirst.mockResolvedValue(taskRow({ clientId }));
+      tx.task.update.mockResolvedValue(
+        taskRow({ clientId, status: "ARCHIVED" }),
+      );
+
+      const result = await run(() =>
+        service.updateTask(taskId, { ...update, status: "ARCHIVED" }),
+      );
+
+      expect(result.status).toBe("ARCHIVED");
+      expect(tx.task.findFirst).toHaveBeenCalledWith({
+        where: { id: taskId, workspaceId },
+      });
+      expect(tx.task.update).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({ status: "ARCHIVED" }),
+        }),
+      );
+      expect(tx.activityLog.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          data: expect.objectContaining({
+            workspaceId,
+            action: "TASK_UPDATED",
+          }),
+        }),
+      );
+      expect(saveTaskCapture).not.toHaveBeenCalled();
+      expect(ensureForSource).not.toHaveBeenCalled();
+      expect(checkRetainerUsage).not.toHaveBeenCalled();
+    });
+
     it("finishes with existing work without inserting a new entry", async () => {
       tx.task.findFirst.mockResolvedValue(
         taskRow({ clientId, status: "IN_PROGRESS" }),

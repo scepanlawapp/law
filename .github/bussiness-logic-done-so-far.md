@@ -7,8 +7,8 @@ This document describes behavior that is currently implemented in code and wired
 
 ## Sidebar child-route menus
 
-- Finance, Reports, and other sidebar items with child pages open an accessible Spartan dropdown rather than navigating to a default page or expanding the sidebar. The menu is available in both expanded and icon sidebar modes; opening it leaves the current route and sidebar width unchanged.
-- Menus retain translated labels/icons and role-filtered child routes, highlight the active parent and mark the current child with `aria-current="page"`. Selecting a child navigates and closes the mobile sidebar. Keyboard opening, Escape dismissal, and focus restoration use the installed dropdown primitive.
+- Finance, Reports, and other sidebar items with child pages open an accessible right-side Spartan dropdown only in collapsed desktop (icon) mode, without navigating or expanding the sidebar. Expanded desktop and mobile sidebars use inline Spartan Collapsible submenus, including when the saved desktop preference is collapsed. Active route groups start open; parent buttons expose disclosure state and control their associated child region.
+- Both presentations retain translated labels/icons and role-filtered child routes, highlight the active parent and mark the current child with `aria-current="page"`. Selecting a child navigates and closes the mobile sidebar. Disclosure keyboard/ARIA behavior uses the installed Collapsible primitive; dropdown keyboard opening, Escape dismissal, and focus restoration use the installed dropdown primitive.
 
 ## Frontend list pagination
 
@@ -16,6 +16,7 @@ This document describes behavior that is currently implemented in code and wired
 - These lists default to 50 items per page and offer 10/20/50/100, total items/pages, numbered navigation, ellipsis and previous/next controls. Labels follow SR/EN and semantic themes; controls wrap on mobile and remain keyboard accessible.
 - Case-list navigation preserves existing namespaced URL filters/sort via `casePage` and `casePageSize`. Other lists and dialogs retain local state, so nested lists cannot overwrite parent route pagination. Size changes reset to page 1; the case assistant endpoint shares one size across sessions/drafts and resets both page numbers when it changes. Invoice-import selection survives page/size changes.
 - Filtering, sorting, deletion clamping and stale-request guards remain in the owning screens. Infinite scroll/load-more and their sizes remain unchanged for team time, My time weekly aggregation, work views, finance work review, assistant conversation navigation, notifications and lookup requests. Calendar/week/period and tab-overflow arrows are not data-list pagination.
+- Without an explicit sort, client API pages use display name ascending and case API pages use case number ascending. Active workspace-user references (an unpaginated endpoint) use first name, last name, then email ascending.
 - Verification and residual repository gate issues are recorded in the [delivery plan](../delivery/tracks/frontend_numbered_pagination_20261009/plan.md).
 
 ## Backend foundation
@@ -169,6 +170,7 @@ The backend implementation in `libs/api/features/activities-tasks-deadlines` is 
 - Tasks support either a due date or a due timestamp, never both.
 - Newly created tasks default to no due target; a due date or exact due timestamp is only added when the user explicitly selects it. Edit mode preserves the stored due target.
 - Task completion, cancellation, and reopening transitions.
+- Tasks also support `ARCHIVED` through create/update, the task-dialog status selector, and status filters. Archiving uses the existing workspace-scoped update and activity log without creating work entries or requiring confirmation.
 - Tasks can be associated with cases, clients, and deadlines.
 - The task dialog exposes responsible-user, optional-client, and optional-case selectors; new tasks default responsibility to the signed-in user. Selecting a case selects its client, while selecting an incompatible client clears the case.
 
@@ -215,7 +217,7 @@ The former Tasks & Deadlines page has been replaced by a single reusable `WorkVi
 - Routes: `/work/team` (Team work, full filter toolbar) and `/work/my` (My work, current-user work only, no team filter toolbar). The former `/tasks-deadlines` URL redirects to Team work, preserving query parameters. Sidebar navigation exposes both as separate entries.
 - Record types (Tasks, Events, Deadlines) are combined into one unified item list/board; the record-type filter selects one or several.
 - List view shows title, record type, status, owner/assignee, due date or event time, related case/client, and an overdue indicator.
-- Board view groups items into To do / In progress / Done columns using a presentation-only mapping (Task `IN_PROGRESS` is the only source of the In-progress column, since Events and Deadlines have no in-progress state); Cancelled items are only shown through an explicit open/history switch, never mixed into the active columns.
+- Board view has only To do / In progress / Done columns. Initial task-list requests explicitly select `TODO`, `IN_PROGRESS`, and `DONE`; cancelled and archived tasks remain available through list status filters, not separate board columns. Task cards expose an immediate Archive action beside Add work, with pending/error feedback.
 - Filters: free-text search, record types, people (single or multiple, via a searchable multi-select combobox), statuses (single or multiple), case, and a date preset (all dates / overdue / today / upcoming). My work hides the person filter and keeps the current user fixed; Case → Work keeps the case fixed. Neither fixed constraint can be cleared by switching presentation, changing filters, or resetting. The task-list API currently accepts one `caseId`, so the case filter remains single-value.
 - Pagination is server-driven per record type with an explicit “Load more” action; no page of results is presented as a complete list or board.
 - Item actions reuse the existing Task/Deadline/Event dialogs and transition endpoints (create, edit, complete/cancel/reopen for tasks and deadlines; complete/cancel for events, which have no reopen). Board also supports drag-and-drop between columns, restricted to the same backend-supported transitions as the action buttons — a drop with no corresponding transition (for example, dragging a cancelled item, or dragging an event back out of Completed/Cancelled) is rejected rather than silently allowed. Task cards show their priority with semantic low/normal/high/urgent badges.
@@ -523,11 +525,13 @@ The strongest completed product slices are authentication, client management, ca
 
 ## Work review status filtering and restoration (2026-10-08)
 
+- The review table shows right-aligned stored work value and currency instead of duration, using the same formatting and missing-value label as Team Time.
 - Finance work review defaults to CONFIRMED, unbilled entries. Its status filter also offers PROPOSED, RUNNING, BILLED, WRITTEN_OFF and all statuses; other statuses are not restricted to unbilled entries. Filter changes reset pagination and selection. A status column and View column identify and open each entry. Invoice selection and creation remain limited to confirmed work with no linked invoice.
 - View opens editable work in quick capture; billed and running work open the read-only view. Written-off work opened from review is editable and has a status choice to keep WRITTEN_OFF or restore CONFIRMED. Save applies edits and restoration atomically, clears the current write-off reason and records the previous status/reason in the activity log. The server preserves workspace/ownership checks, refuses restoration from other statuses, and rejects concurrent status changes. Successful edits and write-offs reload the active filtered list.
 
 ## Work / Time past events and presentation (2026-10-08)
 
+- Team Time initially requests only `PROPOSED`, `RUNNING`, and `CONFIRMED`; users can change the status filter to include historical statuses. Currency selects across the app use bounded content-width dropdowns rather than trigger width.
 - Work / Time supports board and list presentation for weekly work entries and a separate paginated past-events section. Weekly navigation and weekly/client totals remain; day totals and the day-summary button are removed. `/work/time/review` redirects to `/work/time`.
 - My Time also offers a table presentation (2026-10-16), reusing Team Time's columns, entry actions, pagination, and client/case/status/treatment/date filters. The people filter and user lookup are omitted; every table request is fixed to the authenticated user and no request is made without a session. Table date filters are independent of the weekly board/list navigation. Logging work or capturing past events refreshes the active presentation. On mobile, the past-events sidebar stacks below the table and wide columns scroll within the table container.
 - Past events include non-cancelled meetings, calls, hearings and other events whose end instant has passed, from all dates, where the current user is organizer or assignee. The API filters events with no work entries before counting/pagination. Cards show client/case, office-timezone date range and an unlogged badge.

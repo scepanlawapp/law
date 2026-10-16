@@ -10,7 +10,7 @@ import {
 import { isTaskOverdue } from "../work-management-utils";
 
 export type WorkSourceType = "TASK" | "DEADLINE" | "EVENT";
-export type PresentationStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+export type PresentationStatus = TaskStatus;
 export type BoardColumnKey = PresentationStatus;
 
 /** Unified view-model so Task/Deadline/Event can share list/board rendering. */
@@ -152,8 +152,12 @@ export function statusTransition(
   target: BoardColumnKey,
 ): StatusTransition | null {
   if (item.presentationStatus === target) return null;
-  if (target === "CANCELLED") return null;
-  if (item.presentationStatus === "CANCELLED") return null;
+  if (target === "CANCELLED" || target === "ARCHIVED") return null;
+  if (
+    item.presentationStatus === "CANCELLED" ||
+    item.presentationStatus === "ARCHIVED"
+  )
+    return null;
 
   if (item.sourceType === "TASK") {
     if (target === "IN_PROGRESS") {

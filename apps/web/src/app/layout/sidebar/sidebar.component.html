@@ -61,45 +61,97 @@
             @for (item of group.items; track item.route) {
               <li hlmSidebarMenuItem>
                 @if (item.children; as children) {
-                  <button
-                    hlmSidebarMenuButton
-                    type="button"
-                    [closeMobileSidebarOnClick]="false"
-                    [tooltip]="item.label | translate"
-                    [isActive]="isRouteActive(item.route)"
-                    [attr.aria-label]="item.label | translate"
-                    [hlmDropdownMenuTrigger]="childRoutes"
-                    side="right"
-                    align="start"
-                  >
-                    <ng-icon [name]="item.icon" aria-hidden="true" />
-                    <span>{{ item.label | translate }}</span>
-                    <ng-icon
-                      name="lucideChevronRight"
-                      aria-hidden="true"
-                      class="ms-auto group-data-[collapsible=icon]:hidden"
-                    />
-                  </button>
-                  <ng-template #childRoutes>
-                    <hlm-dropdown-menu
-                      width="content"
+                  @if (useChildRouteDropdown()) {
+                    <button
+                      hlmSidebarMenuButton
+                      type="button"
+                      [closeMobileSidebarOnClick]="false"
+                      [tooltip]="item.label | translate"
+                      [isActive]="isRouteActive(item.route)"
                       [attr.aria-label]="item.label | translate"
+                      [hlmDropdownMenuTrigger]="childRoutes"
+                      side="right"
+                      align="start"
                     >
-                      @for (child of children; track child.route) {
-                        <a
-                          hlmDropdownMenuItem
-                          [routerLink]="child.route"
-                          (click)="closeMobileSidebar()"
-                          routerLinkActive="bg-accent text-accent-foreground"
-                          ariaCurrentWhenActive="page"
-                          [routerLinkActiveOptions]="{ exact: !!child.exact }"
+                      <ng-icon [name]="item.icon" aria-hidden="true" />
+                      <span>{{ item.label | translate }}</span>
+                      <ng-icon
+                        name="lucideChevronRight"
+                        aria-hidden="true"
+                        class="ms-auto group-data-[collapsible=icon]:hidden"
+                      />
+                    </button>
+                    <ng-template #childRoutes>
+                      <hlm-dropdown-menu
+                        width="content"
+                        [attr.aria-label]="item.label | translate"
+                      >
+                        @for (child of children; track child.route) {
+                          <a
+                            hlmDropdownMenuItem
+                            [routerLink]="child.route"
+                            (click)="closeMobileSidebar()"
+                            routerLinkActive="bg-accent text-accent-foreground"
+                            ariaCurrentWhenActive="page"
+                            [routerLinkActiveOptions]="{ exact: !!child.exact }"
+                          >
+                            <ng-icon [name]="child.icon" aria-hidden="true" />
+                            <span>{{ child.label | translate }}</span>
+                          </a>
+                        }
+                      </hlm-dropdown-menu>
+                    </ng-template>
+                  } @else {
+                    <div hlmCollapsible [expanded]="isRouteActive(item.route)">
+                      <button
+                        hlmSidebarMenuButton
+                        hlmCollapsibleTrigger
+                        type="button"
+                        [closeMobileSidebarOnClick]="false"
+                        [tooltip]="item.label | translate"
+                        [isActive]="isRouteActive(item.route)"
+                        [attr.aria-label]="item.label | translate"
+                        class="group/child-routes"
+                      >
+                        <ng-icon [name]="item.icon" aria-hidden="true" />
+                        <span>{{ item.label | translate }}</span>
+                        <ng-icon
+                          name="lucideChevronRight"
+                          aria-hidden="true"
+                          class="ms-auto group-data-[state=open]/child-routes:rotate-90"
+                        />
+                      </button>
+                      <div hlmCollapsibleContent>
+                        <ul
+                          hlmSidebarMenuSub
+                          [attr.aria-label]="item.label | translate"
                         >
-                          <ng-icon [name]="child.icon" aria-hidden="true" />
-                          <span>{{ child.label | translate }}</span>
-                        </a>
-                      }
-                    </hlm-dropdown-menu>
-                  </ng-template>
+                          @for (child of children; track child.route) {
+                            <li hlmSidebarMenuSubItem>
+                              <a
+                                hlmSidebarMenuSubButton
+                                [closeMobileSidebarOnClick]="true"
+                                [routerLink]="child.route"
+                                routerLinkActive
+                                #childActive="routerLinkActive"
+                                [isActive]="childActive.isActive"
+                                ariaCurrentWhenActive="page"
+                                [routerLinkActiveOptions]="{
+                                  exact: !!child.exact,
+                                }"
+                              >
+                                <ng-icon
+                                  [name]="child.icon"
+                                  aria-hidden="true"
+                                />
+                                <span>{{ child.label | translate }}</span>
+                              </a>
+                            </li>
+                          }
+                        </ul>
+                      </div>
+                    </div>
+                  }
                 } @else {
                   <a
                     hlmSidebarMenuButton

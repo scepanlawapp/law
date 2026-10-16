@@ -28,6 +28,7 @@ import {
   RouterLinkActive,
 } from "@angular/router";
 import { filter } from "rxjs";
+import { HlmCollapsibleImports } from "@spartan-ng/helm/collapsible";
 import {
   HlmDropdownMenu,
   HlmDropdownMenuItem,
@@ -44,6 +45,9 @@ import {
   HlmSidebarMenu,
   HlmSidebarMenuButton,
   HlmSidebarMenuItem,
+  HlmSidebarMenuSub,
+  HlmSidebarMenuSubButton,
+  HlmSidebarMenuSubItem,
   HlmSidebarTrigger,
   HlmSidebarService,
 } from "@spartan-ng/helm/sidebar";
@@ -77,6 +81,7 @@ interface SidebarNavigationGroup {
   templateUrl: "./sidebar.component.html",
   imports: [
     NgIcon,
+    ...HlmCollapsibleImports,
     HlmDropdownMenu,
     HlmDropdownMenuItem,
     HlmDropdownMenuTrigger,
@@ -90,6 +95,9 @@ interface SidebarNavigationGroup {
     HlmSidebarMenu,
     HlmSidebarMenuButton,
     HlmSidebarMenuItem,
+    HlmSidebarMenuSub,
+    HlmSidebarMenuSubButton,
+    HlmSidebarMenuSubItem,
     HlmSidebarTrigger,
     RouterLink,
     RouterLinkActive,
@@ -126,6 +134,9 @@ export class SidebarComponent {
   private readonly sidebar = inject(HlmSidebarService);
   private readonly activeRoute = signal(this.router.url);
   readonly session = this.authState.session;
+  readonly useChildRouteDropdown = computed(
+    () => !this.sidebar.isMobile() && this.sidebar.state() === "collapsed",
+  );
 
   readonly mainNavigation: SidebarNavigationItem[] = [
     { route: "/dashboard", label: "nav.dashboard", icon: "lucideHome" },

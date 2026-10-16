@@ -1,6 +1,7 @@
 import { Component, computed, inject, input } from "@angular/core";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
+import { HlmOverlayWidth } from "@spartan-ng/helm/utils";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { createSelectItemToString } from "../../shared/utils";
 @Component({
@@ -16,7 +17,7 @@ import { createSelectItemToString } from "../../shared/utils";
       >
         <hlm-select-value [placeholder]="translate(emptyLabel())" />
       </hlm-select-trigger>
-      <hlm-select-content *hlmSelectPortal>
+      <hlm-select-content *hlmSelectPortal [width]="width()">
         <hlm-select-group>
           @for (option of options(); track option.value) {
             <hlm-select-item [value]="option.value">
@@ -33,6 +34,7 @@ export class PaymentSelectComponent {
   readonly control = input.required<FormControl<string>>();
   readonly controlId = input.required<string>();
   readonly label = input.required<string>();
+  readonly width = input<HlmOverlayWidth>("trigger");
   readonly options =
     input.required<ReadonlyArray<{ value: string; label: string }>>();
   readonly translate = (key: string) => this.localization.translate(key);

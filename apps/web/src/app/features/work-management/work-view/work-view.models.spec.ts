@@ -214,6 +214,17 @@ describe("mergePage", () => {
 });
 
 describe("statusTransition", () => {
+  it("preserves archived task status without allowing board transitions", () => {
+    const archived = taskToWorkItem(
+      makeTask({ status: "ARCHIVED", dueDate: "2020-01-01" }),
+    );
+    expect(archived.presentationStatus).toBe("ARCHIVED");
+    expect(archived.overdue).toBe(false);
+    expect(statusTransition(archived, "TODO")).toBeNull();
+    expect(statusTransition(archived, "DONE")).toBeNull();
+    expect(statusTransition(taskToWorkItem(makeTask()), "ARCHIVED")).toBeNull();
+  });
+
   it("allows a task to move between to-do, in-progress and done", () => {
     const todo = taskToWorkItem(makeTask({ status: "TODO" }));
     const inProgress = taskToWorkItem(makeTask({ status: "IN_PROGRESS" }));

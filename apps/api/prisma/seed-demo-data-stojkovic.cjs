@@ -2569,8 +2569,8 @@ async function seedData(db, workspaceId, users, refs) {
   const tasks = [];
   const taskMeta = [];
   function taskStatus(due, kase) {
-    if (kase && (kase.status === "CLOSED" || kase.status === "ARCHIVED"))
-      return chance(0.9) ? "DONE" : "CANCELLED";
+    if (kase?.status === "ARCHIVED") return "ARCHIVED";
+    if (kase?.status === "CLOSED") return chance(0.9) ? "DONE" : "CANCELLED";
     const days = daysBetween(TODAY, due);
     if (days < 0)
       return weighted([
@@ -4182,7 +4182,7 @@ async function seedData(db, workspaceId, users, refs) {
     `Događaji: ${events.length} (${statusSummary(events, ["SCHEDULED", "COMPLETED", "CANCELLED"])})`,
   );
   console.log(
-    `Zadaci: ${tasks.length} (${statusSummary(tasks, ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"])})`,
+    `Zadaci: ${tasks.length} (${statusSummary(tasks, ["TODO", "IN_PROGRESS", "DONE", "CANCELLED", "ARCHIVED"])})`,
   );
   console.log(
     `Unosi rada: ${entryRows.length} (${statusSummary(entryRows, ["RUNNING", "PROPOSED", "CONFIRMED", "BILLED", "WRITTEN_OFF"])})`,

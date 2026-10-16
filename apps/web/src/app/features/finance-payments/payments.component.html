@@ -77,7 +77,7 @@
                 {{ summaryCurrencies().join(", ") || "Izaberite valute" }}
               </span>
             </hlm-combobox-trigger>
-            <hlm-combobox-content *hlmComboboxPortal>
+            <hlm-combobox-content *hlmComboboxPortal width="content">
               <hlm-combobox-input
                 placeholder="Pretraži valute"
                 [showTrigger]="false"
@@ -197,6 +197,7 @@
         />
         <law-payment-select
           controlId="filter-currency"
+          width="content"
           label="Valuta"
           [control]="filters.controls.currency"
           [options]="currencies()"

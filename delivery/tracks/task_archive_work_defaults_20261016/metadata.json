@@ -1,0 +1,9 @@
+{
+  "track_id": "task_archive_work_defaults_20261016",
+  "parent_track_id": null,
+  "type": "feature",
+  "status": "completed",
+  "created_at": "2026-10-16",
+  "updated_at": "2026-10-16",
+  "keywords": ["tasks", "archive", "work", "pagination", "currency"]
+}

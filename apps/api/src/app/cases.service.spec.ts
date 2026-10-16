@@ -94,6 +94,23 @@ describe("CasesService", () => {
     ]);
   });
 
+  it("defaults paginated cases to ascending case number", async () => {
+    db.case.count.mockResolvedValue(0);
+    db.case.findMany.mockResolvedValue([]);
+    const result = await WorkspaceContextService.run(context as never, () =>
+      service.list({ page: 1, pageSize: 5 } as never),
+    );
+    expect(db.case.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { workspaceId },
+        orderBy: [{ caseNumber: "asc" }],
+      }),
+    );
+    expect(result.meta.sort).toEqual([
+      { field: "caseNumber", direction: "asc" },
+    ]);
+  });
+
   it("includes primary and active additional assignments before sorting and pagination", async () => {
     db.case.count.mockResolvedValue(0);
     db.case.findMany.mockResolvedValue([]);

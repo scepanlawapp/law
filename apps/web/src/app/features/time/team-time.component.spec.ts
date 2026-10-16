@@ -138,7 +138,7 @@ describe("TeamTimeComponent", () => {
       item.textContent?.trim(),
     );
 
-  it("loads the first page without filters", () => {
+  it("loads the first page with only proposed, running, and confirmed statuses", () => {
     create();
 
     expect(api.list).toHaveBeenCalledWith({
@@ -147,7 +147,7 @@ describe("TeamTimeComponent", () => {
       userIds: undefined,
       clientIds: undefined,
       caseId: undefined,
-      statuses: undefined,
+      statuses: ["PROPOSED", "RUNNING", "CONFIRMED"],
       treatments: undefined,
       from: undefined,
       to: undefined,
@@ -177,6 +177,19 @@ describe("TeamTimeComponent", () => {
       from: "2026-10-01",
       to: "2026-10-31",
     });
+  });
+
+  it("allows clearing default statuses without losing other filters", () => {
+    const component = create().componentInstance;
+    component.setClientIds(["client-1"]);
+    component.setStatuses([]);
+    expect(api.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        statuses: undefined,
+        clientIds: ["client-1"],
+        page: 1,
+      }),
+    );
   });
 
   it("scopes the reusable table to the current user without loading or showing people", () => {

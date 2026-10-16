@@ -8,6 +8,36 @@ const userId = "22222222-2222-4222-a222-222222222222";
 const clientId = "33333333-3333-4333-a333-333333333333";
 const caseId = "44444444-4444-4444-a444-444444444444";
 
+describe("ClientsService list ordering", () => {
+  const db = {
+    $transaction: jest.fn((queries: Promise<unknown>[]) =>
+      Promise.all(queries),
+    ),
+    client: { count: jest.fn(), findMany: jest.fn() },
+  };
+  const service = new ClientsService(db as never, {} as never);
+
+  it.each([
+    [undefined, "displayName", "asc"],
+    ["updatedAt:desc", "updatedAt", "desc"],
+  ])("sorts clients with query %s", async (sort, field, direction) => {
+    jest.clearAllMocks();
+    db.client.count.mockResolvedValue(0);
+    db.client.findMany.mockResolvedValue([]);
+    const result = await WorkspaceContextService.run(
+      { workspaceId, userId, role: WorkspaceRole.OWNER },
+      () => service.list({ page: 1, pageSize: 5, sort } as never),
+    );
+    expect(db.client.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { workspaceId },
+        orderBy: [{ [field as string]: direction }],
+      }),
+    );
+    expect(result.meta.sort).toEqual([{ field, direction }]);
+  });
+});
+
 describe("ClientsService createActivity", () => {
   const db = {
     $transaction: jest.fn(),

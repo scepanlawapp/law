@@ -48,7 +48,6 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 import {
   TREATMENT_LABEL_KEYS,
   STATUS_LABEL_KEYS,
-  formatMinutes,
   formatWorkDate,
   isIsoDate,
 } from "../time/time-utils";
@@ -155,7 +154,6 @@ export class FinanceWorkReviewComponent {
 
   readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
   readonly treatmentOptions = TREATMENT_VALUES;
-  readonly formatMinutes = formatMinutes;
 
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly clients = signal<ClientSummary[]>([]);
@@ -389,6 +387,12 @@ export class FinanceWorkReviewComponent {
 
   workDateLabel(date: string): string {
     return formatWorkDate(date, this.localization.language());
+  }
+
+  priceLabel(entry: WorkEntry): string {
+    if (entry.value == null)
+      return this.localization.translate("time.capture.noWorkValue");
+    return `${new Intl.NumberFormat(this.localization.language() === "EN" ? "en-US" : "sr-Latn-RS", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(entry.value))} ${entry.currency ?? ""}`;
   }
 
   private navigateToStatement(entries: WorkEntry[]): void {

@@ -135,6 +135,36 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
     );
   });
 
+  it("renders stored value and currency rather than duration, including zero and missing values", () => {
+    entries.list.mockReturnValue(
+      of(
+        page([
+          {
+            ...entry("priced", "c1", "Client"),
+            value: "1234.50",
+            currency: "EUR",
+          },
+          { ...entry("zero", "c1", "Client"), value: "0", currency: "RSD" },
+          entry("missing", "c1", "Client"),
+        ]),
+      ),
+    );
+    const fixture = create();
+    const rows = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll(
+        '[data-testid="unbilled-entry"]',
+      ),
+    );
+    expect(rows[0].children[5].textContent?.trim()).toBe("1.234,50 EUR");
+    expect(rows[1].children[5].textContent?.trim()).toBe("0,00 RSD");
+    expect(rows[2].children[5].textContent?.trim()).toBe(
+      "time.capture.noWorkValue",
+    );
+    expect(fixture.nativeElement.textContent).not.toContain(
+      "time.capture.duration",
+    );
+  });
+
   it("starts a new invoice for the selected entries of one client", () => {
     const fixture = create();
 

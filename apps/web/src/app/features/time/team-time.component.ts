@@ -139,7 +139,11 @@ export class TeamTimeComponent implements OnInit {
   readonly peopleIds = signal<string[]>([]);
   readonly clientIds = signal<string[]>([]);
   readonly caseId = signal("");
-  readonly statuses = signal<WorkEntryStatus[]>([]);
+  readonly statuses = signal<WorkEntryStatus[]>([
+    "PROPOSED",
+    "RUNNING",
+    "CONFIRMED",
+  ]);
   readonly treatments = signal<WorkEntryTreatment[]>([]);
   readonly from = new FormControl("", { nonNullable: true });
   readonly to = new FormControl("", { nonNullable: true });

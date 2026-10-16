@@ -1188,7 +1188,12 @@ export type ActivityType =
 export type ActivitySource = "MANUAL" | "SYSTEM" | "AI";
 export type EventType = "MEETING" | "HEARING" | "CALL" | "OTHER";
 export type EventStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
-export type TaskStatus = "TODO" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+export type TaskStatus =
+  | "TODO"
+  | "IN_PROGRESS"
+  | "DONE"
+  | "CANCELLED"
+  | "ARCHIVED";
 export type DeadlineType =
   | "COURT"
   | "STATUTORY"
