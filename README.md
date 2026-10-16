@@ -6,7 +6,7 @@ Nx monorepo for a Serbian law-firm automation platform. The initial workspace co
 
 - Node.js 22 LTS
 - npm
-- Docker Compose project `law` for local PostgreSQL with pgvector and Redis (Ollama and n8n remain optional/commented)
+- Docker Compose project `law` for local PostgreSQL with pgvector, Redis, and Mailpit (Ollama and n8n remain optional/commented)
 
 ## Install
 
@@ -31,6 +31,10 @@ npm run legal:ingest -- --dry-run // Fetch and inspect the first legal source
 The chat pipeline (triage -> brief-extraction -> drafting) runs as BullMQ jobs on a Redis-backed `workflow` queue, so `services:up` (which starts Redis) must be running before `api:serve`.
 
 The API is available at `http://localhost:3001/api`, with health at `http://localhost:3001/api/health`. The Angular client is available at `http://localhost:4200`.
+
+### Testing email locally
+
+Email invitations and password-reset messages are delivered via Mailpit (`http://localhost:8025`), a local SMTP sink that captures outbound mail. No actual email is sent in development.
 
 ## Document file storage
 
