@@ -285,6 +285,19 @@ export interface MfaStatusResponse {
   trustedDevices: TrustedDeviceSummary[];
 }
 
+export interface MfaPolicy {
+  mfaRequired: boolean;
+}
+
+export interface MemberSecuritySummary {
+  userId: string;
+  name: string | null;
+  email: string;
+  role: WorkspaceRole;
+  mfaEnabled: boolean;
+  mfaEnabledAt: string | null;
+}
+
 export interface InvitationAcceptRequest {
   token: string;
   password: string;

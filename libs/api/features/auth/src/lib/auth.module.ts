@@ -18,6 +18,8 @@ import { MfaVerificationService } from "./mfa/mfa-verification.service";
 import { MfaEnrollmentService } from "./mfa/mfa-enrollment.service";
 import { MfaController } from "./mfa/mfa.controller";
 import { TrustedDeviceService } from "./mfa/trusted-device.service";
+import { MfaAdminService } from "./mfa/mfa-admin.service";
+import { MfaAdminController } from "./mfa/mfa-admin.controller";
 import {
   AUTH_REDIS,
   AuthRateLimitStore,
@@ -31,7 +33,7 @@ import {
     QueueRootModule,
     BullModule.registerQueue({ name: AUTH_MAIL_QUEUE }),
   ],
-  controllers: [AuthController, MfaController],
+  controllers: [AuthController, MfaController, MfaAdminController],
   providers: [
     AuthService,
     AuthMailService,
@@ -47,6 +49,7 @@ import {
     MfaVerificationService,
     MfaEnrollmentService,
     TrustedDeviceService,
+    MfaAdminService,
     { provide: AUTH_REDIS, useFactory: createAuthRedisClient },
     { provide: AuthRateLimitStore, useClass: RedisAuthRateLimitStore },
   ],
