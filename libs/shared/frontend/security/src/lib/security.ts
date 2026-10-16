@@ -15,6 +15,7 @@ import {
   ActiveWorkspace,
   AuthSessionResponse,
   CASE_NUMBER_FORMATS,
+  LoginResponse,
 } from "@law/api-interfaces";
 
 @Injectable({ providedIn: "root" })
@@ -49,10 +50,16 @@ export class AuthState {
     );
   }
 
-  login(email: string, password: string) {
+  /**
+   * Password step. Sets the session only for `AUTHENTICATED`; other statuses
+   * (second factor needed) are returned for the caller to handle.
+   */
+  login(email: string, password: string): Observable<LoginResponse> {
     return this.api.login({ email, password }).pipe(
-      tap((session) => {
-        this.session.set(session);
+      tap((response) => {
+        if (response.status === "AUTHENTICATED") {
+          this.session.set(response.session);
+        }
       }),
     );
   }

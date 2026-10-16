@@ -10,13 +10,16 @@ import {
   timingSafeEqual,
 } from "node:crypto";
 import { promisify } from "node:util";
-import { PrismaService } from "@law/core";
-import { AuthSessionResponse, WorkspaceRole } from "@law/api-interfaces";
+import { HARDCODED_WORKSPACE_ID, PrismaService } from "@law/core";
+import { AuthSessionResponse, LoginResponse } from "@law/api-interfaces";
 import { AuthMailService } from "./mail/auth-mail.service";
 import { AuthRateLimitStore } from "./rate-limit.store";
+import { AuthSessionIssuer, toSessionResponse } from "./auth-session.issuer";
+import { SESSION_TTL_MS } from "./cookies";
+import { MfaChallengeService } from "./mfa/mfa-challenge.service";
+import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
 
 const scrypt = promisify(scryptCallback);
-const SESSION_TTL_MS = 1000 * 60 * 60 * 24 * 7;
 const RESET_TTL_MS = 1000 * 60 * 30;
 const RESET_EMAIL_LIMIT = 3;
 const RESET_EMAIL_WINDOW_MS = 1000 * 60 * 60;
@@ -60,6 +63,9 @@ export class AuthService {
     private readonly prisma: PrismaService,
     private readonly mail: AuthMailService,
     private readonly rateLimit: AuthRateLimitStore,
+    private readonly sessions: AuthSessionIssuer,
+    private readonly challenges: MfaChallengeService,
+    private readonly mfaCipher: MfaSecretCipher,
   ) {}
 
   async createInvitation(
@@ -108,18 +114,25 @@ export class AuthService {
     });
   }
 
+  /**
+   * Password step. Issues a session only when no second factor is needed;
+   * otherwise returns a challenge token for the `law_mfa_challenge` cookie.
+   * `trustedDeviceToken` is accepted for the remember-device flow (not yet
+   * honoured: an enabled second factor is always challenged).
+   */
   async login(
     email: string,
     password: string,
-  ): Promise<{ token: string; session: AuthSessionResponse }> {
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    trustedDeviceToken?: string,
+  ): Promise<{
+    result: LoginResponse;
+    sessionToken?: string;
+    challengeToken?: string;
+  }> {
     const user = await this.prisma.user.findUnique({
       where: { email: normalizeEmail(email) },
-      include: {
-        memberships: {
-          where: { status: "ACTIVE" },
-          include: { workspace: true },
-        },
-      },
+      select: { id: true, status: true, passwordHash: true },
     });
     if (
       !user?.passwordHash ||
@@ -130,13 +143,71 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    const result = await this.createSession(user.id, this.toResponse(user));
+    const mfa = await this.prisma.userMfa.findUnique({
+      where: { userId: user.id },
+      select: { enabledAt: true },
+    });
+    if (mfa?.enabledAt) {
+      // Never bypass an enabled second factor, even when it cannot be checked.
+      if (!this.mfaCipher.available) {
+        await this.audit({
+          eventType: "LOGIN",
+          outcome: "FAILURE",
+          userId: user.id,
+          metadata: { reason: "MFA_UNAVAILABLE" },
+        });
+        throw new ServiceUnavailableException(
+          "Two-factor authentication is not configured",
+        );
+      }
+      const challengeToken = await this.challenges.create(user.id, "LOGIN");
+      await this.audit({
+        eventType: "LOGIN",
+        outcome: "PENDING",
+        userId: user.id,
+        metadata: { next: "MFA_REQUIRED" },
+      });
+      return {
+        result: {
+          status: "MFA_REQUIRED",
+          methods: ["TOTP", "RECOVERY", "EMAIL"],
+        },
+        challengeToken,
+      };
+    }
+
+    if (await this.mfaRequiredByPolicy()) {
+      const challengeToken = await this.challenges.create(
+        user.id,
+        "ENROLLMENT",
+      );
+      await this.audit({
+        eventType: "LOGIN",
+        outcome: "PENDING",
+        userId: user.id,
+        metadata: { next: "MFA_ENROLLMENT_REQUIRED" },
+      });
+      return { result: { status: "MFA_ENROLLMENT_REQUIRED" }, challengeToken };
+    }
+
+    const issued = await this.sessions.issue(user.id);
     await this.audit({
       eventType: "LOGIN",
       outcome: "SUCCESS",
       userId: user.id,
     });
-    return result;
+    return {
+      result: { status: "AUTHENTICATED", session: issued.session },
+      sessionToken: issued.token,
+    };
+  }
+
+  private async mfaRequiredByPolicy(): Promise<boolean> {
+    const settings = await this.prisma.organizationSettings.findUnique({
+      where: { workspaceId: HARDCODED_WORKSPACE_ID },
+      select: { mfaRequired: true },
+    });
+    return settings?.mfaRequired ?? false;
   }
 
   async acceptInvitation(
@@ -181,12 +252,12 @@ export class AuthService {
       outcome: "SUCCESS",
       userId: user.id,
     });
-    return this.createSession(user.id, this.toResponse(user));
+    return this.sessions.issue(user.id);
   }
 
   async currentUser(token: string | undefined): Promise<AuthSessionResponse> {
     const record = await this.sessionForToken(token);
-    return this.toResponse(record.user);
+    return toSessionResponse(record.user);
   }
 
   async logout(token: string | undefined): Promise<void> {
@@ -259,7 +330,7 @@ export class AuthService {
     });
     return {
       token: nextToken,
-      session: this.toResponse(current.user),
+      session: toSessionResponse(current.user),
     };
   }
 
@@ -400,22 +471,6 @@ export class AuthService {
     });
   }
 
-  private async createSession(
-    userId: string,
-    session: AuthSessionResponse,
-  ): Promise<{ token: string; session: AuthSessionResponse }> {
-    const token = randomBytes(32).toString("base64url");
-    await this.prisma.authSession.create({
-      data: {
-        userId,
-        tokenFamily: randomBytes(16).toString("hex"),
-        refreshTokenHash: hashToken(token),
-        expiresAt: new Date(Date.now() + SESSION_TTL_MS),
-      },
-    });
-    return { token, session };
-  }
-
   private async userForToken(token: string | undefined) {
     return (await this.sessionForToken(token)).user;
   }
@@ -446,33 +501,6 @@ export class AuthService {
       data: { lastUsedAt: new Date() },
     });
     return record;
-  }
-
-  private toResponse(
-    user: {
-      id: string;
-      email: string;
-      status: string;
-      memberships: Array<{
-        workspaceId: string;
-        role: string;
-        workspace: { name: string };
-      }>;
-    },
-    memberships = user.memberships,
-  ): AuthSessionResponse {
-    return {
-      user: {
-        id: user.id,
-        email: user.email,
-        status: user.status as AuthSessionResponse["user"]["status"],
-      },
-      memberships: memberships.map((membership) => ({
-        workspaceId: membership.workspaceId,
-        workspaceName: membership.workspace.name,
-        role: membership.role as WorkspaceRole,
-      })),
-    };
   }
 
   private async audit(input: {

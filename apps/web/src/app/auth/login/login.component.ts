@@ -121,8 +121,15 @@ export class LoginComponent {
       .login(email, password)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
-          void this.router.navigate(["/"]);
+        next: (response) => {
+          if (response.status === "AUTHENTICATED") {
+            void this.router.navigate(["/"]);
+            return;
+          }
+          // Second-factor steps arrive with the MFA login UI; until then the
+          // password step cannot complete for these accounts.
+          this.error = this.localization.translate("auth.loginFailed");
+          this.submitting = false;
         },
         error: (error: HttpErrorResponse) => {
           if (error.status === 401) {

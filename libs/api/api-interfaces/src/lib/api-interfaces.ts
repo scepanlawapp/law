@@ -224,6 +224,19 @@ export interface LoginRequest {
   password: string;
 }
 
+export type MfaMethod = "TOTP" | "RECOVERY" | "EMAIL";
+
+export type LoginResponse =
+  | { status: "AUTHENTICATED"; session: AuthSessionResponse }
+  | { status: "MFA_REQUIRED"; methods: MfaMethod[] }
+  | { status: "MFA_ENROLLMENT_REQUIRED" };
+
+export interface MfaVerifyRequest {
+  method: MfaMethod;
+  code: string;
+  rememberDevice: boolean;
+}
+
 export interface InvitationAcceptRequest {
   token: string;
   password: string;

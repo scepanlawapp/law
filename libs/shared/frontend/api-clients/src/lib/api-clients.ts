@@ -15,6 +15,7 @@ import {
 import { Observable } from "rxjs";
 import {
   AuthSessionResponse,
+  LoginResponse,
   DraftApprovalStatus,
   DraftDocumentType,
   ChatSendMessageResponse,
@@ -252,8 +253,8 @@ export class AuthApiClient {
     return `${config.apiUrl}${config.apiPrefix}${path}`;
   }
 
-  login(request: LoginRequest): Observable<AuthSessionResponse> {
-    return this.http.post<AuthSessionResponse>(
+  login(request: LoginRequest): Observable<LoginResponse> {
+    return this.http.post<LoginResponse>(
       this.endpoint("/auth/login"),
       request,
       { withCredentials: true },

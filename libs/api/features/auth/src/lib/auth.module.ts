@@ -12,6 +12,10 @@ import { CsrfOriginGuard } from "./csrf.guard";
 import { AuthRateLimitGuard } from "./rate-limit.guard";
 import { AuthRuntimeConfig } from "./auth.config";
 import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
+import { AuthSessionIssuer } from "./auth-session.issuer";
+import { MfaChallengeService } from "./mfa/mfa-challenge.service";
+import { MfaVerificationService } from "./mfa/mfa-verification.service";
+import { MfaController } from "./mfa/mfa.controller";
 import {
   AUTH_REDIS,
   AuthRateLimitStore,
@@ -25,7 +29,7 @@ import {
     QueueRootModule,
     BullModule.registerQueue({ name: AUTH_MAIL_QUEUE }),
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, MfaController],
   providers: [
     AuthService,
     AuthMailService,
@@ -36,6 +40,9 @@ import {
     AuthRateLimitGuard,
     AuthRuntimeConfig,
     MfaSecretCipher,
+    AuthSessionIssuer,
+    MfaChallengeService,
+    MfaVerificationService,
     { provide: AUTH_REDIS, useFactory: createAuthRedisClient },
     { provide: AuthRateLimitStore, useClass: RedisAuthRateLimitStore },
   ],

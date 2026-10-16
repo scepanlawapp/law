@@ -118,7 +118,14 @@ function createService(store: AuthRateLimitStore) {
     $transaction: jest.fn(async (ops: unknown[]) => ops),
   };
   const mail = { sendPasswordReset: jest.fn().mockResolvedValue(undefined) };
-  const service = new AuthService(prisma as never, mail as never, store);
+  const service = new AuthService(
+    prisma as never,
+    mail as never,
+    store,
+    {} as never,
+    {} as never,
+    {} as never,
+  );
   return { service, prisma, mail };
 }
 

@@ -45,6 +45,9 @@ function createService() {
     prisma as never,
     mail as never,
     rateLimit as never,
+    {} as never,
+    {} as never,
+    {} as never,
   );
   return { service, prisma, mail };
 }

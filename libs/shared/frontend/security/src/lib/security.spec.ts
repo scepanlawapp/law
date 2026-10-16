@@ -45,17 +45,37 @@ describe("AuthState", () => {
     expect(state.loading()).toBe(false);
   });
 
-  it("stores the session returned by login", () => {
-    api.login.mockReturnValue(of(session));
+  it("stores the session returned by an AUTHENTICATED login", () => {
+    api.login.mockReturnValue(of({ status: "AUTHENTICATED", session }));
     const state = TestBed.inject(AuthState);
+    const emitted: unknown[] = [];
 
-    state.login(session.user.email, "password").subscribe();
+    state
+      .login(session.user.email, "password")
+      .subscribe((response) => emitted.push(response));
 
     expect(api.login).toHaveBeenCalledWith({
       email: session.user.email,
       password: "password",
     });
     expect(state.session()).toEqual(session);
+    expect(emitted).toEqual([{ status: "AUTHENTICATED", session }]);
+  });
+
+  it.each([
+    [{ status: "MFA_REQUIRED", methods: ["TOTP", "RECOVERY", "EMAIL"] }],
+    [{ status: "MFA_ENROLLMENT_REQUIRED" }],
+  ])("returns %p to the caller without setting a session", (response) => {
+    api.login.mockReturnValue(of(response));
+    const state = TestBed.inject(AuthState);
+    const emitted: unknown[] = [];
+
+    state
+      .login(session.user.email, "password")
+      .subscribe((value) => emitted.push(value));
+
+    expect(state.session()).toBeNull();
+    expect(emitted).toEqual([response]);
   });
 
   it("builds the active workspace with case number settings", () => {
