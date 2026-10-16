@@ -132,10 +132,10 @@
             </h1>
             <p class="text-muted-foreground mt-2 text-sm leading-snug">
               @switch (method()) {
-                @case ("RECOVERY") {
+                @case (MfaMethod.RECOVERY) {
                   {{ "auth.mfa.codeDescriptionRecovery" | translate }}
                 }
-                @case ("EMAIL") {
+                @case (MfaMethod.EMAIL) {
                   {{ "auth.mfa.codeDescriptionEmail" | translate }}
                 }
                 @default {
@@ -154,7 +154,7 @@
             <div hlmField>
               <label hlmFieldLabel for="mfa-code">
                 {{
-                  (method() === "RECOVERY"
+                  (method() === MfaMethod.RECOVERY
                     ? "auth.mfa.recoveryLabel"
                     : "auth.mfa.codeLabel"
                   ) | translate
@@ -169,10 +169,12 @@
                 autocomplete="one-time-code"
                 autocapitalize="off"
                 spellcheck="false"
-                [attr.inputmode]="method() === 'RECOVERY' ? 'text' : 'numeric'"
+                [attr.inputmode]="
+                  method() === MfaMethod.RECOVERY ? 'text' : 'numeric'
+                "
                 [attr.maxlength]="codeMaxLength()"
                 [placeholder]="
-                  (method() === 'RECOVERY'
+                  (method() === MfaMethod.RECOVERY
                     ? 'auth.mfa.recoveryPlaceholder'
                     : 'auth.mfa.codePlaceholder'
                   ) | translate
@@ -182,7 +184,7 @@
               />
             </div>
 
-            @if (method() === "EMAIL" && emailCodeSent()) {
+            @if (method() === MfaMethod.EMAIL && emailCodeSent()) {
               <p class="text-muted-foreground text-sm" role="status">
                 {{ "auth.mfa.emailCodeSent" | translate }}
               </p>
@@ -221,7 +223,7 @@
             </button>
 
             <div class="flex flex-col items-start gap-1">
-              @if (method() !== "TOTP" && canUse("TOTP")) {
+              @if (method() !== MfaMethod.TOTP && canUse(MfaMethod.TOTP)) {
                 <button
                   hlmBtn
                   variant="link"
@@ -232,7 +234,9 @@
                   {{ "auth.mfa.useAuthenticator" | translate }}
                 </button>
               }
-              @if (method() !== "RECOVERY" && canUse("RECOVERY")) {
+              @if (
+                method() !== MfaMethod.RECOVERY && canUse(MfaMethod.RECOVERY)
+              ) {
                 <button
                   hlmBtn
                   variant="link"
@@ -243,7 +247,7 @@
                   {{ "auth.mfa.useRecovery" | translate }}
                 </button>
               }
-              @if (canUse("EMAIL")) {
+              @if (canUse(MfaMethod.EMAIL)) {
                 <button
                   hlmBtn
                   variant="link"

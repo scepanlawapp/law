@@ -1,6 +1,10 @@
 import { DOCUMENT } from "@angular/common";
 import { effect, inject, Injectable, signal } from "@angular/core";
-import { UserSettingsAccent, UserSettingsFinish, UserSettingsTheme } from "@law/api-interfaces";
+import {
+  UserSettingsAccent,
+  UserSettingsFinish,
+  UserSettingsTheme,
+} from "@law/api-interfaces";
 import { UserSettingsStore } from "../user-settings/user-settings.store";
 import {
   DEFAULT_ACCENT,

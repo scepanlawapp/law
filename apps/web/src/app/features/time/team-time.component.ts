@@ -44,6 +44,11 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
 import {
+  FIRST_PAGE,
+  PageRequest,
+  injectPaginatedList,
+} from "../../shared/pagination/paginated-list";
+import {
   HlmTBody,
   HlmTd,
   HlmTh,
@@ -59,22 +64,19 @@ import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/
 import { QuickCaptureDialogService } from "./quick-capture/quick-capture-dialog.service";
 import {
   STATUS_BADGE_CLASSES,
-  STATUS_LABEL_KEYS,
-  TREATMENT_LABEL_KEYS,
   formatMinutes,
-  formatWorkDate,
+  formatWorkValue,
   isEditable,
   isIsoDate,
 } from "./time-utils";
 import { WriteOffDialogService } from "./write-off-dialog/write-off-dialog.service";
-
-const PAGE_SIZE = 50;
-const OPTION_PAGE_SIZE = 100;
-
-const STATUS_VALUES = Object.keys(STATUS_LABEL_KEYS) as WorkEntryStatus[];
-const TREATMENT_VALUES = Object.keys(
-  TREATMENT_LABEL_KEYS,
-) as WorkEntryTreatment[];
+import {
+  WORK_ENTRY_STATUS_LABELS,
+  WORK_ENTRY_TREATMENT_LABELS,
+  labelOf,
+  optionsFrom,
+} from "../../shared/models";
+import { formatDate } from "../../shared/billing";
 
 @Component({
   selector: "law-team-time, law-time-table",
@@ -119,18 +121,17 @@ export class TeamTimeComponent implements OnInit {
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
-  private requestId = 0;
 
   readonly currentUserOnly = input(false);
 
-  readonly statusLabelKeys = STATUS_LABEL_KEYS;
+  readonly statusLabelKeys = WORK_ENTRY_STATUS_LABELS;
   readonly statusBadgeClasses = STATUS_BADGE_CLASSES;
-  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  readonly treatmentLabelKeys = WORK_ENTRY_TREATMENT_LABELS;
   readonly formatMinutes = formatMinutes;
   readonly isEditable = isEditable;
 
-  readonly statusOptions = STATUS_VALUES;
-  readonly treatmentOptions = TREATMENT_VALUES;
+  readonly statusOptions = optionsFrom(WORK_ENTRY_STATUS_LABELS);
+  readonly treatmentOptions = optionsFrom(WORK_ENTRY_TREATMENT_LABELS);
 
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly clients = signal<ClientSummary[]>([]);
@@ -140,21 +141,22 @@ export class TeamTimeComponent implements OnInit {
   readonly clientIds = signal<string[]>([]);
   readonly caseId = signal("");
   readonly statuses = signal<WorkEntryStatus[]>([
-    "PROPOSED",
-    "RUNNING",
-    "CONFIRMED",
+    WorkEntryStatus.PROPOSED,
+    WorkEntryStatus.RUNNING,
+    WorkEntryStatus.CONFIRMED,
   ]);
   readonly treatments = signal<WorkEntryTreatment[]>([]);
   readonly from = new FormControl("", { nonNullable: true });
   readonly to = new FormControl("", { nonNullable: true });
 
-  readonly entries = signal<WorkEntry[]>([]);
-  readonly page = signal(1);
-  readonly pageSize = signal(PAGE_SIZE);
-  readonly totalItems = signal(0);
-  readonly totalPages = signal(1);
-  readonly loading = signal(false);
-  readonly error = signal(false);
+  readonly list = injectPaginatedList<WorkEntry>({
+    fetch: (request) => this.api.list(this.query(request)),
+    onError: () => this.entries.set([]),
+  });
+  readonly entries = this.list.items;
+  readonly totalItems = this.list.totalItems;
+  readonly loading = this.list.loading;
+  readonly error = this.list.error;
   readonly busyEntryId = signal<string | null>(null);
 
   readonly userItemToString = (value: string | null | undefined): string =>
@@ -174,11 +176,15 @@ export class TeamTimeComponent implements OnInit {
   readonly statusItemToString = (
     value: WorkEntryStatus | null | undefined,
   ): string =>
-    value ? this.localization.translate(STATUS_LABEL_KEYS[value]) : "";
+    labelOf(WORK_ENTRY_STATUS_LABELS, value, (key) =>
+      this.localization.translate(key),
+    );
   readonly treatmentItemToString = (
     value: WorkEntryTreatment | null | undefined,
   ): string =>
-    value ? this.localization.translate(TREATMENT_LABEL_KEYS[value]) : "";
+    labelOf(WORK_ENTRY_TREATMENT_LABELS, value, (key) =>
+      this.localization.translate(key),
+    );
 
   readonly selectedPeopleLabel = computed(() =>
     this.peopleIds().map(this.userItemToString).join(", "),
@@ -220,14 +226,14 @@ export class TeamTimeComponent implements OnInit {
           error: () => undefined,
         });
     this.clientsApi
-      .list({ page: 1, pageSize: OPTION_PAGE_SIZE })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => this.clients.set(response.items),
         error: () => undefined,
       });
     this.casesApi
-      .list({ page: 1, pageSize: OPTION_PAGE_SIZE })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => this.cases.set(response.items),
@@ -268,34 +274,25 @@ export class TeamTimeComponent implements OnInit {
   }
 
   reload(): void {
-    this.page.set(1);
-    this.load(1);
-  }
-
-  retry(): void {
-    this.load(this.page());
-  }
-
-  changePage(page: number): void {
-    if (this.loading() || page < 1 || page > this.totalPages()) return;
-    this.load(page);
-  }
-
-  changePageSize(pageSize: number): void {
-    if (this.loading() || pageSize === this.pageSize()) return;
-    this.pageSize.set(pageSize);
-    this.page.set(1);
-    this.load(1);
+    if (this.currentUserOnly() && !this.auth.session()?.user.id) {
+      this.list.clear();
+      return;
+    }
+    this.list.reset();
   }
 
   workDateLabel(date: string): string {
-    return formatWorkDate(date, this.localization.language());
+    return formatDate(date, this.localization.language());
   }
 
   priceLabel(entry: WorkEntry): string {
     if (entry.value == null)
       return this.localization.translate("time.capture.noWorkValue");
-    return `${new Intl.NumberFormat(this.localization.language() === "EN" ? "en-US" : "sr-Latn-RS", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(entry.value))} ${entry.currency ?? ""}`;
+    return formatWorkValue(
+      entry.value,
+      entry.currency,
+      this.localization.locale(),
+    );
   }
 
   openFromRow(event: Event, entry: WorkEntry): void {
@@ -353,13 +350,12 @@ export class TeamTimeComponent implements OnInit {
     );
   }
 
-  private query(page: number): Partial<WorkEntryQuery> {
+  private query(request: PageRequest): Partial<WorkEntryQuery> {
     const from = this.from.value;
     const to = this.to.value;
     const userId = this.auth.session()?.user.id;
     return {
-      page,
-      pageSize: this.pageSize(),
+      ...request,
       userIds: this.currentUserOnly()
         ? userId
           ? [userId]
@@ -374,44 +370,5 @@ export class TeamTimeComponent implements OnInit {
       from: isIsoDate(from) ? from : undefined,
       to: isIsoDate(to) ? to : undefined,
     };
-  }
-
-  private load(page: number): void {
-    const requestId = ++this.requestId;
-    if (this.currentUserOnly() && !this.auth.session()?.user.id) {
-      this.entries.set([]);
-      this.totalItems.set(0);
-      this.totalPages.set(1);
-      this.loading.set(false);
-      this.error.set(false);
-      return;
-    }
-    this.loading.set(true);
-    this.error.set(false);
-    this.api
-      .list(this.query(page))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          if (requestId !== this.requestId) return;
-          const lastPage = Math.max(1, response.meta.totalPages);
-          this.totalItems.set(response.meta.totalItems);
-          this.totalPages.set(lastPage);
-          if (page > lastPage) {
-            this.page.set(lastPage);
-            this.load(lastPage);
-            return;
-          }
-          this.entries.set(response.items);
-          this.page.set(page);
-          this.loading.set(false);
-        },
-        error: () => {
-          if (requestId !== this.requestId) return;
-          this.entries.set([]);
-          this.error.set(true);
-          this.loading.set(false);
-        },
-      });
   }
 }

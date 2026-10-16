@@ -12,7 +12,9 @@ import {
 } from "@angular/core";
 import {
   ChatSessionFacetsResponse,
+  ChatSessionScope,
   ChatSessionStateFilter,
+  ChatSessionStatus,
   ChatSessionSummary,
 } from "@law/api-interfaces";
 import { NgIcon, provideIcons } from "@ng-icons/core";
@@ -42,11 +44,19 @@ import { LocalizationService } from "../../../../core/localization/localization.
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
 import { BottomReachedDirective } from "../../../../core/directives/bottom-reached.directive";
 import {
+  CHAT_SESSION_SCOPE_LABELS,
+  CHAT_SESSION_STATE_FILTER_LABELS,
+  CONVERSATION_TOKEN_KIND_LABELS,
+  ConversationTokenKind,
+  DOCUMENT_ANALYSIS_KIND_LABELS,
+  labelOf,
+  optionsFrom,
+} from "../../../../shared/models";
+import {
   ANALYSIS_TOKEN_KINDS,
   ConversationFilters,
   ConversationGroupMode,
   ConversationToken,
-  ConversationTokenKind,
   groupConversations,
   hasActiveFilters,
   parseTokenKey,
@@ -69,24 +79,6 @@ interface SuggestionSection {
   labelKey: string;
   items: Suggestion[];
 }
-
-const STATE_CHIPS: { value: ChatSessionStateFilter; labelKey: string }[] = [
-  { value: "pending", labelKey: "assistant.organizer.pending" },
-  { value: "draft", labelKey: "assistant.organizer.drafts" },
-  { value: "analysis", labelKey: "assistant.organizer.analyses" },
-];
-
-const TOKEN_KIND_LABELS: Record<ConversationTokenKind, string> = {
-  client: "assistant.organizer.tokenClient",
-  case: "assistant.organizer.tokenCase",
-  author: "assistant.organizer.tokenAuthor",
-  kind: "assistant.organizer.tokenKind",
-};
-
-const ANALYSIS_KIND_LABELS: Record<string, string> = {
-  CONTRACT_REVIEW: "assistant.organizer.kindContractReview",
-  CASE_TIMELINE: "assistant.organizer.kindCaseTimeline",
-};
 
 /**
  * Assistant sidebar: token search, filter chips, date/matter grouping, pinned
@@ -139,7 +131,7 @@ export class ConversationNavigatorComponent {
   readonly loading = input(false);
   readonly selectedSessionId = input<string | null>(null);
   readonly filters = input.required<ConversationFilters>();
-  readonly groupMode = input<ConversationGroupMode>("date");
+  readonly groupMode = input<ConversationGroupMode>(ConversationGroupMode.DATE);
   readonly facets = input<ChatSessionFacetsResponse | null>(null);
 
   readonly create = output<void>();
@@ -155,7 +147,11 @@ export class ConversationNavigatorComponent {
   private readonly searchInput =
     viewChild<ElementRef<HTMLInputElement>>("searchInput");
 
-  protected readonly stateChips = STATE_CHIPS;
+  protected readonly stateChips = optionsFrom(CHAT_SESSION_STATE_FILTER_LABELS);
+  protected readonly scopeOptions = optionsFrom(CHAT_SESSION_SCOPE_LABELS);
+  protected readonly ChatSessionStatus = ChatSessionStatus;
+  protected readonly ChatSessionScope = ChatSessionScope;
+  protected readonly ConversationGroupMode = ConversationGroupMode;
   protected readonly renamingId = signal<string | null>(null);
   /** Token labels survive facet refreshes and paging. */
   private readonly labelCache = new Map<string, string>();
@@ -175,38 +171,40 @@ export class ConversationNavigatorComponent {
     const text = this.filters().text.trim().toLocaleLowerCase();
     const sections: SuggestionSection[] = [
       {
-        kind: "client",
-        labelKey: TOKEN_KIND_LABELS.client,
+        kind: ConversationTokenKind.CLIENT,
+        labelKey: CONVERSATION_TOKEN_KIND_LABELS.client,
         items: (facets?.suggestions.clients ?? []).map((client) => ({
-          key: tokenKey("client", client.id),
+          key: tokenKey(ConversationTokenKind.CLIENT, client.id),
           label: client.displayName,
           detail: null,
         })),
       },
       {
-        kind: "case",
-        labelKey: TOKEN_KIND_LABELS.case,
+        kind: ConversationTokenKind.CASE,
+        labelKey: CONVERSATION_TOKEN_KIND_LABELS.case,
         items: (facets?.suggestions.cases ?? []).map((item) => ({
-          key: tokenKey("case", item.id),
+          key: tokenKey(ConversationTokenKind.CASE, item.id),
           label: item.caseNumber,
           detail: item.name,
         })),
       },
       {
-        kind: "author",
-        labelKey: TOKEN_KIND_LABELS.author,
+        kind: ConversationTokenKind.AUTHOR,
+        labelKey: CONVERSATION_TOKEN_KIND_LABELS.author,
         items: (facets?.suggestions.authors ?? []).map((author) => ({
-          key: tokenKey("author", author.id),
+          key: tokenKey(ConversationTokenKind.AUTHOR, author.id),
           label: author.displayName,
           detail: null,
         })),
       },
       {
-        kind: "kind",
-        labelKey: TOKEN_KIND_LABELS.kind,
+        kind: ConversationTokenKind.KIND,
+        labelKey: CONVERSATION_TOKEN_KIND_LABELS.kind,
         items: ANALYSIS_TOKEN_KINDS.map((kind) => ({
-          key: tokenKey("kind", kind),
-          label: this.localization.translate(ANALYSIS_KIND_LABELS[kind]),
+          key: tokenKey(ConversationTokenKind.KIND, kind),
+          label: this.localization.translate(
+            DOCUMENT_ANALYSIS_KIND_LABELS[kind],
+          ),
           detail: null,
         })).filter(
           (item) => !text || item.label.toLocaleLowerCase().includes(text),
@@ -229,21 +227,25 @@ export class ConversationNavigatorComponent {
   protected tokenLabel(key: string): string {
     const token = parseTokenKey(key);
     if (!token) return key;
-    if (token.kind === "kind") {
-      return this.localization.translate(ANALYSIS_KIND_LABELS[token.id] ?? key);
+    if (token.kind === ConversationTokenKind.KIND) {
+      return (
+        labelOf(DOCUMENT_ANALYSIS_KIND_LABELS, token.id, (labelKey) =>
+          this.localization.translate(labelKey),
+        ) || key
+      );
     }
     const fromSessions = this.labelFromSessions(token);
     if (fromSessions) this.labelCache.set(key, fromSessions);
     return (
       this.labelCache.get(key) ??
-      this.localization.translate(TOKEN_KIND_LABELS[token.kind])
+      this.localization.translate(CONVERSATION_TOKEN_KIND_LABELS[token.kind])
     );
   }
 
   protected tokenKindLabel(key: string): string {
     const token = parseTokenKey(key);
     return token
-      ? this.localization.translate(TOKEN_KIND_LABELS[token.kind])
+      ? this.localization.translate(CONVERSATION_TOKEN_KIND_LABELS[token.kind])
       : "";
   }
 
@@ -322,7 +324,7 @@ export class ConversationNavigatorComponent {
       return "assistant.organizer.awaitingApproval";
     if (activity?.hasDraft) return "assistant.conversationDraftReady";
     if (activity?.analysisKinds?.length) {
-      return ANALYSIS_KIND_LABELS[activity.analysisKinds[0]] ?? null;
+      return DOCUMENT_ANALYSIS_KIND_LABELS[activity.analysisKinds[0]] ?? null;
     }
     return null;
   }
@@ -355,13 +357,22 @@ export class ConversationNavigatorComponent {
 
   private labelFromSessions(token: ConversationToken): string | null {
     for (const session of this.sessions()) {
-      if (token.kind === "case" && session.case?.id === token.id) {
+      if (
+        token.kind === ConversationTokenKind.CASE &&
+        session.case?.id === token.id
+      ) {
         return session.case.caseNumber;
       }
-      if (token.kind === "client" && session.case?.clientId === token.id) {
+      if (
+        token.kind === ConversationTokenKind.CLIENT &&
+        session.case?.clientId === token.id
+      ) {
         return session.case.clientDisplayName;
       }
-      if (token.kind === "author" && session.createdBy?.id === token.id) {
+      if (
+        token.kind === ConversationTokenKind.AUTHOR &&
+        session.createdBy?.id === token.id
+      ) {
         return session.createdBy.displayName;
       }
     }

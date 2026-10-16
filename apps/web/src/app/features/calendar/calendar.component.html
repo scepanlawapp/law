@@ -8,11 +8,10 @@
     <div>
       <h1>{{ "calendar.title" | translate }}</h1>
       <p class="text-sm text-muted-foreground">
-        {{ "calendar.timezone" | translate }}: Europe/Belgrade
+        {{ "calendar.timezone" | translate }}: {{ officeTimeZone }}
       </p>
     </div>
     <div class="flex flex-wrap gap-2">
-      <!-- Add your expansion click handler here. -->
       <button
         hlmBtn
         type="button"
@@ -90,18 +89,7 @@
       <div
         class="grid grid-cols-7 gap-1 text-center text-xs text-muted-foreground"
       >
-        @for (
-          day of [
-            "calendar.mon",
-            "calendar.tue",
-            "calendar.wed",
-            "calendar.thu",
-            "calendar.fri",
-            "calendar.sat",
-            "calendar.sun",
-          ];
-          track day
-        ) {
+        @for (day of weekdayLabels; track day) {
           <span>{{ day | translate }}</span>
         }
       </div>
@@ -225,24 +213,24 @@
           <button
             hlmBtn
             type="button"
-            [variant]="view() === 'month' ? 'default' : 'outline'"
-            (click)="setView('month')"
+            [variant]="view() === CalendarView.MONTH ? 'default' : 'outline'"
+            (click)="setView(CalendarView.MONTH)"
           >
             {{ "calendar.month" | translate }}
           </button>
           <button
             hlmBtn
             type="button"
-            [variant]="view() === 'week' ? 'default' : 'outline'"
-            (click)="setView('week')"
+            [variant]="view() === CalendarView.WEEK ? 'default' : 'outline'"
+            (click)="setView(CalendarView.WEEK)"
           >
             {{ "calendar.week" | translate }}
           </button>
           <button
             hlmBtn
             type="button"
-            [variant]="view() === 'list' ? 'default' : 'outline'"
-            (click)="setView('list')"
+            [variant]="view() === CalendarView.LIST ? 'default' : 'outline'"
+            (click)="setView(CalendarView.LIST)"
           >
             {{ "calendar.list" | translate }}
           </button>
@@ -271,7 +259,7 @@
             {{ "calendar.retry" | translate }}
           </button>
         </div>
-      } @else if (view() === "week") {
+      } @else if (view() === CalendarView.WEEK) {
         <section
           #scheduleViewport
           class="calendar-viewport app-data-region"
@@ -398,7 +386,9 @@
             </div>
           </div>
         </section>
-      } @else if (view() === "list" || view() === "board") {
+      } @else if (
+        view() === CalendarView.LIST || view() === CalendarView.BOARD
+      ) {
         <section
           #scheduleViewport
           class="calendar-viewport"
@@ -423,18 +413,7 @@
             <div
               class="calendar-month-grid grid grid-cols-7 border-l border-t border-border"
             >
-              @for (
-                day of [
-                  "calendar.mon",
-                  "calendar.tue",
-                  "calendar.wed",
-                  "calendar.thu",
-                  "calendar.fri",
-                  "calendar.sat",
-                  "calendar.sun",
-                ];
-                track day
-              ) {
+              @for (day of weekdayLabels; track day) {
                 <div
                   class="border-b border-r border-border bg-muted p-2 text-sm font-medium"
                 >
@@ -503,8 +482,8 @@
           <div class="flex items-start justify-between gap-3">
             <div>
               <p class="text-sm text-muted-foreground">
-                {{ sourceLabel(item) | translate }} ·
-                {{ statusLabel(item.status) | translate }}
+                {{ sourceLabel(item) }} ·
+                {{ statusLabel(item.status) }}
               </p>
               <h2 class="text-lg font-semibold">{{ item.title }}</h2>
             </div>

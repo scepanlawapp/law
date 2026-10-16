@@ -1,4 +1,3 @@
-import { DatePipe } from "@angular/common";
 import { Component, DestroyRef, OnInit, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
@@ -26,12 +25,12 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 import { MemberSecurityComponent } from "./member-security.component";
 import { PasswordConfirmDialogService } from "./password-confirm-dialog.service";
 import { RecoveryCodesDialogService } from "./recovery-codes-dialog.service";
+import { OFFICE_TIME_ZONE } from "../../shared/models";
 
 @Component({
   selector: "law-security-settings",
   standalone: true,
   imports: [
-    DatePipe,
     ReactiveFormsModule,
     HlmButton,
     HlmField,
@@ -75,6 +74,21 @@ export class SecuritySettingsComponent implements OnInit {
 
   ngOnInit(): void {
     this.refresh();
+  }
+
+  dateLabel(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      timeZone: OFFICE_TIME_ZONE,
+      dateStyle: "medium",
+    }).format(new Date(value));
+  }
+
+  dateTimeLabel(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      timeZone: OFFICE_TIME_ZONE,
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
   }
 
   startEnrollment(): void {

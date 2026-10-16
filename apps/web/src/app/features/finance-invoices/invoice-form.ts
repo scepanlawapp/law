@@ -12,21 +12,15 @@ import {
   WorkEntry,
 } from "@law/api-interfaces";
 import { formatHoursMinutes } from "../../shared/billing";
-
-const PAYMENT_METHOD_TRANSLATION_KEYS: Record<string, string> = {
-  BANK_TRANSFER: "settings.organization.payment.methods.BANK_TRANSFER",
-  CASH: "settings.organization.payment.methods.CASH",
-  CARD: "settings.organization.payment.methods.CARD",
-  OTHER: "settings.organization.payment.methods.OTHER",
-};
+import { DEFAULT_CURRENCY } from "../../shared/currency";
+import { PAYMENT_METHOD_PREFERENCE_LABELS, labelOf } from "../../shared/models";
 
 export function localizePaymentMethod(
   value: string | null | undefined,
   translate: (key: string) => string,
 ): string | null | undefined {
   if (!value) return value;
-  const translationKey = PAYMENT_METHOD_TRANSLATION_KEYS[value];
-  return translationKey ? translate(translationKey) : value;
+  return labelOf(PAYMENT_METHOD_PREFERENCE_LABELS, value, translate);
 }
 
 export type WorkEntryAllocationForm = FormGroup<{
@@ -265,7 +259,7 @@ function allocationTotalValidator(
 
 export function createInvoiceLineForm(
   line?: InvoiceLineSummary,
-  defaultCurrency = "RSD",
+  defaultCurrency: string = DEFAULT_CURRENCY,
   defaultVatRate = 0,
 ): InvoiceLineForm {
   return buildLineForm({

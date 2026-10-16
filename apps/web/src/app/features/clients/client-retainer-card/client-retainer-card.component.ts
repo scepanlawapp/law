@@ -15,10 +15,11 @@ import {
   BillingReportsApiClient,
   BillingSetupApiClient,
 } from "@law/api-clients";
-import type {
-  ClientBillingProfile,
-  RetainerAgreement,
-  RetainerUsage,
+import {
+  RetainerRule,
+  type ClientBillingProfile,
+  type RetainerAgreement,
+  type RetainerUsage,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -49,6 +50,8 @@ import {
   usageState,
 } from "../../../shared/billing";
 import { officeToday } from "../../time/time-utils";
+import { DEFAULT_CURRENCY } from "../../../shared/currency";
+import { RETAINER_RULE_LABELS } from "../../../shared/models";
 import { ClientRateDialogService } from "./client-rate-dialog.service";
 import { RetainerAgreementDialogService } from "./retainer-agreement-dialog.service";
 
@@ -74,6 +77,9 @@ import { RetainerAgreementDialogService } from "./retainer-agreement-dialog.serv
   templateUrl: "./client-retainer-card.component.html",
 })
 export class ClientRetainerCardComponent {
+  protected readonly RetainerRule = RetainerRule;
+  protected readonly DEFAULT_CURRENCY = DEFAULT_CURRENCY;
+  readonly ruleLabels = RETAINER_RULE_LABELS;
   private readonly setupApi = inject(BillingSetupApiClient);
   private readonly reportsApi = inject(BillingReportsApiClient);
   private readonly auth = inject(AuthState);
@@ -158,13 +164,23 @@ export class ClientRetainerCardComponent {
     const language = this.localization.language();
     const covered = formatHours(usage.coveredMinutes, language);
     return usage.includedMinutes
-      ? `${covered} / ${formatHours(usage.includedMinutes, language)} h`
-      : `${covered} h`;
+      ? this.localization.translate("clients.retainer.hoursOf", {
+          covered,
+          included: formatHours(usage.includedMinutes, language),
+        })
+      : this.localization.translate("clients.retainer.hours", {
+          hours: covered,
+        });
   });
   readonly outOfScopeLabel = computed(() => {
     const usage = this.usage();
     return usage
-      ? `${formatHours(usage.outOfScopeMinutes, this.localization.language())} h`
+      ? this.localization.translate("clients.retainer.hours", {
+          hours: formatHours(
+            usage.outOfScopeMinutes,
+            this.localization.language(),
+          ),
+        })
       : "";
   });
 

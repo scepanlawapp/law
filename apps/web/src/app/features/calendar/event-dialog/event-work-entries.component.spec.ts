@@ -60,7 +60,7 @@ describe("EventWorkEntriesComponent", () => {
     expect(api.list).toHaveBeenCalledWith({
       eventId: "e1",
       page: 1,
-      pageSize: 50,
+      pageSize: 100,
     });
     expect(events.get).toHaveBeenCalledWith("e1");
     expect(capture.open).toHaveBeenCalledWith(
@@ -100,11 +100,14 @@ describe("EventWorkEntriesComponent", () => {
   });
   it("loads additional work pages without losing earlier entries", () => {
     api.list.mockReturnValueOnce(
-      of({ items: [entry], meta: { totalItems: 2 } }),
+      of({ items: [entry], meta: { totalItems: 101, totalPages: 2 } }),
     );
     const fixture = render();
     api.list.mockReturnValueOnce(
-      of({ items: [{ ...entry, id: "w2" }], meta: { totalItems: 2 } }),
+      of({
+        items: [{ ...entry, id: "w2" }],
+        meta: { totalItems: 101, totalPages: 2 },
+      }),
     );
     fixture.componentInstance.load(false);
     expect(fixture.componentInstance.entries().map((item) => item.id)).toEqual([

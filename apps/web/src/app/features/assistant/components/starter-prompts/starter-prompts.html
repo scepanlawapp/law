@@ -4,14 +4,14 @@
     class="grid gap-2"
     [attr.aria-label]="
       (section.group
-        ? 'assistant.starter.group.' + section.group
+        ? groupLabels[section.group]
         : 'assistant.starter.label'
       ) | translate
     "
   >
     @if (section.group) {
     <h3 class="text-sm font-medium text-muted-foreground">
-      {{ "assistant.starter.group." + section.group | translate }}
+      {{ groupLabels[section.group] | translate }}
     </h3>
     }
     <div class="grid grid-cols-1 gap-2 sm:grid-cols-2" role="list">

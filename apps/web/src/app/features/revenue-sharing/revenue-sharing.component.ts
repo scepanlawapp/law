@@ -22,15 +22,9 @@ import {
   defaultRevenueConfiguration,
   revenueEmptyRates,
   REVENUE_ORIGINS,
-  REVENUE_MODES,
-  REVENUE_BASES,
-  REVENUE_AGREEMENT_TYPES,
-  REVENUE_DEPARTURE_POLICIES,
-  REVENUE_SCOPES,
-  REVENUE_CATEGORIES,
-  REVENUE_COMBINATIONS,
   RevenueConfiguration,
   RevenueAgreement,
+  RevenueOrigin,
   RevenueSpecialRule,
   RevenueReferences,
   RevenueSettingsResponse,
@@ -38,6 +32,20 @@ import {
   RevenuePreviewResult,
   RevenuePreviewScenario,
   RevenueRates,
+  RevenueAgreementType,
+  RevenueBasis,
+  RevenueCategory,
+  RevenueCombination,
+  RevenueDeparturePolicy,
+  RevenueEntitlementDatePolicy,
+  RevenueExpenseTreatment,
+  RevenueMemberStatus,
+  RevenueMissingRulePolicy,
+  RevenueMode,
+  RevenuePartialPaymentPolicy,
+  RevenueRateState,
+  RevenueScope,
+  RevenueVatBasis,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -54,11 +62,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
-import { SelectOption } from "../../shared/utils";
-import {
-  RevenueSelectComponent,
-  revenueOptions,
-} from "./revenue-select.component";
+import { RevenueSelectComponent } from "./revenue-select.component";
 import {
   makeRateForm,
   readRate,
@@ -81,6 +85,53 @@ import {
   RevenueAgreementDialogContext,
 } from "./revenue-agreement-dialog.component";
 import { RevenueRoleModelSheetComponent } from "./revenue-role-model-sheet.component";
+import {
+  OFFICE_TIME_ZONE,
+  REVENUE_AGREEMENT_TYPE_LABELS,
+  REVENUE_BASIS_LABELS,
+  REVENUE_CATEGORY_LABELS,
+  REVENUE_COMBINATION_LABELS,
+  REVENUE_DEPARTURE_POLICY_LABELS,
+  REVENUE_ENTITLEMENT_DATE_POLICY_LABELS,
+  REVENUE_ENUM_LABELS,
+  REVENUE_EXPENSE_TREATMENT_LABELS,
+  REVENUE_MEMBER_FILTER_LABELS,
+  REVENUE_MISSING_RULE_POLICY_LABELS,
+  REVENUE_MODE_LABELS,
+  REVENUE_ORIGIN_LABELS,
+  REVENUE_PARTIAL_PAYMENT_POLICY_LABELS,
+  REVENUE_SCOPE_LABELS,
+  REVENUE_SELF_ORIGINATION_LABELS,
+  REVENUE_TAB_LABELS,
+  REVENUE_VAT_BASIS_LABELS,
+  REVENUE_VERSION_STATUS_LABELS,
+  SelectOption,
+  filterOptionsFrom,
+  labelOf,
+  optionsFrom,
+} from "../../shared/models";
+import {
+  RevenueMemberFilter,
+  RevenueRuleActivity,
+  RevenueSelfOrigination,
+  RevenueTab,
+  RevenueVersionStatus,
+} from "../../shared/models";
+
+const MEDIUM_DATE_FORMAT: Intl.DateTimeFormatOptions = {
+  dateStyle: "medium",
+  timeZone: OFFICE_TIME_ZONE,
+};
+const REVENUE_CURRENCY = "RSD";
+const INDIVIDUAL_AGREEMENT_TYPES: readonly RevenueAgreementType[] = [
+  RevenueAgreementType.INDIVIDUAL,
+  RevenueAgreementType.EXCLUDED,
+  RevenueAgreementType.UNCONFIGURED,
+];
+const VISIBLE_RATE_STATES: readonly RevenueRateState[] = [
+  RevenueRateState.PERCENTAGE,
+  RevenueRateState.EXCLUDED,
+];
 
 const textControl = (value = "", required = false) =>
   new FormControl<string>(value, {
@@ -93,7 +144,7 @@ const ratesForm = (inherit = false) =>
   new FormGroup(
     Object.fromEntries(
       REVENUE_ORIGINS.map((o) => [o, makeRateForm(inherit)]),
-    ) as Record<(typeof REVENUE_ORIGINS)[number], RevenueRateForm>,
+    ) as Record<RevenueOrigin, RevenueRateForm>,
   );
 const readRates = (form: ReturnType<typeof ratesForm>) =>
   Object.fromEntries(
@@ -155,11 +206,16 @@ export class RevenueSharingComponent {
   readonly rules = signal<RevenueSpecialRule[]>([]);
   readonly draftChanged = signal(false);
   readonly formChanged = signal(false);
-  readonly tab = signal("overview");
-  readonly tabs = ["overview", "models", "team", "special", "history"];
+  readonly tab = signal<string>(RevenueTab.OVERVIEW);
+  readonly RevenueTab = RevenueTab;
+  readonly tabOptions = optionsFrom(REVENUE_TAB_LABELS);
+  readonly versionStatusLabels = REVENUE_VERSION_STATUS_LABELS;
+  readonly RevenueVersionStatus = RevenueVersionStatus;
+  readonly RevenueRuleActivity = RevenueRuleActivity;
   readonly origins = REVENUE_ORIGINS;
-  readonly filter = textControl("ACTIVE");
-  readonly filterOptions = revenueOptions(["ACTIVE", "FORMER", "ALL"]);
+  readonly originLabels = REVENUE_ORIGIN_LABELS;
+  readonly filter = textControl(RevenueMemberFilter.ACTIVE);
+  readonly filterOptions = optionsFrom(REVENUE_MEMBER_FILTER_LABELS);
   readonly filteredMembers = signal<RevenueReferences["members"]>([]);
   // TODO(revenue-sharing): Requires versioned role-default fields in the API. Purpose: define standard compensation by actual team role. Needed: persisted role-keyed fixed/percentage model fields.
   // TODO(revenue-sharing): Requires monthly compensation fields in RevenueConfiguration and RevenueAgreement. Purpose: support fixed or combined monthly pay. Needed: versioned amounts and calculation semantics; UserRate is hourly and must not be repurposed.
@@ -168,60 +224,62 @@ export class RevenueSharingComponent {
     [
       ...new Set(
         this.references()
-          .members.filter((member) => member.status === "ACTIVE")
+          .members.filter(
+            (member) => member.status === RevenueMemberStatus.ACTIVE,
+          )
           .map((member) => member.role),
       ),
     ].sort(),
   );
-  readonly modes = revenueOptions(REVENUE_MODES);
-  readonly bases = revenueOptions(REVENUE_BASES);
-  readonly agreementTypes = revenueOptions(REVENUE_AGREEMENT_TYPES);
-  readonly departurePolicies = revenueOptions(REVENUE_DEPARTURE_POLICIES);
-  readonly scopeTypes = revenueOptions(REVENUE_SCOPES);
-  readonly categories = revenueOptions(REVENUE_CATEGORIES);
-  readonly combinations = revenueOptions(REVENUE_COMBINATIONS);
-  readonly originOptions = revenueOptions(REVENUE_ORIGINS);
-  readonly originOrAny = [
-    { value: "", label: "revenue.anyOrigin" },
-    ...this.originOptions,
-  ];
-  readonly selfOptions = revenueOptions(["INHERIT", "YES", "NO"]);
+  readonly modes = optionsFrom(REVENUE_MODE_LABELS);
+  readonly bases = optionsFrom(REVENUE_BASIS_LABELS);
+  readonly agreementTypes = optionsFrom(REVENUE_AGREEMENT_TYPE_LABELS);
+  readonly departurePolicies = optionsFrom(REVENUE_DEPARTURE_POLICY_LABELS);
+  readonly scopeTypes = optionsFrom(REVENUE_SCOPE_LABELS);
+  readonly categories = optionsFrom(REVENUE_CATEGORY_LABELS);
+  readonly combinations = optionsFrom(REVENUE_COMBINATION_LABELS);
+  readonly originOptions = optionsFrom(REVENUE_ORIGIN_LABELS);
+  readonly originOrAny = filterOptionsFrom(
+    REVENUE_ORIGIN_LABELS,
+    "revenue.anyOrigin",
+  );
+  readonly selfOptions = optionsFrom(REVENUE_SELF_ORIGINATION_LABELS);
   readonly generalFields = [
     { key: "primaryRevenueBasis" as const, options: this.bases },
     {
       key: "vatBasis" as const,
-      options: revenueOptions(["EXCLUDING_VAT", "INCLUDING_VAT"]),
+      options: optionsFrom(REVENUE_VAT_BASIS_LABELS),
     },
     {
       key: "expenseTreatment" as const,
-      options: revenueOptions(["EXCLUDE", "INCLUDE"]),
+      options: optionsFrom(REVENUE_EXPENSE_TREATMENT_LABELS),
     },
     {
       key: "partialPaymentPolicy" as const,
-      options: revenueOptions(["PROPORTIONAL", "MANUAL"]),
+      options: optionsFrom(REVENUE_PARTIAL_PAYMENT_POLICY_LABELS),
     },
     {
       key: "entitlementDatePolicy" as const,
-      options: revenueOptions([
-        "WORK_EXECUTION_DATE",
-        "INVOICE_DATE",
-        "COLLECTION_DATE",
-      ]),
+      options: optionsFrom(REVENUE_ENTITLEMENT_DATE_POLICY_LABELS),
     },
     {
       key: "missingRulePolicy" as const,
-      options: revenueOptions(["REQUIRES_CONFIGURATION"]),
+      options: optionsFrom(REVENUE_MISSING_RULE_POLICY_LABELS),
     },
   ];
   readonly form = new FormGroup({
     enabled: booleanControl(),
-    configurationMode: textControl("SHARED_RULES"),
-    primaryRevenueBasis: textControl("COLLECTED"),
-    vatBasis: textControl("EXCLUDING_VAT"),
-    expenseTreatment: textControl("EXCLUDE"),
-    partialPaymentPolicy: textControl("PROPORTIONAL"),
-    entitlementDatePolicy: textControl("WORK_EXECUTION_DATE"),
-    missingRulePolicy: textControl("REQUIRES_CONFIGURATION"),
+    configurationMode: textControl(RevenueMode.SHARED_RULES),
+    primaryRevenueBasis: textControl(RevenueBasis.COLLECTED),
+    vatBasis: textControl(RevenueVatBasis.EXCLUDING_VAT),
+    expenseTreatment: textControl(RevenueExpenseTreatment.EXCLUDE),
+    partialPaymentPolicy: textControl(RevenuePartialPaymentPolicy.PROPORTIONAL),
+    entitlementDatePolicy: textControl(
+      RevenueEntitlementDatePolicy.WORK_EXECUTION_DATE,
+    ),
+    missingRulePolicy: textControl(
+      RevenueMissingRulePolicy.REQUIRES_CONFIGURATION,
+    ),
     rates: ratesForm(),
     originationEnabled: booleanControl(),
     originationRate: makeRateForm(),
@@ -236,26 +294,28 @@ export class RevenueSharingComponent {
   readonly agreementEditor = new FormGroup({
     id: textControl(),
     memberId: textControl("", true),
-    agreementType: textControl("INHERIT"),
+    agreementType: textControl(RevenueAgreementType.INHERIT),
     effectiveFrom: textControl(officeToday(), true),
     effectiveTo: textControl(),
     rates: ratesForm(true),
     originationRate: makeRateForm(true),
-    selfOrigination: textControl("INHERIT"),
-    departurePolicy: textControl("RETAIN_EARNINGS_ON_PRIOR_WORK"),
+    selfOrigination: textControl(RevenueSelfOrigination.INHERIT),
+    departurePolicy: textControl(
+      RevenueDeparturePolicy.RETAIN_EARNINGS_ON_PRIOR_WORK,
+    ),
     departureCutoffDate: textControl(),
     description: textControl(),
   });
   readonly ruleEditor = new FormGroup({
     id: textControl(),
     memberId: textControl("", true),
-    scopeType: textControl("FIRM"),
+    scopeType: textControl(RevenueScope.FIRM),
     scopeId: textControl(),
-    earningType: textControl("WORK_SHARE"),
-    clientOrigin: textControl("OWN_CLIENT"),
+    earningType: textControl(RevenueCategory.WORK_SHARE),
+    clientOrigin: textControl(RevenueOrigin.OWN_CLIENT),
     percentage: textControl("", true),
-    revenueBasis: textControl("COLLECTED"),
-    combinationMode: textControl("OVERRIDE"),
+    revenueBasis: textControl(RevenueBasis.COLLECTED),
+    combinationMode: textControl(RevenueCombination.OVERRIDE),
     poolId: textControl(),
     effectiveFrom: textControl(officeToday(), true),
     effectiveTo: textControl(),
@@ -264,9 +324,9 @@ export class RevenueSharingComponent {
   });
   readonly simulator = new FormGroup({
     amount: textControl("", true),
-    revenueBasis: textControl("COLLECTED"),
+    revenueBasis: textControl(RevenueBasis.COLLECTED),
     memberId: textControl("", true),
-    clientOrigin: textControl("OWN_CLIENT"),
+    clientOrigin: textControl(RevenueOrigin.OWN_CLIENT),
     originatorId: textControl(),
     referenceDate: textControl(officeToday(), true),
     collectionDate: textControl(),
@@ -331,11 +391,11 @@ export class RevenueSharingComponent {
   }
   updateMode() {
     const mode = this.form.controls.configurationMode.value;
-    this.individualMode.set(mode !== "SHARED_RULES");
-    this.advancedMode.set(mode === "ADVANCED");
+    this.individualMode.set(mode !== RevenueMode.SHARED_RULES);
+    this.advancedMode.set(mode === RevenueMode.ADVANCED);
   }
   openRoleModel(role: string) {
-    this.tab.set("models");
+    this.tab.set(RevenueTab.MODELS);
     this.selectedRoleModel.set(role);
   }
   closeRoleModel() {
@@ -346,8 +406,10 @@ export class RevenueSharingComponent {
     this.filteredMembers.set(
       this.references().members.filter(
         (m) =>
-          filter === "ALL" ||
-          (filter === "ACTIVE" ? m.status === "ACTIVE" : m.status === "FORMER"),
+          filter === RevenueMemberFilter.ALL ||
+          (filter === RevenueMemberFilter.ACTIVE
+            ? m.status === RevenueMemberStatus.ACTIVE
+            : m.status === RevenueMemberStatus.FORMER),
       ),
     );
   }
@@ -414,10 +476,13 @@ export class RevenueSharingComponent {
         )[0] ?? null
     );
   }
-  versionStatus(entry: RevenueHistoryEntry) {
-    if (!entry.effectiveFrom) return "UNKNOWN";
-    if (entry.effectiveFrom > officeToday()) return "SCHEDULED";
-    return this.effectiveVersion()?.id === entry.id ? "CURRENT" : "HISTORICAL";
+  versionStatus(entry: RevenueHistoryEntry): RevenueVersionStatus {
+    if (!entry.effectiveFrom) return RevenueVersionStatus.UNKNOWN;
+    if (entry.effectiveFrom > officeToday())
+      return RevenueVersionStatus.SCHEDULED;
+    return this.effectiveVersion()?.id === entry.id
+      ? RevenueVersionStatus.CURRENT
+      : RevenueVersionStatus.HISTORICAL;
   }
   load() {
     if (this.saving()) return;
@@ -480,17 +545,23 @@ export class RevenueSharingComponent {
       specialRules: this.rules(),
     } as RevenueConfiguration;
   }
+  /** Translated label of any revenue enum value, role or preview explanation. */
+  enumLabel(value: string | null | undefined): string {
+    return labelOf(REVENUE_ENUM_LABELS, value, (key) =>
+      this.localization.translate(key),
+    );
+  }
   memberName(id: string) {
     return (
       this.references().members.find((m) => m.id === id)?.name ??
       this.localization.translate("revenue.unavailable")
     );
   }
-  rateSummary(origin: (typeof REVENUE_ORIGINS)[number]) {
+  rateSummary(origin: RevenueOrigin) {
     const rate = readRate(this.form.controls.rates.controls[origin]);
-    return rate.state === "PERCENTAGE"
+    return rate.state === RevenueRateState.PERCENTAGE
       ? this.percent(rate.percentage)
-      : this.localization.translate("revenue.enum." + rate.state);
+      : this.enumLabel(rate.state);
   }
   originationSummary() {
     return this.form.controls.originationEnabled.value
@@ -499,9 +570,9 @@ export class RevenueSharingComponent {
   }
   private rateSummaryForOrigination() {
     const rate = readRate(this.form.controls.originationRate);
-    return rate.state === "PERCENTAGE"
+    return rate.state === RevenueRateState.PERCENTAGE
       ? this.percent(rate.percentage)
-      : this.localization.translate("revenue.enum." + rate.state);
+      : this.enumLabel(rate.state);
   }
   memberOptions(optional = false): SelectOption[] {
     return [
@@ -519,25 +590,28 @@ export class RevenueSharingComponent {
     ];
   }
   scopeOptions(): SelectOption[] {
-    const scope = this.ruleEditor.controls.scopeType.value;
-    return scope === "MEMBER"
-      ? this.memberOptions()
-      : scope === "CLIENT"
-        ? this.referenceOptions("clients")
-        : scope === "CASE"
-          ? this.referenceOptions("cases")
-          : scope === "WORK_EVENT"
-            ? this.referenceOptions("events")
-            : [];
+    switch (this.ruleEditor.controls.scopeType.value) {
+      case RevenueScope.MEMBER:
+        return this.memberOptions();
+      case RevenueScope.CLIENT:
+        return this.referenceOptions("clients");
+      case RevenueScope.CASE:
+        return this.referenceOptions("cases");
+      case RevenueScope.WORK_EVENT:
+        return this.referenceOptions("events");
+      default:
+        return [];
+    }
   }
   scopeName(rule: RevenueSpecialRule) {
-    if (rule.scopeType === "FIRM")
-      return this.localization.translate("revenue.enum.FIRM");
-    if (rule.scopeType === "MEMBER") return this.memberName(rule.scopeId ?? "");
+    if (rule.scopeType === RevenueScope.FIRM)
+      return this.enumLabel(RevenueScope.FIRM);
+    if (rule.scopeType === RevenueScope.MEMBER)
+      return this.memberName(rule.scopeId ?? "");
     const list =
-      rule.scopeType === "CLIENT"
+      rule.scopeType === RevenueScope.CLIENT
         ? "clients"
-        : rule.scopeType === "CASE"
+        : rule.scopeType === RevenueScope.CASE
           ? "cases"
           : "events";
     return (
@@ -563,7 +637,7 @@ export class RevenueSharingComponent {
         .filter((r) => r.active)
         .map((r) => ({
           value: r.id,
-          label: `${this.memberName(r.memberId)} · ${this.scopeName(r)} · ${this.localization.translate("revenue.enum." + r.earningType)}`,
+          label: `${this.memberName(r.memberId)} · ${this.scopeName(r)} · ${this.enumLabel(r.earningType)}`,
         })),
     ];
   }
@@ -572,9 +646,7 @@ export class RevenueSharingComponent {
   }
   individualAgreements() {
     return this.agreements().filter((agreement) =>
-      ["INDIVIDUAL", "EXCLUDED", "UNCONFIGURED"].includes(
-        agreement.agreementType,
-      ),
+      INDIVIDUAL_AGREEMENT_TYPES.includes(agreement.agreementType),
     );
   }
   individualAgreementMemberCount() {
@@ -583,25 +655,25 @@ export class RevenueSharingComponent {
     ).size;
   }
   agreementSummary(agreement: RevenueAgreement) {
-    const rates = REVENUE_ORIGINS.filter(
+    const rates = REVENUE_ORIGINS.filter((origin) =>
+      VISIBLE_RATE_STATES.includes(agreement.rates[origin].state),
+    ).map(
       (origin) =>
-        agreement.rates[origin].state === "PERCENTAGE" ||
-        agreement.rates[origin].state === "EXCLUDED",
-    ).map((origin) => {
-      const rate = agreement.rates[origin];
-      return `${this.localization.translate("revenue.enum." + origin)} ${rate.state === "PERCENTAGE" ? this.percent(rate.percentage) : this.localization.translate("revenue.enum.EXCLUDED")}`;
-    });
-    if (
-      agreement.originationRate.state === "PERCENTAGE" ||
-      agreement.originationRate.state === "EXCLUDED"
-    ) {
+        `${this.enumLabel(origin)} ${this.rateValue(agreement.rates[origin])}`,
+    );
+    if (VISIBLE_RATE_STATES.includes(agreement.originationRate.state)) {
       rates.push(
-        `${this.localization.translate("revenue.originationRate")} ${agreement.originationRate.state === "PERCENTAGE" ? this.percent(agreement.originationRate.percentage) : this.localization.translate("revenue.enum.EXCLUDED")}`,
+        `${this.localization.translate("revenue.originationRate")} ${this.rateValue(agreement.originationRate)}`,
       );
     }
     return rates.length
       ? rates.join(" · ")
       : this.localization.translate("revenue.noRateOverrides");
+  }
+  private rateValue(rate: RevenueAgreement["originationRate"]) {
+    return rate.state === RevenueRateState.PERCENTAGE
+      ? this.percent(rate.percentage)
+      : this.enumLabel(RevenueRateState.EXCLUDED);
   }
   private previewShareWidth(value: string | null) {
     const amount = Number(this.simulator.controls.amount.value);
@@ -629,9 +701,7 @@ export class RevenueSharingComponent {
       )
       .sort((a, b) => b.effectiveFrom.localeCompare(a.effectiveFrom))[0];
     if (!agreement) return this.localization.translate("revenue.sharedModel");
-    return this.localization.translate(
-      "revenue.enum." + agreement.agreementType,
-    );
+    return this.enumLabel(agreement.agreementType);
   }
   async editAgreement(memberId: string, agreement?: RevenueAgreement) {
     if (this.editorChanged() && !(await this.ask("revenue.discard"))) return;
@@ -641,13 +711,13 @@ export class RevenueSharingComponent {
       ({
         id: crypto.randomUUID(),
         memberId,
-        agreementType: "UNCONFIGURED",
+        agreementType: RevenueAgreementType.UNCONFIGURED,
         effectiveFrom: this.publication.controls.effectiveFrom.value,
         effectiveTo: null,
         rates: revenueEmptyRates(true),
-        originationRate: { state: "INHERIT", percentage: null },
+        originationRate: { state: RevenueRateState.INHERIT, percentage: null },
         selfOrigination: null,
-        departurePolicy: "RETAIN_EARNINGS_ON_PRIOR_WORK",
+        departurePolicy: RevenueDeparturePolicy.RETAIN_EARNINGS_ON_PRIOR_WORK,
         departureCutoffDate: null,
         description: "",
       } as RevenueAgreement);
@@ -665,7 +735,11 @@ export class RevenueSharingComponent {
         effectiveTo: effectiveTo ?? "",
         departureCutoffDate: departureCutoffDate ?? "",
         selfOrigination:
-          selfOrigination === null ? "INHERIT" : selfOrigination ? "YES" : "NO",
+          selfOrigination === null
+            ? RevenueSelfOrigination.INHERIT
+            : selfOrigination
+              ? RevenueSelfOrigination.YES
+              : RevenueSelfOrigination.NO,
       },
       { emitEvent: false },
     );
@@ -699,7 +773,7 @@ export class RevenueSharingComponent {
       (member) => member.id === memberId,
     )?.role;
     return role
-      ? this.localization.translate("revenue.enum." + role)
+      ? this.enumLabel(role)
       : this.localization.translate("revenue.unavailable");
   }
   private openAgreementDialog() {
@@ -731,7 +805,9 @@ export class RevenueSharingComponent {
       rates: readRates(this.agreementEditor.controls.rates),
       originationRate: readRate(this.agreementEditor.controls.originationRate),
       selfOrigination:
-        v.selfOrigination === "INHERIT" ? null : v.selfOrigination === "YES",
+        v.selfOrigination === RevenueSelfOrigination.INHERIT
+          ? null
+          : v.selfOrigination === RevenueSelfOrigination.YES,
       effectiveTo: v.effectiveTo || null,
       departureCutoffDate: v.departureCutoffDate || null,
     } as RevenueAgreement;
@@ -749,13 +825,13 @@ export class RevenueSharingComponent {
     const r = rule ?? {
       id: crypto.randomUUID(),
       memberId: "",
-      scopeType: "FIRM",
+      scopeType: RevenueScope.FIRM,
       scopeId: null,
-      earningType: "WORK_SHARE",
-      clientOrigin: "OWN_CLIENT",
+      earningType: RevenueCategory.WORK_SHARE,
+      clientOrigin: RevenueOrigin.OWN_CLIENT,
       percentage: "",
       revenueBasis: this.form.controls.primaryRevenueBasis.value,
-      combinationMode: "OVERRIDE",
+      combinationMode: RevenueCombination.OVERRIDE,
       poolId: null,
       effectiveFrom: this.publication.controls.effectiveFrom.value,
       effectiveTo: null,
@@ -815,12 +891,15 @@ export class RevenueSharingComponent {
     const r = {
       ...v,
       scopeId:
-        v.scopeType === "FIRM"
+        v.scopeType === RevenueScope.FIRM
           ? null
-          : v.scopeType === "MEMBER"
+          : v.scopeType === RevenueScope.MEMBER
             ? v.memberId
             : v.scopeId || null,
-      poolId: v.combinationMode === "EXCLUSIVE_SPLIT" ? v.poolId || null : null,
+      poolId:
+        v.combinationMode === RevenueCombination.EXCLUSIVE_SPLIT
+          ? v.poolId || null
+          : null,
       clientOrigin: v.clientOrigin || null,
       effectiveTo: v.effectiveTo || null,
     } as RevenueSpecialRule;
@@ -885,7 +964,7 @@ export class RevenueSharingComponent {
     this.publication.patchValue(publication, { emitEvent: false });
     this.publication.markAllAsTouched();
     if (this.form.invalid || this.publication.invalid) {
-      this.tab.set("models");
+      this.tab.set(RevenueTab.MODELS);
       this.error.set("revenue.error.INVALID_INPUT");
       return;
     }
@@ -963,19 +1042,16 @@ export class RevenueSharingComponent {
   }
   date(value: string | null) {
     return value
-      ? new Intl.DateTimeFormat(this.locale(), {
-          dateStyle: "medium",
-          timeZone: "Europe/Belgrade",
-        }).format(new Date(value))
+      ? new Intl.DateTimeFormat(
+          this.localization.locale(),
+          MEDIUM_DATE_FORMAT,
+        ).format(new Date(value))
       : this.localization.translate("revenue.openEnded");
-  }
-  locale() {
-    return this.localization.language() === "EN" ? "en-GB" : "sr-Latn-RS";
   }
   percent(value: string | null) {
     return value === null
-      ? this.localization.translate("revenue.enum.UNCONFIGURED")
-      : new Intl.NumberFormat(this.locale(), {
+      ? this.enumLabel(RevenueRateState.UNCONFIGURED)
+      : new Intl.NumberFormat(this.localization.locale(), {
           style: "percent",
           maximumFractionDigits: 2,
         }).format(Number(value) / 100);
@@ -983,9 +1059,9 @@ export class RevenueSharingComponent {
   money(value: string | null) {
     return value === null
       ? this.localization.translate("revenue.unavailable")
-      : new Intl.NumberFormat(this.locale(), {
+      : new Intl.NumberFormat(this.localization.locale(), {
           style: "currency",
-          currency: "RSD",
+          currency: REVENUE_CURRENCY,
         }).format(Number(value));
   }
   historyChanges(
@@ -1038,8 +1114,8 @@ export class RevenueSharingComponent {
               .filter((p) => !/^\d+$/.test(p))
               .slice(1)
               .map((p) =>
-                REVENUE_ORIGINS.includes(p as (typeof REVENUE_ORIGINS)[number])
-                  ? this.localization.translate("revenue.enum." + p)
+                REVENUE_ORIGINS.includes(p as RevenueOrigin)
+                  ? this.enumLabel(p)
                   : this.localization.translate("revenue." + p),
               )
               .join(" · ")}`
@@ -1048,8 +1124,8 @@ export class RevenueSharingComponent {
         if (v === null || v === undefined || v === "")
           return this.localization.translate("revenue.none");
         if (typeof v === "boolean")
-          return this.localization.translate(
-            "revenue.enum." + (v ? "YES" : "NO"),
+          return this.enumLabel(
+            v ? RevenueSelfOrigination.YES : RevenueSelfOrigination.NO,
           );
         if (last === "memberId") return this.memberName(String(v));
         if (last === "scopeId") {
@@ -1063,7 +1139,7 @@ export class RevenueSharingComponent {
         if (last === "percentage") return this.percent(String(v));
         if (/Date$|^effective/.test(last)) return this.date(String(v));
         if (["description", "poolId"].includes(last)) return String(v);
-        return this.localization.translate("revenue.enum." + v);
+        return this.enumLabel(String(v));
       };
       changes.push({
         label,

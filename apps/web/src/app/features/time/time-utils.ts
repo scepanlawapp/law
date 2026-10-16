@@ -1,11 +1,6 @@
-import type {
-  WorkEntry,
-  WorkEntryStatus,
-  WorkEntryTreatment,
-} from "@law/api-interfaces";
+import { type WorkEntry, WorkEntryStatus } from "@law/api-interfaces";
 import { statusBadgeClass } from "../../shared/status-badge";
-
-export const OFFICE_TIME_ZONE = "Europe/Belgrade";
+import { OFFICE_TIME_ZONE } from "../../shared/models";
 
 /** Today as a YYYY-MM-DD calendar day in the office time zone. */
 export function officeToday(now: Date = new Date()): string {
@@ -50,34 +45,33 @@ export function formatMinutes(minutes: number): string {
   return rest === 0 ? `${hours}h` : `${hours}h ${rest}m`;
 }
 
-export const STATUS_LABEL_KEYS: Record<WorkEntryStatus, string> = {
-  RUNNING: "time.status.running",
-  PROPOSED: "time.status.proposed",
-  CONFIRMED: "time.status.confirmed",
-  BILLED: "time.status.billed",
-  WRITTEN_OFF: "time.status.writtenOff",
-};
-
-export const TREATMENT_LABEL_KEYS: Record<WorkEntryTreatment, string> = {
-  RETAINER: "time.treatment.retainer",
-  AT: "time.treatment.at",
-  HOURLY: "time.treatment.hourly",
-  NON_BILLABLE: "time.treatment.nonBillable",
-  UNDECIDED: "time.treatment.undecided",
-};
-
 /** Semantic-token classes for a status badge. */
 export const STATUS_BADGE_CLASSES: Record<WorkEntryStatus, string> = {
-  RUNNING: statusBadgeClass("RUNNING"),
-  PROPOSED: statusBadgeClass("PROPOSED"),
-  CONFIRMED: statusBadgeClass("CONFIRMED"),
-  BILLED: statusBadgeClass("BILLED"),
-  WRITTEN_OFF: statusBadgeClass("WRITTEN_OFF"),
+  [WorkEntryStatus.RUNNING]: statusBadgeClass(WorkEntryStatus.RUNNING),
+  [WorkEntryStatus.PROPOSED]: statusBadgeClass(WorkEntryStatus.PROPOSED),
+  [WorkEntryStatus.CONFIRMED]: statusBadgeClass(WorkEntryStatus.CONFIRMED),
+  [WorkEntryStatus.BILLED]: statusBadgeClass(WorkEntryStatus.BILLED),
+  [WorkEntryStatus.WRITTEN_OFF]: statusBadgeClass(WorkEntryStatus.WRITTEN_OFF),
 };
 
 /** Edit, confirm and write-off apply only before an entry is billed or closed. */
 export function isEditable(entry: WorkEntry): boolean {
-  return entry.status === "PROPOSED" || entry.status === "CONFIRMED";
+  return (
+    entry.status === WorkEntryStatus.PROPOSED ||
+    entry.status === WorkEntryStatus.CONFIRMED
+  );
+}
+
+/** Recorded work value with two decimals and its currency, e.g. `12.000,00 RSD`. */
+export function formatWorkValue(
+  value: string,
+  currency: string | null | undefined,
+  locale: string,
+): string {
+  return `${new Intl.NumberFormat(locale, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(Number(value))} ${currency ?? ""}`;
 }
 
 /** Minutes between two instants, at least 1 and at most one day. */
@@ -86,19 +80,4 @@ export function minutesBetween(startsAt: string, endsAt: string): number {
     (new Date(endsAt).getTime() - new Date(startsAt).getTime()) / 60000,
   );
   return Math.min(1440, Math.max(1, minutes));
-}
-
-/** Locale tag for the UI language used by the time screens. */
-export function timeLocale(language: "SR" | "EN"): string {
-  return language === "EN" ? "en-GB" : "sr-Latn";
-}
-
-/** A YYYY-MM-DD calendar day as a short localized date, e.g. `4. 10. 2026.`. */
-export function formatWorkDate(date: string, language: "SR" | "EN"): string {
-  return new Intl.DateTimeFormat(timeLocale(language), {
-    timeZone: "UTC",
-    day: "numeric",
-    month: "numeric",
-    year: "numeric",
-  }).format(new Date(`${date}T00:00:00Z`));
 }

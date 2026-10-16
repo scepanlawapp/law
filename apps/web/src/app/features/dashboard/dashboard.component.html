@@ -88,7 +88,7 @@
       [loading]="store.statsLoading()"
       subtitleKey="dashboard.scopeMine"
       routerLink="/cases"
-      [queryParams]="{ caseStatus: 'ACTIVE' }"
+      [queryParams]="{ caseStatus: CaseStatus.ACTIVE }"
     />
     <law-dashboard-stat-card
       [title]="'dashboard.statUpcomingHearings' | translate"
@@ -301,7 +301,7 @@
                         statusBadgeClass(row.status)
                       "
                     >
-                      {{ "cases.status." + row.status | translate }}
+                      {{ caseStatusLabels[row.status] | translate }}
                     </span>
                   </td>
                   <td hlmTd>

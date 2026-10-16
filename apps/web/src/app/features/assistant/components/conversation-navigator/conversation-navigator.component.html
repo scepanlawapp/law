@@ -81,20 +81,15 @@
       role="group"
       [attr.aria-label]="'assistant.organizer.scopeLabel' | translate"
     >
-      <button
-        type="button"
-        [attr.aria-pressed]="filters().scope === 'mine'"
-        (click)="setScope('mine')"
-      >
-        <span>{{ "assistant.organizer.mine" | translate }}</span>
-      </button>
-      <button
-        type="button"
-        [attr.aria-pressed]="filters().scope === 'team'"
-        (click)="setScope('team')"
-      >
-        <span>{{ "assistant.organizer.team" | translate }}</span>
-      </button>
+      @for (scope of scopeOptions; track scope.value) {
+        <button
+          type="button"
+          [attr.aria-pressed]="filters().scope === scope.value"
+          (click)="setScope(scope.value)"
+        >
+          <span>{{ scope.label | translate }}</span>
+        </button>
+      }
     </div>
 
     <div
@@ -109,7 +104,7 @@
           [attr.aria-pressed]="filters().states.includes(chip.value)"
           (click)="toggleState(chip.value)"
         >
-          {{ chip.labelKey | translate }}
+          {{ chip.label | translate }}
           @if (stateCount(chip.value); as count) {
             <span class="conversation-chip-count">{{ count }}</span>
           }
@@ -130,9 +125,9 @@
     </div>
 
     <div class="conversation-group-toggle">
-      <span class="conversation-group-caption" aria-hidden="true">{{
-        "assistant.organizer.groupBy" | translate
-      }}</span>
+      <span class="conversation-group-caption" aria-hidden="true">
+        {{ "assistant.organizer.groupBy" | translate }}
+      </span>
       <div
         class="conversation-segmented"
         role="group"
@@ -140,16 +135,16 @@
       >
         <button
           type="button"
-          [attr.aria-pressed]="groupMode() === 'date'"
-          (click)="setGroupMode('date')"
+          [attr.aria-pressed]="groupMode() === ConversationGroupMode.DATE"
+          (click)="setGroupMode(ConversationGroupMode.DATE)"
         >
           <ng-icon name="lucideCalendarDays" aria-hidden="true" />
           <span>{{ "assistant.organizer.groupDate" | translate }}</span>
         </button>
         <button
           type="button"
-          [attr.aria-pressed]="groupMode() === 'matter'"
-          (click)="setGroupMode('matter')"
+          [attr.aria-pressed]="groupMode() === ConversationGroupMode.MATTER"
+          (click)="setGroupMode(ConversationGroupMode.MATTER)"
         >
           <ng-icon name="lucideFolderOpen" aria-hidden="true" />
           <span>{{ "assistant.organizer.groupMatter" | translate }}</span>
@@ -260,10 +255,10 @@
           <strong>
             {{ session.title || ("assistant.newChat" | translate) }}
           </strong>
-          @if (groupMode() === "date" && session.case) {
+          @if (groupMode() === ConversationGroupMode.DATE && session.case) {
             <small>{{ session.case.caseNumber }}</small>
           }
-          @if (filters().scope === "team" && session.createdBy) {
+          @if (filters().scope === ChatSessionScope.TEAM && session.createdBy) {
             <small>{{ session.createdBy.displayName }}</small>
           }
           @if (sessionHint(session); as hint) {
@@ -272,7 +267,7 @@
         </span>
         <time>
           {{
-            groupMode() === "date"
+            groupMode() === ConversationGroupMode.DATE
               ? (session.updatedAt | date: "shortTime")
               : (session.updatedAt | date: "d. MMM")
           }}
@@ -321,13 +316,13 @@
       >
         <ng-icon
           [name]="
-            session.status === 'ARCHIVED'
+            session.status === ChatSessionStatus.ARCHIVED
               ? 'lucideArchiveRestore'
               : 'lucideArchive'
           "
         />
         {{
-          (session.status === "ARCHIVED"
+          (session.status === ChatSessionStatus.ARCHIVED
             ? "assistant.organizer.restore"
             : "assistant.organizer.archiveAction"
           ) | translate

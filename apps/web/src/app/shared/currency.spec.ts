@@ -1,6 +1,6 @@
 import {
+  CURRENCY_LABELS,
   CURRENCY_OPTIONS,
-  Currency,
   createCurrencyItemToString,
 } from "./currency";
 
@@ -37,10 +37,10 @@ describe("currency options", () => {
     ]);
   });
 
-  it("uses enum localization keys for selected display values", () => {
+  it("uses the currency label keys for selected display values", () => {
     const itemToString = createCurrencyItemToString((key) => `t:${key}`);
 
-    expect(itemToString("RSD")).toBe(`t:${Currency.RSD}`);
-    expect(itemToString("EUR")).toBe(`t:${Currency.EUR}`);
+    expect(itemToString("RSD")).toBe(`t:${CURRENCY_LABELS.RSD}`);
+    expect(itemToString("EUR")).toBe("t:currency-eur");
   });
 });

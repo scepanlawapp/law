@@ -1,12 +1,20 @@
 import {
   ActivityLogSummary,
-  DeadlineDetail,
   DeadlineStatus,
   TaskDetail,
   TaskStatus,
 } from "@law/api-interfaces";
+import {
+  DeadlineDueTargetMode,
+  WORK_ACTIVITY_ACTION_LABELS,
+} from "../../shared/models";
+import { DueTargetMode } from "../../shared/models";
 
-export type DueTargetMode = "NONE" | "DATE" | "DATE_TIME";
+const CLOSED_TASK_STATUSES: readonly TaskStatus[] = [
+  TaskStatus.DONE,
+  TaskStatus.CANCELLED,
+  TaskStatus.ARCHIVED,
+];
 
 export function todayDateInputValue(): string {
   const today = new Date();
@@ -25,16 +33,23 @@ export function dateTimeInputValue(value: string | null | undefined): string {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
+export function dueMode(
+  dueDate: string | null | undefined,
+  dueAt: string | null | undefined,
+): DueTargetMode {
+  if (dueAt) return DueTargetMode.DATE_TIME;
+  if (dueDate) return DueTargetMode.DATE;
+  return DueTargetMode.NONE;
+}
+
 export function taskDueMode(task?: TaskDetail | null): DueTargetMode {
-  if (task?.dueAt) return "DATE_TIME";
-  if (task?.dueDate) return "DATE";
-  return "NONE";
+  return dueMode(task?.dueDate, task?.dueAt);
 }
 
 export function deadlineDueMode(
-  deadline?: DeadlineDetail | null,
-): Exclude<DueTargetMode, "NONE"> {
-  return deadline?.dueAt ? "DATE_TIME" : "DATE";
+  deadline?: { dueAt?: string | null } | null,
+): DeadlineDueTargetMode {
+  return deadline?.dueAt ? DueTargetMode.DATE_TIME : DueTargetMode.DATE;
 }
 
 export function dueLabel(
@@ -58,7 +73,7 @@ export function dueLabel(
 }
 
 export function isTaskOverdue(task: TaskDetail): boolean {
-  if (["DONE", "CANCELLED", "ARCHIVED"].includes(task.status)) return false;
+  if (CLOSED_TASK_STATUSES.includes(task.status)) return false;
   const value = task.dueAt ?? task.dueDate;
   if (!value) return false;
   const due = task.dueAt
@@ -68,29 +83,13 @@ export function isTaskOverdue(task: TaskDetail): boolean {
 }
 
 export function isDeadlineOpen(status: DeadlineStatus): boolean {
-  return status === "OPEN";
+  return status === DeadlineStatus.OPEN;
 }
 
 export function isTaskOpen(status: TaskStatus): boolean {
-  return status === "TODO" || status === "IN_PROGRESS";
+  return status === TaskStatus.TODO || status === TaskStatus.IN_PROGRESS;
 }
 
 export function actionLabel(entry: ActivityLogSummary): string {
-  const labels: Record<string, string> = {
-    TASK_CREATED: "work.activity.taskCreated",
-    TASK_UPDATED: "work.activity.taskUpdated",
-    TASK_DONE: "work.activity.taskDone",
-    TASK_TODO: "work.activity.taskReopened",
-    TASK_CANCELLED: "work.activity.taskCancelled",
-    DEADLINE_CREATED: "work.activity.deadlineCreated",
-    DEADLINE_UPDATED: "work.activity.deadlineUpdated",
-    DEADLINE_SATISFIED: "work.activity.deadlineSatisfied",
-    DEADLINE_OPEN: "work.activity.deadlineReopened",
-    DEADLINE_CANCELLED: "work.activity.deadlineCancelled",
-    EVENT_CREATED: "work.activity.eventCreated",
-    EVENT_UPDATED: "work.activity.eventUpdated",
-    EVENT_COMPLETED: "work.activity.eventCompleted",
-    EVENT_CANCELLED: "work.activity.eventCancelled",
-  };
-  return labels[entry.action] ?? "work.activity.other";
+  return WORK_ACTIVITY_ACTION_LABELS[entry.action] ?? "work.activity.other";
 }

@@ -1,3 +1,4 @@
+import { RevenueCombination, RevenueScope } from "@law/api-interfaces";
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
@@ -14,6 +15,11 @@ import { HlmSwitch } from "@spartan-ng/helm/switch";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { RevenueSelectComponent } from "./revenue-select.component";
 import type { RevenueSharingComponent } from "./revenue-sharing.component";
+
+const SCOPES_WITHOUT_ID: readonly string[] = [
+  RevenueScope.FIRM,
+  RevenueScope.MEMBER,
+];
 
 export interface RevenueRuleDialogContext {
   editor: RevenueSharingComponent;
@@ -69,8 +75,7 @@ export interface RevenueRuleDialogContext {
         [options]="editor.scopeTypes"
       />
       @if (
-        editor.ruleEditor.controls.scopeType.value !== "FIRM" &&
-        editor.ruleEditor.controls.scopeType.value !== "MEMBER"
+        !scopesWithoutId.includes(editor.ruleEditor.controls.scopeType.value)
       ) {
         <law-revenue-select
           id="rule-scope-id"
@@ -116,7 +121,8 @@ export interface RevenueRuleDialogContext {
         [options]="editor.combinations"
       />
       @if (
-        editor.ruleEditor.controls.combinationMode.value === "EXCLUSIVE_SPLIT"
+        editor.ruleEditor.controls.combinationMode.value ===
+        RevenueCombination.EXCLUSIVE_SPLIT
       ) {
         <div>
           <label hlmLabel for="rule-pool">
@@ -178,7 +184,9 @@ export interface RevenueRuleDialogContext {
         [formControl]="editor.ruleEditor.controls.description"
       />
     </div>
-    @if (editor.ruleEditor.controls.scopeType.value === "WORK_EVENT") {
+    @if (
+      editor.ruleEditor.controls.scopeType.value === RevenueScope.WORK_EVENT
+    ) {
       <p class="mt-4 text-sm text-muted-foreground">
         {{ "revenue.eventScopeHelp" | translate }}
       </p>
@@ -195,6 +203,9 @@ export interface RevenueRuleDialogContext {
   `,
 })
 export class RevenueRuleDialogComponent {
+  readonly RevenueCombination = RevenueCombination;
+  readonly RevenueScope = RevenueScope;
+  readonly scopesWithoutId = SCOPES_WITHOUT_ID;
   readonly editor = injectBrnDialogContext<RevenueRuleDialogContext>().editor;
   readonly dialogRef = inject<BrnDialogRef<boolean | undefined>>(BrnDialogRef);
 

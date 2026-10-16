@@ -44,9 +44,7 @@
                       <span class="flex items-center gap-2">
                         <span
                           class="size-4.5 border border-border"
-                          [style.backgroundColor]="
-                            themeSwatchColor(option.value)
-                          "
+                          [style.backgroundColor]="themeSwatches[option.value]"
                           aria-hidden="true"
                         ></span>
                         {{ themeItemToString(option.value) }}
@@ -90,33 +88,33 @@
           formControlName="accentColor"
           class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
         >
-          @for (color of accentOptions; track color.name) {
+          @for (color of accentOptions; track color.value) {
             <label
               class="border-border hover:bg-muted/50 hover:text-primary data-[checked=true]:border-primary data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground data-[checked=true]:hover:text-accent-foreground flex min-h-16 w-full cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors"
-              [for]="'accent-' + color.name"
+              [for]="'accent-' + color.value"
             >
               <hlm-radio
                 class="flex-1"
-                [value]="color.name"
-                [inputId]="'accent-' + color.name"
-                [aria-label]="'settings.accent.' + color.name | translate"
+                [value]="color.value"
+                [inputId]="'accent-' + color.value"
+                [aria-label]="color.label | translate"
               >
                 <hlm-radio-indicator indicator />
               </hlm-radio>
               <span
                 class="border-border mt-0.5 size-6 shrink-0 rounded-full border"
-                [style.backgroundColor]="color.value"
+                [style.backgroundColor]="accentSwatches[color.value]"
                 aria-hidden="true"
               ></span>
               <span class="min-w-0 flex-1 text-sm leading-5 text-pretty">
-                {{ "settings.accent." + color.name | translate }}
+                {{ color.label | translate }}
               </span>
             </label>
           }
         </hlm-radio-group>
       </fieldset>
 
-      @if (accentColorValue() === "GOLD") {
+      @if (accentColorValue() === UserSettingsAccent.GOLD) {
         <fieldset hlmFieldSet>
           <legend hlmFieldLegend>
             {{ "settings.finish" | translate }}
@@ -125,27 +123,27 @@
             formControlName="finish"
             class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-5"
           >
-            @for (finish of finishOptions; track finish) {
+            @for (finish of finishOptions; track finish.value) {
               <label
                 class="border-border hover:bg-muted/50 hover:text-primary data-[checked=true]:border-primary data-[checked=true]:bg-accent data-[checked=true]:text-accent-foreground data-[checked=true]:hover:text-accent-foreground flex min-h-16 w-full cursor-pointer items-start gap-3 rounded-lg border bg-card p-3 text-left transition-colors"
-                [for]="'finish-' + finish"
+                [for]="'finish-' + finish.value"
               >
                 <hlm-radio
                   class="flex-1"
-                  [value]="finish"
-                  [inputId]="'finish-' + finish"
-                  [aria-label]="'settings.finish.' + finish | translate"
+                  [value]="finish.value"
+                  [inputId]="'finish-' + finish.value"
+                  [aria-label]="finish.label | translate"
                 >
                   <hlm-radio-indicator indicator />
                 </hlm-radio>
                 <span
                   class="finish-swatch border-border mt-0.5 size-6 shrink-0 rounded-full border"
-                  [attr.data-finish]="finish.toLowerCase()"
-                  data-accent="gold"
+                  [attr.data-finish]="finishCssValues[finish.value]"
+                  [attr.data-accent]="goldCssValue"
                   aria-hidden="true"
                 ></span>
                 <span class="min-w-0 flex-1 text-sm leading-5 text-pretty">
-                  {{ "settings.finish." + finish | translate }}
+                  {{ finish.label | translate }}
                 </span>
               </label>
             }

@@ -24,13 +24,18 @@ import {
 } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
 import {
+  CONTRACT_ISSUE_CATEGORY_LABELS,
+  CONTRACT_ISSUE_RISK_LABELS,
+  CONTRACT_REVIEW_TYPE_LABELS,
+} from "../../../../shared/models";
+import {
   riskBadgeClass,
   STATUS_BADGE_BASE_CLASSES,
 } from "../../../../shared/status-badge";
 import { CollapsibleSectionComponent } from "../../../../shared/ui/collapsible-section/collapsible-section.component";
 import { CitationListComponent } from "../citation-list/citation-list";
 
-const RISKS: readonly ContractIssueRisk[] = ["HIGH", "MEDIUM", "LOW"];
+const RISKS = Object.keys(CONTRACT_ISSUE_RISK_LABELS) as ContractIssueRisk[];
 
 /** Read-only contract review in the assistant rail ("Analiza"). */
 @Component({
@@ -67,6 +72,10 @@ export class ContractReviewPanelComponent {
   protected readonly sourcesExpanded = signal(false);
   protected readonly badgeBase = STATUS_BADGE_BASE_CLASSES;
   protected readonly riskBadgeClass = riskBadgeClass;
+  protected readonly riskLabels = CONTRACT_ISSUE_RISK_LABELS;
+  protected readonly categoryLabels = CONTRACT_ISSUE_CATEGORY_LABELS;
+  protected readonly contractTypeLabels = CONTRACT_REVIEW_TYPE_LABELS;
+  protected readonly DocumentScript = DocumentScript;
 
   /** Issues grouped by risk, highest first; empty groups are dropped. */
   protected readonly issueGroups = computed(() => {
@@ -79,8 +88,9 @@ export class ContractReviewPanelComponent {
 
   protected readonly highRiskCount = computed(
     () =>
-      this.analysis().result.issues.filter((issue) => issue.risk === "HIGH")
-        .length,
+      this.analysis().result.issues.filter(
+        (issue) => issue.risk === ContractIssueRisk.HIGH,
+      ).length,
   );
 
   /** Model warnings plus the truncation notice. */

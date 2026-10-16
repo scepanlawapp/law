@@ -152,44 +152,44 @@ describe("WorkViewComponent completion", () => {
   it("uses numbered table pages and replaces rows instead of appending", () => {
     api.listTasks.mockReturnValueOnce(tableResponse(1));
     component.setPresentation("table");
-    expect(component.tasksPageSize()).toBe(100);
-    expect(component.tasksTotalItems()).toBe(201);
+    expect(component.taskPages.pageSize()).toBe(100);
+    expect(component.taskPages.totalItems()).toBe(201);
     api.listTasks.mockReturnValueOnce(tableResponse(2));
-    component.changeTaskPage(2);
+    component.taskPages.changePage(2);
     expect(api.listTasks).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2, pageSize: 100 }),
     );
     expect(component.tasks().map((item) => item.id)).toEqual(["task-2"]);
     api.listTasks.mockReturnValueOnce(tableResponse(1));
-    component.changeTaskPage(1);
+    component.taskPages.changePage(1);
     expect(component.tasks().map((item) => item.id)).toEqual(["task-1"]);
   });
   it("resets numbered pagination when filters change", () => {
     api.listTasks.mockReturnValue(tableResponse(1));
     component.setPresentation("table");
-    component.changeTaskPage(2);
+    component.taskPages.changePage(2);
     component.setStatuses(["TODO"]);
     expect(api.listTasks).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, statuses: ["TODO"] }),
     );
-    expect(component.tasksPage()).toBe(1);
+    expect(component.taskPages.page()).toBe(1);
   });
   it("changes table page size starting at page one", () => {
     api.listTasks.mockReturnValue(tableResponse(1));
     component.setPresentation("table");
-    component.changeTaskPage(2);
-    component.changeTaskPageSize(25);
+    component.taskPages.changePage(2);
+    component.taskPages.changePageSize(25);
     expect(api.listTasks).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, pageSize: 25 }),
     );
-    expect(component.tasksPage()).toBe(1);
+    expect(component.taskPages.page()).toBe(1);
   });
   it("retries the selected page after a failed request", () => {
     api.listTasks.mockReturnValueOnce(tableResponse(1));
     component.setPresentation("table");
     const failed = new Subject<never>();
     api.listTasks.mockReturnValueOnce(failed);
-    component.changeTaskPage(2);
+    component.taskPages.changePage(2);
     failed.error(new Error("Offline"));
     expect(component.tasksError()).toBe(true);
     api.listTasks.mockReturnValueOnce(tableResponse(2));
@@ -203,12 +203,12 @@ describe("WorkViewComponent completion", () => {
     api.listTasks.mockReturnValueOnce(tableResponse(1));
     component.setPresentation("table");
     api.listTasks.mockClear();
-    component.changeTaskPage(0);
-    component.changeTaskPage(4);
+    component.taskPages.changePage(0);
+    component.taskPages.changePage(4);
     expect(api.listTasks).not.toHaveBeenCalled();
     api.listTasks.mockReturnValueOnce(new Subject<never>());
-    component.changeTaskPage(2);
-    component.changeTaskPage(3);
+    component.taskPages.changePage(2);
+    component.taskPages.changePage(3);
     expect(api.listTasks).toHaveBeenCalledTimes(1);
   });
   it("clamps the table page if the server result set shrinks", () => {
@@ -217,11 +217,11 @@ describe("WorkViewComponent completion", () => {
     api.listTasks
       .mockReturnValueOnce(tableResponse(3, 101))
       .mockReturnValueOnce(tableResponse(2, 101));
-    component.changeTaskPage(3);
+    component.taskPages.changePage(3);
     expect(api.listTasks).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 2 }),
     );
-    expect(component.tasksPage()).toBe(2);
+    expect(component.taskPages.page()).toBe(2);
   });
   it("loads the next page only for the requested column", () => {
     api.listTasks.mockReturnValue(

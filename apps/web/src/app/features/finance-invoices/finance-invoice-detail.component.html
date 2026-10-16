@@ -43,7 +43,7 @@
         </span>
       </div>
       <div class="flex flex-wrap items-center gap-2">
-        @if (item.status === "DRAFT") {
+        @if (item.status === InvoiceStatus.DRAFT) {
           <a
             hlmBtn
             variant="outline"
@@ -53,7 +53,7 @@
             {{ "common.edit" | translate }}
           </a>
         }
-        @if (item.status === "DRAFT" && canSend()) {
+        @if (item.status === InvoiceStatus.DRAFT && canSend()) {
           @if (sendBlocked()) {
             <span
               tabindex="0"
@@ -97,7 +97,7 @@
       </div>
     </header>
 
-    @if (item.status === "DRAFT" && canSend() && sendBlocked()) {
+    @if (item.status === InvoiceStatus.DRAFT && canSend() && sendBlocked()) {
       <p
         id="invoice-send-blocked"
         role="status"
@@ -152,7 +152,7 @@
             {{ "finance.sef.notConfigured" | translate }}
           </p>
         }
-        @if (state.environment === "PRODUCTION") {
+        @if (state.environment === SefEnvironment.PRODUCTION) {
           <p class="rounded-lg border border-destructive p-3" role="alert">
             {{ "finance.sef.productionBlocked" | translate }}
           </p>
@@ -164,7 +164,7 @@
                 {{ "finance.sef.localState" | translate }}
               </dt>
               <dd class="font-medium">
-                {{ sefStateKey(submission.state) | translate }}
+                {{ sefStateLabel(submission.state) }}
               </dd>
             </div>
             <div>
@@ -206,7 +206,7 @@
               </dd>
             </div>
           </dl>
-          @if (submission.state === "UNKNOWN") {
+          @if (submission.state === SefSubmissionState.UNKNOWN) {
             <p
               class="rounded-lg border border-warning/40 bg-warning/10 p-3 text-warning"
               role="alert"
@@ -263,7 +263,7 @@
               }
               {{ "finance.sef.send" | translate }}
             </button>
-            @if (state.submission?.state === "SUBMITTED") {
+            @if (state.submission?.state === SefSubmissionState.SUBMITTED) {
               <button
                 hlmBtn
                 type="button"

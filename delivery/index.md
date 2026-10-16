@@ -24,6 +24,8 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Primary panel borders](./tracks/primary_panel_borders_20261014/index.md)
 
 - [Frontend Numbered Pagination](./tracks/frontend_numbered_pagination_20261009/index.md)
+  - [Frontend Shared Pagination State](./tracks/frontend_pagination_state_20261016/index.md)
+    - [Frontend Shared Models, Enums and Localization](./tracks/frontend_shared_models_20261016/index.md)
 - [Reports UI Prototype](./tracks/reports_ui_prototype_20261009/index.md)
 - [Event Work Entry Without Client](./tracks/event_work_entry_no_client_20261009/index.md)
 - [Finance Retainer Agreement Management](./tracks/retainer_agreement_creation_20261009/index.md)

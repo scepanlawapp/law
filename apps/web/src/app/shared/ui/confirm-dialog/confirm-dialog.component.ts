@@ -10,7 +10,10 @@ import {
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideCircleAlert, lucideTriangleAlert } from "@ng-icons/lucide";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
-import type { ConfirmDialogData } from "./confirm-dialog.service";
+import {
+  ConfirmDialogVariant,
+  type ConfirmDialogData,
+} from "./confirm-dialog.service";
 
 @Component({
   selector: "law-confirm-dialog",
@@ -30,6 +33,7 @@ import type { ConfirmDialogData } from "./confirm-dialog.service";
 })
 export class ConfirmDialogComponent {
   readonly data = injectBrnDialogContext<ConfirmDialogData>();
+  protected readonly ConfirmDialogVariant = ConfirmDialogVariant;
   private readonly dialogRef = inject(BrnDialogRef<boolean>);
 
   cancel(): void {

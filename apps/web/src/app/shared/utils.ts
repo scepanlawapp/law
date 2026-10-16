@@ -1,36 +1,18 @@
-export type SelectOption<TValue extends string = string> = {
-  value: TValue;
-  label: string;
-};
+import { UserProfileGender, UserSettingsLanguage } from "@law/api-interfaces";
+import { INTL_LOCALES } from "./models/locale";
 
-export function getSelectOptionLabel<TValue extends string = string>(
-  value: TValue | string | null | undefined,
-  options: ReadonlyArray<SelectOption<TValue>>,
-  translate: (key: string) => string,
+export function nameInVocative(
+  name: string,
+  gender: UserProfileGender,
 ): string {
-  const option = options.find((item) => item.value === value);
-  const labelKey = option?.label ?? (typeof value === "string" ? value : "");
-
-  return labelKey ? translate(labelKey) : "";
-}
-
-export function createSelectItemToString<TValue extends string = string>(
-  options: ReadonlyArray<SelectOption<TValue>>,
-  translate: (key: string) => string,
-): (value: TValue | string | null | undefined) => string {
-  return (value: TValue | string | null | undefined) =>
-    getSelectOptionLabel(value, options, translate);
-}
-
-type Gender = "MALE" | "FEMALE";
-
-export function nameInVocative(name: string, gender: Gender): string {
   if (!name?.trim()) {
     return name;
   }
 
   const original = name.trim();
-  const lower = original.toLocaleLowerCase("sr-Latn");
+  const lower = original.toLocaleLowerCase(
+    INTL_LOCALES[UserSettingsLanguage.SR],
+  );
 
   const maleExceptions: Record<string, string> = {
     petar: "Petre",
@@ -59,7 +41,7 @@ export function nameInVocative(name: string, gender: Gender): string {
     zorka: "Zorka",
   };
 
-  if (gender === "MALE") {
+  if (gender === UserProfileGender.MALE) {
     const exception = maleExceptions[lower];
 
     if (exception) {
@@ -112,7 +94,7 @@ export function nameInVocative(name: string, gender: Gender): string {
     return original;
   }
 
-  if (gender === "FEMALE") {
+  if (gender === UserProfileGender.FEMALE) {
     const exception = femaleExceptions[lower];
 
     if (exception) {

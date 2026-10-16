@@ -1,5 +1,5 @@
-import type {
-  RetainerAgreement,
+import {
+  type RetainerAgreement,
   RetainerRule,
   WorkEntryTreatment,
 } from "@law/api-interfaces";
@@ -54,18 +54,18 @@ export function defaultTreatment(
   agreement: AgreementTerms | null,
   serviceCategoryId: string | null,
 ): WorkEntryTreatment {
-  if (!agreement) return "UNDECIDED";
+  if (!agreement) return WorkEntryTreatment.UNDECIDED;
   const covers =
     agreement.coveredCategoryIds.length === 0 ||
     (serviceCategoryId !== null &&
       agreement.coveredCategoryIds.includes(serviceCategoryId));
-  if (covers) return "RETAINER";
+  if (covers) return WorkEntryTreatment.RETAINER;
   switch (agreement.outOfScopeRule) {
-    case "HOURLY":
-      return "HOURLY";
-    case "AT":
-      return "AT";
-    case "ABSORBED":
-      return "RETAINER";
+    case RetainerRule.HOURLY:
+      return WorkEntryTreatment.HOURLY;
+    case RetainerRule.AT:
+      return WorkEntryTreatment.AT;
+    case RetainerRule.ABSORBED:
+      return WorkEntryTreatment.RETAINER;
   }
 }

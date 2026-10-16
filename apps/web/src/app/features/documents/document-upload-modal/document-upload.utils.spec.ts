@@ -1,6 +1,6 @@
 import {
-  buildDocumentCreateFormData,
   clampPercent,
+  formatFileSize,
   titleFromFilename,
   validateSize,
   validateTitle,
@@ -31,27 +31,10 @@ describe("document-upload.utils", () => {
     expect(clampPercent(0, 0)).toBe(0);
   });
 
-  it("appends title and repeated association fields before the file", () => {
-    const file = new File(["pdf"], "ugovor.pdf", { type: "application/pdf" });
-    const body = buildDocumentCreateFormData({
-      title: "Ugovor",
-      category: "CONTRACT_AGREEMENT",
-      caseIds: ["case-1", "case-2"],
-      clientIds: ["client-1"],
-      file,
-    });
-    expect([...body.keys()]).toEqual([
-      "title",
-      "category",
-      "caseIds",
-      "caseIds",
-      "clientIds",
-      "file",
-    ]);
-    expect(body.get("title")).toBe("Ugovor");
-    expect(body.getAll("caseIds")).toEqual(["case-1", "case-2"]);
-    const uploaded = body.get("file");
-    expect(uploaded).toBeInstanceOf(File);
-    expect((uploaded as File).name).toBe("ugovor.pdf");
+  it("formats file sizes in the given locale", () => {
+    expect(formatFileSize(512, "en-GB")).toBe("512 byte");
+    expect(formatFileSize(1536, "en-GB")).toBe("1.5 kB");
+    expect(formatFileSize(1536, "sr-Latn-RS")).toBe("1,5 kB");
+    expect(formatFileSize(25 * 1024 * 1024, "en-GB")).toBe("25 MB");
   });
 });

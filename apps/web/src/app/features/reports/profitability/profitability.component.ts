@@ -41,14 +41,20 @@ import {
   formatMoney,
   previousMonth,
 } from "../../../shared/billing";
-import { createSelectItemToString } from "../../../shared/utils";
 import { addDays, isIsoDate, officeToday } from "../../time/time-utils";
+import {
+  PROFITABILITY_RANGE_PRESET_LABELS,
+  createSelectItemToString,
+  optionsFrom,
+} from "../../../shared/models";
+import { ProfitabilityRangePreset } from "../../../shared/models";
 
-export type RangePreset =
-  | "LAST_MONTH"
-  | "THIS_MONTH"
-  | "LAST_3_MONTHS"
-  | "CUSTOM";
+type ComputedRangePreset = Exclude<
+  ProfitabilityRangePreset,
+  typeof ProfitabilityRangePreset.CUSTOM
+>;
+
+const EMPTY_VALUE = "—";
 
 export interface DateRange {
   from: string;
@@ -60,19 +66,19 @@ export interface DateRange {
  * YYYY-MM-DD office calendar day. Custom has no computed range.
  */
 export function presetRange(
-  preset: Exclude<RangePreset, "CUSTOM">,
+  preset: ComputedRangePreset,
   today: string,
 ): DateRange {
   const month = today.slice(0, 7);
   switch (preset) {
-    case "LAST_MONTH":
+    case ProfitabilityRangePreset.LAST_MONTH:
       return {
         from: `${previousMonth(month)}-01`,
         to: addDays(`${month}-01`, -1),
       };
-    case "THIS_MONTH":
+    case ProfitabilityRangePreset.THIS_MONTH:
       return { from: `${month}-01`, to: today };
-    case "LAST_3_MONTHS":
+    case ProfitabilityRangePreset.LAST_3_MONTHS:
       return { from: `${previousMonth(previousMonth(month))}-01`, to: today };
   }
 }
@@ -114,13 +120,6 @@ export function utilizationPercent(
   return Math.round((billedMinutes / loggedMinutes) * 100);
 }
 
-const PRESET_OPTIONS: ReadonlyArray<{ value: RangePreset; label: string }> = [
-  { value: "LAST_MONTH", label: "reports.profitability.presetLastMonth" },
-  { value: "THIS_MONTH", label: "reports.profitability.presetThisMonth" },
-  { value: "LAST_3_MONTHS", label: "reports.profitability.presetLast3Months" },
-  { value: "CUSTOM", label: "reports.profitability.presetCustom" },
-];
-
 @Component({
   selector: "law-profitability",
   standalone: true,
@@ -153,15 +152,18 @@ export class ProfitabilityComponent {
   private readonly destroyRef = inject(DestroyRef);
   private requestId = 0;
 
-  readonly presetOptions = PRESET_OPTIONS;
+  readonly ProfitabilityRangePreset = ProfitabilityRangePreset;
+  readonly presetOptions = optionsFrom(PROFITABILITY_RANGE_PRESET_LABELS);
   readonly presetItemToString = createSelectItemToString(
-    PRESET_OPTIONS,
+    this.presetOptions,
     (key) => this.localization.translate(key),
   );
   readonly isBelowTarget = isBelowTarget;
   readonly utilizationPercent = utilizationPercent;
 
-  readonly preset = signal<RangePreset>("LAST_MONTH");
+  readonly preset = signal<ProfitabilityRangePreset>(
+    ProfitabilityRangePreset.LAST_MONTH,
+  );
   readonly tab = signal("clients");
   readonly customFrom = new FormControl("", { nonNullable: true });
   readonly customTo = new FormControl("", { nonNullable: true });
@@ -179,16 +181,19 @@ export class ProfitabilityComponent {
   });
 
   constructor() {
-    this.loadPreset("LAST_MONTH");
+    this.loadPreset(ProfitabilityRangePreset.LAST_MONTH);
   }
 
-  setPreset(value: RangePreset | null | undefined): void {
+  setPreset(value: ProfitabilityRangePreset | null | undefined): void {
     if (!value) return;
     this.preset.set(value);
     this.rangeInvalid.set(false);
-    if (value === "CUSTOM") {
+    if (value === ProfitabilityRangePreset.CUSTOM) {
       if (!this.customFrom.value && !this.customTo.value) {
-        const range = presetRange("LAST_MONTH", officeToday());
+        const range = presetRange(
+          ProfitabilityRangePreset.LAST_MONTH,
+          officeToday(),
+        );
         this.customFrom.setValue(range.from);
         this.customTo.setValue(range.to);
       }
@@ -209,13 +214,14 @@ export class ProfitabilityComponent {
   }
 
   reload(): void {
-    if (this.preset() === "CUSTOM") this.applyCustom();
-    else this.loadPreset(this.preset() as Exclude<RangePreset, "CUSTOM">);
+    const preset = this.preset();
+    if (preset === ProfitabilityRangePreset.CUSTOM) this.applyCustom();
+    else this.loadPreset(preset);
   }
 
   money(amount: string | null, currency: string): string {
     return amount === null
-      ? "—"
+      ? EMPTY_VALUE
       : formatMoney(amount, currency, this.localization.language());
   }
 
@@ -225,16 +231,16 @@ export class ProfitabilityComponent {
 
   rate(report: ProfitabilityReport, row: ProfitabilityRow): string {
     return row.effectiveHourlyRate === null
-      ? "—"
+      ? EMPTY_VALUE
       : this.money(row.effectiveHourlyRate, report.internalCurrency);
   }
 
   utilization(loggedMinutes: number, billedMinutes: number): string {
     const percent = utilizationPercent(loggedMinutes, billedMinutes);
-    return percent === null ? "—" : `${percent} %`;
+    return percent === null ? EMPTY_VALUE : `${percent} %`;
   }
 
-  private loadPreset(preset: Exclude<RangePreset, "CUSTOM">): void {
+  private loadPreset(preset: ComputedRangePreset): void {
     this.load(presetRange(preset, officeToday()));
   }
 

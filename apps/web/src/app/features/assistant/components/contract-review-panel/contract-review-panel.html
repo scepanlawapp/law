@@ -20,8 +20,8 @@
         </strong>
         @if (expanded()) {
         <span class="review-subtitle">
-          {{ analysis().documentTitle }} ·
-          {{ "assistant.review.type." + analysis().contractType | translate }}
+          {{ analysis().documentTitle }} · {{
+          contractTypeLabels[analysis().contractType] | translate }}
         </span>
         }
       </div>
@@ -43,7 +43,9 @@
       aria-controls="contract-review-content"
       (click)="expandedChange.emit(!expanded())"
     >
-      <ng-icon [name]="expanded() ? 'lucideChevronRight' : 'lucideChevronLeft'" />
+      <ng-icon
+        [name]="expanded() ? 'lucideChevronRight' : 'lucideChevronLeft'"
+      />
     </button>
   </header>
 
@@ -59,8 +61,9 @@
       </h3>
       <p>{{ analysis().result.summary }}</p>
       <p class="review-client">
-        {{ "assistant.review.clientSide" | translate }}:
-        {{ analysis().clientSide ?? ("assistant.review.clientUnknown" | translate) }}
+        {{ "assistant.review.clientSide" | translate }}: {{
+        analysis().clientSide ?? ("assistant.review.clientUnknown" | translate)
+        }}
       </p>
     </section>
 
@@ -86,22 +89,22 @@
 
     <section class="review-section" aria-labelledby="review-issues-title">
       <h3 id="review-issues-title">
-        {{ "assistant.review.issues" | translate }}
-        ({{ analysis().result.issues.length }})
+        {{ "assistant.review.issues" | translate }} ({{
+        analysis().result.issues.length }})
       </h3>
       @for (group of issueGroups(); track group.risk) {
       <ul
         class="review-issues"
-        [attr.aria-label]="'assistant.review.risk.' + group.risk | translate"
+        [attr.aria-label]="riskLabels[group.risk] | translate"
       >
         @for (issue of group.issues; track $index) {
         <li class="review-issue" [attr.data-risk]="issue.risk">
           <div class="review-issue-head">
             <span [class]="badgeBase + ' ' + riskBadgeClass(issue.risk)">
-              {{ "assistant.review.risk." + issue.risk | translate }}
+              {{ riskLabels[issue.risk] | translate }}
             </span>
             <span class="review-category">
-              {{ "assistant.review.category." + issue.category | translate }}
+              {{ categoryLabels[issue.category] | translate }}
             </span>
             @if (issue.clause) {
             <span class="review-clause">{{ issue.clause }}</span>
@@ -133,8 +136,8 @@
     @if (analysis().result.missingClauses.length) {
     <section class="review-section" aria-labelledby="review-missing-title">
       <h3 id="review-missing-title">
-        {{ "assistant.review.missingClauses" | translate }}
-        ({{ analysis().result.missingClauses.length }})
+        {{ "assistant.review.missingClauses" | translate }} ({{
+        analysis().result.missingClauses.length }})
       </h3>
       <ul class="review-missing">
         @for (clause of analysis().result.missingClauses; track $index) {
@@ -151,9 +154,7 @@
         }
       </ul>
     </section>
-    }
-
-    @if (notes().length) {
+    } @if (notes().length) {
     <law-collapsible-section
       class="review-collapsible"
       [title]="('assistant.review.notes' | translate) + ' (' + notes().length + ')'"
@@ -166,9 +167,7 @@
         }
       </ul>
     </law-collapsible-section>
-    }
-
-    @if (analysis().citations.length) {
+    } @if (analysis().citations.length) {
     <law-collapsible-section
       class="review-collapsible"
       [title]="'assistant.sources' | translate"
@@ -184,11 +183,21 @@
   </div>
 
   <footer class="review-panel-footer">
-    <button hlmBtn variant="outline" type="button" (click)="exportDocx.emit('latin')">
+    <button
+      hlmBtn
+      variant="outline"
+      type="button"
+      (click)="exportDocx.emit(DocumentScript.LATIN)"
+    >
       <ng-icon name="lucideDownload" aria-hidden="true" />
       {{ "assistant.review.exportLatin" | translate }}
     </button>
-    <button hlmBtn variant="ghost" type="button" (click)="exportDocx.emit('cyrillic')">
+    <button
+      hlmBtn
+      variant="ghost"
+      type="button"
+      (click)="exportDocx.emit(DocumentScript.CYRILLIC)"
+    >
       {{ "assistant.review.exportCyrillic" | translate }}
     </button>
   </footer>

@@ -42,6 +42,7 @@ import {
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { ComboboxSelectAllComponent } from "../../../shared/ui/combobox-select-all/combobox-select-all.component";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
 import {
   DocumentAssociationOption,
   DocumentAssociationsDialogContext,
@@ -188,8 +189,7 @@ export class DocumentAssociationsDialogComponent {
     this.caseOptionsError.set(false);
     this.casesApi
       .list({
-        page: 1,
-        pageSize: 50,
+        ...FIRST_PAGE,
         search: term || undefined,
         ...(this.context.fixedClientId
           ? { clientIds: [this.context.fixedClientId] }
@@ -222,7 +222,7 @@ export class DocumentAssociationsDialogComponent {
     this.clientOptionsLoading.set(true);
     this.clientOptionsError.set(false);
     this.clientsApi
-      .list({ page: 1, pageSize: 50, search: term || undefined })
+      .list({ ...FIRST_PAGE, search: term || undefined })
       .pipe(
         catchError(() => {
           this.clientOptionsError.set(true);

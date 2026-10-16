@@ -8,6 +8,7 @@ import {
 import { createHash, randomInt } from "node:crypto";
 import { PrismaService } from "@law/core";
 import {
+  ApiErrorCode,
   AuthSessionResponse,
   MfaMethod,
   MfaVerifyRequest,
@@ -28,7 +29,7 @@ import { TrustedDeviceService } from "./trusted-device.service";
 import { verifyTotp } from "./totp";
 
 /** Error code for a wrong code on a still-valid challenge. */
-export const MFA_CODE_INVALID = "MFA_CODE_INVALID";
+export const MFA_CODE_INVALID = ApiErrorCode.MFA_CODE_INVALID;
 
 const EMAIL_CODE_TTL_MS = 10 * 60 * 1000;
 const EMAIL_CODES_PER_CHALLENGE = 3;

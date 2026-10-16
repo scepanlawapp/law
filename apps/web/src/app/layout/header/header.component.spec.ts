@@ -26,6 +26,7 @@ describe("HeaderComponent", () => {
           provide: LocalizationService,
           useValue: {
             language: signal("SR"),
+            locale: signal("sr-Latn-RS"),
             translate: jest.fn((key: string) => key),
           },
         },

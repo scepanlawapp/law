@@ -82,7 +82,7 @@
                       {{ "security.mfaOn" | translate }}
                       @if (member.mfaEnabledAt) {
                         <span class="text-muted-foreground text-xs">
-                          ({{ member.mfaEnabledAt | date: "dd.MM.yyyy." }})
+                          ({{ dateLabel(member.mfaEnabledAt) }})
                         </span>
                       }
                     } @else {

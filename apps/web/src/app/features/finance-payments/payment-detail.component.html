@@ -1,112 +1,138 @@
 <div class="min-h-0 overflow-y-auto space-y-4 p-1 md:p-3">
-  <h1 hlmDialogTitle class="pr-8 text-2xl font-semibold">Pregled uplate</h1>
-  <p hlmDialogDescription>Podaci o uplati, raspodele i istorija izmena.</p>
+  <h1 hlmDialogTitle class="pr-8 text-2xl font-semibold">
+    {{ "payments.detail.title" | translate }}
+  </h1>
+  <p hlmDialogDescription>{{ "payments.detail.description" | translate }}</p>
   @if (loading()) {
-    <hlm-spinner aria-label="Učitavanje uplate" />
+    <hlm-spinner [attr.aria-label]="'payments.detail.loading' | translate" />
   }
   @if (error()) {
     <div role="alert" class="border border-destructive p-3">
       {{ error() }}
-      <button hlmBtn variant="outline" (click)="load()">Osveži podatke</button>
+      <button hlmBtn variant="outline" (click)="load()">
+        {{ "payments.refresh" | translate }}
+      </button>
     </div>
   }
   @if (payment(); as p) {
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h2 class="text-xl font-semibold">
-          Uplata · {{ money(p.amount, p.currency) }}
+          {{
+            "payments.detail.heading"
+              | translate: { amount: money(p.amount, p.currency) }
+          }}
         </h2>
         <p>
-          {{ p.status === "VOIDED" ? "Poništena" : state(p.allocationState) }} ·
-          {{ p.purpose === "ADVANCE" ? "Avans" : "Redovna uplata" }}
+          {{
+            p.status === PaymentStatus.VOIDED
+              ? ("payments.voided" | translate)
+              : state(p.allocationState)
+          }}
+          ·
+          {{ purpose(p.purpose) }}
         </p>
       </div>
-      @if (p.status === "ACTIVE") {
+      @if (p.status === PaymentStatus.ACTIVE) {
         <div class="flex flex-wrap gap-2">
           <button hlmBtn [disabled]="saving()" (click)="edit()">
             {{
-              p.unallocatedAmount !== "0.00"
-                ? "Rasporedi preostali iznos"
-                : "Izmeni uplatu / raspodelu"
+              (p.unallocatedAmount !== "0.00"
+                ? "payments.detail.allocateRemaining"
+                : "payments.detail.edit"
+              ) | translate
             }}
           </button>
           <button hlmBtn variant="outline" (click)="showVoid.set(!showVoid())">
-            Poništi uplatu
+            {{ "payments.void.action" | translate }}
           </button>
         </div>
       }
     </header>
     <section class="app-section-surface grid gap-3 p-4 md:grid-cols-3">
       <p>
-        Klijent
+        {{ "payments.field.client" | translate }}
         <br />
-        <strong>{{ p.clientName ?? "Neidentifikovan klijent" }}</strong>
+        <strong>
+          {{ p.clientName ?? ("payments.unidentifiedClient" | translate) }}
+        </strong>
       </p>
       <p>
-        Uplatilac
+        {{ "payments.field.payer" | translate }}
         <br />
         {{ p.payerName ?? "—" }}
       </p>
       <p>
-        Datum uplate
+        {{ "payments.field.receivedAt" | translate }}
         <br />
         {{ date(p.receivedAt) }}
       </p>
       <p>
-        Način plaćanja
+        {{ "payments.field.method" | translate }}
         <br />
         {{ method(p.paymentMethod) }}
       </p>
       <p>
-        Bankovni račun
+        {{ "payments.field.bankAccount" | translate }}
         <br />
         {{ p.bankAccountName ?? "—" }}
         @if (p.bankStatementNumber) {
-          <span class="block">Broj izvoda: {{ p.bankStatementNumber }}</span>
+          <span class="block">
+            {{
+              "payments.detail.statementNumber"
+                | translate: { number: p.bankStatementNumber }
+            }}
+          </span>
         }
       </p>
       <p>
-        Referenca
+        {{ "payments.field.reference" | translate }}
         <br />
         {{ p.reference ?? "—" }}
       </p>
       <p class="whitespace-pre-wrap md:col-span-3">
-        Napomena: {{ p.note ?? "—" }}
+        {{ "payments.detail.note" | translate: { note: p.note ?? "—" } }}
       </p>
       <p>
-        Kreirao: {{ p.createdBy }}
+        {{ "payments.detail.createdBy" | translate: { name: p.createdBy } }}
         <br />
         {{ date(p.createdAt) }}
       </p>
       <p>
-        Izmenio: {{ p.updatedBy }}
+        {{ "payments.detail.updatedBy" | translate: { name: p.updatedBy } }}
         <br />
         {{ date(p.updatedAt) }}
       </p>
       @if (p.voidReason) {
-        <p>Razlog poništavanja: {{ p.voidReason }}</p>
+        <p>
+          {{
+            "payments.detail.voidReason" | translate: { reason: p.voidReason }
+          }}
+        </p>
       }
     </section>
     <section class="grid gap-3 sm:grid-cols-3">
       <p class="app-section-surface p-3">
-        Ukupno
+        {{ "payments.detail.total" | translate }}
         <br />
         <strong>{{ money(p.amount, p.currency) }}</strong>
       </p>
       <p class="app-section-surface p-3">
-        Raspoređeno
+        {{ "payments.column.allocated" | translate }}
         <br />
         <strong>{{ money(p.allocatedAmount, p.currency) }}</strong>
       </p>
       <p class="app-section-surface p-3">
-        Neraspoređeno
+        {{ "payments.field.unallocatedAmount" | translate }}
         <br />
         <strong>{{ money(p.unallocatedAmount, p.currency) }}</strong>
       </p>
     </section>
-    @if (showVoid() && p.status === "ACTIVE") {
+    @if (showVoid() && p.status === PaymentStatus.ACTIVE) {
       <section class="app-section-surface space-y-3 p-4">
-        <label for="void-reason">Razlog poništavanja (obavezno)</label>
+        <label for="void-reason">
+          {{ "payments.void.reasonLabel" | translate }}
+        </label>
         <input
           hlmInput
           id="void-reason"
@@ -115,27 +141,29 @@
           maxlength="1000"
         />
         @if (reason.touched && reason.invalid) {
-          <p role="alert">Unesite razlog poništavanja.</p>
+          <p role="alert">{{ "payments.void.reasonRequired" | translate }}</p>
         }
         <button hlmBtn [disabled]="saving()" (click)="voidPayment()">
           @if (saving()) {
             <hlm-spinner />
           }
-          Potvrdi poništavanje
+          {{ "payments.void.submit" | translate }}
         </button>
       </section>
     }
     <section class="app-section-surface space-y-3 p-4">
-      <h2 class="text-lg font-semibold">Raspodele i istorija raspodele</h2>
+      <h2 class="text-lg font-semibold">
+        {{ "payments.detail.allocationsTitle" | translate }}
+      </h2>
       <div hlmTableContainer>
         <table hlmTable>
           <thead hlmTHead>
             <tr hlmTr>
-              <th hlmTh>Račun / Klijent</th>
-              <th hlmTh>Ukupno</th>
-              <th hlmTh>Raspodela</th>
-              <th hlmTh>Preostali dug</th>
-              <th hlmTh>Status</th>
+              <th hlmTh>{{ "payments.column.invoiceClient" | translate }}</th>
+              <th hlmTh>{{ "payments.detail.total" | translate }}</th>
+              <th hlmTh>{{ "payments.column.allocation" | translate }}</th>
+              <th hlmTh>{{ "payments.summary.outstanding" | translate }}</th>
+              <th hlmTh>{{ "payments.column.status" | translate }}</th>
             </tr>
           </thead>
           <tbody hlmTBody>
@@ -156,23 +184,30 @@
                 <td hlmTd>{{ money(a.remainingAmount, a.currency) }}</td>
                 <td hlmTd>
                   {{
-                    a.removedAt
-                      ? "Uklonjena / zamenjena"
-                      : p.status === "VOIDED"
-                        ? "Uplata poništena"
-                        : "Aktivna"
+                    (a.removedAt
+                      ? "payments.allocation.removed"
+                      : p.status === PaymentStatus.VOIDED
+                        ? "payments.audit.PAYMENT_VOIDED"
+                        : "payments.active"
+                    ) | translate
                   }}
                 </td>
               </tr>
             } @empty {
-              <tr hlmTr><td hlmTd colspan="5">Uplata nema raspodela.</td></tr>
+              <tr hlmTr>
+                <td hlmTd colspan="5">
+                  {{ "payments.detail.noAllocations" | translate }}
+                </td>
+              </tr>
             }
           </tbody>
         </table>
       </div>
     </section>
     <section class="app-section-surface space-y-3 p-4">
-      <h2 class="text-lg font-semibold">Istorija izmena</h2>
+      <h2 class="text-lg font-semibold">
+        {{ "payments.detail.history" | translate }}
+      </h2>
       @for (a of p.auditEvents; track a.id) {
         <article class="border-b pb-3">
           <p>
@@ -184,25 +219,27 @@
           }
           <details>
             <summary class="cursor-pointer text-sm">
-              Prethodni i novi podaci
+              {{ "payments.detail.changes" | translate }}
             </summary>
             <div class="grid gap-3 md:grid-cols-2">
               @for (
                 side of [
-                  { title: "Pre promene", data: a.previousData },
-                  { title: "Posle promene", data: a.newData },
+                  { title: "payments.detail.before", data: a.previousData },
+                  { title: "payments.detail.after", data: a.newData },
                 ];
                 track side.title
               ) {
                 <div class="space-y-2">
-                  <h3 class="font-semibold">{{ side.title }}</h3>
+                  <h3 class="font-semibold">{{ side.title | translate }}</h3>
                   @if (snapshot(side.data); as s) {
                     @for (field of s.fields; track field.label) {
                       <p class="text-sm break-words">
-                        {{ field.label }}: {{ field.value }}
+                        {{ field.label | translate }}: {{ field.value }}
                       </p>
                     }
-                    <h4 class="font-medium">Raspodele</h4>
+                    <h4 class="font-medium">
+                      {{ "payments.detail.allocations" | translate }}
+                    </h4>
                     @for (
                       allocation of s.allocations;
                       track allocation.allocationId
@@ -212,7 +249,9 @@
                         {{ money(allocation.amount, allocation.currency) }}
                       </p>
                     } @empty {
-                      <p>Nema raspodela.</p>
+                      <p>
+                        {{ "payments.detail.noAllocationsShort" | translate }}
+                      </p>
                     }
                   } @else {
                     <p>—</p>
@@ -232,6 +271,6 @@
     [disabled]="saving()"
     (click)="close()"
   >
-    Zatvori
+    {{ "common.close" | translate }}
   </button>
 </div>

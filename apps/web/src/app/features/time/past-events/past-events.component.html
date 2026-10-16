@@ -69,7 +69,7 @@
         <p class="text-sm text-destructive">
           {{ "time.events.loadError" | translate }}
         </p>
-        <button hlmBtn type="button" variant="outline" (click)="load()">
+        <button hlmBtn type="button" variant="outline" (click)="list.load()">
           {{ "time.retry" | translate }}
         </button>
       </div>
@@ -83,7 +83,7 @@
             <h3 class="min-w-0 break-words text-base font-semibold">
               {{ event.title }}
             </h3>
-            <span [class]="badgeBase + ' ' + statusBadgeClass('PROPOSED')">
+            <span [class]="unloggedBadgeClass">
               {{ "time.events.unlogged" | translate }}
             </span>
           </div>
@@ -113,14 +113,7 @@
       }
     }
     @if (totalItems() !== null) {
-      <law-pagination
-        [currentPage]="page()"
-        [itemsPerPage]="pageSize()"
-        [totalItems]="totalItems() ?? 0"
-        [disabled]="loading()"
-        (currentPageChange)="load($event)"
-        (itemsPerPageChange)="changePageSize($event)"
-      />
+      <law-pagination [paginator]="list" />
     }
   </section>
 </div>

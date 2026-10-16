@@ -27,8 +27,18 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
-import { DraftResultResponse, DocumentScript } from "@law/api-interfaces";
+import {
+  DocumentScript,
+  DraftApprovalStatus,
+  DraftResultResponse,
+} from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
+import {
+  DOCUMENT_SCRIPT_LABELS,
+  DRAFT_APPROVAL_STATUS_LABELS,
+  DRAFT_DOCUMENT_TYPE_LABELS,
+  optionsFrom,
+} from "../../../../shared/models";
 import { CollapsibleSectionComponent } from "../../../../shared/ui/collapsible-section/collapsible-section.component";
 import { CitationListComponent } from "../citation-list/citation-list";
 import {
@@ -82,7 +92,7 @@ export class DraftReviewPanelComponent {
   get text(): string {
     return this.textValue();
   }
-  @Input({ required: true }) script: DocumentScript = "latin";
+  @Input({ required: true }) script: DocumentScript = DocumentScript.LATIN;
   @Input() note = "";
   @Input() expanded = true;
 
@@ -96,7 +106,8 @@ export class DraftReviewPanelComponent {
   @Output() requestChanges = new EventEmitter<void>();
   @Output() expandedChange = new EventEmitter<boolean>();
 
-  protected readonly scripts: DocumentScript[] = ["latin", "cyrillic"];
+  protected readonly scripts = optionsFrom(DOCUMENT_SCRIPT_LABELS);
+  protected readonly documentTypeLabels = DRAFT_DOCUMENT_TYPE_LABELS;
   protected readonly sourcesExpanded = signal(false);
   protected readonly notesExpanded = signal(false);
   protected readonly placeholders = computed(() =>
@@ -105,7 +116,7 @@ export class DraftReviewPanelComponent {
   protected readonly fillValues = signal<Partial<Record<string, string>>>({});
 
   protected get approved(): boolean {
-    return this.draft.approvalStatus === "APPROVED";
+    return this.draft.approvalStatus === DraftApprovalStatus.APPROVED;
   }
 
   protected setFillValue(id: string, value: string): void {
@@ -135,7 +146,12 @@ export class DraftReviewPanelComponent {
     textarea.setSelectionRange(occurrence.start, occurrence.end);
   }
 
+  /** Drafts without an explicit status are ready for sign-off. */
+  protected get status(): DraftApprovalStatus {
+    return this.draft.approvalStatus ?? DraftApprovalStatus.READY_FOR_SIGNOFF;
+  }
+
   protected statusKey(): string {
-    return `assistant.draftStatus.${this.draft.approvalStatus ?? "READY_FOR_SIGNOFF"}`;
+    return DRAFT_APPROVAL_STATUS_LABELS[this.status];
   }
 }

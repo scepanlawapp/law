@@ -1,22 +1,22 @@
 <div class="min-h-0 overflow-y-auto space-y-4 p-1 md:p-3">
   <h1 hlmDialogTitle class="pr-8 text-2xl font-semibold">
-    {{ id ? "Izmeni uplatu" : "Nova uplata" }}
+    {{ (id ? "payments.form.editTitle" : "payments.new") | translate }}
   </h1>
   <p hlmDialogDescription class="text-muted-foreground">
-    Unesite podatke o uplati i raspodelite iznos po fakturama.
+    {{ "payments.form.description" | translate }}
   </p>
   @if (error()) {
     <div role="alert" class="rounded-lg border border-destructive p-3">
       {{ error() }}
       @if (!options()) {
         <button hlmBtn variant="outline" (click)="load()">
-          Pokušaj ponovo
+          {{ "payments.retry" | translate }}
         </button>
       }
     </div>
   }
   @if (loading()) {
-    <hlm-spinner aria-label="Učitavanje uplate" />
+    <hlm-spinner [attr.aria-label]="'payments.detail.loading' | translate" />
   }
   @if (!loading() && options()) {
     <form [formGroup]="form" (ngSubmit)="submit()" class="space-y-4" novalidate>
@@ -34,7 +34,10 @@
               "
             />
             <label class="space-y-1">
-              Iznos uplate ({{ form.controls.currency.value }})
+              {{
+                "payments.form.amount"
+                  | translate: { currency: form.controls.currency.value }
+              }}
               <input
                 hlmInput
                 class="w-full"
@@ -44,19 +47,19 @@
                 aria-describedby="payment-amount-help"
               />
               <span id="payment-amount-help" class="sr-only">
-                Pozitivan iznos, najviše dve decimale (npr. 1.250,50).
+                {{ "payments.form.amountHelp" | translate }}
               </span>
             </label>
             <law-payment-select
               controlId="payment-currency"
               width="content"
-              label="Valuta"
+              label="payments.field.currency"
               [control]="form.controls.currency"
               [options]="currencies()"
             />
 
             <label class="space-y-1">
-              Datum uplate
+              {{ "payments.field.receivedAt" | translate }}
               <input
                 hlmInput
                 class="w-full"
@@ -67,35 +70,37 @@
             </label>
             <law-payment-select
               controlId="payment-method"
-              label="Način plaćanja"
+              label="payments.field.method"
               [control]="form.controls.paymentMethod"
               [options]="methods"
             />
             <law-payment-select
               controlId="payment-bank"
-              label="Bankovni račun"
+              label="payments.field.bankAccount"
               [control]="form.controls.bankAccountId"
               [options]="banks()"
             />
             @if (form.controls.bankAccountId.value) {
               <label class="space-y-1">
-                Broj bankovnog izvoda (opciono)
+                {{ "payments.form.statementNumber" | translate }}
                 <input
                   hlmInput
                   formControlName="bankStatementNumber"
                   maxlength="50"
-                  placeholder="npr. 15/2026"
+                  [placeholder]="
+                    'payments.form.statementNumberPlaceholder' | translate
+                  "
                 />
               </label>
             }
           </div>
           <details class="border-t pt-3" [open]="!!id">
             <summary class="cursor-pointer text-sm text-muted-foreground">
-              Dodatni podaci o uplati
+              {{ "payments.form.moreDetails" | translate }}
             </summary>
             <div class="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <label class="space-y-1">
-                Uplatilac
+                {{ "payments.field.payer" | translate }}
                 <input
                   hlmInput
                   class="w-full"
@@ -105,12 +110,12 @@
               </label>
               <law-payment-select
                 controlId="payment-purpose"
-                label="Svrha uplate"
+                label="payments.form.purpose"
                 [control]="form.controls.purpose"
                 [options]="purposes"
               />
               <label class="space-y-1">
-                Poziv na broj / Referenca
+                {{ "payments.form.reference" | translate }}
                 <input
                   hlmInput
                   class="w-full"
@@ -126,9 +131,11 @@
             class="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between"
           >
             <div>
-              <h2 class="text-xl font-semibold">Raspoređivanje uplate</h2>
+              <h2 class="text-xl font-semibold">
+                {{ "payments.form.allocationTitle" | translate }}
+              </h2>
               <p class="mt-1 text-muted-foreground">
-                Odaberite fakture ili automatski rasporedite iznos uplate.
+                {{ "payments.form.allocationDescription" | translate }}
               </p>
             </div>
             <div class="flex flex-col gap-3 sm:flex-row">
@@ -136,7 +143,7 @@
                 hlmBtn
                 type="button"
                 class="h-auto min-h-16 justify-start gap-3 px-5 py-3"
-                (click)="distribute('AUTOMATIC')"
+                (click)="distribute(PaymentAllocationMode.AUTOMATIC)"
                 [disabled]="
                   newAdvance() || eligibleLoading() || !invoices().length
                 "
@@ -151,9 +158,11 @@
                   />
                 }
                 <span class="text-left">
-                  <span class="block font-semibold">Automatski rasporedi</span>
+                  <span class="block font-semibold">
+                    {{ "payments.form.automatic" | translate }}
+                  </span>
                   <span class="block text-sm font-normal">
-                    Po dospeću, od najstarijih
+                    {{ "payments.form.automaticHint" | translate }}
                   </span>
                 </span>
               </button>
@@ -162,7 +171,7 @@
                 type="button"
                 variant="outline"
                 class="h-auto min-h-16 justify-start gap-3 px-5 py-3"
-                (click)="distribute('EQUAL')"
+                (click)="distribute(PaymentAllocationMode.EQUAL)"
                 [disabled]="
                   newAdvance() || eligibleLoading() || !selected().size
                 "
@@ -173,9 +182,11 @@
                   aria-hidden="true"
                 />
                 <span class="text-left">
-                  <span class="block font-semibold">Rasporedi jednako</span>
+                  <span class="block font-semibold">
+                    {{ "payments.form.equal" | translate }}
+                  </span>
                   <span class="block text-sm font-normal">
-                    Po izabranim fakturama
+                    {{ "payments.form.equalHint" | translate }}
                   </span>
                 </span>
               </button>
@@ -183,8 +194,7 @@
           </div>
           @if (newAdvance()) {
             <p class="rounded-lg border p-3 text-sm">
-              Avans se čuva bez raspodele. Nakon čuvanja možete ga rasporediti
-              na fakture.
+              {{ "payments.form.advanceHint" | translate }}
             </p>
           }
           @for (
@@ -210,20 +220,26 @@
                       row.controls.invoiceId.value,
                     ]"
                   >
-                    {{ item?.invoiceNumber ?? "Račun" }}
+                    {{
+                      item?.invoiceNumber ??
+                        ("payments.form.invoice" | translate)
+                    }}
                   </a>
                   <p class="text-sm text-muted-foreground">
-                    Dostupno za raspodelu:
                     {{
-                      money(
-                        item?.remainingAmount ?? "0",
-                        item?.currency ?? form.controls.currency.value
-                      )
+                      "payments.form.availableForAllocation"
+                        | translate
+                          : {
+                              amount: money(
+                                item?.remainingAmount ?? "0",
+                                item?.currency ?? form.controls.currency.value
+                              ),
+                            }
                     }}
                   </p>
                 </div>
                 <label>
-                  Iznos raspodele
+                  {{ "payments.form.allocationAmount" | translate }}
                   <input
                     hlmInput
                     formControlName="amount"
@@ -237,7 +253,7 @@
                   variant="outline"
                   (click)="fill(index)"
                 >
-                  Rasporedi preostali dug
+                  {{ "payments.form.allocateRemainingDebt" | translate }}
                 </button>
                 <button
                   hlmBtn
@@ -245,13 +261,15 @@
                   variant="ghost"
                   (click)="remove(index)"
                 >
-                  Ukloni raspodelu
+                  {{ "payments.form.removeAllocation" | translate }}
                 </button>
               </div>
             }
           }
           @if (eligibleLoading()) {
-            <hlm-spinner aria-label="Učitavanje računa" />
+            <hlm-spinner
+              [attr.aria-label]="'payments.form.loadingInvoices' | translate"
+            />
           }
           @if (eligibleError()) {
             <p role="alert">{{ eligibleError() }}</p>
@@ -261,7 +279,7 @@
               variant="outline"
               (click)="loadEligible()"
             >
-              Pokušaj ponovo
+              {{ "payments.retry" | translate }}
             </button>
           }
           @if (
@@ -274,7 +292,7 @@
               class="rounded-xl border"
               tabindex="0"
               role="region"
-              aria-label="Fakture za raspodelu; na manjem ekranu pomerite tabelu vodoravno"
+              [attr.aria-label]="'payments.form.invoicesRegion' | translate"
             >
               <table hlmTable class="min-w-[920px]">
                 <thead hlmTHead>
@@ -283,19 +301,29 @@
                       <input
                         type="checkbox"
                         class="size-5 accent-primary"
-                        aria-label="Izaberi sve dostupne fakture"
+                        [attr.aria-label]="
+                          'payments.form.selectAll' | translate
+                        "
                         [checked]="allSelected()"
                         [indeterminate]="someSelected()"
                         [disabled]="newAdvance() || !invoices().length"
                         (change)="selectAll($any($event.target).checked)"
                       />
                     </th>
-                    <th hlmTh>Faktura</th>
-                    <th hlmTh>Datum dospeća</th>
-                    <th hlmTh>Ukupan iznos</th>
-                    <th hlmTh>Preostalo za plaćanje</th>
-                    <th hlmTh>Iznos za raspodelu</th>
-                    <th hlmTh><span class="sr-only">Brze radnje</span></th>
+                    <th hlmTh>{{ "payments.form.invoice" | translate }}</th>
+                    <th hlmTh>{{ "payments.form.dueDate" | translate }}</th>
+                    <th hlmTh>{{ "payments.form.grossAmount" | translate }}</th>
+                    <th hlmTh>
+                      {{ "payments.form.remainingToPay" | translate }}
+                    </th>
+                    <th hlmTh>
+                      {{ "payments.form.amountToAllocate" | translate }}
+                    </th>
+                    <th hlmTh>
+                      <span class="sr-only">
+                        {{ "payments.form.quickActions" | translate }}
+                      </span>
+                    </th>
                   </tr>
                 </thead>
                 <tbody hlmTBody>
@@ -315,7 +343,8 @@
                           type="checkbox"
                           class="size-5 accent-primary"
                           [attr.aria-label]="
-                            'Izaberi fakturu ' + i.invoiceNumber
+                            'payments.form.selectInvoice'
+                              | translate: { number: i.invoiceNumber }
                           "
                           [checked]="selected().has(i.id)"
                           [disabled]="newAdvance()"
@@ -334,7 +363,10 @@
                         {{ date(i.dateOfMaturity) }}
                         @if (i.overdue) {
                           <p class="text-sm text-destructive">
-                            {{ i.daysOverdue }} dana kašnjenja
+                            {{
+                              "payments.form.daysOverdue"
+                                | translate: { days: i.daysOverdue }
+                            }}
                           </p>
                         }
                       </td>
@@ -348,7 +380,10 @@
                         @if (allocation(i.id); as row) {
                           <div class="relative min-w-40">
                             <label class="sr-only" [for]="'allocation-' + i.id">
-                              Iznos raspodele za {{ i.invoiceNumber }}
+                              {{
+                                "payments.form.allocationAmountFor"
+                                  | translate: { number: i.invoiceNumber }
+                              }}
                             </label>
                             <input
                               hlmInput
@@ -367,7 +402,7 @@
                         }
                         @if (fullyAllocated(i)) {
                           <span class="text-sm text-success">
-                            U potpunosti pokriveno
+                            {{ "payments.form.fullyCovered" | translate }}
                           </span>
                         }
                       </td>
@@ -380,9 +415,12 @@
                             class="text-primary"
                             (click)="fill(allocationIndex(i.id))"
                             [disabled]="newAdvance()"
-                            [attr.aria-label]="'Puno za ' + i.invoiceNumber"
+                            [attr.aria-label]="
+                              'payments.form.fullFor'
+                                | translate: { number: i.invoiceNumber }
+                            "
                           >
-                            Puno
+                            {{ "payments.form.full" | translate }}
                           </button>
                           @if (positive(i.id)) {
                             <button
@@ -391,7 +429,8 @@
                               variant="ghost"
                               (click)="remove(allocationIndex(i.id))"
                               [attr.aria-label]="
-                                'Obriši raspodelu za ' + i.invoiceNumber
+                                'payments.form.removeAllocationFor'
+                                  | translate: { number: i.invoiceNumber }
                               "
                             >
                               ×
@@ -403,8 +442,7 @@
                   } @empty {
                     <tr hlmTr>
                       <td hlmTd colspan="7">
-                        Nema poslatih faktura sa preostalim dugom u izabranoj
-                        valuti.
+                        {{ "payments.form.noInvoices" | translate }}
                       </td>
                     </tr>
                   }
@@ -418,20 +456,22 @@
                 variant="ghost"
                 (click)="loadEligible()"
               >
-                Osveži fakture
+                {{ "payments.form.refreshInvoices" | translate }}
               </button>
               <span class="text-muted-foreground">
-                Izabrano: {{ selected().size }} · Izbor faktura ne menja
-                raspodelu.
+                {{
+                  "payments.form.selectedCount"
+                    | translate: { count: selected().size }
+                }}
               </span>
               <button
                 hlmBtn
                 type="button"
                 variant="ghost"
-                (click)="distribute('SELECTED_OLDEST')"
+                (click)="distribute(PaymentAllocationMode.SELECTED_OLDEST)"
                 [disabled]="newAdvance() || !selected().size"
               >
-                Izabrane po dospeću
+                {{ "payments.form.selectedOldest" | translate }}
               </button>
               <button
                 hlmBtn
@@ -440,15 +480,14 @@
                 (click)="clearProposal()"
                 [disabled]="allocatedText() === '0.00'"
               >
-                Obriši predlog
+                {{ "payments.form.clearProposal" | translate }}
               </button>
             </div>
           } @else if (!form.controls.clientId.value) {
             <p
               class="rounded-lg border border-dashed p-6 text-center text-muted-foreground"
             >
-              Izaberite klijenta da biste videli dostupne fakture. Uplatu možete
-              sačuvati i bez raspodele.
+              {{ "payments.form.selectClientHint" | translate }}
             </p>
           }
           <div
@@ -456,7 +495,7 @@
             aria-live="polite"
           >
             <p>
-              Ukupna uplata
+              {{ "payments.column.paymentTotal" | translate }}
               <br />
               <strong class="text-xl tabular-nums">
                 {{
@@ -468,7 +507,7 @@
               </strong>
             </p>
             <p>
-              Raspoređeno po fakturama
+              {{ "payments.form.allocatedToInvoices" | translate }}
               <br />
               <strong class="text-xl tabular-nums">
                 {{ money(allocatedText(), form.controls.currency.value) }}
@@ -477,7 +516,7 @@
                 <hlm-progress
                   class="h-2"
                   [value]="allocatedPercent()"
-                  aria-label="Raspoređeni deo uplate"
+                  [attr.aria-label]="'payments.form.allocatedShare' | translate"
                 >
                   <hlm-progress-indicator class="bg-success" />
                 </hlm-progress>
@@ -485,7 +524,7 @@
               </span>
             </p>
             <p>
-              Preostalo za raspodelu
+              {{ "payments.form.remainingToAllocate" | translate }}
               <br />
               <strong class="text-xl tabular-nums">
                 {{ money(remainingText(), form.controls.currency.value) }}
@@ -494,7 +533,9 @@
                 <hlm-progress
                   class="h-2"
                   [value]="remaining() > 0 ? 100 - allocatedPercent() : 0"
-                  aria-label="Neraspoređeni deo uplate"
+                  [attr.aria-label]="
+                    'payments.form.unallocatedShare' | translate
+                  "
                 >
                   <hlm-progress-indicator class="bg-warning" />
                 </hlm-progress>
@@ -527,23 +568,23 @@
               class="rounded-lg border border-primary/30 bg-primary/5 p-3 text-sm"
               role="status"
             >
-              Preostali neraspoređeni iznos biće dostupan za naknadnu raspodelu.
+              {{ "payments.form.remainingHint" | translate }}
             </p>
           }
           @if (remaining() < 0) {
             <p role="alert" class="text-destructive">
-              Raspodela premašuje iznos uplate.
+              {{ "payments.form.overAllocated" | translate }}
             </p>
           }
           <div class="flex flex-col gap-4 lg:flex-row lg:items-end">
             <label class="block flex-1 space-y-2">
-              Napomena (opciono)
+              {{ "payments.form.note" | translate }}
               <textarea
                 hlmTextarea
                 class="w-full"
                 formControlName="note"
                 maxlength="5000"
-                placeholder="Unesite napomenu o uplati…"
+                [placeholder]="'payments.form.notePlaceholder' | translate"
                 rows="2"
               ></textarea>
             </label>
@@ -555,7 +596,7 @@
                 [disabled]="saving() || previewing()"
                 (click)="cancel()"
               >
-                Otkaži
+                {{ "common.cancel" | translate }}
               </button>
               <button
                 hlmBtn
@@ -565,7 +606,7 @@
                 @if (saving()) {
                   <hlm-spinner />
                 }
-                Sačuvaj uplatu
+                {{ "payments.form.save" | translate }}
               </button>
             </div>
           </div>

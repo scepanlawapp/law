@@ -3,8 +3,10 @@ import { NotificationsApiClient } from "@law/api-clients";
 import { NotificationDto } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { catchError, finalize, Observable, of, tap } from "rxjs";
-
-const PAGE_SIZE = 10;
+import {
+  DEFAULT_PAGE_SIZE,
+  FIRST_PAGE,
+} from "../../shared/pagination/paginated-list";
 
 @Injectable({ providedIn: "root" })
 export class NotificationsStore {
@@ -45,7 +47,7 @@ export class NotificationsStore {
     const nextPage = this.page() + 1;
     this.loadingMore.set(true);
     this.api
-      .list(nextPage, PAGE_SIZE)
+      .list(nextPage, DEFAULT_PAGE_SIZE)
       .pipe(finalize(() => this.loadingMore.set(false)))
       .subscribe({
         next: (response) => {
@@ -102,10 +104,10 @@ export class NotificationsStore {
   private loadFirstPage(): Observable<unknown> {
     this.loading.set(true);
     this.error.set(false);
-    return this.api.list(1, PAGE_SIZE).pipe(
+    return this.api.list(FIRST_PAGE.page, FIRST_PAGE.pageSize).pipe(
       tap((response) => {
         this.items.set(response.items);
-        this.page.set(1);
+        this.page.set(FIRST_PAGE.page);
         this.hasMore.set(response.meta.hasNextPage);
       }),
       catchError(() => {

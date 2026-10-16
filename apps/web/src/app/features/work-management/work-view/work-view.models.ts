@@ -1,4 +1,5 @@
 import {
+  CalendarSourceType,
   CasePriority,
   DeadlineDetail,
   DeadlineStatus,
@@ -9,17 +10,27 @@ import {
 } from "@law/api-interfaces";
 import { isTaskOverdue } from "../work-management-utils";
 
-export type WorkSourceType = "TASK" | "DEADLINE" | "EVENT";
-export type PresentationStatus = TaskStatus;
-export type BoardColumnKey = PresentationStatus;
+export const WorkViewMode = {
+  TEAM: "team",
+  MY: "my",
+  CASE: "case",
+} as const;
+export type WorkViewMode = (typeof WorkViewMode)[keyof typeof WorkViewMode];
+
+export const WorkPresentation = {
+  TABLE: "table",
+  BOARD: "board",
+} as const;
+export type WorkPresentation =
+  (typeof WorkPresentation)[keyof typeof WorkPresentation];
 
 /** Unified view-model so Task/Deadline/Event can share list/board rendering. */
 export interface WorkItem {
   id: string;
-  sourceType: WorkSourceType;
+  sourceType: CalendarSourceType;
   title: string;
   rawStatus: TaskStatus | DeadlineStatus | EventStatus;
-  presentationStatus: PresentationStatus;
+  presentationStatus: TaskStatus;
   dueDate: string | null;
   dueAt: string | null;
   ownerUserIds: string[];
@@ -30,30 +41,26 @@ export interface WorkItem {
   raw: TaskDetail | DeadlineDetail | EventDetail;
 }
 
-export function taskPresentationStatus(status: TaskStatus): PresentationStatus {
+export function taskPresentationStatus(status: TaskStatus): TaskStatus {
   return status;
 }
 
-export function deadlinePresentationStatus(
-  status: DeadlineStatus,
-): PresentationStatus {
-  if (status === "OPEN") return "TODO";
-  if (status === "SATISFIED") return "DONE";
-  return "CANCELLED";
+export function deadlinePresentationStatus(status: DeadlineStatus): TaskStatus {
+  if (status === DeadlineStatus.OPEN) return TaskStatus.TODO;
+  if (status === DeadlineStatus.SATISFIED) return TaskStatus.DONE;
+  return TaskStatus.CANCELLED;
 }
 
-export function eventPresentationStatus(
-  status: EventStatus,
-): PresentationStatus {
-  if (status === "SCHEDULED") return "TODO";
-  if (status === "COMPLETED") return "DONE";
-  return "CANCELLED";
+export function eventPresentationStatus(status: EventStatus): TaskStatus {
+  if (status === EventStatus.SCHEDULED) return TaskStatus.TODO;
+  if (status === EventStatus.COMPLETED) return TaskStatus.DONE;
+  return TaskStatus.CANCELLED;
 }
 
 export function taskToWorkItem(task: TaskDetail): WorkItem {
   return {
     id: task.id,
-    sourceType: "TASK",
+    sourceType: CalendarSourceType.TASK,
     title: task.title,
     rawStatus: task.status,
     presentationStatus: taskPresentationStatus(task.status),
@@ -71,7 +78,7 @@ export function taskToWorkItem(task: TaskDetail): WorkItem {
 export function deadlineToWorkItem(deadline: DeadlineDetail): WorkItem {
   return {
     id: deadline.id,
-    sourceType: "DEADLINE",
+    sourceType: CalendarSourceType.DEADLINE,
     title: deadline.title,
     rawStatus: deadline.status,
     presentationStatus: deadlinePresentationStatus(deadline.status),
@@ -88,11 +95,11 @@ export function deadlineToWorkItem(deadline: DeadlineDetail): WorkItem {
 
 export function eventToWorkItem(event: EventDetail): WorkItem {
   const overdue =
-    event.status === "SCHEDULED" &&
+    event.status === EventStatus.SCHEDULED &&
     new Date(event.endsAt).getTime() < Date.now();
   return {
     id: event.id,
-    sourceType: "EVENT",
+    sourceType: CalendarSourceType.EVENT,
     title: event.title,
     rawStatus: event.status,
     presentationStatus: eventPresentationStatus(event.status),
@@ -134,68 +141,71 @@ export function mergePage<T extends { id: string }>(
   return merged;
 }
 
+export const StatusTransitionAction = {
+  TASK_SET_TODO: "task-set-todo",
+  TASK_SET_IN_PROGRESS: "task-set-in-progress",
+  TASK_COMPLETE: "task-complete",
+  TASK_REOPEN: "task-reopen",
+  DEADLINE_SATISFY: "deadline-satisfy",
+  DEADLINE_REOPEN: "deadline-reopen",
+  EVENT_COMPLETE: "event-complete",
+} as const;
 export type StatusTransitionAction =
-  | "task-set-todo"
-  | "task-set-in-progress"
-  | "task-complete"
-  | "task-reopen"
-  | "deadline-satisfy"
-  | "deadline-reopen"
-  | "event-complete";
+  (typeof StatusTransitionAction)[keyof typeof StatusTransitionAction];
 
 export interface StatusTransition {
   action: StatusTransitionAction;
 }
 
+const TERMINAL_STATUSES: readonly TaskStatus[] = [
+  TaskStatus.CANCELLED,
+  TaskStatus.ARCHIVED,
+];
+
 export function statusTransition(
   item: WorkItem,
-  target: BoardColumnKey,
+  target: TaskStatus,
 ): StatusTransition | null {
-  if (item.presentationStatus === target) return null;
-  if (target === "CANCELLED" || target === "ARCHIVED") return null;
-  if (
-    item.presentationStatus === "CANCELLED" ||
-    item.presentationStatus === "ARCHIVED"
-  )
-    return null;
+  const current = item.presentationStatus;
+  if (current === target) return null;
+  if (TERMINAL_STATUSES.includes(target)) return null;
+  if (TERMINAL_STATUSES.includes(current)) return null;
 
-  if (item.sourceType === "TASK") {
-    if (target === "IN_PROGRESS") {
-      return item.presentationStatus === "TODO" ||
-        item.presentationStatus === "DONE"
-        ? { action: "task-set-in-progress" }
+  if (item.sourceType === CalendarSourceType.TASK) {
+    if (target === TaskStatus.IN_PROGRESS) {
+      return current === TaskStatus.TODO || current === TaskStatus.DONE
+        ? { action: StatusTransitionAction.TASK_SET_IN_PROGRESS }
         : null;
     }
-    if (target === "TODO") {
-      if (item.presentationStatus === "IN_PROGRESS") {
-        return { action: "task-set-todo" };
+    if (target === TaskStatus.TODO) {
+      if (current === TaskStatus.IN_PROGRESS) {
+        return { action: StatusTransitionAction.TASK_SET_TODO };
       }
-      if (item.presentationStatus === "DONE") {
-        return { action: "task-reopen" };
+      if (current === TaskStatus.DONE) {
+        return { action: StatusTransitionAction.TASK_REOPEN };
       }
       return null;
     }
-    if (target === "DONE") {
-      return { action: "task-complete" };
+    if (target === TaskStatus.DONE) {
+      return { action: StatusTransitionAction.TASK_COMPLETE };
     }
     return null;
   }
 
-  if (item.sourceType === "DEADLINE") {
-    if (target === "IN_PROGRESS") return null;
-    if (target === "DONE" && item.presentationStatus === "TODO") {
-      return { action: "deadline-satisfy" };
+  if (item.sourceType === CalendarSourceType.DEADLINE) {
+    if (target === TaskStatus.IN_PROGRESS) return null;
+    if (target === TaskStatus.DONE && current === TaskStatus.TODO) {
+      return { action: StatusTransitionAction.DEADLINE_SATISFY };
     }
-    if (target === "TODO" && item.presentationStatus === "DONE") {
-      return { action: "deadline-reopen" };
+    if (target === TaskStatus.TODO && current === TaskStatus.DONE) {
+      return { action: StatusTransitionAction.DEADLINE_REOPEN };
     }
     return null;
   }
 
-  // EVENT
-  if (target === "IN_PROGRESS") return null;
-  if (target === "DONE" && item.presentationStatus === "TODO") {
-    return { action: "event-complete" };
+  if (target === TaskStatus.IN_PROGRESS) return null;
+  if (target === TaskStatus.DONE && current === TaskStatus.TODO) {
+    return { action: StatusTransitionAction.EVENT_COMPLETE };
   }
   return null;
 }

@@ -22,19 +22,25 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
 import {
-  createSelectItemToString,
-  type SelectOption,
-} from "../../shared/utils";
-import {
   ACCENT_SWATCHES,
   DEFAULT_ACCENT,
   DEFAULT_FINISH,
   DEFAULT_THEME,
-  FINISH_VALUES,
   normalizeAccent,
   normalizeFinish,
   normalizeTheme,
+  THEME_SWATCHES,
 } from "../../core/theme/theme-options";
+import {
+  ACCENT_LABELS,
+  createSelectItemToString,
+  DEFAULT_LANGUAGE,
+  FINISH_LABELS,
+  LANGUAGE_LABELS,
+  optionsFrom,
+  THEME_LABELS,
+} from "../../shared/models";
+import { ACCENT_CSS_VALUES, FINISH_CSS_VALUES } from "../../shared/models";
 
 @Component({
   selector: "law-appearance-settings",
@@ -65,21 +71,15 @@ export class AppearanceSettingsComponent {
   readonly preferences = this.settingsStore.preferences;
   readonly loading = this.settingsStore.loading;
   readonly saving = signal(false);
-  readonly themeOptions: ReadonlyArray<SelectOption<UserSettingsTheme>> = [
-    { value: "MIDNIGHT", label: "settings.themeMidnight" },
-    { value: "DEEP_NAVY", label: "settings.themeDeepNavy" },
-    { value: "CHARCOAL", label: "settings.themeCharcoal" },
-    { value: "DARK_TEAL", label: "settings.themeDarkTeal" },
-    { value: "BURGUNDY", label: "settings.themeBurgundy" },
-    { value: "IVORY", label: "settings.themeIvory" },
-  ];
-  readonly accentOptions = ACCENT_SWATCHES;
-  readonly finishOptions: ReadonlyArray<UserSettingsFinish> = FINISH_VALUES;
-  readonly languageOptions: ReadonlyArray<SelectOption<UserSettingsLanguage>> =
-    [
-      { value: "SR", label: "settings.serbian" },
-      { value: "EN", label: "settings.english" },
-    ];
+  readonly UserSettingsAccent = UserSettingsAccent;
+  readonly themeOptions = optionsFrom(THEME_LABELS);
+  readonly themeSwatches = THEME_SWATCHES;
+  readonly accentOptions = optionsFrom(ACCENT_LABELS);
+  readonly accentSwatches = ACCENT_SWATCHES;
+  readonly finishOptions = optionsFrom(FINISH_LABELS);
+  readonly finishCssValues = FINISH_CSS_VALUES;
+  readonly goldCssValue = ACCENT_CSS_VALUES[UserSettingsAccent.GOLD];
+  readonly languageOptions = optionsFrom(LANGUAGE_LABELS);
   readonly themeItemToString = createSelectItemToString(
     this.themeOptions,
     (key) => this.localization.translate(key),
@@ -88,29 +88,11 @@ export class AppearanceSettingsComponent {
     this.languageOptions,
     (key) => this.localization.translate(key),
   );
-  readonly themeSwatchColor = (theme: UserSettingsTheme): string => {
-    switch (theme) {
-      case "MIDNIGHT":
-        return "#0f172a";
-      case "DEEP_NAVY":
-        return "#1d3557";
-      case "CHARCOAL":
-        return "#334155";
-      case "DARK_TEAL":
-        return "#164e63";
-      case "BURGUNDY":
-        return "#7f1d1d";
-      case "IVORY":
-        return "#f3efe6";
-      default:
-        return "#c9a45c";
-    }
-  };
   readonly form = new FormGroup({
     theme: new FormControl<UserSettingsTheme>(DEFAULT_THEME, {
       nonNullable: true,
     }),
-    language: new FormControl<UserSettingsLanguage>("SR", {
+    language: new FormControl<UserSettingsLanguage>(DEFAULT_LANGUAGE, {
       nonNullable: true,
     }),
     accentColor: new FormControl<UserSettingsAccent>(DEFAULT_ACCENT, {
@@ -131,7 +113,7 @@ export class AppearanceSettingsComponent {
     this.form.controls.accentColor.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((accentColor) => {
-        if (accentColor !== "GOLD") {
+        if (accentColor !== UserSettingsAccent.GOLD) {
           this.form.controls.finish.setValue(DEFAULT_FINISH);
         }
       });

@@ -8,14 +8,17 @@ import {
   HttpEventType,
 } from "@angular/common/http";
 import { FormControl, Validators } from "@angular/forms";
-import { DocumentDetail } from "@law/api-interfaces";
+import { DocumentCategory, DocumentDetail } from "@law/api-interfaces";
 import { Observable, Subscription } from "rxjs";
 import {
+  ACTIVE_UPLOAD_STATUSES,
   DOCUMENT_TITLE_MAX,
   DOCUMENT_UPLOAD_CONCURRENCY,
   DocumentUploadMode,
   DocumentUploadRow,
+  DocumentUploadRowStatus,
   FrozenCreatePayload,
+  PENDING_UPLOAD_STATUSES,
 } from "./document-upload.models";
 import {
   clampPercent,
@@ -55,13 +58,13 @@ export class DocumentUploadQueue {
   ) {}
 
   get hasActiveRequests(): boolean {
-    return this.rows.some((row) =>
-      ["queued", "uploading", "processing"].includes(row.status),
-    );
+    return this.rows.some((row) => ACTIVE_UPLOAD_STATUSES.includes(row.status));
   }
 
   get hasUnknownOutcomes(): boolean {
-    return this.rows.some((row) => row.status === "outcome_unknown");
+    return this.rows.some(
+      (row) => row.status === DocumentUploadRowStatus.OUTCOME_UNKNOWN,
+    );
   }
 
   get succeeded(): DocumentDetail[] {
@@ -77,7 +80,7 @@ export class DocumentUploadQueue {
   addCandidates(incoming: DocumentUploadCandidate[]): void {
     const next = [...this.rows];
     for (const candidate of incoming) {
-      if (this.mode === "version" && next.length >= 1) break;
+      if (this.mode === DocumentUploadMode.VERSION && next.length >= 1) break;
       next.push(this.createRow(candidate));
     }
     this.rows = next;
@@ -93,9 +96,8 @@ export class DocumentUploadQueue {
 
   canRemove(row: DocumentUploadRow): boolean {
     return (
-      row.status === "ready" ||
-      row.status === "invalid" ||
-      row.status === "failed"
+      PENDING_UPLOAD_STATUSES.includes(row.status) ||
+      row.status === DocumentUploadRowStatus.FAILED
     );
   }
 
@@ -112,7 +114,7 @@ export class DocumentUploadQueue {
     this.patch(id, this.validationPatch(row));
   }
 
-  setCategory(id: string, category: string | null): void {
+  setCategory(id: string, category: DocumentCategory | null): void {
     const row = this.rows.find((item) => item.id === id);
     if (!row || row.frozenCreate || row.frozenVersion) return;
     this.patch(id, { category });
@@ -125,7 +127,7 @@ export class DocumentUploadQueue {
   }
 
   setAllAiAccess(aiAccess: boolean): void {
-    if (this.mode !== "create") return;
+    if (this.mode !== DocumentUploadMode.CREATE) return;
     this.aiAccessDefault = aiAccess;
     this.rows = this.rows.map((row) =>
       this.canChangeAiAccess(row) ? { ...row, aiAccess } : row,
@@ -135,10 +137,10 @@ export class DocumentUploadQueue {
 
   canChangeAiAccess(row: DocumentUploadRow): boolean {
     return (
-      this.mode === "create" &&
+      this.mode === DocumentUploadMode.CREATE &&
       !row.frozenCreate &&
       !row.frozenVersion &&
-      (row.status === "ready" || row.status === "invalid")
+      PENDING_UPLOAD_STATUSES.includes(row.status)
     );
   }
 
@@ -161,7 +163,7 @@ export class DocumentUploadQueue {
 
   startReady(caseIds: string[], clientIds: string[]): void {
     const next = this.rows.map((row) => {
-      if (row.status !== "ready") return row;
+      if (row.status !== DocumentUploadRowStatus.READY) return row;
       return this.queueRow(row, caseIds, clientIds);
     });
     this.rows = next;
@@ -171,8 +173,13 @@ export class DocumentUploadQueue {
 
   retryFailed(): void {
     this.rows = this.rows.map((row) => {
-      if (row.status !== "failed" || !row.idempotencyKey) return row;
-      return { ...row, status: "queued" as const, errorText: null };
+      if (row.status !== DocumentUploadRowStatus.FAILED || !row.idempotencyKey)
+        return row;
+      return {
+        ...row,
+        status: DocumentUploadRowStatus.QUEUED,
+        errorText: null,
+      };
     });
     this.pump();
     this.emit();
@@ -180,8 +187,13 @@ export class DocumentUploadQueue {
 
   retryRow(id: string): void {
     const row = this.rows.find((item) => item.id === id);
-    if (!row || row.status !== "failed" || !row.idempotencyKey) return;
-    this.patch(id, { status: "queued", errorText: null });
+    if (
+      !row ||
+      row.status !== DocumentUploadRowStatus.FAILED ||
+      !row.idempotencyKey
+    )
+      return;
+    this.patch(id, { status: DocumentUploadRowStatus.QUEUED, errorText: null });
     this.pump();
   }
 
@@ -210,8 +222,8 @@ export class DocumentUploadQueue {
       folderId: null,
       titleControl: control,
       category: null,
-      aiAccess: this.mode === "create" && this.aiAccessDefault,
-      status: "ready",
+      aiAccess: this.mode === DocumentUploadMode.CREATE && this.aiAccessDefault,
+      status: DocumentUploadRowStatus.READY,
       loaded: 0,
       total: null,
       percent: null,
@@ -230,12 +242,17 @@ export class DocumentUploadQueue {
     row: DocumentUploadRow,
   ): Pick<DocumentUploadRow, "status" | "errorText"> {
     const sizeError = validateSize(row.file.size, this.maxBytes);
-    if (sizeError) return { status: "invalid", errorText: sizeError };
-    if (this.mode === "create") {
+    if (sizeError)
+      return { status: DocumentUploadRowStatus.INVALID, errorText: sizeError };
+    if (this.mode === DocumentUploadMode.CREATE) {
       const titleError = validateTitle(row.titleControl.value);
-      if (titleError) return { status: "invalid", errorText: titleError };
+      if (titleError)
+        return {
+          status: DocumentUploadRowStatus.INVALID,
+          errorText: titleError,
+        };
     }
-    return { status: "ready", errorText: null };
+    return { status: DocumentUploadRowStatus.READY, errorText: null };
   }
 
   private queueRow(
@@ -244,18 +261,18 @@ export class DocumentUploadQueue {
     clientIds: string[],
   ): DocumentUploadRow {
     const validated = { ...row, ...this.validationPatch(row) };
-    if (validated.status === "invalid") return validated;
-    if (this.mode === "version") {
+    if (validated.status === DocumentUploadRowStatus.INVALID) return validated;
+    if (this.mode === DocumentUploadMode.VERSION) {
       if (!this.documentId) {
         return {
           ...validated,
-          status: "invalid",
+          status: DocumentUploadRowStatus.INVALID,
           errorText: "documents.upload.errorGeneric",
         };
       }
       return {
         ...validated,
-        status: "queued",
+        status: DocumentUploadRowStatus.QUEUED,
         idempotencyKey: validated.idempotencyKey ?? newRowId(),
         frozenVersion: {
           documentId: this.documentId,
@@ -276,7 +293,7 @@ export class DocumentUploadQueue {
     };
     return {
       ...validated,
-      status: "queued",
+      status: DocumentUploadRowStatus.QUEUED,
       idempotencyKey: validated.idempotencyKey ?? newRowId(),
       frozenCreate: frozen,
       errorText: null,
@@ -285,11 +302,15 @@ export class DocumentUploadQueue {
 
   private pump(): void {
     const active = this.rows.filter(
-      (row) => row.status === "uploading" || row.status === "processing",
+      (row) =>
+        row.status === DocumentUploadRowStatus.UPLOADING ||
+        row.status === DocumentUploadRowStatus.PROCESSING,
     ).length;
     const slots = this.concurrency - active;
     if (slots <= 0) return;
-    const queued = this.rows.filter((row) => row.status === "queued");
+    const queued = this.rows.filter(
+      (row) => row.status === DocumentUploadRowStatus.QUEUED,
+    );
     for (const row of queued.slice(0, slots)) {
       this.send(row.id);
     }
@@ -298,12 +319,21 @@ export class DocumentUploadQueue {
   private send(id: string): void {
     if (this.inflight.has(id)) return;
     const row = this.rows.find((item) => item.id === id);
-    if (!row || row.status !== "queued" || !row.idempotencyKey) return;
+    if (
+      !row ||
+      row.status !== DocumentUploadRowStatus.QUEUED ||
+      !row.idempotencyKey
+    )
+      return;
 
-    this.patch(id, { status: "uploading", loaded: 0, percent: null });
+    this.patch(id, {
+      status: DocumentUploadRowStatus.UPLOADING,
+      loaded: 0,
+      percent: null,
+    });
 
     const request$ =
-      this.mode === "version" && row.frozenVersion
+      this.mode === DocumentUploadMode.VERSION && row.frozenVersion
         ? this.transport.addVersion(
             row.frozenVersion.documentId,
             this.versionBody(row),
@@ -351,14 +381,16 @@ export class DocumentUploadQueue {
         loaded,
         total,
         percent,
-        status: processing ? "processing" : "uploading",
+        status: processing
+          ? DocumentUploadRowStatus.PROCESSING
+          : DocumentUploadRowStatus.UPLOADING,
       });
       return;
     }
     if (event.type === HttpEventType.Response) {
       this.inflight.delete(id);
       this.patch(id, {
-        status: "succeeded",
+        status: DocumentUploadRowStatus.SUCCEEDED,
         result: event.body ?? null,
         percent: 100,
         errorText: null,
@@ -372,9 +404,12 @@ export class DocumentUploadQueue {
     const unknown =
       error instanceof HttpErrorResponse &&
       error.status === 0 &&
-      this.rows.find((row) => row.id === id)?.status === "processing";
+      this.rows.find((row) => row.id === id)?.status ===
+        DocumentUploadRowStatus.PROCESSING;
     this.patch(id, {
-      status: unknown ? "outcome_unknown" : "failed",
+      status: unknown
+        ? DocumentUploadRowStatus.OUTCOME_UNKNOWN
+        : DocumentUploadRowStatus.FAILED,
       errorText: httpErrorText(error),
     });
     this.pump();

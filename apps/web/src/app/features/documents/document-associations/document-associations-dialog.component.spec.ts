@@ -8,6 +8,7 @@ import { DocumentDetail } from "@law/api-interfaces";
 import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { of, throwError } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
 import { DocumentAssociationsDialogComponent } from "./document-associations-dialog.component";
 import { DocumentAssociationsDialogContext } from "./document-associations-dialog.models";
 
@@ -107,8 +108,7 @@ describe("DocumentAssociationsDialogComponent", () => {
     expect(fixture.componentInstance.allowClientPicker).toBe(false);
     expect(fixture.componentInstance.selectedClientIds()).toContain("client-1");
     expect(cases.list).toHaveBeenCalledWith({
-      page: 1,
-      pageSize: 50,
+      ...FIRST_PAGE,
       search: undefined,
       clientIds: ["client-1"],
     });

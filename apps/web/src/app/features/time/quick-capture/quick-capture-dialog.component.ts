@@ -1,4 +1,3 @@
-import { DatePipe } from "@angular/common";
 import { HttpErrorResponse } from "@angular/common/http";
 import {
   Component,
@@ -39,8 +38,14 @@ import {
   ServiceCategory,
   WorkCaptureParseResponse,
   WorkEntry,
+  WorkEntrySource,
+  WorkEntrySourceType,
+  WorkEntryStatus,
   WorkEntryTreatment,
   WorkEntryActions,
+  ClientStatus,
+  ApiErrorCode,
+  PriceSuggestionSourceKind,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { NgIcon, provideIcons } from "@ng-icons/core";
@@ -94,9 +99,9 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../../core/speech/speech-recognition.service";
 import { ConfirmDialogService } from "../../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
-import { createSelectItemToString, SelectOption } from "../../../shared/utils";
 import {
   CURRENCY_OPTIONS,
+  DEFAULT_CURRENCY,
   createCurrencyItemToString,
 } from "../../../shared/currency";
 import {
@@ -105,17 +110,23 @@ import {
   agreementTerms,
   defaultTreatment,
 } from "../treatment";
-import {
-  STATUS_LABEL_KEYS,
-  TREATMENT_LABEL_KEYS,
-  formatMinutes,
-} from "../time-utils";
+import { formatMinutes, officeToday } from "../time-utils";
 import { integerValidator } from "../validators";
 import { QuickCaptureInput } from "./quick-capture.models";
+import {
+  createSelectItemToString,
+  optionsFrom,
+  PRICE_SUGGESTION_CONFIDENCE_LABELS,
+  RESTORABLE_WORK_ENTRY_STATUSES,
+  RestorableWorkEntryStatus,
+  SelectOption,
+  WORK_ENTRY_DELETE_BLOCKED_LABELS,
+  WORK_ENTRY_STATUS_LABELS,
+  WORK_ENTRY_TREATMENT_LABELS,
+} from "../../../shared/models";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
+import { formatDate } from "../../../shared/billing";
 
-const OFFICE_TIME_ZONE = "Europe/Belgrade";
-const RECENT_ENTRY_COUNT = 20;
-const LIST_PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 250;
 const TITLE_MAX_LENGTH = 200;
 const WORK_VALUE_PATTERN = /^\d{1,16}(?:[.,]\d{1,2})?$/;
@@ -165,20 +176,12 @@ const TITLE_KEYS: Record<QuickCaptureInput["mode"], string> = {
   view: "work.entries.viewTitle",
 };
 
-/** Today as a YYYY-MM-DD calendar day in the office time zone. */
-function today(): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: OFFICE_TIME_ZONE,
-  }).format(new Date());
-}
-
 @Component({
   selector: "law-quick-capture-dialog",
   standalone: true,
   templateUrl: "./quick-capture-dialog.component.html",
   imports: [
     ReactiveFormsModule,
-    DatePipe,
     NgIcon,
     HlmButton,
     HlmCombobox,
@@ -231,7 +234,7 @@ export class QuickCaptureDialogComponent {
 
   readonly linkedEventId = signal(
     this.context.eventId ??
-      (this.context.source?.sourceType === "EVENT"
+      (this.context.source?.sourceType === WorkEntrySourceType.EVENT
         ? this.context.source.sourceId
         : undefined),
   );
@@ -307,39 +310,35 @@ export class QuickCaptureDialogComponent {
   );
   readonly entryActions = signal<WorkEntryActions | null>(null);
   readonly entryLoadFailed = signal(false);
-  readonly restoredStatus = new FormControl<"WRITTEN_OFF" | "CONFIRMED">(
-    "WRITTEN_OFF",
+  readonly restoredStatus = new FormControl<RestorableWorkEntryStatus>(
+    WorkEntryStatus.WRITTEN_OFF,
     { nonNullable: true },
   );
-  readonly restoreStatusOptions = [
-    { value: "WRITTEN_OFF", label: "time.status.writtenOff" },
-    { value: "CONFIRMED", label: "time.status.confirmed" },
-  ];
+  readonly restoreStatusOptions = optionsFrom(
+    WORK_ENTRY_STATUS_LABELS,
+    RESTORABLE_WORK_ENTRY_STATUSES,
+  );
   readonly restoreStatusItemToString = createSelectItemToString(
     this.restoreStatusOptions,
     (key) => this.localization.translate(key),
   );
   readonly loadedEntry = signal<WorkEntry | null>(null);
-  readonly statusLabelKeys = STATUS_LABEL_KEYS;
-  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  protected readonly WorkEntryStatus = WorkEntryStatus;
+  protected readonly WorkEntryTreatment = WorkEntryTreatment;
+  readonly statusLabelKeys = WORK_ENTRY_STATUS_LABELS;
+  readonly treatmentLabelKeys = WORK_ENTRY_TREATMENT_LABELS;
+  readonly confidenceLabelKeys = PRICE_SUGGESTION_CONFIDENCE_LABELS;
   readonly formatMinutes = formatMinutes;
   readonly readOnly = computed(
     () =>
       this.context.mode === "view" ||
-      ["BILLED", "RUNNING"].includes(this.loadedEntry()?.status ?? "") ||
+      this.loadedEntry()?.status === WorkEntryStatus.BILLED ||
+      this.loadedEntry()?.status === WorkEntryStatus.RUNNING ||
       (this.managingEntry && !this.entryActions()?.canEdit),
   );
   readonly deletionInfoKey = computed(() => {
-    switch (this.entryActions()?.deleteBlockedReason) {
-      case "LAST_TASK_ENTRY":
-        return "work.entries.lastEntryInfo";
-      case "BILLED":
-        return "work.entries.billedInfo";
-      case "NOT_ALLOWED":
-        return "work.entries.deleteNotAllowed";
-      default:
-        return null;
-    }
+    const reason = this.entryActions()?.deleteBlockedReason;
+    return reason ? WORK_ENTRY_DELETE_BLOCKED_LABELS[reason] : null;
   });
   readonly mode = this.context.mode;
   readonly canFinishWithoutNewWork = Boolean(this.context.finishWithoutNewWork);
@@ -347,17 +346,12 @@ export class QuickCaptureDialogComponent {
   readonly fromSource = this.mode === "confirm-source";
   readonly eventLinked = signal(
     Boolean(
-      this.context.eventId || this.context.source?.sourceType === "EVENT",
+      this.context.eventId ||
+        this.context.source?.sourceType === WorkEntrySourceType.EVENT,
     ),
   );
   readonly minuteChips = [15, 30, 60, 120] as const;
-  readonly treatmentOptions: SelectOption<WorkEntryTreatment>[] = [
-    { value: "RETAINER", label: "time.treatment.retainer" },
-    { value: "AT", label: "time.treatment.at" },
-    { value: "HOURLY", label: "time.treatment.hourly" },
-    { value: "NON_BILLABLE", label: "time.treatment.nonBillable" },
-    { value: "UNDECIDED", label: "time.treatment.undecided" },
-  ];
+  readonly treatmentOptions = optionsFrom(WORK_ENTRY_TREATMENT_LABELS);
   readonly currencyOptions: SelectOption[] = [
     { value: "", label: "time.capture.noCurrency" },
     ...CURRENCY_OPTIONS,
@@ -391,7 +385,7 @@ export class QuickCaptureDialogComponent {
           Validators.max(1440),
         ],
       }),
-      workDate: new FormControl(this.context.workDate ?? today(), {
+      workDate: new FormControl(this.context.workDate ?? officeToday(), {
         nonNullable: true,
         validators: [Validators.required],
       }),
@@ -413,7 +407,7 @@ export class QuickCaptureDialogComponent {
       }),
       currency: new FormControl(
         this.context.currency === undefined
-          ? "RSD"
+          ? DEFAULT_CURRENCY
           : (this.context.currency ?? ""),
         {
           nonNullable: true,
@@ -423,8 +417,8 @@ export class QuickCaptureDialogComponent {
       treatment: new FormControl<WorkEntryTreatment>(
         this.context.treatment ??
           (this.eventLinked() && !this.context.clientId
-            ? "NON_BILLABLE"
-            : "UNDECIDED"),
+            ? WorkEntryTreatment.NON_BILLABLE
+            : WorkEntryTreatment.UNDECIDED),
         {
           nonNullable: true,
         },
@@ -460,7 +454,8 @@ export class QuickCaptureDialogComponent {
   priceSourceHref(source: PriceSuggestionSource): string {
     const clientId = this.form.controls.clientId.value;
     if (
-      (source.kind === "RETAINER" || source.kind === "CLIENT_HOURLY_RATE") &&
+      (source.kind === PriceSuggestionSourceKind.RETAINER ||
+        source.kind === PriceSuggestionSourceKind.CLIENT_HOURLY_RATE) &&
       clientId
     ) {
       return `/clients/${encodeURIComponent(clientId)}`;
@@ -716,9 +711,10 @@ export class QuickCaptureDialogComponent {
       .subscribe((value) => {
         this.selectedClientId.set(value);
         if (!value && this.eventLinked()) {
-          this.form.controls.treatment.setValue("NON_BILLABLE", {
-            emitEvent: false,
-          });
+          this.form.controls.treatment.setValue(
+            WorkEntryTreatment.NON_BILLABLE,
+            { emitEvent: false },
+          );
           this.form.controls.value.setValue("", { emitEvent: false });
         }
         if (!this.applyingCase && caseId.value) {
@@ -773,11 +769,7 @@ export class QuickCaptureDialogComponent {
       .pipe(
         switchMap((id) =>
           this.casesApi
-            .list(
-              id
-                ? { clientId: id, page: 1, pageSize: LIST_PAGE_SIZE }
-                : { page: 1, pageSize: LIST_PAGE_SIZE },
-            )
+            .list(id ? { ...FIRST_PAGE, clientId: id } : FIRST_PAGE)
             .pipe(
               map((response) => response.items),
               catchError(() => of([] as CaseOption[])),
@@ -815,9 +807,8 @@ export class QuickCaptureDialogComponent {
         switchMap((term) =>
           this.clientsApi
             .list({
-              page: 1,
-              pageSize: LIST_PAGE_SIZE,
-              status: "ACTIVE",
+              ...FIRST_PAGE,
+              status: ClientStatus.ACTIVE,
               ...(term ? { search: term } : {}),
             })
             .pipe(
@@ -844,7 +835,7 @@ export class QuickCaptureDialogComponent {
     const userId = this.auth.session()?.user.id;
     if (userId && !this.fromSource) {
       this.entriesApi
-        .list({ userIds: [userId], page: 1, pageSize: RECENT_ENTRY_COUNT })
+        .list({ ...FIRST_PAGE, userIds: [userId] })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (response) =>
@@ -876,6 +867,10 @@ export class QuickCaptureDialogComponent {
   // ------------------------------------------------------------------ UI
 
   readonly titleKey = TITLE_KEYS[this.mode];
+
+  workDateLabel(date: string): string {
+    return formatDate(date, this.localization.language());
+  }
 
   searchClients(term: string): void {
     this.clientSearchTerms.next(term);
@@ -911,12 +906,8 @@ export class QuickCaptureDialogComponent {
 
   toggleMic(): void {
     if (this.readOnly() || this.saving()) return;
-    if (!this.speech.isListening()) {
+    if (!this.speech.isListening())
       this.micBaseText = this.form.controls.title.value.trimEnd();
-      this.speech.setLanguage(
-        this.localization.language() === "EN" ? "en-US" : "sr-RS",
-      );
-    }
     this.speech.toggle();
   }
 
@@ -1077,7 +1068,7 @@ export class QuickCaptureDialogComponent {
   private applyDefaultTreatment(): void {
     const { treatment, workDate, serviceCategoryId } = this.form.controls;
     if (!this.form.controls.clientId.value && this.eventLinked()) {
-      treatment.setValue("NON_BILLABLE", { emitEvent: false });
+      treatment.setValue(WorkEntryTreatment.NON_BILLABLE, { emitEvent: false });
       return;
     }
     const agreements = this.agreements();
@@ -1108,7 +1099,7 @@ export class QuickCaptureDialogComponent {
     const currency = [
       this.clientProfileCurrency(),
       this.organizationCurrency(),
-      "RSD",
+      DEFAULT_CURRENCY,
     ].find(supported);
     if (currency) {
       this.form.controls.currency.setValue(currency.toUpperCase(), {
@@ -1152,7 +1143,7 @@ export class QuickCaptureDialogComponent {
           this.linkedEventId.set(
             this.context.eventId ??
               entry.eventId ??
-              (entry.sourceType === "EVENT"
+              (entry.sourceType === WorkEntrySourceType.EVENT
                 ? (entry.sourceId ?? undefined)
                 : undefined),
           );
@@ -1211,7 +1202,7 @@ export class QuickCaptureDialogComponent {
           this.dialogRef.close();
         },
         error: (error: HttpErrorResponse) => {
-          if (error.error?.code === "LAST_TASK_WORK_ENTRY") {
+          if (error.error?.code === ApiErrorCode.LAST_TASK_WORK_ENTRY) {
             const current = this.entryActions();
             if (current)
               this.entryActions.set({
@@ -1235,7 +1226,7 @@ export class QuickCaptureDialogComponent {
     this.linkedTaskId.set(this.context.taskId ?? entry.taskId ?? undefined);
     const controls = this.form.controls;
     this.hydrating = true;
-    if (entry.eventId || entry.sourceType === "EVENT") {
+    if (entry.eventId || entry.sourceType === WorkEntrySourceType.EVENT) {
       this.eventLinked.set(true);
       controls.clientId.clearValidators();
       controls.clientId.updateValueAndValidity({ emitEvent: false });
@@ -1337,7 +1328,9 @@ export class QuickCaptureDialogComponent {
         return this.entriesApi.create({
           ...fields,
           eventId: this.context.eventId,
-          source: aiParsed ? "QUICK_CAPTURE" : "MANUAL",
+          source: aiParsed
+            ? WorkEntrySource.QUICK_CAPTURE
+            : WorkEntrySource.MANUAL,
           aiParsed,
         });
       case "confirm-timer": {
@@ -1381,9 +1374,9 @@ export class QuickCaptureDialogComponent {
       case "edit":
         return this.entriesApi.update(this.requiredEntryId(), {
           ...fields,
-          ...(this.loadedEntry()?.status === "WRITTEN_OFF" &&
-          this.restoredStatus.value === "CONFIRMED"
-            ? { status: "CONFIRMED" as const }
+          ...(this.loadedEntry()?.status === WorkEntryStatus.WRITTEN_OFF &&
+          this.restoredStatus.value === WorkEntryStatus.CONFIRMED
+            ? { status: WorkEntryStatus.CONFIRMED }
             : {}),
           ...(aiParsed ? { aiParsed } : {}),
         });

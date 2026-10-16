@@ -49,7 +49,7 @@ function entry(id: string, clientId: string, name: string): WorkEntry {
 
 const page = (items: WorkEntry[]) => ({
   items,
-  meta: { page: 1, pageSize: 50, totalItems: items.length, totalPages: 1 },
+  meta: { page: 1, pageSize: 100, totalItems: items.length, totalPages: 1 },
 });
 
 describe("FinanceWorkReviewComponent (unbilled work)", () => {
@@ -117,7 +117,11 @@ describe("FinanceWorkReviewComponent (unbilled work)", () => {
         { provide: WriteOffDialogService, useValue: writeOffDialog },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
       ],
     });

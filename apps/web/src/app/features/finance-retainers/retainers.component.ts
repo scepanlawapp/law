@@ -14,10 +14,11 @@ import {
   BillingReportsApiClient,
   BillingSetupApiClient,
 } from "@law/api-clients";
-import type {
-  ClientSummary,
-  RetainerAgreement,
-  RetainerUsage,
+import {
+  ClientStatus,
+  type ClientSummary,
+  type RetainerAgreement,
+  type RetainerUsage,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -46,9 +47,16 @@ import {
   officeMonth,
   usagePercent,
   usageState,
+  UsageState,
 } from "../../shared/billing";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
 import { RetainerAgreementDialogService } from "../clients/client-retainer-card/retainer-agreement-dialog.service";
-import type { UsageState } from "../../shared/billing";
+
+const USAGE_BAR_CLASSES: Readonly<Record<UsageState, string>> = {
+  [UsageState.OK]: "[&_[data-slot=progress-indicator]]:bg-primary",
+  [UsageState.WARNING]: "[&_[data-slot=progress-indicator]]:bg-warning",
+  [UsageState.EXCEEDED]: "[&_[data-slot=progress-indicator]]:bg-destructive",
+};
 
 interface UsageRow {
   usage: RetainerUsage;
@@ -131,6 +139,7 @@ export class FinanceRetainersComponent {
 
   /** The currency `targetHourlyRate` is expressed in; known to managers only. */
   readonly internalCurrency = signal<string | null>(null);
+  readonly usageBarClasses = USAGE_BAR_CLASSES;
 
   readonly rows = computed(() => sortByUsage(this.items()));
   readonly canManage = computed(() =>
@@ -170,7 +179,7 @@ export class FinanceRetainersComponent {
 
       this.clientsLoading.set(true);
       this.clientsApi
-        .list({ page: 1, pageSize: 100, status: "ACTIVE" })
+        .list({ ...FIRST_PAGE, status: ClientStatus.ACTIVE })
         .pipe(takeUntilDestroyed(this.destroyRef))
         .subscribe({
           next: (response) => {
@@ -300,7 +309,9 @@ export class FinanceRetainersComponent {
   }
 
   hours(minutes: number): string {
-    return `${formatHours(minutes, this.localization.language())} h`;
+    return this.localization.translate("retainers.hours", {
+      hours: formatHours(minutes, this.localization.language()),
+    });
   }
 
   money(amount: string, currency: string): string {

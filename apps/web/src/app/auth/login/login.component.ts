@@ -22,7 +22,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmInputGroupImports } from "@spartan-ng/helm/input-group";
 import { AuthApiClient } from "@law/api-clients";
-import { MfaMethod } from "@law/api-interfaces";
+import { ApiErrorCode, LoginStatus, MfaMethod } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
@@ -78,6 +78,8 @@ export class LoginComponent {
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
 
+  protected readonly MfaMethod = MfaMethod;
+
   readonly features: FeatureItem[] = [
     {
       title: "auth.feature.aiAssistant",
@@ -119,7 +121,7 @@ export class LoginComponent {
 
   readonly step = signal<"password" | "code">("password");
   readonly methods = signal<MfaMethod[]>([]);
-  readonly method = signal<MfaMethod>("TOTP");
+  readonly method = signal<MfaMethod>(MfaMethod.TOTP);
   readonly emailCodeSent = signal(false);
   readonly notice = signal("");
   readonly error = signal("");
@@ -148,9 +150,9 @@ export class LoginComponent {
       .subscribe({
         next: (response) => {
           this.submitting.set(false);
-          if (response.status === "AUTHENTICATED") {
+          if (response.status === LoginStatus.AUTHENTICATED) {
             void this.router.navigate(["/"]);
-          } else if (response.status === "MFA_REQUIRED") {
+          } else if (response.status === LoginStatus.MFA_REQUIRED) {
             this.showCodeStep(response.methods);
           } else {
             void this.router.navigate(["/mfa-setup"]);
@@ -179,12 +181,12 @@ export class LoginComponent {
   }
 
   codeMaxLength(): number {
-    return this.method() === "RECOVERY" ? 9 : 6;
+    return this.method() === MfaMethod.RECOVERY ? 9 : 6;
   }
 
   codeValid(): boolean {
     const value = this.codeForm.controls.code.value;
-    return this.method() === "RECOVERY"
+    return this.method() === MfaMethod.RECOVERY
       ? isRecoveryCode(value)
       : isSixDigitCode(value);
   }
@@ -203,17 +205,17 @@ export class LoginComponent {
   }
 
   useRecovery(): void {
-    this.switchMethod("RECOVERY");
+    this.switchMethod(MfaMethod.RECOVERY);
   }
 
   useAuthenticator(): void {
-    this.switchMethod("TOTP");
+    this.switchMethod(MfaMethod.TOTP);
   }
 
   sendEmailCode(): void {
     // The server withholds the e-mail fallback (e.g. after a recent password
     // change); never offer it then.
-    if (!this.canUse("EMAIL")) return;
+    if (!this.canUse(MfaMethod.EMAIL)) return;
     this.error.set("");
     this.submitting.set(true);
     this.api
@@ -223,7 +225,7 @@ export class LoginComponent {
         next: () => {
           this.submitting.set(false);
           this.emailCodeSent.set(true);
-          this.switchMethod("EMAIL", true);
+          this.switchMethod(MfaMethod.EMAIL, true);
         },
         error: (error: HttpErrorResponse) => this.handleCodeError(error),
       });
@@ -259,7 +261,11 @@ export class LoginComponent {
 
   private showCodeStep(methods: MfaMethod[]): void {
     this.methods.set(methods);
-    this.method.set(methods.includes("TOTP") ? "TOTP" : (methods[0] ?? "TOTP"));
+    this.method.set(
+      methods.includes(MfaMethod.TOTP)
+        ? MfaMethod.TOTP
+        : (methods[0] ?? MfaMethod.TOTP),
+    );
     this.emailCodeSent.set(false);
     this.codeForm.reset({ code: "", rememberDevice: false });
     this.step.set("code");
@@ -278,7 +284,10 @@ export class LoginComponent {
       this.error.set(this.localization.translate("auth.mfa.accountThrottled"));
       return;
     }
-    if (error.status === 401 && mfaErrorCode(error) === "MFA_CODE_INVALID") {
+    if (
+      error.status === 401 &&
+      mfaErrorCode(error) === ApiErrorCode.MFA_CODE_INVALID
+    ) {
       this.error.set(this.localization.translate("auth.mfa.codeInvalid"));
       this.codeForm.controls.code.setValue("");
       return;
@@ -306,6 +315,7 @@ export class LoginComponent {
 /** Too many failed second-factor checks on this account (server R7). */
 function accountThrottled(error: HttpErrorResponse): boolean {
   return (
-    error.status === 429 && mfaErrorCode(error) === "MFA_ACCOUNT_THROTTLED"
+    error.status === 429 &&
+    mfaErrorCode(error) === ApiErrorCode.MFA_ACCOUNT_THROTTLED
   );
 }

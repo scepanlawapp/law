@@ -23,7 +23,7 @@ export const appConfig: ApplicationConfig = {
       provide: HLM_INPUT_NUMBER_LOCALE,
       useFactory: () => {
         const localization = inject(LocalizationService);
-        return () => (localization.language() === "EN" ? "en" : "sr");
+        return () => localization.locale();
       },
     },
     provideBrowserGlobalErrorListeners(),

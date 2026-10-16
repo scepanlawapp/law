@@ -4,7 +4,6 @@ import {
   computed,
   inject,
   input,
-  model,
 } from "@angular/core";
 import {
   HlmNumberedPagination,
@@ -12,6 +11,7 @@ import {
   PaginationLabels,
 } from "@spartan-ng/helm/pagination";
 import { LocalizationService } from "../../../core/localization/localization.service";
+import { PAGE_SIZE_OPTIONS, Paginator } from "../../pagination/paginated-list";
 
 @Component({
   selector: "law-pagination",
@@ -20,39 +20,41 @@ import { LocalizationService } from "../../../core/localization/localization.ser
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [HlmNumberedPagination, HlmNumberedPaginationQueryParams],
   template: `
+    @let state = paginator();
     @if (queryParams()) {
       <hlm-numbered-pagination-query-params
-        [currentPage]="currentPage()"
-        [itemsPerPage]="itemsPerPage()"
-        [totalItems]="totalItems()"
+        [currentPage]="state.page()"
+        [itemsPerPage]="state.pageSize()"
+        [totalItems]="state.totalItems()"
+        [pageSizes]="pageSizes"
         [labels]="labels()"
         [maxSize]="5"
         [pageParam]="pageParam()"
-        [disabled]="disabled()"
-        [attr.inert]="disabled() ? '' : null"
-        [attr.aria-busy]="disabled()"
-        (itemsPerPageChange)="itemsPerPage.set($event)"
+        [disabled]="state.loading()"
+        [attr.inert]="state.loading() ? '' : null"
+        [attr.aria-busy]="state.loading()"
+        (itemsPerPageChange)="state.changePageSize($event)"
       />
     } @else {
       <hlm-numbered-pagination
-        [currentPage]="currentPage()"
-        [itemsPerPage]="itemsPerPage()"
-        [totalItems]="totalItems()"
+        [currentPage]="state.page()"
+        [itemsPerPage]="state.pageSize()"
+        [totalItems]="state.totalItems()"
+        [pageSizes]="pageSizes"
         [labels]="labels()"
         [maxSize]="5"
-        [disabled]="disabled()"
-        (currentPageChange)="currentPage.set($event)"
-        (itemsPerPageChange)="itemsPerPage.set($event)"
+        [disabled]="state.loading()"
+        (currentPageChange)="state.changePage($event)"
+        (itemsPerPageChange)="state.changePageSize($event)"
       />
     }
   `,
 })
 export class PaginationComponent {
   private readonly localization = inject(LocalizationService);
-  readonly currentPage = model.required<number>();
-  readonly itemsPerPage = model.required<number>();
-  readonly totalItems = input.required<number>();
-  readonly disabled = input(false);
+  readonly paginator = input.required<Paginator>();
+  readonly pageSizes = [...PAGE_SIZE_OPTIONS];
+  /** Page links are router links on `pageParam`; the route drives the paginator. */
   readonly queryParams = input(false);
   readonly pageParam = input("page");
   readonly labels = computed<PaginationLabels>(() => ({

@@ -30,10 +30,14 @@ import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import {
   CalendarItem,
+  CalendarSourceType,
+  CaseStatus,
   DeadlineDetail,
   NotificationDto,
   NotificationType,
   TaskDetail,
+  UserProfileGender,
+  UserSettingsLanguage,
 } from "@law/api-interfaces";
 import { WorkManagementApiClient } from "@law/api-clients";
 import { AuthState } from "@law/security";
@@ -58,6 +62,7 @@ import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
 } from "../../shared/status-badge";
+import { CASE_STATUS_LABELS } from "../../shared/models";
 
 const PROMPT_SUGGESTION_KEYS = [
   "dashboard.suggestSummarizeCase",
@@ -67,22 +72,22 @@ const PROMPT_SUGGESTION_KEYS = [
 ] as const;
 
 const NOTIFICATION_ICON: Record<NotificationType, string> = {
-  DEADLINE_ASSIGNED: "lucideClock",
-  DEADLINE_DUE_SOON: "lucideTriangleAlert",
-  DEADLINE_DUE_TODAY: "lucideTriangleAlert",
-  DEADLINE_OVERDUE: "lucideTriangleAlert",
-  DEADLINE_CHANGED: "lucideClock",
-  TASK_ASSIGNED: "lucideCheckCheck",
-  TASK_DUE_SOON: "lucideCheckCheck",
-  TASK_DUE_TODAY: "lucideCheckCheck",
-  TASK_OVERDUE: "lucideTriangleAlert",
-  EVENT_UPCOMING: "lucideCalendar",
-  EVENT_CHANGED: "lucideCalendar",
-  EVENT_CANCELLED: "lucideCalendar",
-  TIMER_RUNNING_LONG: "lucideClock",
-  TIME_REVIEW_REMINDER: "lucideCheckCheck",
-  RETAINER_USAGE_80: "lucideTriangleAlert",
-  RETAINER_USAGE_100: "lucideTriangleAlert",
+  [NotificationType.DEADLINE_ASSIGNED]: "lucideClock",
+  [NotificationType.DEADLINE_DUE_SOON]: "lucideTriangleAlert",
+  [NotificationType.DEADLINE_DUE_TODAY]: "lucideTriangleAlert",
+  [NotificationType.DEADLINE_OVERDUE]: "lucideTriangleAlert",
+  [NotificationType.DEADLINE_CHANGED]: "lucideClock",
+  [NotificationType.TASK_ASSIGNED]: "lucideCheckCheck",
+  [NotificationType.TASK_DUE_SOON]: "lucideCheckCheck",
+  [NotificationType.TASK_DUE_TODAY]: "lucideCheckCheck",
+  [NotificationType.TASK_OVERDUE]: "lucideTriangleAlert",
+  [NotificationType.EVENT_UPCOMING]: "lucideCalendar",
+  [NotificationType.EVENT_CHANGED]: "lucideCalendar",
+  [NotificationType.EVENT_CANCELLED]: "lucideCalendar",
+  [NotificationType.TIMER_RUNNING_LONG]: "lucideClock",
+  [NotificationType.TIME_REVIEW_REMINDER]: "lucideCheckCheck",
+  [NotificationType.RETAINER_USAGE_80]: "lucideTriangleAlert",
+  [NotificationType.RETAINER_USAGE_100]: "lucideTriangleAlert",
 };
 
 @Component({
@@ -128,6 +133,8 @@ const NOTIFICATION_ICON: Record<NotificationType, string> = {
   ],
 })
 export class DashboardComponent {
+  protected readonly CaseStatus = CaseStatus;
+  readonly caseStatusLabels = CASE_STATUS_LABELS;
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
   protected readonly store = inject(DashboardStore);
@@ -155,12 +162,16 @@ export class DashboardComponent {
     const lastName = profile?.lastName?.trim();
     const username = profile?.username?.trim();
 
-    if (this.localization.language() === "SR" && firstName && profile?.gender) {
+    if (
+      this.localization.language() === UserSettingsLanguage.SR &&
+      firstName &&
+      profile?.gender
+    ) {
       return nameInVocative(firstName, profile.gender);
     }
     if (lastName && profile?.gender) {
       const salutation = this.localization.translate(
-        profile.gender === "MALE"
+        profile.gender === UserProfileGender.MALE
           ? "dashboard.salutationMale"
           : "dashboard.salutationFemale",
       );
@@ -193,11 +204,11 @@ export class DashboardComponent {
   }
 
   protected openObligation(item: ObligationItem): void {
-    if (item.sourceType === "EVENT") {
+    if (item.sourceType === CalendarSourceType.EVENT) {
       this.openEventDialog(item);
       return;
     }
-    if (item.sourceType === "TASK") {
+    if (item.sourceType === CalendarSourceType.TASK) {
       this.workApi
         .getTask(item.sourceId)
         .pipe(takeUntilDestroyed(this.destroyRef))
@@ -276,10 +287,9 @@ export class DashboardComponent {
 
   protected notificationRelativeTime(value: string): string {
     const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
-    const formatter = new Intl.RelativeTimeFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { numeric: "auto" },
-    );
+    const formatter = new Intl.RelativeTimeFormat(this.localization.locale(), {
+      numeric: "auto",
+    });
     const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
       ["year", 31_536_000],
       ["month", 2_592_000],

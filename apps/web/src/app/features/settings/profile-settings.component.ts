@@ -39,7 +39,14 @@ import {
   AvatarCropDialogResult,
   REMOVE_PROFILE_IMAGE,
 } from "../../shared/components/user-avatar-drop-dialog/user-avatar-drop-dialog.component";
-import { createSelectItemToString, SelectOption } from "../../shared/utils";
+import {
+  ASSISTANT_PERMISSION_MODE_DESCRIPTIONS,
+  ASSISTANT_PERMISSION_MODE_LABELS,
+  createSelectItemToString,
+  filterOptionsFrom,
+  GENDER_LABELS,
+  optionsFrom,
+} from "../../shared/models";
 
 @Component({
   selector: "law-profile-settings",
@@ -78,12 +85,10 @@ export class ProfileSettingsComponent {
   readonly session = this.authState.session;
   readonly saving = signal(false);
   readonly changingProfileImage = signal(false);
-  readonly genderOptions: ReadonlyArray<SelectOption<UserProfileGender | "">> =
-    [
-      { value: "", label: "settings.genderUnspecified" },
-      { value: "MALE", label: "settings.genderMale" },
-      { value: "FEMALE", label: "settings.genderFemale" },
-    ];
+  readonly genderOptions = filterOptionsFrom(
+    GENDER_LABELS,
+    "settings.genderUnspecified",
+  );
   readonly genderItemToString = createSelectItemToString(
     this.genderOptions,
     (key) => this.localization.translate(key),
@@ -112,16 +117,16 @@ export class ProfileSettingsComponent {
   });
   readonly savingReminder = signal(false);
   readonly assistantForm = new FormGroup({
-    assistantPermissionMode: new FormControl<AssistantPermissionMode>("ASK", {
-      nonNullable: true,
-    }),
+    assistantPermissionMode: new FormControl<AssistantPermissionMode>(
+      AssistantPermissionMode.ASK,
+      { nonNullable: true },
+    ),
   });
   readonly savingAssistant = signal(false);
-  readonly permissionModeOptions: SelectOption<AssistantPermissionMode>[] = [
-    { value: "MANUAL", label: "assistant.permissionMode.MANUAL" },
-    { value: "ASK", label: "assistant.permissionMode.ASK" },
-    { value: "AUTO", label: "assistant.permissionMode.AUTO" },
-  ];
+  readonly permissionModeOptions = optionsFrom(
+    ASSISTANT_PERMISSION_MODE_LABELS,
+  );
+  readonly permissionModeDescriptions = ASSISTANT_PERMISSION_MODE_DESCRIPTIONS;
   readonly permissionModeItemToString = createSelectItemToString(
     this.permissionModeOptions,
     (key) => this.localization.translate(key),

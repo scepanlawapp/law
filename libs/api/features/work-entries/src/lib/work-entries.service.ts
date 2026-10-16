@@ -28,6 +28,7 @@ import {
   WorkEntryTreatment,
   WorkspaceRole,
   SUPPORTED_WORK_ENTRY_CURRENCIES,
+  ApiErrorCode,
 } from "@law/api-interfaces";
 import {
   DEFAULT_PAGE,
@@ -1006,7 +1007,7 @@ export class WorkEntriesService {
         });
         if (remaining <= 1) {
           throw new ConflictException({
-            code: "LAST_TASK_WORK_ENTRY",
+            code: ApiErrorCode.LAST_TASK_WORK_ENTRY,
             message:
               "Add another work entry before deleting the task's only work entry",
           });

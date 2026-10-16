@@ -6,6 +6,15 @@ import {
   ReportRow,
   ReportTotals,
 } from "./report-model";
+import {
+  ReportAllocationCategory,
+  ReportCollectionStatus,
+  ReportDateBasis,
+  ReportGroup,
+  ReportSharing,
+  ReportWorkStatus,
+} from "../../../shared/models";
+import { REPORT_AGE_BUCKET_LABELS } from "../../../shared/models";
 /** Half-up rounding in minor units; independently rounded allocation differences always reconcile. */
 export function allocate(amount: number, rate: number): number {
   return Number((BigInt(amount) * BigInt(rate) + BigInt(5000)) / BigInt(10000));
@@ -37,9 +46,9 @@ export function selectRows(
   return data.records.flatMap((record): ReportRow[] => {
     const matchingPayments = record.payments.filter((p) => inRange(p.date));
     const date =
-      filters.basis === "work"
+      filters.basis === ReportDateBasis.WORK
         ? record.workDate
-        : filters.basis === "invoice"
+        : filters.basis === ReportDateBasis.INVOICE
           ? record.invoice?.date
           : matchingPayments[0]?.date;
     if (!date || !inRange(date)) return [];
@@ -47,7 +56,7 @@ export function selectRows(
       .filter((p) => p.date <= filters.to)
       .reduce((sum, p) => sum + p.amount, 0);
     const collected = (
-      filters.basis === "collection"
+      filters.basis === ReportDateBasis.COLLECTION
         ? matchingPayments
         : record.payments.filter((p) => p.date <= filters.to)
     ).reduce((sum, p) => sum + p.amount, 0);
@@ -64,16 +73,16 @@ export function selectRows(
     }));
     const shareInvoiced = earnings.reduce((s, a) => s + a.invoiced, 0);
     const shareCollected = earnings.reduce((s, a) => s + a.collected, 0);
-    const status =
-      record.sharing === "missing"
-        ? "RequiresConfiguration"
-        : !invoiced
-          ? "NotInvoiced"
-          : balance === 0
-            ? "FullyCollected"
-            : collectedAsOf > 0
-              ? "PartiallyCollected"
-              : "Uncollected";
+    const missing = record.sharing === ReportSharing.MISSING;
+    const status = missing
+      ? ReportCollectionStatus.REQUIRES_CONFIGURATION
+      : !invoiced
+        ? ReportCollectionStatus.NOT_INVOICED
+        : balance === 0
+          ? ReportCollectionStatus.FULLY_COLLECTED
+          : collectedAsOf > 0
+            ? ReportCollectionStatus.PARTIALLY_COLLECTED
+            : ReportCollectionStatus.UNCOLLECTED;
     const row: ReportRow = {
       ...record,
       invoice:
@@ -90,10 +99,10 @@ export function selectRows(
       shareCollected,
       potential: earnings.reduce((s, a) => s + a.potential, 0),
       origination: earnings
-        .filter((a) => a.category === "origination")
+        .filter((a) => a.category === ReportAllocationCategory.ORIGINATION)
         .reduce((s, a) => s + a.collected, 0),
-      eligibleCollected: record.sharing === "missing" ? 0 : collected,
-      retained: record.sharing === "missing" ? 0 : collected - shareCollected,
+      eligibleCollected: missing ? 0 : collected,
+      retained: missing ? 0 : collected - shareCollected,
       status,
     };
     if (
@@ -140,13 +149,15 @@ export function totals(rows: ReportRow[]): ReportTotals {
   };
   for (const row of rows) {
     for (const field of fields) result[field] += row[field];
-    if (!row.invoiced && row.workStatus === "completed")
+    if (!row.invoiced && row.workStatus === ReportWorkStatus.COMPLETED)
       result.uninvoiced += row.estimated;
   }
   result.cases = new Set(
     rows
       .filter(
-        (r) => r.balance > 0 || (!r.invoiced && r.workStatus === "completed"),
+        (r) =>
+          r.balance > 0 ||
+          (!r.invoiced && r.workStatus === ReportWorkStatus.COMPLETED),
       )
       .map((r) => r.caseId),
   ).size;
@@ -170,7 +181,7 @@ export function memberSummaries(
         shareCollected: allocations.reduce((s, a) => s + a.collected, 0),
         potential: allocations.reduce((s, a) => s + a.potential, 0),
         origination: allocations
-          .filter((a) => a.category === "origination")
+          .filter((a) => a.category === ReportAllocationCategory.ORIGINATION)
           .reduce((s, a) => s + a.collected, 0),
       };
     })
@@ -189,8 +200,8 @@ export function timeline(
   const buckets = new Map<string, ChartDatum>();
   for (const row of rows) {
     let label = row.date;
-    if (group === "month") label = label.slice(0, 7);
-    if (group === "week") {
+    if (group === ReportGroup.MONTH) label = label.slice(0, 7);
+    if (group === ReportGroup.WEEK) {
       const d = new Date(label);
       d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
       label = d.toISOString().slice(0, 10);
@@ -206,12 +217,10 @@ export function timeline(
   return [...buckets.values()].sort((a, b) => a.label.localeCompare(b.label));
 }
 export function aging(rows: ReportRow[], asOf: string): ChartDatum[] {
-  const buckets = [
-    "report.age.0",
-    "report.age.1",
-    "report.age.2",
-    "report.age.3",
-  ].map((label) => ({ label, first: 0 }));
+  const buckets = REPORT_AGE_BUCKET_LABELS.map((label) => ({
+    label,
+    first: 0,
+  }));
   for (const row of rows) {
     if (!row.invoice || !row.balance) continue;
     const days = Math.floor(

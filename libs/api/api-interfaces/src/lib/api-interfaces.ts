@@ -1,3 +1,4 @@
+import { enumOf } from "./enum-of";
 import type {
   CreateWorkEntryRequest,
   WorkEntryTreatment,
@@ -17,31 +18,55 @@ export interface AuthUser {
   avatarUrl?: string;
 }
 
+export const UserSettingsTheme = {
+  MIDNIGHT: "MIDNIGHT",
+  DEEP_NAVY: "DEEP_NAVY",
+  CHARCOAL: "CHARCOAL",
+  DARK_TEAL: "DARK_TEAL",
+  BURGUNDY: "BURGUNDY",
+  IVORY: "IVORY",
+} as const;
 export type UserSettingsTheme =
-  | "MIDNIGHT"
-  | "DEEP_NAVY"
-  | "CHARCOAL"
-  | "DARK_TEAL"
-  | "BURGUNDY"
-  | "IVORY";
+  (typeof UserSettingsTheme)[keyof typeof UserSettingsTheme];
+export const UserSettingsAccent = {
+  GOLD: "GOLD",
+  EMERALD: "EMERALD",
+  ROYAL_BLUE: "ROYAL_BLUE",
+  COPPER: "COPPER",
+  ICE_BLUE: "ICE_BLUE",
+  BURGUNDY: "BURGUNDY",
+  PURPLE: "PURPLE",
+  IVORY: "IVORY",
+} as const;
 export type UserSettingsAccent =
-  | "GOLD"
-  | "EMERALD"
-  | "ROYAL_BLUE"
-  | "COPPER"
-  | "ICE_BLUE"
-  | "BURGUNDY"
-  | "PURPLE"
-  | "IVORY";
+  (typeof UserSettingsAccent)[keyof typeof UserSettingsAccent];
+export const UserSettingsFinish = {
+  SOLID: "SOLID",
+  METALLIC: "METALLIC",
+  BRUSHED: "BRUSHED",
+  MATTE: "MATTE",
+  LUXURY: "LUXURY",
+} as const;
 export type UserSettingsFinish =
-  | "SOLID"
-  | "METALLIC"
-  | "BRUSHED"
-  | "MATTE"
-  | "LUXURY";
-export type UserSettingsLanguage = "SR" | "EN";
-export type UserSettingsDateTimeFormat = "TWELVE_HOUR" | "TWENTY_FOUR_HOUR";
-export type UserProfileGender = "MALE" | "FEMALE";
+  (typeof UserSettingsFinish)[keyof typeof UserSettingsFinish];
+export const UserSettingsLanguage = {
+  SR: "SR",
+  EN: "EN",
+} as const;
+export type UserSettingsLanguage =
+  (typeof UserSettingsLanguage)[keyof typeof UserSettingsLanguage];
+export const UserSettingsDateTimeFormat = {
+  TWELVE_HOUR: "TWELVE_HOUR",
+  TWENTY_FOUR_HOUR: "TWENTY_FOUR_HOUR",
+} as const;
+export type UserSettingsDateTimeFormat =
+  (typeof UserSettingsDateTimeFormat)[keyof typeof UserSettingsDateTimeFormat];
+export const UserProfileGender = {
+  MALE: "MALE",
+  FEMALE: "FEMALE",
+} as const;
+export type UserProfileGender =
+  (typeof UserProfileGender)[keyof typeof UserProfileGender];
 
 export const NOTIFICATION_TYPES = [
   "DEADLINE_ASSIGNED",
@@ -63,6 +88,7 @@ export const NOTIFICATION_TYPES = [
 ] as const;
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+export const NotificationType = enumOf(NOTIFICATION_TYPES);
 
 export interface NotificationPreferences {
   deadlineAssigned: boolean;
@@ -135,7 +161,13 @@ export interface UserSettingsPreferences {
  * How the assistant applies a record change: MANUAL prefills the form for the user to save,
  * ASK shows an approval card, AUTO saves directly when nothing is ambiguous.
  */
-export type AssistantPermissionMode = "MANUAL" | "ASK" | "AUTO";
+export const AssistantPermissionMode = {
+  MANUAL: "MANUAL",
+  ASK: "ASK",
+  AUTO: "AUTO",
+} as const;
+export type AssistantPermissionMode =
+  (typeof AssistantPermissionMode)[keyof typeof AssistantPermissionMode];
 
 export const ASSISTANT_PERMISSION_MODES: readonly AssistantPermissionMode[] = [
   "MANUAL",
@@ -162,7 +194,7 @@ export interface NotificationDto {
   type: NotificationType;
   title: string;
   message: string;
-  entityType: "TASK" | "DEADLINE" | "EVENT" | null;
+  entityType: CalendarSourceType | null;
   entityId: string | null;
   metadata: NotificationMetadata | null;
   isRead: boolean;
@@ -204,6 +236,7 @@ export const CASE_NUMBER_FORMATS = [
 ] as const;
 
 export type CaseNumberFormat = (typeof CASE_NUMBER_FORMATS)[number];
+export const CaseNumberFormat = enumOf(CASE_NUMBER_FORMATS);
 
 export interface ActiveWorkspace {
   id: string;
@@ -224,12 +257,36 @@ export interface LoginRequest {
   password: string;
 }
 
-export type MfaMethod = "TOTP" | "RECOVERY" | "EMAIL";
+export const MfaMethod = {
+  TOTP: "TOTP",
+  RECOVERY: "RECOVERY",
+  EMAIL: "EMAIL",
+} as const;
+export type MfaMethod = (typeof MfaMethod)[keyof typeof MfaMethod];
+
+export const LoginStatus = {
+  AUTHENTICATED: "AUTHENTICATED",
+  MFA_REQUIRED: "MFA_REQUIRED",
+  MFA_ENROLLMENT_REQUIRED: "MFA_ENROLLMENT_REQUIRED",
+} as const;
+export type LoginStatus = (typeof LoginStatus)[keyof typeof LoginStatus];
 
 export type LoginResponse =
-  | { status: "AUTHENTICATED"; session: AuthSessionResponse }
-  | { status: "MFA_REQUIRED"; methods: MfaMethod[] }
-  | { status: "MFA_ENROLLMENT_REQUIRED" };
+  | {
+      status: typeof LoginStatus.AUTHENTICATED;
+      session: AuthSessionResponse;
+    }
+  | { status: typeof LoginStatus.MFA_REQUIRED; methods: MfaMethod[] }
+  | { status: typeof LoginStatus.MFA_ENROLLMENT_REQUIRED };
+
+/** Machine-readable `code` values the API returns in error bodies. */
+export const ApiErrorCode = {
+  MFA_CODE_INVALID: "MFA_CODE_INVALID",
+  MFA_ACCOUNT_THROTTLED: "MFA_ACCOUNT_THROTTLED",
+  LAST_TASK_WORK_ENTRY: "LAST_TASK_WORK_ENTRY",
+  EVENT_CLIENT_REQUIRED: "EVENT_CLIENT_REQUIRED",
+} as const;
+export type ApiErrorCode = (typeof ApiErrorCode)[keyof typeof ApiErrorCode];
 
 export interface MfaVerifyRequest {
   method: MfaMethod;
@@ -322,77 +379,143 @@ export interface PasswordResetRequest {
   password: string;
 }
 
-export type ChatSessionStatus = "ACTIVE" | "ARCHIVED";
-export type ChatMessageRole = "USER" | "ASSISTANT" | "SYSTEM";
-export type ChatMessageStatus = "PENDING" | "COMPLETED" | "FAILED";
-export type ChatMessageFeedback = "POSITIVE" | "NEGATIVE";
+export const ChatSessionStatus = {
+  ACTIVE: "ACTIVE",
+  ARCHIVED: "ARCHIVED",
+} as const;
+export type ChatSessionStatus =
+  (typeof ChatSessionStatus)[keyof typeof ChatSessionStatus];
+export const ChatMessageRole = {
+  USER: "USER",
+  ASSISTANT: "ASSISTANT",
+  SYSTEM: "SYSTEM",
+} as const;
+export type ChatMessageRole =
+  (typeof ChatMessageRole)[keyof typeof ChatMessageRole];
+export const ChatMessageStatus = {
+  PENDING: "PENDING",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+} as const;
+export type ChatMessageStatus =
+  (typeof ChatMessageStatus)[keyof typeof ChatMessageStatus];
+export const ChatMessageFeedback = {
+  POSITIVE: "POSITIVE",
+  NEGATIVE: "NEGATIVE",
+} as const;
+export type ChatMessageFeedback =
+  (typeof ChatMessageFeedback)[keyof typeof ChatMessageFeedback];
+export const ChatMessageOutcome = {
+  ANSWER: "ANSWER",
+  DRAFT_READY: "DRAFT_READY",
+  DRAFT_UNSUPPORTED: "DRAFT_UNSUPPORTED",
+  CONTEXT_REQUIRED: "CONTEXT_REQUIRED",
+} as const;
 export type ChatMessageOutcome =
-  | "ANSWER"
-  | "DRAFT_READY"
-  | "DRAFT_UNSUPPORTED"
-  | "CONTEXT_REQUIRED";
-export type TriageDecision = "LEGAL" | "NON_LEGAL" | "UNCLEAR";
-export type AssistantIntent = "ANSWER" | "DRAFT";
-export type AssistantLanguage = "sr" | "en";
+  (typeof ChatMessageOutcome)[keyof typeof ChatMessageOutcome];
+export const TriageDecision = {
+  LEGAL: "LEGAL",
+  NON_LEGAL: "NON_LEGAL",
+  UNCLEAR: "UNCLEAR",
+} as const;
+export type TriageDecision =
+  (typeof TriageDecision)[keyof typeof TriageDecision];
+export const AssistantIntent = {
+  ANSWER: "ANSWER",
+  DRAFT: "DRAFT",
+} as const;
+export type AssistantIntent =
+  (typeof AssistantIntent)[keyof typeof AssistantIntent];
+export const AssistantLanguage = {
+  SR: "sr",
+  EN: "en",
+} as const;
+export type AssistantLanguage =
+  (typeof AssistantLanguage)[keyof typeof AssistantLanguage];
+export const ChatWorkflowName = {
+  TRIAGE: "triage",
+  ANSWERING: "answering",
+  AGENT_TURN: "agent-turn",
+  AGENT_RESUME: "agent-resume",
+  BRIEF_EXTRACTION: "brief-extraction",
+  DRAFTING: "drafting",
+} as const;
 export type ChatWorkflowName =
-  | "triage"
-  | "answering"
-  | "agent-turn"
-  | "agent-resume"
-  | "brief-extraction"
-  | "drafting";
+  (typeof ChatWorkflowName)[keyof typeof ChatWorkflowName];
+export const WorkflowJobStatus = {
+  QUEUED: "QUEUED",
+  RUNNING: "RUNNING",
+  WAITING_CONFIRMATION: "WAITING_CONFIRMATION",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+} as const;
 export type WorkflowJobStatus =
-  | "QUEUED"
-  | "RUNNING"
-  | "WAITING_CONFIRMATION"
-  | "COMPLETED"
-  | "FAILED";
+  (typeof WorkflowJobStatus)[keyof typeof WorkflowJobStatus];
+export const WorkflowProgressStage = {
+  UNDERSTANDING_REQUEST: "UNDERSTANDING_REQUEST",
+  READING_ATTACHMENTS: "READING_ATTACHMENTS",
+  EXTRACTING_FACTS: "EXTRACTING_FACTS",
+  PREPARING_ANSWER: "PREPARING_ANSWER",
+  PREPARING_DRAFT: "PREPARING_DRAFT",
+  SAVING_FOR_REVIEW: "SAVING_FOR_REVIEW",
+} as const;
 export type WorkflowProgressStage =
-  | "UNDERSTANDING_REQUEST"
-  | "READING_ATTACHMENTS"
-  | "EXTRACTING_FACTS"
-  | "PREPARING_ANSWER"
-  | "PREPARING_DRAFT"
-  | "SAVING_FOR_REVIEW";
+  (typeof WorkflowProgressStage)[keyof typeof WorkflowProgressStage];
+export const ChatAttachmentExtractionStatus = {
+  PENDING: "PENDING",
+  RUNNING: "RUNNING",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+  UNSUPPORTED: "UNSUPPORTED",
+} as const;
 export type ChatAttachmentExtractionStatus =
-  | "PENDING"
-  | "RUNNING"
-  | "COMPLETED"
-  | "FAILED"
-  | "UNSUPPORTED";
+  (typeof ChatAttachmentExtractionStatus)[keyof typeof ChatAttachmentExtractionStatus];
+export const ChatAttachmentSourceScript = {
+  LATIN: "LATIN",
+  CYRILLIC: "CYRILLIC",
+  MIXED: "MIXED",
+  NONE: "NONE",
+} as const;
 export type ChatAttachmentSourceScript =
-  | "LATIN"
-  | "CYRILLIC"
-  | "MIXED"
-  | "NONE";
-export type DocumentScript = "latin" | "cyrillic";
+  (typeof ChatAttachmentSourceScript)[keyof typeof ChatAttachmentSourceScript];
+export const DocumentScript = {
+  LATIN: "latin",
+  CYRILLIC: "cyrillic",
+} as const;
+export type DocumentScript =
+  (typeof DocumentScript)[keyof typeof DocumentScript];
+export const DraftApprovalStatus = {
+  DRAFT: "DRAFT",
+  READY_FOR_SIGNOFF: "READY_FOR_SIGNOFF",
+  APPROVED: "APPROVED",
+  REJECTED: "REJECTED",
+  CHANGES_REQUESTED: "CHANGES_REQUESTED",
+} as const;
 export type DraftApprovalStatus =
-  | "DRAFT"
-  | "READY_FOR_SIGNOFF"
-  | "APPROVED"
-  | "REJECTED"
-  | "CHANGES_REQUESTED";
+  (typeof DraftApprovalStatus)[keyof typeof DraftApprovalStatus];
 
-export type ChatEventType =
-  | "message.created"
-  | "message.started"
-  | "message.delta"
-  | "message.updated"
-  | "attachment.updated"
-  | "document.content.updated"
-  | "triage.started"
-  | "triage.completed"
-  | "job.queued"
-  | "job.updated"
-  | "draft.updated"
-  | "analysis.updated"
-  | "tool.started"
-  | "tool.finished"
-  | "confirmation.required"
-  | "confirmation.updated"
-  | "session.title.updated"
-  | "session.deleted"
-  | "error";
+export const ChatEventType = {
+  MESSAGE_CREATED: "message.created",
+  MESSAGE_STARTED: "message.started",
+  MESSAGE_DELTA: "message.delta",
+  MESSAGE_UPDATED: "message.updated",
+  ATTACHMENT_UPDATED: "attachment.updated",
+  DOCUMENT_CONTENT_UPDATED: "document.content.updated",
+  TRIAGE_STARTED: "triage.started",
+  TRIAGE_COMPLETED: "triage.completed",
+  JOB_QUEUED: "job.queued",
+  JOB_UPDATED: "job.updated",
+  DRAFT_UPDATED: "draft.updated",
+  ANALYSIS_UPDATED: "analysis.updated",
+  TOOL_STARTED: "tool.started",
+  TOOL_FINISHED: "tool.finished",
+  CONFIRMATION_REQUIRED: "confirmation.required",
+  CONFIRMATION_UPDATED: "confirmation.updated",
+  SESSION_TITLE_UPDATED: "session.title.updated",
+  SESSION_DELETED: "session.deleted",
+  ERROR: "error",
+} as const;
+export type ChatEventType = (typeof ChatEventType)[keyof typeof ChatEventType];
 
 export interface ChatAttachmentSummary {
   id: string;
@@ -467,10 +590,21 @@ export interface ChatSessionActivitySummary {
   analysisKinds?: DocumentAnalysisKind[];
 }
 
-export type ChatSessionScope = "mine" | "team";
+export const ChatSessionScope = {
+  MINE: "mine",
+  TEAM: "team",
+} as const;
+export type ChatSessionScope =
+  (typeof ChatSessionScope)[keyof typeof ChatSessionScope];
 
 /** `pending`: a proposal awaits approval or a job is running. */
-export type ChatSessionStateFilter = "pending" | "draft" | "analysis";
+export const ChatSessionStateFilter = {
+  PENDING: "pending",
+  DRAFT: "draft",
+  ANALYSIS: "analysis",
+} as const;
+export type ChatSessionStateFilter =
+  (typeof ChatSessionStateFilter)[keyof typeof ChatSessionStateFilter];
 
 export interface ChatSessionListQuery extends PaginationQuery {
   /** `mine` (default on the web) limits to conversations the caller started. */
@@ -524,7 +658,11 @@ export interface ChatSessionFacetsResponse {
   };
 }
 
-export type SortDirection = "asc" | "desc";
+export const SortDirection = {
+  ASC: "asc",
+  DESC: "desc",
+} as const;
+export type SortDirection = (typeof SortDirection)[keyof typeof SortDirection];
 
 export interface PaginationSort {
   field: string;
@@ -609,7 +747,13 @@ export interface WorkflowJobResponse {
   updatedAt: string;
 }
 
-export type AgentToolCallStatus = "RUNNING" | "COMPLETED" | "FAILED";
+export const AgentToolCallStatus = {
+  RUNNING: "RUNNING",
+  COMPLETED: "COMPLETED",
+  FAILED: "FAILED",
+} as const;
+export type AgentToolCallStatus =
+  (typeof AgentToolCallStatus)[keyof typeof AgentToolCallStatus];
 
 /** One assistant-agent tool call, as shown in the chat activity. */
 export interface AgentToolCallSummary {
@@ -627,27 +771,39 @@ export interface AgentToolCallSummary {
   finishedAt: string | null;
 }
 
+export const PendingActionStatus = {
+  PENDING: "PENDING",
+  EXECUTING: "EXECUTING",
+  APPROVED: "APPROVED",
+  DECLINED: "DECLINED",
+  FAILED: "FAILED",
+  EXPIRED: "EXPIRED",
+} as const;
 export type PendingActionStatus =
-  | "PENDING"
-  | "EXECUTING"
-  | "APPROVED"
-  | "DECLINED"
-  | "FAILED"
-  | "EXPIRED";
+  (typeof PendingActionStatus)[keyof typeof PendingActionStatus];
 
+export const PendingActionType = {
+  LINK_CASE: "link_case",
+  CREATE_DEADLINE: "create_deadline",
+  CREATE_TASKS_FROM_BRIEF: "create_tasks_from_brief",
+  UPDATE_CLIENT_FROM_DOCUMENT: "update_client_from_document",
+  CREATE_EVENT: "create_event",
+  RESCHEDULE_EVENT: "reschedule_event",
+  CANCEL_EVENT: "cancel_event",
+  CREATE_TASK: "create_task",
+  LOG_WORK_ENTRY: "log_work_entry",
+} as const;
 export type PendingActionType =
-  | "link_case"
-  | "create_deadline"
-  | "create_tasks_from_brief"
-  | "update_client_from_document"
-  | "create_event"
-  | "reschedule_event"
-  | "cancel_event"
-  | "create_task"
-  | "log_work_entry";
+  (typeof PendingActionType)[keyof typeof PendingActionType];
 
 /** FORM: prefilled form the user saves; CARD: approval card; AUTO: saved without asking. */
-export type PendingActionMode = "FORM" | "CARD" | "AUTO";
+export const PendingActionMode = {
+  FORM: "FORM",
+  CARD: "CARD",
+  AUTO: "AUTO",
+} as const;
+export type PendingActionMode =
+  (typeof PendingActionMode)[keyof typeof PendingActionMode];
 
 /** Event fields the assistant proposed; the shape the event dialog saves. */
 export interface AssistantEventRequest {
@@ -788,12 +944,16 @@ export const DRAFT_DOCUMENT_TYPES = [
 ] as const;
 
 export type DraftDocumentType = (typeof DRAFT_DOCUMENT_TYPES)[number];
+export const DraftDocumentType = enumOf(DRAFT_DOCUMENT_TYPES);
 
+export const DraftDocumentFamily = {
+  LITIGATION: "LITIGATION",
+  CONTRACT: "CONTRACT",
+  LETTER: "LETTER",
+  CORPORATE: "CORPORATE",
+} as const;
 export type DraftDocumentFamily =
-  | "LITIGATION"
-  | "CONTRACT"
-  | "LETTER"
-  | "CORPORATE";
+  (typeof DraftDocumentFamily)[keyof typeof DraftDocumentFamily];
 
 export function isDraftDocumentType(
   value: unknown,
@@ -824,6 +984,7 @@ export const BRIEF_MISSING_FIELD_KEYS = [
 ] as const;
 
 export type BriefMissingFieldKey = (typeof BRIEF_MISSING_FIELD_KEYS)[number];
+export const BriefMissingFieldKey = enumOf(BRIEF_MISSING_FIELD_KEYS);
 
 export interface BriefMissingField {
   // A party key (`<role>Name`), a field key of the document type, or "other".
@@ -1020,11 +1181,23 @@ export const CONTRACT_REVIEW_TYPES = [
 ] as const;
 
 export type ContractReviewType = (typeof CONTRACT_REVIEW_TYPES)[number];
+export const ContractReviewType = enumOf(CONTRACT_REVIEW_TYPES);
 
-export type ContractIssueRisk = "HIGH" | "MEDIUM" | "LOW";
+export const ContractIssueRisk = {
+  HIGH: "HIGH",
+  MEDIUM: "MEDIUM",
+  LOW: "LOW",
+} as const;
+export type ContractIssueRisk =
+  (typeof ContractIssueRisk)[keyof typeof ContractIssueRisk];
 
 // RISK: unfavourable for the client; COMPLIANCE: conflicts with mandatory law.
-export type ContractIssueCategory = "RISK" | "COMPLIANCE";
+export const ContractIssueCategory = {
+  RISK: "RISK",
+  COMPLIANCE: "COMPLIANCE",
+} as const;
+export type ContractIssueCategory =
+  (typeof ContractIssueCategory)[keyof typeof ContractIssueCategory];
 
 export interface ContractKeyTerm {
   label: string;
@@ -1061,7 +1234,12 @@ export interface ContractReviewResult {
   warnings: string[];
 }
 
-export type DocumentAnalysisKind = "CONTRACT_REVIEW" | "CASE_TIMELINE";
+export const DocumentAnalysisKind = {
+  CONTRACT_REVIEW: "CONTRACT_REVIEW",
+  CASE_TIMELINE: "CASE_TIMELINE",
+} as const;
+export type DocumentAnalysisKind =
+  (typeof DocumentAnalysisKind)[keyof typeof DocumentAnalysisKind];
 
 interface DocumentAnalysisBase {
   id: string;
@@ -1096,6 +1274,7 @@ export const CASE_TIMELINE_EVENT_KINDS = [
 ] as const;
 
 export type CaseTimelineEventKind = (typeof CASE_TIMELINE_EVENT_KINDS)[number];
+export const CaseTimelineEventKind = enumOf(CASE_TIMELINE_EVENT_KINDS);
 
 export interface CaseTimelineEvent {
   // YYYY-MM-DD, YYYY-MM or YYYY; null when the document gives no usable date.
@@ -1113,12 +1292,15 @@ export interface CaseTimelineEvent {
 
 // READ: fully read; TRUNCATED: read up to the limit; NO_TEXT: no readable
 // text; FAILED: extraction call failed; SKIPPED: beyond the document limit.
+export const CaseTimelineSourceStatus = {
+  READ: "READ",
+  TRUNCATED: "TRUNCATED",
+  NO_TEXT: "NO_TEXT",
+  FAILED: "FAILED",
+  SKIPPED: "SKIPPED",
+} as const;
 export type CaseTimelineSourceStatus =
-  | "READ"
-  | "TRUNCATED"
-  | "NO_TEXT"
-  | "FAILED"
-  | "SKIPPED";
+  (typeof CaseTimelineSourceStatus)[keyof typeof CaseTimelineSourceStatus];
 
 export interface CaseTimelineSource {
   ref: string;
@@ -1175,32 +1357,84 @@ export interface DraftResultResponse {
   script?: DocumentScript;
 }
 
-export type ClientType = "INDIVIDUAL" | "ORGANIZATION";
-export type ClientStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED" | "PROSPECT";
-export type CaseStatus = "DRAFT" | "ACTIVE" | "ON_HOLD" | "CLOSED" | "ARCHIVED";
-export type CasePriority = "LOW" | "NORMAL" | "HIGH" | "URGENT";
-export type ActivityType =
-  | "NOTE"
-  | "PHONE_CALL"
-  | "MEETING"
-  | "EMAIL"
-  | "OTHER";
-export type ActivitySource = "MANUAL" | "SYSTEM" | "AI";
-export type EventType = "MEETING" | "HEARING" | "CALL" | "OTHER";
-export type EventStatus = "SCHEDULED" | "COMPLETED" | "CANCELLED";
-export type TaskStatus =
-  | "TODO"
-  | "IN_PROGRESS"
-  | "DONE"
-  | "CANCELLED"
-  | "ARCHIVED";
-export type DeadlineType =
-  | "COURT"
-  | "STATUTORY"
-  | "CONTRACTUAL"
-  | "INTERNAL"
-  | "OTHER";
-export type DeadlineStatus = "OPEN" | "SATISFIED" | "CANCELLED";
+export const ClientType = {
+  INDIVIDUAL: "INDIVIDUAL",
+  ORGANIZATION: "ORGANIZATION",
+} as const;
+export type ClientType = (typeof ClientType)[keyof typeof ClientType];
+export const ClientStatus = {
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+  ARCHIVED: "ARCHIVED",
+  PROSPECT: "PROSPECT",
+} as const;
+export type ClientStatus = (typeof ClientStatus)[keyof typeof ClientStatus];
+export const CaseStatus = {
+  DRAFT: "DRAFT",
+  ACTIVE: "ACTIVE",
+  ON_HOLD: "ON_HOLD",
+  CLOSED: "CLOSED",
+  ARCHIVED: "ARCHIVED",
+} as const;
+export type CaseStatus = (typeof CaseStatus)[keyof typeof CaseStatus];
+export const CasePriority = {
+  LOW: "LOW",
+  NORMAL: "NORMAL",
+  HIGH: "HIGH",
+  URGENT: "URGENT",
+} as const;
+export type CasePriority = (typeof CasePriority)[keyof typeof CasePriority];
+export const ActivityType = {
+  NOTE: "NOTE",
+  PHONE_CALL: "PHONE_CALL",
+  MEETING: "MEETING",
+  EMAIL: "EMAIL",
+  OTHER: "OTHER",
+} as const;
+export type ActivityType = (typeof ActivityType)[keyof typeof ActivityType];
+export const ActivitySource = {
+  MANUAL: "MANUAL",
+  SYSTEM: "SYSTEM",
+  AI: "AI",
+} as const;
+export type ActivitySource =
+  (typeof ActivitySource)[keyof typeof ActivitySource];
+export const EventType = {
+  MEETING: "MEETING",
+  HEARING: "HEARING",
+  CALL: "CALL",
+  OTHER: "OTHER",
+} as const;
+export type EventType = (typeof EventType)[keyof typeof EventType];
+export const EventStatus = {
+  SCHEDULED: "SCHEDULED",
+  COMPLETED: "COMPLETED",
+  CANCELLED: "CANCELLED",
+} as const;
+export type EventStatus = (typeof EventStatus)[keyof typeof EventStatus];
+export const TaskStatus = {
+  TODO: "TODO",
+  IN_PROGRESS: "IN_PROGRESS",
+  DONE: "DONE",
+  CANCELLED: "CANCELLED",
+  ARCHIVED: "ARCHIVED",
+} as const;
+export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
+export const DeadlineType = {
+  COURT: "COURT",
+  STATUTORY: "STATUTORY",
+  CONTRACTUAL: "CONTRACTUAL",
+  INTERNAL: "INTERNAL",
+  OTHER: "OTHER",
+} as const;
+export type DeadlineType = (typeof DeadlineType)[keyof typeof DeadlineType];
+export const DeadlineStatus = {
+  OPEN: "OPEN",
+  SATISFIED: "SATISFIED",
+  CANCELLED: "CANCELLED",
+} as const;
+export type DeadlineStatus =
+  (typeof DeadlineStatus)[keyof typeof DeadlineStatus];
 export interface UserReference {
   id: string;
   displayName: string;
@@ -1301,7 +1535,13 @@ export interface ActivityLogSummary {
   entityId: string;
   metadata: Record<string, unknown> | null;
 }
-export type CalendarSourceType = "EVENT" | "TASK" | "DEADLINE";
+export const CalendarSourceType = {
+  EVENT: "EVENT",
+  TASK: "TASK",
+  DEADLINE: "DEADLINE",
+} as const;
+export type CalendarSourceType =
+  (typeof CalendarSourceType)[keyof typeof CalendarSourceType];
 export interface CalendarItem {
   calendarId: string;
   sourceType: CalendarSourceType;
@@ -1413,6 +1653,7 @@ export const DOCUMENT_CATEGORIES = [
 ] as const;
 
 export type DocumentCategory = (typeof DOCUMENT_CATEGORIES)[number];
+export const DocumentCategory = enumOf(DOCUMENT_CATEGORIES);
 
 export function isDocumentCategory(value: string): value is DocumentCategory {
   return (DOCUMENT_CATEGORIES as readonly string[]).includes(value);
@@ -1458,21 +1699,26 @@ export interface DocumentStatistics {
   archived: number;
 }
 
+export const DocumentAiStatus = {
+  OFF: "OFF",
+  QUEUED: "QUEUED",
+  PROCESSING: "PROCESSING",
+  READY: "READY",
+  FAILED: "FAILED",
+  UNSUPPORTED: "UNSUPPORTED",
+} as const;
 export type DocumentAiStatus =
-  | "OFF"
-  | "QUEUED"
-  | "PROCESSING"
-  | "READY"
-  | "FAILED"
-  | "UNSUPPORTED";
+  (typeof DocumentAiStatus)[keyof typeof DocumentAiStatus];
 
-export type DocumentKind =
-  | "ID_CARD"
-  | "PASSPORT"
-  | "APR_EXCERPT"
-  | "COURT_DECISION"
-  | "ADMIN_DECISION"
-  | "OTHER";
+export const DocumentKind = {
+  ID_CARD: "ID_CARD",
+  PASSPORT: "PASSPORT",
+  APR_EXCERPT: "APR_EXCERPT",
+  COURT_DECISION: "COURT_DECISION",
+  ADMIN_DECISION: "ADMIN_DECISION",
+  OTHER: "OTHER",
+} as const;
+export type DocumentKind = (typeof DocumentKind)[keyof typeof DocumentKind];
 
 export interface BulkDocumentAiAccessRequest {
   documentIds: string[];
@@ -1517,11 +1763,11 @@ export interface DocumentListQuery extends PaginationQuery {
   createdByUserId?: string;
   /** Omitted means all locations; "root" means direct root files. */
   folderId?: string;
-  view?: "recent" | "needs-linking";
+  view?: DocumentListView;
   caseId?: string;
   caseIds?: string[];
   clientId?: string;
-  archived?: "true" | "false" | "all";
+  archived?: DocumentArchivedFilter;
   category?: DocumentCategory;
   uncategorized?: boolean;
 }
@@ -1534,17 +1780,28 @@ export interface DocumentUpdateRequest {
   clientIds?: string[];
 }
 
+export const InvoiceLineStatus = {
+  UNBILLED: "UNBILLED",
+  RESERVED: "RESERVED",
+  BILLED: "BILLED",
+  CANCELLED: "CANCELLED",
+} as const;
 export type InvoiceLineStatus =
-  | "UNBILLED"
-  | "RESERVED"
-  | "BILLED"
-  | "CANCELLED";
-export type InvoiceStatus = "DRAFT" | "SENT" | "VOIDED";
+  (typeof InvoiceLineStatus)[keyof typeof InvoiceLineStatus];
+export const InvoiceStatus = {
+  DRAFT: "DRAFT",
+  SENT: "SENT",
+  VOIDED: "VOIDED",
+} as const;
+export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
+export const PriceSourceScope = {
+  CLIENT_AGREEMENT: "CLIENT_AGREEMENT",
+  WORKSPACE_PUBLIC_REFERENCE: "WORKSPACE_PUBLIC_REFERENCE",
+  COMPANY_CATALOG: "COMPANY_CATALOG",
+  CASE_OVERRIDE: "CASE_OVERRIDE",
+} as const;
 export type PriceSourceScope =
-  | "CLIENT_AGREEMENT"
-  | "WORKSPACE_PUBLIC_REFERENCE"
-  | "COMPANY_CATALOG"
-  | "CASE_OVERRIDE";
+  (typeof PriceSourceScope)[keyof typeof PriceSourceScope];
 
 export interface PriceSourceVersion {
   id: string;
@@ -1678,14 +1935,27 @@ export interface InvoiceSummary {
   lines: InvoiceLineSummary[];
 }
 
-export type SefEnvironment = "DEMO" | "PRODUCTION";
+export const SefEnvironment = {
+  DEMO: "DEMO",
+  PRODUCTION: "PRODUCTION",
+} as const;
+export type SefEnvironment =
+  (typeof SefEnvironment)[keyof typeof SefEnvironment];
+export const SefSubmissionState = {
+  PREPARED: "PREPARED",
+  SENDING: "SENDING",
+  SUBMITTED: "SUBMITTED",
+  FAILED: "FAILED",
+  UNKNOWN: "UNKNOWN",
+} as const;
 export type SefSubmissionState =
-  | "PREPARED"
-  | "SENDING"
-  | "SUBMITTED"
-  | "FAILED"
-  | "UNKNOWN";
-export type SefValidationSeverity = "ERROR" | "WARNING";
+  (typeof SefSubmissionState)[keyof typeof SefSubmissionState];
+export const SefValidationSeverity = {
+  ERROR: "ERROR",
+  WARNING: "WARNING",
+} as const;
+export type SefValidationSeverity =
+  (typeof SefValidationSeverity)[keyof typeof SefValidationSeverity];
 
 export interface SefValidationIssue {
   code: string;
@@ -1734,18 +2004,34 @@ export interface InvoiceSefStateResponse {
 export interface InvoiceSefRequest {
   bankAccountId?: string;
 }
-export type InvoiceNumberResetPolicy = "NEVER" | "YEARLY" | "MONTHLY";
+export const InvoiceNumberResetPolicy = {
+  NEVER: "NEVER",
+  YEARLY: "YEARLY",
+  MONTHLY: "MONTHLY",
+} as const;
+export type InvoiceNumberResetPolicy =
+  (typeof InvoiceNumberResetPolicy)[keyof typeof InvoiceNumberResetPolicy];
+export const PaymentMethodPreference = {
+  BANK_TRANSFER: "BANK_TRANSFER",
+  CASH: "CASH",
+  CARD: "CARD",
+  OTHER: "OTHER",
+} as const;
 export type PaymentMethodPreference =
-  | "BANK_TRANSFER"
-  | "CASH"
-  | "CARD"
-  | "OTHER";
+  (typeof PaymentMethodPreference)[keyof typeof PaymentMethodPreference];
+export const ExchangeRateSource = {
+  NBS_MIDDLE: "NBS_MIDDLE",
+  NBS_BUY: "NBS_BUY",
+  NBS_SELL: "NBS_SELL",
+  MANUAL: "MANUAL",
+} as const;
 export type ExchangeRateSource =
-  | "NBS_MIDDLE"
-  | "NBS_BUY"
-  | "NBS_SELL"
-  | "MANUAL";
-export type PaymentQrStandard = "NBS_IPS";
+  (typeof ExchangeRateSource)[keyof typeof ExchangeRateSource];
+export const PaymentQrStandard = {
+  NBS_IPS: "NBS_IPS",
+} as const;
+export type PaymentQrStandard =
+  (typeof PaymentQrStandard)[keyof typeof PaymentQrStandard];
 
 export interface CompanySettings {
   legalName: string | null;
@@ -2058,3 +2344,37 @@ export interface CaseListQuery {
   practiceAreaId?: string;
   tags?: string[];
 }
+
+export const DocumentListView = {
+  RECENT: "recent",
+  NEEDS_LINKING: "needs-linking",
+} as const;
+export type DocumentListView =
+  (typeof DocumentListView)[keyof typeof DocumentListView];
+
+export const DocumentArchivedFilter = {
+  ARCHIVED: "true",
+  ACTIVE: "false",
+  ALL: "all",
+} as const;
+export type DocumentArchivedFilter =
+  (typeof DocumentArchivedFilter)[keyof typeof DocumentArchivedFilter];
+
+export const ClientAddressType = {
+  HEADQUARTERS: "HEADQUARTERS",
+  HOME: "HOME",
+  REGISTERED: "REGISTERED",
+  DELIVERY: "DELIVERY",
+  BILLING: "BILLING",
+  OFFICE: "OFFICE",
+  POSTAL: "POSTAL",
+} as const;
+export type ClientAddressType =
+  (typeof ClientAddressType)[keyof typeof ClientAddressType];
+
+export const ClientContactStatus = {
+  ACTIVE: "ACTIVE",
+  INACTIVE: "INACTIVE",
+} as const;
+export type ClientContactStatus =
+  (typeof ClientContactStatus)[keyof typeof ClientContactStatus];

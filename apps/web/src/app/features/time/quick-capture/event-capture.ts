@@ -4,6 +4,7 @@ import {
   WorkEntryTreatment,
 } from "@law/api-interfaces";
 import { QuickCaptureInput } from "./quick-capture.models";
+import { officeToday } from "../time-utils";
 
 export function eventCaptureInput(
   event: Pick<
@@ -36,9 +37,7 @@ export function eventCaptureInput(
     caseId: event.case?.id,
     title: event.title.slice(0, 200),
     description: event.description ?? undefined,
-    workDate: new Intl.DateTimeFormat("en-CA", {
-      timeZone: "Europe/Belgrade",
-    }).format(new Date(event.startsAt)),
+    workDate: officeToday(new Date(event.startsAt)),
     minutes:
       !event.isAllDay && minutes >= 1 && minutes <= 1440 ? minutes : undefined,
     ...(treatment ? { treatment } : {}),

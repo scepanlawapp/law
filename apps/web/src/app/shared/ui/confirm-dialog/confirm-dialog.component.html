@@ -2,7 +2,9 @@
   <ng-icon
     aria-hidden="true"
     [name]="
-      data.variant === 'default' ? 'lucideCircleAlert' : 'lucideTriangleAlert'
+      data.variant === ConfirmDialogVariant.DEFAULT
+        ? 'lucideCircleAlert'
+        : 'lucideTriangleAlert'
     "
   />
   <h2 hlmDialogTitle>{{ data.title | translate }}</h2>

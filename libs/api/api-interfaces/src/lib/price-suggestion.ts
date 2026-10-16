@@ -12,10 +12,23 @@ export interface PriceSuggestionWorkEvent
 export interface PriceSuggestionRequest {
   workEvent: PriceSuggestionWorkEvent;
 }
-export type PriceSuggestionConfidence = "LOW" | "MEDIUM" | "HIGH";
+export const PriceSuggestionConfidence = {
+  LOW: "LOW",
+  MEDIUM: "MEDIUM",
+  HIGH: "HIGH",
+} as const;
+export type PriceSuggestionConfidence =
+  (typeof PriceSuggestionConfidence)[keyof typeof PriceSuggestionConfidence];
+/** Price sources that are not catalog/price-list scopes. */
+export const PriceSuggestionSourceKind = {
+  RETAINER: "RETAINER",
+  CLIENT_HOURLY_RATE: "CLIENT_HOURLY_RATE",
+} as const;
+export type PriceSuggestionSourceKind =
+  (typeof PriceSuggestionSourceKind)[keyof typeof PriceSuggestionSourceKind];
 export interface PriceSuggestionSource {
   id: string;
-  kind: PriceSourceScope | "RETAINER" | "CLIENT_HOURLY_RATE";
+  kind: PriceSourceScope | PriceSuggestionSourceKind;
   title: string;
   versionId: string | null;
   sourceUrl: string | null;

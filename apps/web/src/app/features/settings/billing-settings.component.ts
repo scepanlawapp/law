@@ -48,6 +48,7 @@ import {
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { integerValidator } from "../time/validators";
 import { officeToday } from "../time/time-utils";
+import { HOME_CURRENCY } from "./settings.constants";
 
 interface UserRow {
   id: string;
@@ -104,7 +105,7 @@ export class BillingSettingsComponent {
         positiveMoneyValidator,
       ],
     }),
-    internalCurrency: new FormControl("RSD", {
+    internalCurrency: new FormControl<string>(HOME_CURRENCY, {
       nonNullable: true,
       validators: [Validators.required],
     }),
@@ -125,7 +126,7 @@ export class BillingSettingsComponent {
    * The saved internal currency. Rates must use it (the API rejects any other),
    * so it is never read from the unsaved config form.
    */
-  readonly savedCurrency = signal("RSD");
+  readonly savedCurrency = signal<string>(HOME_CURRENCY);
   readonly configLoading = signal(true);
   readonly configError = signal(false);
   readonly configSaving = signal(false);
@@ -269,7 +270,9 @@ export class BillingSettingsComponent {
 
   private sortCategories(items: ServiceCategory[]): ServiceCategory[] {
     return [...items].sort(
-      (a, b) => a.order - b.order || a.name.localeCompare(b.name),
+      (a, b) =>
+        a.order - b.order ||
+        a.name.localeCompare(b.name, this.localization.locale()),
     );
   }
 

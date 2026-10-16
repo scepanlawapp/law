@@ -1,14 +1,23 @@
 import {
   Component,
   computed,
+  inject,
   input,
   linkedSignal,
   output,
 } from "@angular/core";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideCamera } from "@ng-icons/lucide";
+import { LocalizationService } from "../../../core/localization/localization.service";
 
-export type AvatarSize = "xs" | "sm" | "md" | "lg" | "xl";
+export const AvatarSize = {
+  XS: "xs",
+  SM: "sm",
+  MD: "md",
+  LG: "lg",
+  XL: "xl",
+} as const;
+export type AvatarSize = (typeof AvatarSize)[keyof typeof AvatarSize];
 
 export interface UserAvatarInput {
   firstName?: string | null;
@@ -21,20 +30,20 @@ export interface UserAvatarInput {
   jobTitle?: string | null;
 }
 
-const SIZE_CLASSES: Record<AvatarSize, string> = {
-  xs: "size-6 text-sm",
-  sm: "size-8 text-sm",
-  md: "size-10 text-sm",
-  lg: "size-12 text-base",
-  xl: "size-16 text-xl",
+const SIZE_CLASSES: Readonly<Record<AvatarSize, string>> = {
+  [AvatarSize.XS]: "size-6 text-sm",
+  [AvatarSize.SM]: "size-8 text-sm",
+  [AvatarSize.MD]: "size-10 text-sm",
+  [AvatarSize.LG]: "size-12 text-base",
+  [AvatarSize.XL]: "size-16 text-xl",
 };
 
-const CAMERA_ICON_SIZES: Record<AvatarSize, string> = {
-  xs: "size-3",
-  sm: "size-3.5",
-  md: "size-4",
-  lg: "size-5",
-  xl: "size-6",
+const CAMERA_ICON_SIZES: Readonly<Record<AvatarSize, string>> = {
+  [AvatarSize.XS]: "size-3",
+  [AvatarSize.SM]: "size-3.5",
+  [AvatarSize.MD]: "size-4",
+  [AvatarSize.LG]: "size-5",
+  [AvatarSize.XL]: "size-6",
 };
 
 @Component({
@@ -48,10 +57,13 @@ const CAMERA_ICON_SIZES: Record<AvatarSize, string> = {
   },
 })
 export class UserAvatarComponent {
+  private readonly localization = inject(LocalizationService);
+
   readonly user = input.required<UserAvatarInput | null | undefined>();
-  readonly size = input<AvatarSize>("md");
+  readonly size = input<AvatarSize>(AvatarSize.MD);
   readonly showName = input(false);
-  readonly fallbackLabel = input("Unknown user");
+  /** Shown when the user has no name or email; defaults to "Unknown user". */
+  readonly fallbackLabel = input<string | null>(null);
   readonly editable = input(false);
   readonly editLabel = input<string | null>(null);
 
@@ -63,7 +75,11 @@ export class UserAvatarComponent {
   );
 
   protected readonly editAriaLabel = computed(
-    () => this.editLabel() || `Change photo for ${this.displayName()}`,
+    () =>
+      this.editLabel() ||
+      this.localization.translate("userAvatar.changePhotoFor", {
+        name: this.displayName(),
+      }),
   );
 
   private readonly identity = computed(() => {
@@ -90,7 +106,14 @@ export class UserAvatarComponent {
     const { firstName, lastName, username, name, email } = this.identity();
     const fullName = [firstName, lastName].filter(Boolean).join(" ");
 
-    return fullName || name || username || email || this.fallbackLabel();
+    return (
+      fullName ||
+      name ||
+      username ||
+      email ||
+      this.fallbackLabel() ||
+      this.localization.translate("userAvatar.unknownUser")
+    );
   });
 
   protected readonly initials = computed(() => {

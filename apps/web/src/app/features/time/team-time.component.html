@@ -165,9 +165,9 @@
             {{ "work.filters.noResults" | translate }}
           </hlm-combobox-empty>
           <div hlmComboboxList>
-            @for (status of statusOptions; track status) {
-              <hlm-combobox-item [value]="status">
-                {{ statusLabelKeys[status] | translate }}
+            @for (option of statusOptions; track option.value) {
+              <hlm-combobox-item [value]="option.value">
+                {{ option.label | translate }}
               </hlm-combobox-item>
             }
           </div>
@@ -201,9 +201,9 @@
             {{ "work.filters.noResults" | translate }}
           </hlm-combobox-empty>
           <div hlmComboboxList>
-            @for (treatment of treatmentOptions; track treatment) {
-              <hlm-combobox-item [value]="treatment">
-                {{ treatmentLabelKeys[treatment] | translate }}
+            @for (option of treatmentOptions; track option.value) {
+              <hlm-combobox-item [value]="option.value">
+                {{ option.label | translate }}
               </hlm-combobox-item>
             }
           </div>
@@ -230,7 +230,7 @@
       <p class="text-destructive text-sm">
         {{ "time.team.loadError" | translate }}
       </p>
-      <button hlmBtn type="button" variant="outline" (click)="retry()">
+      <button hlmBtn type="button" variant="outline" (click)="list.load()">
         {{ "time.retry" | translate }}
       </button>
     </div>
@@ -343,13 +343,6 @@
   }
 
   @if (totalItems() > 0) {
-    <law-pagination
-      [currentPage]="page()"
-      [itemsPerPage]="pageSize()"
-      [totalItems]="totalItems()"
-      [disabled]="loading()"
-      (currentPageChange)="changePage($event)"
-      (itemsPerPageChange)="changePageSize($event)"
-    />
+    <law-pagination [paginator]="list" />
   }
 </section>

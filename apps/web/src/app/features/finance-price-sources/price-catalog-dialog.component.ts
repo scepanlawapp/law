@@ -5,7 +5,6 @@ import {
   inject,
   signal,
 } from "@angular/core";
-import { DatePipe } from "@angular/common";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FinancialsApiClient } from "@law/api-clients";
 import { PriceSourceSummary, PriceSourceVersion } from "@law/api-interfaces";
@@ -19,6 +18,7 @@ import {
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { LocalizationService } from "../../core/localization/localization.service";
 import { PriceCatalogDeleteService } from "./price-catalog-delete.service";
 
 @Component({
@@ -26,7 +26,6 @@ import { PriceCatalogDeleteService } from "./price-catalog-delete.service";
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    DatePipe,
     HlmDialogHeader,
     HlmDialogTitle,
     HlmDialogDescription,
@@ -61,7 +60,7 @@ import { PriceCatalogDeleteService } from "./price-catalog-delete.service";
         <details [open]="first" class="rounded-lg border border-border p-4">
           <summary class="cursor-pointer font-medium">
             v{{ version.version }} ·
-            {{ version.createdAt | date: "mediumDate" }}
+            {{ formatDate(version.createdAt) }}
           </summary>
           <p class="mt-3 whitespace-pre-wrap break-words">
             {{ version.rawText }}
@@ -95,12 +94,18 @@ export class PriceCatalogDialogComponent {
   private readonly api = inject(FinancialsApiClient);
   private readonly deletion = inject(PriceCatalogDeleteService);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly localization = inject(LocalizationService);
   readonly versions = signal<PriceSourceVersion[]>([]);
   readonly loading = signal(false);
   readonly deleting = signal(false);
   readonly error = signal("");
   constructor() {
     this.load();
+  }
+  formatDate(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      dateStyle: "medium",
+    }).format(new Date(value));
   }
   load(): void {
     this.loading.set(true);

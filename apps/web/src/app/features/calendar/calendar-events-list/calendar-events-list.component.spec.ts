@@ -10,6 +10,7 @@ describe("CalendarEventsListComponent", () => {
   const mockLocalization = {
     translate: jest.fn((key: string) => key),
     language: jest.fn(() => "SR"),
+    locale: jest.fn(() => "sr-Latn-RS"),
   };
 
   const sampleItems: CalendarItem[] = [

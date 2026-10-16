@@ -502,7 +502,7 @@ describe("QuickCaptureDialogComponent", () => {
     expect(entries.list).toHaveBeenCalledWith({
       userIds: ["user-1"],
       page: 1,
-      pageSize: 20,
+      pageSize: 100,
     });
   });
 

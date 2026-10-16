@@ -10,7 +10,7 @@ import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmLabel } from "@spartan-ng/helm/label";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
-import { createSelectItemToString, SelectOption } from "../../../shared/utils";
+import { createSelectItemToString, SelectOption } from "../../../shared/models";
 @Component({
   selector: "law-report-select",
   standalone: true,

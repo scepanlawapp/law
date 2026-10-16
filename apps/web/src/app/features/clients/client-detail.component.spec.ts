@@ -1,13 +1,12 @@
 import { TestBed } from "@angular/core/testing";
 import { ActivatedRoute, convertToParamMap, Router } from "@angular/router";
 import { of, Subject, throwError } from "rxjs";
+import { ClientsApiClient, ReferencesApiClient } from "@law/api-clients";
 import {
+  ClientDetail,
   ClientAddress,
   ClientContact,
-  ClientsApiClient,
-  ReferencesApiClient,
-} from "@law/api-clients";
-import { ClientDetail } from "@law/api-interfaces";
+} from "@law/api-interfaces";
 import { ClientDetailComponent } from "./client-detail.component";
 import { ClientFormDialogService } from "./client-create-edit-modal/client-form-dialog.service";
 import { LocalizationService } from "../../core/localization/localization.service";

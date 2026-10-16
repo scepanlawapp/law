@@ -21,12 +21,17 @@ import {
   switchMap,
   tap,
 } from "rxjs";
+import { LocalizationService } from "../../core/localization/localization.service";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
 @Component({
   selector: "law-payment-client-picker",
   standalone: true,
-  imports: [HlmComboboxImports, HlmButton, HlmSpinner],
+  imports: [HlmComboboxImports, HlmButton, HlmSpinner, TranslatePipe],
   template: `
-    <label class="mb-1 block text-sm" [for]="controlId()">Klijent</label>
+    <label class="mb-1 block text-sm" [for]="controlId()">
+      {{ "payments.field.client" | translate }}
+    </label>
     <div class="flex items-center gap-2">
       <div
         hlmCombobox
@@ -38,20 +43,24 @@ import {
         (searchChange)="search.next($event)"
       >
         <hlm-combobox-trigger [buttonId]="controlId()" class="w-full min-w-0">
-          <hlm-combobox-value placeholder="Izaberite klijenta" />
+          <hlm-combobox-value
+            [placeholder]="'payments.client.select' | translate"
+          />
         </hlm-combobox-trigger>
         <hlm-combobox-content *hlmComboboxPortal>
           <hlm-combobox-input
-            placeholder="Pretraži klijente"
+            [placeholder]="'payments.client.search' | translate"
             [showTrigger]="false"
           />
           @if (loading()) {
             <hlm-spinner />
           }
           @if (error()) {
-            <p role="alert">Klijenti nisu učitani. Ponovite pretragu.</p>
+            <p role="alert">{{ "payments.client.loadError" | translate }}</p>
           }
-          <hlm-combobox-empty>Nema rezultata.</hlm-combobox-empty>
+          <hlm-combobox-empty>
+            {{ "common.noResults" | translate }}
+          </hlm-combobox-empty>
           <div hlmComboboxList>
             @for (c of clients(); track c.id) {
               <hlm-combobox-item [value]="c.id">
@@ -68,7 +77,7 @@ import {
           variant="ghost"
           size="icon"
           (click)="value.set('')"
-          aria-label="Ukloni klijenta"
+          [attr.aria-label]="'payments.client.remove' | translate"
         >
           <span aria-hidden="true">×</span>
         </button>
@@ -85,10 +94,13 @@ export class PaymentClientPickerComponent {
   readonly error = signal(false);
   readonly search = new Subject<string>();
   private readonly api = inject(ClientsApiClient);
+  private readonly localization = inject(LocalizationService);
   private readonly names = signal(new Map<string, string>());
   readonly keepResults = () => true;
   readonly display = (id: string) =>
-    this.names().get(id) || this.selectedLabel() || "Izabrani klijent";
+    this.names().get(id) ||
+    this.selectedLabel() ||
+    this.localization.translate("payments.client.selected");
   constructor() {
     this.search
       .pipe(
@@ -99,7 +111,7 @@ export class PaymentClientPickerComponent {
           this.error.set(false);
         }),
         switchMap((search) =>
-          this.api.list({ page: 1, pageSize: 100, search }).pipe(
+          this.api.list({ ...FIRST_PAGE, search }).pipe(
             catchError(() => {
               this.error.set(true);
               return of({ items: [] });

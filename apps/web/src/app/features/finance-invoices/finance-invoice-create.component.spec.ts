@@ -144,6 +144,7 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
               return key;
             },
             language: () => "SR",
+            locale: () => "sr-Latn-RS",
           },
         },
         {
@@ -458,7 +459,11 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
         { provide: InvoiceLineImportDialogService, useValue: importDialog },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
         {
           provide: ActivatedRoute,

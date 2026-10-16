@@ -13,30 +13,16 @@
     </button>
   </header>
   <div class="flex flex-wrap gap-2">
-    <button
-      hlmBtn
-      type="button"
-      [variant]="tab() === 'CLIENT_AGREEMENT' ? 'default' : 'outline'"
-      (click)="selectTab('CLIENT_AGREEMENT')"
-    >
-      {{ "finance.clientAgreements" | translate }}
-    </button>
-    <button
-      hlmBtn
-      type="button"
-      [variant]="tab() === 'WORKSPACE_PUBLIC_REFERENCE' ? 'default' : 'outline'"
-      (click)="selectTab('WORKSPACE_PUBLIC_REFERENCE')"
-    >
-      {{ "finance.publicReferences" | translate }}
-    </button>
-    <button
-      hlmBtn
-      type="button"
-      [variant]="tab() === 'COMPANY_CATALOG' ? 'default' : 'outline'"
-      (click)="selectTab('COMPANY_CATALOG')"
-    >
-      {{ "finance.companyCatalog" | translate }}
-    </button>
+    @for (option of tabOptions; track option.value) {
+      <button
+        hlmBtn
+        type="button"
+        [variant]="tab() === option.value ? 'default' : 'outline'"
+        (click)="selectTab(option.value)"
+      >
+        {{ option.label | translate }}
+      </button>
+    }
   </div>
   @if (loading()) {
     <div class="flex items-center gap-2 py-10" role="status">
@@ -51,7 +37,7 @@
         <h2 class="text-lg font-semibold">
           {{ "finance.priceSources" | translate }}
         </h2>
-        @if (tab() === "CLIENT_AGREEMENT") {
+        @if (tab() === PriceSourceScope.CLIENT_AGREEMENT) {
           <div class="space-y-2">
             <label for="catalog-client-case-filter">
               {{ "finance.catalogFilter" | translate }}
@@ -154,7 +140,7 @@
                   </span>
                 }
                 <span class="block text-muted-foreground">
-                  {{ source.updatedAt | date: "mediumDate" }}
+                  {{ formatDate(source.updatedAt) }}
                 </span>
               </button>
               <div class="mt-2 flex flex-wrap gap-2">
@@ -199,7 +185,7 @@
               [readOnly]="!!selectedSource()"
             />
           </label>
-          @if (tab() === "CLIENT_AGREEMENT") {
+          @if (tab() === PriceSourceScope.CLIENT_AGREEMENT) {
             <label class="block space-y-1" for="price-source-client">
               <span>{{ "finance.client" | translate }}</span>
               <div
@@ -239,7 +225,7 @@
               </div>
             </label>
           }
-          @if (tab() === "CLIENT_AGREEMENT") {
+          @if (tab() === PriceSourceScope.CLIENT_AGREEMENT) {
             <div class="space-y-1">
               <label for="price-source-case">
                 {{ "finance.case" | translate }}
@@ -328,7 +314,7 @@
                 @for (version of source.versions; track version.id) {
                   <p class="whitespace-pre-wrap rounded-lg bg-muted p-3">
                     v{{ version.version }} ·
-                    {{ version.createdAt | date: "mediumDate" }}
+                    {{ formatDate(version.createdAt) }}
                     <br />
                     {{ version.rawText }}
                   </p>

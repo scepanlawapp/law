@@ -127,6 +127,7 @@ describe("TimeReviewComponent", () => {
           useValue: {
             translate: (key: string) => key,
             language: () => "SR",
+            locale: () => "sr-Latn-RS",
           },
         },
         {

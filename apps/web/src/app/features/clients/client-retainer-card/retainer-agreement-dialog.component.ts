@@ -16,11 +16,11 @@ import {
   Validators,
 } from "@angular/forms";
 import { BillingSetupApiClient } from "@law/api-clients";
-import type {
-  RetainerAgreement,
+import {
   RetainerRule,
-  ServiceCategory,
-  UpsertRetainerAgreementRequest,
+  type RetainerAgreement,
+  type ServiceCategory,
+  type UpsertRetainerAgreementRequest,
 } from "@law/api-interfaces";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -53,11 +53,16 @@ import {
 } from "../../../shared/billing";
 import {
   CURRENCY_OPTIONS,
+  DEFAULT_CURRENCY,
   createCurrencyItemToString,
 } from "../../../shared/currency";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
-import { createSelectItemToString, SelectOption } from "../../../shared/utils";
 import { officeToday } from "../../time/time-utils";
+import {
+  RETAINER_RULE_LABELS,
+  createSelectItemToString,
+  optionsFrom,
+} from "../../../shared/models";
 
 export interface RetainerAgreementDialogInput {
   clientId: string;
@@ -65,11 +70,7 @@ export interface RetainerAgreementDialogInput {
   agreement: RetainerAgreement | null;
 }
 
-const RULE_OPTIONS: ReadonlyArray<SelectOption<RetainerRule>> = [
-  { value: "HOURLY", label: "retainers.rule.HOURLY" },
-  { value: "AT", label: "retainers.rule.AT" },
-  { value: "ABSORBED", label: "retainers.rule.ABSORBED" },
-];
+const RULE_OPTIONS = optionsFrom(RETAINER_RULE_LABELS);
 
 /** `validTo` is optional but, when present, must not precede `validFrom`. */
 function validRangeValidator(group: AbstractControl): ValidationErrors | null {
@@ -142,10 +143,10 @@ export class RetainerAgreementDialogComponent {
           Validators.pattern(MONEY_INPUT_PATTERN),
         ],
       }),
-      currency: new FormControl(this.existing?.currency ?? "RSD", {
-        nonNullable: true,
-        validators: [Validators.required],
-      }),
+      currency: new FormControl<string>(
+        this.existing?.currency ?? DEFAULT_CURRENCY,
+        { nonNullable: true, validators: [Validators.required] },
+      ),
       validFrom: new FormControl(this.existing?.validFrom ?? officeToday(), {
         nonNullable: true,
         validators: [Validators.required],
@@ -164,7 +165,7 @@ export class RetainerAgreementDialogComponent {
         { nonNullable: true },
       ),
       overageRule: new FormControl<RetainerRule>(
-        this.existing?.overageRule ?? "ABSORBED",
+        this.existing?.overageRule ?? RetainerRule.ABSORBED,
         { nonNullable: true },
       ),
       overageHourlyRate: new FormControl(
@@ -172,7 +173,7 @@ export class RetainerAgreementDialogComponent {
         { nonNullable: true },
       ),
       outOfScopeRule: new FormControl<RetainerRule>(
-        this.existing?.outOfScopeRule ?? "HOURLY",
+        this.existing?.outOfScopeRule ?? RetainerRule.HOURLY,
         { nonNullable: true },
       ),
       outOfScopeHourlyRate: new FormControl(
@@ -227,7 +228,7 @@ export class RetainerAgreementDialogComponent {
     const rule = this.form.controls[ruleName];
     const rate = this.form.controls[rateName];
     const apply = (value: RetainerRule): void => {
-      if (value === "HOURLY") {
+      if (value === RetainerRule.HOURLY) {
         rate.setValidators([
           Validators.required,
           Validators.pattern(MONEY_INPUT_PATTERN),
@@ -281,12 +282,12 @@ export class RetainerAgreementDialogComponent {
       coveredCategoryIds: value.coveredCategoryIds,
       overageRule: value.overageRule,
       overageHourlyRate:
-        value.overageRule === "HOURLY"
+        value.overageRule === RetainerRule.HOURLY
           ? normalizeMoney(value.overageHourlyRate)
           : null,
       outOfScopeRule: value.outOfScopeRule,
       outOfScopeHourlyRate:
-        value.outOfScopeRule === "HOURLY"
+        value.outOfScopeRule === RetainerRule.HOURLY
           ? normalizeMoney(value.outOfScopeHourlyRate)
           : null,
     };

@@ -68,7 +68,7 @@
       >
         {{ itemNameText(item) }}
       </span>
-      @if (selectedTab() !== "archived") {
+      @if (selectedTab() !== Tab.ARCHIVED) {
         <button
           hlmBtn
           type="button"
@@ -181,9 +181,9 @@
             <button
               hlmBtn
               type="button"
-              [variant]="viewMode() === 'list' ? 'default' : 'outline'"
-              [attr.aria-pressed]="viewMode() === 'list'"
-              (click)="setViewMode('list')"
+              [variant]="viewMode() === ViewMode.LIST ? 'default' : 'outline'"
+              [attr.aria-pressed]="viewMode() === ViewMode.LIST"
+              (click)="setViewMode(ViewMode.LIST)"
             >
               <ng-icon name="lucideList" aria-hidden="true" />
               {{ "documents.view.list" | translate }}
@@ -191,9 +191,9 @@
             <button
               hlmBtn
               type="button"
-              [variant]="viewMode() === 'grid' ? 'default' : 'outline'"
-              [attr.aria-pressed]="viewMode() === 'grid'"
-              (click)="setViewMode('grid')"
+              [variant]="viewMode() === ViewMode.GRID ? 'default' : 'outline'"
+              [attr.aria-pressed]="viewMode() === ViewMode.GRID"
+              (click)="setViewMode(ViewMode.GRID)"
             >
               <ng-icon name="lucideGrid2x2" aria-hidden="true" />
               {{ "documents.view.grid" | translate }}
@@ -408,12 +408,12 @@
                 "documents.selection.counts"
                   | translate
                     : {
-                        files: selectionCount("file"),
-                        folders: selectionCount("folder"),
+                        files: selectionCount(Kind.FILE),
+                        folders: selectionCount(Kind.FOLDER),
                       }
               }}
             </span>
-            @if (selectedTab() !== "archived") {
+            @if (selectedTab() !== Tab.ARCHIVED) {
               <button
                 hlmBtn
                 type="button"
@@ -427,7 +427,9 @@
                 <ng-icon name="lucideFolderInput" aria-hidden="true" />
               </button>
             }
-            @if (selectedTab() !== "archived" && selectionCount("file") > 0) {
+            @if (
+              selectedTab() !== Tab.ARCHIVED && selectionCount(Kind.FILE) > 0
+            ) {
               <button
                 hlmBtn
                 type="button"
@@ -465,7 +467,7 @@
             >
               <ng-icon name="lucideArrowDownToLine" aria-hidden="true" />
             </button>
-            @if (selectedTab() === "archived") {
+            @if (selectedTab() === Tab.ARCHIVED) {
               <button
                 hlmBtn
                 type="button"
@@ -559,7 +561,7 @@
             }
           </hlm-empty-content>
         </hlm-empty>
-      } @else if (viewMode() === "list") {
+      } @else if (viewMode() === ViewMode.LIST) {
         <div
           hlmTableContainer
           class="app-data-region mt-4 min-h-0 flex-1 overflow-auto"
@@ -621,17 +623,19 @@
                   [attr.aria-selected]="isSelected(folder.id)"
                   [class.bg-muted]="isSelected(folder.id)"
                   (click)="
-                    selectItem({ id: folder.id, kind: 'folder' }, $event)
+                    selectItem({ id: folder.id, kind: Kind.FOLDER }, $event)
                   "
-                  (dblclick)="openItem({ id: folder.id, kind: 'folder' })"
-                  (keydown)="rowKey($event, { id: folder.id, kind: 'folder' })"
+                  (dblclick)="openItem({ id: folder.id, kind: Kind.FOLDER })"
+                  (keydown)="
+                    rowKey($event, { id: folder.id, kind: Kind.FOLDER })
+                  "
                 >
                   <td hlmTd>
                     <div class="flex items-center gap-2">
                       <ng-container
                         [ngTemplateOutlet]="itemSelection"
                         [ngTemplateOutletContext]="{
-                          $implicit: { id: folder.id, kind: 'folder' },
+                          $implicit: { id: folder.id, kind: Kind.FOLDER },
                         }"
                       />
                       <ng-icon
@@ -646,7 +650,7 @@
                     <ng-container
                       [ngTemplateOutlet]="itemName"
                       [ngTemplateOutletContext]="{
-                        $implicit: { id: folder.id, kind: 'folder' },
+                        $implicit: { id: folder.id, kind: Kind.FOLDER },
                       }"
                     />
                   </td>
@@ -674,17 +678,19 @@
                   [attr.aria-selected]="isSelected(document.id)"
                   [class.bg-muted]="isSelected(document.id)"
                   (click)="
-                    selectItem({ id: document.id, kind: 'file' }, $event)
+                    selectItem({ id: document.id, kind: Kind.FILE }, $event)
                   "
-                  (dblclick)="openItem({ id: document.id, kind: 'file' })"
-                  (keydown)="rowKey($event, { id: document.id, kind: 'file' })"
+                  (dblclick)="openItem({ id: document.id, kind: Kind.FILE })"
+                  (keydown)="
+                    rowKey($event, { id: document.id, kind: Kind.FILE })
+                  "
                 >
                   <td hlmTd>
                     <div class="flex items-center gap-2">
                       <ng-container
                         [ngTemplateOutlet]="itemSelection"
                         [ngTemplateOutletContext]="{
-                          $implicit: { id: document.id, kind: 'file' },
+                          $implicit: { id: document.id, kind: Kind.FILE },
                         }"
                       />
                       <ng-icon
@@ -699,7 +705,7 @@
                     <ng-container
                       [ngTemplateOutlet]="itemName"
                       [ngTemplateOutletContext]="{
-                        $implicit: { id: document.id, kind: 'file' },
+                        $implicit: { id: document.id, kind: Kind.FILE },
                       }"
                     />
                   </td>
@@ -828,14 +834,14 @@
               [attr.aria-label]="folder.name"
               [class.bg-muted]="isSelected(folder.id)"
               class="app-interactive-card min-w-0 cursor-pointer p-4 text-left"
-              (click)="selectItem({ id: folder.id, kind: 'folder' }, $event)"
-              (dblclick)="openItem({ id: folder.id, kind: 'folder' })"
-              (keydown)="rowKey($event, { id: folder.id, kind: 'folder' })"
+              (click)="selectItem({ id: folder.id, kind: Kind.FOLDER }, $event)"
+              (dblclick)="openItem({ id: folder.id, kind: Kind.FOLDER })"
+              (keydown)="rowKey($event, { id: folder.id, kind: Kind.FOLDER })"
             >
               <ng-container
                 [ngTemplateOutlet]="itemSelection"
                 [ngTemplateOutletContext]="{
-                  $implicit: { id: folder.id, kind: 'folder' },
+                  $implicit: { id: folder.id, kind: Kind.FOLDER },
                 }"
               />
               <ng-icon
@@ -847,7 +853,7 @@
                 <ng-container
                   [ngTemplateOutlet]="itemName"
                   [ngTemplateOutletContext]="{
-                    $implicit: { id: folder.id, kind: 'folder' },
+                    $implicit: { id: folder.id, kind: Kind.FOLDER },
                   }"
                 />
               </div>
@@ -867,14 +873,14 @@
               [attr.aria-label]="documentTitle(document)"
               [class.bg-muted]="isSelected(document.id)"
               class="app-interactive-card min-w-0 cursor-pointer overflow-hidden p-4 text-left"
-              (click)="selectItem({ id: document.id, kind: 'file' }, $event)"
-              (dblclick)="openItem({ id: document.id, kind: 'file' })"
-              (keydown)="rowKey($event, { id: document.id, kind: 'file' })"
+              (click)="selectItem({ id: document.id, kind: Kind.FILE }, $event)"
+              (dblclick)="openItem({ id: document.id, kind: Kind.FILE })"
+              (keydown)="rowKey($event, { id: document.id, kind: Kind.FILE })"
             >
               <ng-container
                 [ngTemplateOutlet]="itemSelection"
                 [ngTemplateOutletContext]="{
-                  $implicit: { id: document.id, kind: 'file' },
+                  $implicit: { id: document.id, kind: Kind.FILE },
                 }"
               />
               <div class="mb-3 flex items-center justify-between gap-2">
@@ -895,7 +901,7 @@
               <ng-container
                 [ngTemplateOutlet]="itemName"
                 [ngTemplateOutletContext]="{
-                  $implicit: { id: document.id, kind: 'file' },
+                  $implicit: { id: document.id, kind: Kind.FILE },
                 }"
               />
               <p class="mt-1 truncate text-sm text-muted-foreground">
@@ -983,15 +989,7 @@
       }
 
       @if (documents().length) {
-        <law-pagination
-          class="mt-4 block"
-          [currentPage]="page()"
-          [itemsPerPage]="pageSize()"
-          [totalItems]="totalItems()"
-          [disabled]="loading()"
-          (currentPageChange)="changePage($event)"
-          (itemsPerPageChange)="changePageSize($event)"
-        />
+        <law-pagination class="mt-4 block" [paginator]="pagination" />
       }
     </section>
   </div>
@@ -1332,15 +1330,13 @@
               <div class="flex flex-wrap items-center gap-2 text-sm">
                 <law-document-ai-status [status]="document.aiStatus" />
                 <span>
-                  {{ "documents.ai.status." + document.aiStatus | translate }}
+                  {{ aiStatusLabels[document.aiStatus] | translate }}
                 </span>
                 @if (document.documentKind) {
                   <span
                     class="inline-flex rounded border border-border bg-muted px-2 py-1 text-xs"
                   >
-                    {{
-                      "documents.ai.kind." + document.documentKind | translate
-                    }}
+                    {{ documentKindLabels[document.documentKind] | translate }}
                   </span>
                 }
                 @if (document.fromAssistantChat) {

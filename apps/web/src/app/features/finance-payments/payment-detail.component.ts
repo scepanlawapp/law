@@ -6,20 +6,30 @@ import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { FormControl, ReactiveFormsModule, Validators } from "@angular/forms";
 import { RouterLink } from "@angular/router";
 import { PaymentsApiClient } from "@law/api-clients";
-import { PaymentDetail } from "@law/api-interfaces";
+import {
+  PaymentDetail,
+  PaymentPurpose,
+  PaymentStatus,
+} from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { firstValueFrom } from "rxjs";
+import { LocalizationService } from "../../core/localization/localization.service";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import {
-  allocationLabel,
-  date,
-  money,
-  paymentError,
-  paymentMethodLabel,
-} from "./payment-ui";
+  ALLOCATION_STATE_LABELS,
+  OFFICE_TIME_ZONE,
+  PAYMENT_AUDIT_ACTION_LABELS,
+  PAYMENT_AUDIT_FALLBACK_LABEL,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_PURPOSE_LABELS,
+  PAYMENT_STATUS_LABELS,
+  labelOf,
+} from "../../shared/models";
+import { date, money, paymentError } from "./payment-ui";
 @Component({
   selector: "law-payment-detail",
   standalone: true,
@@ -31,12 +41,14 @@ import {
     HlmInput,
     HlmSpinner,
     HlmTableImports,
+    TranslatePipe,
   ],
   templateUrl: "./payment-detail.component.html",
 })
 export class PaymentDetailComponent {
   private readonly api = inject(PaymentsApiClient);
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly localization = inject(LocalizationService);
   private readonly dialog =
     inject<BrnDialogRef<PaymentViewResult>>(BrnDialogRef);
   readonly id = injectBrnDialogContext<PaymentViewContext>().id;
@@ -50,40 +62,55 @@ export class PaymentDetailComponent {
     nonNullable: true,
     validators: [Validators.required, Validators.maxLength(1000)],
   });
-  readonly money = money;
-  readonly date = date;
-  readonly method = paymentMethodLabel;
-  readonly state = allocationLabel;
+  readonly PaymentPurpose = PaymentPurpose;
+  readonly PaymentStatus = PaymentStatus;
+  private readonly translate = (key: string) =>
+    this.localization.translate(key);
+  readonly money = (value: string, currency: string) =>
+    money(value, currency, this.localization.locale());
+  readonly date = (value: string) => date(value, this.localization.locale());
+  readonly method = (value: string) =>
+    labelOf(PAYMENT_METHOD_LABELS, value, this.translate);
+  readonly state = (value: string) =>
+    labelOf(ALLOCATION_STATE_LABELS, value, this.translate);
+  readonly purpose = (value: string) =>
+    labelOf(PAYMENT_PURPOSE_LABELS, value, this.translate);
   snapshot(value: unknown) {
     const p = value as PaymentDetail | null;
     if (!p) return null;
     return {
       fields: [
-        { label: "Klijent", value: p.clientName ?? "Neidentifikovan klijent" },
-        { label: "Uplatilac", value: p.payerName ?? "—" },
-        { label: "Iznos", value: money(p.amount, p.currency) },
-        { label: "Datum uplate", value: date(p.receivedAt) },
-        { label: "Način plaćanja", value: paymentMethodLabel(p.paymentMethod) },
         {
-          label: "Svrha",
-          value: p.purpose === "ADVANCE" ? "Avans" : "Redovna uplata",
+          label: "payments.field.client",
+          value: p.clientName ?? this.translate("payments.unidentifiedClient"),
+        },
+        { label: "payments.field.payer", value: p.payerName ?? "—" },
+        {
+          label: "payments.field.amount",
+          value: this.money(p.amount, p.currency),
+        },
+        { label: "payments.field.receivedAt", value: this.date(p.receivedAt) },
+        { label: "payments.field.method", value: this.method(p.paymentMethod) },
+        { label: "payments.field.purpose", value: this.purpose(p.purpose) },
+        {
+          label: "payments.column.status",
+          value: labelOf(PAYMENT_STATUS_LABELS, p.status, this.translate),
         },
         {
-          label: "Status",
-          value: p.status === "VOIDED" ? "Poništena" : "Aktivna",
+          label: "payments.field.bankAccount",
+          value: p.bankAccountName ?? "—",
         },
-        { label: "Bankovni račun", value: p.bankAccountName ?? "—" },
-        { label: "Referenca", value: p.reference ?? "—" },
-        { label: "Napomena", value: p.note ?? "—" },
+        { label: "payments.field.reference", value: p.reference ?? "—" },
+        { label: "payments.field.note", value: p.note ?? "—" },
       ],
       allocations: p.allocations.filter((a) => !a.removedAt),
     };
   }
   readonly timestamp = (value: string) =>
-    new Intl.DateTimeFormat("sr-Latn", {
+    new Intl.DateTimeFormat(this.localization.locale(), {
       dateStyle: "medium",
       timeStyle: "medium",
-      timeZone: "Europe/Belgrade",
+      timeZone: OFFICE_TIME_ZONE,
     }).format(new Date(value));
   private key = crypto.randomUUID();
   private lastReason = "";
@@ -113,18 +140,14 @@ export class PaymentDetailComponent {
     try {
       this.payment.set(await firstValueFrom(this.api.detail(this.id)));
     } catch (e) {
-      this.error.set(paymentError(e));
+      this.error.set(paymentError(e, this.translate));
     } finally {
       this.loading.set(false);
     }
   }
   action(value: string) {
-    return (
-      {
-        PAYMENT_CREATED: "Uplata kreirana",
-        PAYMENT_UPDATED: "Uplata i raspodele izmenjene",
-        PAYMENT_VOIDED: "Uplata poništena",
-      }[value] ?? "Promena uplate"
+    return this.translate(
+      PAYMENT_AUDIT_ACTION_LABELS[value] ?? PAYMENT_AUDIT_FALLBACK_LABEL,
     );
   }
   async voidPayment() {
@@ -137,11 +160,10 @@ export class PaymentDetailComponent {
       if (
         !(await firstValueFrom(
           this.confirm.confirm({
-            title: "Poništi uplatu?",
-            message:
-              "Uplata više neće doprinositi naplati računa. Raspodele i istorija ostaju sačuvane.",
-            confirmText: "Poništi uplatu",
-            cancelText: "Odustani",
+            title: this.translate("payments.void.confirmTitle"),
+            message: this.translate("payments.void.confirmMessage"),
+            confirmText: this.translate("payments.void.action"),
+            cancelText: this.translate("payments.dismiss"),
             variant: "danger",
           }),
         ))
@@ -159,7 +181,7 @@ export class PaymentDetailComponent {
       this.showVoid.set(false);
       this.error.set("");
     } catch (e) {
-      this.error.set(paymentError(e));
+      this.error.set(paymentError(e, this.translate));
     } finally {
       this.saving.set(false);
     }

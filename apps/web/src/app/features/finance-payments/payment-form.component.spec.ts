@@ -175,7 +175,7 @@ describe("PaymentFormComponent", () => {
     component.add(invoice, "60");
     await component.submit();
     expect(api.save).not.toHaveBeenCalled();
-    expect(component.error()).toContain("raspodela");
+    expect(component.error()).toBe("payments.error.invalidAmounts");
   });
   it("keeps allocations when client changes and requires an explicit correction", async () => {
     component.form.patchValue({ clientId: "client-1", amount: "100" });
@@ -186,7 +186,7 @@ describe("PaymentFormComponent", () => {
     expect(component.form.controls.allocations.length).toBe(1);
     await component.submit();
     expect(api.save).not.toHaveBeenCalled();
-    expect(component.error()).toContain("klijentu");
+    expect(component.error()).toBe("payments.error.allocationMismatch");
   });
   it("preserves input after a failed save and reuses the idempotency key on retry", async () => {
     component.form.controls.amount.setValue("100");

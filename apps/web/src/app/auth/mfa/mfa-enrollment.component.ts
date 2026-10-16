@@ -23,6 +23,7 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { AuthApiClient } from "@law/api-clients";
 import {
+  ApiErrorCode,
   AuthSessionResponse,
   MfaEnrollmentStartResponse,
 } from "@law/api-interfaces";
@@ -184,7 +185,7 @@ export class MfaEnrollmentComponent implements OnInit {
     this.submitting.set(false);
     this.codeForm.controls.code.setValue("");
     const code = error.status === 401 ? mfaErrorCode(error) : undefined;
-    if (code === "MFA_CODE_INVALID") {
+    if (code === ApiErrorCode.MFA_CODE_INVALID) {
       this.error.set(this.localization.translate("auth.mfa.codeInvalid"));
     } else if (error.status === 401 && this.mode() === "challenge") {
       // Locked, expired or consumed enrollment challenge: only a fresh login helps.

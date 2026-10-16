@@ -3,6 +3,7 @@ import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import { AuthApiClient } from "@law/api-clients";
+import { LoginStatus } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -74,13 +75,13 @@ export class AcceptInvitationComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
-          if (response.status === "MFA_ENROLLMENT_REQUIRED") {
+          if (response.status === LoginStatus.MFA_ENROLLMENT_REQUIRED) {
             // Office requires 2FA: the challenge cookie is set, continue to
             // the enrollment screen.
             void this.router.navigate(["/mfa-setup"]);
             return;
           }
-          if (response.status === "MFA_REQUIRED") {
+          if (response.status === LoginStatus.MFA_REQUIRED) {
             // The account already has 2FA: sign in again, then enter the
             // authenticator code.
             this.toast.info(

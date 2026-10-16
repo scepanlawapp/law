@@ -25,7 +25,7 @@ Angular 22 frontend for the law-office platform.
 - Use Spartan/UI when a primitive exists. Do not recreate Helm/Brain behavior.
 - Keep components theme-agnostic: consume semantic tokens, never hardcoded colors or `dark:` palette classes.
 - Keep business logic out of templates. UI-only types stay in the frontend; shared domain types go through `@law/api-interfaces`.
-- Selects: `{ value, label }` plus `createSelectItemToString` from [apps/web/src/app/shared/utils.ts](../../apps/web/src/app/shared/utils.ts).
+- Selects: options from a shared label map (`optionsFrom`) plus `createSelectItemToString` from [apps/web/src/app/shared/models](../../apps/web/src/app/shared/models/index.ts). Follow the "Code organization (web + contracts)" rules in [AGENTS.md](../../AGENTS.md).
 
 ## Angular 22 Rules
 

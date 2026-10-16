@@ -2,8 +2,8 @@ import { Observable } from "rxjs";
 import {
   AssistantDeadlineRequest,
   DeadlineDetail,
+  DeadlineRequest,
 } from "@law/api-interfaces";
-import { DeadlineRequest } from "@law/api-clients";
 
 export interface DeadlineDialogContext {
   deadline?: DeadlineDetail;

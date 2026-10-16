@@ -1,6 +1,30 @@
-import { ClientSummary, WorkEntry } from "@law/api-interfaces";
+import {
+  ClientSummary,
+  WorkEntry,
+  WorkEntryTreatment,
+} from "@law/api-interfaces";
+import { LabelMap } from "../../shared/models";
 
-export type InvoiceLineImportMode = "SEPARATE" | "GROUPED";
+/** Treatments whose confirmed, unbilled work can be invoiced. */
+export const INVOICE_IMPORTABLE_TREATMENTS: readonly WorkEntryTreatment[] = [
+  WorkEntryTreatment.RETAINER,
+  WorkEntryTreatment.HOURLY,
+  WorkEntryTreatment.AT,
+  WorkEntryTreatment.UNDECIDED,
+];
+
+export const InvoiceLineImportMode = {
+  SEPARATE: "SEPARATE",
+  GROUPED: "GROUPED",
+} as const;
+export type InvoiceLineImportMode =
+  (typeof InvoiceLineImportMode)[keyof typeof InvoiceLineImportMode];
+
+export const INVOICE_LINE_IMPORT_MODE_LABELS: LabelMap<InvoiceLineImportMode> =
+  {
+    [InvoiceLineImportMode.SEPARATE]: "finance.importSeparate",
+    [InvoiceLineImportMode.GROUPED]: "finance.importGrouped",
+  };
 
 export interface InvoiceLineImportResult {
   entries: WorkEntry[];

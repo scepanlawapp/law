@@ -119,7 +119,7 @@
               {{ "time.capture.date" | translate }}
             </dt>
             <dd class="mt-1">
-              {{ entry.workDate | date: "dd.MM.yyyy" : "UTC" }}
+              {{ workDateLabel(entry.workDate) }}
             </dd>
           </div>
           <div>
@@ -288,7 +288,7 @@
                 </button>
               }
             </div>
-            @if (loadedEntry()?.status === "WRITTEN_OFF") {
+            @if (loadedEntry()?.status === WorkEntryStatus.WRITTEN_OFF) {
               <div hlmField>
                 <label hlmFieldLabel for="capture-restore-status">
                   {{ "work.entries.status" | translate }}
@@ -673,8 +673,7 @@
                     <p>
                       {{ "time.capture.priceConfidence" | translate }}:
                       {{
-                        "time.capture.priceConfidence." + suggestion.confidence
-                          | translate
+                        confidenceLabelKeys[suggestion.confidence] | translate
                       }}
                     </p>
                     <p class="text-muted-foreground">
@@ -767,7 +766,7 @@
                           readOnly() ||
                           (eventLinked() &&
                             !form.controls.clientId.value &&
-                            option.value !== 'NON_BILLABLE')
+                            option.value !== WorkEntryTreatment.NON_BILLABLE)
                         "
                         [aria-label]="option.label | translate"
                         [inputId]="option.value"

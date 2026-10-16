@@ -106,7 +106,11 @@ describe("MemberSecurityComponent", () => {
         { provide: PasswordConfirmDialogService, useValue: passwordDialog },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
       ],
     });
@@ -308,7 +312,11 @@ describe("MemberSecurityComponent", () => {
         { provide: PasswordConfirmDialogService, useValue: passwordDialog },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
       ],
     });

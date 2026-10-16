@@ -7,13 +7,17 @@ import {
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
-import { CaseSummary, WorkEntry } from "@law/api-interfaces";
+import { CaseSummary, WorkEntry, WorkEntryStatus } from "@law/api-interfaces";
 import { CasesApiClient, WorkEntriesApiClient } from "@law/api-clients";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideEye } from "@ng-icons/lucide";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
+import {
+  FIRST_PAGE,
+  injectPaginatedList,
+} from "../../shared/pagination/paginated-list";
 import {
   HlmDialogDescription,
   HlmDialogFooter,
@@ -27,12 +31,15 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { formatDate } from "../../shared/billing";
 import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
-import { TREATMENT_LABEL_KEYS, formatMinutes } from "../time/time-utils";
+import { formatMinutes } from "../time/time-utils";
 import { InvoiceLineImportDialogContext } from "./invoice-line-import-dialog.models";
 import {
+  INVOICE_IMPORTABLE_TREATMENTS,
+  INVOICE_LINE_IMPORT_MODE_LABELS,
   InvoiceLineImportMode,
   InvoiceLineImportResult,
 } from "./invoice-line-import-dialog.models";
+import { WORK_ENTRY_TREATMENT_LABELS, optionsFrom } from "../../shared/models";
 
 /** Lists the confirmed, unbilled work entries of one client for a invoice. */
 @Component({
@@ -68,21 +75,28 @@ export class InvoiceLineImportDialogComponent {
 
   readonly client = this.context.client;
   readonly excludedEntryIds = new Set(this.context.excludedEntryIds);
-  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  readonly treatmentLabelKeys = WORK_ENTRY_TREATMENT_LABELS;
   readonly formatMinutes = formatMinutes;
 
   readonly cases = signal<CaseSummary[]>([]);
   readonly caseId = signal("");
-  readonly entries = signal<WorkEntry[]>([]);
+  readonly list = injectPaginatedList<WorkEntry>({
+    fetch: (request) =>
+      this.api.list({
+        clientIds: [this.client.id],
+        statuses: [WorkEntryStatus.CONFIRMED],
+        treatments: [...INVOICE_IMPORTABLE_TREATMENTS],
+        unbilledOnly: true,
+        caseId: this.caseId() || undefined,
+        ...request,
+      }),
+  });
+  readonly entries = this.list.items;
+  readonly loading = this.list.loading;
+  readonly error = this.list.error;
   readonly selected = signal(new Map<string, WorkEntry>());
-  readonly mode = signal<InvoiceLineImportMode>("SEPARATE");
-  readonly page = signal(1);
-  readonly pageSize = signal(50);
-  readonly pageCount = signal(1);
-  readonly totalItems = signal(0);
-  readonly loading = signal(false);
-  readonly error = signal(false);
-  private requestSequence = 0;
+  readonly mode = signal<InvoiceLineImportMode>(InvoiceLineImportMode.SEPARATE);
+  readonly modeOptions = optionsFrom(INVOICE_LINE_IMPORT_MODE_LABELS);
 
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("finance.allCases");
@@ -92,57 +106,18 @@ export class InvoiceLineImportDialogComponent {
 
   constructor() {
     this.casesApi
-      .list({ clientId: this.client.id, page: 1, pageSize: 100 })
+      .list({ ...FIRST_PAGE, clientId: this.client.id })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => this.cases.set(response.items),
         error: () => undefined,
       });
-    this.load();
+    this.list.load();
   }
 
   setCaseId(value: string): void {
     this.caseId.set(value);
-    this.page.set(1);
-    this.load();
-  }
-
-  load(): void {
-    const sequence = ++this.requestSequence;
-    this.loading.set(true);
-    this.error.set(false);
-    this.api
-      .list({
-        clientIds: [this.client.id],
-        statuses: ["CONFIRMED"],
-        treatments: ["RETAINER", "HOURLY", "AT", "UNDECIDED"],
-        unbilledOnly: true,
-        caseId: this.caseId() || undefined,
-        page: this.page(),
-        pageSize: this.pageSize(),
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          if (sequence !== this.requestSequence) return;
-          const lastPage = Math.max(1, response.meta.totalPages);
-          if (response.meta.page > lastPage) {
-            this.page.set(lastPage);
-            this.load();
-            return;
-          }
-          this.entries.set(response.items);
-          this.page.set(response.meta.page);
-          this.pageCount.set(Math.max(1, response.meta.totalPages));
-          this.totalItems.set(response.meta.totalItems);
-          this.loading.set(false);
-        },
-        error: () => {
-          if (sequence !== this.requestSequence) return;
-          this.loading.set(false);
-          this.error.set(true);
-        },
-      });
+    this.list.reset();
   }
 
   readonly selectableEntries = computed(() =>
@@ -191,19 +166,6 @@ export class InvoiceLineImportDialogComponent {
 
   openEntry(entry: WorkEntry): void {
     this.quickCapture.open({ mode: "view", entryId: entry.id }).subscribe();
-  }
-
-  changePage(page: number): void {
-    if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.page.set(page);
-    this.load();
-  }
-
-  changePageSize(pageSize: number): void {
-    if (this.loading() || pageSize === this.pageSize()) return;
-    this.pageSize.set(pageSize);
-    this.page.set(1);
-    this.load();
   }
 
   importSelected(): void {

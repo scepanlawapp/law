@@ -21,8 +21,25 @@ import { HlmRadioGroupImports } from "@spartan-ng/helm/radio-group";
 import { HlmSheetImports } from "@spartan-ng/helm/sheet";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import { LocalizationService } from "../../core/localization/localization.service";
+import { REVENUE_ENUM_LABELS, labelOf } from "../../shared/models";
 
-type RoleCompensationType = "FIXED" | "PERCENTAGE" | "COMBINED" | "";
+const RoleCompensationType = {
+  FIXED: "FIXED",
+  PERCENTAGE: "PERCENTAGE",
+  COMBINED: "COMBINED",
+} as const;
+type RoleCompensationType =
+  (typeof RoleCompensationType)[keyof typeof RoleCompensationType];
+
+const FIXED_AMOUNT_TYPES: readonly string[] = [
+  RoleCompensationType.FIXED,
+  RoleCompensationType.COMBINED,
+];
+const PERCENTAGE_TYPES: readonly string[] = [
+  RoleCompensationType.PERCENTAGE,
+  RoleCompensationType.COMBINED,
+];
 
 const percentagePattern = /^(?:|0|[1-9]\d?|100)(?:\.\d{1,2})?$/;
 const amountPattern = /^(?:|0|[1-9]\d*)(?:\.\d{1,2})?$/;
@@ -54,7 +71,7 @@ const amountPattern = /^(?:|0|[1-9]\d*)(?:\.\d{1,2})?$/;
         @if (role(); as currentRole) {
           <hlm-sheet-header class="shrink-0">
             <h2 hlmSheetTitle>
-              {{ "revenue.enum." + currentRole | translate }}
+              {{ roleLabel(currentRole) }}
             </h2>
             <p hlmSheetDescription>
               {{ "revenue.roleModelSheetDescription" | translate }}
@@ -271,23 +288,23 @@ export class RevenueRoleModelSheetComponent {
   readonly sheetState = signal<"open" | "closed">("closed");
   readonly modelOptions = [
     {
-      value: "FIXED",
+      value: RoleCompensationType.FIXED,
       label: "revenue.fixedCompensation",
       description: "revenue.monthlyCompensationDescription",
     },
     {
-      value: "PERCENTAGE",
+      value: RoleCompensationType.PERCENTAGE,
       label: "revenue.percentageCompensation",
       description: "revenue.transactionCompensationDescription",
     },
     {
-      value: "COMBINED",
+      value: RoleCompensationType.COMBINED,
       label: "revenue.combinedCompensation",
       description: "revenue.combinedCompensationDescription",
     },
   ] as const;
   readonly form = new FormGroup({
-    compensationType: new FormControl<RoleCompensationType>("", {
+    compensationType: new FormControl<RoleCompensationType | "">("", {
       nonNullable: true,
       validators: [Validators.required],
     }),
@@ -309,6 +326,7 @@ export class RevenueRoleModelSheetComponent {
     }),
   });
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly localization = inject(LocalizationService);
 
   constructor() {
     effect(() => {
@@ -327,16 +345,20 @@ export class RevenueRoleModelSheetComponent {
     });
   }
 
+  roleLabel(role: string): string {
+    return labelOf(REVENUE_ENUM_LABELS, role, (key) =>
+      this.localization.translate(key),
+    );
+  }
+
   showsFixedAmount() {
-    return ["FIXED", "COMBINED"].includes(
+    return FIXED_AMOUNT_TYPES.includes(
       this.form.controls.compensationType.value,
     );
   }
 
   showsPercentages() {
-    return ["PERCENTAGE", "COMBINED"].includes(
-      this.form.controls.compensationType.value,
-    );
+    return PERCENTAGE_TYPES.includes(this.form.controls.compensationType.value);
   }
 
   onStateChanged(state: "open" | "closed") {

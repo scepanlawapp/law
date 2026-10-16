@@ -8,6 +8,7 @@ import {
   ReferencesApiClient,
 } from "@law/api-clients";
 import { StarterPickKind } from "../../assistant-starter-prompts";
+import { DEFAULT_PAGE_SIZE } from "../../../../shared/pagination/paginated-list";
 import {
   StarterPickerDialogComponent,
   foldSearchText,
@@ -104,7 +105,7 @@ describe("StarterPickerDialogComponent", () => {
     expect(cases.list).toHaveBeenCalledWith({
       search: undefined,
       page: 1,
-      pageSize: 20,
+      pageSize: DEFAULT_PAGE_SIZE,
     });
     const [item] = items(fixture);
     expect(item.textContent).toContain("P-7/2026 Naknada štete");
@@ -129,7 +130,7 @@ describe("StarterPickerDialogComponent", () => {
       expect(cases.list).toHaveBeenLastCalledWith({
         search: "naknada",
         page: 1,
-        pageSize: 20,
+        pageSize: DEFAULT_PAGE_SIZE,
       });
     } finally {
       jest.useRealTimers();

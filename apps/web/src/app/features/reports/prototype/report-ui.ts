@@ -7,11 +7,27 @@ import {
   input,
 } from "@angular/core";
 import { RouterLink } from "@angular/router";
+import { SortDirection } from "@law/api-interfaces";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
-import { formatMoney, formatDate, numberLocale } from "../../../shared/billing";
+import { formatMoney, formatDate } from "../../../shared/billing";
 import { ChartDatum, ReportFilters } from "./report-model";
+
+const REPORT_CURRENCY = "RSD";
+
+/** `aria-sort` value of a sortable column header. */
+export function ariaSortOf(active: boolean, direction: SortDirection) {
+  if (!active) return "none";
+  return direction === SortDirection.DESC ? "descending" : "ascending";
+}
+
+/** Visual arrow next to the active sort column. */
+export function sortIndicator(active: boolean, direction: SortDirection) {
+  if (!active) return "";
+  return direction === SortDirection.DESC ? "↓" : "↑";
+}
+
 @Injectable({ providedIn: "root" })
 export class ReportFormat {
   readonly localization = inject(LocalizationService);
@@ -19,7 +35,11 @@ export class ReportFormat {
     return this.localization.translate(key);
   }
   money(minor: number) {
-    return formatMoney(minor / 100, "RSD", this.localization.language());
+    return formatMoney(
+      minor / 100,
+      REPORT_CURRENCY,
+      this.localization.language(),
+    );
   }
   date(value: string | null | undefined) {
     return value &&
@@ -29,12 +49,10 @@ export class ReportFormat {
       : this.text("report.unavailable");
   }
   number(value: number) {
-    return new Intl.NumberFormat(
-      numberLocale(this.localization.language()),
-    ).format(value);
+    return new Intl.NumberFormat(this.localization.locale()).format(value);
   }
   percent(rate: number) {
-    return new Intl.NumberFormat(numberLocale(this.localization.language()), {
+    return new Intl.NumberFormat(this.localization.locale(), {
       style: "percent",
       maximumFractionDigits: 1,
     }).format(rate);
@@ -42,7 +60,7 @@ export class ReportFormat {
   period(value: string) {
     if (!/^\d{4}-\d{2}(-\d{2})?$/.test(value)) return this.text(value);
     return value.length === 7
-      ? new Intl.DateTimeFormat(numberLocale(this.localization.language()), {
+      ? new Intl.DateTimeFormat(this.localization.locale(), {
           month: "short",
           year: "numeric",
           timeZone: "UTC",

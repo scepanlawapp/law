@@ -86,17 +86,40 @@ Every implementation task is conducted by a delivery track. `spec.md` is what/wh
 - Style with semantic tokens (`bg-background`, `text-foreground`, `bg-primary`, …). No hardcoded colors, no `dark:bg-slate-*` palette classes.
 - Themes (`data-theme`): `midnight`, `deep-navy`, `charcoal`, `dark-teal`, `burgundy`, `ivory`.
 - Accents (`data-accent`): `gold`, `emerald`, `royal-blue`, `copper`, `ice-blue`, `burgundy`, `purple`, `ivory`. Finish is a separate setting.
-- Selects: options `{ value, label }` with a translation key in `label`. Bind `[itemToString]` to `createSelectItemToString` from [apps/web/src/app/shared/utils.ts](apps/web/src/app/shared/utils.ts). Do not show the raw stored value in the trigger.
+- Selects: options `{ value, label }` with a translation key in `label`, built from a shared label map. Bind `[itemToString]` to `createSelectItemToString` from `shared/models`. Do not show the raw stored value in the trigger.
 
 ```ts
-readonly themeOptions = [
-  { value: "CHARCOAL", label: "settings.themeCharcoal" },
-];
+readonly themeOptions = optionsFrom(THEME_LABELS);
 readonly themeItemToString = createSelectItemToString(
   this.themeOptions,
   (key) => this.localization.translate(key),
 );
 ```
+
+## Code organization (web + contracts)
+
+One definition per concept. A component may declare a type, enum or constant only if it is used by that component alone and exists nowhere else; otherwise it lives in one of these places:
+
+| What | Where |
+| --- | --- |
+| FE/BE contract types, DTOs, query/request shapes, enums | `@law/api-interfaces` ([libs/api/api-interfaces/src/lib](libs/api/api-interfaces/src/lib)); never in `@law/api-clients` or a component |
+| Web-only shared enums/types | [apps/web/src/app/shared/models/types](apps/web/src/app/shared/models/types) |
+| Enum → translation key maps, option lists, sort fields | [apps/web/src/app/shared/models/labels](apps/web/src/app/shared/models/labels) (`<domain>.labels.ts`) |
+| Select helpers | [shared/models/select-option.ts](apps/web/src/app/shared/models/select-option.ts): `SelectOption`, `LabelMap`, `optionsFrom`, `filterOptionsFrom`, `labelOf`, `createSelectItemToString` |
+| Sorting | [shared/models/sort.ts](apps/web/src/app/shared/models/sort.ts): define `SortFields` per list, build with `sortOptions`, display with `createSortItemToString`, send `field:direction` (`SortDirection`) |
+| Locale / time zone | [shared/models/locale.ts](apps/web/src/app/shared/models/locale.ts) and `LocalizationService.locale()` |
+| Pagination | [shared/pagination/paginated-list.ts](apps/web/src/app/shared/pagination/paginated-list.ts): `injectPaginatedList`, `PageState`, `LocalPagination`, `<law-pagination [paginator]>` |
+
+Import web models through the `shared/models` barrel.
+
+Rules:
+
+- **Enums, not literals.** Contract unions are enum-like const objects with a same-named type (`export const CaseStatus = { DRAFT: "DRAFT", … } as const; export type CaseStatus = …`); tuple-backed ones use `enumOf(TUPLE)`. Code compares and assigns `CaseStatus.DRAFT`, never `"DRAFT"`. Templates use the enum exposed on the component (`protected readonly CaseStatus = CaseStatus`). Specs may use literals. New contract unions follow the same pattern; API error `code`s go in `ApiErrorCode`.
+- **Labels in one map.** Every enum shown in the UI has exactly one `LabelMap<Enum>` keyed by enum members (`[CaseStatus.DRAFT]: "cases.status.DRAFT"`). Build options with `optionsFrom` / `filterOptionsFrom(map, "…all")`; translate single values with `labelOf`. No inline `{ value: "X", label }` arrays and no `'prefix.' + value` keys.
+- **Locale.** Format dates/numbers with `localization.locale()` or `intlLocale(language)`; never `language() === "EN" ? … : …` or locale string literals. Compare languages with `UserSettingsLanguage`. Use `OFFICE_TIME_ZONE`, not `"Europe/Belgrade"`.
+- **Every user-visible string is translated** (text, placeholders, titles, aria-labels, toasts, errors) and added to both `apps/web/public/i18n/ser.json` (Serbian Latin) and `eng.json`.
+- **Page size.** Lists use the default page size (`DEFAULT_PAGE_SIZE`, 100) from the pagination state; lookups pass `FIRST_PAGE` / `{ ...FIRST_PAGE, search }`. Do not pass page sizes. Exceptions: dashboard counters and exists-checks may use `pageSize: 1`.
+- **Sorting.** Lists declare `SortFields` (field → label key + `SortKind`) in the domain labels file and reuse the shared sort helpers.
 
 ## Backend
 

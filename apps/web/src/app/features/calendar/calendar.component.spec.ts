@@ -49,7 +49,10 @@ describe("CalendarComponent", () => {
         },
         {
           provide: LocalizationService,
-          useValue: { translate: jest.fn((key: string) => key) },
+          useValue: {
+            translate: jest.fn((key: string) => key),
+            locale: () => "sr-Latn-RS",
+          },
         },
         {
           provide: AuthState,

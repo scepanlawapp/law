@@ -4,6 +4,7 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  computed,
   inject,
   input,
   output,
@@ -11,15 +12,21 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { EventsApiClient, WorkEntriesApiClient } from "@law/api-clients";
-import { PastWorkEvent, WorkEntryTreatment } from "@law/api-interfaces";
+import {
+  PastWorkEvent,
+  WorkEntryStatus,
+  WorkEntryTreatment,
+  ApiErrorCode,
+} from "@law/api-interfaces";
 import { provideIcons } from "@ng-icons/core";
 import { lucideChevronLeft, lucideChevronRight } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { PaginationComponent } from "../../../shared/ui/pagination/pagination.component";
+import { injectPaginatedList } from "../../../shared/pagination/paginated-list";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
-import { finalize, switchMap } from "rxjs";
+import { finalize, switchMap, tap } from "rxjs";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
@@ -30,7 +37,7 @@ import {
 import { EventDialogService } from "../../calendar/event-dialog/event-dialog.service";
 import { QuickCaptureDialogService } from "../quick-capture/quick-capture-dialog.service";
 import { eventCaptureInput } from "../quick-capture/event-capture";
-import { timeLocale } from "../time-utils";
+import { OFFICE_TIME_ZONE } from "../../../shared/models";
 
 @Component({
   selector: "law-past-work-events",
@@ -66,25 +73,32 @@ export class PastEventsComponent {
     inject(DOCUMENT).defaultView?.matchMedia?.("(min-width: 1600px)")
       ?.matches ?? false,
   );
-  readonly totalItems = signal<number | null>(null);
   readonly workChanged = output<void>();
-  readonly events = signal<PastWorkEvent[]>([]);
-  readonly loading = signal(false);
-  readonly error = signal(false);
+  readonly list = injectPaginatedList<PastWorkEvent>({
+    fetch: ({ page, pageSize }) =>
+      this.api.pastEvents(page, pageSize).pipe(
+        tap((response) => {
+          if (!this.list.loaded() && response.items.length === 0)
+            this.expanded.set(false);
+        }),
+      ),
+  });
+  /** `null` until the first page arrives. */
+  readonly totalItems = computed(() =>
+    this.list.loaded() ? this.list.totalItems() : null,
+  );
+  readonly events = this.list.items;
+  readonly loading = this.list.loading;
+  readonly error = this.list.error;
   readonly busy = signal<string | null>(null);
-  readonly page = signal(1);
-  readonly pageSize = signal(50);
-  readonly totalPages = signal(0);
-  private requestSequence = 0;
-  readonly badgeBase = STATUS_BADGE_BASE_CLASSES;
-  readonly statusBadgeClass = statusBadgeClass;
+  readonly unloggedBadgeClass = `${STATUS_BADGE_BASE_CLASSES} ${statusBadgeClass(WorkEntryStatus.PROPOSED)}`;
   constructor() {
-    this.load();
+    this.list.load();
   }
 
   eventTime(event: PastWorkEvent): string {
-    const format = new Intl.DateTimeFormat(timeLocale(this.local.language()), {
-      timeZone: "Europe/Belgrade",
+    const format = new Intl.DateTimeFormat(this.local.locale(), {
+      timeZone: OFFICE_TIME_ZONE,
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -101,43 +115,6 @@ export class PastEventsComponent {
   canWriteOff(event: PastWorkEvent): boolean {
     return !event.hasWorkEntry;
   }
-  load(page = this.page()): void {
-    if (this.loading()) return;
-    const sequence = ++this.requestSequence;
-    this.loading.set(true);
-    this.error.set(false);
-    this.api
-      .pastEvents(page, this.pageSize())
-      .pipe(
-        finalize(() => {
-          if (sequence === this.requestSequence) this.loading.set(false);
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: (response) => {
-          const lastPage = Math.max(1, response.meta.totalPages);
-          if (page > lastPage) {
-            this.loading.set(false);
-            this.load(lastPage);
-            return;
-          }
-          if (this.totalItems() === null && response.items.length === 0) {
-            this.expanded.set(false);
-          }
-          this.events.set(response.items);
-          this.page.set(page);
-          this.totalPages.set(response.meta.totalPages);
-          this.totalItems.set(response.meta.totalItems);
-        },
-        error: () => this.error.set(true),
-      });
-  }
-  changePageSize(pageSize: number): void {
-    if (this.loading() || pageSize === this.pageSize()) return;
-    this.pageSize.set(pageSize);
-    this.load(1);
-  }
   viewEvent(event: PastWorkEvent): void {
     if (this.busy()) return;
     this.busy.set(event.id);
@@ -150,7 +127,7 @@ export class PastEventsComponent {
       )
       .subscribe({
         next: () => {
-          this.load(1);
+          this.list.reset();
           this.workChanged.emit();
         },
         error: () => this.showError(),
@@ -168,7 +145,7 @@ export class PastEventsComponent {
       .subscribe({
         next: (saved) => {
           if (saved) {
-            this.load(1);
+            this.list.reset();
             this.workChanged.emit();
           }
         },
@@ -186,11 +163,11 @@ export class PastEventsComponent {
       )
       .subscribe({
         next: () => {
-          this.load(1);
+          this.list.reset();
           this.workChanged.emit();
         },
         error: (error: HttpErrorResponse) => {
-          if (error.error?.code === "EVENT_CLIENT_REQUIRED")
+          if (error.error?.code === ApiErrorCode.EVENT_CLIENT_REQUIRED)
             this.toast.info(this.local.translate("time.events.clientRequired"));
           else this.showError();
         },

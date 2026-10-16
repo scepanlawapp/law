@@ -218,7 +218,9 @@
                       <span class="flex flex-col">
                         <span>{{ option.label | translate }}</span>
                         <span class="text-sm text-muted-foreground">
-                          {{ option.label + "Description" | translate }}
+                          {{
+                            permissionModeDescriptions[option.value] | translate
+                          }}
                         </span>
                       </span>
                     </hlm-select-item>

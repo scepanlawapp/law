@@ -13,6 +13,7 @@ import { FormControl } from "@angular/forms";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { DEFAULT_PAGE_SIZE } from "../../shared/pagination/paginated-list";
 import { DocumentAssociationsDialogService } from "./document-associations/document-associations-dialog.service";
 import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
 import { DocumentMoveDialogComponent } from "./document-move-dialog.component";
@@ -269,8 +270,7 @@ describe("DocumentsComponent state helpers", () => {
         selectedClientId: { value: "" },
         selectedCategory: { value: "" },
         searchControl: { value: "" },
-        page: () => 1,
-        pageSize: () => 50,
+        pagination: { request: { page: 1, pageSize: 50 } },
       },
     ) as DocumentsComponent;
 
@@ -292,8 +292,7 @@ describe("DocumentsComponent state helpers", () => {
         selectedClientId: { value: "" },
         selectedCategory: { value: "" },
         searchControl: { value: "" },
-        page: () => 1,
-        pageSize: () => 50,
+        pagination: { request: { page: 1, pageSize: 50 } },
       },
     ) as DocumentsComponent;
 
@@ -482,6 +481,7 @@ describe("DocumentsComponent AI access", () => {
             translate: (key: string, params?: Record<string, unknown>) =>
               params ? `${key} ${JSON.stringify(params)}` : key,
             language: () => "SR",
+            locale: () => "sr-Latn-RS",
           },
         },
       ],
@@ -514,14 +514,14 @@ describe("DocumentsComponent AI access", () => {
     );
   });
 
-  it("defaults to 50, resets page size and clears filters with one request", () => {
+  it("defaults to the global page size, resets page size and clears filters with one request", () => {
     jest.useFakeTimers();
     const { component, documentsApi } = setup([document()]);
-    expect(component.buildListQuery("false").pageSize).toBe(50);
-    component.page.set(3);
+    expect(component.buildListQuery("false").pageSize).toBe(DEFAULT_PAGE_SIZE);
+    component.pagination.page.set(3);
     const calls = documentsApi.list.mock.calls.length;
-    component.changePageSize(20);
-    expect(component.page()).toBe(1);
+    component.pagination.changePageSize(20);
+    expect(component.pagination.page()).toBe(1);
     expect(documentsApi.list.mock.calls.length).toBe(calls + 1);
     expect(component.buildListQuery("false").pageSize).toBe(20);
     component.searchControl.setValue("test", { emitEvent: false });
@@ -721,7 +721,7 @@ describe("DocumentsComponent AI access", () => {
       const ready = document({ id: "a", aiStatus: "READY" });
       const { component, fixture, documentsApi } = setup([processing]);
       component.selection.set([{ id: "a", kind: "file" }]);
-      component.page.set(1);
+      component.pagination.page.set(1);
       const baseline = documentsApi.list.mock.calls.length;
 
       jest.advanceTimersByTime(4999);

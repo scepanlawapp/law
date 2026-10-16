@@ -237,7 +237,8 @@
               </span>
               <span class="text-muted-foreground text-xs">
                 @for (reason of item.reasons; track reason; let last = $last) {
-                  {{ reasonKey(reason) | translate }}{{ last ? "" : ", " }}
+                  {{ reasonLabelKeys[reason] | translate
+                  }}{{ last ? "" : ", " }}
                 }
               </span>
             </div>

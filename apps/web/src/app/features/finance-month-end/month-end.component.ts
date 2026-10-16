@@ -17,6 +17,7 @@ import {
   MonthEndPrecheck,
   MonthEndRunResult,
   WorkEntry,
+  WorkEntryStatus,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmInput } from "@spartan-ng/helm/input";
@@ -25,6 +26,7 @@ import { HlmTableImports } from "@spartan-ng/helm/table";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import {
+  formatDate,
   formatMonthLabel,
   isMonth,
   officeMonth,
@@ -33,14 +35,12 @@ import {
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
-import {
-  STATUS_BADGE_CLASSES,
-  STATUS_LABEL_KEYS,
-  TREATMENT_LABEL_KEYS,
-  formatMinutes,
-  formatWorkDate,
-} from "../time/time-utils";
+import { STATUS_BADGE_CLASSES, formatMinutes } from "../time/time-utils";
 import { WriteOffDialogService } from "../time/write-off-dialog/write-off-dialog.service";
+import {
+  WORK_ENTRY_STATUS_LABELS,
+  WORK_ENTRY_TREATMENT_LABELS,
+} from "../../shared/models";
 
 type StatementRow = MonthEndRunResult["statements"][number];
 
@@ -74,9 +74,10 @@ export class MonthEndComponent {
   private readonly destroyRef = inject(DestroyRef);
   private requestId = 0;
 
-  readonly statusLabelKeys = STATUS_LABEL_KEYS;
+  protected readonly WorkEntryStatus = WorkEntryStatus;
+  readonly statusLabelKeys = WORK_ENTRY_STATUS_LABELS;
   readonly statusBadgeClasses = STATUS_BADGE_CLASSES;
-  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  readonly treatmentLabelKeys = WORK_ENTRY_TREATMENT_LABELS;
   readonly formatMinutes = formatMinutes;
 
   /** The billed month, `YYYY-MM`; the previous month unless changed. */
@@ -121,7 +122,7 @@ export class MonthEndComponent {
   }
 
   workDateLabel(date: string): string {
-    return formatWorkDate(date, this.localization.language());
+    return formatDate(date, this.localization.language());
   }
 
   reload(): void {
@@ -134,7 +135,7 @@ export class MonthEndComponent {
   confirm(entry: WorkEntry): void {
     if (!entry.client) return;
     const request =
-      entry.status === "PROPOSED"
+      entry.status === WorkEntryStatus.PROPOSED
         ? this.capture.open({
             mode: "confirm-timer",
             entryId: entry.id,

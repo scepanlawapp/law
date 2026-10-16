@@ -1,3 +1,4 @@
+import { RevenueAgreementType } from "@law/api-interfaces";
 import { ChangeDetectionStrategy, Component, inject } from "@angular/core";
 import { ReactiveFormsModule } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
@@ -96,7 +97,8 @@ export interface RevenueAgreementDialogContext {
       </div>
 
       @if (
-        editor.agreementEditor.controls.agreementType.value === "INDIVIDUAL"
+        editor.agreementEditor.controls.agreementType.value ===
+        RevenueAgreementType.INDIVIDUAL
       ) {
         <section class="space-y-4 rounded-md border bg-card p-4">
           <h3 class="font-medium">
@@ -105,7 +107,7 @@ export interface RevenueAgreementDialogContext {
           @for (origin of editor.origins; track origin) {
             <law-revenue-rate
               [id]="'agreement-' + origin"
-              [label]="'revenue.enum.' + origin"
+              [label]="editor.originLabels[origin]"
               [form]="editor.agreementEditor.controls.rates.controls[origin]"
               [inherit]="true"
             />
@@ -174,6 +176,7 @@ export interface RevenueAgreementDialogContext {
   `,
 })
 export class RevenueAgreementDialogComponent {
+  readonly RevenueAgreementType = RevenueAgreementType;
   readonly editor =
     injectBrnDialogContext<RevenueAgreementDialogContext>().editor;
   readonly dialogRef = inject<BrnDialogRef<boolean | undefined>>(BrnDialogRef);

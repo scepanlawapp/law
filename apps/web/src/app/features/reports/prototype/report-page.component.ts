@@ -19,12 +19,7 @@ import { AuthState } from "@law/security";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { canManageBilling, officeMonth } from "../../../shared/billing";
 import { ReportDataService } from "./report-data.service";
-import {
-  ReportFilters,
-  ReportRow,
-  ChartDatum,
-  MemberSummary,
-} from "./report-model";
+import { ReportFilters, ReportRow, ChartDatum } from "./report-model";
 import {
   aging,
   memberSummaries,
@@ -39,9 +34,52 @@ import {
   ReportDistributionComponent,
   ReportFormat,
   ReportKpiComponent,
+  ariaSortOf,
+  sortIndicator,
 } from "./report-ui";
 import { ReportWorkTableComponent } from "./report-work-table.component";
-type View = "overview" | "earnings" | "outstanding" | "personal" | "detail";
+import { SortDirection } from "@law/api-interfaces";
+import {
+  REPORT_ALLOCATION_CATEGORY_LABELS,
+  REPORT_ALLOCATION_REASON_LABELS,
+  REPORT_COLLECTION_STATUS_LABELS,
+  REPORT_DATE_BASIS_LABELS,
+  REPORT_EARNINGS_SORT_FIELDS,
+  REPORT_SHARING_LABELS,
+  REPORT_VIEW_DESCRIPTION_LABELS,
+  REPORT_VIEW_LABELS,
+  ReportEarningsSortField,
+  SortKind,
+} from "../../../shared/models";
+import {
+  ReportAllocationCategory,
+  ReportCollectionStatus,
+  ReportDateBasis,
+  ReportGroup,
+  ReportSharing,
+  ReportView,
+} from "../../../shared/models";
+
+const EARNINGS_COLUMNS = (
+  Object.keys(REPORT_EARNINGS_SORT_FIELDS) as ReportEarningsSortField[]
+).filter(
+  (field): field is Exclude<ReportEarningsSortField, "name"> =>
+    REPORT_EARNINGS_SORT_FIELDS[field].kind === SortKind.NUMBER,
+);
+
+function dateBasisFromQuery(value: string | null): ReportDateBasis {
+  return value === ReportDateBasis.INVOICE ||
+    value === ReportDateBasis.COLLECTION
+    ? value
+    : ReportDateBasis.WORK;
+}
+
+function groupFromQuery(value: string | null): ReportGroup {
+  return value === ReportGroup.DAY || value === ReportGroup.MONTH
+    ? value
+    : ReportGroup.WEEK;
+}
+
 @Component({
   selector: "law-report-page",
   standalone: true,
@@ -71,6 +109,16 @@ export class ReportPageComponent {
   private readonly document = inject(DOCUMENT);
   private readonly injector = inject(Injector);
   readonly format = inject(ReportFormat);
+  readonly ReportView = ReportView;
+  readonly ReportCollectionStatus = ReportCollectionStatus;
+  readonly viewLabels = REPORT_VIEW_LABELS;
+  readonly viewDescriptionLabels = REPORT_VIEW_DESCRIPTION_LABELS;
+  readonly basisLabels = REPORT_DATE_BASIS_LABELS;
+  readonly categoryLabels = REPORT_ALLOCATION_CATEGORY_LABELS;
+  readonly reasonLabels = REPORT_ALLOCATION_REASON_LABELS;
+  readonly sharingLabels = REPORT_SHARING_LABELS;
+  readonly statusLabels = REPORT_COLLECTION_STATUS_LABELS;
+  readonly earningsSortFields = REPORT_EARNINGS_SORT_FIELDS;
   readonly routeData = toSignal(this.route.data, {
     initialValue: this.route.snapshot.data,
   });
@@ -80,9 +128,11 @@ export class ReportPageComponent {
   readonly query = toSignal(this.route.queryParamMap, {
     initialValue: this.route.snapshot.queryParamMap,
   });
-  readonly view = computed(() => this.routeData()["view"] as View);
-  readonly personal = computed(() => this.view() === "personal");
-  readonly detail = computed(() => this.personal() || this.view() === "detail");
+  readonly view = computed(() => this.routeData()["view"] as ReportView);
+  readonly personal = computed(() => this.view() === ReportView.PERSONAL);
+  readonly detail = computed(
+    () => this.personal() || this.view() === ReportView.DETAIL,
+  );
   readonly canManage = computed(() =>
     canManageBilling(this.auth.activeWorkspace()?.role),
   );
@@ -100,13 +150,11 @@ export class ReportPageComponent {
   readonly filters = computed<ReportFilters>(() => {
     const q = this.query();
     const defaultRange = monthRange(officeMonth());
-    const basis = q.get("basis");
-    const group = q.get("group");
     return {
       from: q.get("from") ?? defaultRange.from,
       to: q.get("to") ?? defaultRange.to,
-      basis: basis === "invoice" || basis === "collection" ? basis : "work",
-      group: group === "day" || group === "month" ? group : "week",
+      basis: dateBasisFromQuery(q.get("basis")),
+      group: groupFromQuery(q.get("group")),
       member: this.detail() ? "" : (q.get("member") ?? ""),
       client: q.get("client") ?? "",
       caseId: q.get("caseId") ?? "",
@@ -121,12 +169,10 @@ export class ReportPageComponent {
     let rows = selectRows(this.data(), this.filters());
     const search = this.filters()
       .search.trim()
-      .toLocaleLowerCase(
-        this.format.localization.language() === "SR" ? "sr-Latn" : "en",
-      );
+      .toLocaleLowerCase(this.format.localization.locale());
     if (search)
       rows = rows.filter((r) =>
-        this.detail() || this.view() === "outstanding"
+        this.detail() || this.view() === ReportView.OUTSTANDING
           ? [r.client, r.caseName, this.format.text(r.titleKey)].some((v) =>
               v.toLocaleLowerCase().includes(search),
             )
@@ -158,7 +204,9 @@ export class ReportPageComponent {
             shareCollected: earnings.reduce((s, a) => s + a.collected, 0),
             potential: earnings.reduce((s, a) => s + a.potential, 0),
             origination: earnings
-              .filter((a) => a.category === "origination")
+              .filter(
+                (a) => a.category === ReportAllocationCategory.ORIGINATION,
+              )
               .reduce((s, a) => s + a.collected, 0),
             retained: 0,
           };
@@ -171,8 +219,8 @@ export class ReportPageComponent {
       (m) => m.id === this.memberId(),
     ),
   );
-  readonly earningsSort = signal<keyof MemberSummary>("shareCollected");
-  readonly descending = signal(true);
+  readonly earningsSort = signal<ReportEarningsSortField>("shareCollected");
+  readonly earningsSortDirection = signal<SortDirection>(SortDirection.DESC);
   readonly members = computed(() =>
     memberSummaries(this.data(), this.baseRows())
       .filter(
@@ -191,18 +239,18 @@ export class ReportPageComponent {
           (typeof av === "number" && typeof bv === "number"
             ? av - bv
             : String(av).localeCompare(String(bv))) *
-          (this.descending() ? -1 : 1)
+          (this.earningsSortDirection() === SortDirection.DESC ? -1 : 1)
         );
       }),
   );
   readonly workRows = computed(() =>
     this.baseRows().filter(
       (r) =>
-        this.view() !== "outstanding" ||
+        this.view() !== ReportView.OUTSTANDING ||
         this.filters().status ||
         r.balance > 0 ||
         !r.invoiced ||
-        r.status === "RequiresConfiguration",
+        r.status === ReportCollectionStatus.REQUIRES_CONFIGURATION,
     ),
   );
   readonly kpis = computed<{ label: string; value: number; count?: boolean }[]>(
@@ -218,14 +266,14 @@ export class ReportPageComponent {
           { label: "report.potential", value: s.potential },
           { label: "report.origination", value: s.origination },
         ];
-      if (this.view() === "outstanding")
+      if (this.view() === ReportView.OUTSTANDING)
         return [
           { label: "report.uninvoiced", value: s.uninvoiced },
           { label: "report.balance", value: s.balance },
           { label: "report.potential", value: s.potential },
           { label: "report.casesBalance", value: s.cases, count: true },
         ];
-      if (this.view() === "overview")
+      if (this.view() === ReportView.OVERVIEW)
         return [
           { label: "report.invoiced", value: s.invoiced },
           { label: "report.eligibleCollected", value: s.eligibleCollected },
@@ -242,7 +290,7 @@ export class ReportPageComponent {
   );
   readonly comparison = computed(() =>
     timeline(
-      this.view() === "overview"
+      this.view() === ReportView.OVERVIEW
         ? this.baseRows().map((r) => ({ ...r, collected: r.eligibleCollected }))
         : this.baseRows(),
       this.filters().group,
@@ -253,7 +301,10 @@ export class ReportPageComponent {
     this.members()
       .map((m) => ({
         label: m.name,
-        first: this.view() === "outstanding" ? m.potential : m.shareCollected,
+        first:
+          this.view() === ReportView.OUTSTANDING
+            ? m.potential
+            : m.shareCollected,
         route: ["/reports/earnings", m.id],
       }))
       .sort((a, b) => b.first - a.first),
@@ -277,33 +328,25 @@ export class ReportPageComponent {
   );
   readonly categories = computed<ChartDatum[]>(() => [
     {
-      label: "report.category.workShare",
+      label:
+        REPORT_ALLOCATION_CATEGORY_LABELS[ReportAllocationCategory.WORK_SHARE],
       first: this.sums().shareCollected - this.sums().origination,
     },
-    { label: "report.category.origination", first: this.sums().origination },
+    {
+      label:
+        REPORT_ALLOCATION_CATEGORY_LABELS[ReportAllocationCategory.ORIGINATION],
+      first: this.sums().origination,
+    },
   ]);
   readonly selectedId = signal<string | null>(null);
   readonly selected = computed(() =>
     this.baseRows().find((r) => r.id === this.selectedId()),
   );
   readonly missing = computed(
-    () => this.baseRows().filter((r) => r.sharing === "missing").length,
+    () =>
+      this.baseRows().filter((r) => r.sharing === ReportSharing.MISSING).length,
   );
-  readonly titles: Record<View, string> = {
-    overview: "report.overview",
-    earnings: "report.earnings",
-    outstanding: "report.outstanding",
-    personal: "report.personal",
-    detail: "report.detail",
-  };
-  readonly earningsColumns = [
-    "invoiced",
-    "collected",
-    "shareInvoiced",
-    "shareCollected",
-    "potential",
-    "origination",
-  ] as const;
+  readonly earningsColumns = EARNINGS_COLUMNS;
   updateFilters(filters: ReportFilters) {
     void this.router.navigate([], {
       relativeTo: this.route,
@@ -315,22 +358,33 @@ export class ReportPageComponent {
   search(value: string) {
     this.updateFilters({ ...this.filters(), search: value });
   }
-  sortMembers(key: keyof MemberSummary) {
-    if (this.earningsSort() === key) this.descending.update((v) => !v);
+  sortMembers(key: ReportEarningsSortField) {
+    if (this.earningsSort() === key)
+      this.earningsSortDirection.update((direction) =>
+        direction === SortDirection.DESC
+          ? SortDirection.ASC
+          : SortDirection.DESC,
+      );
     else {
       this.earningsSort.set(key);
-      this.descending.set(key !== "name");
+      this.earningsSortDirection.set(
+        REPORT_EARNINGS_SORT_FIELDS[key].kind === SortKind.TEXT
+          ? SortDirection.ASC
+          : SortDirection.DESC,
+      );
     }
   }
-  sortLabel(key: keyof MemberSummary) {
-    return this.earningsSort() === key ? (this.descending() ? "↓" : "↑") : "";
+  sortLabel(key: ReportEarningsSortField) {
+    return sortIndicator(
+      this.earningsSort() === key,
+      this.earningsSortDirection(),
+    );
   }
-  ariaSort(key: keyof MemberSummary) {
-    return this.earningsSort() === key
-      ? this.descending()
-        ? "descending"
-        : "ascending"
-      : "none";
+  ariaSort(key: ReportEarningsSortField) {
+    return ariaSortOf(
+      this.earningsSort() === key,
+      this.earningsSortDirection(),
+    );
   }
   allocationMemberName(id: string) {
     return (

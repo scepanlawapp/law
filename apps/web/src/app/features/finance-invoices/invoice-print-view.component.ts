@@ -7,9 +7,9 @@ import {
   InvoiceLineSummary,
   ClientDetail,
   OrganizationSettings,
+  ClientAddress,
 } from "@law/api-interfaces";
 import {
-  ClientAddress,
   ClientsApiClient,
   FinancialsApiClient,
   OrganizationSettingsApiClient,
@@ -160,10 +160,11 @@ export class InvoicePrintViewComponent {
   }
 
   formatDate(value: string): string {
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { day: "numeric", month: "numeric", year: "numeric" },
-    ).format(new Date(value));
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      day: "numeric",
+      month: "numeric",
+      year: "numeric",
+    }).format(new Date(value));
   }
 
   formatWorkDate(value: string): string {
@@ -175,10 +176,10 @@ export class InvoicePrintViewComponent {
   }
 
   formatAmount(value: string): string {
-    return new Intl.NumberFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-    ).format(Number(value));
+    return new Intl.NumberFormat(this.localization.locale(), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
   }
 
   formatCurrency(value: string, currency: string): string {

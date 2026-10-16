@@ -1,6 +1,7 @@
 import { Component, computed, DestroyRef, inject, signal } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ClientsApiClient } from "@law/api-clients";
+import { ClientStatus } from "@law/api-interfaces";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideSquare } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -29,6 +30,7 @@ import {
 } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
 import { formatElapsed, WorkTimerStore } from "./work-timer.store";
 
 interface ClientOption {
@@ -36,7 +38,6 @@ interface ClientOption {
   name: string;
 }
 
-const CLIENT_PAGE_SIZE = 100;
 const SEARCH_DEBOUNCE_MS = 250;
 
 @Component({
@@ -90,9 +91,8 @@ export class HeaderTimerComponent {
         switchMap((term) =>
           this.clientsApi
             .list({
-              page: 1,
-              pageSize: CLIENT_PAGE_SIZE,
-              status: "ACTIVE",
+              ...FIRST_PAGE,
+              status: ClientStatus.ACTIVE,
               ...(term ? { search: term } : {}),
             })
             .pipe(

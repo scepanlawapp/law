@@ -62,7 +62,7 @@ describe("PastEventsComponent", () => {
   beforeEach(() => {
     jest.resetAllMocks();
     api.pastEvents.mockReturnValue(
-      of({ items: [event], meta: { totalPages: 2, totalItems: 51 } }),
+      of({ items: [event], meta: { totalPages: 2, totalItems: 101 } }),
     );
     api.writeOffEvent.mockReturnValue(of(undefined));
     events.get.mockReturnValue(of(event));
@@ -80,7 +80,11 @@ describe("PastEventsComponent", () => {
         { provide: ToastService, useValue: toast },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "EN" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "EN",
+            locale: () => "en-GB",
+          },
         },
       ],
     });
@@ -166,8 +170,8 @@ describe("PastEventsComponent", () => {
     const fixture = render();
     fixture.detectChanges();
     expect(fixture.nativeElement.querySelector("article")).not.toBeNull();
-    fixture.componentInstance.load(2);
-    expect(api.pastEvents).toHaveBeenLastCalledWith(2, 50);
+    fixture.componentInstance.list.changePage(2);
+    expect(api.pastEvents).toHaveBeenLastCalledWith(2, 100);
   });
   it("replaces the collapsed toggle with the header shrink control while expanded", () => {
     const fixture = TestBed.createComponent(PastEventsComponent);
@@ -204,15 +208,16 @@ describe("PastEventsComponent", () => {
     expect(fixture.nativeElement.textContent).toContain(
       "time.events.loadError",
     );
-    fixture.componentInstance.load();
+    fixture.componentInstance.list.load();
     expect(fixture.componentInstance.error()).toBe(false);
   });
   it("resets to page one when items per page changes", () => {
     const fixture = render();
-    fixture.componentInstance.load(2);
-    fixture.componentInstance.changePageSize(20);
+    const { list } = fixture.componentInstance;
+    list.changePage(2);
+    list.changePageSize(20);
     expect(api.pastEvents).toHaveBeenLastCalledWith(1, 20);
     expect(api.pastEvents).toHaveBeenCalledTimes(3);
-    expect(fixture.componentInstance.page()).toBe(1);
+    expect(list.page()).toBe(1);
   });
 });

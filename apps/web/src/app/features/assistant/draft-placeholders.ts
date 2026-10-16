@@ -1,3 +1,6 @@
+import { UserSettingsLanguage } from "@law/api-interfaces";
+import { intlLocale } from "../../shared/models";
+
 export interface DraftPlaceholderOccurrence {
   start: number;
   end: number;
@@ -12,12 +15,14 @@ export interface DraftPlaceholder {
 
 // Placeholders stay Latin in Cyrillic view (protected from transliteration).
 const PLACEHOLDER = /\[UNOS POTREBAN:\s*([^\]]*?)\s*\]/g;
+// Draft text is always Serbian, whatever the UI language.
+const DRAFT_LOCALE = intlLocale(UserSettingsLanguage.SR);
 
 export function findPlaceholders(text: string): DraftPlaceholder[] {
   const groups = new Map<string, DraftPlaceholder>();
   for (const match of text.matchAll(PLACEHOLDER)) {
     const label = match[1].replace(/\s+/g, " ").trim();
-    const id = label.toLocaleLowerCase("sr-Latn");
+    const id = label.toLocaleLowerCase(DRAFT_LOCALE);
     const start = match.index ?? 0;
     const occurrence = { start, end: start + match[0].length };
     const group = groups.get(id);
@@ -25,7 +30,7 @@ export function findPlaceholders(text: string): DraftPlaceholder[] {
     else
       groups.set(id, {
         id,
-        label: label.charAt(0).toLocaleUpperCase("sr-Latn") + label.slice(1),
+        label: label.charAt(0).toLocaleUpperCase(DRAFT_LOCALE) + label.slice(1),
         occurrences: [occurrence],
       });
   }

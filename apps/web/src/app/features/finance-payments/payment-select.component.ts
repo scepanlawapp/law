@@ -3,13 +3,19 @@ import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmOverlayWidth } from "@spartan-ng/helm/utils";
 import { LocalizationService } from "../../core/localization/localization.service";
-import { createSelectItemToString } from "../../shared/utils";
+import {
+  ALL_OPTION_VALUE,
+  SelectOption,
+  createSelectItemToString,
+} from "../../shared/models";
 @Component({
   selector: "law-payment-select",
   standalone: true,
   imports: [ReactiveFormsModule, HlmSelectImports],
   template: `
-    <label class="mb-1 block text-sm" [for]="controlId()">{{ label() }}</label>
+    <label class="mb-1 block text-sm" [for]="controlId()">
+      {{ translate(label()) }}
+    </label>
     <hlm-select [formControl]="control()" [itemToString]="display()">
       <hlm-select-trigger
         [buttonId]="controlId()"
@@ -33,13 +39,15 @@ export class PaymentSelectComponent {
   private readonly localization = inject(LocalizationService);
   readonly control = input.required<FormControl<string>>();
   readonly controlId = input.required<string>();
+  /** Translation key. */
   readonly label = input.required<string>();
   readonly width = input<HlmOverlayWidth>("trigger");
-  readonly options =
-    input.required<ReadonlyArray<{ value: string; label: string }>>();
+  readonly options = input.required<ReadonlyArray<SelectOption>>();
   readonly translate = (key: string) => this.localization.translate(key);
   readonly emptyLabel = computed(
-    () => this.options().find((o) => o.value === "")?.label ?? "Izaberite",
+    () =>
+      this.options().find((o) => o.value === ALL_OPTION_VALUE)?.label ??
+      "payments.select",
   );
   readonly display = computed(() =>
     createSelectItemToString(this.options(), this.translate),

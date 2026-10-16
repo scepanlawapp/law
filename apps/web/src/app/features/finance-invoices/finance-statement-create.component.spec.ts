@@ -102,7 +102,11 @@ describe("FinanceInvoiceCreateComponent with work entries", () => {
         { provide: InvoiceLineImportDialogService, useValue: {} },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
         {
           provide: ActivatedRoute,
@@ -250,7 +254,11 @@ describe("FinanceInvoiceCreateComponent editing a draft", () => {
         { provide: InvoiceLineImportDialogService, useValue: {} },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
         {
           provide: ActivatedRoute,

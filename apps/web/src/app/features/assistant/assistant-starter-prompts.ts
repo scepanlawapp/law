@@ -7,9 +7,72 @@
  * client, case, colleague, or document; its prompt takes the choice as the
  * `{client}`, `{case}`, `{person}`, or `{document}` parameter.
  */
-export type StarterPromptMode = "send" | "compose";
-export type StarterPickKind = "client" | "case" | "person" | "document";
-export type StarterPromptGroup = "work" | "matters" | "legal" | "drafting";
+import { LabelMap } from "../../shared/models";
+
+export const StarterPromptMode = {
+  SEND: "send",
+  COMPOSE: "compose",
+} as const;
+export type StarterPromptMode =
+  (typeof StarterPromptMode)[keyof typeof StarterPromptMode];
+
+/** Also the prompt parameter name the picked reference fills. */
+export const StarterPickKind = {
+  CLIENT: "client",
+  CASE: "case",
+  PERSON: "person",
+  DOCUMENT: "document",
+} as const;
+export type StarterPickKind =
+  (typeof StarterPickKind)[keyof typeof StarterPickKind];
+
+export const StarterPromptGroup = {
+  WORK: "work",
+  MATTERS: "matters",
+  LEGAL: "legal",
+  DRAFTING: "drafting",
+} as const;
+export type StarterPromptGroup =
+  (typeof StarterPromptGroup)[keyof typeof StarterPromptGroup];
+
+/** In display order. */
+export const STARTER_PROMPT_GROUP_LABELS: LabelMap<StarterPromptGroup> = {
+  [StarterPromptGroup.WORK]: "assistant.starter.group.work",
+  [StarterPromptGroup.MATTERS]: "assistant.starter.group.matters",
+  [StarterPromptGroup.LEGAL]: "assistant.starter.group.legal",
+  [StarterPromptGroup.DRAFTING]: "assistant.starter.group.drafting",
+};
+
+export interface StarterPickerCopy {
+  title: string;
+  description: string;
+  search: string;
+}
+
+export const STARTER_PICKER_LABELS: Readonly<
+  Record<StarterPickKind, StarterPickerCopy>
+> = {
+  [StarterPickKind.CLIENT]: {
+    title: "assistant.starter.picker.client.title",
+    description: "assistant.starter.picker.client.description",
+    search: "assistant.starter.picker.client.search",
+  },
+  [StarterPickKind.CASE]: {
+    title: "assistant.starter.picker.case.title",
+    description: "assistant.starter.picker.case.description",
+    search: "assistant.starter.picker.case.search",
+  },
+  [StarterPickKind.PERSON]: {
+    title: "assistant.starter.picker.person.title",
+    description: "assistant.starter.picker.person.description",
+    search: "assistant.starter.picker.person.search",
+  },
+  [StarterPickKind.DOCUMENT]: {
+    title: "assistant.starter.picker.document.title",
+    description: "assistant.starter.picker.document.description",
+    search: "assistant.starter.picker.document.search",
+  },
+};
 
 export interface AssistantStarterPrompt {
   id: string;
@@ -28,170 +91,175 @@ export interface StarterPick {
 }
 
 /** The document picker can hand off to attaching a new file instead. */
-export type StarterPickerResult = StarterPick | "attach" | undefined;
+export const STARTER_PICKER_ATTACH = "attach";
+export type StarterPickerResult =
+  | StarterPick
+  | typeof STARTER_PICKER_ATTACH
+  | undefined;
 
-export const STARTER_PROMPT_GROUPS: readonly StarterPromptGroup[] = [
-  "work",
-  "matters",
-  "legal",
-  "drafting",
-];
+export const STARTER_PROMPT_GROUPS = Object.keys(
+  STARTER_PROMPT_GROUP_LABELS,
+) as StarterPromptGroup[];
+
+const { SEND, COMPOSE } = StarterPromptMode;
+const { CLIENT, CASE, PERSON, DOCUMENT } = StarterPickKind;
+const { WORK, MATTERS, LEGAL, DRAFTING } = StarterPromptGroup;
 
 export const GENERAL_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
-  { id: "agendaToday", icon: "lucideCalendarDays", mode: "send", group: "work" },
-  { id: "deadlinesSoon", icon: "lucideAlarmClock", mode: "send", group: "work" },
-  { id: "myTasks", icon: "lucideListChecks", mode: "send", group: "work" },
-  { id: "overdue", icon: "lucideCircleAlert", mode: "send", group: "work" },
-  { id: "hearingsWeek", icon: "lucideGavel", mode: "send", group: "work" },
-  { id: "logDayWork", icon: "lucideClock", mode: "send", group: "work" },
+  { id: "agendaToday", icon: "lucideCalendarDays", mode: SEND, group: WORK },
+  { id: "deadlinesSoon", icon: "lucideAlarmClock", mode: SEND, group: WORK },
+  { id: "myTasks", icon: "lucideListChecks", mode: SEND, group: WORK },
+  { id: "overdue", icon: "lucideCircleAlert", mode: SEND, group: WORK },
+  { id: "hearingsWeek", icon: "lucideGavel", mode: SEND, group: WORK },
+  { id: "logDayWork", icon: "lucideClock", mode: SEND, group: WORK },
   {
     id: "colleagueAgenda",
     icon: "lucideUsers",
-    mode: "send",
-    pick: "person",
-    group: "work",
+    mode: SEND,
+    pick: PERSON,
+    group: WORK,
   },
-  { id: "myCases", icon: "lucideBriefcase", mode: "send", group: "matters" },
+  { id: "myCases", icon: "lucideBriefcase", mode: SEND, group: MATTERS },
   {
     id: "caseOverview",
     icon: "lucideBriefcase",
-    mode: "send",
-    pick: "case",
-    group: "matters",
+    mode: SEND,
+    pick: CASE,
+    group: MATTERS,
   },
   {
     id: "pickedCaseWork",
     icon: "lucideListChecks",
-    mode: "send",
-    pick: "case",
-    group: "matters",
+    mode: SEND,
+    pick: CASE,
+    group: MATTERS,
   },
   {
     id: "pickedCaseActivity",
     icon: "lucideHistory",
-    mode: "send",
-    pick: "case",
-    group: "matters",
+    mode: SEND,
+    pick: CASE,
+    group: MATTERS,
   },
   {
     id: "clientOverview",
     icon: "lucideUser",
-    mode: "send",
-    pick: "client",
-    group: "matters",
+    mode: SEND,
+    pick: CLIENT,
+    group: MATTERS,
   },
   {
     id: "clientBilling",
     icon: "lucideReceipt",
-    mode: "send",
-    pick: "client",
-    group: "matters",
+    mode: SEND,
+    pick: CLIENT,
+    group: MATTERS,
   },
-  { id: "researchLaw", icon: "lucideBookOpen", mode: "compose", group: "legal" },
-  { id: "tariff", icon: "lucideReceipt", mode: "compose", group: "legal" },
+  { id: "researchLaw", icon: "lucideBookOpen", mode: COMPOSE, group: LEGAL },
+  { id: "tariff", icon: "lucideReceipt", mode: COMPOSE, group: LEGAL },
   {
     id: "draftLawsuit",
     icon: "lucideFilePen",
-    mode: "compose",
-    pick: "case",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: CASE,
+    group: DRAFTING,
   },
   {
     id: "draftDefence",
     icon: "lucideFilePen",
-    mode: "compose",
-    pick: "document",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: DOCUMENT,
+    group: DRAFTING,
   },
   {
     id: "draftAppeal",
     icon: "lucideFilePen",
-    mode: "compose",
-    pick: "document",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: DOCUMENT,
+    group: DRAFTING,
   },
   {
     id: "draftEnforcement",
     icon: "lucideFilePen",
-    mode: "compose",
-    pick: "case",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: CASE,
+    group: DRAFTING,
   },
   {
     id: "draftContract",
     icon: "lucideFilePen",
-    mode: "compose",
-    pick: "client",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: CLIENT,
+    group: DRAFTING,
   },
   {
     id: "draftDemandLetter",
     icon: "lucideFilePen",
-    mode: "compose",
-    pick: "case",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: CASE,
+    group: DRAFTING,
   },
   {
     id: "draftMediaReply",
     icon: "lucideFilePen",
-    mode: "compose",
-    group: "drafting",
+    mode: COMPOSE,
+    group: DRAFTING,
   },
   {
     id: "draftPowerOfAttorney",
     icon: "lucideFilePen",
-    mode: "compose",
-    pick: "client",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: CLIENT,
+    group: DRAFTING,
   },
   {
     id: "setDeadline",
     icon: "lucideCalendarPlus",
-    mode: "compose",
-    pick: "case",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: CASE,
+    group: DRAFTING,
   },
   {
     id: "deadlineFromDocument",
     icon: "lucideAlarmClock",
-    mode: "compose",
-    pick: "document",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: DOCUMENT,
+    group: DRAFTING,
   },
   {
     id: "reviewContract",
     icon: "lucideFileSearch",
-    mode: "compose",
-    pick: "document",
-    group: "drafting",
+    mode: COMPOSE,
+    pick: DOCUMENT,
+    group: DRAFTING,
   },
   {
     id: "analyzeDocument",
     icon: "lucideFileSearch",
-    mode: "send",
-    pick: "document",
-    group: "drafting",
+    mode: SEND,
+    pick: DOCUMENT,
+    group: DRAFTING,
   },
 ];
 
 /** Shown when the chat is linked to a case; the agent scopes to that case. */
 export const CASE_STARTER_PROMPTS: readonly AssistantStarterPrompt[] = [
-  { id: "caseSummary", icon: "lucideBriefcase", mode: "send" },
-  { id: "caseWork", icon: "lucideListChecks", mode: "send" },
-  { id: "caseActivity", icon: "lucideHistory", mode: "send" },
-  { id: "caseDocuments", icon: "lucideFileText", mode: "send" },
-  { id: "caseTimeline", icon: "lucideHistory", mode: "send" },
-  { id: "caseDraftLawsuit", icon: "lucideFilePen", mode: "compose" },
-  { id: "caseDraftAppeal", icon: "lucideFilePen", mode: "compose" },
-  { id: "caseDemandLetter", icon: "lucideFilePen", mode: "compose" },
-  { id: "caseReviewContract", icon: "lucideFileSearch", mode: "compose" },
-  { id: "caseSetDeadline", icon: "lucideCalendarPlus", mode: "compose" },
+  { id: "caseSummary", icon: "lucideBriefcase", mode: SEND },
+  { id: "caseWork", icon: "lucideListChecks", mode: SEND },
+  { id: "caseActivity", icon: "lucideHistory", mode: SEND },
+  { id: "caseDocuments", icon: "lucideFileText", mode: SEND },
+  { id: "caseTimeline", icon: "lucideHistory", mode: SEND },
+  { id: "caseDraftLawsuit", icon: "lucideFilePen", mode: COMPOSE },
+  { id: "caseDraftAppeal", icon: "lucideFilePen", mode: COMPOSE },
+  { id: "caseDemandLetter", icon: "lucideFilePen", mode: COMPOSE },
+  { id: "caseReviewContract", icon: "lucideFileSearch", mode: COMPOSE },
+  { id: "caseSetDeadline", icon: "lucideCalendarPlus", mode: COMPOSE },
   {
     id: "caseDeadlineFromDocument",
     icon: "lucideAlarmClock",
-    mode: "compose",
+    mode: COMPOSE,
   },
-  { id: "researchLaw", icon: "lucideBookOpen", mode: "compose" },
+  { id: "researchLaw", icon: "lucideBookOpen", mode: COMPOSE },
 ];
 
 export function starterPromptKey(

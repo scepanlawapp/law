@@ -3,7 +3,12 @@ import {
   WorkEntriesApiClient,
   WorkManagementApiClient,
 } from "@law/api-clients";
-import { TaskDetail, TaskRequest, WorkEntry } from "@law/api-interfaces";
+import {
+  TaskDetail,
+  TaskRequest,
+  TaskStatus,
+  WorkEntry,
+} from "@law/api-interfaces";
 import { map, Observable, of, switchMap, tap } from "rxjs";
 import { isEditable } from "../time/time-utils";
 import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
@@ -73,7 +78,7 @@ export class TaskCompletionService {
                 finishWithoutNewWork: () =>
                   this.api.updateTask(taskId, {
                     ...request,
-                    status: "DONE",
+                    status: TaskStatus.DONE,
                     workEntry: undefined,
                     finishWithoutNewWork: true,
                   }),
@@ -82,7 +87,7 @@ export class TaskCompletionService {
           save: (workEntry) => {
             const payload = {
               ...request,
-              status: "DONE" as const,
+              status: TaskStatus.DONE,
               finishWithoutNewWork: false,
               workEntry,
             };

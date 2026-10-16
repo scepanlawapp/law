@@ -1,5 +1,13 @@
 import { Injectable } from "@angular/core";
-import { Invoice, OrganizationSettings } from "@law/api-interfaces";
+import {
+  Invoice,
+  OrganizationSettings,
+  PaymentQrStandard,
+} from "@law/api-interfaces";
+import { CurrencyCode } from "../../shared/currency";
+
+/** NBS IPS QR codes only carry dinar payments. */
+const IPS_CURRENCY: CurrencyCode = "RSD";
 
 export interface InvoicePaymentTemplateValues {
   invoiceNumber: string;
@@ -16,9 +24,13 @@ export class InvoicePaymentQrService {
     settings: OrganizationSettings | null | undefined,
   ): string | null {
     const qr = settings?.paymentQr;
-    if (!settings || !qr?.enabled || qr.paymentStandard !== "NBS_IPS")
+    if (
+      !settings ||
+      !qr?.enabled ||
+      qr.paymentStandard !== PaymentQrStandard.NBS_IPS
+    )
       return null;
-    if (invoice.currency !== "RSD") return null;
+    if (invoice.currency !== IPS_CURRENCY) return null;
 
     const account = settings.bankAccounts.find(
       (candidate) => candidate.id === qr.paymentAccountId && candidate.active,
@@ -26,7 +38,7 @@ export class InvoicePaymentQrService {
     const accountNumber = normalizeSerbianPaymentAccount(
       account?.accountNumber ?? null,
     );
-    if (!account || account.currencyCode !== "RSD" || !accountNumber)
+    if (!account || account.currencyCode !== IPS_CURRENCY || !accountNumber)
       return null;
 
     const amount = Number(invoice.grossAmount);

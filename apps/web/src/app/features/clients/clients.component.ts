@@ -1,15 +1,9 @@
 import { Component, DestroyRef, inject, signal } from "@angular/core";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { Router, RouterLink } from "@angular/router";
-import {
-  EMPTY,
-  catchError,
-  debounceTime,
-  distinctUntilChanged,
-  startWith,
-  switchMap,
-} from "rxjs";
+import { debounceTime, distinctUntilChanged } from "rxjs";
 import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
+import { injectPaginatedList } from "../../shared/pagination/paginated-list";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ClientSummary } from "@law/api-interfaces";
 import { ClientsApiClient, ReferencesApiClient } from "@law/api-clients";
@@ -38,6 +32,7 @@ import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
 } from "../../shared/status-badge";
+import { CLIENT_STATUS_LABELS, CLIENT_TYPE_LABELS } from "../../shared/models";
 
 @Component({
   selector: "law-clients",
@@ -69,21 +64,19 @@ import {
 export class ClientsComponent {
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
+  readonly typeLabels = CLIENT_TYPE_LABELS;
+  readonly statusLabels = CLIENT_STATUS_LABELS;
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly references = inject(ReferencesApiClient);
   private readonly destroyRef = inject(DestroyRef);
   private readonly router = inject(Router);
   private readonly clientDialog = inject(ClientFormDialogService);
   readonly search = new FormControl("", { nonNullable: true });
-  readonly items = signal<ClientSummary[]>([]);
-  readonly page = signal(1);
-  readonly pageSize = signal(50);
-  readonly totalItems = signal(0);
-  readonly pageCount = signal(1);
-  readonly loading = signal(true);
-  readonly error = signal(false);
+  readonly list = injectPaginatedList<ClientSummary>({
+    fetch: (request) =>
+      this.clientsApi.list({ search: this.search.value, ...request }),
+  });
   readonly users = signal(new Map<string, string>());
-  private sequence = 0;
 
   constructor() {
     this.references
@@ -102,74 +95,16 @@ export class ClientsComponent {
             ),
           ),
       });
+    this.list.load();
     this.search.valueChanges
       .pipe(
-        startWith(this.search.value),
         debounceTime(300),
         distinctUntilChanged(),
-        switchMap((search) => {
-          this.page.set(1);
-          return this.load(search, 1);
-        }),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe();
+      .subscribe(() => this.list.reset());
   }
 
-  load(
-    search = this.search.value,
-    page = this.page(),
-  ): ReturnType<ClientsApiClient["list"]> {
-    const sequence = ++this.sequence;
-    this.loading.set(true);
-    this.error.set(false);
-    return this.clientsApi
-      .list({ search, page, pageSize: this.pageSize() })
-      .pipe(
-        switchMap((response) => {
-          if (sequence === this.sequence) {
-            const lastPage = Math.max(1, response.meta.totalPages);
-            if (response.meta.page > lastPage)
-              return this.load(search, lastPage);
-            this.items.set(response.items);
-            this.page.set(response.meta.page);
-            this.pageCount.set(lastPage);
-            this.totalItems.set(response.meta.totalItems);
-            this.loading.set(false);
-          }
-          return [];
-        }),
-        catchError(() => {
-          if (sequence === this.sequence) {
-            this.loading.set(false);
-            this.error.set(true);
-          }
-          return EMPTY;
-        }),
-      );
-  }
-
-  changePage(page: number): void {
-    if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.load(this.search.value, page)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        error: () => {
-          this.loading.set(false);
-          this.error.set(true);
-        },
-      });
-  }
-
-  retry(): void {
-    this.changePage(this.page());
-  }
-  changePageSize(pageSize: number): void {
-    if (this.loading() || pageSize === this.pageSize()) return;
-    this.pageSize.set(pageSize);
-    this.page.set(1);
-    this.load().pipe(takeUntilDestroyed(this.destroyRef)).subscribe();
-  }
   clearSearch(): void {
     this.search.setValue("");
   }

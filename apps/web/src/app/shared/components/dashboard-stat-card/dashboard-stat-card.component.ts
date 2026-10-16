@@ -13,6 +13,20 @@ import {
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 
+export const TrendDirection = {
+  UP: "up",
+  DOWN: "down",
+  NEUTRAL: "neutral",
+} as const;
+export type TrendDirection =
+  (typeof TrendDirection)[keyof typeof TrendDirection];
+
+const TREND_ICONS: Readonly<Record<TrendDirection, string>> = {
+  [TrendDirection.UP]: "lucideTrendingUp",
+  [TrendDirection.DOWN]: "lucideTrendingDown",
+  [TrendDirection.NEUTRAL]: "lucideMinus",
+};
+
 /**
  * Reusable stat/summary card. Trend/chart are optional so it also works for
  * plain counts and for an "unavailable" placeholder (no real data source yet).
@@ -44,9 +58,12 @@ export class DashboardStatCardComponent {
   readonly unavailable = input<boolean>(false);
   readonly unavailableKey = input<string>("common.notAvailableYet");
   readonly trend = input<string | undefined>(undefined);
-  readonly trendDirection = input<"up" | "down" | "neutral">("neutral");
+  readonly trendDirection = input<TrendDirection>(TrendDirection.NEUTRAL);
   readonly trendDetailKey = input<string | undefined>(undefined);
   readonly chart = input<number[]>([]);
   readonly routerLink = input<string | undefined>(undefined);
   readonly queryParams = input<Record<string, string> | undefined>(undefined);
+
+  protected readonly TrendDirection = TrendDirection;
+  protected readonly trendIcons = TREND_ICONS;
 }
