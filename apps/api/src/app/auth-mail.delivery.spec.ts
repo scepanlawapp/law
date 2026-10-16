@@ -17,11 +17,7 @@ function createService() {
   };
   const queue = { add: jest.fn().mockResolvedValue(undefined) };
   const config = new AuthRuntimeConfig();
-  const service = new AuthMailService(
-    config,
-    prisma as never,
-    queue as never,
-  );
+  const service = new AuthMailService(config, prisma as never, queue as never);
   return { service, prisma, queue };
 }
 
@@ -114,6 +110,47 @@ describe("AuthMailService", () => {
     for (const call of warn.mock.calls) {
       expect(String(call[0])).not.toContain("secret-token");
     }
+  });
+});
+
+describe("AuthMailService enqueue timeout", () => {
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
+
+  it("does not hang when the queue never answers", async () => {
+    jest.useFakeTimers();
+    const { service, queue } = createService();
+    queue.add.mockReturnValue(new Promise(() => undefined));
+    const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+
+    let settled = false;
+    const pending = service
+      .sendPasswordReset(user, "secret-token")
+      .then(() => (settled = true));
+
+    await jest.advanceTimersByTimeAsync(2900);
+    expect(settled).toBe(false);
+    await jest.advanceTimersByTimeAsync(200);
+    await pending;
+
+    expect(settled).toBe(true);
+    expect(warn).toHaveBeenCalledTimes(1);
+    const logged = String(warn.mock.calls[0][0]);
+    expect(logged).toContain("passwordReset");
+    expect(logged).toContain("user-1");
+    expect(logged).not.toContain("secret-token");
+    expect(logged).not.toContain("ana@example.com");
+  });
+
+  it("clears the timer when the add resolves", async () => {
+    jest.useFakeTimers();
+    const { service } = createService();
+
+    await service.sendPasswordReset(user, "tok");
+
+    expect(jest.getTimerCount()).toBe(0);
   });
 });
 
