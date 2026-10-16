@@ -268,7 +268,7 @@
           <th hlmTh>{{ "time.capture.client" | translate }}</th>
           <th hlmTh>{{ "time.capture.workDescription" | translate }}</th>
           <th hlmTh>{{ "time.team.person" | translate }}</th>
-          <th hlmTh>{{ "time.capture.duration" | translate }}</th>
+          <th hlmTh class="text-right">{{ "time.team.price" | translate }}</th>
           <th hlmTh>{{ "time.capture.treatment" | translate }}</th>
           <th hlmTh>{{ "work.entries.status" | translate }}</th>
           <th hlmTh>{{ "work.entries.view" | translate }}</th>
@@ -321,12 +321,8 @@
                   ("time.capture.unassigned" | translate)
               }}
             </td>
-            <td hlmTd class="whitespace-nowrap">
-              @if (entry.minutes !== null) {
-                {{ formatMinutes(entry.minutes) }}
-              } @else {
-                {{ "time.review.noDuration" | translate }}
-              }
+            <td hlmTd class="whitespace-nowrap text-right tabular-nums">
+              {{ priceLabel(entry) }}
             </td>
             <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
             <td hlmTd>

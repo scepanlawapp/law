@@ -58,7 +58,7 @@ export function dueLabel(
 }
 
 export function isTaskOverdue(task: TaskDetail): boolean {
-  if (["DONE", "CANCELLED"].includes(task.status)) return false;
+  if (["DONE", "CANCELLED", "ARCHIVED"].includes(task.status)) return false;
   const value = task.dueAt ?? task.dueDate;
   if (!value) return false;
   const due = task.dueAt

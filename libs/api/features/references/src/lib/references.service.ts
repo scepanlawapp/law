@@ -43,7 +43,11 @@ export class ReferencesService {
           },
         },
       },
-      orderBy: { user: { email: "asc" } },
+      orderBy: [
+        { user: { firstName: "asc" } },
+        { user: { lastName: "asc" } },
+        { user: { email: "asc" } },
+      ],
     });
   }
   countries() {

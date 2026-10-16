@@ -337,7 +337,7 @@ export class CasesService {
         "updatedAt",
         "createdAt",
       ],
-      [{ field: "updatedAt", direction: "desc" }],
+      [{ field: "caseNumber", direction: "asc" }],
     );
     const clientFilter = clientIdFilter(query);
     const where: Prisma.CaseWhereInput = {

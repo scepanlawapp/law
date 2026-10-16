@@ -44,7 +44,13 @@ import { WorkEntrySourcesService, workDateFor } from "@law/work-entries";
 // CalendarQueryDto.statuses is one combined string[] filter shared across Event/Task/Deadline;
 // each record type only accepts its own enum, so requested values must be narrowed per type.
 const EVENT_STATUSES = ["SCHEDULED", "COMPLETED", "CANCELLED"] as const;
-const TASK_STATUSES = ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"] as const;
+const TASK_STATUSES = [
+  "TODO",
+  "IN_PROGRESS",
+  "DONE",
+  "CANCELLED",
+  "ARCHIVED",
+] as const;
 const DEADLINE_STATUSES = ["OPEN", "SATISFIED", "CANCELLED"] as const;
 
 function narrowStatuses<T extends string>(

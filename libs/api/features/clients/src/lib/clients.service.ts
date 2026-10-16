@@ -202,7 +202,7 @@ export class ClientsService {
     const sort = parseSort(
       query.sort,
       ["clientNumber", "displayName", "createdAt", "updatedAt", "status"],
-      [{ field: "updatedAt", direction: "desc" }],
+      [{ field: "displayName", direction: "asc" }],
     );
     const search = query.search?.trim();
     // Names also match without diacritics ("Ilic" finds "Ilić").

@@ -63,6 +63,20 @@ describe("TaskDialogComponent completion", () => {
   });
   const create = () =>
     TestBed.runInInjectionContext(() => new TaskDialogComponent());
+  it("offers archived status and saves it without work capture", () => {
+    const component = create();
+    expect(component.statuses).toContain("ARCHIVED");
+    expect(component.taskStatusItemToString("ARCHIVED")).toBe(
+      "work.taskStatus.archived",
+    );
+    component.form.controls.status.setValue("ARCHIVED");
+    component.submit();
+    expect(api.updateTask).toHaveBeenCalledWith(
+      "task",
+      expect.objectContaining({ status: "ARCHIVED" }),
+    );
+    expect(completion.complete).not.toHaveBeenCalled();
+  });
   it("preserves the previous status and pending edits when capture is cancelled", () => {
     const component = create();
     component.form.patchValue({ status: "DONE", title: "Edited title" });

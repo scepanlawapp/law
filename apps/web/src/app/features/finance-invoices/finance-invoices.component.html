@@ -122,7 +122,7 @@
             <hlm-select-trigger buttonId="invoice-currency-filter" size="sm">
               <hlm-select-value />
             </hlm-select-trigger>
-            <hlm-select-content *hlmSelectPortal>
+            <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
                 @for (option of currencyOptions; track option.value) {
                   <hlm-select-item [value]="option.value">

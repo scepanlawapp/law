@@ -254,6 +254,7 @@ enum TaskStatus {
   IN_PROGRESS
   DONE
   CANCELLED
+  ARCHIVED
 }
 
 enum DeadlineType {

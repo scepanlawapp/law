@@ -39,8 +39,13 @@ import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { NgIcon, provideIcons } from "@ng-icons/core";
-import { lucideKanban, lucideList, lucidePlus } from "@ng-icons/lucide";
-import { Observable, debounceTime, distinctUntilChanged } from "rxjs";
+import {
+  lucideArchive,
+  lucideKanban,
+  lucideList,
+  lucidePlus,
+} from "@ng-icons/lucide";
+import { Observable, debounceTime, distinctUntilChanged, finalize } from "rxjs";
 import { BottomReachedDirective } from "../../../core/directives/bottom-reached.directive";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { ComboboxSelectAllComponent } from "../../../shared/ui/combobox-select-all/combobox-select-all.component";
@@ -93,7 +98,9 @@ function taskStatusesFor(
 ): TaskStatus[] | undefined {
   if (!presentations.length) return undefined;
   return presentations.filter((status): status is TaskStatus =>
-    (["TODO", "IN_PROGRESS", "DONE", "CANCELLED"] as string[]).includes(status),
+    (
+      ["TODO", "IN_PROGRESS", "DONE", "CANCELLED", "ARCHIVED"] as string[]
+    ).includes(status),
   );
 }
 
@@ -146,6 +153,7 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
   ],
   providers: [
     provideIcons({
+      lucideArchive,
       lucideKanban,
       lucideList,
       lucidePlus,
@@ -188,7 +196,12 @@ export class WorkViewComponent {
     (this.initialParams.get("presentation") as Presentation) || "board",
   );
   readonly peopleIds = signal<string[]>(this.initialParams.getAll("people"));
-  readonly statuses = signal<PresentationStatus[]>([]);
+  readonly statuses = signal<PresentationStatus[]>([
+    "TODO",
+    "IN_PROGRESS",
+    "DONE",
+  ]);
+  readonly archivingTaskIds = signal<ReadonlySet<string>>(new Set());
   readonly caseFilter = signal<string>(this.initialParams.get("case") ?? "");
   readonly search = new FormControl(this.initialParams.get("search") ?? "", {
     nonNullable: true,
@@ -209,6 +222,7 @@ export class WorkViewComponent {
     { value: "IN_PROGRESS", label: "work.status.inProgress" },
     { value: "DONE", label: "work.status.done" },
     { value: "CANCELLED", label: "work.status.cancelled" },
+    { value: "ARCHIVED", label: "work.status.archived" },
   ];
   readonly statusItemToString = (
     value: PresentationStatus | null | undefined,
@@ -244,7 +258,7 @@ export class WorkViewComponent {
   readonly hasMore = computed(() => this.tasksHasMore());
 
   readonly boardColumns = computed<BoardColumnKey[]>(() => {
-    return ["TODO", "IN_PROGRESS", "DONE", "CANCELLED"];
+    return ["TODO", "IN_PROGRESS", "DONE"];
   });
   readonly draggingItem = signal<WorkItem | null>(null);
   readonly hoveredColumn = signal<BoardColumnKey | null>(null);
@@ -453,6 +467,7 @@ export class WorkViewComponent {
 
   canCancel(item: WorkItem): boolean {
     return (
+      item.presentationStatus !== "ARCHIVED" &&
       item.presentationStatus !== "CANCELLED" &&
       item.presentationStatus !== "DONE"
     );
@@ -477,6 +492,33 @@ export class WorkViewComponent {
       .openQuickCapture(item.raw as TaskDetail)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe();
+  }
+
+  archive(item: WorkItem): void {
+    if (
+      item.sourceType !== "TASK" ||
+      item.rawStatus === "ARCHIVED" ||
+      this.archivingTaskIds().has(item.id)
+    )
+      return;
+    this.archivingTaskIds.update((ids) => new Set([...ids, item.id]));
+    this.workApi
+      .updateTask(item.id, toTaskRequest(item.raw as TaskDetail, "ARCHIVED"))
+      .pipe(
+        takeUntilDestroyed(this.destroyRef),
+        finalize(() =>
+          this.archivingTaskIds.update((ids) => {
+            const remaining = new Set(ids);
+            remaining.delete(item.id);
+            return remaining;
+          }),
+        ),
+      )
+      .subscribe({
+        next: () => this.updateTaskStatusLocally(item.id, "ARCHIVED"),
+        error: () =>
+          this.toast.error(this.localization.translate("work.saveError")),
+      });
   }
 
   complete(item: WorkItem): void {

@@ -118,6 +118,7 @@ export class TaskDialogComponent {
     "IN_PROGRESS",
     "DONE",
     "CANCELLED",
+    "ARCHIVED",
   ];
   readonly dueModes: DueTargetMode[] = ["NONE", "DATE", "DATE_TIME"];
   readonly taskStatusItemToString = (
@@ -195,7 +196,11 @@ export class TaskDialogComponent {
         assigneeUserId: initial.assigneeUserId,
         caseId: initial.caseId ?? "",
         clientId: initial.clientId ?? "",
-        dueMode: initial.dueAt ? "DATE_TIME" : initial.dueDate ? "DATE" : "NONE",
+        dueMode: initial.dueAt
+          ? "DATE_TIME"
+          : initial.dueDate
+            ? "DATE"
+            : "NONE",
         dueDate: dateInputValue(initial.dueDate),
         dueAt: dateTimeInputValue(initial.dueAt),
       });

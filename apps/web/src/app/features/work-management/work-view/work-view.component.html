@@ -342,12 +342,41 @@
                 ) {
                   <div
                     cdkDrag
+                    [cdkDragDisabled]="archivingTaskIds().has(item.id)"
                     [cdkDragData]="item"
                     (cdkDragStarted)="onDragStarted(item)"
                     (cdkDragEnded)="onDragEnded()"
                     class="work-board-card rounded-lg border border-border-subtle bg-surface-card p-3 transition-[background-color,border-color,color,transform,box-shadow] hover:border-border-interactive hover:bg-surface-field hover:text-primary hover:shadow-sm"
                   >
-                    <div class="flex items-end">
+                    <div class="flex flex-wrap items-start gap-2">
+                      <div class="flex w-full justify-end gap-2">
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          [disabled]="archivingTaskIds().has(item.id)"
+                          (click)="openQuickCapture(item)"
+                        >
+                          {{ "work.addWork" | translate }}
+                        </button>
+                        <button
+                          hlmBtn
+                          type="button"
+                          variant="outline"
+                          size="icon-sm"
+                          [disabled]="archivingTaskIds().has(item.id)"
+                          [attr.aria-label]="'work.actions.archive' | translate"
+                          [hlmTooltip]="'work.actions.archive' | translate"
+                          (click)="archive(item)"
+                        >
+                          @if (archivingTaskIds().has(item.id)) {
+                            <hlm-spinner />
+                          } @else {
+                            <ng-icon name="lucideArchive" />
+                          }
+                        </button>
+                      </div>
                       <button
                         type="button"
                         class="flex w-full flex-col items-start text-start"
@@ -374,16 +403,6 @@
                         <span class="text-sm text-muted-foreground">
                           {{ formatDue(item) }}
                         </span>
-                      </button>
-                      <button
-                        hlmBtn
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        class="mt-2"
-                        (click)="openQuickCapture(item)"
-                      >
-                        {{ "work.addWork" | translate }}
                       </button>
                     </div>
                   </div>

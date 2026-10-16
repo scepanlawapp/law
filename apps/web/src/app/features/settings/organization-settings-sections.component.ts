@@ -1259,7 +1259,7 @@ export class PaymentSettingsComponent extends SectionBase {
                 <hlm-select-trigger buttonId="default-currency" class="w-full">
                   <hlm-select-value />
                 </hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal>
+                <hlm-select-content *hlmSelectPortal width="content">
                   <hlm-select-group>
                     @for (currency of currencies; track currency.value) {
                       <hlm-select-item [value]="currency.value">
@@ -1302,7 +1302,7 @@ export class PaymentSettingsComponent extends SectionBase {
                     </hlm-select-values-content>
                   </ng-template>
                 </hlm-select-trigger>
-                <hlm-select-content *hlmSelectPortal>
+                <hlm-select-content *hlmSelectPortal width="content">
                   <hlm-select-group>
                     @for (currency of currencies; track currency.value) {
                       <hlm-select-item [value]="currency.value">
