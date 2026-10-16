@@ -1,0 +1,189 @@
+@switch (step()) {
+  @case ("password") {
+    <form
+      class="flex flex-col gap-5"
+      [formGroup]="passwordForm"
+      (ngSubmit)="submitPassword()"
+      novalidate
+    >
+      <p class="text-muted-foreground text-sm leading-snug">
+        {{ "auth.mfa.passwordDescription" | translate }}
+      </p>
+      <div hlmField>
+        <label hlmFieldLabel for="mfa-current-password">
+          {{ "auth.mfa.currentPassword" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="mfa-current-password"
+          class="w-full"
+          type="password"
+          formControlName="currentPassword"
+          autocomplete="current-password"
+          required
+        />
+      </div>
+      @if (error()) {
+        <p class="text-destructive text-sm" role="alert">{{ error() }}</p>
+      }
+      <button
+        hlmBtn
+        type="submit"
+        class="w-full"
+        [disabled]="submitting() || passwordForm.invalid"
+      >
+        @if (submitting()) {
+          <hlm-spinner aria-hidden="true" />
+        }
+        {{ "auth.mfa.continue" | translate }}
+      </button>
+    </form>
+  }
+
+  @case ("scan") {
+    <form
+      class="flex flex-col gap-5"
+      [formGroup]="codeForm"
+      (ngSubmit)="confirm()"
+      novalidate
+    >
+      <p class="text-muted-foreground text-sm leading-snug">
+        {{ "auth.mfa.scanInstructions" | translate }}
+      </p>
+      @if (start(); as enrollment) {
+        <img
+          class="mx-auto size-48 rounded-md border"
+          [src]="enrollment.qrCodeDataUrl"
+          [alt]="'auth.mfa.qrAlt' | translate"
+        />
+        <div class="flex flex-col gap-2">
+          <p class="text-muted-foreground text-sm">
+            {{ "auth.mfa.manualEntry" | translate }}
+          </p>
+          <div class="flex items-center gap-2">
+            <code
+              class="bg-muted text-foreground flex-1 rounded-md px-3 py-2 font-mono text-sm tracking-wider break-all"
+              data-testid="mfa-secret"
+            >
+              {{ groupedSecret() }}
+            </code>
+            <button
+              hlmBtn
+              variant="outline"
+              size="sm"
+              type="button"
+              (click)="copySecret()"
+            >
+              {{
+                (secretCopied() ? "auth.mfa.copied" : "auth.mfa.copySecret")
+                  | translate
+              }}
+            </button>
+          </div>
+        </div>
+      }
+      <div hlmField>
+        <label hlmFieldLabel for="mfa-enroll-code">
+          {{ "auth.mfa.confirmCodeLabel" | translate }}
+        </label>
+        <input
+          hlmInput
+          id="mfa-enroll-code"
+          class="w-full"
+          type="text"
+          formControlName="code"
+          inputmode="numeric"
+          autocomplete="one-time-code"
+          maxlength="6"
+          spellcheck="false"
+          [placeholder]="'auth.mfa.codePlaceholder' | translate"
+          (input)="onCodeInput()"
+          (paste)="onCodePaste($event)"
+        />
+      </div>
+      @if (error()) {
+        <p class="text-destructive text-sm" role="alert">{{ error() }}</p>
+      }
+      <button
+        hlmBtn
+        type="submit"
+        class="w-full"
+        [disabled]="submitting() || !codeValid()"
+      >
+        @if (submitting()) {
+          <hlm-spinner aria-hidden="true" />
+        }
+        {{ "auth.mfa.confirmAndEnable" | translate }}
+      </button>
+    </form>
+  }
+
+  @case ("codes") {
+    <div class="flex flex-col gap-5">
+      <p class="text-muted-foreground text-sm leading-snug">
+        {{ "auth.mfa.codesDescription" | translate }}
+      </p>
+      <ul
+        class="bg-muted grid grid-cols-2 gap-x-4 gap-y-1 rounded-md p-4 font-mono text-sm"
+        data-testid="mfa-recovery-codes"
+      >
+        @for (code of recoveryCodes(); track code) {
+          <li>{{ code }}</li>
+        }
+      </ul>
+      <div class="flex flex-wrap gap-2">
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          type="button"
+          (click)="copyRecoveryCodes()"
+        >
+          {{
+            (codesCopied() ? "auth.mfa.copied" : "auth.mfa.copyCodes")
+              | translate
+          }}
+        </button>
+        <button
+          hlmBtn
+          variant="outline"
+          size="sm"
+          type="button"
+          (click)="downloadRecoveryCodes()"
+        >
+          {{ "auth.mfa.downloadCodes" | translate }}
+        </button>
+      </div>
+      <label class="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          class="accent-primary size-4"
+          [checked]="codesSaved()"
+          (change)="setCodesSaved($any($event.target).checked)"
+        />
+        {{ "auth.mfa.codesSaved" | translate }}
+      </label>
+      <button
+        hlmBtn
+        type="button"
+        class="w-full"
+        data-testid="mfa-continue"
+        [disabled]="!canContinue()"
+        (click)="finish()"
+      >
+        {{ "auth.mfa.continue" | translate }}
+      </button>
+    </div>
+  }
+
+  @case ("unavailable") {
+    <div class="flex flex-col gap-4">
+      <p class="text-destructive text-sm" role="alert">
+        {{ "auth.mfa.setupUnavailable" | translate }}
+      </p>
+      <a hlmBtn variant="outline" class="w-full" routerLink="/login">
+        {{ "auth.mfa.backToPassword" | translate }}
+      </a>
+    </div>
+  }
+}

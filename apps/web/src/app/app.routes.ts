@@ -9,6 +9,7 @@ import { AcceptInvitationComponent } from "./accept-invitation.component";
 import { ForgotPasswordComponent } from "./auth/forgot-password/forgot-password.component";
 import { ResetPasswordComponent } from "./auth/reset-password/reset-password.component";
 import { LoginComponent } from "./auth/login/login.component";
+import { MfaSetupComponent } from "./auth/mfa/mfa-setup.component";
 import { AuthLayoutComponent } from "./auth/auth-layout/auth-layout.component";
 import { authGuard } from "@law/security";
 import { DashboardComponent } from "./features/dashboard/dashboard.component";
@@ -63,6 +64,11 @@ export const appRoutes: Route[] = [
     path: "login",
     component: AuthLayoutComponent,
     children: [{ path: "", component: LoginComponent }],
+  },
+  {
+    path: "mfa-setup",
+    component: AuthLayoutComponent,
+    children: [{ path: "", component: MfaSetupComponent }],
   },
   {
     path: "forgot-password",

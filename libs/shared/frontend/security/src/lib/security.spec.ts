@@ -35,6 +35,14 @@ describe("AuthState", () => {
     });
   });
 
+  it("completeLogin stores the session from the second factor", () => {
+    const state = TestBed.inject(AuthState);
+
+    state.completeLogin(session);
+
+    expect(state.session()).toEqual(session);
+  });
+
   it("restores an authenticated session during bootstrap", () => {
     api.me.mockReturnValue(of(session));
     const state = TestBed.inject(AuthState);

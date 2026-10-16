@@ -76,7 +76,7 @@ export class AcceptInvitationComponent {
         next: (response) => {
           if (response.status !== "AUTHENTICATED") {
             // Office requires 2FA: the challenge cookie is set, continue to
-            // setup (the /mfa-setup screen arrives with the MFA UI task).
+            // the enrollment screen.
             void this.router.navigate(["/mfa-setup"]);
             return;
           }

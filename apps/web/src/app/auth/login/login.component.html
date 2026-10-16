@@ -20,99 +20,253 @@
           class="mx-auto block h-auto w-[60%]"
         />
 
-        <section class="mt-8 text-left">
-          <h1 class="text-xl font-semibold">
-            {{ "auth.welcomeBack" | translate }}
-          </h1>
-          <p class="text-muted-foreground mt-2 text-sm leading-snug">
-            {{ "auth.signInDescription" | translate }}
-          </p>
-        </section>
+        @if (step() === "password") {
+          <section class="mt-8 text-left">
+            <h1 class="text-xl font-semibold">
+              {{ "auth.welcomeBack" | translate }}
+            </h1>
+            <p class="text-muted-foreground mt-2 text-sm leading-snug">
+              {{ "auth.signInDescription" | translate }}
+            </p>
+          </section>
 
-        <form
-          class="mt-8 flex w-full flex-col gap-5"
-          [formGroup]="loginForm"
-          (ngSubmit)="login()"
-          novalidate
-        >
-          <div hlmField>
-            <label hlmFieldLabel for="email">
-              {{ "auth.emailAddress" | translate }}
-            </label>
-            <hlm-input-group class="w-full">
-              <hlm-input-group-addon>
-                <ng-icon name="lucideMail" aria-hidden="true" />
-              </hlm-input-group-addon>
-              <input
-                hlmInputGroupInput
-                id="email"
-                type="email"
-                formControlName="email"
-                required
-                autocomplete="email"
-                [placeholder]="'auth.emailPlaceholder' | translate"
-              />
-            </hlm-input-group>
-          </div>
+          <form
+            class="mt-8 flex w-full flex-col gap-5"
+            [formGroup]="loginForm"
+            (ngSubmit)="login()"
+            novalidate
+          >
+            <div hlmField>
+              <label hlmFieldLabel for="email">
+                {{ "auth.emailAddress" | translate }}
+              </label>
+              <hlm-input-group class="w-full">
+                <hlm-input-group-addon>
+                  <ng-icon name="lucideMail" aria-hidden="true" />
+                </hlm-input-group-addon>
+                <input
+                  hlmInputGroupInput
+                  id="email"
+                  type="email"
+                  formControlName="email"
+                  required
+                  autocomplete="email"
+                  [placeholder]="'auth.emailPlaceholder' | translate"
+                />
+              </hlm-input-group>
+            </div>
 
-          <div hlmField>
-            <label hlmFieldLabel for="password">
-              {{ "auth.password" | translate }}
-            </label>
-            <hlm-input-group class="w-full">
-              <hlm-input-group-addon>
-                <ng-icon name="lucideLock" aria-hidden="true" />
-              </hlm-input-group-addon>
+            <div hlmField>
+              <label hlmFieldLabel for="password">
+                {{ "auth.password" | translate }}
+              </label>
+              <hlm-input-group class="w-full">
+                <hlm-input-group-addon>
+                  <ng-icon name="lucideLock" aria-hidden="true" />
+                </hlm-input-group-addon>
+                <input
+                  hlmInputGroupInput
+                  id="password"
+                  [type]="showPassword ? 'text' : 'password'"
+                  formControlName="password"
+                  required
+                  autocomplete="current-password"
+                  [placeholder]="'auth.passwordPlaceholder' | translate"
+                />
+                <hlm-input-group-addon align="inline-end">
+                  <button
+                    hlmInputGroupButton
+                    size="icon-xs"
+                    type="button"
+                    [attr.aria-label]="'auth.togglePassword' | translate"
+                    (click)="togglePasswordVisibility()"
+                  >
+                    <ng-icon
+                      [name]="showPassword ? 'lucideEyeOff' : 'lucideEye'"
+                    />
+                  </button>
+                </hlm-input-group-addon>
+              </hlm-input-group>
+            </div>
+
+            @if (notice()) {
+              <p class="text-muted-foreground text-sm" role="status">
+                {{ notice() }}
+              </p>
+            }
+
+            @if (error()) {
+              <p class="text-destructive text-sm" role="alert">{{ error() }}</p>
+            }
+
+            <a
+              hlmBtn
+              variant="link"
+              class="self-end px-0 text-sm"
+              routerLink="/forgot-password"
+            >
+              {{ "auth.forgotPassword" | translate }}
+            </a>
+
+            <button
+              hlmBtn
+              class="mt-1 w-full"
+              type="submit"
+              [disabled]="submitting()"
+            >
+              @if (submitting()) {
+                <hlm-spinner aria-hidden="true" />
+              }
+              <span>
+                {{
+                  (submitting() ? "auth.signingIn" : "auth.signIn") | translate
+                }}
+              </span>
+              <ng-icon name="lucideArrowRight" aria-hidden="true" />
+            </button>
+          </form>
+        } @else {
+          <section class="mt-8 text-left">
+            <h1 class="text-xl font-semibold">
+              {{ "auth.mfa.codeTitle" | translate }}
+            </h1>
+            <p class="text-muted-foreground mt-2 text-sm leading-snug">
+              @switch (method()) {
+                @case ("RECOVERY") {
+                  {{ "auth.mfa.codeDescriptionRecovery" | translate }}
+                }
+                @case ("EMAIL") {
+                  {{ "auth.mfa.codeDescriptionEmail" | translate }}
+                }
+                @default {
+                  {{ "auth.mfa.codeDescriptionTotp" | translate }}
+                }
+              }
+            </p>
+          </section>
+
+          <form
+            class="mt-8 flex w-full flex-col gap-5"
+            [formGroup]="codeForm"
+            (ngSubmit)="verify()"
+            novalidate
+          >
+            <div hlmField>
+              <label hlmFieldLabel for="mfa-code">
+                {{
+                  (method() === "RECOVERY"
+                    ? "auth.mfa.recoveryLabel"
+                    : "auth.mfa.codeLabel"
+                  ) | translate
+                }}
+              </label>
               <input
-                hlmInputGroupInput
-                id="password"
-                [type]="showPassword ? 'text' : 'password'"
-                formControlName="password"
-                required
-                autocomplete="current-password"
-                [placeholder]="'auth.passwordPlaceholder' | translate"
+                hlmInput
+                id="mfa-code"
+                class="w-full"
+                type="text"
+                formControlName="code"
+                autocomplete="one-time-code"
+                autocapitalize="off"
+                spellcheck="false"
+                [attr.inputmode]="method() === 'RECOVERY' ? 'text' : 'numeric'"
+                [attr.maxlength]="codeMaxLength()"
+                [placeholder]="
+                  (method() === 'RECOVERY'
+                    ? 'auth.mfa.recoveryPlaceholder'
+                    : 'auth.mfa.codePlaceholder'
+                  ) | translate
+                "
+                (input)="onCodeInput()"
+                (paste)="onCodePaste($event)"
               />
-              <hlm-input-group-addon align="inline-end">
+            </div>
+
+            @if (method() === "EMAIL" && emailCodeSent()) {
+              <p class="text-muted-foreground text-sm" role="status">
+                {{ "auth.mfa.emailCodeSent" | translate }}
+              </p>
+            }
+
+            @if (error()) {
+              <p class="text-destructive text-sm" role="alert">
+                {{ error() }}
+              </p>
+            }
+
+            <label class="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                class="accent-primary size-4"
+                formControlName="rememberDevice"
+              />
+              {{ "auth.mfa.rememberDevice" | translate }}
+            </label>
+
+            <button
+              hlmBtn
+              class="w-full"
+              type="submit"
+              [disabled]="submitting() || !codeValid()"
+            >
+              @if (submitting()) {
+                <hlm-spinner aria-hidden="true" />
+              }
+              <span>
+                {{
+                  (submitting() ? "auth.mfa.verifying" : "auth.mfa.verify")
+                    | translate
+                }}
+              </span>
+            </button>
+
+            <div class="flex flex-col items-start gap-1">
+              @if (method() !== "TOTP" && canUse("TOTP")) {
                 <button
-                  hlmInputGroupButton
-                  size="icon-xs"
+                  hlmBtn
+                  variant="link"
                   type="button"
-                  [attr.aria-label]="'auth.togglePassword' | translate"
-                  (click)="togglePasswordVisibility()"
+                  class="h-auto px-0 text-sm"
+                  (click)="useAuthenticator()"
                 >
-                  <ng-icon
-                    [name]="showPassword ? 'lucideEyeOff' : 'lucideEye'"
-                  />
+                  {{ "auth.mfa.useAuthenticator" | translate }}
                 </button>
-              </hlm-input-group-addon>
-            </hlm-input-group>
-          </div>
-
-          @if (error) {
-            <p class="text-destructive text-sm" role="alert">{{ error }}</p>
-          }
-
-          <a
-            hlmBtn
-            variant="link"
-            class="self-end px-0 text-sm"
-            routerLink="/forgot-password"
-          >
-            {{ "auth.forgotPassword" | translate }}
-          </a>
-
-          <button
-            hlmBtn
-            class="mt-1 w-full"
-            type="submit"
-            [disabled]="submitting"
-          >
-            <span>
-              {{ (submitting ? "auth.signingIn" : "auth.signIn") | translate }}
-            </span>
-            <ng-icon name="lucideArrowRight" aria-hidden="true" />
-          </button>
-        </form>
+              }
+              @if (method() !== "RECOVERY" && canUse("RECOVERY")) {
+                <button
+                  hlmBtn
+                  variant="link"
+                  type="button"
+                  class="h-auto px-0 text-sm"
+                  (click)="useRecovery()"
+                >
+                  {{ "auth.mfa.useRecovery" | translate }}
+                </button>
+              }
+              @if (canUse("EMAIL")) {
+                <button
+                  hlmBtn
+                  variant="link"
+                  type="button"
+                  class="h-auto px-0 text-sm"
+                  [disabled]="submitting()"
+                  (click)="sendEmailCode()"
+                >
+                  {{ "auth.mfa.sendEmailCode" | translate }}
+                </button>
+              }
+              <button
+                hlmBtn
+                variant="link"
+                type="button"
+                class="h-auto px-0 text-sm"
+                (click)="backToPassword()"
+              >
+                {{ "auth.mfa.backToPassword" | translate }}
+              </button>
+            </div>
+          </form>
+        }
       </div>
 
       <div class="min-h-0 flex-1" aria-hidden="true"></div>

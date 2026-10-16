@@ -64,6 +64,11 @@ export class AuthState {
     );
   }
 
+  /** Second factor (or challenge enrollment) finished: the session cookie is set. */
+  completeLogin(session: AuthSessionResponse): void {
+    this.session.set(session);
+  }
+
   logout() {
     return this.api.logout().pipe(
       tap(() => {

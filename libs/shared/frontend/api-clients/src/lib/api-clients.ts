@@ -51,6 +51,16 @@ import {
   PaginationQuery,
   InvitationAcceptRequest,
   LoginRequest,
+  MemberSecuritySummary,
+  MfaEnrollmentConfirmRequest,
+  MfaEnrollmentConfirmResponse,
+  MfaEnrollmentStartRequest,
+  MfaEnrollmentStartResponse,
+  MfaPasswordRequest,
+  MfaPolicy,
+  MfaRecoveryCodesResponse,
+  MfaStatusResponse,
+  MfaVerifyRequest,
   PasswordForgotRequest,
   PasswordResetRequest,
   UserSettingsResponse,
@@ -278,6 +288,126 @@ export class AuthApiClient {
   logout(): Observable<{ success: boolean }> {
     return this.http.post<{ success: boolean }>(
       this.endpoint("/auth/logout"),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  /** Second login step; sets the session cookie and returns the session. */
+  verifyMfa(request: MfaVerifyRequest): Observable<AuthSessionResponse> {
+    return this.http.post<AuthSessionResponse>(
+      this.endpoint("/auth/mfa/verify"),
+      request,
+      { withCredentials: true },
+    );
+  }
+
+  sendMfaEmailCode(): Observable<void> {
+    return this.http.post<void>(
+      this.endpoint("/auth/mfa/email-code"),
+      {},
+      { withCredentials: true },
+    );
+  }
+
+  mfaStatus(): Observable<MfaStatusResponse> {
+    return this.http.get<MfaStatusResponse>(this.endpoint("/auth/mfa"), {
+      withCredentials: true,
+    });
+  }
+
+  /** `currentPassword` is required from a signed-in session, omitted in a login challenge. */
+  startMfaEnrollment(
+    currentPassword?: string,
+  ): Observable<MfaEnrollmentStartResponse> {
+    const body: MfaEnrollmentStartRequest = currentPassword
+      ? { currentPassword }
+      : {};
+    return this.http.post<MfaEnrollmentStartResponse>(
+      this.endpoint("/auth/mfa/enrollment/start"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  confirmMfaEnrollment(code: string): Observable<MfaEnrollmentConfirmResponse> {
+    const body: MfaEnrollmentConfirmRequest = { code };
+    return this.http.post<MfaEnrollmentConfirmResponse>(
+      this.endpoint("/auth/mfa/enrollment/confirm"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  disableMfa(currentPassword: string): Observable<{ success: boolean }> {
+    const body: MfaPasswordRequest = { currentPassword };
+    return this.http.post<{ success: boolean }>(
+      this.endpoint("/auth/mfa/disable"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  regenerateRecoveryCodes(
+    currentPassword: string,
+  ): Observable<MfaRecoveryCodesResponse> {
+    const body: MfaPasswordRequest = { currentPassword };
+    return this.http.post<MfaRecoveryCodesResponse>(
+      this.endpoint("/auth/mfa/recovery-codes"),
+      body,
+      { withCredentials: true },
+    );
+  }
+
+  revokeTrustedDevices(
+    currentPassword: string,
+  ): Observable<{ success: boolean }> {
+    const body: MfaPasswordRequest = { currentPassword };
+    return this.http.request<{ success: boolean }>(
+      "DELETE",
+      this.endpoint("/auth/mfa/trusted-devices"),
+      { body, withCredentials: true },
+    );
+  }
+
+  revokeTrustedDevice(
+    id: string,
+    currentPassword: string,
+  ): Observable<{ success: boolean }> {
+    const body: MfaPasswordRequest = { currentPassword };
+    return this.http.request<{ success: boolean }>(
+      "DELETE",
+      this.endpoint(`/auth/mfa/trusted-devices/${encodeURIComponent(id)}`),
+      { body, withCredentials: true },
+    );
+  }
+
+  getMfaPolicy(): Observable<MfaPolicy> {
+    return this.http.get<MfaPolicy>(this.endpoint("/auth/admin/mfa-policy"), {
+      withCredentials: true,
+    });
+  }
+
+  setMfaPolicy(policy: MfaPolicy): Observable<MfaPolicy> {
+    return this.http.put<MfaPolicy>(
+      this.endpoint("/auth/admin/mfa-policy"),
+      policy,
+      { withCredentials: true },
+    );
+  }
+
+  memberSecurity(): Observable<MemberSecuritySummary[]> {
+    return this.http.get<MemberSecuritySummary[]>(
+      this.endpoint("/auth/admin/members/security"),
+      { withCredentials: true },
+    );
+  }
+
+  resetMemberMfa(userId: string): Observable<void> {
+    return this.http.post<void>(
+      this.endpoint(
+        `/auth/admin/members/${encodeURIComponent(userId)}/mfa/reset`,
+      ),
       {},
       { withCredentials: true },
     );
