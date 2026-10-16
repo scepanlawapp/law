@@ -1,6 +1,6 @@
 # TOTP Two-Factor Authentication Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Optional authenticator-app 2FA with recovery codes, email-code fallback, 30-day trusted devices, an office-wide enforcement switch, admin reset, and the matching web screens.
 
@@ -63,11 +63,11 @@
   ```
   `MfaSecretCipher` reads `process.env.AUTH_MFA_ENCRYPTION_KEY` (like `AuthRuntimeConfig`), is registered in `AuthModule`, and logs one warning in `onModuleInit` when unavailable outside production.
 
-- [ ] **Step 1: Write failing tests:** `round-trips a secret`; `uses a fresh iv per encryption` (two encryptions differ); `rejects a tampered ciphertext`; `is unavailable and throws 503 without a key or with a short key`; in the existing config validation spec style add `production requires AUTH_MFA_ENCRYPTION_KEY of at least 32 characters`.
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns="mfa-secret|config.validation"`. Expected: new tests FAIL (config.validation has one pre-existing unrelated failure).
-- [ ] **Step 3: Implement** schema + `npx prisma migrate dev --schema apps/api/prisma/schema.prisma --name auth_totp_mfa --create-only` (rename folder to the timestamp above if needed), `npm run prisma:generate`, the cipher, config validation (production only), `.env.example` entry with a generation hint (`openssl rand -base64 48`).
-- [ ] **Step 4: Run** the same tests, then `npm run db:migrate` against local Postgres and `npx tsc -p apps/api/tsconfig.app.json --noEmit`. Expected: PASS, migration applied.
-- [ ] **Step 5: Commit** `feat(auth): MFA schema, secret cipher and config`.
+- [x] **Step 1: Write failing tests:** `round-trips a secret`; `uses a fresh iv per encryption` (two encryptions differ); `rejects a tampered ciphertext`; `is unavailable and throws 503 without a key or with a short key`; in the existing config validation spec style add `production requires AUTH_MFA_ENCRYPTION_KEY of at least 32 characters`.
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns="mfa-secret|config.validation"`. Expected: new tests FAIL (config.validation has one pre-existing unrelated failure).
+- [x] **Step 3: Implement** schema + `npx prisma migrate dev --schema apps/api/prisma/schema.prisma --name auth_totp_mfa --create-only` (rename folder to the timestamp above if needed), `npm run prisma:generate`, the cipher, config validation (production only), `.env.example` entry with a generation hint (`openssl rand -base64 48`).
+- [x] **Step 4: Run** the same tests, then `npm run db:migrate` against local Postgres and `npx tsc -p apps/api/tsconfig.app.json --noEmit`. Expected: PASS, migration applied.
+- [x] **Step 5: Commit** `feat(auth): MFA schema, secret cipher and config`.
 
 ### Task 2: Factor primitives — TOTP and recovery codes
 
@@ -87,11 +87,11 @@
   export function hashRecoveryCode(code: string): string;             // sha256 hex of normalized
   ```
 
-- [ ] **Step 1: Write failing tests** (use `otpauth` to compute expected codes at fixed `now`): `accepts the current code`; `accepts ±1 step and rejects ±2`; `rejects a step at or below lastUsedStep`; `rejects non-6-digit input`; `uri contains issuer, account and SHA1/6/30`; `recovery codes: 10 unique, match /^[a-hjkmnp-z2-9]{4}-[a-hjkmnp-z2-9]{4}$/`; `normalization: " ABCD-efgh " and "abcdefgh" hash equal`.
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-factors`. Expected: FAIL.
-- [ ] **Step 3: Implement** with `otpauth` `TOTP` (`validate({ token, window: 1, timestamp })` returns delta → step = `floor(now/30s) + delta`) and `crypto.randomInt` for recovery codes.
-- [ ] **Step 4: Run** same. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(auth): TOTP and recovery code primitives`.
+- [x] **Step 1: Write failing tests** (use `otpauth` to compute expected codes at fixed `now`): `accepts the current code`; `accepts ±1 step and rejects ±2`; `rejects a step at or below lastUsedStep`; `rejects non-6-digit input`; `uri contains issuer, account and SHA1/6/30`; `recovery codes: 10 unique, match /^[a-hjkmnp-z2-9]{4}-[a-hjkmnp-z2-9]{4}$/`; `normalization: " ABCD-efgh " and "abcdefgh" hash equal`.
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-factors`. Expected: FAIL.
+- [x] **Step 3: Implement** with `otpauth` `TOTP` (`validate({ token, window: 1, timestamp })` returns delta → step = `floor(now/30s) + delta`) and `crypto.randomInt` for recovery codes.
+- [x] **Step 4: Run** same. Expected: PASS.
+- [x] **Step 5: Commit** `feat(auth): TOTP and recovery code primitives`.
 
 ### Task 3: MFA email templates
 
@@ -109,11 +109,11 @@
   sendMfaResetByAdmin(user: { id: string; email: string }, at: Date): Promise<void>;
   ```
 
-- [ ] **Step 1: Write failing tests:** SR/EN `mfaEmailCode` contains the code and `10 minuta` / `10 minutes` and "do not share"; `mfaDisabled` and `mfaResetByAdmin` contain the formatted time (label form like `passwordChanged`) and the contact-administrator line; table test extended to 6 templates × 2 locales; delivery spec: each new `send*` enqueues the right message with the user's locale; the warning on enqueue failure never contains the code.
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns=auth-mail`. Expected: FAIL.
-- [ ] **Step 3: Implement** copy entries and the three methods (same layout/escaping as existing templates).
-- [ ] **Step 4: Run** same. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(auth): MFA email templates`.
+- [x] **Step 1: Write failing tests:** SR/EN `mfaEmailCode` contains the code and `10 minuta` / `10 minutes` and "do not share"; `mfaDisabled` and `mfaResetByAdmin` contain the formatted time (label form like `passwordChanged`) and the contact-administrator line; table test extended to 6 templates × 2 locales; delivery spec: each new `send*` enqueues the right message with the user's locale; the warning on enqueue failure never contains the code.
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns=auth-mail`. Expected: FAIL.
+- [x] **Step 3: Implement** copy entries and the three methods (same layout/escaping as existing templates).
+- [x] **Step 4: Run** same. Expected: PASS.
+- [x] **Step 5: Commit** `feat(auth): MFA email templates`.
 
 ### Task 4: Login challenge and code verification (TOTP, recovery)
 
@@ -149,7 +149,7 @@
   ```
   `trustedDeviceToken` is accepted but ignored until Task 6 (always challenge). `EMAIL` method returns 400 until Task 7.
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - `user without 2FA and policy off → AUTHENTICATED with session token`.
   - `user with enabled 2FA → MFA_REQUIRED, methods [TOTP, RECOVERY, EMAIL], challenge created with scope LOGIN, no session`.
   - `policy on and user not enrolled → MFA_ENROLLMENT_REQUIRED, challenge scope ENROLLMENT`.
@@ -160,10 +160,10 @@
   - `wrong code increments attempts; 5th failure locks (challenge consumed, audit MFA_CHALLENGE_LOCKED, 401)`.
   - `ENROLLMENT challenge on verify → 401` (Review Focus 3).
   - Controller-level (construct controller with mocked services): login sets `law_session` for AUTHENTICATED; sets `law_mfa_challenge` with the cookie options above for the other two; verify clears the challenge cookie and sets `law_session`.
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns="mfa-login|auth"`. Expected: new tests FAIL.
-- [ ] **Step 3: Implement.** `POST /auth/mfa/verify` in `MfaController` (`@Controller("auth/mfa")`, `CsrfOriginGuard`, `AuthRateLimitGuard`). Login response body is now `LoginResponse`; web `AuthApiClient.login` returns `LoginResponse` and `AuthState.login` sets the session only for `AUTHENTICATED` (full UI comes in Task 9).
-- [ ] **Step 4: Run** the auth tests, `npx nx test web --testPathPatterns=login`, `npx tsc -p apps/api/tsconfig.app.json --noEmit`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(auth): MFA login challenge and verification`.
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns="mfa-login|auth"`. Expected: new tests FAIL.
+- [x] **Step 3: Implement.** `POST /auth/mfa/verify` in `MfaController` (`@Controller("auth/mfa")`, `CsrfOriginGuard`, `AuthRateLimitGuard`). Login response body is now `LoginResponse`; web `AuthApiClient.login` returns `LoginResponse` and `AuthState.login` sets the session only for `AUTHENTICATED` (full UI comes in Task 9).
+- [x] **Step 4: Run** the auth tests, `npx nx test web --testPathPatterns=login`, `npx tsc -p apps/api/tsconfig.app.json --noEmit`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(auth): MFA login challenge and verification`.
 
 ### Task 5: Enrollment and self-service
 
@@ -189,16 +189,16 @@
   Routes: `POST enrollment/start`, `POST enrollment/confirm`, `POST disable`, `POST recovery-codes`, `GET ""` (status; `trustedDevices` is `[]` until Task 6).
   A shared private password check helper is extracted from `AuthService` (`verifyPassword`) into `libs/api/features/auth/src/lib/passwords.ts` (`hashPassword`, `verifyPassword`).
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - `start via session requires correct currentPassword (401 otherwise)`; `start via ENROLLMENT challenge needs no password`; `start when already enabled → 409`; `start replaces a pending secret` and stores it encrypted only; response has `otpauth://totp/` URL with issuer = office display name (fallback `"Law"`) and a `data:image/png;base64,` QR.
   - `confirm with valid code sets enabledAt, stores 10 hashed recovery codes, returns plaintext codes once, audits MFA_ENROLLED`; `confirm via ENROLLMENT challenge also issues a session and consumes the challenge`; `confirm with wrong code → 401, still pending`.
   - `disable requires password, deletes UserMfa + codes (+ trusted devices once T6 exists), sends mfaDisabled, audits`; `disable while policy on → 409`.
   - `regenerate replaces the set and audits MFA_RECOVERY_CODES_REGENERATED`.
   - `status counts unconsumed codes`.
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-enrollment`. Expected: FAIL.
-- [ ] **Step 3: Implement.** QR via `qrcode.toDataURL(otpauthUrl)`. Session-path endpoints use `AuthGuard`; `start`/`confirm` accept either a session or the challenge cookie (session wins when both present).
-- [ ] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(auth): MFA enrollment and self-service`.
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-enrollment`. Expected: FAIL.
+- [x] **Step 3: Implement.** QR via `qrcode.toDataURL(otpauthUrl)`. Session-path endpoints use `AuthGuard`; `start`/`confirm` accept either a session or the challenge cookie (session wins when both present).
+- [x] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(auth): MFA enrollment and self-service`.
 
 ### Task 6: Trusted devices and revocation rules
 
@@ -219,11 +219,11 @@
   ```
   Routes: `DELETE /auth/mfa/trusted-devices` and `DELETE /auth/mfa/trusted-devices/:id`, both with body `{ currentPassword }`, audit `TRUSTED_DEVICE_REVOKED`; clear the cookie when the current device is revoked.
 
-- [ ] **Step 1: Write failing tests:** `verify with rememberDevice creates a device and returns its token (cookie set by controller with Lax/30 d)`; `login with valid trusted device of the same user → AUTHENTICATED without challenge`; `another user's device token → still MFA_REQUIRED` (Review Focus 4); `expired or revoked device → challenge`; `password reset, password change, disable revoke all devices (inside their transactions)`; `revoke one requires password and only the user's device`; `status lists devices with current flag`.
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns="mfa-trusted|auth-password"`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(auth): trusted devices for MFA`.
+- [x] **Step 1: Write failing tests:** `verify with rememberDevice creates a device and returns its token (cookie set by controller with Lax/30 d)`; `login with valid trusted device of the same user → AUTHENTICATED without challenge`; `another user's device token → still MFA_REQUIRED` (Review Focus 4); `expired or revoked device → challenge`; `password reset, password change, disable revoke all devices (inside their transactions)`; `revoke one requires password and only the user's device`; `status lists devices with current flag`.
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns="mfa-trusted|auth-password"`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(auth): trusted devices for MFA`.
 
 ### Task 7: Email code fallback
 
@@ -235,11 +235,11 @@
 - Consumes: `AuthMailService.sendMfaEmailCode` (T3), `AuthRateLimitStore` (existing), `MfaChallengeService` (T4).
 - Produces: `POST /auth/mfa/email-code` (204 always) and `method: "EMAIL"` support in `verify`. Code storage: `tokenHash = sha256(`${challengeId}:${code}`)`, so a code is only valid with the challenge it was issued for.
 
-- [ ] **Step 1: Write failing tests:** `issues a 6-digit code, consumes earlier unused ones, enqueues email, audits MFA_EMAIL_CODE_SENT`; `4th request for one challenge → 204 but nothing sent`; `6th request in an hour for one user → 204 but nothing sent`; `no-op (204) for a user without enabled TOTP`; `verify EMAIL accepts the code once within 10 min`; `expired code → 401 and counts as a failed attempt`; `code issued for another challenge → 401`; store failure → 503.
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-email-code`. Expected: FAIL.
-- [ ] **Step 3: Implement** (code via `crypto.randomInt(0, 1_000_000)` zero-padded).
-- [ ] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(auth): email code fallback for MFA`.
+- [x] **Step 1: Write failing tests:** `issues a 6-digit code, consumes earlier unused ones, enqueues email, audits MFA_EMAIL_CODE_SENT`; `4th request for one challenge → 204 but nothing sent`; `6th request in an hour for one user → 204 but nothing sent`; `no-op (204) for a user without enabled TOTP`; `verify EMAIL accepts the code once within 10 min`; `expired code → 401 and counts as a failed attempt`; `code issued for another challenge → 401`; store failure → 503.
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-email-code`. Expected: FAIL.
+- [x] **Step 3: Implement** (code via `crypto.randomInt(0, 1_000_000)` zero-padded).
+- [x] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(auth): email code fallback for MFA`.
 
 ### Task 8: Admin policy, member security list, admin reset
 
@@ -257,11 +257,11 @@
   ```
   Routes (`@Controller("auth/admin")`, `CsrfOriginGuard` + `AuthGuard`, OWNER/ADMIN check in service): `GET mfa-policy`, `PUT mfa-policy` (audit `MFA_POLICY_CHANGED` with `{ mfaRequired }`), `GET members/security` (active members only), `POST members/:userId/mfa/reset`.
 
-- [ ] **Step 1: Write failing tests:** `MEMBER gets 403 on every admin route`; `policy read defaults to false when no OrganizationSettings row`; `policy write upserts and audits`; `members list returns ACTIVE members of the hardcoded workspace with 2FA flags`; `reset deletes UserMfa, codes, trusted devices, revokes sessions in one transaction, sends mfaResetByAdmin, audits with actor id`; `reset of self → 403`; `reset of non-member → 404` (Review Focus 5).
-- [ ] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-admin`. Expected: FAIL.
-- [ ] **Step 3: Implement.**
-- [ ] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"` and `npx tsc -p apps/api/tsconfig.app.json --noEmit`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(auth): MFA policy and admin reset`.
+- [x] **Step 1: Write failing tests:** `MEMBER gets 403 on every admin route`; `policy read defaults to false when no OrganizationSettings row`; `policy write upserts and audits`; `members list returns ACTIVE members of the hardcoded workspace with 2FA flags`; `reset deletes UserMfa, codes, trusted devices, revokes sessions in one transaction, sends mfaResetByAdmin, audits with actor id`; `reset of self → 403`; `reset of non-member → 404` (Review Focus 5).
+- [x] **Step 2: Run** `npx nx test api --testPathPatterns=mfa-admin`. Expected: FAIL.
+- [x] **Step 3: Implement.**
+- [x] **Step 4: Run** `npx nx test api --testPathPatterns="mfa|auth"` and `npx tsc -p apps/api/tsconfig.app.json --noEmit`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(auth): MFA policy and admin reset`.
 
 ### Task 9: Web — login code step and enrollment page
 
@@ -276,13 +276,13 @@
 - Consumes: shared types from T4/T5/T6/T8.
 - Produces: `MfaEnrollmentComponent` inputs `mode: "challenge" | "session"`, output `completed: EventEmitter<{ session?: AuthSessionResponse }>`; steps: password (session mode only) → QR + copyable secret + 6-digit confirm → recovery codes with copy, download `.txt` (`law-recovery-codes.txt`) and a required "Sačuvao/la sam kodove" checkbox before Continue.
 
-- [ ] **Step 1: Write failing tests:**
+- [x] **Step 1: Write failing tests:**
   - login: `MFA_REQUIRED switches to the code step`; `submits TOTP with rememberDevice`; `"Koristi rezervni kod" switches method to RECOVERY and input accepts xxxx-xxxx`; `"Pošalji kod na e-mail" calls sendMfaEmailCode then method EMAIL`; `401 on verify shows invalid-code error; 401 with locked/expired challenge returns to the password step with a notice`; `MFA_ENROLLMENT_REQUIRED navigates to /mfa-setup`.
   - enrollment: `challenge mode skips password step`; `continue disabled until codes saved checkbox ticked`; `download produces the 10 codes`.
-- [ ] **Step 2: Run** `npx nx test web --testPathPatterns="login.component|mfa-enrollment"`. Expected: FAIL.
-- [ ] **Step 3: Implement.** Code input: `inputmode="numeric"`, `autocomplete="one-time-code"`, `maxlength` 6 (9 for recovery). Copy (SR): checkbox "Zapamti ovaj uređaj 30 dana", links "Koristi rezervni kod", "Pošalji kod na e-mail"; EN equivalents.
-- [ ] **Step 4: Run** same plus `npx nx lint web`. Expected: PASS, no new lint errors.
-- [ ] **Step 5: Commit** `feat(web): MFA login step and enrollment`.
+- [x] **Step 2: Run** `npx nx test web --testPathPatterns="login.component|mfa-enrollment"`. Expected: FAIL.
+- [x] **Step 3: Implement.** Code input: `inputmode="numeric"`, `autocomplete="one-time-code"`, `maxlength` 6 (9 for recovery). Copy (SR): checkbox "Zapamti ovaj uređaj 30 dana", links "Koristi rezervni kod", "Pošalji kod na e-mail"; EN equivalents.
+- [x] **Step 4: Run** same plus `npx nx lint web`. Expected: PASS, no new lint errors.
+- [x] **Step 5: Commit** `feat(web): MFA login step and enrollment`.
 
 ### Task 10: Web — Settings → Security
 
@@ -295,11 +295,11 @@
 - Consumes: `MfaEnrollmentComponent` (T9, `mode="session"`), `AuthApiClient` methods (T9).
 - Produces: Security page sections: 2FA status (enable via enrollment component / regenerate codes / disable with password dialog; disable hidden with explanation when `policyRequired`), trusted devices table (revoke one / all with password dialog), change password (moved form, same behaviour), and for OWNER/ADMIN (`canManageBilling`-style role check) the policy switch "Obavezna dvofaktorska autentifikacija" and the members table with "Resetuj 2FA" behind an alert dialog.
 
-- [ ] **Step 1: Write failing tests:** `shows enable button when disabled and status when enabled`; `disable button hidden with notice when policyRequired`; `revoke-all asks for password then calls API`; `change password form still submits`; `admin section hidden for MEMBER`; `toggling policy calls setMfaPolicy`; `reset asks for confirmation then calls resetMemberMfa and refreshes the list`; `own row has no reset button`.
-- [ ] **Step 2: Run** `npx nx test web --testPathPatterns="security-settings|member-security"`. Expected: FAIL.
-- [ ] **Step 3: Implement** with Spartan Helm (switch, table, alert dialog, dialog, button, field, spinner).
-- [ ] **Step 4: Run** same plus `npx nx test web --testPathPatterns=profile-settings` and `npx nx lint web`. Expected: PASS.
-- [ ] **Step 5: Commit** `feat(web): security settings with MFA and member reset`.
+- [x] **Step 1: Write failing tests:** `shows enable button when disabled and status when enabled`; `disable button hidden with notice when policyRequired`; `revoke-all asks for password then calls API`; `change password form still submits`; `admin section hidden for MEMBER`; `toggling policy calls setMfaPolicy`; `reset asks for confirmation then calls resetMemberMfa and refreshes the list`; `own row has no reset button`.
+- [x] **Step 2: Run** `npx nx test web --testPathPatterns="security-settings|member-security"`. Expected: FAIL.
+- [x] **Step 3: Implement** with Spartan Helm (switch, table, alert dialog, dialog, button, field, spinner).
+- [x] **Step 4: Run** same plus `npx nx test web --testPathPatterns=profile-settings` and `npx nx lint web`. Expected: PASS.
+- [x] **Step 5: Commit** `feat(web): security settings with MFA and member reset`.
 
 ### Task 11: End-to-end, docs, track status
 
@@ -307,9 +307,9 @@
 - Create: `apps/api-e2e/src/api/auth-mfa.spec.ts`, `apps/web-e2e/src/auth-mfa.spec.ts`
 - Modify: `.github/bussiness-logic-done-so-far.md`, `README.md` (`AUTH_MFA_ENCRYPTION_KEY`), this `plan.md`, `metadata.json`, `index.md`, epic `plan.md` / `metadata.json` / `index.md`
 
-- [ ] **Step 1: Write the API e2e** (skipped unless `AUTH_E2E_EMAIL`, `AUTH_E2E_PASSWORD`, `MAILPIT_URL`; reuse `apps/api-e2e/src/support/mailpit.ts`; clear `auth:rl:` ip keys like `auth-email.spec.ts`): login → enroll via session (TOTP from returned secret with `otpauth`) → logout → login gives `MFA_REQUIRED` → verify TOTP with rememberDevice → logout → login with trusted-device cookie gives `AUTHENTICATED` → login without it → recovery code works once → email code from Mailpit works → `finally`: disable 2FA with password so the account is left as found.
-- [ ] **Step 2: Write the web e2e** (Playwright, same env gating): enroll through the API in `beforeAll`, then UI login → code step → TOTP → lands on `/`; `afterAll` disables 2FA.
-- [ ] **Step 3: Run** with services, migrated DB and a fresh API build on a free port: `npx jest -c apps/api-e2e/jest.config.cts auth-mfa` and `npx nx e2e web-e2e --grep mfa` (or the project's Playwright command). Expected: PASS. Do not stop processes you did not start.
-- [ ] **Step 4:** Update docs; tick this plan; child `metadata.json`/`index.md` `completed`; epic: tick remaining lines, status `completed` only if every child is done.
-- [ ] **Step 5: Full checks:** `npx nx test api`, `npx nx test web`, `npx nx run-many -t lint -p api api-e2e web web-e2e`. Expected: no new failures versus the pre-existing list in [auth_email_delivery_20261016/plan.md](../auth_email_delivery_20261016/plan.md) Task 6.
-- [ ] **Step 6: Commit** `docs(auth): TOTP two-factor authentication done`.
+- [x] **Step 1: Write the API e2e** (skipped unless `AUTH_E2E_EMAIL`, `AUTH_E2E_PASSWORD`, `MAILPIT_URL`; reuse `apps/api-e2e/src/support/mailpit.ts`; clear `auth:rl:` ip keys like `auth-email.spec.ts`): login → enroll via session (TOTP from returned secret with `otpauth`) → logout → login gives `MFA_REQUIRED` → verify TOTP with rememberDevice → logout → login with trusted-device cookie gives `AUTHENTICATED` → login without it → recovery code works once → email code from Mailpit works → `finally`: disable 2FA with password so the account is left as found.
+- [x] **Step 2: Write the web e2e** (Playwright, same env gating): enroll through the API in `beforeAll`, then UI login → code step → TOTP → lands on `/`; `afterAll` disables 2FA.
+- [x] **Step 3: Run** with services, migrated DB and a fresh API build on a free port: `npx jest -c apps/api-e2e/jest.config.cts auth-mfa` and `npx nx e2e web-e2e --grep mfa` (or the project's Playwright command). Expected: PASS. Do not stop processes you did not start.
+- [x] **Step 4:** Update docs; tick this plan; child `metadata.json`/`index.md` `completed`; epic: tick remaining lines, status `completed` only if every child is done.
+- [x] **Step 5: Full checks:** `npx nx test api`, `npx nx test web`, `npx nx run-many -t lint -p api api-e2e web web-e2e`. Expected: no new failures versus the pre-existing list in [auth_email_delivery_20261016/plan.md](../auth_email_delivery_20261016/plan.md) Task 6.
+- [x] **Step 6: Commit** `docs(auth): TOTP two-factor authentication done`.
