@@ -312,21 +312,30 @@ export class AuthService {
     });
     if (!reset) throw new UnauthorizedException("Invalid reset token");
     const changedAt = new Date();
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: reset.userId },
-        data: {
-          passwordHash: await hashPassword(password),
-          passwordChangedAt: changedAt,
-          status: "ACTIVE",
+    const passwordHash = await hashPassword(password);
+    await this.prisma.$transaction(async (tx) => {
+      // Claim the token first so two concurrent requests cannot both succeed.
+      const claimed = await tx.authToken.updateMany({
+        where: {
+          id: reset.id,
+          consumedAt: null,
+          expiresAt: { gt: changedAt },
         },
-      }),
-      this.consumeOpenResetTokens(reset.userId),
-      this.prisma.authSession.updateMany({
+        data: { consumedAt: changedAt },
+      });
+      if (claimed.count === 0) {
+        throw new UnauthorizedException("Invalid reset token");
+      }
+      await tx.user.update({
+        where: { id: reset.userId },
+        data: { passwordHash, passwordChangedAt: changedAt, status: "ACTIVE" },
+      });
+      await this.consumeOpenResetTokens(reset.userId, tx);
+      await tx.authSession.updateMany({
         where: { userId: reset.userId, revokedAt: null },
         data: { revokedAt: changedAt },
-      }),
-    ]);
+      });
+    });
     await this.mail.sendPasswordChanged(reset.user, changedAt);
     await this.audit({
       eventType: "PASSWORD_RESET_COMPLETED",
@@ -374,8 +383,11 @@ export class AuthService {
     });
   }
 
-  private consumeOpenResetTokens(userId: string) {
-    return this.prisma.authToken.updateMany({
+  private consumeOpenResetTokens(
+    userId: string,
+    client: Pick<PrismaService, "authToken"> = this.prisma,
+  ) {
+    return client.authToken.updateMany({
       where: { userId, purpose: "PASSWORD_RESET", consumedAt: null },
       data: { consumedAt: new Date() },
     });

@@ -20,7 +20,11 @@ function createService() {
       create: op("authToken.create"),
       findFirst: jest.fn(),
       update: op("authToken.update"),
-      updateMany: op("authToken.updateMany"),
+      updateMany: jest.fn((arg: unknown) => ({
+        name: "authToken.updateMany",
+        arg,
+        count: 1,
+      })),
     },
     authSession: {
       findFirst: jest.fn(),
@@ -28,7 +32,9 @@ function createService() {
       updateMany: op("authSession.updateMany"),
     },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
-    $transaction: jest.fn(async (ops: unknown[]) => ops),
+    $transaction: jest.fn(async (arg: unknown) =>
+      typeof arg === "function" ? arg(prisma) : arg,
+    ),
   };
   const mail = {
     sendPasswordReset: jest.fn().mockResolvedValue(undefined),
@@ -71,7 +77,7 @@ describe("AuthService password hardening", () => {
     );
   });
 
-  it("reset consumes every open reset token and notifies", async () => {
+  it("reset claims the token atomically, consumes open tokens and notifies", async () => {
     const { service, prisma, mail } = createService();
     prisma.authToken.findFirst.mockResolvedValue({
       id: "token-1",
@@ -81,17 +87,26 @@ describe("AuthService password hardening", () => {
 
     await service.resetPassword("raw-reset", "NewPassword123!");
 
-    expect(prisma.authToken.updateMany).toHaveBeenCalledWith(
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function));
+    expect(prisma.authToken.updateMany).toHaveBeenNthCalledWith(1, {
+      where: {
+        id: "token-1",
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
+    expect(prisma.authToken.updateMany).toHaveBeenNthCalledWith(
+      2,
       openResetTokens("user-1"),
     );
-    const [ops] = prisma.$transaction.mock.calls[0];
-    expect(ops.map((o: { name: string }) => o.name)).toEqual(
-      expect.arrayContaining([
-        "user.update",
-        "authToken.updateMany",
-        "authSession.updateMany",
-      ]),
-    );
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: expect.objectContaining({
+        passwordHash: expect.any(String),
+        status: "ACTIVE",
+      }),
+    });
     expect(prisma.authSession.updateMany).toHaveBeenCalledWith({
       where: { userId: "user-1", revokedAt: null },
       data: { revokedAt: expect.any(Date) },
@@ -100,6 +115,29 @@ describe("AuthService password hardening", () => {
       { id: "user-1", email: "ana@example.com" },
       expect.any(Date),
     );
+    expect(prisma.auditEvent.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ eventType: "PASSWORD_RESET_COMPLETED" }),
+    });
+  });
+
+  it("a token consumed concurrently is rejected", async () => {
+    const { service, prisma, mail } = createService();
+    prisma.authToken.findFirst.mockResolvedValue({
+      id: "token-1",
+      userId: "user-1",
+      user: { id: "user-1", email: "ana@example.com" },
+    });
+    prisma.authToken.updateMany.mockReturnValueOnce({ count: 0 } as never);
+
+    await expect(
+      service.resetPassword("raw-reset", "NewPassword123!"),
+    ).rejects.toThrow(new UnauthorizedException("Invalid reset token"));
+
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.authSession.updateMany).not.toHaveBeenCalled();
+    expect(prisma.authToken.updateMany).toHaveBeenCalledTimes(1);
+    expect(mail.sendPasswordChanged).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
   });
 
   it("reset with an invalid token throws and sends nothing", async () => {
