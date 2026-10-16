@@ -7,6 +7,7 @@ import {
   inject,
   signal,
   untracked,
+  viewChild,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { WorkEntriesApiClient } from "@law/api-clients";
@@ -21,12 +22,14 @@ import { NgIcon, provideIcons } from "@ng-icons/core";
 import {
   lucideKanban,
   lucideList,
+  lucideTable,
   lucideChevronLeft,
   lucideChevronRight,
 } from "@ng-icons/lucide";
 import { NgTemplateOutlet } from "@angular/common";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { EMPTY, Observable, expand, reduce } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
@@ -47,6 +50,7 @@ import {
 
 import { PastEventsComponent } from "./past-events/past-events.component";
 import { HlmTableImports } from "@spartan-ng/helm/table";
+import { TeamTimeComponent } from "./team-time.component";
 
 const PAGE_SIZE = 100;
 
@@ -68,16 +72,19 @@ export interface ClientTotal {
   imports: [
     HlmButton,
     HlmSpinner,
+    HlmTooltip,
     NgIcon,
     NgTemplateOutlet,
     PastEventsComponent,
     HlmTableImports,
+    TeamTimeComponent,
     TranslatePipe,
   ],
   providers: [
     provideIcons({
       lucideKanban,
       lucideList,
+      lucideTable,
       lucideChevronLeft,
       lucideChevronRight,
     }),
@@ -92,7 +99,8 @@ export class MyTimeComponent {
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
 
-  readonly presentation = signal<"board" | "list">("board");
+  readonly presentation = signal<"board" | "list" | "table">("board");
+  readonly timeTable = viewChild(TeamTimeComponent);
   readonly weekStart = signal(mondayOf(officeToday()));
   readonly entries = signal<WorkEntry[]>([]);
   readonly loading = signal(false);
@@ -137,6 +145,7 @@ export class MyTimeComponent {
 
   constructor() {
     effect(() => {
+      if (this.presentation() === "table") return;
       const from = this.weekStart();
       const userId = this.auth.session()?.user.id;
       if (userId) untracked(() => this.load(userId, from));
@@ -186,6 +195,10 @@ export class MyTimeComponent {
   }
 
   reload(): void {
+    if (this.presentation() === "table") {
+      this.timeTable()?.reload();
+      return;
+    }
     const userId = this.auth.session()?.user.id;
     if (userId) this.load(userId, this.weekStart());
   }

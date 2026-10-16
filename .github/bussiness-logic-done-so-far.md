@@ -5,6 +5,11 @@
 
 This document describes behavior that is currently implemented in code and wired into the application. It does not treat a route, translation key, or empty component as a finished workflow.
 
+## Sidebar child-route menus
+
+- Finance, Reports, and other sidebar items with child pages open an accessible Spartan dropdown rather than navigating to a default page or expanding the sidebar. The menu is available in both expanded and icon sidebar modes; opening it leaves the current route and sidebar width unchanged.
+- Menus retain translated labels/icons and role-filtered child routes, highlight the active parent and mark the current child with `aria-current="page"`. Selecting a child navigates and closes the mobile sidebar. Keyboard opening, Escape dismissal, and focus restoration use the installed dropdown primitive.
+
 ## Frontend list pagination
 
 - Every data-list page-button group uses the installed Spartan numbered pagination family: clients, cases (including client-related case lists), documents (including case/client document views), finance invoices, invoice work-entry import, past work events, and case-detail activities, responsibilities, linked assistant sessions and drafts.
@@ -365,16 +370,16 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
   - **Permission modes** (`AssistantPermissionMode`): `MANUAL`, `ASK` (default), `AUTO`. The default is a user setting (Profile → Asistent, `UserSettings.assistantPermissionMode`); a conversation can override it from the composer (`ChatSession.permissionMode`, `null` = user default; only the owner can change it, and a mode picked before the first message is saved when the conversation is created). The server decides the mode, never the model.
     - Each action supports the modes it can do safely; an unsupported mode falls back to the card:
 
-      | Action | MANUAL (form) | AUTO |
-      |---|---|---|
-      | `create_event`, `reschedule_event` | event dialog | yes |
-      | `create_task` | task dialog | yes |
-      | `log_work_entry` | quick-capture dialog | yes, saved as `PROPOSED` |
-      | `log_work_entries` | card | yes, saved as `PROPOSED` |
-      | `create_deadline` | deadline dialog | no (card) |
-      | `cancel_event` | card | no (card) |
-      | `link_case`, `create_tasks_from_brief` | card | yes |
-      | `update_client_from_document` | card | yes unless the document conflicts with stored data |
+      | Action                                 | MANUAL (form)        | AUTO                                               |
+      | -------------------------------------- | -------------------- | -------------------------------------------------- |
+      | `create_event`, `reschedule_event`     | event dialog         | yes                                                |
+      | `create_task`                          | task dialog          | yes                                                |
+      | `log_work_entry`                       | quick-capture dialog | yes, saved as `PROPOSED`                           |
+      | `log_work_entries`                     | card                 | yes, saved as `PROPOSED`                           |
+      | `create_deadline`                      | deadline dialog      | no (card)                                          |
+      | `cancel_event`                         | card                 | no (card)                                          |
+      | `link_case`, `create_tasks_from_brief` | card                 | yes                                                |
+      | `update_client_from_document`          | card                 | yes unless the document conflicts with stored data |
 
     - Deadlines from `detect_deadlines` are always cards (`propose(…, { forceCard })`).
     - `MANUAL` stores a `PendingAction` with `mode = FORM` and a `prefill` (`kind` event/task/deadline/work_entry). The card's "Otvori i sačuvaj" opens the matching dialog prefilled (a reschedule opens the existing event with the new time); saving calls `POST /chat/pending-actions/:id/complete` with the dialog's request, which is validated against the domain DTO for the action type, executed (actor = the saving user), marked `edited` when a proposed field changed, and resumes the agent. Decline works as for cards.
@@ -383,8 +388,10 @@ The assistant workflow is implemented across the chat API, Angular assistant scr
     - Executed cards link to the created or changed record (`resultEntityType` EVENT, TASK, DEADLINE, WORK_ENTRY, CASE, TIME_REVIEW).
     - **Undo** (`POST /chat/pending-actions/:id/undo`): the conversation owner can undo an `AUTO` save within 24 hours ("Poništi" on the card, then "Poništeno"; `PendingAction.undoneAt`/`undoneByUserId`). Events and tasks are cancelled, a reschedule restores the previous time (stored when it runs), proposed work entries are deleted; case links and client updates have no undo. A record that moved on since (event no longer scheduled or moved again, task started, entry confirmed or deleted) is refused and the action stays undoable. The next agent turn is told which saves were undone.
     - `EVENT_CREATED`, `EVENT_UPDATED`, `TASK_CREATED`, and `DEADLINE_CREATED` activity logs carry `source: AI_ASSISTED`, `pendingActionId`, and `mode`.
+
   - Long conversations keep a rolling summary (`ChatSession.summary`). Once unsummarized turns exceed 80% of the history window (`ASSISTANT_HISTORY_MAX_MESSAGES`), or of its character budget, the oldest turns are folded into the summary after the turn completes. The agent sees the summary plus the recent turns verbatim.
   - Each agent tool call is stored (`AgentToolCall`: input, truncated output, status, duration) and streamed as `tool.started` / `tool.finished`. The assistant activity card lists tool steps (for example "Pretraga propisa „…“ · Rezultata: 4") live and after a reload, and while a tool runs its title reads "Pretražujem propise…".
+
 - Workflow jobs record `startedAt` and `finishedAt`. `agent-turn` jobs also record the model and input/output tokens. `MASTRA_TRACING=true` (off by default) additionally exports Mastra traces to the separate `mastra` Postgres schema.
 
 ## References and user settings
@@ -493,7 +500,7 @@ The Angular screens for quick capture, the header timer, review, My/Team time, b
 These areas have routes or backend groundwork but should not be described as completed end-to-end business workflows:
 
 - **Client detail tabs:** the client detail page declares documents, activities, and financials tabs, but the inspected component primarily loads overview data and related cases. These tabs need their own complete UI/data workflows before they can be counted as finished.
-- **Reports UI prototype (fictional frontend data only):** `/reports` redirects to `/reports/overview`. OWNER/ADMIN have an expandable sidebar menu for revenue overview, attorney earnings, outstanding work and personal earnings; other authenticated members have only personal earnings and company-report routes redirect there. `/reports/earnings/:memberId` provides attorney details; the real profitability route and original reports catalog remain available. Shared typed forms support month arrows/direct selection, date ranges, shortcuts, execution/invoice/collection bases and entity/status filters. KPI cards, accessible chart tooltips, name/work search, sortable tables and allocation drilldowns derive from 120 deterministic fictional work/invoice/payment records across 2026. Own-client and other-client work rates, separate origination bonuses, partial/delayed collections, uninvoiced/uncollected work, former members, nonparticipation and missing rules are represented. Integer minor units and basis-point rounding reconcile eligible collections with allocations and retained revenue; missing rules are excluded from eligible distribution. Invoice-linked balances are as of the range end. Personal mock projections are bound to the authenticated user and remove other beneficiaries before aggregation. Serbian/English labels and locale-aware money/date formatting follow existing localization and semantic themes. All screens prominently identify demo data. No production report service, allocation/payout tracking, migration, finance mutation or real integration was added; CSV export is deferred.
+- **Reports UI prototype (fictional frontend data only):** `/reports` redirects to `/reports/overview`. OWNER/ADMIN have a sidebar route-selection menu for revenue overview, attorney earnings, outstanding work and personal earnings; other authenticated members have only personal earnings and company-report routes redirect there. `/reports/earnings/:memberId` provides attorney details; the real profitability route and original reports catalog remain available. Shared typed forms support month arrows/direct selection, date ranges, shortcuts, execution/invoice/collection bases and entity/status filters. KPI cards, accessible chart tooltips, name/work search, sortable tables and allocation drilldowns derive from 120 deterministic fictional work/invoice/payment records across 2026. Own-client and other-client work rates, separate origination bonuses, partial/delayed collections, uninvoiced/uncollected work, former members, nonparticipation and missing rules are represented. Integer minor units and basis-point rounding reconcile eligible collections with allocations and retained revenue; missing rules are excluded from eligible distribution. Invoice-linked balances are as of the range end. Personal mock projections are bound to the authenticated user and remove other beneficiaries before aggregation. Serbian/English labels and locale-aware money/date formatting follow existing localization and semantic themes. All screens prominently identify demo data. No production report service, allocation/payout tracking, migration, finance mutation or real integration was added; CSV export is deferred.
 - **Finance, reports, notifications, and dashboard:** financials has implemented billing-review and invoice-management surfaces but remains in progress as an overall product area. Reports, notifications, and dashboard completion should be assessed separately from the implemented client, case, calendar, assistant, and document workflows. A route alone is not evidence that the underlying business logic is finished. The documents workspace is implemented as described above.
 - **Automated backend coverage:** backend specs do not live under `libs/api/features`; they are in `apps/api/src/app` (for example `activities-tasks-deadlines`, `financials`, `month-end-run`, `work-entry-sources`, `work-entries` and the assistant services), run with `npx nx test api`. Some domain services and query extensions are still covered only indirectly.
 - **Board “Load more”:** pagination is tracked per record type (Task/Deadline/Event), not per rendered board column, so a column fed by more than one record type can require more than one “Load more” action to reveal further items of a specific type.
@@ -522,6 +529,7 @@ The strongest completed product slices are authentication, client management, ca
 ## Work / Time past events and presentation (2026-10-08)
 
 - Work / Time supports board and list presentation for weekly work entries and a separate paginated past-events section. Weekly navigation and weekly/client totals remain; day totals and the day-summary button are removed. `/work/time/review` redirects to `/work/time`.
+- My Time also offers a table presentation (2026-10-16), reusing Team Time's columns, entry actions, pagination, and client/case/status/treatment/date filters. The people filter and user lookup are omitted; every table request is fixed to the authenticated user and no request is made without a session. Table date filters are independent of the weekly board/list navigation. Logging work or capturing past events refreshes the active presentation. On mobile, the past-events sidebar stacks below the table and wide columns scroll within the table container.
 - Past events include non-cancelled meetings, calls, hearings and other events whose end instant has passed, from all dates, where the current user is organizer or assignee. The API filters events with no work entries before counting/pagination. Cards show client/case, office-timezone date range and an unlogged badge.
 - View Event opens current calendar details. Log Work prefills the event title, description, client when unambiguous, case, work date and bounded timed duration. All-day or longer-than-one-day events do not invent a duration; missing/ambiguous clients remain selectable. Saving creates confirmed work with `source = EVENT` and a durable `eventId` relationship. Multiple entries can belong to one event. Existing generic source links are backfilled into this relation. Automatic completion proposals remain idempotent and reuse any existing event work, serialized with manual capture by the event row lock. Inaccessible, cancelled and future events cannot be captured.
 - Quick capture shows a linked-event header button with truncation and a tooltip, including when viewing existing event work. Clicking opens current event details without discarding the work form.

@@ -1,6 +1,7 @@
 import { PastEventsComponent } from "./past-events/past-events.component";
-import { Component, input, output, signal } from "@angular/core";
+import { Component, forwardRef, input, output, signal } from "@angular/core";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
+import { By } from "@angular/platform-browser";
 import { provideRouter } from "@angular/router";
 import { WorkEntriesApiClient } from "@law/api-clients";
 import { WorkEntry } from "@law/api-interfaces";
@@ -8,13 +9,31 @@ import { AuthState } from "@law/security";
 import { of } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { MyTimeComponent } from "./my-time.component";
+import { TeamTimeComponent } from "./team-time.component";
 import { QuickCaptureDialogService } from "./quick-capture/quick-capture-dialog.service";
 import { addDays, mondayOf, officeToday } from "./time-utils";
 
 @Component({ selector: "law-past-work-events", standalone: true, template: "" })
 class PastEventsStub {
   readonly presentation = input("board");
+  readonly collapsibleSidebar = input(false);
   readonly workChanged = output<void>();
+}
+
+@Component({
+  selector: "law-time-table",
+  standalone: true,
+  template: "",
+  providers: [
+    {
+      provide: TeamTimeComponent,
+      useExisting: forwardRef(() => TimeTableStub),
+    },
+  ],
+})
+class TimeTableStub {
+  readonly currentUserOnly = input(false);
+  readonly reload = jest.fn();
 }
 
 const client = (id: string, displayName: string) => ({
@@ -98,8 +117,8 @@ describe("MyTimeComponent", () => {
     api.list.mockReturnValue(of(page(entries)));
     capture.open.mockReturnValue(of(null));
     TestBed.overrideComponent(MyTimeComponent, {
-      remove: { imports: [PastEventsComponent] },
-      add: { imports: [PastEventsStub] },
+      remove: { imports: [PastEventsComponent, TeamTimeComponent] },
+      add: { imports: [PastEventsStub, TimeTableStub] },
     });
     TestBed.configureTestingModule({
       providers: [
@@ -231,5 +250,55 @@ describe("MyTimeComponent", () => {
     expect(
       root(fixture).querySelector('a[href="/work/time/review"]'),
     ).toBeNull();
+  });
+
+  it("shows the current-user table independently of weekly loading and restores the weekly view", () => {
+    const fixture = create();
+    fixture.componentInstance.loading.set(true);
+    (
+      root(fixture).querySelector(
+        '[aria-label="work.view.showTable"]',
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+
+    expect(fixture.componentInstance.presentation()).toBe("table");
+    expect(root(fixture).querySelector("law-time-table")).not.toBeNull();
+    const table = fixture.debugElement.query(By.directive(TimeTableStub))
+      .componentInstance as TimeTableStub;
+    expect(table.currentUserOnly()).toBe(true);
+    expect(
+      root(fixture).querySelector('[data-testid="week-total"]'),
+    ).toBeNull();
+    expect(
+      root(fixture).querySelector('[aria-label="time.my.previousWeek"]'),
+    ).toBeNull();
+    expect(root(fixture).querySelector("law-past-work-events")).not.toBeNull();
+
+    (
+      root(fixture).querySelector(
+        '[aria-label="work.view.showBoard"]',
+      ) as HTMLButtonElement
+    ).click();
+    fixture.detectChanges();
+    expect(root(fixture).querySelector("law-time-table")).toBeNull();
+    expect(
+      root(fixture).querySelectorAll('[data-testid="entry"]'),
+    ).toHaveLength(4);
+    expect(fixture.componentInstance.weekStart()).toBe(WEEK);
+  });
+
+  it("refreshes the active table after logging time or changing past work", () => {
+    const fixture = create();
+    fixture.componentInstance.presentation.set("table");
+    fixture.detectChanges();
+    const table = fixture.debugElement.query(By.directive(TimeTableStub))
+      .componentInstance as TimeTableStub;
+    capture.open.mockReturnValue(of(entries[0]));
+
+    fixture.componentInstance.logTime();
+    expect(table.reload).toHaveBeenCalledTimes(1);
+    fixture.componentInstance.reload();
+    expect(table.reload).toHaveBeenCalledTimes(2);
   });
 });

@@ -8,6 +8,10 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Completed
 
+- [Sidebar Child Route Menus](./tracks/sidebar_child_route_menus_20261016/index.md)
+
+- [My Time Table](./tracks/my_time_table_20261016/index.md)
+
 - [Sidebar user menu collapse](./tracks/sidebar_user_menu_collapse_20261014/index.md)
 
 - [Table text truncation](./tracks/table_text_truncation_20261014/index.md)
