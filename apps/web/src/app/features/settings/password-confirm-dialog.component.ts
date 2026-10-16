@@ -61,6 +61,17 @@ export class PasswordConfirmDialogComponent {
   /** Translation key of the inline error, or empty. */
   readonly errorKey = signal("");
 
+  constructor() {
+    // Esc, backdrop, the X button and Cancel all end in `close`. While the
+    // protected action runs its result (e.g. freshly generated recovery
+    // codes) must not be lost, so every close path is ignored until it ends.
+    const close = this.dialogRef.close.bind(this.dialogRef);
+    this.dialogRef.close = (result?: { result: unknown }) => {
+      if (this.submitting()) return;
+      close(result);
+    };
+  }
+
   cancel(): void {
     this.dialogRef.close(undefined);
   }
@@ -77,7 +88,10 @@ export class PasswordConfirmDialogComponent {
       .run(this.form.controls.currentPassword.value)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: (result) => this.dialogRef.close({ result }),
+        next: (result) => {
+          this.submitting.set(false);
+          this.dialogRef.close({ result });
+        },
         error: (error: HttpErrorResponse) => {
           this.submitting.set(false);
           this.form.controls.currentPassword.reset();

@@ -9,6 +9,7 @@ import { AcceptInvitationComponent } from "./accept-invitation.component";
 describe("AcceptInvitationComponent", () => {
   const api = { acceptInvitation: jest.fn() };
   const router = { navigate: jest.fn() };
+  const toast = { error: jest.fn(), info: jest.fn() };
 
   function create(): AcceptInvitationComponent {
     jest.resetAllMocks();
@@ -26,7 +27,7 @@ describe("AcceptInvitationComponent", () => {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key },
         },
-        { provide: ToastService, useValue: { error: jest.fn() } },
+        { provide: ToastService, useValue: toast },
       ],
     });
     const component = TestBed.runInInjectionContext(
@@ -68,5 +69,20 @@ describe("AcceptInvitationComponent", () => {
 
     expect(router.navigate).toHaveBeenCalledTimes(1);
     expect(router.navigate).toHaveBeenCalledWith(["/mfa-setup"]);
+  });
+
+  it("MFA_REQUIRED (account already has 2FA) → back to sign-in with a notice about the authenticator code", () => {
+    jest.useFakeTimers();
+    const component = create();
+    api.acceptInvitation.mockReturnValue(
+      of({ status: "MFA_REQUIRED", methods: ["TOTP", "RECOVERY"] }),
+    );
+
+    component.submit();
+    jest.advanceTimersByTime(800);
+
+    expect(router.navigate).toHaveBeenCalledTimes(1);
+    expect(router.navigate).toHaveBeenCalledWith(["/login"]);
+    expect(toast.info).toHaveBeenCalledWith("auth.invitationSignInWithCode");
   });
 });
