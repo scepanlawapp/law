@@ -110,7 +110,7 @@ export class MfaAdminService {
    * password-gated self-service flow.
    */
   async resetMember(actorId: string, targetUserId: string): Promise<void> {
-    await this.requireAdmin(actorId);
+    const actorRole = await this.requireAdmin(actorId);
     if (targetUserId === actorId) {
       throw new ForbiddenException(
         "Use your own security settings to change your two-factor authentication",
@@ -123,10 +123,16 @@ export class MfaAdminService {
           workspaceId: HARDCODED_WORKSPACE_ID,
         },
       },
-      select: { status: true },
+      select: { status: true, role: true },
     });
     if (!membership || !["ACTIVE", "INVITED"].includes(membership.status)) {
       throw new NotFoundException("Member not found");
+    }
+    // Only an owner may reset an owner's second factor.
+    if (membership.role === "OWNER" && actorRole !== "OWNER") {
+      throw new ForbiddenException(
+        "Only an owner can reset an owner's two-factor authentication",
+      );
     }
     const user = await this.prisma.user.findUnique({
       where: { id: targetUserId },
@@ -145,20 +151,32 @@ export class MfaAdminService {
         where: { userId: user.id, revokedAt: null },
         data: { revokedAt: at },
       });
-    });
-    await this.prisma.auditEvent.create({
-      data: {
-        eventType: "MFA_RESET_BY_ADMIN",
-        outcome: "SUCCESS",
-        userId: user.id,
-        workspaceId: HARDCODED_WORKSPACE_ID,
-        metadata: { actorId },
-      },
+      // Outstanding login challenges and email codes must not outlive the
+      // factor they belong to (a verify racing the reset, or a quick
+      // re-enrolment, could otherwise accept them).
+      await tx.authToken.updateMany({
+        where: {
+          userId: user.id,
+          purpose: { in: ["MFA_CHALLENGE", "MFA_EMAIL_CODE"] },
+          consumedAt: null,
+        },
+        data: { consumedAt: at },
+      });
+      // Audited in the same transaction: a committed reset is never unaudited.
+      await tx.auditEvent.create({
+        data: {
+          eventType: "MFA_RESET_BY_ADMIN",
+          outcome: "SUCCESS",
+          userId: user.id,
+          workspaceId: HARDCODED_WORKSPACE_ID,
+          metadata: { actorId },
+        },
+      });
     });
     await this.mail.sendMfaResetByAdmin({ id: user.id, email: user.email }, at);
   }
 
-  private async requireAdmin(actorId: string): Promise<void> {
+  private async requireAdmin(actorId: string): Promise<string> {
     const membership = await this.prisma.workspaceMember.findUnique({
       where: {
         userId_workspaceId: {
@@ -175,5 +193,6 @@ export class MfaAdminService {
     ) {
       throw new ForbiddenException("Workspace administrator required");
     }
+    return membership.role;
   }
 }

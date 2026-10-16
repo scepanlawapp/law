@@ -26,11 +26,12 @@ function createHarness(
   options: {
     actorRole?: Role | null;
     actorStatus?: string;
-    target?: { status: string } | null;
+    target?: { status: string; role?: Role } | null;
   } = {},
 ) {
   const actorRole = "actorRole" in options ? options.actorRole : "ADMIN";
-  const target = "target" in options ? options.target : { status: "ACTIVE" };
+  const target =
+    "target" in options ? options.target : { status: "ACTIVE", role: "MEMBER" };
   const prisma = {
     workspaceMember: {
       findUnique: jest.fn(
@@ -73,6 +74,8 @@ function createHarness(
     mfaRecoveryCode: { deleteMany: jest.fn().mockResolvedValue({ count: 10 }) },
     trustedDevice: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
     authSession: { updateMany: jest.fn().mockResolvedValue({ count: 3 }) },
+    authToken: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    auditEvent: { create: jest.fn().mockResolvedValue({}) },
   };
   prisma.$transaction.mockImplementation(async (fn: (t: unknown) => unknown) =>
     fn(tx),
@@ -316,7 +319,16 @@ describe("MfaAdminService.resetMember", () => {
       { id: TARGET_ID, email: "target@example.com" },
       expect.any(Date),
     );
-    expect(prisma.auditEvent.create).toHaveBeenCalledWith({
+    expect(tx.authToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: TARGET_ID,
+        purpose: { in: ["MFA_CHALLENGE", "MFA_EMAIL_CODE"] },
+        consumedAt: null,
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    expect(tx.auditEvent.create).toHaveBeenCalledWith({
       data: {
         eventType: "MFA_RESET_BY_ADMIN",
         outcome: "SUCCESS",
@@ -327,7 +339,7 @@ describe("MfaAdminService.resetMember", () => {
     });
   });
 
-  it("does not mail or audit when the transaction fails", async () => {
+  it("does not mail when the transaction (which holds the audit) fails", async () => {
     const { service, prisma, mail } = createHarness();
     prisma.$transaction.mockRejectedValue(new Error("db down"));
 
@@ -339,9 +351,43 @@ describe("MfaAdminService.resetMember", () => {
     expect(prisma.auditEvent.create).not.toHaveBeenCalled();
   });
 
+  it("ADMIN → OWNER reset → 403 with no writes or mail", async () => {
+    const { service, prisma, tx, mail } = createHarness({
+      actorRole: "ADMIN",
+      target: { status: "ACTIVE", role: "OWNER" },
+    });
+
+    await expect(
+      service.resetMember(ADMIN_ID, TARGET_ID),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(tx.userMfa.deleteMany).not.toHaveBeenCalled();
+    expect(mail.sendMfaResetByAdmin).not.toHaveBeenCalled();
+    expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+  });
+
+  it("OWNER → ADMIN reset is allowed", async () => {
+    const { service, prisma } = createHarness({
+      actorRole: "OWNER",
+      target: { status: "ACTIVE", role: "ADMIN" },
+    });
+    await service.resetMember(ADMIN_ID, TARGET_ID);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
+  it("ADMIN → MEMBER reset is allowed", async () => {
+    const { service, prisma } = createHarness({
+      actorRole: "ADMIN",
+      target: { status: "ACTIVE", role: "MEMBER" },
+    });
+    await service.resetMember(ADMIN_ID, TARGET_ID);
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+  });
+
   it("reset of an invited member is allowed", async () => {
     const { service, prisma } = createHarness({
-      target: { status: "INVITED" },
+      target: { status: "INVITED", role: "MEMBER" },
     });
     await service.resetMember(ADMIN_ID, TARGET_ID);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
