@@ -1,5 +1,6 @@
 // Use a dedicated/seeded e2e user whose password equals AUTH_E2E_PASSWORD, never a real account: this test resets that password, revokes its sessions and sets it ACTIVE, and clears the local Mailpit inbox.
 import axios from "axios";
+import { createHash } from "node:crypto";
 import Redis from "ioredis";
 import { clearMailbox, messageText, waitForMessages } from "../support/mailpit";
 
@@ -28,7 +29,17 @@ function tokenFrom(text: string): string {
         process.env.REDIS_URL ?? "redis://localhost:6379",
       );
       try {
-        await redis.del(`auth:rl:pwreset-email:${address}`);
+        const emailHash = createHash("sha256").update(address).digest("hex");
+        await redis.del(`auth:rl:pwreset-email:${emailHash}`);
+        // Per-IP buckets (5 per 60 s) from earlier runs would answer 429.
+        for (const path of ["/api/auth/login", "/api/auth/password/forgot"]) {
+          const stream = redis.scanStream({
+            match: `auth:rl:ip:*:${path}`,
+          });
+          for await (const keys of stream as AsyncIterable<string[]>) {
+            if (keys.length > 0) await redis.del(...keys);
+          }
+        }
       } finally {
         redis.disconnect();
       }

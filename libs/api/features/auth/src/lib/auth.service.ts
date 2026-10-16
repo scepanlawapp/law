@@ -29,6 +29,11 @@ function hashToken(token: string): string {
   return createHash("sha256").update(token).digest("hex");
 }
 
+/** Keeps plaintext emails out of Redis key names and audit metadata. */
+function hashEmail(normalizedEmail: string): string {
+  return createHash("sha256").update(normalizedEmail).digest("hex");
+}
+
 async function hashPassword(password: string): Promise<string> {
   const salt = randomBytes(16).toString("hex");
   const derivedKey = (await scrypt(password, salt, 64)) as Buffer;
@@ -260,10 +265,11 @@ export class AuthService {
 
   async requestPasswordReset(email: string): Promise<void> {
     const normalizedEmail = normalizeEmail(email);
+    const emailHash = hashEmail(normalizedEmail);
     let attempts: number;
     try {
       attempts = await this.rateLimit.hit(
-        `pwreset-email:${normalizedEmail}`,
+        `pwreset-email:${emailHash}`,
         RESET_EMAIL_WINDOW_MS,
       );
     } catch {
@@ -273,6 +279,7 @@ export class AuthService {
       await this.audit({
         eventType: "PASSWORD_RESET_THROTTLED",
         outcome: "FAILURE",
+        metadata: { emailHash },
       });
       return;
     }
@@ -473,6 +480,7 @@ export class AuthService {
     outcome: string;
     userId?: string;
     workspaceId?: string;
+    metadata?: Record<string, string>;
   }): Promise<void> {
     await this.prisma.auditEvent.create({ data: input });
   }

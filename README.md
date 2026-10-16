@@ -36,7 +36,7 @@ The API is available at `http://localhost:3001/api`, with health at `http://loca
 
 Email invitations and password-reset messages are delivered via Mailpit (`http://localhost:8025`), a local SMTP sink that captures outbound mail. No actual email is sent in development.
 
-Local end-to-end check: with the API running, run `AUTH_E2E_EMAIL=<seeded user> AUTH_E2E_PASSWORD=<its password> MAILPIT_URL=http://localhost:8025 npx nx e2e api-e2e --testPathPatterns=auth-email`. Use a dedicated or seeded e2e user whose password equals `AUTH_E2E_PASSWORD`, never a real account: the test resets that account's password to `AUTH_E2E_PASSWORD`, revokes all its sessions and sets it ACTIVE, and it clears the whole local Mailpit inbox. Mailpit can take several seconds per delivery on some setups (for example WSL reverse DNS lookups); `MP_SMTP_DISABLE_RDNS=true` on the Mailpit container removes the delay.
+Local end-to-end check: with the API running, run `AUTH_E2E_EMAIL=<seeded user> AUTH_E2E_PASSWORD=<its password> MAILPIT_URL=http://localhost:8025 npx nx e2e api-e2e --testPathPatterns=auth-email`. Use a dedicated or seeded e2e user whose password equals `AUTH_E2E_PASSWORD`, never a real account: the test resets that account's password to `AUTH_E2E_PASSWORD`, revokes all its sessions and sets it ACTIVE, and it clears the whole local Mailpit inbox. Mailpit can take several seconds per delivery on some setups (for example WSL reverse DNS lookups); `infra/docker/compose.yml` sets `MP_SMTP_DISABLE_RDNS=true` on the Mailpit service to avoid Mailpit's reverse-DNS delay (it applies the next time the services are brought up with `npm run services:up`).
 
 ### Production email
 

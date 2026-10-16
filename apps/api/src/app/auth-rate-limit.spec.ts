@@ -3,6 +3,7 @@ import {
   HttpException,
   ServiceUnavailableException,
 } from "@nestjs/common";
+import { createHash } from "node:crypto";
 import {
   AuthRateLimitGuard,
   AuthRateLimitStore,
@@ -121,6 +122,9 @@ function createService(store: AuthRateLimitStore) {
   return { service, prisma, mail };
 }
 
+const sha256 = (value: string) =>
+  createHash("sha256").update(value).digest("hex");
+
 describe("per-email password reset throttle", () => {
   it("fourth reset request in an hour is throttled silently", async () => {
     const store = new InMemoryAuthRateLimitStore();
@@ -142,7 +146,7 @@ describe("per-email password reset throttle", () => {
     expect(prisma.authToken.create).toHaveBeenCalledTimes(3);
     expect(mail.sendPasswordReset).toHaveBeenCalledTimes(3);
     expect(hit).toHaveBeenCalledWith(
-      "pwreset-email:foo@example.com",
+      `pwreset-email:${sha256("foo@example.com")}`,
       3_600_000,
     );
 
@@ -153,8 +157,15 @@ describe("per-email password reset throttle", () => {
     expect(prisma.authToken.create).toHaveBeenCalledTimes(3);
     expect(mail.sendPasswordReset).toHaveBeenCalledTimes(3);
     expect(prisma.auditEvent.create).toHaveBeenLastCalledWith({
-      data: { eventType: "PASSWORD_RESET_THROTTLED", outcome: "FAILURE" },
+      data: {
+        eventType: "PASSWORD_RESET_THROTTLED",
+        outcome: "FAILURE",
+        metadata: { emailHash: sha256("foo@example.com") },
+      },
     });
+    for (const [key] of hit.mock.calls) {
+      expect(key).not.toContain("foo@example.com");
+    }
     expect(JSON.stringify(prisma.auditEvent.create.mock.calls)).not.toContain(
       "foo@example.com",
     );

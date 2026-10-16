@@ -170,7 +170,7 @@
   export class InMemoryAuthRateLimitStore extends AuthRateLimitStore {} // exported for tests
   // AuthRateLimitGuard.canActivate(context): Promise<boolean>
   ```
-  Redis client: provider inside the auth module, `new Redis(REDIS_URL ?? "redis://localhost:6379", { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false })`, closed in `onModuleDestroy`.
+  Redis client: provider inside the auth module, `new Redis(REDIS_URL ?? "redis://localhost:6379", { lazyConnect: true, maxRetriesPerRequest: 1, enableOfflineQueue: false, connectTimeout: 2000 })` with an `error` listener; the counter is an `INCR` + `PEXPIRE` Lua script (Redis < 7 compatible), closed in `onModuleDestroy`.
 
 - [x] **Step 1: Write failing tests:**
   - `allows five attempts then 429` (guard + `InMemoryAuthRateLimitStore`), key `ip:${ip}:${path}`.
@@ -180,7 +180,7 @@
   - `throttle applies to unknown emails without revealing anything`: unknown email × 4 → resolves each time; no audit with userId.
   - Update the existing `auth.guard.spec.ts` rate-limit test to `await guard.canActivate` with an in-memory store.
 - [x] **Step 2: Run** `npx nx test api --testPathPatterns="auth-rate-limit|auth.guard"`. Expected: FAIL.
-- [x] **Step 3: Implement.** Per-email throttle key `pwreset-email:${normalizeEmail(email)}`, limit 3, window 3_600_000 ms, checked before the user lookup.
+- [x] **Step 3: Implement.** Per-email throttle key `pwreset-email:${sha256(normalizeEmail(email))}` (hex; no plaintext email in Redis), limit 3, window 3_600_000 ms, checked before the user lookup.
 - [x] **Step 4: Run** same command plus `npx nx test api --testPathPatterns=auth`. Expected: PASS.
 - [x] **Step 5: Commit** `feat(auth): Redis rate limits and per-email reset throttle`.
 
@@ -196,8 +196,9 @@
 **Interfaces:**
 - Produces (`mailpit.ts`): `clearMailbox(): Promise<void>` (`DELETE /api/v1/messages`), `waitForMessages(to: string, count: number, timeoutMs = 10_000): Promise<Array<{ ID: string; Subject: string }>>` (polls `GET /api/v1/search?query=to:<email>`), `messageText(id: string): Promise<string>` (`GET /api/v1/message/{id}` → `Text`).
 
-- [x] **Step 1: Write the e2e test** `password reset via Mailpit`, skipped unless `AUTH_E2E_EMAIL`, `AUTH_E2E_PASSWORD`, `MAILPIT_URL` are set. Before: clear mailbox and `DEL auth:rl:pwreset-email:<email>` via ioredis. Then: forgot-password twice → 2 messages; extract `token` from each text; reset with the first → 401; reset with the second to `AUTH_E2E_PASSWORD` → 2xx; login → 200; a third message (password changed) arrives.
+- [x] **Step 1: Write the e2e test** `password reset via Mailpit`, skipped unless `AUTH_E2E_EMAIL`, `AUTH_E2E_PASSWORD`, `MAILPIT_URL` are set. Before: clear mailbox and `DEL auth:rl:pwreset-email:<sha256(email)>` and the `auth:rl:ip:*` keys of the login and forgot-password paths via ioredis. Then: forgot-password twice → 2 messages; extract `token` from each text; reset with the first → 401; reset with the second to `AUTH_E2E_PASSWORD` → 2xx; login → 200; a third message (password changed) arrives.
 - [x] **Step 2: Run** with services, API and seeded user: `npx nx e2e api-e2e --testPathPatterns=auth-email`. Expected: PASS.
 - [x] **Step 3:** Update docs listed above; tick this plan; set `metadata.json` `status: "completed"`, `updated_at`.
 - [x] **Step 4: Full checks:** `npx nx lint api api-e2e` and `npx nx test api`. Expected: no errors.
+  - Note: no new errors from this track. Pre-existing failures: api suites `config.validation`, `sef-api.client`, `sef-invoice-validator`, and 34 pre-existing api lint errors. The correct lint command is `npx nx run-many -t lint -p api api-e2e`.
 - [x] **Step 5: Commit** `docs(auth): email delivery and reset hardening done` and push `auth_email_delivery_20261016`.
