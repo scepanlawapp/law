@@ -66,6 +66,33 @@ export class AuthMailService {
     });
   }
 
+  async sendMfaEmailCode(
+    user: { id: string; email: string },
+    code: string,
+  ): Promise<void> {
+    await this.enqueue(user.email, user.id, { template: "mfaEmailCode", code });
+  }
+
+  async sendMfaDisabled(
+    user: { id: string; email: string },
+    at: Date,
+  ): Promise<void> {
+    await this.enqueue(user.email, user.id, {
+      template: "mfaDisabled",
+      at: at.toISOString(),
+    });
+  }
+
+  async sendMfaResetByAdmin(
+    user: { id: string; email: string },
+    at: Date,
+  ): Promise<void> {
+    await this.enqueue(user.email, user.id, {
+      template: "mfaResetByAdmin",
+      at: at.toISOString(),
+    });
+  }
+
   async enqueue(
     to: string,
     userId: string | null,

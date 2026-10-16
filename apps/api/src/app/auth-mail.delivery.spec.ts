@@ -97,6 +97,53 @@ describe("AuthMailService", () => {
     });
   });
 
+  it("sends MFA email code with the user's language", async () => {
+    const { service, prisma, queue } = createService();
+    prisma.userSettings.findUnique.mockResolvedValue({ language: "EN" });
+
+    await service.sendMfaEmailCode(user, "482915");
+
+    const [, job] = queue.add.mock.calls[0] as [string, AuthMailJob];
+    expect(job.to).toBe(user.email);
+    expect(job.userId).toBe(user.id);
+    expect(job.locale).toBe("EN");
+    expect(job.message).toEqual({ template: "mfaEmailCode", code: "482915" });
+  });
+
+  it("sends MFA disabled and admin-reset notices with ISO timestamps", async () => {
+    const { service, queue } = createService();
+    const at = new Date("2026-10-16T10:30:00.000Z");
+
+    await service.sendMfaDisabled(user, at);
+    await service.sendMfaResetByAdmin(user, at);
+
+    const jobs = queue.add.mock.calls.map((c) => c[1] as AuthMailJob);
+    expect(jobs[0].locale).toBe("SR");
+    expect(jobs[0].message).toEqual({
+      template: "mfaDisabled",
+      at: "2026-10-16T10:30:00.000Z",
+    });
+    expect(jobs[1].message).toEqual({
+      template: "mfaResetByAdmin",
+      at: "2026-10-16T10:30:00.000Z",
+    });
+  });
+
+  it("MFA code enqueue failure never logs the code", async () => {
+    const { service, queue } = createService();
+    queue.add.mockRejectedValue(new Error("redis down 482915"));
+    const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+
+    await expect(
+      service.sendMfaEmailCode(user, "482915"),
+    ).resolves.toBeUndefined();
+
+    expect(warn).toHaveBeenCalled();
+    for (const call of warn.mock.calls) {
+      expect(String(call[0])).not.toContain("482915");
+    }
+  });
+
   it("enqueue failure does not throw and never logs the token", async () => {
     const { service, queue } = createService();
     queue.add.mockRejectedValue(new Error("redis down"));

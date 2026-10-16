@@ -3,7 +3,10 @@ export type AuthEmailLocale = "SR" | "EN";
 export type AuthEmailMessage =
   | { template: "invitation"; link: string }
   | { template: "passwordReset"; link: string }
-  | { template: "passwordChanged"; changedAt: string /* ISO */ };
+  | { template: "passwordChanged"; changedAt: string /* ISO */ }
+  | { template: "mfaEmailCode"; code: string }
+  | { template: "mfaDisabled"; at: string /* ISO */ }
+  | { template: "mfaResetByAdmin"; at: string /* ISO */ };
 
 export interface RenderedEmail {
   subject: string;
@@ -20,6 +23,8 @@ interface EmailContent {
   subject: string;
   heading: string;
   paragraphs: string[];
+  /** A short value (e.g. a one-time code) shown prominently after the paragraphs. */
+  highlight?: string;
   action?: { label: string; link: string };
   /** Shown below the action, e.g. what to do if the link was not requested. */
   afterAction?: string[];
@@ -27,6 +32,7 @@ interface EmailContent {
 }
 
 const RESET_VALIDITY_MINUTES = 30;
+const MFA_CODE_VALIDITY_MINUTES = 10;
 
 function escapeHtml(value: string): string {
   return value
@@ -130,10 +136,85 @@ const contentBuilders: Record<
       footer: officeName,
     }),
   },
+  mfaEmailCode: {
+    SR: (message: { code: string }, { officeName }) => ({
+      subject: `Kod za prijavu – ${officeName}`,
+      heading: "Kod za prijavu",
+      paragraphs: [
+        "Unesite sledeći kod da biste završili prijavu na Vaš nalog.",
+      ],
+      highlight: message.code,
+      afterAction: [
+        `Kod važi ${MFA_CODE_VALIDITY_MINUTES} minuta.`,
+        "Ne delite ovaj kod ni sa kim. Zaposleni u kancelariji Vas nikada neće tražiti da im ga saopštite.",
+        "Ako se niste Vi pokušali prijaviti, promenite lozinku i obavestite administratora kancelarije.",
+      ],
+      footer: officeName,
+    }),
+    EN: (message: { code: string }, { officeName }) => ({
+      subject: `Your sign-in code – ${officeName}`,
+      heading: "Your sign-in code",
+      paragraphs: ["Enter the following code to finish signing in."],
+      highlight: message.code,
+      afterAction: [
+        `The code is valid for ${MFA_CODE_VALIDITY_MINUTES} minutes.`,
+        "Do not share this code with anyone. Office staff will never ask you for it.",
+        "If you did not try to sign in, change your password and contact the office administrator.",
+      ],
+      footer: officeName,
+    }),
+  },
+  mfaDisabled: {
+    SR: (message: { at: string }, { officeName }) => ({
+      subject: `Dvofaktorska autentifikacija je isključena – ${officeName}`,
+      heading: "Dvofaktorska autentifikacija je isključena",
+      paragraphs: [
+        "Dvofaktorska autentifikacija je isključena za Vaš nalog.",
+        `Datum i vreme: ${formatDateTime(message.at, "SR")}.`,
+        "Ako to niste bili Vi, odmah kontaktirajte administratora kancelarije kako bi se Vaš nalog obezbedio.",
+      ],
+      footer: officeName,
+    }),
+    EN: (message: { at: string }, { officeName }) => ({
+      subject: `Two-factor authentication was turned off – ${officeName}`,
+      heading: "Two-factor authentication was turned off",
+      paragraphs: [
+        "Two-factor authentication was turned off for your account.",
+        `Date and time: ${formatDateTime(message.at, "EN")}.`,
+        "If this wasn't you, contact the office administrator immediately so your account can be secured.",
+      ],
+      footer: officeName,
+    }),
+  },
+  mfaResetByAdmin: {
+    SR: (message: { at: string }, { officeName }) => ({
+      subject: `Dvofaktorska autentifikacija je resetovana – ${officeName}`,
+      heading: "Administrator je resetovao dvofaktorsku autentifikaciju",
+      paragraphs: [
+        "Administrator kancelarije resetovao je dvofaktorsku autentifikaciju za Vaš nalog.",
+        "Ako kancelarija zahteva dvofaktornu autentifikaciju, podesićete je ponovo pri sledećoj prijavi.",
+        `Datum i vreme: ${formatDateTime(message.at, "SR")}.`,
+        "Ako to nije bilo očekivano, kontaktirajte administratora kancelarije.",
+      ],
+      footer: officeName,
+    }),
+    EN: (message: { at: string }, { officeName }) => ({
+      subject: `Two-factor authentication was reset – ${officeName}`,
+      heading: "An administrator reset your two-factor authentication",
+      paragraphs: [
+        "The office administrator reset two-factor authentication for your account.",
+        "If the office requires two-factor authentication, you will set it up again at your next sign-in.",
+        `Date and time: ${formatDateTime(message.at, "EN")}.`,
+        "If this was unexpected, contact the office administrator.",
+      ],
+      footer: officeName,
+    }),
+  },
 };
 
 function renderText(content: EmailContent): string {
   const blocks = [content.heading, ...content.paragraphs];
+  if (content.highlight) blocks.push(content.highlight);
   if (content.action) {
     blocks.push(`${content.action.label}: ${content.action.link}`);
   }
@@ -145,6 +226,9 @@ function renderText(content: EmailContent): string {
 function renderHtml(content: EmailContent): string {
   const paragraph = (value: string) =>
     `<p style="margin:0 0 16px;font-size:15px;line-height:1.6;color:#333333;">${escapeHtml(value)}</p>`;
+  const highlight = content.highlight
+    ? `<p style="margin:24px 0;padding:16px;background-color:#f4f4f5;border-radius:4px;text-align:center;font-family:'Courier New',Courier,monospace;font-size:32px;font-weight:bold;letter-spacing:8px;color:#111111;">${escapeHtml(content.highlight)}</p>`
+    : "";
   const action = content.action
     ? `<p style="margin:24px 0;"><a href="${escapeHtml(content.action.link)}" style="display:inline-block;padding:12px 24px;background-color:#1f2937;color:#ffffff;text-decoration:none;border-radius:4px;font-size:15px;">${escapeHtml(content.action.label)}</a></p>` +
       `<p style="margin:0 0 16px;font-size:13px;line-height:1.6;color:#666666;word-break:break-all;">${escapeHtml(content.action.link)}</p>`
@@ -156,6 +240,7 @@ function renderHtml(content: EmailContent): string {
     `<div style="max-width:560px;margin:0 auto;padding:32px;background-color:#ffffff;border:1px solid #e4e4e7;border-radius:6px;">`,
     `<h1 style="margin:0 0 20px;font-size:20px;line-height:1.3;color:#111111;">${escapeHtml(content.heading)}</h1>`,
     ...content.paragraphs.map(paragraph),
+    highlight,
     action,
     ...(content.afterAction ?? []).map(paragraph),
     `<hr style="margin:24px 0 16px;border:0;border-top:1px solid #e4e4e7;">`,

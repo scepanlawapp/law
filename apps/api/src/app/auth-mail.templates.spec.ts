@@ -57,6 +57,69 @@ describe("renderAuthEmail", () => {
     expect(en.text).toContain("If this wasn't you");
   });
 
+  it("mfaEmailCode shows the code, validity and a do-not-share warning", () => {
+    const sr = renderAuthEmail(
+      { template: "mfaEmailCode", code: "482915" },
+      { locale: "SR", officeName: "Advokati Petrović" },
+    );
+    expect(sr.text).toContain("482915");
+    expect(sr.html).toContain("482915");
+    expect(sr.html).toContain("monospace");
+    expect(sr.text).toContain("10 minuta");
+    expect(sr.text).toContain("Ne delite");
+    expect(sr.text).toContain("administrator");
+    expect(sr.subject).not.toContain("482915");
+    expect(sr.html).not.toContain("<a ");
+
+    const en = renderAuthEmail(
+      { template: "mfaEmailCode", code: "482915" },
+      { locale: "EN", officeName: "Petrović Law" },
+    );
+    expect(en.text).toContain("482915");
+    expect(en.html).toContain("482915");
+    expect(en.text).toContain("10 minutes");
+    expect(en.text).toContain("Do not share");
+    expect(en.text).toContain("administrator");
+    expect(en.subject).not.toContain("482915");
+  });
+
+  it.each([
+    ["mfaDisabled", "isključena", "turned off"],
+    ["mfaResetByAdmin", "administrator", "administrator"],
+  ] as const)("%s mentions time and what to do", (template, srWord, enWord) => {
+    const message = { template, at: changedAt } as AuthEmailMessage;
+    const sr = renderAuthEmail(message, {
+      locale: "SR",
+      officeName: "Advokati Petrović",
+    });
+    expect(sr.text).toContain(`Datum i vreme: ${formatted("SR")}.`);
+    expect(sr.text).toContain("kontaktirajte administratora");
+    expect(sr.text).toContain(srWord);
+
+    const en = renderAuthEmail(message, {
+      locale: "EN",
+      officeName: "Petrović Law",
+    });
+    expect(en.text).toContain(`Date and time: ${formatted("EN")}.`);
+    expect(en.text).toContain("contact the office administrator");
+    expect(en.text).toContain(enWord);
+  });
+
+  it("mfaDisabled and mfaResetByAdmin carry their specific copy", () => {
+    const disabled = renderAuthEmail(
+      { template: "mfaDisabled", at: changedAt },
+      { locale: "SR", officeName: "AK" },
+    );
+    expect(disabled.text).toContain(
+      "Dvofaktorska autentifikacija je isključena",
+    );
+    const reset = renderAuthEmail(
+      { template: "mfaResetByAdmin", at: changedAt },
+      { locale: "SR", officeName: "AK" },
+    );
+    expect(reset.text).toContain("pri sledećoj prijavi");
+  });
+
   it("escapes HTML but not text", () => {
     const email = renderAuthEmail(
       { template: "invitation", link },
@@ -71,6 +134,9 @@ describe("renderAuthEmail", () => {
     { template: "invitation", link },
     { template: "passwordReset", link },
     { template: "passwordChanged", changedAt },
+    { template: "mfaEmailCode", code: "482915" },
+    { template: "mfaDisabled", at: changedAt },
+    { template: "mfaResetByAdmin", at: changedAt },
   ];
   const locales: AuthEmailLocale[] = ["SR", "EN"];
 
