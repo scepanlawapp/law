@@ -11,6 +11,7 @@ import { AuthGuard } from "./auth.guard";
 import { CsrfOriginGuard } from "./csrf.guard";
 import { AuthRateLimitGuard } from "./rate-limit.guard";
 import { AuthRuntimeConfig } from "./auth.config";
+import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
 import {
   AUTH_REDIS,
   AuthRateLimitStore,
@@ -34,6 +35,7 @@ import {
     CsrfOriginGuard,
     AuthRateLimitGuard,
     AuthRuntimeConfig,
+    MfaSecretCipher,
     { provide: AUTH_REDIS, useFactory: createAuthRedisClient },
     { provide: AuthRateLimitStore, useClass: RedisAuthRateLimitStore },
   ],
@@ -43,6 +45,7 @@ import {
     AuthGuard,
     CsrfOriginGuard,
     AuthRuntimeConfig,
+    MfaSecretCipher,
   ],
 })
 export class AuthModule {}

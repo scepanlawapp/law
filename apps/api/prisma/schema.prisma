@@ -34,6 +34,8 @@ enum WorkspaceMemberStatus {
 enum AuthTokenPurpose {
   INVITATION
   PASSWORD_RESET
+  MFA_CHALLENGE
+  MFA_EMAIL_CODE
 }
 
 enum ChatSessionStatus {
@@ -361,6 +363,9 @@ model User {
   memberships           WorkspaceMember[]
   sessions              AuthSession[]
   tokens                AuthToken[]
+  mfa                   UserMfa?
+  recoveryCodes         MfaRecoveryCode[]
+  trustedDevices        TrustedDevice[]
   auditEvents           AuditEvent[]
   organizedEvents       Event[]                @relation("EventOrganizer")
   createdEvents         Event[]                @relation("EventCreator")
@@ -546,6 +551,7 @@ model OrganizationSettings {
   allowedSefAttachmentFileExtensions Json
   maxSefAttachmentCount              Int?
   maxSefSingleFileSizeMb             Int?
+  mfaRequired                        Boolean                  @default(false)
   createdAt                          DateTime                 @default(now()) @db.Timestamptz(3)
   updatedAt                          DateTime                 @updatedAt @db.Timestamptz(3)
   workspace                          Workspace                @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
@@ -1368,11 +1374,51 @@ model AuthToken {
   tokenHash  String
   expiresAt  DateTime         @db.Timestamptz(3)
   consumedAt DateTime?        @db.Timestamptz(3)
+  attempts   Int              @default(0)
+  scope      String?
   createdAt  DateTime         @default(now()) @db.Timestamptz(3)
   user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([purpose, tokenHash])
   @@index([userId, purpose])
+}
+
+model UserMfa {
+  userId               String    @id
+  totpSecretCiphertext String
+  totpSecretIv         String
+  totpSecretAuthTag    String
+  enabledAt            DateTime? @db.Timestamptz(3)
+  lastUsedStep         BigInt?
+  createdAt            DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime  @updatedAt @db.Timestamptz(3)
+  user                 User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MfaRecoveryCode {
+  id         String    @id @default(uuid())
+  userId     String
+  codeHash   String
+  consumedAt DateTime? @db.Timestamptz(3)
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model TrustedDevice {
+  id         String    @id @default(uuid())
+  userId     String
+  tokenHash  String    @unique
+  expiresAt  DateTime  @db.Timestamptz(3)
+  revokedAt  DateTime? @db.Timestamptz(3)
+  lastUsedAt DateTime? @db.Timestamptz(3)
+  userAgent  String?
+  ipAddress  String?
+  createdAt  DateTime  @default(now()) @db.Timestamptz(3)
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt])
 }
 
 model AuditEvent {
