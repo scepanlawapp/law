@@ -1,3 +1,4 @@
+// Use a dedicated/seeded e2e user whose password equals AUTH_E2E_PASSWORD, never a real account: this test resets that password, revokes its sessions and sets it ACTIVE, and clears the local Mailpit inbox.
 import axios from "axios";
 import Redis from "ioredis";
 import { clearMailbox, messageText, waitForMessages } from "../support/mailpit";
