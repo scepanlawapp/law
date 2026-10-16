@@ -2,6 +2,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnauthorizedException,
 } from "@nestjs/common";
 import { Prisma } from "@prisma/client";
 import { HARDCODED_WORKSPACE_ID, PrismaService } from "@law/core";
@@ -11,6 +12,7 @@ import {
   WorkspaceRole,
 } from "@law/api-interfaces";
 import { AuthMailService } from "../mail/auth-mail.service";
+import { verifyPassword } from "../passwords";
 import { TrustedDeviceService } from "./trusted-device.service";
 
 const ADMIN_ROLES: string[] = ["OWNER", "ADMIN"];
@@ -19,7 +21,8 @@ const ADMIN_ROLES: string[] = ["OWNER", "ADMIN"];
  * Workspace-admin side of 2FA: the office-wide policy, a per-member security
  * overview and the emergency reset of a member's second factor. Every method
  * re-checks the actor against the live membership row (not the session
- * snapshot) so a demoted admin loses access immediately.
+ * snapshot) so a demoted admin loses access immediately. The two writes
+ * (policy switch, member reset) also require the actor's current password.
  */
 @Injectable()
 export class MfaAdminService {
@@ -38,8 +41,13 @@ export class MfaAdminService {
     return { mfaRequired: settings?.mfaRequired ?? false };
   }
 
-  async setPolicy(actorId: string, mfaRequired: boolean): Promise<MfaPolicy> {
+  async setPolicy(
+    actorId: string,
+    mfaRequired: boolean,
+    currentPassword: string,
+  ): Promise<MfaPolicy> {
     await this.requireAdmin(actorId);
+    await this.requirePassword(actorId, currentPassword);
     const settings = await this.prisma.organizationSettings.upsert({
       where: { workspaceId: HARDCODED_WORKSPACE_ID },
       update: { mfaRequired },
@@ -109,8 +117,13 @@ export class MfaAdminService {
    * admin can not reset themselves: that path would bypass the
    * password-gated self-service flow.
    */
-  async resetMember(actorId: string, targetUserId: string): Promise<void> {
+  async resetMember(
+    actorId: string,
+    targetUserId: string,
+    currentPassword: string,
+  ): Promise<void> {
     const actorRole = await this.requireAdmin(actorId);
+    await this.requirePassword(actorId, currentPassword);
     if (targetUserId === actorId) {
       throw new ForbiddenException(
         "Use your own security settings to change your two-factor authentication",
@@ -174,6 +187,24 @@ export class MfaAdminService {
       });
     });
     await this.mail.sendMfaResetByAdmin({ id: user.id, email: user.email }, at);
+  }
+
+  /** Re-authentication of the acting admin; 401 before any write. */
+  private async requirePassword(
+    actorId: string,
+    currentPassword: string,
+  ): Promise<void> {
+    const actor = await this.prisma.user.findUnique({
+      where: { id: actorId },
+      select: { passwordHash: true },
+    });
+    if (
+      !actor?.passwordHash ||
+      !currentPassword ||
+      !(await verifyPassword(currentPassword, actor.passwordHash))
+    ) {
+      throw new UnauthorizedException("Current password is incorrect");
+    }
   }
 
   private async requireAdmin(actorId: string): Promise<string> {

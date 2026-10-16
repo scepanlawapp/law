@@ -8,6 +8,7 @@ import {
   signal,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
+import { finalize } from "rxjs";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
@@ -19,12 +20,14 @@ import { AuthState } from "@law/security";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { canManageBilling } from "../../shared/billing";
-import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { PasswordConfirmDialogService } from "./password-confirm-dialog.service";
 
 /**
  * Office-wide 2FA policy and per-member status with reset. Visible to
- * OWNER and ADMIN only (the API enforces the same).
+ * OWNER and ADMIN only (the API enforces the same). Both writes ask for the
+ * admin's current password; wrong passwords and failures stay inline in the
+ * password dialog.
  */
 @Component({
   selector: "law-member-security",
@@ -44,7 +47,7 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 export class MemberSecurityComponent implements OnInit {
   private readonly api = inject(AuthApiClient);
   private readonly authState = inject(AuthState);
-  private readonly confirmDialog = inject(ConfirmDialogService);
+  private readonly passwordDialog = inject(PasswordConfirmDialogService);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
   private readonly destroyRef = inject(DestroyRef);
@@ -84,78 +87,56 @@ export class MemberSecurityComponent implements OnInit {
   }
 
   onPolicyToggle(required: boolean): void {
-    if (!required) {
-      this.savePolicy(false);
-      return;
-    }
-    // Back to "off" until the office confirms; the switch already flipped itself.
-    this.policyControl.setValue(false, { emitEvent: false });
-    this.confirmDialog
-      .confirm({
-        title: "security.policyConfirmTitle",
-        message: "security.policyConfirmMessage",
-        confirmText: "security.policyConfirm",
-        variant: "warning",
+    // Back to the saved value until the admin confirms with the password;
+    // the switch already flipped itself.
+    this.policyControl.setValue(!required, { emitEvent: false });
+    this.savingPolicy.set(true);
+    this.passwordDialog
+      .open({
+        ...(required
+          ? {
+              title: "security.policyConfirmTitle",
+              description: "security.policyConfirmMessage",
+              confirmText: "security.policyConfirm",
+            }
+          : {
+              title: "security.policyOffTitle",
+              description: "security.policyOffMessage",
+              confirmText: "security.policyOffConfirm",
+            }),
+        run: (currentPassword) =>
+          this.api.setMfaPolicy({ mfaRequired: required, currentPassword }),
       })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((confirmed) => {
-        if (confirmed) this.savePolicy(true);
+      .pipe(
+        finalize(() => this.savingPolicy.set(false)),
+        takeUntilDestroyed(this.destroyRef),
+      )
+      .subscribe((policy) => {
+        this.policyControl.setValue(policy.mfaRequired, { emitEvent: false });
+        this.toast.success(
+          this.localization.translate(
+            policy.mfaRequired
+              ? "security.policyEnabled"
+              : "security.policyDisabled",
+          ),
+        );
       });
   }
 
   reset(member: MemberSecuritySummary): void {
-    this.confirmDialog
-      .confirm({
+    this.passwordDialog
+      .open({
         title: "security.resetConfirmTitle",
-        message: "security.resetConfirmMessage",
+        description: "security.resetConfirmMessage",
         confirmText: "security.reset",
-        variant: "danger",
+        destructive: true,
+        run: (currentPassword) =>
+          this.api.resetMemberMfa(member.userId, currentPassword),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((confirmed) => {
-        if (!confirmed) return;
-        this.api
-          .resetMemberMfa(member.userId)
-          .pipe(takeUntilDestroyed(this.destroyRef))
-          .subscribe({
-            next: () => {
-              this.toast.success(
-                this.localization.translate("security.resetDone"),
-              );
-              this.loadMembers();
-            },
-            error: () =>
-              this.toast.error(
-                this.localization.translate("security.resetFailed"),
-              ),
-          });
-      });
-  }
-
-  private savePolicy(mfaRequired: boolean): void {
-    this.savingPolicy.set(true);
-    this.api
-      .setMfaPolicy({ mfaRequired })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (policy) => {
-          this.savingPolicy.set(false);
-          this.policyControl.setValue(policy.mfaRequired, { emitEvent: false });
-          this.toast.success(
-            this.localization.translate(
-              policy.mfaRequired
-                ? "security.policyEnabled"
-                : "security.policyDisabled",
-            ),
-          );
-        },
-        error: () => {
-          this.savingPolicy.set(false);
-          this.policyControl.setValue(!mfaRequired, { emitEvent: false });
-          this.toast.error(
-            this.localization.translate("security.policyFailed"),
-          );
-        },
+      .subscribe(() => {
+        this.toast.success(this.localization.translate("security.resetDone"));
+        this.loadMembers();
       });
   }
 

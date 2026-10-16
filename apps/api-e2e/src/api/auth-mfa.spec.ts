@@ -26,12 +26,19 @@ const AUTH_PATHS = [
   "/api/auth/mfa/enrollment/confirm",
 ];
 
-/** Per-IP buckets (5 per 60 s) from earlier runs or earlier steps answer 429. */
+/**
+ * Per-IP buckets (5 per 60 s) and the per-account 2FA failure counter from
+ * earlier runs or earlier steps answer 429.
+ */
 async function clearRateLimits(): Promise<void> {
   const redis = new Redis(process.env.REDIS_URL ?? "redis://localhost:6379");
   try {
-    for (const path of AUTH_PATHS) {
-      const stream = redis.scanStream({ match: `auth:rl:ip:*:${path}` });
+    const patterns = [
+      ...AUTH_PATHS.map((path) => `auth:rl:ip:*:${path}`),
+      "auth:rl:mfa-fail:user:*",
+    ];
+    for (const pattern of patterns) {
+      const stream = redis.scanStream({ match: pattern });
       for await (const keys of stream as AsyncIterable<string[]>) {
         if (keys.length > 0) await redis.del(...keys);
       }
@@ -208,20 +215,39 @@ async function mfaStatus(jar: CookieJar): Promise<MfaStatusResponse> {
         await stranger.request("post", "/api/auth/logout");
 
         const reuse = new CookieJar();
-        expect((await login(reuse)).status).toBe("MFA_REQUIRED");
+        const reuseLogin = await login(reuse);
+        expect(reuseLogin.status).toBe("MFA_REQUIRED");
         await expect(
           verify(reuse, "RECOVERY", recoveryCode),
         ).rejects.toMatchObject({ response: { status: 401 } });
 
-        // 5. An emailed code works (same challenge as the failed attempt).
-        await clearMailbox();
-        await clearRateLimits();
-        const sent = await reuse.request("post", "/api/auth/mfa/email-code");
-        expect(sent.status).toBe(204);
-        const [message] = await waitForMessages(address, 1, MAIL_TIMEOUT_MS);
-        const code = /\b(\d{6})\b/.exec(await messageText(message.ID))?.[1];
-        expect(code).toBeTruthy();
-        expect((await verify(reuse, "EMAIL", code as string)).status).toBe(200);
+        // 5. An emailed code works (same challenge as the failed attempt),
+        // unless the password changed within 72 h (e.g. a freshly seeded
+        // user): then the email fallback is withheld and a code is refused.
+        const emailOffered =
+          reuseLogin.status === "MFA_REQUIRED" &&
+          reuseLogin.methods.includes("EMAIL");
+        if (emailOffered) {
+          await clearMailbox();
+          await clearRateLimits();
+          const sent = await reuse.request("post", "/api/auth/mfa/email-code");
+          expect(sent.status).toBe(204);
+          const [message] = await waitForMessages(address, 1, MAIL_TIMEOUT_MS);
+          const code = /\b(\d{6})\b/.exec(await messageText(message.ID))?.[1];
+          expect(code).toBeTruthy();
+          expect((await verify(reuse, "EMAIL", code as string)).status).toBe(
+            200,
+          );
+        } else {
+          await expect(verify(reuse, "EMAIL", "123456")).rejects.toMatchObject({
+            response: { status: 401 },
+          });
+          // The next TOTP step may already be spent; a fresh recovery code
+          // completes this challenge instead.
+          expect(
+            (await verify(reuse, "RECOVERY", recoveryCodes[1])).status,
+          ).toBe(200);
+        }
         expect(reuse.get("law_session")).toBeTruthy();
 
         // 6. Disabling needs the password and is the way back to "as found".

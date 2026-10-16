@@ -824,6 +824,7 @@
   "auth.togglePassword": "Prikaži/sakrij lozinku",
   "auth.dontHaveAccount": "Nemate nalog?",
   "auth.invitationInvalid": "Ovaj poziv je nevažeći ili istekao.",
+  "auth.invitationSignInWithCode": "Lozinka je postavljena. Prijavite se i unesite kod iz aplikacije za autentifikaciju.",
   "auth.requestFailed": "Nije moguće obraditi zahtev.",
   "auth.resetLinkInvalid": "Ovaj link za resetovanje je nevažeći ili istekao.",
   "auth.loginFormRequired": "Imejl i lozinka su obavezni.",
@@ -3153,9 +3154,11 @@
   "security.policyConfirmTitle": "Uključiti obaveznu dvofaktorsku autentifikaciju?",
   "security.policyConfirmMessage": "Članovi koji nemaju dvofaktorsku autentifikaciju moraće da je podese pri sledećoj prijavi.",
   "security.policyConfirm": "Uključi",
+  "security.policyOffTitle": "Isključiti obaveznu dvofaktorsku autentifikaciju?",
+  "security.policyOffMessage": "Članovi više neće morati da koriste dvofaktorsku autentifikaciju. Potvrdite lozinkom.",
+  "security.policyOffConfirm": "Isključi",
   "security.policyEnabled": "Dvofaktorska autentifikacija je obavezna za sve članove.",
   "security.policyDisabled": "Dvofaktorska autentifikacija više nije obavezna.",
-  "security.policyFailed": "Podešavanje nije sačuvano. Pokušajte ponovo.",
   "security.membersTitle": "Članovi kancelarije",
   "security.membersDescription": "Pregled dvofaktorske autentifikacije po članu. Resetovanjem se član odjavljuje i mora ponovo da je podesi.",
   "security.member": "Član",
@@ -3168,6 +3171,5 @@
   "security.reset": "Resetuj 2FA",
   "security.resetConfirmTitle": "Resetovanje dvofaktorske autentifikacije",
   "security.resetConfirmMessage": "Član će biti odjavljen i moraće ponovo da podesi dvofaktorsku autentifikaciju. Nastaviti?",
-  "security.resetDone": "Dvofaktorska autentifikacija je resetovana.",
-  "security.resetFailed": "Resetovanje nije uspelo."
+  "security.resetDone": "Dvofaktorska autentifikacija je resetovana."
 }

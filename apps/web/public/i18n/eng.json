@@ -824,6 +824,7 @@
   "auth.togglePassword": "Toggle password visibility",
   "auth.dontHaveAccount": "Don't have an account?",
   "auth.invitationInvalid": "This invitation is invalid or expired.",
+  "auth.invitationSignInWithCode": "Your password is set. Sign in and enter the code from your authenticator app.",
   "auth.requestFailed": "Unable to process the request.",
   "auth.resetLinkInvalid": "This reset link is invalid or expired.",
   "auth.loginFormRequired": "Email and password are required.",
@@ -3153,9 +3154,11 @@
   "security.policyConfirmTitle": "Require two-factor authentication?",
   "security.policyConfirmMessage": "Members without two-factor authentication will have to set it up at their next sign-in.",
   "security.policyConfirm": "Require",
+  "security.policyOffTitle": "Stop requiring two-factor authentication?",
+  "security.policyOffMessage": "Members will no longer have to use two-factor authentication. Confirm with your password.",
+  "security.policyOffConfirm": "Turn off",
   "security.policyEnabled": "Two-factor authentication is now required for all members.",
   "security.policyDisabled": "Two-factor authentication is no longer required.",
-  "security.policyFailed": "The setting was not saved. Please try again.",
   "security.membersTitle": "Office members",
   "security.membersDescription": "Two-factor status per member. A reset signs the member out and they must set it up again.",
   "security.member": "Member",
@@ -3168,6 +3171,5 @@
   "security.reset": "Reset 2FA",
   "security.resetConfirmTitle": "Reset two-factor authentication",
   "security.resetConfirmMessage": "The member will be signed out and must set up two-factor authentication again. Continue?",
-  "security.resetDone": "Two-factor authentication was reset.",
-  "security.resetFailed": "The reset failed."
+  "security.resetDone": "Two-factor authentication was reset."
 }

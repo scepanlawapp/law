@@ -257,16 +257,22 @@ describe("AuthApiClient MFA methods", () => {
 
   it("calls the admin policy and member endpoints", () => {
     const client = TestBed.inject(AuthApiClient);
-    client.setMfaPolicy({ mfaRequired: true }).subscribe();
-    client.resetMemberMfa("u1").subscribe();
+    client
+      .setMfaPolicy({ mfaRequired: true, currentPassword: "pw" })
+      .subscribe();
+    client.resetMemberMfa("u1", "pw").subscribe();
 
     const put = http.expectOne(`${api}/auth/admin/mfa-policy`);
     expect(put.request.method).toBe("PUT");
-    expect(put.request.body).toEqual({ mfaRequired: true });
+    expect(put.request.body).toEqual({
+      mfaRequired: true,
+      currentPassword: "pw",
+    });
     put.flush({ mfaRequired: true });
 
     const reset = http.expectOne(`${api}/auth/admin/members/u1/mfa/reset`);
     expect(reset.request.method).toBe("POST");
+    expect(reset.request.body).toEqual({ currentPassword: "pw" });
     reset.flush(null);
   });
 });

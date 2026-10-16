@@ -11,7 +11,7 @@ import {
   MfaEnrollmentConfirmRequest,
   MfaEnrollmentStartRequest,
   MfaMethod,
-  MfaPolicy,
+  MfaPolicyUpdateRequest,
   MfaPasswordRequest,
   MfaVerifyRequest,
 } from "@law/api-interfaces";
@@ -52,7 +52,12 @@ export class MfaPasswordDto implements MfaPasswordRequest {
   currentPassword!: string;
 }
 
-export class MfaPolicyDto implements MfaPolicy {
+export class MfaPolicyDto implements MfaPolicyUpdateRequest {
   @IsBoolean()
   mfaRequired!: boolean;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(256)
+  currentPassword!: string;
 }

@@ -3,6 +3,7 @@ import {
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
+import { randomBytes, scryptSync } from "node:crypto";
 import {
   AuthGuard,
   AuthRateLimitGuard,
@@ -18,6 +19,11 @@ const HARDCODED_WORKSPACE_ID =
   "11111111-1111-4111-a111-111111111111";
 
 const ADMIN_ID = "admin-1";
+const PASSWORD = "CorrectHorse123!";
+const ADMIN_PASSWORD_HASH = (() => {
+  const salt = randomBytes(16).toString("hex");
+  return `${salt}:${scryptSync(PASSWORD, salt, 64).toString("hex")}`;
+})();
 const TARGET_ID = "member-2";
 
 type Role = "OWNER" | "ADMIN" | "MEMBER";
@@ -52,9 +58,15 @@ function createHarness(
       findMany: jest.fn().mockResolvedValue([]),
     },
     user: {
-      findUnique: jest
-        .fn()
-        .mockResolvedValue({ id: TARGET_ID, email: "target@example.com" }),
+      findUnique: jest.fn(async ({ where }: { where: { id: string } }) =>
+        where.id === ADMIN_ID
+          ? {
+              id: ADMIN_ID,
+              email: "admin@example.com",
+              passwordHash: ADMIN_PASSWORD_HASH,
+            }
+          : { id: TARGET_ID, email: "target@example.com" },
+      ),
     },
     organizationSettings: {
       findUnique: jest.fn().mockResolvedValue(null),
@@ -92,9 +104,15 @@ function createHarness(
 describe("MfaAdminService authorization", () => {
   it.each([
     ["getPolicy", (s: MfaAdminService) => s.getPolicy(ADMIN_ID)],
-    ["setPolicy", (s: MfaAdminService) => s.setPolicy(ADMIN_ID, true)],
+    [
+      "setPolicy",
+      (s: MfaAdminService) => s.setPolicy(ADMIN_ID, true, PASSWORD),
+    ],
     ["listMembers", (s: MfaAdminService) => s.listMembers(ADMIN_ID)],
-    ["resetMember", (s: MfaAdminService) => s.resetMember(ADMIN_ID, TARGET_ID)],
+    [
+      "resetMember",
+      (s: MfaAdminService) => s.resetMember(ADMIN_ID, TARGET_ID, PASSWORD),
+    ],
   ] as const)("MEMBER gets 403 on %s", async (_name, call) => {
     const { service, prisma, tx, mail } = createHarness({
       actorRole: "MEMBER",
@@ -168,7 +186,7 @@ describe("MfaAdminService policy", () => {
   it("policy write upserts and audits", async () => {
     const { service, prisma } = createHarness();
 
-    await expect(service.setPolicy(ADMIN_ID, true)).resolves.toEqual({
+    await expect(service.setPolicy(ADMIN_ID, true, PASSWORD)).resolves.toEqual({
       mfaRequired: true,
     });
 
@@ -198,12 +216,69 @@ describe("MfaAdminService policy", () => {
     prisma.organizationSettings.upsert.mockResolvedValue({
       mfaRequired: false,
     });
-    await expect(service.setPolicy(ADMIN_ID, false)).resolves.toEqual({
-      mfaRequired: false,
-    });
+    await expect(service.setPolicy(ADMIN_ID, false, PASSWORD)).resolves.toEqual(
+      {
+        mfaRequired: false,
+      },
+    );
     expect(prisma.organizationSettings.upsert.mock.calls[0][0].update).toEqual({
       mfaRequired: false,
     });
+  });
+});
+
+describe("MfaAdminService password re-entry", () => {
+  it.each([
+    [
+      "setPolicy on",
+      (s: MfaAdminService) => s.setPolicy(ADMIN_ID, true, "wrong"),
+    ],
+    [
+      "setPolicy off",
+      (s: MfaAdminService) => s.setPolicy(ADMIN_ID, false, "wrong"),
+    ],
+    [
+      "resetMember",
+      (s: MfaAdminService) => s.resetMember(ADMIN_ID, TARGET_ID, "wrong"),
+    ],
+  ] as const)(
+    "%s with a wrong password → 401 before any write",
+    async (_name, call) => {
+      const { service, prisma, tx, mail } = createHarness({
+        actorRole: "OWNER",
+      });
+
+      await expect(call(service)).rejects.toBeInstanceOf(UnauthorizedException);
+
+      expect(prisma.user.findUnique).toHaveBeenCalledWith({
+        where: { id: ADMIN_ID },
+        select: { passwordHash: true },
+      });
+      expect(prisma.organizationSettings.upsert).not.toHaveBeenCalled();
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(tx.userMfa.deleteMany).not.toHaveBeenCalled();
+      expect(mail.sendMfaResetByAdmin).not.toHaveBeenCalled();
+      expect(prisma.auditEvent.create).not.toHaveBeenCalled();
+    },
+  );
+
+  it("an actor without a password (never set) → 401", async () => {
+    const { service, prisma } = createHarness({ actorRole: "OWNER" });
+    prisma.user.findUnique.mockResolvedValue({ passwordHash: null } as never);
+
+    await expect(
+      service.setPolicy(ADMIN_ID, true, PASSWORD),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.organizationSettings.upsert).not.toHaveBeenCalled();
+  });
+
+  it("a MEMBER is 403 before the password is checked", async () => {
+    const { service, prisma } = createHarness({ actorRole: "MEMBER" });
+
+    await expect(
+      service.setPolicy(ADMIN_ID, true, "wrong"),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(prisma.user.findUnique).not.toHaveBeenCalled();
   });
 });
 
@@ -293,7 +368,7 @@ describe("MfaAdminService.resetMember", () => {
   it("reset deletes UserMfa, codes, trusted devices, revokes sessions in one transaction, sends mfaResetByAdmin, audits with actor id", async () => {
     const { service, prisma, tx, mail } = createHarness();
 
-    await service.resetMember(ADMIN_ID, TARGET_ID);
+    await service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD);
 
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
     expect(tx.userMfa.deleteMany).toHaveBeenCalledWith({
@@ -343,9 +418,9 @@ describe("MfaAdminService.resetMember", () => {
     const { service, prisma, mail } = createHarness();
     prisma.$transaction.mockRejectedValue(new Error("db down"));
 
-    await expect(service.resetMember(ADMIN_ID, TARGET_ID)).rejects.toThrow(
-      "db down",
-    );
+    await expect(
+      service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD),
+    ).rejects.toThrow("db down");
 
     expect(mail.sendMfaResetByAdmin).not.toHaveBeenCalled();
     expect(prisma.auditEvent.create).not.toHaveBeenCalled();
@@ -358,7 +433,7 @@ describe("MfaAdminService.resetMember", () => {
     });
 
     await expect(
-      service.resetMember(ADMIN_ID, TARGET_ID),
+      service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -372,7 +447,7 @@ describe("MfaAdminService.resetMember", () => {
       actorRole: "OWNER",
       target: { status: "ACTIVE", role: "ADMIN" },
     });
-    await service.resetMember(ADMIN_ID, TARGET_ID);
+    await service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
@@ -381,7 +456,7 @@ describe("MfaAdminService.resetMember", () => {
       actorRole: "ADMIN",
       target: { status: "ACTIVE", role: "MEMBER" },
     });
-    await service.resetMember(ADMIN_ID, TARGET_ID);
+    await service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
@@ -389,7 +464,7 @@ describe("MfaAdminService.resetMember", () => {
     const { service, prisma } = createHarness({
       target: { status: "INVITED", role: "MEMBER" },
     });
-    await service.resetMember(ADMIN_ID, TARGET_ID);
+    await service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD);
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 
@@ -397,7 +472,7 @@ describe("MfaAdminService.resetMember", () => {
     const { service, prisma, mail } = createHarness({ actorRole: "OWNER" });
 
     await expect(
-      service.resetMember(ADMIN_ID, ADMIN_ID),
+      service.resetMember(ADMIN_ID, ADMIN_ID, PASSWORD),
     ).rejects.toBeInstanceOf(ForbiddenException);
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -409,7 +484,7 @@ describe("MfaAdminService.resetMember", () => {
     const { service, prisma, mail } = createHarness({ target: null });
 
     await expect(
-      service.resetMember(ADMIN_ID, TARGET_ID),
+      service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD),
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(prisma.$transaction).not.toHaveBeenCalled();
@@ -421,7 +496,7 @@ describe("MfaAdminService.resetMember", () => {
       target: { status: "SUSPENDED" },
     });
     await expect(
-      service.resetMember(ADMIN_ID, TARGET_ID),
+      service.resetMember(ADMIN_ID, TARGET_ID, PASSWORD),
     ).rejects.toBeInstanceOf(NotFoundException);
     expect(prisma.$transaction).not.toHaveBeenCalled();
   });
@@ -445,14 +520,25 @@ describe("MfaAdminController", () => {
     const controller = controllerWith(service);
 
     await controller.getPolicy(authed());
-    await controller.setPolicy({ mfaRequired: true }, authed());
+    await controller.setPolicy(
+      { mfaRequired: true, currentPassword: PASSWORD },
+      authed(),
+    );
     await controller.listMembers(authed());
-    await controller.resetMember(TARGET_ID, authed());
+    await controller.resetMember(
+      TARGET_ID,
+      { currentPassword: PASSWORD },
+      authed(),
+    );
 
     expect(service.getPolicy).toHaveBeenCalledWith(ADMIN_ID);
-    expect(service.setPolicy).toHaveBeenCalledWith(ADMIN_ID, true);
+    expect(service.setPolicy).toHaveBeenCalledWith(ADMIN_ID, true, PASSWORD);
     expect(service.listMembers).toHaveBeenCalledWith(ADMIN_ID);
-    expect(service.resetMember).toHaveBeenCalledWith(ADMIN_ID, TARGET_ID);
+    expect(service.resetMember).toHaveBeenCalledWith(
+      ADMIN_ID,
+      TARGET_ID,
+      PASSWORD,
+    );
   });
 
   it("rejects a request without an authenticated session", async () => {

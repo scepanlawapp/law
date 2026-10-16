@@ -14,7 +14,7 @@ import { MemberSecuritySummary, MfaPolicy } from "@law/api-interfaces";
 import { AuthenticatedRequest, AuthGuard } from "../auth.guard";
 import { CsrfOriginGuard } from "../csrf.guard";
 import { AuthRateLimitGuard } from "../rate-limit.guard";
-import { MfaPolicyDto } from "./mfa.dto";
+import { MfaPasswordDto, MfaPolicyDto } from "./mfa.dto";
 import { MfaAdminService } from "./mfa-admin.service";
 
 /** Role checks live in the service (OWNER/ADMIN of the workspace). */
@@ -34,7 +34,11 @@ export class MfaAdminController {
     @Body() body: MfaPolicyDto,
     @Req() request: AuthenticatedRequest,
   ): Promise<MfaPolicy> {
-    return this.admin.setPolicy(authenticatedUserId(request), body.mfaRequired);
+    return this.admin.setPolicy(
+      authenticatedUserId(request),
+      body.mfaRequired,
+      body.currentPassword,
+    );
   }
 
   @Get("members/security")
@@ -49,9 +53,14 @@ export class MfaAdminController {
   @UseGuards(AuthRateLimitGuard)
   resetMember(
     @Param("userId") userId: string,
+    @Body() body: MfaPasswordDto,
     @Req() request: AuthenticatedRequest,
   ): Promise<void> {
-    return this.admin.resetMember(authenticatedUserId(request), userId);
+    return this.admin.resetMember(
+      authenticatedUserId(request),
+      userId,
+      body.currentPassword,
+    );
   }
 }
 

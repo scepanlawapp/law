@@ -289,6 +289,11 @@ export interface MfaPolicy {
   mfaRequired: boolean;
 }
 
+/** Changing the office-wide 2FA switch requires the admin's password. */
+export interface MfaPolicyUpdateRequest extends MfaPolicy {
+  currentPassword: string;
+}
+
 export interface MemberSecuritySummary {
   userId: string;
   name: string | null;

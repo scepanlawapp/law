@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from "@angular/common/http";
 import { TestBed } from "@angular/core/testing";
-import { of, throwError } from "rxjs";
+import { EMPTY, Observable, of, throwError } from "rxjs";
 import { AuthApiClient } from "@law/api-clients";
 import {
   AuthSessionResponse,
@@ -15,6 +15,10 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { MemberSecurityComponent } from "./member-security.component";
+import {
+  PasswordConfirmDialogService,
+  PasswordConfirmOptions,
+} from "./password-confirm-dialog.service";
 
 const MEMBERS: MemberSecuritySummary[] = [
   {
@@ -67,6 +71,13 @@ describe("MemberSecurityComponent", () => {
   };
   const toast = { success: jest.fn(), error: jest.fn() };
   const confirmDialog = { confirm: jest.fn() };
+  const passwordDialog = { open: jest.fn() };
+  /** The admin types the password and the dialog runs the action. */
+  const typePassword = () =>
+    passwordDialog.open.mockImplementation(
+      (options: PasswordConfirmOptions<unknown>): Observable<unknown> =>
+        options.run("admin-pass"),
+    );
 
   beforeAll(() => {
     globalThis.ResizeObserver ??= class {
@@ -92,6 +103,7 @@ describe("MemberSecurityComponent", () => {
         { provide: AuthApiClient, useValue: api },
         { provide: ToastService, useValue: toast },
         { provide: ConfirmDialogService, useValue: confirmDialog },
+        { provide: PasswordConfirmDialogService, useValue: passwordDialog },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -154,72 +166,119 @@ describe("MemberSecurityComponent", () => {
     );
   });
 
-  it("toggling policy off calls setMfaPolicy immediately", () => {
+  it("toggling policy off asks for the password then calls setMfaPolicy with it", () => {
     api.getMfaPolicy.mockReturnValue(of({ mfaRequired: true }));
     api.setMfaPolicy.mockReturnValue(of({ mfaRequired: false }));
+    typePassword();
     const fixture = render(WorkspaceRole.OWNER);
 
     toggleSwitch(fixture, false);
 
     expect(confirmDialog.confirm).not.toHaveBeenCalled();
-    expect(api.setMfaPolicy).toHaveBeenCalledWith({ mfaRequired: false });
+    expect(passwordDialog.open).toHaveBeenCalledTimes(1);
+    expect(passwordDialog.open.mock.calls[0][0]).toMatchObject({
+      title: "security.policyOffTitle",
+      description: "security.policyOffMessage",
+      confirmText: "security.policyOffConfirm",
+    });
+    expect(api.setMfaPolicy).toHaveBeenCalledWith({
+      mfaRequired: false,
+      currentPassword: "admin-pass",
+    });
+    expect(fixture.componentInstance.policyControl.value).toBe(false);
     expect(toast.success).toHaveBeenCalled();
   });
 
-  it("toggling policy on asks for confirmation then calls setMfaPolicy", () => {
-    confirmDialog.confirm.mockReturnValue(of(true));
+  it("keeps the policy on when the password dialog for switching off is cancelled", () => {
+    api.getMfaPolicy.mockReturnValue(of({ mfaRequired: true }));
+    passwordDialog.open.mockReturnValue(EMPTY);
+    const fixture = render(WorkspaceRole.OWNER);
+
+    toggleSwitch(fixture, false);
+
+    expect(api.setMfaPolicy).not.toHaveBeenCalled();
+    expect(fixture.componentInstance.policyControl.value).toBe(true);
+    expect(fixture.componentInstance.savingPolicy()).toBe(false);
+  });
+
+  it("toggling policy on shows the confirmation text in the password dialog, then calls setMfaPolicy with the password", () => {
     api.setMfaPolicy.mockReturnValue(of({ mfaRequired: true }));
+    typePassword();
     const fixture = render(WorkspaceRole.OWNER);
 
     toggleSwitch(fixture, true);
 
-    expect(confirmDialog.confirm).toHaveBeenCalledTimes(1);
-    expect(api.setMfaPolicy).toHaveBeenCalledWith({ mfaRequired: true });
+    expect(passwordDialog.open).toHaveBeenCalledTimes(1);
+    expect(passwordDialog.open.mock.calls[0][0]).toMatchObject({
+      title: "security.policyConfirmTitle",
+      description: "security.policyConfirmMessage",
+      confirmText: "security.policyConfirm",
+    });
+    expect(api.setMfaPolicy).toHaveBeenCalledWith({
+      mfaRequired: true,
+      currentPassword: "admin-pass",
+    });
+    expect(fixture.componentInstance.policyControl.value).toBe(true);
   });
 
-  it("keeps the policy off when the confirmation is cancelled", () => {
-    confirmDialog.confirm.mockReturnValue(of(false));
+  it("keeps the policy off when the password dialog is cancelled", () => {
+    passwordDialog.open.mockReturnValue(EMPTY);
     const fixture = render(WorkspaceRole.OWNER);
 
     toggleSwitch(fixture, true);
 
     expect(api.setMfaPolicy).not.toHaveBeenCalled();
     expect(fixture.componentInstance.policyControl.value).toBe(false);
+    expect(fixture.componentInstance.savingPolicy()).toBe(false);
   });
 
-  it("reverts the switch when saving the policy fails", () => {
-    confirmDialog.confirm.mockReturnValue(of(true));
-    api.setMfaPolicy.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 500 })),
+  it("leaves a failed policy save to the dialog (wrong password stays inline)", () => {
+    const failure = new HttpErrorResponse({ status: 401 });
+    let runError: unknown;
+    passwordDialog.open.mockImplementation(
+      (options: PasswordConfirmOptions<unknown>) => {
+        // The dialog subscribes to `run` and keeps errors inline.
+        options.run("wrong").subscribe({ error: (e) => (runError = e) });
+        return EMPTY;
+      },
     );
+    api.setMfaPolicy.mockReturnValue(throwError(() => failure));
     const fixture = render(WorkspaceRole.OWNER);
 
     toggleSwitch(fixture, true);
 
-    expect(toast.error).toHaveBeenCalled();
+    expect(runError).toBe(failure);
     expect(fixture.componentInstance.policyControl.value).toBe(false);
   });
 
-  it("reset asks for confirmation then calls resetMemberMfa and refreshes the list", () => {
-    confirmDialog.confirm.mockReturnValue(of(true));
+  it("reset asks for the password (destructive) then calls resetMemberMfa with it and refreshes the list", () => {
     api.resetMemberMfa.mockReturnValue(of(undefined));
+    typePassword();
     const fixture = render(WorkspaceRole.ADMIN);
 
     el(fixture, "reset-mfa-u-ana")?.click();
 
-    expect(confirmDialog.confirm).toHaveBeenCalledTimes(1);
-    expect(api.resetMemberMfa).toHaveBeenCalledWith("u-ana");
+    expect(confirmDialog.confirm).not.toHaveBeenCalled();
+    expect(passwordDialog.open).toHaveBeenCalledTimes(1);
+    expect(passwordDialog.open.mock.calls[0][0]).toMatchObject({
+      title: "security.resetConfirmTitle",
+      description: "security.resetConfirmMessage",
+      confirmText: "security.reset",
+      destructive: true,
+    });
+    expect(api.resetMemberMfa).toHaveBeenCalledWith("u-ana", "admin-pass");
     expect(api.memberSecurity).toHaveBeenCalledTimes(2);
     expect(toast.success).toHaveBeenCalled();
   });
 
-  it("does not reset when the confirmation is cancelled", () => {
-    confirmDialog.confirm.mockReturnValue(of(false));
+  it("does not reset when the password dialog is cancelled", () => {
+    passwordDialog.open.mockReturnValue(EMPTY);
     const fixture = render(WorkspaceRole.ADMIN);
 
     el(fixture, "reset-mfa-u-ana")?.click();
 
     expect(api.resetMemberMfa).not.toHaveBeenCalled();
+    expect(api.memberSecurity).toHaveBeenCalledTimes(1);
   });
 
   it("own row has no reset button", () => {
@@ -246,6 +305,7 @@ describe("MemberSecurityComponent", () => {
         { provide: AuthApiClient, useValue: api },
         { provide: ToastService, useValue: toast },
         { provide: ConfirmDialogService, useValue: confirmDialog },
+        { provide: PasswordConfirmDialogService, useValue: passwordDialog },
         {
           provide: LocalizationService,
           useValue: { translate: (key: string) => key, language: () => "SR" },
@@ -254,18 +314,5 @@ describe("MemberSecurityComponent", () => {
     });
     const owner = render(WorkspaceRole.OWNER);
     expect(el(owner, "reset-mfa-u-owner")).not.toBeNull();
-  });
-
-  it("toasts a forbidden reset", () => {
-    confirmDialog.confirm.mockReturnValue(of(true));
-    api.resetMemberMfa.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 403 })),
-    );
-    const fixture = render(WorkspaceRole.ADMIN);
-
-    el(fixture, "reset-mfa-u-ana")?.click();
-
-    expect(toast.error).toHaveBeenCalled();
-    expect(api.memberSecurity).toHaveBeenCalledTimes(1);
   });
 });

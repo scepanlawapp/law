@@ -58,6 +58,7 @@ import {
   MfaEnrollmentStartResponse,
   MfaPasswordRequest,
   MfaPolicy,
+  MfaPolicyUpdateRequest,
   MfaRecoveryCodesResponse,
   MfaStatusResponse,
   MfaVerifyRequest,
@@ -388,10 +389,11 @@ export class AuthApiClient {
     });
   }
 
-  setMfaPolicy(policy: MfaPolicy): Observable<MfaPolicy> {
+  /** Requires the admin's current password. */
+  setMfaPolicy(request: MfaPolicyUpdateRequest): Observable<MfaPolicy> {
     return this.http.put<MfaPolicy>(
       this.endpoint("/auth/admin/mfa-policy"),
-      policy,
+      request,
       { withCredentials: true },
     );
   }
@@ -403,12 +405,14 @@ export class AuthApiClient {
     );
   }
 
-  resetMemberMfa(userId: string): Observable<void> {
+  /** Requires the admin's current password. */
+  resetMemberMfa(userId: string, currentPassword: string): Observable<void> {
+    const body: MfaPasswordRequest = { currentPassword };
     return this.http.post<void>(
       this.endpoint(
         `/auth/admin/members/${encodeURIComponent(userId)}/mfa/reset`,
       ),
-      {},
+      body,
       { withCredentials: true },
     );
   }
