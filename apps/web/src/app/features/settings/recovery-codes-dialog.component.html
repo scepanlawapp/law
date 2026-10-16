@@ -1,0 +1,44 @@
+<div hlmDialogHeader>
+  <h2 hlmDialogTitle>{{ "security.newCodesTitle" | translate }}</h2>
+  <p hlmDialogDescription>{{ "auth.mfa.codesDescription" | translate }}</p>
+</div>
+
+<ul
+  class="bg-muted grid grid-cols-2 gap-x-4 gap-y-1 rounded-md p-4 font-mono text-sm"
+  data-testid="recovery-codes"
+>
+  @for (code of data.codes; track code) {
+    <li>{{ code }}</li>
+  }
+</ul>
+
+<div class="flex flex-wrap gap-2">
+  <button hlmBtn variant="outline" size="sm" type="button" (click)="copy()">
+    {{ (copied() ? "auth.mfa.copied" : "auth.mfa.copyCodes") | translate }}
+  </button>
+  <button hlmBtn variant="outline" size="sm" type="button" (click)="download()">
+    {{ "auth.mfa.downloadCodes" | translate }}
+  </button>
+</div>
+
+<label class="flex items-center gap-2 text-sm">
+  <input
+    type="checkbox"
+    class="accent-primary size-4"
+    [checked]="codesSaved()"
+    (change)="setCodesSaved($any($event.target).checked)"
+  />
+  {{ "auth.mfa.codesSaved" | translate }}
+</label>
+
+<div hlmDialogFooter class="flex justify-end">
+  <button
+    hlmBtn
+    type="button"
+    data-testid="recovery-codes-close"
+    [disabled]="!codesSaved()"
+    (click)="close()"
+  >
+    {{ "common.close" | translate }}
+  </button>
+</div>

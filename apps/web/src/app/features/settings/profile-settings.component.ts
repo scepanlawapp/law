@@ -19,7 +19,8 @@ import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
-import { AuthApiClient, UserSettingsApiClient } from "@law/api-clients";
+import { RouterLink } from "@angular/router";
+import { UserSettingsApiClient } from "@law/api-clients";
 import {
   AssistantPermissionMode,
   UserProfileGender,
@@ -51,6 +52,7 @@ import { createSelectItemToString, SelectOption } from "../../shared/utils";
     HlmInput,
     HlmSelectImports,
     HlmSwitch,
+    RouterLink,
     TranslatePipe,
     HlmSpinner,
     UserAvatarComponent,
@@ -63,7 +65,6 @@ import { createSelectItemToString, SelectOption } from "../../shared/utils";
 })
 export class ProfileSettingsComponent {
   private readonly settingsStore = inject(UserSettingsStore);
-  private readonly authApi = inject(AuthApiClient);
   private readonly userSettingsApi = inject(UserSettingsApiClient);
   private readonly localization = inject(LocalizationService);
   private readonly toast = inject(ToastService);
@@ -125,16 +126,6 @@ export class ProfileSettingsComponent {
     this.permissionModeOptions,
     (key) => this.localization.translate(key),
   );
-  readonly passwordForm = new FormGroup({
-    currentPassword: new FormControl("", {
-      nonNullable: true,
-      validators: [Validators.required],
-    }),
-    newPassword: new FormControl("", {
-      nonNullable: true,
-      validators: [Validators.required, Validators.minLength(12)],
-    }),
-  });
 
   readonly avatarUser = computed(() => {
     const value = this.formValue();
@@ -272,29 +263,6 @@ export class ProfileSettingsComponent {
           );
           this.savingReminder.set(false);
         },
-      });
-  }
-
-  changePassword(): void {
-    if (this.passwordForm.invalid) {
-      this.passwordForm.markAllAsTouched();
-      return;
-    }
-    const { currentPassword, newPassword } = this.passwordForm.getRawValue();
-    this.authApi
-      .changePassword(currentPassword, newPassword)
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: () => {
-          this.passwordForm.reset();
-          this.toast.success(
-            this.localization.translate("settings.passwordChanged"),
-          );
-        },
-        error: () =>
-          this.toast.error(
-            this.localization.translate("settings.passwordChangeError"),
-          ),
       });
   }
 

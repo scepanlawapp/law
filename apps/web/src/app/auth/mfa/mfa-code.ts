@@ -37,3 +37,34 @@ export function pastedCode(event: ClipboardEvent, maxLength: number): string {
     maxLength,
   );
 }
+
+export const RECOVERY_CODES_FILE_NAME = "law-recovery-codes.txt";
+
+/** Plain-text body of the downloadable recovery-codes file. */
+export function recoveryCodesFileText(
+  codes: readonly string[],
+  header: string,
+  now: Date = new Date(),
+): string {
+  return [header, now.toISOString().slice(0, 10), "", ...codes, ""].join("\n");
+}
+
+/** Hands `text` to the browser as a downloaded file. */
+export function downloadTextFile(text: string, fileName: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = fileName;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Copies `text` to the clipboard; resolves `false` when the browser refuses. */
+export async function copyTextToClipboard(text: string): Promise<boolean> {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    return false;
+  }
+}

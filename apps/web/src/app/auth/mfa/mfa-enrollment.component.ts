@@ -29,9 +29,13 @@ import {
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import {
+  RECOVERY_CODES_FILE_NAME,
+  copyTextToClipboard,
+  downloadTextFile,
   isSixDigitCode,
   mfaErrorCode,
   pastedCode,
+  recoveryCodesFileText,
   stripSpaces,
 } from "./mfa-code";
 
@@ -65,7 +69,7 @@ export class MfaEnrollmentComponent implements OnInit {
   readonly mode = input<"challenge" | "session">("challenge");
   readonly completed = output<{ session?: AuthSessionResponse }>();
 
-  readonly downloadFileName = "law-recovery-codes.txt";
+  readonly downloadFileName = RECOVERY_CODES_FILE_NAME;
 
   readonly passwordForm = new FormGroup({
     currentPassword: new FormControl("", {
@@ -155,24 +159,15 @@ export class MfaEnrollmentComponent implements OnInit {
   }
 
   recoveryCodesText(now: Date = new Date()): string {
-    return [
+    return recoveryCodesFileText(
+      this.recoveryCodes(),
       this.localization.translate("auth.mfa.downloadHeader"),
-      now.toISOString().slice(0, 10),
-      "",
-      ...this.recoveryCodes(),
-      "",
-    ].join("\n");
+      now,
+    );
   }
 
   downloadRecoveryCodes(): void {
-    const url = URL.createObjectURL(
-      new Blob([this.recoveryCodesText()], { type: "text/plain" }),
-    );
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = this.downloadFileName;
-    anchor.click();
-    URL.revokeObjectURL(url);
+    downloadTextFile(this.recoveryCodesText(), this.downloadFileName);
   }
 
   setCodesSaved(saved: boolean): void {
@@ -232,12 +227,8 @@ export class MfaEnrollmentComponent implements OnInit {
     text: string,
     flag: ReturnType<typeof signal<boolean>>,
   ): Promise<void> {
-    try {
-      await navigator.clipboard.writeText(text);
-      flag.set(true);
-      setTimeout(() => flag.set(false), 2000);
-    } catch {
-      flag.set(false);
-    }
+    const copied = await copyTextToClipboard(text);
+    flag.set(copied);
+    if (copied) setTimeout(() => flag.set(false), 2000);
   }
 }

@@ -19,6 +19,7 @@ import { CalendarComponent } from "./features/calendar/calendar.component";
 import { NotificationsComponent } from "./features/notifications/notifications.component";
 import { SettingsComponent } from "./features/settings/settings.component";
 import { ProfileSettingsComponent } from "./features/settings/profile-settings.component";
+import { SecuritySettingsComponent } from "./features/settings/security-settings.component";
 import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
 import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
 import { CompanySettingsLayoutComponent } from "./features/settings/company-settings-layout.component";
@@ -256,6 +257,7 @@ export const appRoutes: Route[] = [
         children: [
           { path: "", pathMatch: "full", redirectTo: "profile" },
           { path: "profile", component: ProfileSettingsComponent },
+          { path: "security", component: SecuritySettingsComponent },
           { path: "appearance", component: AppearanceSettingsComponent },
           {
             path: "workspace/general",

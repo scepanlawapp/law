@@ -7,6 +7,7 @@ import {
   lucideDatabase,
   lucidePalette,
   lucideSettings,
+  lucideShieldCheck,
   lucideUser,
   lucideWallet,
 } from "@ng-icons/lucide";
@@ -30,6 +31,7 @@ import { canManageBilling } from "../../shared/billing";
       lucideDatabase,
       lucidePalette,
       lucideSettings,
+      lucideShieldCheck,
       lucideUser,
       lucideWallet,
     }),
@@ -47,6 +49,12 @@ export class SettingsComponent {
       path: "profile",
       label: "settings.profile",
       icon: "lucideUser",
+      exact: true,
+    },
+    {
+      path: "security",
+      label: "settings.security",
+      icon: "lucideShieldCheck",
       exact: true,
     },
     {
