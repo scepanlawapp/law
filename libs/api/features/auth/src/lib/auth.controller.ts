@@ -7,7 +7,8 @@ import {
   Res,
   UseGuards,
 } from "@nestjs/common";
-import { Response } from "express";
+import { Request, Response } from "express";
+import { LoginResponse } from "@law/api-interfaces";
 import { AuthService } from "./auth.service";
 import { AuthenticatedRequest, AuthGuard, sessionToken } from "./auth.guard";
 import { CsrfOriginGuard } from "./csrf.guard";
@@ -21,8 +22,17 @@ import {
   PasswordChangeDto,
   PasswordResetDto,
 } from "./auth.dto";
+import {
+  MFA_CHALLENGE_COOKIE,
+  MFA_CHALLENGE_TTL_MS,
+  SESSION_COOKIE,
+  SESSION_TTL_MS,
+  TRUSTED_DEVICE_COOKIE,
+  mfaChallengeCookieOptions,
+  readCookie,
+  sessionCookieOptions,
+} from "./cookies";
 
-const SESSION_COOKIE = "law_session";
 @Controller("auth")
 @UseGuards(CsrfOriginGuard)
 export class AuthController {
@@ -32,42 +42,58 @@ export class AuthController {
   ) {}
 
   private cookieOptions() {
-    return {
-      httpOnly: true,
-      sameSite: "lax" as const,
-      secure: this.config.production,
-      path: "/",
-    };
+    return sessionCookieOptions(this.config.production);
   }
 
   @Post("login")
   @UseGuards(AuthRateLimitGuard)
   async login(
     @Body() body: LoginDto,
+    @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
-  ) {
-    const result = await this.authService.login(body.email, body.password);
-    response.cookie(SESSION_COOKIE, result.token, {
-      ...this.cookieOptions(),
-      maxAge: 1000 * 60 * 60 * 24 * 7,
-    });
-    return result.session;
+  ): Promise<LoginResponse> {
+    const step = await this.authService.login(
+      body.email,
+      body.password,
+      readCookie(request, TRUSTED_DEVICE_COOKIE),
+    );
+    return this.applyPasswordStep(step, response);
+  }
+
+  /** Sets the session or the second-factor challenge cookie. */
+  private applyPasswordStep(
+    step: {
+      result: LoginResponse;
+      sessionToken?: string;
+      challengeToken?: string;
+    },
+    response: Response,
+  ): LoginResponse {
+    if (step.sessionToken) {
+      response.cookie(SESSION_COOKIE, step.sessionToken, {
+        ...this.cookieOptions(),
+        maxAge: SESSION_TTL_MS,
+      });
+    }
+    if (step.challengeToken) {
+      response.cookie(MFA_CHALLENGE_COOKIE, step.challengeToken, {
+        ...mfaChallengeCookieOptions(this.config.production),
+        maxAge: MFA_CHALLENGE_TTL_MS,
+      });
+    }
+    return step.result;
   }
 
   @Post("invitations/accept")
   async acceptInvitation(
     @Body() body: InvitationAcceptDto,
     @Res({ passthrough: true }) response: Response,
-  ) {
-    const result = await this.authService.acceptInvitation(
+  ): Promise<LoginResponse> {
+    const step = await this.authService.acceptInvitation(
       body.token,
       body.password,
     );
-    response.cookie(SESSION_COOKIE, result.token, {
-      ...this.cookieOptions(),
-      maxAge: 1000 * 60 * 60 * 24 * 7,
-    });
-    return result.session;
+    return this.applyPasswordStep(step, response);
   }
 
   @Post("invitations")
@@ -99,7 +125,7 @@ export class AuthController {
     const result = await this.authService.refresh(sessionToken(request));
     response.cookie(SESSION_COOKIE, result.token, {
       ...this.cookieOptions(),
-      maxAge: 1000 * 60 * 60 * 24 * 7,
+      maxAge: SESSION_TTL_MS,
     });
     return result.session;
   }

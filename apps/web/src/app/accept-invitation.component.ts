@@ -73,7 +73,22 @@ export class AcceptInvitationComponent {
       .acceptInvitation({ token: this.token, password: this.password })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
-        next: () => {
+        next: (response) => {
+          if (response.status === "MFA_ENROLLMENT_REQUIRED") {
+            // Office requires 2FA: the challenge cookie is set, continue to
+            // the enrollment screen.
+            void this.router.navigate(["/mfa-setup"]);
+            return;
+          }
+          if (response.status === "MFA_REQUIRED") {
+            // The account already has 2FA: sign in again, then enter the
+            // authenticator code.
+            this.toast.info(
+              this.localization.translate("auth.invitationSignInWithCode"),
+            );
+            void this.router.navigate(["/login"]);
+            return;
+          }
           this.complete.set(true);
           setTimeout(() => void this.router.navigate(["/login"]), 800);
         },

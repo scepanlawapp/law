@@ -7,6 +7,7 @@ import { AuthGuard } from "@law/auth";
 import {
   AuthRateLimitGuard,
   AuthRuntimeConfig,
+  InMemoryAuthRateLimitStore,
   CsrfOriginGuard,
 } from "@law/auth";
 
@@ -56,8 +57,8 @@ describe("authentication guards", () => {
     ).toThrow(ForbiddenException);
   });
 
-  it("throttles repeated attempts from the same client and route", () => {
-    const guard = new AuthRateLimitGuard();
+  it("throttles repeated attempts from the same client and route", async () => {
+    const guard = new AuthRateLimitGuard(new InMemoryAuthRateLimitStore());
     const request = {
       method: "POST",
       path: "/auth/login",
@@ -67,8 +68,10 @@ describe("authentication guards", () => {
     const context = contextFor(request);
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      expect(guard.canActivate(context)).toBe(true);
+      await expect(guard.canActivate(context)).resolves.toBe(true);
     }
-    expect(() => guard.canActivate(context)).toThrow("Too many attempts");
+    await expect(guard.canActivate(context)).rejects.toThrow(
+      "Too many attempts",
+    );
   });
 });

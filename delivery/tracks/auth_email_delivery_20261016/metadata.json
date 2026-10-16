@@ -1,0 +1,11 @@
+{
+  "track_id": "auth_email_delivery_20261016",
+  "parent_track_id": "auth_hardening_mfa_20261016",
+  "type": "feature",
+  "status": "completed",
+  "priority": "critical",
+  "prd_reference": null,
+  "created_at": "2026-10-16T00:00:00Z",
+  "updated_at": "2026-10-16T09:00:00Z",
+  "keywords": ["authentication", "email", "mailpit", "smtp", "bullmq", "password-reset", "rate-limit", "localization"]
+}

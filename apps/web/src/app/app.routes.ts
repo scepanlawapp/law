@@ -9,6 +9,7 @@ import { AcceptInvitationComponent } from "./accept-invitation.component";
 import { ForgotPasswordComponent } from "./auth/forgot-password/forgot-password.component";
 import { ResetPasswordComponent } from "./auth/reset-password/reset-password.component";
 import { LoginComponent } from "./auth/login/login.component";
+import { MfaSetupComponent } from "./auth/mfa/mfa-setup.component";
 import { AuthLayoutComponent } from "./auth/auth-layout/auth-layout.component";
 import { authGuard } from "@law/security";
 import { DashboardComponent } from "./features/dashboard/dashboard.component";
@@ -18,6 +19,7 @@ import { CalendarComponent } from "./features/calendar/calendar.component";
 import { NotificationsComponent } from "./features/notifications/notifications.component";
 import { SettingsComponent } from "./features/settings/settings.component";
 import { ProfileSettingsComponent } from "./features/settings/profile-settings.component";
+import { SecuritySettingsComponent } from "./features/settings/security-settings.component";
 import { AppearanceSettingsComponent } from "./features/settings/appearance-settings.component";
 import { WorkspaceSettingsComponent } from "./features/settings/workspace-settings.component";
 import { CompanySettingsLayoutComponent } from "./features/settings/company-settings-layout.component";
@@ -63,6 +65,11 @@ export const appRoutes: Route[] = [
     path: "login",
     component: AuthLayoutComponent,
     children: [{ path: "", component: LoginComponent }],
+  },
+  {
+    path: "mfa-setup",
+    component: AuthLayoutComponent,
+    children: [{ path: "", component: MfaSetupComponent }],
   },
   {
     path: "forgot-password",
@@ -250,6 +257,7 @@ export const appRoutes: Route[] = [
         children: [
           { path: "", pathMatch: "full", redirectTo: "profile" },
           { path: "profile", component: ProfileSettingsComponent },
+          { path: "security", component: SecuritySettingsComponent },
           { path: "appearance", component: AppearanceSettingsComponent },
           {
             path: "workspace/general",

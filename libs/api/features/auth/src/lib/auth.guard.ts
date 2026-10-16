@@ -7,16 +7,14 @@ import {
 import { Request } from "express";
 import { AuthSessionResponse } from "@law/api-interfaces";
 import { AuthService } from "./auth.service";
+import { SESSION_COOKIE, readCookie } from "./cookies";
 
 export interface AuthenticatedRequest extends Request {
   auth?: AuthSessionResponse;
 }
 
 export function sessionToken(request: Request): string | undefined {
-  const cookie = request.headers.cookie
-    ?.split(";")
-    .find((part) => part.trim().startsWith("law_session="));
-  return cookie?.trim().slice("law_session=".length);
+  return readCookie(request, SESSION_COOKIE);
 }
 
 @Injectable()

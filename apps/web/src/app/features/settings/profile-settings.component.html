@@ -246,52 +246,17 @@
         </div>
       </form>
 
-      <form
-        class="flex flex-col gap-6 border-t border-border pt-8"
-        [formGroup]="passwordForm"
-        (ngSubmit)="changePassword()"
-        novalidate
+      <p
+        class="border-t border-border pt-8 text-sm leading-snug"
+        data-testid="security-link"
       >
-        <div>
-          <h3 class="text-sm font-semibold">
-            {{ "settings.changePassword" | translate }}
-          </h3>
-          <p class="text-muted-foreground mt-1 text-sm leading-snug">
-            {{ "settings.passwordHint" | translate }}
-          </p>
-        </div>
-        <div class="flex max-w-md flex-col gap-4">
-          <div hlmField>
-            <label hlmFieldLabel for="currentPassword">
-              {{ "settings.currentPassword" | translate }}
-            </label>
-            <input
-              hlmInput
-              id="currentPassword"
-              type="password"
-              formControlName="currentPassword"
-              autocomplete="current-password"
-            />
-          </div>
-          <div hlmField>
-            <label hlmFieldLabel for="newPassword">
-              {{ "settings.newPassword" | translate }}
-            </label>
-            <input
-              hlmInput
-              id="newPassword"
-              type="password"
-              formControlName="newPassword"
-              autocomplete="new-password"
-            />
-          </div>
-        </div>
-        <div class="flex justify-end">
-          <button hlmBtn variant="outline" type="submit">
-            {{ "settings.changePassword" | translate }}
-          </button>
-        </div>
-      </form>
+        <a
+          class="text-primary font-medium underline-offset-4 hover:underline"
+          routerLink="/settings/security"
+        >
+          {{ "settings.profileSecurityLink" | translate }}
+        </a>
+      </p>
     </div>
   }
 </div>

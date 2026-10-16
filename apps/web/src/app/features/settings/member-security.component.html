@@ -1,0 +1,116 @@
+@if (canManage()) {
+  <div class="flex flex-col gap-8 border-t border-border pt-8">
+    <section class="flex flex-col gap-4" data-testid="policy-switch">
+      <div>
+        <h3 class="text-sm font-semibold">
+          {{ "security.policyTitle" | translate }}
+        </h3>
+        <p class="text-muted-foreground mt-1 text-sm leading-snug">
+          {{ "security.policyDescription" | translate }}
+        </p>
+      </div>
+      <div class="flex min-h-10 max-w-md items-center justify-between gap-4">
+        <label class="min-w-0 text-sm" for="mfa-policy-switch">
+          {{ "security.policyLabel" | translate }}
+        </label>
+        <hlm-switch
+          class="shrink-0"
+          inputId="mfa-policy-switch"
+          [formControl]="policyControl"
+          [disabled]="savingPolicy()"
+          [attr.aria-label]="'security.policyLabel' | translate"
+          (checkedChange)="onPolicyToggle($event)"
+        />
+      </div>
+    </section>
+
+    <section class="flex flex-col gap-4">
+      <div>
+        <h3 class="text-sm font-semibold">
+          {{ "security.membersTitle" | translate }}
+        </h3>
+        <p class="text-muted-foreground mt-1 text-sm leading-snug">
+          {{ "security.membersDescription" | translate }}
+        </p>
+      </div>
+
+      @if (loading()) {
+        <div class="flex items-center gap-2">
+          <hlm-spinner aria-label="{{ 'settings.loading' | translate }}" />
+        </div>
+      } @else if (loadFailed()) {
+        <p class="text-destructive text-sm" role="alert">
+          {{ "security.loadFailed" | translate }}
+        </p>
+      } @else {
+        <div
+          hlmTableContainer
+          class="rounded-lg border border-border"
+          data-testid="members-table"
+        >
+          <table hlmTable class="w-full min-w-[560px]">
+            <thead hlmTHead>
+              <tr hlmTr>
+                <th hlmTh>{{ "security.member" | translate }}</th>
+                <th hlmTh>{{ "security.roleColumn" | translate }}</th>
+                <th hlmTh>{{ "security.mfaColumn" | translate }}</th>
+                <th hlmTh>
+                  <span class="sr-only">
+                    {{ "finance.actions" | translate }}
+                  </span>
+                </th>
+              </tr>
+            </thead>
+            <tbody hlmTBody>
+              @for (member of members(); track member.userId) {
+                <tr hlmTr [attr.data-testid]="'member-row-' + member.userId">
+                  <td hlmTd>
+                    <span class="block font-medium">
+                      {{ member.name || member.email }}
+                    </span>
+                    @if (member.name) {
+                      <span class="text-muted-foreground block text-xs">
+                        {{ member.email }}
+                      </span>
+                    }
+                  </td>
+                  <td hlmTd>
+                    {{ "security.role." + member.role | translate }}
+                  </td>
+                  <td hlmTd>
+                    @if (member.mfaEnabled) {
+                      {{ "security.mfaOn" | translate }}
+                      @if (member.mfaEnabledAt) {
+                        <span class="text-muted-foreground text-xs">
+                          ({{ member.mfaEnabledAt | date: "dd.MM.yyyy." }})
+                        </span>
+                      }
+                    } @else {
+                      <span class="text-muted-foreground">
+                        {{ "security.mfaOff" | translate }}
+                      </span>
+                    }
+                  </td>
+                  <td hlmTd class="text-right">
+                    @if (canReset(member)) {
+                      <button
+                        hlmBtn
+                        variant="outline"
+                        size="sm"
+                        type="button"
+                        [attr.data-testid]="'reset-mfa-' + member.userId"
+                        (click)="reset(member)"
+                      >
+                        {{ "security.reset" | translate }}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  </div>
+}

@@ -5,6 +5,7 @@ import {
   provideHttpClientTesting,
 } from "@angular/common/http/testing";
 import {
+  AuthApiClient,
   BillingReportsApiClient,
   FinancialsApiClient,
   BillingSetupApiClient,
@@ -193,5 +194,85 @@ describe("documents AI access client", () => {
     expect(req.request.method).toBe("POST");
     expect(req.request.withCredentials).toBe(true);
     req.flush({});
+  });
+});
+
+describe("AuthApiClient MFA methods", () => {
+  let http: HttpTestingController;
+  const api = "http://localhost:3001/api";
+
+  beforeEach(() => {
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+    http = TestBed.inject(HttpTestingController);
+  });
+
+  afterEach(() => http.verify());
+
+  it("posts the second login step to /auth/mfa/verify", () => {
+    const body = {
+      method: "TOTP" as const,
+      code: "123456",
+      rememberDevice: true,
+    };
+    TestBed.inject(AuthApiClient).verifyMfa(body).subscribe();
+    const req = http.expectOne(`${api}/auth/mfa/verify`);
+    expect(req.request.method).toBe("POST");
+    expect(req.request.body).toEqual(body);
+    expect(req.request.withCredentials).toBe(true);
+    req.flush({});
+  });
+
+  it("omits the password when starting a challenge enrollment", () => {
+    TestBed.inject(AuthApiClient).startMfaEnrollment().subscribe();
+    const req = http.expectOne(`${api}/auth/mfa/enrollment/start`);
+    expect(req.request.body).toEqual({});
+    req.flush({});
+  });
+
+  it("sends the password when starting a session enrollment", () => {
+    TestBed.inject(AuthApiClient).startMfaEnrollment("pw").subscribe();
+    const req = http.expectOne(`${api}/auth/mfa/enrollment/start`);
+    expect(req.request.body).toEqual({ currentPassword: "pw" });
+    req.flush({});
+  });
+
+  it("revokes trusted devices with a DELETE that carries the password", () => {
+    const client = TestBed.inject(AuthApiClient);
+    client.revokeTrustedDevices("pw").subscribe();
+    client.revokeTrustedDevice("device 1", "pw").subscribe();
+
+    const all = http.expectOne(`${api}/auth/mfa/trusted-devices`);
+    expect(all.request.method).toBe("DELETE");
+    expect(all.request.body).toEqual({ currentPassword: "pw" });
+    expect(all.request.withCredentials).toBe(true);
+    all.flush({ success: true });
+
+    const one = http.expectOne(`${api}/auth/mfa/trusted-devices/device%201`);
+    expect(one.request.method).toBe("DELETE");
+    expect(one.request.body).toEqual({ currentPassword: "pw" });
+    one.flush({ success: true });
+  });
+
+  it("calls the admin policy and member endpoints", () => {
+    const client = TestBed.inject(AuthApiClient);
+    client
+      .setMfaPolicy({ mfaRequired: true, currentPassword: "pw" })
+      .subscribe();
+    client.resetMemberMfa("u1", "pw").subscribe();
+
+    const put = http.expectOne(`${api}/auth/admin/mfa-policy`);
+    expect(put.request.method).toBe("PUT");
+    expect(put.request.body).toEqual({
+      mfaRequired: true,
+      currentPassword: "pw",
+    });
+    put.flush({ mfaRequired: true });
+
+    const reset = http.expectOne(`${api}/auth/admin/members/u1/mfa/reset`);
+    expect(reset.request.method).toBe("POST");
+    expect(reset.request.body).toEqual({ currentPassword: "pw" });
+    reset.flush(null);
   });
 });

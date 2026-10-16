@@ -2,7 +2,8 @@ import { Injectable } from "@nestjs/common";
 
 @Injectable()
 export class AuthRuntimeConfig {
-  readonly frontendOrigin = process.env.AUTH_FRONTEND_ORIGIN ?? "http://localhost:4200";
+  readonly frontendOrigin =
+    process.env.AUTH_FRONTEND_ORIGIN ?? "http://localhost:4200";
   readonly production = process.env.NODE_ENV === "production";
   readonly smtpHost = process.env.SMTP_HOST ?? "localhost";
   readonly smtpPort = Number(process.env.SMTP_PORT ?? 1025);

@@ -67,4 +67,26 @@ describe("validateEnvironment", () => {
       }),
     ).toThrow("FILE_STORAGE_ROOT is required in production");
   });
+
+  it("production requires AUTH_MFA_ENCRYPTION_KEY of at least 32 characters", () => {
+    const base = {
+      NODE_ENV: "production",
+      PORT: "3001",
+      AUTH_FRONTEND_ORIGIN: "https://law.example.com",
+      SMTP_HOST: "smtp.example.com",
+      SMTP_FROM: "no-reply@example.com",
+      OPENROUTER_API_KEY: "key",
+      ORGANIZATION_SECRETS_KEY: "s".repeat(40),
+      FILE_STORAGE_ROOT: "/var/lib/law",
+    };
+    expect(() => validateEnvironment(base)).toThrow(
+      "AUTH_MFA_ENCRYPTION_KEY must contain at least 32 characters in production",
+    );
+    expect(() =>
+      validateEnvironment({ ...base, AUTH_MFA_ENCRYPTION_KEY: "short" }),
+    ).toThrow("AUTH_MFA_ENCRYPTION_KEY must contain at least 32 characters");
+    expect(() =>
+      validateEnvironment({ ...base, AUTH_MFA_ENCRYPTION_KEY: "m".repeat(40) }),
+    ).not.toThrow();
+  });
 });

@@ -178,3 +178,7 @@ Tracks are organized by implementation area and updated as work progresses.
 - [Assistant actions on permission modes](tracks/assistant_actions_modes_20261015/index.md)
 - [Assistant time capture, billing answers, and undo](tracks/assistant_time_billing_undo_20261015/index.md)
 - [Assistant chat choices and accent-insensitive names](tracks/assistant_chat_choices_20261015/index.md)
+
+- [Auth hardening and two-factor authentication (epic)](tracks/auth_hardening_mfa_20261016/index.md)
+  - [Auth email delivery and reset hardening](tracks/auth_email_delivery_20261016/index.md)
+  - [TOTP two-factor authentication](tracks/auth_totp_mfa_20261016/index.md)
