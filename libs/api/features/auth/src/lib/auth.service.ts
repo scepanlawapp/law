@@ -256,14 +256,17 @@ export class AuthService {
     });
     if (!user || user.status === "DISABLED") return;
     const token = randomBytes(32).toString("base64url");
-    await this.prisma.authToken.create({
-      data: {
-        userId: user.id,
-        purpose: "PASSWORD_RESET",
-        tokenHash: hashToken(token),
-        expiresAt: new Date(Date.now() + RESET_TTL_MS),
-      },
-    });
+    await this.prisma.$transaction([
+      this.consumeOpenResetTokens(user.id),
+      this.prisma.authToken.create({
+        data: {
+          userId: user.id,
+          purpose: "PASSWORD_RESET",
+          tokenHash: hashToken(token),
+          expiresAt: new Date(Date.now() + RESET_TTL_MS),
+        },
+      }),
+    ]);
     await this.mail.sendPasswordReset(user, token);
     await this.audit({
       eventType: "PASSWORD_RESET_REQUESTED",
@@ -280,26 +283,26 @@ export class AuthService {
         consumedAt: null,
         expiresAt: { gt: new Date() },
       },
+      include: { user: { select: { id: true, email: true } } },
     });
     if (!reset) throw new UnauthorizedException("Invalid reset token");
+    const changedAt = new Date();
     await this.prisma.$transaction([
       this.prisma.user.update({
         where: { id: reset.userId },
         data: {
           passwordHash: await hashPassword(password),
-          passwordChangedAt: new Date(),
+          passwordChangedAt: changedAt,
           status: "ACTIVE",
         },
       }),
-      this.prisma.authToken.update({
-        where: { id: reset.id },
-        data: { consumedAt: new Date() },
-      }),
+      this.consumeOpenResetTokens(reset.userId),
       this.prisma.authSession.updateMany({
         where: { userId: reset.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: changedAt },
       }),
     ]);
+    await this.mail.sendPasswordChanged(reset.user, changedAt);
     await this.audit({
       eventType: "PASSWORD_RESET_COMPLETED",
       outcome: "SUCCESS",
@@ -312,24 +315,44 @@ export class AuthService {
     currentPassword: string,
     newPassword: string,
   ): Promise<void> {
-    const user = await this.userForToken(token);
+    const session = await this.sessionForToken(token);
+    const user = session.user;
     if (
       !user.passwordHash ||
       !(await verifyPassword(currentPassword, user.passwordHash))
     ) {
       throw new UnauthorizedException("Current password is incorrect");
     }
-    await this.prisma.user.update({
-      where: { id: user.id },
-      data: {
-        passwordHash: await hashPassword(newPassword),
-        passwordChangedAt: new Date(),
-      },
-    });
+    const changedAt = new Date();
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          passwordHash: await hashPassword(newPassword),
+          passwordChangedAt: changedAt,
+        },
+      }),
+      this.prisma.authSession.updateMany({
+        where: { userId: user.id, revokedAt: null, id: { not: session.id } },
+        data: { revokedAt: changedAt },
+      }),
+      this.consumeOpenResetTokens(user.id),
+    ]);
+    await this.mail.sendPasswordChanged(
+      { id: user.id, email: user.email },
+      changedAt,
+    );
     await this.audit({
       eventType: "PASSWORD_CHANGED",
       outcome: "SUCCESS",
       userId: user.id,
+    });
+  }
+
+  private consumeOpenResetTokens(userId: string) {
+    return this.prisma.authToken.updateMany({
+      where: { userId, purpose: "PASSWORD_RESET", consumedAt: null },
+      data: { consumedAt: new Date() },
     });
   }
 
