@@ -6,6 +6,8 @@ import {
 import { createHash, randomBytes, scryptSync } from "node:crypto";
 import { Secret, TOTP } from "otpauth";
 import {
+  AuthGuard,
+  AuthRateLimitGuard,
   AuthSessionIssuer,
   MFA_CHALLENGE_COOKIE,
   MfaChallengeService,
@@ -789,4 +791,26 @@ describe("MfaController enrollment routes", () => {
     expect(res.cookie).not.toHaveBeenCalled();
     expect(res.clearCookie).not.toHaveBeenCalled();
   });
+});
+
+describe("MfaController guard metadata", () => {
+  const guardsOf = (method: keyof MfaController) =>
+    Reflect.getMetadata(
+      "__guards__",
+      MfaController.prototype[method] as object,
+    ) as unknown[];
+
+  it.each(["start", "confirm", "disable", "regenerateRecoveryCodes"] as const)(
+    "%s is rate limited",
+    (method) => {
+      expect(guardsOf(method)).toContain(AuthRateLimitGuard);
+    },
+  );
+
+  it.each(["disable", "regenerateRecoveryCodes", "status"] as const)(
+    "%s requires a session",
+    (method) => {
+      expect(guardsOf(method)).toContain(AuthGuard);
+    },
+  );
 });

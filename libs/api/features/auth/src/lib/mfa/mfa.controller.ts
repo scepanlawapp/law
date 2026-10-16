@@ -100,7 +100,7 @@ export class MfaController {
 
   @Post("disable")
   @HttpCode(200)
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AuthRateLimitGuard)
   async disable(
     @Body() body: MfaPasswordDto,
     @Req() request: AuthenticatedRequest,
@@ -114,7 +114,7 @@ export class MfaController {
 
   @Post("recovery-codes")
   @HttpCode(200)
-  @UseGuards(AuthGuard)
+  @UseGuards(AuthGuard, AuthRateLimitGuard)
   regenerateRecoveryCodes(
     @Body() body: MfaPasswordDto,
     @Req() request: AuthenticatedRequest,
