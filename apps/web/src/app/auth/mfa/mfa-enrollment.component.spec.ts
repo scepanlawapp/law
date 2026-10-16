@@ -122,18 +122,56 @@ describe("MfaEnrollmentComponent", () => {
     expect(component.recoveryCodes()).toEqual(CODES);
   });
 
-  it("a wrong confirmation code stays on the scan step with an error", () => {
-    api.startMfaEnrollment.mockReturnValue(of(start));
-    const { component } = render("challenge");
-    api.confirmMfaEnrollment.mockReturnValue(
-      throwError(() => new HttpErrorResponse({ status: 401 })),
-    );
-    component.codeForm.setValue({ code: "123456" });
+  function confirmFails(
+    mode: "challenge" | "session",
+    error: HttpErrorResponse,
+  ) {
+    if (mode === "challenge") api.startMfaEnrollment.mockReturnValue(of(start));
+    const rendered = render(mode);
+    if (mode === "session") {
+      api.startMfaEnrollment.mockReturnValue(of(start));
+      rendered.component.passwordForm.setValue({ currentPassword: "pw" });
+      rendered.component.submitPassword();
+    }
+    api.confirmMfaEnrollment.mockReturnValue(throwError(() => error));
+    rendered.component.codeForm.setValue({ code: "123456" });
+    rendered.component.confirm();
+    return rendered.component;
+  }
 
-    component.confirm();
+  const unauthorized = (code?: string) =>
+    new HttpErrorResponse({
+      status: 401,
+      error: code ? { statusCode: 401, error: code } : undefined,
+    });
+
+  it("a wrong confirmation code (MFA_CODE_INVALID) stays on the scan step with an error", () => {
+    const component = confirmFails(
+      "challenge",
+      unauthorized("MFA_CODE_INVALID"),
+    );
 
     expect(component.step()).toBe("scan");
     expect(component.error()).toBe("auth.mfa.codeInvalid");
+  });
+
+  it.each([["MFA_CHALLENGE_INVALID"], [undefined]])(
+    "a dead enrollment challenge (%s) in challenge mode shows the unavailable step",
+    (code) => {
+      const component = confirmFails("challenge", unauthorized(code));
+
+      expect(component.step()).toBe("unavailable");
+    },
+  );
+
+  it("a non-code 401 in session mode shows the generic error and stays", () => {
+    const component = confirmFails(
+      "session",
+      unauthorized("MFA_CHALLENGE_INVALID"),
+    );
+
+    expect(component.step()).toBe("scan");
+    expect(component.error()).toBe("auth.mfa.setupFailed");
   });
 
   it("continue is disabled until the codes-saved checkbox is ticked", () => {

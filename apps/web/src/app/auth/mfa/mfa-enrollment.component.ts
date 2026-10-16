@@ -28,7 +28,12 @@ import {
 } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-import { isSixDigitCode, pastedCode, stripSpaces } from "./mfa-code";
+import {
+  isSixDigitCode,
+  mfaErrorCode,
+  pastedCode,
+  stripSpaces,
+} from "./mfa-code";
 
 export type MfaEnrollmentStep = "password" | "scan" | "codes" | "unavailable";
 
@@ -135,17 +140,7 @@ export class MfaEnrollmentComponent implements OnInit {
           this.submitting.set(false);
           this.step.set("codes");
         },
-        error: (error: HttpErrorResponse) => {
-          this.submitting.set(false);
-          this.codeForm.controls.code.setValue("");
-          this.error.set(
-            this.localization.translate(
-              error.status === 401
-                ? "auth.mfa.codeInvalid"
-                : "auth.mfa.setupFailed",
-            ),
-          );
-        },
+        error: (error: HttpErrorResponse) => this.handleConfirmError(error),
       });
   }
 
@@ -188,6 +183,20 @@ export class MfaEnrollmentComponent implements OnInit {
     if (!this.canContinue()) return;
     const session = this.session();
     this.completed.emit(session ? { session } : {});
+  }
+
+  private handleConfirmError(error: HttpErrorResponse): void {
+    this.submitting.set(false);
+    this.codeForm.controls.code.setValue("");
+    const code = error.status === 401 ? mfaErrorCode(error) : undefined;
+    if (code === "MFA_CODE_INVALID") {
+      this.error.set(this.localization.translate("auth.mfa.codeInvalid"));
+    } else if (error.status === 401 && this.mode() === "challenge") {
+      // Locked, expired or consumed enrollment challenge: only a fresh login helps.
+      this.step.set("unavailable");
+    } else {
+      this.error.set(this.localization.translate("auth.mfa.setupFailed"));
+    }
   }
 
   private startEnrollment(currentPassword: string | undefined): void {
