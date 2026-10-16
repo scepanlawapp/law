@@ -94,6 +94,8 @@ Tracks are organized by implementation area and updated as work progresses.
 
 ## Active Tracks
 
+- [Pre-launch Security Audit](./tracks/security_audit_prelaunch_20261016/index.md)
+
 - [Revenue Sharing Settings UX](./tracks/revenue_sharing_ux_20261015/index.md)
 
 - [Settings Content Scrolling](./tracks/settings_content_scroll_20261009/index.md)
