@@ -12,6 +12,7 @@ import { AuthSessionIssuer, toSessionResponse } from "./auth-session.issuer";
 import { SESSION_TTL_MS } from "./cookies";
 import { MfaChallengeService } from "./mfa/mfa-challenge.service";
 import { MfaSecretCipher } from "./mfa/mfa-secret.cipher";
+import { TrustedDeviceService } from "./mfa/trusted-device.service";
 import { hashPassword, verifyPassword } from "./passwords";
 
 const RESET_TTL_MS = 1000 * 60 * 30;
@@ -40,6 +41,7 @@ export class AuthService {
     private readonly sessions: AuthSessionIssuer,
     private readonly challenges: MfaChallengeService,
     private readonly mfaCipher: MfaSecretCipher,
+    private readonly trustedDevices: TrustedDeviceService,
   ) {}
 
   async createInvitation(
@@ -91,13 +93,12 @@ export class AuthService {
   /**
    * Password step. Issues a session only when no second factor is needed;
    * otherwise returns a challenge token for the `law_mfa_challenge` cookie.
-   * `trustedDeviceToken` is accepted for the remember-device flow (not yet
-   * honoured: an enabled second factor is always challenged).
+   * A valid trusted device of this user skips the challenge of an enabled
+   * second factor; it never bypasses mandatory enrollment.
    */
   async login(
     email: string,
     password: string,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     trustedDeviceToken?: string,
   ): Promise<{
     result: LoginResponse;
@@ -117,7 +118,11 @@ export class AuthService {
       throw new UnauthorizedException("Invalid credentials");
     }
 
-    const step = await this.secondFactorStep(user.id, "LOGIN");
+    const step = await this.secondFactorStep(
+      user.id,
+      "LOGIN",
+      trustedDeviceToken,
+    );
     await this.audit(
       step.result.status === "AUTHENTICATED"
         ? { eventType: "LOGIN", outcome: "SUCCESS", userId: user.id }
@@ -134,11 +139,14 @@ export class AuthService {
   /**
    * Decides what follows a verified password (login or invitation
    * acceptance): a LOGIN challenge for enabled 2FA, an ENROLLMENT challenge
-   * when the office requires 2FA, otherwise a session.
+   * when the office requires 2FA, otherwise a session. Only a login passes a
+   * trusted-device token: a password set from an emailed link is always
+   * challenged.
    */
   private async secondFactorStep(
     userId: string,
     auditEventType: string,
+    trustedDeviceToken?: string,
   ): Promise<{
     result: LoginResponse;
     sessionToken?: string;
@@ -160,6 +168,13 @@ export class AuthService {
         throw new ServiceUnavailableException(
           "Two-factor authentication is not configured",
         );
+      }
+      if (await this.trustedDevices.validFor(userId, trustedDeviceToken)) {
+        const trusted = await this.sessions.issue(userId);
+        return {
+          result: { status: "AUTHENTICATED", session: trusted.session },
+          sessionToken: trusted.token,
+        };
       }
       return {
         result: {
@@ -404,6 +419,7 @@ export class AuthService {
         where: { userId: reset.userId, revokedAt: null },
         data: { revokedAt: changedAt },
       });
+      await this.trustedDevices.revokeAll(reset.userId, tx);
     });
     await this.mail.sendPasswordChanged(reset.user, changedAt);
     await this.audit({
@@ -427,20 +443,19 @@ export class AuthService {
       throw new UnauthorizedException("Current password is incorrect");
     }
     const changedAt = new Date();
-    await this.prisma.$transaction([
-      this.prisma.user.update({
+    const passwordHash = await hashPassword(newPassword);
+    await this.prisma.$transaction(async (tx) => {
+      await tx.user.update({
         where: { id: user.id },
-        data: {
-          passwordHash: await hashPassword(newPassword),
-          passwordChangedAt: changedAt,
-        },
-      }),
-      this.prisma.authSession.updateMany({
+        data: { passwordHash, passwordChangedAt: changedAt },
+      });
+      await tx.authSession.updateMany({
         where: { userId: user.id, revokedAt: null, id: { not: session.id } },
         data: { revokedAt: changedAt },
-      }),
-      this.consumeOpenResetTokens(user.id),
-    ]);
+      });
+      await this.consumeOpenResetTokens(user.id, tx);
+      await this.trustedDevices.revokeAll(user.id, tx);
+    });
     await this.mail.sendPasswordChanged(
       { id: user.id, email: user.email },
       changedAt,

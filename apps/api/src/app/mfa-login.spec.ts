@@ -14,6 +14,7 @@ import {
   MfaController,
   MfaSecretCipher,
   MfaVerificationService,
+  TrustedDeviceService,
   generateTotpSecret,
   hashRecoveryCode,
   readCookie,
@@ -87,10 +88,15 @@ function createHarness(options: { key?: string | undefined } = {}) {
     $transaction: jest.fn(async (ops: unknown[]) => ops),
     authSession: { create: jest.fn().mockResolvedValue({}) },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
+    trustedDevice: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      create: jest.fn().mockResolvedValue({}),
+    },
   };
   const cipher = cipherWithKey(key);
   const sessions = new AuthSessionIssuer(prisma as never);
   const challenges = new MfaChallengeService(prisma as never);
+  const trustedDevices = new TrustedDeviceService(prisma as never);
   const authService = new AuthService(
     prisma as never,
     {} as never,
@@ -98,12 +104,14 @@ function createHarness(options: { key?: string | undefined } = {}) {
     sessions,
     challenges,
     cipher,
+    trustedDevices,
   );
   const verification = new MfaVerificationService(
     prisma as never,
     challenges,
     cipher,
     sessions,
+    trustedDevices,
   );
   return { prisma, cipher, authService, verification };
 }
@@ -797,7 +805,10 @@ describe("login and verify controllers", () => {
     );
 
     expect(body).toEqual(session);
-    expect(verification.verify).toHaveBeenCalledWith("challenge-token", dto);
+    expect(verification.verify).toHaveBeenCalledWith("challenge-token", dto, {
+      userAgent: undefined,
+      ipAddress: undefined,
+    });
     expect(res.clearCookie).toHaveBeenCalledWith("law_mfa_challenge", {
       httpOnly: true,
       sameSite: "strict",

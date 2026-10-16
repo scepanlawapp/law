@@ -19,6 +19,7 @@ import {
 } from "./mfa-challenge.service";
 import { MfaSecretCipher } from "./mfa-secret.cipher";
 import { hashRecoveryCode } from "./recovery-codes";
+import { TrustedDeviceService } from "./trusted-device.service";
 import { verifyTotp } from "./totp";
 
 /** Error code for a wrong code on a still-valid challenge. */
@@ -41,12 +42,20 @@ export class MfaVerificationService {
     private readonly challenges: MfaChallengeService,
     private readonly cipher: MfaSecretCipher,
     private readonly sessions: AuthSessionIssuer,
+    private readonly trustedDevices: TrustedDeviceService,
   ) {}
 
   async verify(
     challengeToken: string | undefined,
     request: MfaVerifyRequest,
-  ): Promise<{ token: string; session: AuthSessionResponse; userId: string }> {
+    meta: { userAgent?: string; ipAddress?: string } = {},
+  ): Promise<{
+    token: string;
+    session: AuthSessionResponse;
+    userId: string;
+    /** Raw token for the trusted-device cookie; only when requested. */
+    trustedDeviceToken?: string;
+  }> {
     if (request.method === "EMAIL") {
       throw new BadRequestException("Email codes are not available yet");
     }
@@ -90,7 +99,23 @@ export class MfaVerificationService {
     await this.prisma.auditEvent.create({
       data: { eventType: "LOGIN", outcome: "SUCCESS", userId },
     });
-    return { ...issued, userId };
+    const trustedDeviceToken = request.rememberDevice
+      ? await this.rememberDevice(userId, meta)
+      : undefined;
+    return { ...issued, userId, trustedDeviceToken };
+  }
+
+  /** The login already succeeded; a storage fault must not undo it. */
+  private async rememberDevice(
+    userId: string,
+    meta: { userAgent?: string; ipAddress?: string },
+  ): Promise<string | undefined> {
+    try {
+      return await this.trustedDevices.create(userId, meta);
+    } catch {
+      this.logger.error("Trusted device could not be stored");
+      return undefined;
+    }
   }
 
   /** Verifies the code and claims its time step atomically (replay guard). */

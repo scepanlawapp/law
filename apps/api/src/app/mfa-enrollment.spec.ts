@@ -14,6 +14,7 @@ import {
   MfaController,
   MfaEnrollmentService,
   MfaSecretCipher,
+  TrustedDeviceService,
   generateTotpSecret,
   hashRecoveryCode,
 } from "@law/auth";
@@ -110,6 +111,10 @@ function createHarness(options: { key?: string | undefined } = {}) {
       findUnique: jest.fn().mockResolvedValue({ attempts: 1 }),
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
+    trustedDevice: {
+      updateMany: jest.fn().mockResolvedValue({ count: 0 }),
+      findMany: jest.fn().mockResolvedValue([]),
+    },
     authSession: { create: jest.fn().mockResolvedValue({}) },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
     $transaction: jest.fn(async (fn: (tx: unknown) => unknown) => fn(prisma)),
@@ -124,6 +129,7 @@ function createHarness(options: { key?: string | undefined } = {}) {
     cipher,
     sessions,
     mail as never,
+    new TrustedDeviceService(prisma as never),
   );
   return { prisma, cipher, service, mail };
 }

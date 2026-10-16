@@ -26,6 +26,7 @@ import { MfaSecretCipher } from "./mfa-secret.cipher";
 import { generateRecoveryCodes, hashRecoveryCode } from "./recovery-codes";
 import { generateTotpSecret, totpUri, verifyTotp } from "./totp";
 import { MFA_CODE_INVALID } from "./mfa-verification.service";
+import { TrustedDeviceService } from "./trusted-device.service";
 
 const DEFAULT_ISSUER = "Law";
 
@@ -56,6 +57,7 @@ export class MfaEnrollmentService {
     private readonly cipher: MfaSecretCipher,
     private readonly sessions: AuthSessionIssuer,
     private readonly mail: AuthMailService,
+    private readonly trustedDevices: TrustedDeviceService,
   ) {}
 
   async start(
@@ -200,6 +202,8 @@ export class MfaEnrollmentService {
     await this.prisma.$transaction(async (tx) => {
       await tx.mfaRecoveryCode.deleteMany({ where: { userId } });
       await tx.userMfa.deleteMany({ where: { userId } });
+      // Without 2FA there is nothing to remember; re-enabling starts clean.
+      await this.trustedDevices.revokeAll(userId, tx);
     });
     await this.audit("MFA_DISABLED", userId);
     await this.mail.sendMfaDisabled(
@@ -225,7 +229,10 @@ export class MfaEnrollmentService {
     return { recoveryCodes };
   }
 
-  async status(userId: string): Promise<MfaStatusResponse> {
+  async status(
+    userId: string,
+    currentTrustedDeviceToken?: string,
+  ): Promise<MfaStatusResponse> {
     const [mfa, policyRequired] = await Promise.all([
       this.prisma.userMfa.findUnique({
         where: { userId },
@@ -244,9 +251,38 @@ export class MfaEnrollmentService {
       enabledAt: enabledAt ? enabledAt.toISOString() : null,
       recoveryCodesRemaining,
       policyRequired,
-      // Populated once trusted devices exist.
-      trustedDevices: [],
+      trustedDevices: await this.trustedDevices.list(
+        userId,
+        currentTrustedDeviceToken,
+      ),
     };
+  }
+
+  /** Re-authenticated revocation of one device; 404 unless it is theirs. */
+  async revokeTrustedDevice(
+    userId: string,
+    currentPassword: string,
+    id: string,
+    currentTrustedDeviceToken: string | undefined,
+  ): Promise<{ revokedCurrent: boolean }> {
+    await this.verifiedUser(userId, currentPassword);
+    const revokedCurrent = await this.trustedDevices.isCurrent(
+      userId,
+      id,
+      currentTrustedDeviceToken,
+    );
+    await this.trustedDevices.revoke(userId, id);
+    await this.audit("TRUSTED_DEVICE_REVOKED", userId, { scope: "ONE" });
+    return { revokedCurrent };
+  }
+
+  async revokeAllTrustedDevices(
+    userId: string,
+    currentPassword: string,
+  ): Promise<void> {
+    await this.verifiedUser(userId, currentPassword);
+    await this.trustedDevices.revokeAll(userId);
+    await this.audit("TRUSTED_DEVICE_REVOKED", userId, { scope: "ALL" });
   }
 
   /** Replaces the whole set: old codes are deleted, never left usable. */

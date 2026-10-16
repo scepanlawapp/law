@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
+  Param,
   Post,
   Req,
   Res,
@@ -24,9 +26,12 @@ import {
   MFA_CHALLENGE_COOKIE,
   SESSION_COOKIE,
   SESSION_TTL_MS,
+  TRUSTED_DEVICE_COOKIE,
+  TRUSTED_DEVICE_TTL_MS,
   mfaChallengeCookieOptions,
   readCookie,
   sessionCookieOptions,
+  trustedDeviceCookieOptions,
 } from "../cookies";
 import { CsrfOriginGuard } from "../csrf.guard";
 import { AuthRateLimitGuard } from "../rate-limit.guard";
@@ -60,15 +65,31 @@ export class MfaController {
     const result = await this.verification.verify(
       readCookie(request, MFA_CHALLENGE_COOKIE),
       body,
+      {
+        userAgent: request.headers["user-agent"],
+        ipAddress: request.ip,
+      },
     );
     this.issueSession(response, result.token);
+    if (result.trustedDeviceToken) {
+      response.cookie(TRUSTED_DEVICE_COOKIE, result.trustedDeviceToken, {
+        ...trustedDeviceCookieOptions(this.config.production),
+        maxAge: TRUSTED_DEVICE_TTL_MS,
+      });
+    }
     return result.session;
   }
 
   @Get()
   @UseGuards(AuthGuard)
-  status(@Req() request: AuthenticatedRequest): Promise<MfaStatusResponse> {
-    return this.enrollment.status(authenticatedUserId(request));
+  status(
+    @Req() request: AuthenticatedRequest,
+    @Req() httpRequest: Request,
+  ): Promise<MfaStatusResponse> {
+    return this.enrollment.status(
+      authenticatedUserId(request),
+      readCookie(httpRequest, TRUSTED_DEVICE_COOKIE),
+    );
   }
 
   @Post("enrollment/start")
@@ -122,6 +143,49 @@ export class MfaController {
     return this.enrollment.regenerateRecoveryCodes(
       authenticatedUserId(request),
       body.currentPassword,
+    );
+  }
+
+  @Delete("trusted-devices")
+  @HttpCode(200)
+  @UseGuards(AuthGuard, AuthRateLimitGuard)
+  async revokeAllTrustedDevices(
+    @Body() body: MfaPasswordDto,
+    @Req() request: AuthenticatedRequest,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ success: true }> {
+    await this.enrollment.revokeAllTrustedDevices(
+      authenticatedUserId(request),
+      body.currentPassword,
+    );
+    this.clearTrustedDevice(response);
+    return { success: true };
+  }
+
+  @Delete("trusted-devices/:id")
+  @HttpCode(200)
+  @UseGuards(AuthGuard, AuthRateLimitGuard)
+  async revokeTrustedDevice(
+    @Param("id") id: string,
+    @Body() body: MfaPasswordDto,
+    @Req() request: AuthenticatedRequest,
+    @Req() httpRequest: Request,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<{ success: true }> {
+    const { revokedCurrent } = await this.enrollment.revokeTrustedDevice(
+      authenticatedUserId(request),
+      body.currentPassword,
+      id,
+      readCookie(httpRequest, TRUSTED_DEVICE_COOKIE),
+    );
+    if (revokedCurrent) this.clearTrustedDevice(response);
+    return { success: true };
+  }
+
+  private clearTrustedDevice(response: Response): void {
+    response.clearCookie(
+      TRUSTED_DEVICE_COOKIE,
+      trustedDeviceCookieOptions(this.config.production),
     );
   }
 

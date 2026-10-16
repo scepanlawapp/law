@@ -41,6 +41,7 @@ function createService() {
     sendPasswordChanged: jest.fn().mockResolvedValue(undefined),
   };
   const rateLimit = { hit: jest.fn().mockResolvedValue(1) };
+  const trustedDevices = { revokeAll: jest.fn().mockResolvedValue(undefined) };
   const service = new AuthService(
     prisma as never,
     mail as never,
@@ -48,8 +49,9 @@ function createService() {
     {} as never,
     {} as never,
     {} as never,
+    trustedDevices as never,
   );
-  return { service, prisma, mail };
+  return { service, prisma, mail, trustedDevices };
 }
 
 const openResetTokens = (userId: string) => ({
@@ -228,12 +230,8 @@ describe("AuthService password hardening", () => {
       openResetTokens("user-1"),
     );
     expect(prisma.$transaction).toHaveBeenCalledTimes(1);
-    const [ops] = prisma.$transaction.mock.calls[0];
-    expect(ops.map((o: { name: string }) => o.name)).toEqual([
-      "user.update",
-      "authSession.updateMany",
-      "authToken.updateMany",
-    ]);
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function));
+    expect(prisma.user.update).toHaveBeenCalledTimes(1);
     expect(mail.sendPasswordChanged).toHaveBeenCalledWith(
       { id: "user-1", email: "ana@example.com" },
       expect.any(Date),

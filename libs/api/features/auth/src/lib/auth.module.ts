@@ -17,6 +17,7 @@ import { MfaChallengeService } from "./mfa/mfa-challenge.service";
 import { MfaVerificationService } from "./mfa/mfa-verification.service";
 import { MfaEnrollmentService } from "./mfa/mfa-enrollment.service";
 import { MfaController } from "./mfa/mfa.controller";
+import { TrustedDeviceService } from "./mfa/trusted-device.service";
 import {
   AUTH_REDIS,
   AuthRateLimitStore,
@@ -45,6 +46,7 @@ import {
     MfaChallengeService,
     MfaVerificationService,
     MfaEnrollmentService,
+    TrustedDeviceService,
     { provide: AUTH_REDIS, useFactory: createAuthRedisClient },
     { provide: AuthRateLimitStore, useClass: RedisAuthRateLimitStore },
   ],

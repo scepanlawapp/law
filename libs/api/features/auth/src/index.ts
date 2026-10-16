@@ -13,6 +13,7 @@ export * from "./lib/mfa/mfa-secret.cipher";
 export * from "./lib/mfa/mfa-challenge.service";
 export * from "./lib/mfa/mfa-verification.service";
 export * from "./lib/mfa/mfa-enrollment.service";
+export * from "./lib/mfa/trusted-device.service";
 export * from "./lib/mfa/mfa.controller";
 export * from "./lib/mfa/mfa.dto";
 export * from "./lib/mfa/totp";

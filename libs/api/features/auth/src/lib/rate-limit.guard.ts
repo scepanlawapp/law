@@ -20,7 +20,13 @@ export class AuthRateLimitGuard implements CanActivate {
     const request = context.switchToHttp().getRequest<Request>();
     // Express routes are case-insensitive and ignore trailing slashes, so
     // normalise the path to keep one bucket per route.
-    const path = request.path.toLowerCase().replace(/\/+$/, "") || "/";
+    // Parameterised routes key on their pattern so a changing :id cannot
+    // mint a fresh bucket per attempt.
+    const route: unknown = request.route?.path;
+    const path =
+      (typeof route === "string" ? route : request.path)
+        .toLowerCase()
+        .replace(/\/+$/, "") || "/";
     const key = `ip:${request.ip}:${path}`;
     let count: number;
     try {
