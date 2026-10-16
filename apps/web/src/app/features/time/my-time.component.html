@@ -1,48 +1,59 @@
 <section
-  class="grid min-h-full min-w-0 grid-cols-[minmax(0,1fr)_7rem] items-stretch gap-3 p-4 md:gap-6 md:p-6 min-[1600px]:grid-cols-[minmax(0,1fr)_auto]"
+  class="grid min-h-full min-w-0 items-stretch gap-3 p-4 md:gap-6 md:p-6"
+  [class]="
+    presentation() === 'table'
+      ? 'grid-cols-1 md:max-[1600px]:grid-cols-[minmax(0,1fr)_7rem] min-[1600px]:grid-cols-[minmax(0,1fr)_auto]'
+      : 'grid-cols-[minmax(0,1fr)_7rem] min-[1600px]:grid-cols-[minmax(0,1fr)_auto]'
+  "
 >
   <div class="flex min-w-0 flex-col gap-6">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <div>
         <h1 class="text-xl font-semibold">{{ "time.my.title" | translate }}</h1>
-        <p class="text-muted-foreground text-sm">{{ rangeLabel() }}</p>
+        @if (presentation() !== "table") {
+          <p class="text-muted-foreground text-sm">{{ rangeLabel() }}</p>
+        }
       </div>
       <div class="flex flex-wrap items-center gap-2">
+        @if (presentation() !== "table") {
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            size="icon"
+            [attr.aria-label]="'time.my.previousWeek' | translate"
+            (click)="previousWeek()"
+          >
+            <ng-icon name="lucideChevronLeft" aria-hidden="true" />
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            [disabled]="isCurrentWeek()"
+            (click)="goToToday()"
+          >
+            {{ "time.my.today" | translate }}
+          </button>
+          <button
+            hlmBtn
+            type="button"
+            variant="outline"
+            size="icon"
+            [attr.aria-label]="'time.my.nextWeek' | translate"
+            (click)="nextWeek()"
+          >
+            <ng-icon name="lucideChevronRight" aria-hidden="true" />
+          </button>
+        }
         <button
           hlmBtn
           type="button"
-          variant="outline"
           size="icon"
-          [attr.aria-label]="'time.my.previousWeek' | translate"
-          (click)="previousWeek()"
-        >
-          <ng-icon name="lucideChevronLeft" aria-hidden="true" />
-        </button>
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          [disabled]="isCurrentWeek()"
-          (click)="goToToday()"
-        >
-          {{ "time.my.today" | translate }}
-        </button>
-        <button
-          hlmBtn
-          type="button"
-          variant="outline"
-          size="icon"
-          [attr.aria-label]="'time.my.nextWeek' | translate"
-          (click)="nextWeek()"
-        >
-          <ng-icon name="lucideChevronRight" aria-hidden="true" />
-        </button>
-        <button
-          hlmBtn
-          type="button"
           [variant]="presentation() === 'board' ? 'default' : 'outline'"
           [attr.aria-pressed]="presentation() === 'board'"
           [attr.aria-label]="'work.view.showBoard' | translate"
+          [hlmTooltip]="'work.view.showBoard' | translate"
           (click)="presentation.set('board')"
         >
           <ng-icon name="lucideKanban" aria-hidden="true" />
@@ -50,12 +61,26 @@
         <button
           hlmBtn
           type="button"
+          size="icon"
           [variant]="presentation() === 'list' ? 'default' : 'outline'"
           [attr.aria-pressed]="presentation() === 'list'"
           [attr.aria-label]="'work.view.showList' | translate"
+          [hlmTooltip]="'work.view.showList' | translate"
           (click)="presentation.set('list')"
         >
           <ng-icon name="lucideList" aria-hidden="true" />
+        </button>
+        <button
+          hlmBtn
+          type="button"
+          size="icon"
+          [variant]="presentation() === 'table' ? 'default' : 'outline'"
+          [attr.aria-pressed]="presentation() === 'table'"
+          [attr.aria-label]="'work.view.showTable' | translate"
+          [hlmTooltip]="'work.view.showTable' | translate"
+          (click)="presentation.set('table')"
+        >
+          <ng-icon name="lucideTable" aria-hidden="true" />
         </button>
         <button hlmBtn type="button" (click)="logTime()">
           {{ "time.capture.open" | translate }}
@@ -63,7 +88,9 @@
       </div>
     </header>
 
-    @if (loading()) {
+    @if (presentation() === "table") {
+      <law-time-table [currentUserOnly]="true" />
+    } @else if (loading()) {
       <div class="flex items-center gap-2" role="status">
         <hlm-spinner [attr.aria-label]="'time.my.loading' | translate" />
         <span class="text-muted-foreground text-sm">

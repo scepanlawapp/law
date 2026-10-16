@@ -51,6 +51,14 @@
   opacity: 0;
 }
 
+:host([data-sidebar="true"][data-expanded="true"]) .past-events-shell {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+:host([data-sidebar="true"][data-expanded="true"]) .past-events-shrink {
+  display: inline-flex;
+}
+
 @starting-style {
   :host([data-sidebar="true"][data-expanded="true"]) .past-events-content {
     opacity: 0;
@@ -73,20 +81,8 @@
     width: 27rem;
   }
 
-  :host([data-sidebar="true"][data-expanded="true"]) .past-events-shell {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  :host([data-sidebar="true"][data-expanded="true"]) .past-events-toggle {
-    display: none;
-  }
-
   :host([data-sidebar="true"][data-expanded="true"]) .past-events-content {
     padding-right: 0;
-  }
-
-  :host([data-sidebar="true"][data-expanded="true"]) .past-events-shrink {
-    display: inline-flex;
   }
 }
 

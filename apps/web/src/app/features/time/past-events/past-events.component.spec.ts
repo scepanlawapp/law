@@ -169,6 +169,35 @@ describe("PastEventsComponent", () => {
     fixture.componentInstance.load(2);
     expect(api.pastEvents).toHaveBeenLastCalledWith(2, 50);
   });
+  it("replaces the collapsed toggle with the header shrink control while expanded", () => {
+    const fixture = TestBed.createComponent(PastEventsComponent);
+    fixture.componentRef.setInput("collapsibleSidebar", true);
+    fixture.componentInstance.expanded.set(false);
+    fixture.detectChanges();
+    const root = fixture.nativeElement as HTMLElement;
+    const toggle = root.querySelector<HTMLButtonElement>(".past-events-toggle");
+    expect(toggle?.getAttribute("aria-expanded")).toBe("false");
+    expect(root.querySelector(".past-events-shrink")).toBeNull();
+
+    toggle?.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.expanded()).toBe(true);
+    expect(root.querySelector(".past-events-toggle")).toBeNull();
+    const shrink = root.querySelector<HTMLButtonElement>(".past-events-shrink");
+    expect(shrink?.getAttribute("aria-expanded")).toBe("true");
+    expect(
+      root.querySelector(".past-events-content")?.hasAttribute("inert"),
+    ).toBe(false);
+
+    shrink?.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.expanded()).toBe(false);
+    expect(root.querySelector(".past-events-toggle")).not.toBeNull();
+    expect(root.querySelector(".past-events-shrink")).toBeNull();
+    expect(
+      root.querySelector(".past-events-content")?.hasAttribute("inert"),
+    ).toBe(true);
+  });
   it("shows a retryable error", () => {
     api.pastEvents.mockReturnValueOnce(throwError(() => new Error("Offline")));
     const fixture = render();

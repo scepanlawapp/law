@@ -61,87 +61,45 @@
             @for (item of group.items; track item.route) {
               <li hlmSidebarMenuItem>
                 @if (item.children; as children) {
-                  <hlm-collapsible
-                    [expanded]="
-                      item.route === '/reports'
-                        ? reportsExpanded()
-                        : item.route === '/finance' && financeRouteActive()
-                    "
-                    (expandedChange)="
-                      item.route === '/reports' && toggleReports($event)
-                    "
+                  <button
+                    hlmSidebarMenuButton
+                    type="button"
+                    [closeMobileSidebarOnClick]="false"
+                    [tooltip]="item.label | translate"
+                    [isActive]="isRouteActive(item.route)"
+                    [attr.aria-label]="item.label | translate"
+                    [hlmDropdownMenuTrigger]="childRoutes"
+                    side="right"
+                    align="start"
                   >
-                    @if (item.route === "/reports" && reportsIconMode()) {
-                      <button
-                        hlmSidebarMenuButton
-                        type="button"
-                        [tooltip]="item.label | translate"
-                        [isActive]="reportsRouteActive()"
-                        (click)="openReportsMenu()"
-                        [attr.aria-expanded]="reportsExpanded()"
-                      >
-                        <ng-icon [name]="item.icon" aria-hidden="true" />
-                        <span>{{ item.label | translate }}</span>
-                      </button>
-                    } @else if (
-                      item.route === "/finance" && financeRouteActive()
-                    ) {
-                      <a
-                        hlmSidebarMenuButton
-                        routerLink="/finance/work-review"
-                        [tooltip]="item.label | translate"
-                        aria-expanded="true"
-                      >
-                        <ng-icon [name]="item.icon" aria-hidden="true" />
-                        <span>{{ item.label | translate }}</span>
-                        <ng-icon
-                          name="lucideChevronRight"
-                          aria-hidden="true"
-                          class="ms-auto rotate-90"
-                        />
-                      </a>
-                    } @else {
-                      <button
-                        hlmSidebarMenuButton
-                        hlmCollapsibleTrigger
-                        [isActive]="
-                          item.route === '/reports' && reportsRouteActive()
-                        "
-                        type="button"
-                        [tooltip]="item.label | translate"
-                      >
-                        <ng-icon [name]="item.icon" aria-hidden="true" />
-                        <span>{{ item.label | translate }}</span>
-                        <ng-icon
-                          name="lucideChevronRight"
-                          aria-hidden="true"
-                          class="ms-auto transition-transform group-data-[state=open]/collapsible:rotate-90"
-                          [class.rotate-90]="
-                            item.route === '/reports' && reportsExpanded()
-                          "
-                        />
-                      </button>
-                    }
-                    <div hlmCollapsibleContent>
-                      <ul hlmSidebarMenuSub>
-                        @for (child of children; track child.route) {
-                          <li hlmSidebarMenuSubItem>
-                            <a
-                              hlmSidebarMenuSubButton
-                              [routerLink]="child.route"
-                              (click)="closeReportsMobile(child.route)"
-                              routerLinkActive
-                              #financeChildActive="routerLinkActive"
-                              [isActive]="financeChildActive.isActive"
-                            >
-                              <ng-icon [name]="child.icon" aria-hidden="true" />
-                              <span>{{ child.label | translate }}</span>
-                            </a>
-                          </li>
-                        }
-                      </ul>
-                    </div>
-                  </hlm-collapsible>
+                    <ng-icon [name]="item.icon" aria-hidden="true" />
+                    <span>{{ item.label | translate }}</span>
+                    <ng-icon
+                      name="lucideChevronRight"
+                      aria-hidden="true"
+                      class="ms-auto group-data-[collapsible=icon]:hidden"
+                    />
+                  </button>
+                  <ng-template #childRoutes>
+                    <hlm-dropdown-menu
+                      width="content"
+                      [attr.aria-label]="item.label | translate"
+                    >
+                      @for (child of children; track child.route) {
+                        <a
+                          hlmDropdownMenuItem
+                          [routerLink]="child.route"
+                          (click)="closeMobileSidebar()"
+                          routerLinkActive="bg-accent text-accent-foreground"
+                          ariaCurrentWhenActive="page"
+                          [routerLinkActiveOptions]="{ exact: !!child.exact }"
+                        >
+                          <ng-icon [name]="child.icon" aria-hidden="true" />
+                          <span>{{ child.label | translate }}</span>
+                        </a>
+                      }
+                    </hlm-dropdown-menu>
+                  </ng-template>
                 } @else {
                   <a
                     hlmSidebarMenuButton

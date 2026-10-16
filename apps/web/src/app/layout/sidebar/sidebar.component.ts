@@ -29,10 +29,10 @@ import {
 } from "@angular/router";
 import { filter } from "rxjs";
 import {
-  HlmCollapsible,
-  HlmCollapsibleContent,
-  HlmCollapsibleTrigger,
-} from "@spartan-ng/helm/collapsible";
+  HlmDropdownMenu,
+  HlmDropdownMenuItem,
+  HlmDropdownMenuTrigger,
+} from "@spartan-ng/helm/dropdown-menu";
 import {
   HlmSidebar,
   HlmSidebarContent,
@@ -44,9 +44,6 @@ import {
   HlmSidebarMenu,
   HlmSidebarMenuButton,
   HlmSidebarMenuItem,
-  HlmSidebarMenuSub,
-  HlmSidebarMenuSubButton,
-  HlmSidebarMenuSubItem,
   HlmSidebarTrigger,
   HlmSidebarService,
 } from "@spartan-ng/helm/sidebar";
@@ -80,9 +77,9 @@ interface SidebarNavigationGroup {
   templateUrl: "./sidebar.component.html",
   imports: [
     NgIcon,
-    HlmCollapsible,
-    HlmCollapsibleContent,
-    HlmCollapsibleTrigger,
+    HlmDropdownMenu,
+    HlmDropdownMenuItem,
+    HlmDropdownMenuTrigger,
     HlmSidebar,
     HlmSidebarContent,
     HlmSidebarFooter,
@@ -93,9 +90,6 @@ interface SidebarNavigationGroup {
     HlmSidebarMenu,
     HlmSidebarMenuButton,
     HlmSidebarMenuItem,
-    HlmSidebarMenuSub,
-    HlmSidebarMenuSubButton,
-    HlmSidebarMenuSubItem,
     HlmSidebarTrigger,
     RouterLink,
     RouterLinkActive,
@@ -130,13 +124,8 @@ export class SidebarComponent {
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
   private readonly sidebar = inject(HlmSidebarService);
-  readonly reportsIconMode = computed(
-    () => this.sidebar.state() === "collapsed" && !this.sidebar.isMobile(),
-  );
-  readonly reportsRouteActive = signal(this.router.url.startsWith("/reports"));
-  readonly reportsExpanded = signal(this.router.url.startsWith("/reports"));
+  private readonly activeRoute = signal(this.router.url);
   readonly session = this.authState.session;
-  readonly financeRouteActive = signal(this.router.url.startsWith("/finance"));
 
   readonly mainNavigation: SidebarNavigationItem[] = [
     { route: "/dashboard", label: "nav.dashboard", icon: "lucideHome" },
@@ -295,26 +284,17 @@ export class SidebarComponent {
         takeUntilDestroyed(this.destroyRef),
       )
       .subscribe((event) => {
-        this.financeRouteActive.set(
-          event.urlAfterRedirects.startsWith("/finance"),
-        );
-        this.reportsRouteActive.set(
-          event.urlAfterRedirects.startsWith("/reports"),
-        );
-        if (event.urlAfterRedirects.startsWith("/reports"))
-          this.reportsExpanded.set(true);
+        this.activeRoute.set(event.urlAfterRedirects);
       });
   }
 
-  toggleReports(expanded: boolean): void {
-    this.reportsExpanded.set(expanded);
+  isRouteActive(route: string): boolean {
+    const path = this.activeRoute().split(/[?#]/, 1)[0];
+    return path === route || path.startsWith(`${route}/`);
   }
-  openReportsMenu(): void {
-    this.sidebar.setOpen(true);
-    this.reportsExpanded.set(true);
-  }
-  closeReportsMobile(route: string): void {
-    if (route.startsWith("/reports")) this.sidebar.setOpenMobile(false);
+
+  closeMobileSidebar(): void {
+    this.sidebar.setOpenMobile(false);
   }
 
   logout(): void {

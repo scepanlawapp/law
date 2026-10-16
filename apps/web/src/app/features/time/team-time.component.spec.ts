@@ -1,4 +1,6 @@
 import { provideRouter } from "@angular/router";
+import { signal } from "@angular/core";
+import { AuthState } from "@law/security";
 import { ComponentFixture, TestBed } from "@angular/core/testing";
 import {
   CasesApiClient,
@@ -73,6 +75,9 @@ describe("TeamTimeComponent", () => {
   const capture = { open: jest.fn() };
   const writeOffDialog = { open: jest.fn() };
   const toast = { success: jest.fn(), error: jest.fn() };
+  const session = signal<{ user: { id: string } } | null>({
+    user: { id: "user-1" },
+  });
 
   beforeAll(() => {
     // jsdom has no ResizeObserver; Spartan's select and combobox primitives observe size.
@@ -91,6 +96,7 @@ describe("TeamTimeComponent", () => {
 
   beforeEach(() => {
     jest.resetAllMocks();
+    session.set({ user: { id: "user-1" } });
     api.list.mockReturnValue(of(page([entry("e1", "CONFIRMED")], 1, 1)));
     references.users.mockReturnValue(of([]));
     clients.list.mockReturnValue(of({ items: [], meta: {} }));
@@ -99,6 +105,7 @@ describe("TeamTimeComponent", () => {
     TestBed.configureTestingModule({
       providers: [
         provideRouter([]),
+        { provide: AuthState, useValue: { session } },
         { provide: WorkEntriesApiClient, useValue: api },
         { provide: ReferencesApiClient, useValue: references },
         { provide: ClientsApiClient, useValue: clients },
@@ -170,6 +177,63 @@ describe("TeamTimeComponent", () => {
       from: "2026-10-01",
       to: "2026-10-31",
     });
+  });
+
+  it("scopes the reusable table to the current user without loading or showing people", () => {
+    const fixture = TestBed.createComponent(TeamTimeComponent);
+    fixture.componentRef.setInput("currentUserOnly", true);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    expect(references.users).not.toHaveBeenCalled();
+    expect(
+      (fixture.nativeElement as HTMLElement).querySelector(
+        '[buttonId="team-time-people"], #team-time-people',
+      ),
+    ).toBeNull();
+    expect(api.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ userIds: ["user-1"] }),
+    );
+
+    component.setPeopleIds(["other-user"]);
+    component.setClientIds(["client-1"]);
+    component.setCaseId("case-1");
+    component.setStatuses(["CONFIRMED"]);
+    component.setTreatments(["HOURLY"]);
+    component.from.setValue("2026-10-01");
+    component.to.setValue("2026-10-31");
+
+    expect(api.list).toHaveBeenLastCalledWith({
+      page: 1,
+      pageSize: 50,
+      userIds: ["user-1"],
+      clientIds: ["client-1"],
+      caseId: "case-1",
+      statuses: ["CONFIRMED"],
+      treatments: ["HOURLY"],
+      from: "2026-10-01",
+      to: "2026-10-31",
+    });
+  });
+
+  it("never makes an unscoped request while the current-user session is unavailable", () => {
+    session.set(null);
+    const fixture = TestBed.createComponent(TeamTimeComponent);
+    fixture.componentRef.setInput("currentUserOnly", true);
+    fixture.detectChanges();
+    expect(api.list).not.toHaveBeenCalled();
+
+    session.set({ user: { id: "user-2" } });
+    fixture.detectChanges();
+    expect(api.list).toHaveBeenLastCalledWith(
+      expect.objectContaining({ userIds: ["user-2"] }),
+    );
+
+    session.set(null);
+    fixture.detectChanges();
+    expect(fixture.componentInstance.entries()).toEqual([]);
+    expect(fixture.componentInstance.totalItems()).toBe(0);
+    expect(api.list).toHaveBeenCalledTimes(1);
   });
 
   it("ignores a malformed date and clears an emptied filter", () => {

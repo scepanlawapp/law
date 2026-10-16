@@ -2,9 +2,13 @@ import {
   ChangeDetectionStrategy,
   Component,
   DestroyRef,
+  OnInit,
   computed,
+  effect,
   inject,
+  input,
   signal,
+  untracked,
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
@@ -23,6 +27,7 @@ import {
   WorkEntryTreatment,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
+import { AuthState } from "@law/security";
 import {
   HlmCombobox,
   HlmComboboxContent,
@@ -72,7 +77,7 @@ const TREATMENT_VALUES = Object.keys(
 ) as WorkEntryTreatment[];
 
 @Component({
-  selector: "law-team-time",
+  selector: "law-team-time, law-time-table",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -103,8 +108,9 @@ const TREATMENT_VALUES = Object.keys(
   ],
   templateUrl: "./team-time.component.html",
 })
-export class TeamTimeComponent {
+export class TeamTimeComponent implements OnInit {
   private readonly api = inject(WorkEntriesApiClient);
+  private readonly auth = inject(AuthState);
   private readonly usersApi = inject(ReferencesApiClient);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly casesApi = inject(CasesApiClient);
@@ -114,6 +120,8 @@ export class TeamTimeComponent {
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
   private requestId = 0;
+
+  readonly currentUserOnly = input(false);
 
   readonly statusLabelKeys = STATUS_LABEL_KEYS;
   readonly statusBadgeClasses = STATUS_BADGE_CLASSES;
@@ -182,22 +190,31 @@ export class TeamTimeComponent {
   );
 
   constructor() {
-    this.usersApi
-      .users()
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (items) =>
-          this.users.set(
-            items.map((item) => ({
-              id: item.userId,
-              name:
-                [item.user.firstName, item.user.lastName]
-                  .filter(Boolean)
-                  .join(" ") || item.user.email,
-            })),
-          ),
-        error: () => undefined,
-      });
+    effect(() => {
+      const currentUserOnly = this.currentUserOnly();
+      if (currentUserOnly) this.auth.session();
+      untracked(() => this.reload());
+    });
+  }
+
+  ngOnInit(): void {
+    if (!this.currentUserOnly())
+      this.usersApi
+        .users()
+        .pipe(takeUntilDestroyed(this.destroyRef))
+        .subscribe({
+          next: (items) =>
+            this.users.set(
+              items.map((item) => ({
+                id: item.userId,
+                name:
+                  [item.user.firstName, item.user.lastName]
+                    .filter(Boolean)
+                    .join(" ") || item.user.email,
+              })),
+            ),
+          error: () => undefined,
+        });
     this.clientsApi
       .list({ page: 1, pageSize: OPTION_PAGE_SIZE })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -219,8 +236,6 @@ export class TeamTimeComponent {
     this.to.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.reload());
-
-    this.reload();
   }
 
   setPeopleIds(values: string[]): void {
@@ -337,10 +352,17 @@ export class TeamTimeComponent {
   private query(page: number): Partial<WorkEntryQuery> {
     const from = this.from.value;
     const to = this.to.value;
+    const userId = this.auth.session()?.user.id;
     return {
       page,
       pageSize: this.pageSize(),
-      userIds: this.peopleIds().length ? this.peopleIds() : undefined,
+      userIds: this.currentUserOnly()
+        ? userId
+          ? [userId]
+          : []
+        : this.peopleIds().length
+          ? this.peopleIds()
+          : undefined,
       clientIds: this.clientIds().length ? this.clientIds() : undefined,
       caseId: this.caseId() || undefined,
       statuses: this.statuses().length ? this.statuses() : undefined,
@@ -352,6 +374,14 @@ export class TeamTimeComponent {
 
   private load(page: number): void {
     const requestId = ++this.requestId;
+    if (this.currentUserOnly() && !this.auth.session()?.user.id) {
+      this.entries.set([]);
+      this.totalItems.set(0);
+      this.totalPages.set(1);
+      this.loading.set(false);
+      this.error.set(false);
+      return;
+    }
     this.loading.set(true);
     this.error.set(false);
     this.api

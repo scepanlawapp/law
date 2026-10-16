@@ -1,57 +1,64 @@
-<section class="flex flex-col gap-4 p-4 md:p-6">
-  <header>
-    <h1 class="text-xl font-semibold">{{ "time.team.title" | translate }}</h1>
-    <p class="text-muted-foreground text-sm">
-      {{ "time.team.description" | translate }}
-    </p>
-  </header>
+<section
+  class="flex min-w-0 flex-col gap-4"
+  [class.p-4]="!currentUserOnly()"
+  [class.md:p-6]="!currentUserOnly()"
+>
+  @if (!currentUserOnly()) {
+    <header>
+      <h1 class="text-xl font-semibold">{{ "time.team.title" | translate }}</h1>
+      <p class="text-muted-foreground text-sm">
+        {{ "time.team.description" | translate }}
+      </p>
+    </header>
+  }
 
   <div class="flex flex-wrap items-end gap-3">
-    <div class="flex w-56 max-w-full flex-col gap-1">
-      <label class="text-sm font-medium" for="team-time-people">
-        {{ "work.filters.people" | translate }}
-      </label>
-      <div
-        hlmComboboxMultiple
-        [value]="peopleIds()"
-        (valueChange)="setPeopleIds($event ?? [])"
-        [itemToString]="userItemToString"
-      >
-        <hlm-combobox-trigger buttonId="team-time-people" class="w-full">
-          <span data-slot="combobox-value" class="truncate">
-            @if (selectedPeopleLabel(); as label) {
-              {{ label }}
-            } @else {
-              <span class="text-muted-foreground">
-                {{ "work.filters.peoplePlaceholder" | translate }}
-              </span>
-            }
-          </span>
-        </hlm-combobox-trigger>
-        <hlm-combobox-content *hlmComboboxPortal width="content">
-          <hlm-combobox-input
-            [placeholder]="'work.filters.searchPlaceholder' | translate"
-            [showTrigger]="false"
-          />
-          <hlm-combobox-empty>
-            {{ "work.filters.noResults" | translate }}
-          </hlm-combobox-empty>
-          <law-combobox-select-all
-            [options]="users()"
-            [selected]="peopleIds()"
-            (selectedChange)="setPeopleIds($event)"
-          />
-          <div hlmComboboxList>
-            @for (user of users(); track user.id) {
-              <hlm-combobox-item [value]="user.id">
-                {{ user.name }}
-              </hlm-combobox-item>
-            }
-          </div>
-        </hlm-combobox-content>
+    @if (!currentUserOnly()) {
+      <div class="flex w-56 max-w-full flex-col gap-1">
+        <label class="text-sm font-medium" for="team-time-people">
+          {{ "work.filters.people" | translate }}
+        </label>
+        <div
+          hlmComboboxMultiple
+          [value]="peopleIds()"
+          (valueChange)="setPeopleIds($event ?? [])"
+          [itemToString]="userItemToString"
+        >
+          <hlm-combobox-trigger buttonId="team-time-people" class="w-full">
+            <span data-slot="combobox-value" class="truncate">
+              @if (selectedPeopleLabel(); as label) {
+                {{ label }}
+              } @else {
+                <span class="text-muted-foreground">
+                  {{ "work.filters.peoplePlaceholder" | translate }}
+                </span>
+              }
+            </span>
+          </hlm-combobox-trigger>
+          <hlm-combobox-content *hlmComboboxPortal width="content">
+            <hlm-combobox-input
+              [placeholder]="'work.filters.searchPlaceholder' | translate"
+              [showTrigger]="false"
+            />
+            <hlm-combobox-empty>
+              {{ "work.filters.noResults" | translate }}
+            </hlm-combobox-empty>
+            <law-combobox-select-all
+              [options]="users()"
+              [selected]="peopleIds()"
+              (selectedChange)="setPeopleIds($event)"
+            />
+            <div hlmComboboxList>
+              @for (user of users(); track user.id) {
+                <hlm-combobox-item [value]="user.id">
+                  {{ user.name }}
+                </hlm-combobox-item>
+              }
+            </div>
+          </hlm-combobox-content>
+        </div>
       </div>
-    </div>
-
+    }
     <div class="flex w-56 max-w-full flex-col gap-1">
       <label class="text-sm font-medium" for="team-time-clients">
         {{ "time.team.client" | translate }}
@@ -230,14 +237,16 @@
   }
 
   <div hlmTableContainer>
-    <table hlmTable>
-      <thead hlmTHead>
-        <tr hlmTr>
+    <table
+      hlmTable
+      class="grid grid-cols-[max-content_max-content_minmax(170px,1fr)_minmax(200px,2fr)_repeat(4,max-content)]"
+    >
+      <thead hlmTHead class="col-span-full grid grid-cols-subgrid">
+        <tr hlmTr class="col-span-full grid grid-cols-subgrid items-center">
           <th hlmTh>{{ "time.capture.date" | translate }}</th>
           <th hlmTh>{{ "time.team.person" | translate }}</th>
           <th hlmTh>{{ "time.capture.client" | translate }}</th>
           <th hlmTh>{{ "time.capture.workDescription" | translate }}</th>
-          <th hlmTh>{{ "time.capture.duration" | translate }}</th>
           <th hlmTh>{{ "time.capture.treatment" | translate }}</th>
           <th hlmTh>{{ "time.team.price" | translate }}</th>
           <th hlmTh>{{ "time.team.status" | translate }}</th>
@@ -246,12 +255,12 @@
           </th>
         </tr>
       </thead>
-      <tbody hlmTBody>
+      <tbody hlmTBody class="col-span-full grid grid-cols-subgrid">
         @for (entry of entries(); track entry.id) {
           <tr
             hlmTr
             data-testid="team-entry"
-            class="cursor-pointer"
+            class="col-span-full grid cursor-pointer grid-cols-subgrid items-center"
             tabindex="0"
             [attr.aria-label]="entry.title"
             (click)="openFromRow($event, entry)"
@@ -267,7 +276,7 @@
                   ("time.capture.unassigned" | translate)
               }}
             </td>
-            <td hlmTd>
+            <td hlmTd class="min-w-0 wrap-anywhere whitespace-normal">
               {{
                 entry.client?.displayName ??
                   ("time.capture.noClient" | translate)
@@ -278,7 +287,7 @@
                 </span>
               }
             </td>
-            <td hlmTd class="max-w-xs">
+            <td hlmTd class="min-w-0 wrap-anywhere whitespace-normal">
               <span class="line-clamp-2">{{ entry.title }}</span>
               @if (entry.description) {
                 <span class="text-muted-foreground line-clamp-2 block text-xs">
@@ -289,13 +298,6 @@
                 <span class="text-muted-foreground block text-xs">
                   {{ entry.writeOffReason }}
                 </span>
-              }
-            </td>
-            <td hlmTd class="whitespace-nowrap">
-              @if (entry.minutes !== null) {
-                {{ formatMinutes(entry.minutes) }}
-              } @else {
-                {{ "time.review.noDuration" | translate }}
               }
             </td>
             <td hlmTd>{{ treatmentLabelKeys[entry.treatment] | translate }}</td>
