@@ -1,9 +1,9 @@
 <hlm-dialog-header>
   <h2 hlmDialogTitle>
-    {{ "assistant.starter.picker." + kind + ".title" | translate }}
+    {{ copy.title | translate }}
   </h2>
   <p hlmDialogDescription>
-    {{ "assistant.starter.picker." + kind + ".description" | translate }}
+    {{ copy.description | translate }}
   </p>
 </hlm-dialog-header>
 
@@ -12,13 +12,9 @@
   [filter]="acceptAll"
   (searchChange)="onSearch($event)"
 >
-  <hlm-command-input
-    [placeholder]="'assistant.starter.picker.' + kind + '.search' | translate"
-  />
+  <hlm-command-input [placeholder]="copy.search | translate" />
   <hlm-command-list
-    [attr.aria-label]="
-      'assistant.starter.picker.' + kind + '.title' | translate
-    "
+    [attr.aria-label]="copy.title | translate"
     [attr.aria-busy]="loading()"
   >
     @if (loading()) {
@@ -59,7 +55,7 @@
 </hlm-command>
 
 <div class="flex shrink-0 flex-wrap justify-end gap-2">
-  @if (kind === "document") {
+  @if (kind === StarterPickKind.DOCUMENT) {
     <button hlmBtn type="button" variant="outline" (click)="attachInstead()">
       {{ "assistant.starter.picker.attachInstead" | translate }}
     </button>

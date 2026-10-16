@@ -26,19 +26,12 @@
       @if (trend()) {
         <span
           class="flex items-center gap-1 text-sm"
-          [class.text-destructive]="trendDirection() === 'down'"
-          [class.text-muted-foreground]="trendDirection() === 'neutral'"
+          [class.text-destructive]="trendDirection() === TrendDirection.DOWN"
+          [class.text-muted-foreground]="
+            trendDirection() === TrendDirection.NEUTRAL
+          "
         >
-          <ng-icon
-            [name]="
-              trendDirection() === 'down'
-                ? 'lucideTrendingDown'
-                : trendDirection() === 'neutral'
-                  ? 'lucideMinus'
-                  : 'lucideTrendingUp'
-            "
-            aria-hidden="true"
-          />
+          <ng-icon [name]="trendIcons[trendDirection()]" aria-hidden="true" />
           {{ trend() }}
           @if (trendDetailKey(); as trendDetail) {
             <small>{{ trendDetail | translate }}</small>

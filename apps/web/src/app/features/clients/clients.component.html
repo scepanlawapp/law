@@ -12,19 +12,19 @@
     <input hlmInput id="client-search" [formControl]="search" />
   </div>
 </div>
-@if (loading()) {
+@if (list.loading()) {
   <hlm-spinner aria-label="{{ 'clients.loading' | translate }}"></hlm-spinner>
 }
-@if (error()) {
+@if (list.error()) {
   <p>
     {{ "clients.error" | translate }}
-    <button hlmBtn type="button" (click)="retry()">
+    <button hlmBtn type="button" (click)="list.load()">
       {{ "clients.retry" | translate }}
     </button>
   </p>
 }
-@if (!loading() && !error()) {
-  @if (items().length === 0) {
+@if (!list.loading() && !list.error()) {
+  @if (list.items().length === 0) {
     <hlm-empty>
       <hlm-empty-header>
         <h2 hlmEmptyTitle>
@@ -106,7 +106,7 @@
           </tr>
         </thead>
         <tbody hlmTBody>
-          @for (client of items(); track client.id) {
+          @for (client of list.items(); track client.id) {
             <tr hlmTr class="cursor-pointer" (click)="openClient(client.id)">
               <td hlmTd>
                 <span class="block truncate" [title]="client.clientNumber">
@@ -126,9 +126,9 @@
               <td hlmTd>
                 <span
                   class="block truncate"
-                  [title]="'clients.type.' + client.type | translate"
+                  [title]="typeLabels[client.type] | translate"
                 >
-                  {{ "clients.type." + client.type | translate }}
+                  {{ typeLabels[client.type] | translate }}
                 </span>
               </td>
               <td hlmTd>
@@ -163,7 +163,7 @@
                     statusBadgeClass(client.status)
                   "
                 >
-                  {{ "clients.status." + client.status | translate }}
+                  {{ statusLabels[client.status] | translate }}
                 </span>
               </td>
               <td hlmTd>{{ client.activeCaseCount }}</td>
@@ -172,13 +172,6 @@
         </tbody>
       </table>
     </div>
-    <law-pagination
-      [currentPage]="page()"
-      [itemsPerPage]="pageSize()"
-      [totalItems]="totalItems()"
-      [disabled]="loading()"
-      (currentPageChange)="changePage($event)"
-      (itemsPerPageChange)="changePageSize($event)"
-    />
+    <law-pagination [paginator]="list" />
   }
 }

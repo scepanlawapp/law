@@ -6,6 +6,7 @@ import { BrnDialogRef } from "@spartan-ng/brain/dialog";
 import { of } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
+import { DEFAULT_PAGE_SIZE } from "../../shared/pagination/paginated-list";
 import { InvoiceLineImportDialogComponent } from "./invoice-line-import-dialog.component";
 import {
   InvoiceLineImportDialogContext,
@@ -107,7 +108,11 @@ describe("InvoiceLineImportDialogComponent", () => {
         { provide: QuickCaptureDialogService, useValue: quickCapture },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
       ],
     });
@@ -146,16 +151,16 @@ describe("InvoiceLineImportDialogComponent", () => {
     );
   });
 
-  it("defaults to 50 and preserves selection when size changes without route navigation", () => {
+  it("defaults to the global page size and preserves selection when size changes without route navigation", () => {
     const fixture = TestBed.createComponent(InvoiceLineImportDialogComponent);
     fixture.detectChanges();
     const component = fixture.componentInstance;
     expect(workEntries.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 1, pageSize: 50 }),
+      expect.objectContaining({ page: 1, pageSize: DEFAULT_PAGE_SIZE }),
     );
     component.toggle(entry("entry-1"));
-    component.page.set(2);
-    component.changePageSize(20);
+    component.list.page.set(2);
+    component.list.changePageSize(20);
     expect(workEntries.list).toHaveBeenCalledTimes(2);
     expect(workEntries.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, pageSize: 20 }),
@@ -250,13 +255,13 @@ describe("InvoiceLineImportDialogComponent", () => {
       .mockReturnValueOnce(
         of({
           items: [entry("entry-1")],
-          meta: { page: 1, pageSize: 10, totalItems: 11, totalPages: 2 },
+          meta: { page: 1, pageSize: 100, totalItems: 101, totalPages: 2 },
         }),
       )
       .mockReturnValueOnce(
         of({
           items: [entry("entry-3")],
-          meta: { page: 2, pageSize: 10, totalItems: 11, totalPages: 2 },
+          meta: { page: 2, pageSize: 100, totalItems: 101, totalPages: 2 },
         }),
       );
     const fixture = TestBed.createComponent(InvoiceLineImportDialogComponent);
@@ -264,8 +269,8 @@ describe("InvoiceLineImportDialogComponent", () => {
     const component = fixture.componentInstance;
     expect(component.mode()).toBe("SEPARATE");
     component.toggle(entry("entry-1"));
-    component.changePage(2);
-    expect(component.page()).toBe(2);
+    component.list.changePage(2);
+    expect(component.list.page()).toBe(2);
     component.toggle(entry("entry-3"));
     component.mode.set("GROUPED");
     component.importSelected();

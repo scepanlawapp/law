@@ -5,55 +5,94 @@ import { RouterLink } from "@angular/router";
 import { PaymentsApiClient } from "@law/api-clients";
 import { AuthState } from "@law/security";
 import {
+  AllocationState,
   CollectionTotals,
   InvoiceCollection,
+  InvoiceCollectionStatus,
   InvoicePaymentHistory,
+  InvoiceStatus,
+  PaymentStatus,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { firstValueFrom } from "rxjs";
+import { LocalizationService } from "../../core/localization/localization.service";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { canManageBilling } from "../../shared/billing";
-import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
+import {
+  INVOICE_COLLECTION_STATUS_LABELS,
+  PAYMENT_METHOD_LABELS,
+  labelOf,
+} from "../../shared/models";
+import { date, money } from "./payment-ui";
 @Component({
   selector: "law-collection-panel",
   standalone: true,
-  imports: [RouterLink, HlmButton, HlmSpinner, HlmTableImports],
+  imports: [RouterLink, HlmButton, HlmSpinner, HlmTableImports, TranslatePipe],
   template: `
     @if (allowed()) {
       <section class="app-section-surface space-y-3 p-4">
         <h2 class="text-lg font-semibold">
-          {{ invoiceId() ? "Naplata računa" : "Potraživanja i uplate" }}
+          {{
+            (invoiceId()
+              ? "payments.collection.invoiceTitle"
+              : "payments.collection.clientTitle"
+            ) | translate
+          }}
         </h2>
         @if (loading()) {
-          <hlm-spinner aria-label="Učitavanje naplate" />
+          <hlm-spinner
+            [attr.aria-label]="'payments.collection.loading' | translate"
+          />
         }
         @if (error()) {
-          <p role="alert">Podaci o naplati nisu učitani.</p>
+          <p role="alert">{{ "payments.collection.loadError" | translate }}</p>
           <button hlmBtn variant="outline" (click)="load()">
-            Pokušaj ponovo
+            {{ "payments.retry" | translate }}
           </button>
         } @else {
           @if (invoice(); as i) {
             <div class="grid gap-3 sm:grid-cols-3">
-              <p>Ukupno: {{ money(i.grossAmount, i.currency) }}</p>
-              <p>Naplaćeno: {{ money(i.paidAmount, i.currency) }}</p>
-              <p>Preostalo: {{ money(i.remainingAmount, i.currency) }}</p>
+              <p>
+                {{
+                  "payments.collection.total"
+                    | translate: { amount: money(i.grossAmount, i.currency) }
+                }}
+              </p>
+              <p>
+                {{
+                  "payments.collection.paid"
+                    | translate: { amount: money(i.paidAmount, i.currency) }
+                }}
+              </p>
+              <p>
+                {{
+                  "payments.collection.remaining"
+                    | translate
+                      : { amount: money(i.remainingAmount, i.currency) }
+                }}
+              </p>
             </div>
             <p>
+              {{ invoiceStatusText(i) }}
+              ·
               {{
-                i.status === "SENT"
-                  ? label(i.collectionStatus)
-                  : i.status === "DRAFT"
-                    ? "Nacrt — nije za naplatu"
-                    : "Poništen račun"
+                "payments.collection.due"
+                  | translate: { date: date(i.dateOfMaturity) }
               }}
-              · Rok plaćanja: {{ date(i.dateOfMaturity) }}
               @if (i.overdue) {
-                · Kasni {{ i.daysOverdue }} dana
+                ·
+                {{
+                  "payments.collection.overdueDays"
+                    | translate: { days: i.daysOverdue }
+                }}
               }
             </p>
-            @if (i.status === "SENT" && i.collectionStatus !== "PAID") {
+            @if (
+              i.status === InvoiceStatus.SENT &&
+              i.collectionStatus !== InvoiceCollectionStatus.PAID
+            ) {
               <button
                 hlmBtn
                 type="button"
@@ -65,7 +104,7 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                   })
                 "
               >
-                Evidentiraj uplatu
+                {{ "payments.collection.record" | translate }}
               </button>
               <a
                 hlmBtn
@@ -73,19 +112,25 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                 routerLink="/finance/payments"
                 [queryParams]="{ clientId: i.clientId }"
               >
-                Rasporedi postojeću uplatu
+                {{ "payments.collection.allocateExisting" | translate }}
               </a>
             }
             <div hlmTableContainer>
               <table hlmTable>
                 <thead hlmTHead>
                   <tr hlmTr>
-                    <th hlmTh>Datum</th>
-                    <th hlmTh>Raspodela</th>
-                    <th hlmTh>Ukupna uplata</th>
-                    <th hlmTh>Način / Referenca</th>
-                    <th hlmTh>Status</th>
-                    <th hlmTh>Radnja</th>
+                    <th hlmTh>{{ "payments.column.date" | translate }}</th>
+                    <th hlmTh>
+                      {{ "payments.column.allocation" | translate }}
+                    </th>
+                    <th hlmTh>
+                      {{ "payments.column.paymentTotal" | translate }}
+                    </th>
+                    <th hlmTh>
+                      {{ "payments.column.methodReference" | translate }}
+                    </th>
+                    <th hlmTh>{{ "payments.column.status" | translate }}</th>
+                    <th hlmTh>{{ "payments.column.action" | translate }}</th>
                   </tr>
                 </thead>
                 <tbody hlmTBody>
@@ -99,22 +144,25 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                       </td>
                       <td hlmTd>
                         {{
-                          p.removedAt
-                            ? "Uklonjena / zamenjena"
-                            : p.status === "VOIDED"
-                              ? "Poništena uplata"
-                              : "Aktivna"
+                          (p.removedAt
+                            ? "payments.allocation.removed"
+                            : p.status === PaymentStatus.VOIDED
+                              ? "payments.allocation.paymentVoided"
+                              : "payments.active"
+                          ) | translate
                         }}
                       </td>
                       <td hlmTd>
                         <button class="underline" (click)="view(p.paymentId)">
-                          Pregled uplate
+                          {{ "payments.view" | translate }}
                         </button>
                       </td>
                     </tr>
                   } @empty {
                     <tr hlmTr>
-                      <td hlmTd colspan="6">Nema evidentiranih raspodela.</td>
+                      <td hlmTd colspan="6">
+                        {{ "payments.collection.noAllocations" | translate }}
+                      </td>
                     </tr>
                   }
                 </tbody>
@@ -127,33 +175,33 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                 class="grid gap-3 rounded-lg border p-3 sm:grid-cols-2 lg:grid-cols-5"
               >
                 <p>
-                  Preostali dug
+                  {{ "payments.summary.outstanding" | translate }}
                   <br />
                   <strong>{{ money(t.outstanding, t.currency) }}</strong>
                 </p>
                 <p>
-                  Dospeo dug
+                  {{ "payments.summary.overdue" | translate }}
                   <br />
                   <strong>{{ money(t.overdue, t.currency) }}</strong>
                 </p>
                 <p>
-                  Neraspoređene uplate
+                  {{ "payments.collection.unallocatedPayments" | translate }}
                   <br />
                   <strong>{{ money(t.unallocated, t.currency) }}</strong>
                 </p>
                 <p>
-                  Neraspoređeni avansi
+                  {{ "payments.summary.advances" | translate }}
                   <br />
                   <strong>{{ money(t.advances, t.currency) }}</strong>
                 </p>
                 <p>
-                  Neplaćeni računi
+                  {{ "payments.collection.unpaidInvoices" | translate }}
                   <br />
                   <strong>{{ t.unpaidInvoices }}</strong>
                 </p>
               </div>
             } @empty {
-              <p>Nema potraživanja ni uplata.</p>
+              <p>{{ "payments.collection.empty" | translate }}</p>
             }
             <div class="flex flex-wrap gap-2">
               <a
@@ -162,7 +210,7 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                 routerLink="/finance/invoices"
                 [queryParams]="{ clientId: clientId() }"
               >
-                Računi klijenta
+                {{ "payments.collection.clientInvoices" | translate }}
               </a>
               <a
                 hlmBtn
@@ -170,7 +218,7 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                 routerLink="/finance/payments"
                 [queryParams]="{ clientId: clientId() }"
               >
-                Uplate klijenta
+                {{ "payments.collection.clientPayments" | translate }}
               </a>
               <a
                 hlmBtn
@@ -178,17 +226,17 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
                 routerLink="/finance/payments"
                 [queryParams]="{
                   clientId: clientId(),
-                  allocationState: 'UNALLOCATED',
+                  allocationState: AllocationState.UNALLOCATED,
                 }"
               >
-                Neraspoređene uplate
+                {{ "payments.collection.unallocatedPayments" | translate }}
               </a>
               <button
                 hlmBtn
                 type="button"
                 (click)="create({ clientId: clientId() })"
               >
-                Nova uplata
+                {{ "payments.new" | translate }}
               </button>
             </div>
           }
@@ -196,7 +244,7 @@ import { collectionLabel, date, money, paymentMethodLabel } from "./payment-ui";
       </section>
     } @else {
       <p class="text-sm text-muted-foreground">
-        Pregled finansija dostupan je ovlašćenim korisnicima kancelarije.
+        {{ "payments.collection.restricted" | translate }}
       </p>
     }
   `,
@@ -207,6 +255,7 @@ export class CollectionPanelComponent {
   readonly invoiceId = input<string>();
   private readonly api = inject(PaymentsApiClient);
   private readonly dialogs = inject(PaymentDialogService);
+  private readonly localization = inject(LocalizationService);
   async create(context: PaymentFormContext) {
     await firstValueFrom(this.dialogs.form(context));
     await this.load();
@@ -223,10 +272,30 @@ export class CollectionPanelComponent {
   readonly loading = signal(false);
   readonly error = signal(false);
   private request = 0;
-  readonly money = money;
-  readonly date = date;
-  readonly label = collectionLabel;
-  readonly method = paymentMethodLabel;
+  readonly AllocationState = AllocationState;
+  readonly InvoiceStatus = InvoiceStatus;
+  readonly InvoiceCollectionStatus = InvoiceCollectionStatus;
+  readonly PaymentStatus = PaymentStatus;
+  private readonly translate = (key: string) =>
+    this.localization.translate(key);
+  readonly money = (value: string, currency: string) =>
+    money(value, currency, this.localization.locale());
+  readonly date = (value: string) => date(value, this.localization.locale());
+  readonly method = (value: string) =>
+    labelOf(PAYMENT_METHOD_LABELS, value, this.translate);
+  invoiceStatusText(invoice: InvoiceCollection): string {
+    if (invoice.status === InvoiceStatus.SENT)
+      return labelOf(
+        INVOICE_COLLECTION_STATUS_LABELS,
+        invoice.collectionStatus,
+        this.translate,
+      );
+    return this.translate(
+      invoice.status === InvoiceStatus.DRAFT
+        ? "payments.collection.draft"
+        : "payments.collection.voidedInvoice",
+    );
+  }
   constructor() {
     effect(() => {
       this.revision();

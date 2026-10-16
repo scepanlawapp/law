@@ -53,12 +53,12 @@ const page = (
   items: WorkEntry[],
   pageNumber: number,
   totalPages: number,
-  totalItems = totalPages > 1 ? (totalPages - 1) * 50 + 1 : items.length,
+  totalItems = totalPages > 1 ? (totalPages - 1) * 100 + 1 : items.length,
 ) => ({
   items,
   meta: {
     page: pageNumber,
-    pageSize: 50,
+    pageSize: 100,
     totalItems,
     totalPages,
     hasPreviousPage: pageNumber > 1,
@@ -115,7 +115,11 @@ describe("TeamTimeComponent", () => {
         { provide: ToastService, useValue: toast },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
       ],
     });
@@ -143,7 +147,7 @@ describe("TeamTimeComponent", () => {
 
     expect(api.list).toHaveBeenCalledWith({
       page: 1,
-      pageSize: 50,
+      pageSize: 100,
       userIds: undefined,
       clientIds: undefined,
       caseId: undefined,
@@ -168,7 +172,7 @@ describe("TeamTimeComponent", () => {
 
     expect(api.list).toHaveBeenLastCalledWith({
       page: 1,
-      pageSize: 50,
+      pageSize: 100,
       userIds: ["user-1"],
       clientIds: ["client-1", "client-2"],
       caseId: "case-1",
@@ -218,7 +222,7 @@ describe("TeamTimeComponent", () => {
 
     expect(api.list).toHaveBeenLastCalledWith({
       page: 1,
-      pageSize: 50,
+      pageSize: 100,
       userIds: ["user-1"],
       clientIds: ["client-1"],
       caseId: "case-1",
@@ -317,13 +321,13 @@ describe("TeamTimeComponent", () => {
       .mockReturnValueOnce(of(page([entry("e3", "PROPOSED")], 1, 1)));
     const fixture = create();
 
-    fixture.componentInstance.changePage(2);
+    fixture.componentInstance.list.changePage(2);
     fixture.componentInstance.setStatuses(["PROPOSED"]);
 
     expect(api.list).toHaveBeenLastCalledWith(
       expect.objectContaining({ page: 1, statuses: ["PROPOSED"] }),
     );
-    expect(fixture.componentInstance.page()).toBe(1);
+    expect(fixture.componentInstance.list.page()).toBe(1);
   });
 
   it("resets to page one when the page size changes", () => {
@@ -332,30 +336,30 @@ describe("TeamTimeComponent", () => {
       .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2)))
       .mockReturnValueOnce(of(page([entry("e3", "PROPOSED")], 1, 1)));
     const fixture = create();
-    fixture.componentInstance.changePage(2);
+    fixture.componentInstance.list.changePage(2);
 
-    fixture.componentInstance.changePageSize(100);
+    fixture.componentInstance.list.changePageSize(50);
 
     expect(api.list).toHaveBeenLastCalledWith(
-      expect.objectContaining({ page: 1, pageSize: 100 }),
+      expect.objectContaining({ page: 1, pageSize: 50 }),
     );
-    expect(fixture.componentInstance.page()).toBe(1);
-    expect(fixture.componentInstance.pageSize()).toBe(100);
+    expect(fixture.componentInstance.list.page()).toBe(1);
+    expect(fixture.componentInstance.list.pageSize()).toBe(50);
   });
 
   it("clamps to the last available page when the result count shrinks", () => {
     api.list
-      .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 3, 101)))
-      .mockReturnValueOnce(of(page([], 3, 2, 70)))
-      .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2, 70)));
+      .mockReturnValueOnce(of(page([entry("e1", "CONFIRMED")], 1, 3, 201)))
+      .mockReturnValueOnce(of(page([], 3, 2, 170)))
+      .mockReturnValueOnce(of(page([entry("e2", "PROPOSED")], 2, 2, 170)));
     const fixture = create();
-    fixture.componentInstance.changePage(3);
+    fixture.componentInstance.list.changePage(3);
 
     expect(api.list.mock.calls.slice(-2).map(([query]) => query?.page)).toEqual(
       [3, 2],
     );
-    expect(fixture.componentInstance.page()).toBe(2);
-    expect(fixture.componentInstance.totalItems()).toBe(70);
+    expect(fixture.componentInstance.list.page()).toBe(2);
+    expect(fixture.componentInstance.totalItems()).toBe(170);
     fixture.detectChanges();
     expect(rows(fixture).map((row) => row.textContent)).toEqual([
       expect.stringContaining("Opis e2"),

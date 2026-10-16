@@ -9,7 +9,11 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute } from "@angular/router";
 import { WorkEntriesApiClient } from "@law/api-clients";
-import { TimeReviewResponse, WorkEntry } from "@law/api-interfaces";
+import {
+  TimeReviewResponse,
+  WorkEntry,
+  WorkEntrySourceType,
+} from "@law/api-interfaces";
 import { Observable } from "rxjs";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
@@ -19,19 +23,21 @@ import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dia
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { QuickCaptureDialogService } from "./quick-capture/quick-capture-dialog.service";
 import {
-  OFFICE_TIME_ZONE,
   STATUS_BADGE_CLASSES,
-  STATUS_LABEL_KEYS,
   formatMinutes,
   isEditable,
   isIsoDate,
   minutesBetween,
   officeToday,
   sumMinutes,
-  formatWorkDate,
-  timeLocale,
 } from "./time-utils";
 import { WriteOffDialogService } from "./write-off-dialog/write-off-dialog.service";
+import {
+  OFFICE_TIME_ZONE,
+  TIME_REVIEW_REASON_LABELS,
+  WORK_ENTRY_STATUS_LABELS,
+} from "../../shared/models";
+import { formatDate } from "../../shared/billing";
 
 type MissingEvent = TimeReviewResponse["missingEvents"][number];
 type UntouchedClient = TimeReviewResponse["untouchedClients"][number];
@@ -80,7 +86,8 @@ export class TimeReviewComponent {
   private readonly destroyRef = inject(DestroyRef);
   private requestId = 0;
 
-  readonly statusLabelKeys = STATUS_LABEL_KEYS;
+  readonly statusLabelKeys = WORK_ENTRY_STATUS_LABELS;
+  readonly reasonLabelKeys = TIME_REVIEW_REASON_LABELS;
   readonly statusBadgeClasses = STATUS_BADGE_CLASSES;
   readonly formatMinutes = formatMinutes;
   readonly isEditable = isEditable;
@@ -128,7 +135,7 @@ export class TimeReviewComponent {
   }
 
   dateLabel(): string {
-    return new Intl.DateTimeFormat(this.locale(), {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
       timeZone: "UTC",
       weekday: "long",
       day: "numeric",
@@ -138,25 +145,17 @@ export class TimeReviewComponent {
   }
 
   workDateLabel(date: string): string {
-    return formatWorkDate(date, this.localization.language());
-  }
-
-  private locale(): string {
-    return timeLocale(this.localization.language());
+    return formatDate(date, this.localization.language());
   }
 
   timeRange(item: MissingEvent): string {
-    const format = new Intl.DateTimeFormat(this.locale(), {
+    const format = new Intl.DateTimeFormat(this.localization.locale(), {
       timeZone: OFFICE_TIME_ZONE,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     });
     return `${format.format(new Date(item.startsAt))} – ${format.format(new Date(item.endsAt))}`;
-  }
-
-  reasonKey(reason: UntouchedClient["reasons"][number]): string {
-    return `time.review.reason.${reason.toLowerCase()}`;
   }
 
   // ---------------------------------------------------------- entry actions
@@ -229,7 +228,10 @@ export class TimeReviewComponent {
     this.capture
       .open({
         mode: "confirm-source",
-        source: { sourceType: "EVENT", sourceId: item.eventId },
+        source: {
+          sourceType: WorkEntrySourceType.EVENT,
+          sourceId: item.eventId,
+        },
         clientId: item.client?.id,
         caseId: item.case?.id,
         title: item.title,

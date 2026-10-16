@@ -104,7 +104,7 @@ describe("Revenue sharing page", () => {
     expect(component.loading()).toBe(false);
     expect(component.dirty()).toBe(false);
     expect(component.memberRoles()).toEqual(["LAWYER"]);
-    expect(component.tabs).toEqual([
+    expect(component.tabOptions.map((option) => option.value)).toEqual([
       "overview",
       "models",
       "team",

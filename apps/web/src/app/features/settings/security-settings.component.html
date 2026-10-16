@@ -44,8 +44,7 @@
                   &middot;
                   {{
                     "security.enabledOn"
-                      | translate
-                        : { date: (mfa.enabledAt | date: "dd.MM.yyyy.") ?? "" }
+                      | translate: { date: dateLabel(mfa.enabledAt) }
                   }}
                 </span>
               }
@@ -179,12 +178,12 @@
                       <td hlmTd>
                         {{
                           device.lastUsedAt
-                            ? (device.lastUsedAt | date: "dd.MM.yyyy. HH:mm")
+                            ? dateTimeLabel(device.lastUsedAt)
                             : "-"
                         }}
                       </td>
                       <td hlmTd>
-                        {{ device.expiresAt | date: "dd.MM.yyyy." }}
+                        {{ dateLabel(device.expiresAt) }}
                       </td>
                       <td hlmTd class="text-right">
                         <button

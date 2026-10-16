@@ -154,13 +154,7 @@
                 @if (row.percent !== null) {
                   <div
                     class="flex items-center gap-2"
-                    [class]="
-                      row.state === 'ok'
-                        ? '[&_[data-slot=progress-indicator]]:bg-primary'
-                        : row.state === 'warning'
-                          ? '[&_[data-slot=progress-indicator]]:bg-warning'
-                          : '[&_[data-slot=progress-indicator]]:bg-destructive'
-                    "
+                    [class]="usageBarClasses[row.state]"
                   >
                     <hlm-progress
                       class="h-2 min-w-24 flex-1"

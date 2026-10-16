@@ -7,6 +7,4 @@ import { HlmToaster } from "@spartan-ng/helm/sonner";
   selector: "law-root",
   templateUrl: "./app.html",
 })
-export class App {
-  protected title = "LegalAI";
-}
+export class App {}

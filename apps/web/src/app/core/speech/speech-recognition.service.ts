@@ -1,4 +1,5 @@
 import { Injectable, OnDestroy, inject, signal } from "@angular/core";
+import { SPEECH_RECOGNITION_LOCALES } from "../../shared/models";
 import { LocalizationService } from "../localization/localization.service";
 
 interface SpeechRecognitionAlternativeLike {
@@ -47,9 +48,25 @@ interface SpeechRecognitionWindow extends Window {
   webkitSpeechRecognition?: SpeechRecognitionConstructor;
 }
 
-export type SpeechRecognitionLanguage = "sr-RS" | "en-US";
+/** Web Speech API `SpeechRecognitionErrorEvent.error` codes with their own message. */
+const SpeechRecognitionErrorCode = {
+  NOT_ALLOWED: "not-allowed",
+  SERVICE_NOT_ALLOWED: "service-not-allowed",
+  NO_SPEECH: "no-speech",
+  AUDIO_CAPTURE: "audio-capture",
+  NETWORK: "network",
+} as const;
+type SpeechRecognitionErrorCode =
+  (typeof SpeechRecognitionErrorCode)[keyof typeof SpeechRecognitionErrorCode];
 
-const DEFAULT_LANGUAGE: SpeechRecognitionLanguage = "sr-RS";
+const SPEECH_ERROR_LABELS: Readonly<Record<string, string>> = {
+  [SpeechRecognitionErrorCode.NOT_ALLOWED]: "speech.notAllowed",
+  [SpeechRecognitionErrorCode.SERVICE_NOT_ALLOWED]: "speech.serviceNotAllowed",
+  [SpeechRecognitionErrorCode.NO_SPEECH]: "speech.noSpeech",
+  [SpeechRecognitionErrorCode.AUDIO_CAPTURE]: "speech.audioCapture",
+  [SpeechRecognitionErrorCode.NETWORK]: "speech.network",
+} satisfies Record<SpeechRecognitionErrorCode, string>;
+
 const MAX_RESTART_ATTEMPTS = 3;
 
 @Injectable({ providedIn: "root" })
@@ -62,12 +79,10 @@ export class SpeechRecognitionService implements OnDestroy {
   readonly error = signal("");
 
   private readonly recognition: SpeechRecognitionInstance | null;
-  private language: SpeechRecognitionLanguage = DEFAULT_LANGUAGE;
   private shouldRestart = false;
   private restartAttempts = 0;
 
   constructor() {
-    this.language = DEFAULT_LANGUAGE;
     const constructor = this.getConstructor();
     this.isSupported.set(Boolean(constructor));
     this.recognition = constructor ? new constructor() : null;
@@ -83,12 +98,9 @@ export class SpeechRecognitionService implements OnDestroy {
     this.error.set("");
     this.shouldRestart = true;
     this.restartAttempts = 0;
+    this.recognition.lang =
+      SPEECH_RECOGNITION_LOCALES[this.localization.language()];
     this.startRecognition();
-  }
-
-  setLanguage(language: SpeechRecognitionLanguage): void {
-    this.language = language;
-    if (this.recognition) this.recognition.lang = language;
   }
 
   stop(): void {
@@ -123,7 +135,6 @@ export class SpeechRecognitionService implements OnDestroy {
   private configureRecognition(recognition: SpeechRecognitionInstance): void {
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = this.language;
     recognition.onstart = () => {
       this.isListening.set(true);
       this.restartAttempts = 0;
@@ -169,16 +180,10 @@ export class SpeechRecognitionService implements OnDestroy {
 
   private handleError(errorCode: string): void {
     const translationKey =
-      {
-        "not-allowed": "speech.notAllowed",
-        "service-not-allowed": "speech.serviceNotAllowed",
-        "no-speech": "speech.noSpeech",
-        "audio-capture": "speech.audioCapture",
-        network: "speech.network",
-      }[errorCode] ?? "speech.genericError";
+      SPEECH_ERROR_LABELS[errorCode] ?? "speech.genericError";
 
     this.error.set(this.localization.translate(translationKey));
-    if (errorCode !== "no-speech") {
+    if (errorCode !== SpeechRecognitionErrorCode.NO_SPEECH) {
       this.shouldRestart = false;
       this.isListening.set(false);
     }

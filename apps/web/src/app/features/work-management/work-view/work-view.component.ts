@@ -12,11 +12,16 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
-import { CaseSummary, TaskDetail, TaskStatus } from "@law/api-interfaces";
+import {
+  CalendarSourceType,
+  CaseSummary,
+  TaskDetail,
+  TaskStatus,
+  TaskListQuery,
+} from "@law/api-interfaces";
 import {
   CasesApiClient,
   ReferencesApiClient,
-  TaskListQuery,
   TaskRequest,
   WorkManagementApiClient,
 } from "@law/api-clients";
@@ -64,12 +69,26 @@ import { TaskDialogContext } from "../task-dialog/task-dialog.models";
 import { TaskDialogService } from "../task-dialog/task-dialog.service";
 import { DialogPanelComponent } from "../../../shared/ui/dialog-panel/dialog-panel.component";
 import { PaginationComponent } from "../../../shared/ui/pagination/pagination.component";
+import {
+  FIRST_PAGE,
+  PageState,
+} from "../../../shared/pagination/paginated-list";
+import {
+  TABLE_ONLY_WORK_VIEW_STATUSES,
+  TASK_PRIORITY_LABELS,
+  WORK_BOARD_COLUMNS,
+  WORK_BOARD_COLUMN_LABELS,
+  WORK_VIEW_STATUS_LABELS,
+  WorkBoardColumn,
+  createSelectItemToString,
+  optionsFrom,
+} from "../../../shared/models";
 import { dueLabel } from "../work-management-utils";
 import {
-  BoardColumnKey,
-  PresentationStatus,
   StatusTransitionAction,
   WorkItem,
+  WorkPresentation,
+  WorkViewMode,
   mergePage,
   sortWorkItems,
   statusTransition,
@@ -82,8 +101,6 @@ import {
   CdkDropListGroup,
 } from "@angular/cdk/drag-drop";
 
-export type WorkViewMode = "team" | "my" | "case";
-type Presentation = "table" | "board";
 type ColumnPage = {
   page: number;
   hasMore: boolean;
@@ -95,21 +112,22 @@ type EditPanelState = {
   context: TaskDialogContext;
 };
 
-const PAGE_SIZE = 100;
+const LEGACY_TABLE_PRESENTATION = "list";
 
 function workViewModeFromRoute(value: string | null): WorkViewMode {
-  return value === "my" || value === "case" ? value : "team";
+  return value === WorkViewMode.MY || value === WorkViewMode.CASE
+    ? value
+    : WorkViewMode.TEAM;
 }
 
-function taskStatusesFor(
-  presentations: PresentationStatus[],
-): TaskStatus[] | undefined {
-  if (!presentations.length) return undefined;
-  return presentations.filter((status): status is TaskStatus =>
-    (
-      ["TODO", "IN_PROGRESS", "DONE", "CANCELLED", "ARCHIVED"] as string[]
-    ).includes(status),
-  );
+function presentationFromQuery(value: string | null): WorkPresentation {
+  return value === WorkPresentation.TABLE || value === LEGACY_TABLE_PRESENTATION
+    ? WorkPresentation.TABLE
+    : WorkPresentation.BOARD;
+}
+
+function taskStatusesFor(statuses: TaskStatus[]): TaskStatus[] | undefined {
+  return statuses.length ? statuses : undefined;
 }
 
 function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
@@ -172,6 +190,11 @@ function toTaskRequest(task: TaskDetail, status: TaskStatus): TaskRequest {
 })
 export class WorkViewComponent {
   private readonly taskCompletion = inject(TaskCompletionService);
+  readonly TaskStatus = TaskStatus;
+  readonly WorkViewMode = WorkViewMode;
+  readonly WorkPresentation = WorkPresentation;
+  readonly boardColumnLabels = WORK_BOARD_COLUMN_LABELS;
+  readonly priorityLabels = TASK_PRIORITY_LABELS;
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly priorityBadgeClass = priorityBadgeClass;
   readonly statusBadgeClass = statusBadgeClass;
@@ -202,17 +225,14 @@ export class WorkViewComponent {
 
   readonly editPanel = signal<EditPanelState | null>(null);
 
-  readonly presentation = signal<Presentation>(
-    ["list", "table"].includes(this.initialParams.get("presentation") ?? "")
-      ? "table"
-      : "board",
+  readonly presentation = signal<WorkPresentation>(
+    presentationFromQuery(this.initialParams.get("presentation")),
+  );
+  readonly isTable = computed(
+    () => this.presentation() === WorkPresentation.TABLE,
   );
   readonly peopleIds = signal<string[]>(this.initialParams.getAll("people"));
-  readonly statuses = signal<PresentationStatus[]>([
-    "TODO",
-    "IN_PROGRESS",
-    "DONE",
-  ]);
+  readonly statuses = signal<TaskStatus[]>([...WORK_BOARD_COLUMNS]);
   readonly archivingTaskIds = signal<ReadonlySet<string>>(new Set());
   readonly savingTaskIds = signal<ReadonlySet<string>>(new Set());
   readonly caseFilter = signal<string>(this.initialParams.get("case") ?? "");
@@ -224,37 +244,21 @@ export class WorkViewComponent {
   readonly cases = signal<CaseSummary[]>([]);
 
   readonly tasks = signal<TaskDetail[]>([]);
-  readonly tasksPage = signal(0);
-  readonly tasksPageSize = signal(PAGE_SIZE);
-  readonly tasksTotalItems = signal(0);
-  readonly tasksTotalPages = computed(() =>
-    Math.ceil(this.tasksTotalItems() / this.tasksPageSize()),
-  );
   readonly tasksLoading = signal(false);
+  readonly taskPages = new PageState({
+    loading: this.tasksLoading,
+    onChange: ({ page }) => this.loadTasks(page),
+  });
   readonly tasksError = signal(false);
-  readonly columnPages = signal<Partial<Record<BoardColumnKey, ColumnPage>>>(
+  readonly columnPages = signal<Partial<Record<WorkBoardColumn, ColumnPage>>>(
     {},
   );
   private requestGeneration = 0;
-  readonly statusOptions: ReadonlyArray<{
-    value: PresentationStatus;
-    label: string;
-  }> = [
-    { value: "TODO", label: "work.status.todo" },
-    { value: "IN_PROGRESS", label: "work.status.inProgress" },
-    { value: "DONE", label: "work.status.done" },
-    { value: "CANCELLED", label: "work.status.cancelled" },
-    { value: "ARCHIVED", label: "work.status.archived" },
-  ];
-  readonly statusItemToString = (
-    value: PresentationStatus | null | undefined,
-  ): string =>
-    value
-      ? this.localization.translate(
-          this.statusOptions.find((option) => option.value === value)?.label ??
-            "",
-        )
-      : "";
+  readonly statusOptions = optionsFrom(WORK_VIEW_STATUS_LABELS);
+  readonly statusItemToString = createSelectItemToString(
+    this.statusOptions,
+    (key) => this.localization.translate(key),
+  );
   readonly selectedStatusesLabel = computed(() =>
     this.statuses().map(this.statusItemToString).join(", "),
   );
@@ -276,23 +280,23 @@ export class WorkViewComponent {
   });
 
   readonly loading = computed(() =>
-    this.presentation() === "table"
+    this.isTable()
       ? this.tasksLoading()
       : Object.values(this.columnPages()).some((column) => column.loading),
   );
 
-  readonly boardColumns = computed<BoardColumnKey[]>(() => {
-    return (["TODO", "IN_PROGRESS", "DONE"] as BoardColumnKey[]).filter(
+  readonly boardColumns = computed<WorkBoardColumn[]>(() =>
+    WORK_BOARD_COLUMNS.filter(
       (status) => !this.statuses().length || this.statuses().includes(status),
-    );
-  });
+    ),
+  );
   readonly hasTableOnlyStatuses = computed(() =>
-    this.statuses().some(
-      (status) => status === "CANCELLED" || status === "ARCHIVED",
+    this.statuses().some((status) =>
+      TABLE_ONLY_WORK_VIEW_STATUSES.includes(status),
     ),
   );
   readonly draggingItem = signal<WorkItem | null>(null);
-  readonly hoveredColumn = signal<BoardColumnKey | null>(null);
+  readonly hoveredColumn = signal<WorkBoardColumn | null>(null);
 
   constructor() {
     this.route.paramMap
@@ -316,7 +320,7 @@ export class WorkViewComponent {
         ),
       );
     this.casesApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => this.cases.set(response.items));
 
@@ -342,7 +346,7 @@ export class WorkViewComponent {
   private effectiveUserIds(): string[] | undefined {
     const fixed = this.fixedUserId()?.trim();
     if (fixed) return [fixed];
-    if (this.viewMode() === "my") {
+    if (this.viewMode() === WorkViewMode.MY) {
       const userId = this.auth.session()?.user.id;
       return userId ? [userId] : undefined;
     }
@@ -352,7 +356,7 @@ export class WorkViewComponent {
   private effectiveCaseId(): string | undefined {
     const fixed = this.fixedCaseId()?.trim();
     if (fixed) return fixed;
-    if (this.viewMode() === "case") return undefined;
+    if (this.viewMode() === WorkViewMode.CASE) return undefined;
     return this.caseFilter()?.trim() || undefined;
   }
 
@@ -364,7 +368,7 @@ export class WorkViewComponent {
       queryParams: {
         presentation: this.presentation(),
         people:
-          this.fixedUserId() || this.viewMode() === "my"
+          this.fixedUserId() || this.viewMode() === WorkViewMode.MY
             ? null
             : this.peopleIds().length
               ? this.peopleIds()
@@ -372,7 +376,7 @@ export class WorkViewComponent {
         statusMode: null,
         datePreset: null,
         case:
-          this.fixedCaseId() || this.viewMode() === "case"
+          this.fixedCaseId() || this.viewMode() === WorkViewMode.CASE
             ? null
             : this.caseFilter() || null,
         search: this.search.value || null,
@@ -380,7 +384,7 @@ export class WorkViewComponent {
     });
   }
 
-  setPresentation(value: Presentation): void {
+  setPresentation(value: WorkPresentation): void {
     if (this.presentation() === value) return;
     this.presentation.set(value);
     this.syncQuery();
@@ -388,20 +392,20 @@ export class WorkViewComponent {
   }
 
   setPeopleIds(values: string[]): void {
-    if (this.fixedUserId() || this.viewMode() === "my") return;
+    if (this.fixedUserId() || this.viewMode() === WorkViewMode.MY) return;
     this.peopleIds.set(values);
     this.syncQuery();
     this.reload();
   }
 
-  setStatuses(values: PresentationStatus[]): void {
+  setStatuses(values: TaskStatus[]): void {
     this.statuses.set(values);
     this.syncQuery();
     this.reload();
   }
 
   setCaseFilter(value: string): void {
-    if (this.fixedCaseId() || this.viewMode() === "case") return;
+    if (this.fixedCaseId() || this.viewMode() === WorkViewMode.CASE) return;
     this.caseFilter.set(value);
     this.syncQuery();
     this.reload();
@@ -410,62 +414,40 @@ export class WorkViewComponent {
   reload(): void {
     this.requestGeneration++;
     this.tasks.set([]);
-    this.tasksPage.set(0);
-    this.tasksTotalItems.set(0);
+    this.taskPages.clear();
     this.tasksLoading.set(false);
     this.tasksError.set(false);
     this.columnPages.set({});
-    if (this.viewMode() === "my" && !this.effectiveUserIds()?.length) {
+    if (
+      this.viewMode() === WorkViewMode.MY &&
+      !this.effectiveUserIds()?.length
+    ) {
       this.tasks.set([]);
       return;
     }
-    if (this.viewMode() === "case" && !this.effectiveCaseId()) {
+    if (this.viewMode() === WorkViewMode.CASE && !this.effectiveCaseId()) {
       this.tasks.set([]);
       return;
     }
 
-    if (this.presentation() === "board") {
+    if (this.presentation() === WorkPresentation.BOARD) {
       for (const column of this.boardColumns()) this.loadColumn(column, true);
     } else {
       this.loadTasks(1);
     }
   }
 
-  changeTaskPage(page: number): void {
-    if (
-      this.presentation() !== "table" ||
-      this.tasksLoading() ||
-      page < 1 ||
-      page > this.tasksTotalPages() ||
-      page === this.tasksPage()
-    )
-      return;
-    this.loadTasks(page);
-  }
-
-  changeTaskPageSize(pageSize: number): void {
-    if (
-      this.presentation() !== "table" ||
-      this.tasksLoading() ||
-      pageSize < 1 ||
-      pageSize === this.tasksPageSize()
-    )
-      return;
-    this.tasksPageSize.set(pageSize);
-    this.loadTasks(1);
-  }
-
   retryTasks(): void {
-    if (!this.tasksLoading()) this.loadTasks(this.tasksPage() || 1);
+    if (!this.tasksLoading()) this.loadTasks(this.taskPages.page());
   }
 
-  loadMoreColumn(column: BoardColumnKey): void {
+  loadMoreColumn(column: WorkBoardColumn): void {
     const state = this.columnPages()[column];
     if (state?.loading) return;
     if (state?.hasMore || state?.error) this.loadColumn(column, !state.page);
   }
 
-  private loadColumn(column: BoardColumnKey, reset: boolean): void {
+  private loadColumn(column: WorkBoardColumn, reset: boolean): void {
     const generation = this.requestGeneration;
     const previous = this.columnPages()[column];
     const page = reset ? 1 : (previous?.page ?? 0) + 1;
@@ -512,8 +494,8 @@ export class WorkViewComponent {
 
   private taskQuery(page: number): TaskListQuery {
     return {
+      ...FIRST_PAGE,
       page,
-      pageSize: PAGE_SIZE,
       search: this.search.value || undefined,
       assigneeUserIds: this.effectiveUserIds(),
       caseId: this.effectiveCaseId(),
@@ -523,8 +505,11 @@ export class WorkViewComponent {
 
   private loadTasks(page: number): void {
     const generation = ++this.requestGeneration;
-    const query = { ...this.taskQuery(page), pageSize: this.tasksPageSize() };
-    this.tasksPage.set(page);
+    const query = {
+      ...this.taskQuery(page),
+      pageSize: this.taskPages.pageSize(),
+    };
+    this.taskPages.page.set(page);
     this.tasks.set([]);
     this.tasksLoading.set(true);
     this.tasksError.set(false);
@@ -534,9 +519,8 @@ export class WorkViewComponent {
       .subscribe({
         next: (response) => {
           if (generation !== this.requestGeneration) return;
-          const lastPage = Math.max(1, response.meta.totalPages);
-          this.tasksTotalItems.set(response.meta.totalItems);
-          if (page > lastPage) {
+          const lastPage = this.taskPages.applyPage(page, response.meta);
+          if (lastPage !== null) {
             this.loadTasks(lastPage);
             return;
           }
@@ -551,7 +535,7 @@ export class WorkViewComponent {
       });
   }
 
-  itemsForColumn(column: BoardColumnKey): WorkItem[] {
+  itemsForColumn(column: WorkBoardColumn): WorkItem[] {
     return this.workItems().filter(
       (item) => item.presentationStatus === column,
     );
@@ -566,7 +550,7 @@ export class WorkViewComponent {
       item.dueDate,
       item.dueAt,
       this.localization.translate("work.noDueDate"),
-      this.localization.language() === "EN" ? "en-US" : "sr-RS",
+      this.localization.locale(),
     );
   }
 
@@ -616,23 +600,23 @@ export class WorkViewComponent {
 
   canCancel(item: WorkItem): boolean {
     return (
-      item.presentationStatus !== "ARCHIVED" &&
-      item.presentationStatus !== "CANCELLED" &&
-      item.presentationStatus !== "DONE"
+      item.presentationStatus !== TaskStatus.ARCHIVED &&
+      item.presentationStatus !== TaskStatus.CANCELLED &&
+      item.presentationStatus !== TaskStatus.DONE
     );
   }
 
   canComplete(item: WorkItem): boolean {
     return (
-      item.presentationStatus === "TODO" ||
-      item.presentationStatus === "IN_PROGRESS"
+      item.presentationStatus === TaskStatus.TODO ||
+      item.presentationStatus === TaskStatus.IN_PROGRESS
     );
   }
 
   canReopen(item: WorkItem): boolean {
     return (
-      item.presentationStatus === "DONE" ||
-      item.presentationStatus === "CANCELLED"
+      item.presentationStatus === TaskStatus.DONE ||
+      item.presentationStatus === TaskStatus.CANCELLED
     );
   }
 
@@ -645,14 +629,17 @@ export class WorkViewComponent {
 
   archive(item: WorkItem): void {
     if (
-      item.sourceType !== "TASK" ||
-      item.rawStatus === "ARCHIVED" ||
+      item.sourceType !== CalendarSourceType.TASK ||
+      item.rawStatus === TaskStatus.ARCHIVED ||
       this.archivingTaskIds().has(item.id)
     )
       return;
     this.archivingTaskIds.update((ids) => new Set([...ids, item.id]));
     this.workApi
-      .updateTask(item.id, toTaskRequest(item.raw as TaskDetail, "ARCHIVED"))
+      .updateTask(
+        item.id,
+        toTaskRequest(item.raw as TaskDetail, TaskStatus.ARCHIVED),
+      )
       .pipe(
         takeUntilDestroyed(this.destroyRef),
         finalize(() =>
@@ -664,18 +651,26 @@ export class WorkViewComponent {
         ),
       )
       .subscribe({
-        next: () => this.updateTaskStatusLocally(item.id, "ARCHIVED"),
+        next: () => this.updateTaskStatusLocally(item.id, TaskStatus.ARCHIVED),
         error: () =>
           this.toast.error(this.localization.translate("work.saveError")),
       });
   }
 
   complete(item: WorkItem): void {
-    this.runTransition(item, "task-complete", "DONE");
+    this.runTransition(
+      item,
+      StatusTransitionAction.TASK_COMPLETE,
+      TaskStatus.DONE,
+    );
   }
 
   reopen(item: WorkItem): void {
-    this.runTransition(item, "task-reopen", "TODO");
+    this.runTransition(
+      item,
+      StatusTransitionAction.TASK_REOPEN,
+      TaskStatus.TODO,
+    );
   }
 
   cancel(item: WorkItem): void {
@@ -703,12 +698,9 @@ export class WorkViewComponent {
     return this.statusOptions.map((option) => option.value);
   }
 
-  private readonly statusControls = new Map<
-    string,
-    FormControl<PresentationStatus>
-  >();
+  private readonly statusControls = new Map<string, FormControl<TaskStatus>>();
 
-  statusControlFor(item: WorkItem): FormControl<PresentationStatus> {
+  statusControlFor(item: WorkItem): FormControl<TaskStatus> {
     let control = this.statusControls.get(item.id);
     if (!control) {
       control = new FormControl(item.presentationStatus, { nonNullable: true });
@@ -745,19 +737,19 @@ export class WorkViewComponent {
       return;
     }
 
-    if (target === "ARCHIVED") {
+    if (target === TaskStatus.ARCHIVED) {
       this.archive(item);
       return;
     }
-    if (target === "CANCELLED") {
+    if (target === TaskStatus.CANCELLED) {
       this.cancel(item);
       return;
     }
-    if (target === "DONE") {
-      this.runTransition(item, "task-complete", target);
+    if (target === TaskStatus.DONE) {
+      this.runTransition(item, StatusTransitionAction.TASK_COMPLETE, target);
       return;
     }
-    if (target === "TODO" || target === "IN_PROGRESS") {
+    if (target === TaskStatus.TODO || target === TaskStatus.IN_PROGRESS) {
       this.savingTaskIds.update((ids) => new Set([...ids, item.id]));
       this.workApi
         .updateTask(item.id, toTaskRequest(item.raw as TaskDetail, target))
@@ -786,7 +778,7 @@ export class WorkViewComponent {
   private runTransition(
     item: WorkItem,
     action: StatusTransitionAction,
-    target: BoardColumnKey,
+    target: TaskStatus,
   ): void {
     const call = this.transitionCall(item, action);
 
@@ -795,7 +787,7 @@ export class WorkViewComponent {
     call.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (result) => {
         if (!result) return;
-        this.updateTaskStatusLocally(item.id, target as TaskStatus);
+        this.updateTaskStatusLocally(item.id, target);
       },
       error: () => {
         this.toast.error(this.localization.translate("work.saveError"));
@@ -808,22 +800,22 @@ export class WorkViewComponent {
     action: StatusTransitionAction,
   ): Observable<unknown> | undefined {
     switch (action) {
-      case "task-set-todo":
+      case StatusTransitionAction.TASK_SET_TODO:
         return this.workApi.updateTask(
           item.id,
-          toTaskRequest(item.raw as TaskDetail, "TODO"),
+          toTaskRequest(item.raw as TaskDetail, TaskStatus.TODO),
         );
-      case "task-set-in-progress":
+      case StatusTransitionAction.TASK_SET_IN_PROGRESS:
         return this.workApi.updateTask(
           item.id,
-          toTaskRequest(item.raw as TaskDetail, "IN_PROGRESS"),
+          toTaskRequest(item.raw as TaskDetail, TaskStatus.IN_PROGRESS),
         );
-      case "task-complete":
+      case StatusTransitionAction.TASK_COMPLETE:
         return this.taskCompletion.complete(
-          toTaskRequest(item.raw as TaskDetail, "DONE"),
+          toTaskRequest(item.raw as TaskDetail, TaskStatus.DONE),
           item.id,
         );
-      case "task-reopen":
+      case StatusTransitionAction.TASK_REOPEN:
         return this.workApi.reopenTask(item.id);
       default:
         return undefined;
@@ -832,19 +824,13 @@ export class WorkViewComponent {
 
   readonly canEnterColumn = (
     drag: CdkDrag<WorkItem>,
-    drop: CdkDropList<BoardColumnKey>,
+    drop: CdkDropList<WorkBoardColumn>,
   ): boolean => {
     const item = drag.data;
     const target = drop.data;
 
-    // Always allow returning to original column.
     if (target === item.presentationStatus) {
       return true;
-    }
-
-    // CANCELLED is special in your existing implementation.
-    if (target === "CANCELLED") {
-      return this.canCancel(item);
     }
 
     return statusTransition(item, target) !== null;
@@ -859,7 +845,7 @@ export class WorkViewComponent {
     this.hoveredColumn.set(null);
   }
 
-  onColumnEntered(column: BoardColumnKey): void {
+  onColumnEntered(column: WorkBoardColumn): void {
     const item = this.draggingItem();
 
     if (!item || column === item.presentationStatus) {
@@ -869,14 +855,14 @@ export class WorkViewComponent {
     this.hoveredColumn.set(column);
   }
 
-  onColumnExited(column: BoardColumnKey): void {
+  onColumnExited(column: WorkBoardColumn): void {
     if (this.hoveredColumn() === column) {
       this.hoveredColumn.set(null);
     }
   }
 
   onBoardDrop(
-    event: CdkDragDrop<BoardColumnKey, BoardColumnKey, WorkItem>,
+    event: CdkDragDrop<WorkBoardColumn, WorkBoardColumn, WorkItem>,
   ): void {
     const item = event.item.data;
     const target = event.container.data;
@@ -885,11 +871,6 @@ export class WorkViewComponent {
     this.hoveredColumn.set(null);
 
     if (target === item.presentationStatus) {
-      return;
-    }
-
-    if (target === "CANCELLED") {
-      this.cancel(item);
       return;
     }
 
@@ -915,7 +896,8 @@ export class WorkViewComponent {
       ),
     );
     if (
-      this.tasksPage() > 0 ||
+      this.taskPages.totalItems() > 0 ||
+      this.tasksLoading() ||
       Object.values(this.columnPages()).some(
         (column) => column.page > 0 || column.loading,
       )

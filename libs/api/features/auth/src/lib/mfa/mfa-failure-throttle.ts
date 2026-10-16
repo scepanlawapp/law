@@ -1,3 +1,4 @@
+import { ApiErrorCode } from "@law/api-interfaces";
 import {
   HttpException,
   HttpStatus,
@@ -8,7 +9,7 @@ import { PrismaService } from "@law/core";
 import { AuthRateLimitStore } from "../rate-limit.store";
 
 /** Error code for an account with too many failed second-factor checks. */
-export const MFA_ACCOUNT_THROTTLED = "MFA_ACCOUNT_THROTTLED";
+export const MFA_ACCOUNT_THROTTLED = ApiErrorCode.MFA_ACCOUNT_THROTTLED;
 
 /** More than this many failures in the window throttles the account. */
 export const MFA_ACCOUNT_FAILURE_LIMIT = 10;

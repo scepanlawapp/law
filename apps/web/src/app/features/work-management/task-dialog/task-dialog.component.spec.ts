@@ -65,7 +65,9 @@ describe("TaskDialogComponent completion", () => {
     TestBed.runInInjectionContext(() => new TaskDialogComponent());
   it("offers archived status and saves it without work capture", () => {
     const component = create();
-    expect(component.statuses).toContain("ARCHIVED");
+    expect(component.statusOptions.map((option) => option.value)).toContain(
+      "ARCHIVED",
+    );
     expect(component.taskStatusItemToString("ARCHIVED")).toBe(
       "work.taskStatus.archived",
     );

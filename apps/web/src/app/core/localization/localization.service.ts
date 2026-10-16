@@ -1,4 +1,10 @@
-import { Injectable, signal } from "@angular/core";
+import { Injectable, computed, signal } from "@angular/core";
+import { UserSettingsLanguage } from "@law/api-interfaces";
+import {
+  DEFAULT_LANGUAGE,
+  INTL_LOCALES,
+  TRANSLATION_FILES,
+} from "../../shared/models/locale";
 
 export type TranslationParams = Record<string, string | number>;
 
@@ -7,15 +13,16 @@ type TranslationCatalog = Record<string, string>;
 @Injectable({ providedIn: "root" })
 export class LocalizationService {
   private readonly catalog = signal<TranslationCatalog>({});
-  private readonly currentLanguage = signal<"SR" | "EN">("SR");
+  private readonly currentLanguage =
+    signal<UserSettingsLanguage>(DEFAULT_LANGUAGE);
 
   /** The application's active UI language, updated whenever `setLanguage`/`load` resolves. */
   readonly language = this.currentLanguage.asReadonly();
+  /** `Intl` locale for the active language; use it for every date/number format. */
+  readonly locale = computed(() => INTL_LOCALES[this.language()]);
 
-  async load(language: "SR" | "EN" = "SR"): Promise<void> {
-    const response = await fetch(
-      `i18n/${language === "EN" ? "eng" : "ser"}.json`,
-    );
+  async load(language: UserSettingsLanguage = DEFAULT_LANGUAGE): Promise<void> {
+    const response = await fetch(`i18n/${TRANSLATION_FILES[language]}.json`);
     if (!response.ok) {
       throw new Error(`Unable to load translations: ${response.status}`);
     }
@@ -24,7 +31,7 @@ export class LocalizationService {
     this.currentLanguage.set(language);
   }
 
-  async setLanguage(language: "SR" | "EN"): Promise<void> {
+  async setLanguage(language: UserSettingsLanguage): Promise<void> {
     await this.load(language);
   }
 

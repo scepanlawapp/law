@@ -1,4 +1,3 @@
-import { DatePipe } from "@angular/common";
 import {
   Component,
   DestroyRef,
@@ -20,6 +19,7 @@ import { AuthState } from "@law/security";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { canManageBilling } from "../../shared/billing";
+import { OFFICE_TIME_ZONE } from "../../shared/models";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { PasswordConfirmDialogService } from "./password-confirm-dialog.service";
 
@@ -33,7 +33,6 @@ import { PasswordConfirmDialogService } from "./password-confirm-dialog.service"
   selector: "law-member-security",
   standalone: true,
   imports: [
-    DatePipe,
     ReactiveFormsModule,
     HlmButton,
     HlmSpinner,
@@ -75,6 +74,13 @@ export class MemberSecurityComponent implements OnInit {
         error: () => this.loadFailed.set(true),
       });
     this.loadMembers();
+  }
+
+  dateLabel(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      timeZone: OFFICE_TIME_ZONE,
+      dateStyle: "medium",
+    }).format(new Date(value));
   }
 
   /** The reset button follows the API: not for yourself, not ADMIN on OWNER. */

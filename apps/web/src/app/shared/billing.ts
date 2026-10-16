@@ -1,7 +1,8 @@
 import { AbstractControl, ValidationErrors } from "@angular/forms";
 import { WorkspaceRole } from "@law/api-interfaces";
-import type { RetainerUsage } from "@law/api-interfaces";
+import type { RetainerUsage, UserSettingsLanguage } from "@law/api-interfaces";
 import { officeToday } from "../features/time/time-utils";
+import { intlLocale } from "./models";
 
 /** Rates, workspace billing config and retainer writes: OWNER and ADMIN only. */
 export function canManageBilling(
@@ -60,7 +61,12 @@ export function usagePercent(
   return (usage.coveredMinutes / usage.includedMinutes) * 100;
 }
 
-export type UsageState = "ok" | "warning" | "exceeded";
+export const UsageState = {
+  OK: "ok",
+  WARNING: "warning",
+  EXCEEDED: "exceeded",
+} as const;
+export type UsageState = (typeof UsageState)[keyof typeof UsageState];
 
 /**
  * Warning from 80 % of the included hours, exceeded above 100 %. Compared in
@@ -69,16 +75,20 @@ export type UsageState = "ok" | "warning" | "exceeded";
 export function usageState(
   usage: Pick<RetainerUsage, "coveredMinutes" | "includedMinutes">,
 ): UsageState {
-  if (!usage.includedMinutes || usage.includedMinutes <= 0) return "ok";
-  if (usage.coveredMinutes > usage.includedMinutes) return "exceeded";
+  if (!usage.includedMinutes || usage.includedMinutes <= 0)
+    return UsageState.OK;
+  if (usage.coveredMinutes > usage.includedMinutes) return UsageState.EXCEEDED;
   return usage.coveredMinutes * 100 >= usage.includedMinutes * 80
-    ? "warning"
-    : "ok";
+    ? UsageState.WARNING
+    : UsageState.OK;
 }
 
 /** A stored YYYY-MM-DD date as a short localized date, e.g. `1. 10. 2026.`. */
-export function formatDate(value: string, language: "SR" | "EN"): string {
-  return new Intl.DateTimeFormat(numberLocale(language), {
+export function formatDate(
+  value: string,
+  language: UserSettingsLanguage,
+): string {
+  return new Intl.DateTimeFormat(intlLocale(language), {
     timeZone: "UTC",
     day: "numeric",
     month: "numeric",
@@ -86,13 +96,12 @@ export function formatDate(value: string, language: "SR" | "EN"): string {
   }).format(new Date(`${value}T00:00:00Z`));
 }
 
-export function numberLocale(language: "SR" | "EN"): string {
-  return language === "EN" ? "en-GB" : "sr-Latn";
-}
-
 /** `16`, `7,5` (at most one decimal) for a number of minutes expressed in hours. */
-export function formatHours(minutes: number, language: "SR" | "EN"): string {
-  return new Intl.NumberFormat(numberLocale(language), {
+export function formatHours(
+  minutes: number,
+  language: UserSettingsLanguage,
+): string {
+  return new Intl.NumberFormat(intlLocale(language), {
     maximumFractionDigits: 1,
   }).format(minutes / 60);
 }
@@ -100,12 +109,12 @@ export function formatHours(minutes: number, language: "SR" | "EN"): string {
 export function formatMoney(
   amount: string | number,
   currency: string,
-  language: "SR" | "EN",
+  language: UserSettingsLanguage,
 ): string {
   const value = Number(amount);
   if (!Number.isFinite(value)) return `${amount} ${currency}`;
   try {
-    return new Intl.NumberFormat(numberLocale(language), {
+    return new Intl.NumberFormat(intlLocale(language), {
       style: "currency",
       currency,
     }).format(value);
@@ -115,8 +124,11 @@ export function formatMoney(
 }
 
 /** `2026-10` as a long month label, e.g. `oktobar 2026`. */
-export function formatMonthLabel(month: string, language: "SR" | "EN"): string {
-  return new Intl.DateTimeFormat(numberLocale(language), {
+export function formatMonthLabel(
+  month: string,
+  language: UserSettingsLanguage,
+): string {
+  return new Intl.DateTimeFormat(intlLocale(language), {
     timeZone: "UTC",
     month: "long",
     year: "numeric",

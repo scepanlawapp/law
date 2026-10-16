@@ -36,23 +36,23 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { QuickCaptureDialogService } from "./quick-capture/quick-capture-dialog.service";
 import {
   STATUS_BADGE_CLASSES,
-  STATUS_LABEL_KEYS,
-  TREATMENT_LABEL_KEYS,
   addDays,
   formatMinutes,
   isEditable,
   mondayOf,
   officeToday,
   sumMinutes,
-  timeLocale,
   weekDays,
 } from "./time-utils";
 
 import { PastEventsComponent } from "./past-events/past-events.component";
 import { HlmTableImports } from "@spartan-ng/helm/table";
 import { TeamTimeComponent } from "./team-time.component";
-
-const PAGE_SIZE = 100;
+import {
+  WORK_ENTRY_STATUS_LABELS,
+  WORK_ENTRY_TREATMENT_LABELS,
+} from "../../shared/models";
+import { DEFAULT_PAGE_SIZE } from "../../shared/pagination/paginated-list";
 
 export interface WeekDay {
   date: string;
@@ -183,7 +183,7 @@ export class MyTimeComponent {
   }
 
   statusLabel(status: WorkEntryStatus): string {
-    return STATUS_LABEL_KEYS[status];
+    return WORK_ENTRY_STATUS_LABELS[status];
   }
 
   statusClass(status: WorkEntryStatus): string {
@@ -191,7 +191,7 @@ export class MyTimeComponent {
   }
 
   treatmentLabel(treatment: WorkEntryTreatment): string {
-    return TREATMENT_LABEL_KEYS[treatment];
+    return WORK_ENTRY_TREATMENT_LABELS[treatment];
   }
 
   reload(): void {
@@ -204,7 +204,7 @@ export class MyTimeComponent {
   }
 
   dayLabel(date: string): string {
-    return new Intl.DateTimeFormat(this.locale(), {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
       timeZone: "UTC",
       weekday: "short",
       day: "numeric",
@@ -213,17 +213,13 @@ export class MyTimeComponent {
   }
 
   rangeLabel(): string {
-    const format = new Intl.DateTimeFormat(this.locale(), {
+    const format = new Intl.DateTimeFormat(this.localization.locale(), {
       timeZone: "UTC",
       day: "numeric",
       month: "short",
       year: "numeric",
     });
     return `${format.format(new Date(`${this.weekStart()}T00:00:00Z`))} – ${format.format(new Date(`${this.weekEnd()}T00:00:00Z`))}`;
-  }
-
-  private locale(): string {
-    return timeLocale(this.localization.language());
   }
 
   private load(userId: string, from: string): void {
@@ -259,7 +255,7 @@ export class MyTimeComponent {
         from,
         to,
         page: number,
-        pageSize: PAGE_SIZE,
+        pageSize: DEFAULT_PAGE_SIZE,
       });
     return page(1).pipe(
       expand((response) =>

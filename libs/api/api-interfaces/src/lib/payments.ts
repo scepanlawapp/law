@@ -1,7 +1,29 @@
-export type PaymentMethod = "BANK_TRANSFER" | "CASH" | "CARD" | "OTHER";
-export type PaymentPurpose = "REGULAR" | "ADVANCE";
-export type PaymentStatus = "ACTIVE" | "VOIDED";
-export type AllocationState = "UNALLOCATED" | "PARTIAL" | "FULL";
+import type { SortDirection, InvoiceStatus } from "./api-interfaces";
+export const PaymentMethod = {
+  BANK_TRANSFER: "BANK_TRANSFER",
+  CASH: "CASH",
+  CARD: "CARD",
+  OTHER: "OTHER",
+} as const;
+export type PaymentMethod = (typeof PaymentMethod)[keyof typeof PaymentMethod];
+export const PaymentPurpose = {
+  REGULAR: "REGULAR",
+  ADVANCE: "ADVANCE",
+} as const;
+export type PaymentPurpose =
+  (typeof PaymentPurpose)[keyof typeof PaymentPurpose];
+export const PaymentStatus = {
+  ACTIVE: "ACTIVE",
+  VOIDED: "VOIDED",
+} as const;
+export type PaymentStatus = (typeof PaymentStatus)[keyof typeof PaymentStatus];
+export const AllocationState = {
+  UNALLOCATED: "UNALLOCATED",
+  PARTIAL: "PARTIAL",
+  FULL: "FULL",
+} as const;
+export type AllocationState =
+  (typeof AllocationState)[keyof typeof AllocationState];
 export interface PaymentAllocationInput {
   invoiceId: string;
   amount: string;
@@ -35,7 +57,7 @@ export interface PaymentQuery {
   allocationState?: AllocationState | "";
   bankAccountId?: string;
   sort?: "receivedAt" | "amount" | "clientName" | "unallocatedAmount";
-  direction?: "asc" | "desc";
+  direction?: SortDirection;
 }
 export interface PaymentSummary {
   id: string;
@@ -68,10 +90,10 @@ export interface InvoiceCollection {
   grossAmount: string;
   paidAmount: string;
   remainingAmount: string;
-  collectionStatus: "UNPAID" | "PARTIALLY_PAID" | "PAID";
+  collectionStatus: InvoiceCollectionStatus;
   overdue: boolean;
   daysOverdue: number;
-  status: "DRAFT" | "SENT" | "VOIDED";
+  status: InvoiceStatus;
 }
 export interface PaymentAllocation extends InvoiceCollection {
   allocationId: string;
@@ -127,7 +149,13 @@ export interface InvoicePaymentHistory {
   removedAt: string | null;
 }
 
-export type PaymentAllocationMode = "AUTOMATIC" | "SELECTED_OLDEST" | "EQUAL";
+export const PaymentAllocationMode = {
+  AUTOMATIC: "AUTOMATIC",
+  SELECTED_OLDEST: "SELECTED_OLDEST",
+  EQUAL: "EQUAL",
+} as const;
+export type PaymentAllocationMode =
+  (typeof PaymentAllocationMode)[keyof typeof PaymentAllocationMode];
 export interface PaymentAllocationPreviewRequest {
   clientId: string;
   currency: string;
@@ -175,3 +203,11 @@ export const SUPPORTED_PAYMENT_CURRENCIES = [
   "MXN",
   "ZAR",
 ] as const;
+
+export const InvoiceCollectionStatus = {
+  UNPAID: "UNPAID",
+  PARTIALLY_PAID: "PARTIALLY_PAID",
+  PAID: "PAID",
+} as const;
+export type InvoiceCollectionStatus =
+  (typeof InvoiceCollectionStatus)[keyof typeof InvoiceCollectionStatus];

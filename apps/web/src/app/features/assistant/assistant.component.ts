@@ -63,28 +63,35 @@ import {
 } from "@law/api-clients";
 import {
   AssistantPermissionMode,
-  ChatMessageResponse,
+  ChatEventType,
   ChatMessageFeedback,
+  ChatMessageOutcome,
+  ChatMessageResponse,
+  ChatMessageRole,
+  ChatMessageStatus,
   ChatSessionDetail,
   ChatSessionFacetsResponse,
+  ChatSessionStatus,
   ChatSessionSummary,
   ChatStreamEvent,
+  ChatWorkflowName,
   PendingActionSummary,
   AssistantChoice,
   AssistantFormPrefill,
   PendingActionResultEntityType,
   DocumentAiStatus,
+  DocumentAnalysisKind,
   DocumentAnalysisResponse,
   DocumentScript,
   DraftResultResponse,
   LegalCitationResponse,
   WorkflowJobResponse,
+  WorkflowJobStatus,
 } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import { finalize, forkJoin, from, Observable, of, switchMap } from "rxjs";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
-import { createSelectItemToString } from "../../shared/utils";
 import { DocumentAiStatusComponent } from "../../shared/components/document-ai-status/document-ai-status.component";
 import { AssistantMatterLinkComponent } from "./matter-link.component";
 import {
@@ -97,6 +104,7 @@ import {
   DEFAULT_CONVERSATION_FILTERS,
   filtersFromQueryParams,
   filtersToQueryParams,
+  isConversationGroupMode,
   toListQuery,
 } from "./components/conversation-navigator/conversation-filters";
 import { DraftReviewPanelComponent } from "./components/draft-review-panel/draft-review-panel";
@@ -111,12 +119,17 @@ import {
   AssistantStarterPrompt,
   CASE_STARTER_PROMPTS,
   GENERAL_STARTER_PROMPTS,
+  STARTER_PICKER_ATTACH,
+  StarterPromptMode,
   starterPromptKey,
 } from "./assistant-starter-prompts";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { SpeechRecognitionService } from "../../core/speech/speech-recognition.service";
-import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
+import {
+  ConfirmDialogService,
+  ConfirmDialogVariant,
+} from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { countPlaceholders } from "./draft-placeholders";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { AssistantMarkdownPipe } from "./assistant-markdown.pipe";
@@ -125,11 +138,59 @@ import {
   reduceWorkflowActivityEvent,
   selectWorkflowActivities,
   WorkflowActivityState,
+  WorkflowActivityStatus,
+  WorkflowActivityStepKind,
 } from "./assistant-workflow-state";
+import {
+  ASSISTANT_PERMISSION_MODE_DESCRIPTIONS,
+  ASSISTANT_PERMISSION_MODE_LABELS,
+  CHAT_ATTACHMENT_EXTRACTION_STATUS_LABELS,
+  createSelectItemToString,
+  LabelMap,
+  optionsFrom,
+} from "../../shared/models";
 
-type RailTab = "draft" | "matter" | "analysis";
+const RailTab = {
+  DRAFT: "draft",
+  MATTER: "matter",
+  ANALYSIS: "analysis",
+} as const;
+type RailTab = (typeof RailTab)[keyof typeof RailTab];
+
+const RAIL_TAB_LABELS: LabelMap<RailTab> = {
+  [RailTab.DRAFT]: "assistant.rail.draftTab",
+  [RailTab.MATTER]: "assistant.rail.matterTab",
+  [RailTab.ANALYSIS]: "assistant.rail.analysisTab",
+};
+
+const PendingActionDecision = {
+  APPROVE: "approve",
+  DECLINE: "decline",
+} as const;
+type PendingActionDecision =
+  (typeof PendingActionDecision)[keyof typeof PendingActionDecision];
+
+/** Events that change what the conversation list shows. */
+const SESSION_LIST_EVENTS: readonly ChatEventType[] = [
+  ChatEventType.JOB_QUEUED,
+  ChatEventType.JOB_UPDATED,
+  ChatEventType.DRAFT_UPDATED,
+  ChatEventType.ANALYSIS_UPDATED,
+  ChatEventType.SESSION_TITLE_UPDATED,
+  ChatEventType.SESSION_DELETED,
+];
+const MESSAGE_EVENTS: readonly ChatEventType[] = [
+  ChatEventType.MESSAGE_CREATED,
+  ChatEventType.MESSAGE_STARTED,
+  ChatEventType.MESSAGE_UPDATED,
+];
+const CONFIRMATION_EVENTS: readonly ChatEventType[] = [
+  ChatEventType.CONFIRMATION_REQUIRED,
+  ChatEventType.CONFIRMATION_UPDATED,
+];
 
 const MAX_UPLOAD_BYTES = 25_000_000;
+const MAX_UPLOAD_MB = MAX_UPLOAD_BYTES / 1_000_000;
 const SEARCH_DEBOUNCE_MS = 250;
 const GROUP_MODE_STORAGE_KEY = "law.assistant.conversationGroup";
 const STICK_TO_BOTTOM_THRESHOLD_PX = 80;
@@ -279,8 +340,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly conversationFilters = signal<ConversationFilters>(
     DEFAULT_CONVERSATION_FILTERS,
   );
-  protected readonly conversationGroupMode =
-    signal<ConversationGroupMode>("date");
+  protected readonly conversationGroupMode = signal<ConversationGroupMode>(
+    ConversationGroupMode.DATE,
+  );
   protected readonly conversationFacets =
     signal<ChatSessionFacetsResponse | null>(null);
   /** Summary of the open conversation, kept when filters hide it. */
@@ -290,8 +352,8 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly choicesMessageId = computed(() => {
     const messages = this.messages();
     const last = messages[messages.length - 1];
-    return last?.role === "ASSISTANT" &&
-      last.status === "COMPLETED" &&
+    return last?.role === ChatMessageRole.ASSISTANT &&
+      last.status === ChatMessageStatus.COMPLETED &&
       last.choices?.length
       ? last.id
       : null;
@@ -322,15 +384,12 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     Readonly<Record<string, PendingActionSummary>>
   >({});
   protected readonly decidingActionId = signal<string | null>(null);
-  /** How the assistant applies record changes; labels are translation keys. */
-  protected readonly permissionModeOptions: ReadonlyArray<{
-    value: AssistantPermissionMode;
-    label: string;
-  }> = [
-    { value: "MANUAL", label: "assistant.permissionMode.MANUAL" },
-    { value: "ASK", label: "assistant.permissionMode.ASK" },
-    { value: "AUTO", label: "assistant.permissionMode.AUTO" },
-  ];
+  /** How the assistant applies record changes. */
+  protected readonly permissionModeOptions = optionsFrom(
+    ASSISTANT_PERMISSION_MODE_LABELS,
+  );
+  protected readonly permissionModeDescriptions =
+    ASSISTANT_PERMISSION_MODE_DESCRIPTIONS;
   protected readonly permissionModeItemToString = createSelectItemToString(
     this.permissionModeOptions,
     (key) => this.localization.translate(key),
@@ -345,7 +404,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         ? this.selectedSession()?.permissionMode
         : this.draftPermissionMode()) ??
       this.userSettings.preferences()?.assistantPermissionMode ??
-      "ASK",
+      AssistantPermissionMode.ASK,
   );
   private readonly clock = signal(Date.now());
   protected readonly expandedActivities = signal<ReadonlySet<string>>(
@@ -358,10 +417,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected readonly error = signal("");
   protected readonly draft = signal<DraftResultResponse | null>(null);
   protected readonly draftText = signal("");
-  protected readonly draftScript = signal<DocumentScript>("latin");
+  protected readonly draftScript = signal<DocumentScript>(DocumentScript.LATIN);
   protected readonly draftReviewNote = signal("");
   protected readonly rightRailExpanded = signal(false);
-  protected readonly railTab = signal<RailTab>("draft");
+  protected readonly railTab = signal<RailTab>(RailTab.DRAFT);
   /** Latest contract review of the open session. */
   protected readonly analysis = signal<DocumentAnalysisResponse | null>(null);
   protected readonly conversationSheetOpen = signal(false);
@@ -373,9 +432,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   /** Rail tabs that have content, in display order. */
   protected readonly railTabs = computed(() => {
     const tabs: RailTab[] = [];
-    if (this.draft()) tabs.push("draft");
-    if (this.matterAvailable()) tabs.push("matter");
-    if (this.analysis()) tabs.push("analysis");
+    if (this.draft()) tabs.push(RailTab.DRAFT);
+    if (this.matterAvailable()) tabs.push(RailTab.MATTER);
+    if (this.analysis()) tabs.push(RailTab.ANALYSIS);
     return tabs;
   });
   /** The selected tab, or the first available one when it has no content. */
@@ -383,7 +442,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const tabs = this.railTabs();
     return tabs.includes(this.railTab())
       ? this.railTab()
-      : (tabs[0] ?? "draft");
+      : (tabs[0] ?? RailTab.DRAFT);
   });
   protected readonly rightRailVisible = computed(
     () => this.railTabs().length > 0,
@@ -393,6 +452,20 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   private loadedAnalysisId: string | null = null;
   /** Conversation opened through `?sessionId=`; kept even if not on page 1. */
   private requestedSessionId: string | null = null;
+
+  protected readonly RailTab = RailTab;
+  protected readonly railTabLabels = RAIL_TAB_LABELS;
+  protected readonly extractionStatusLabels =
+    CHAT_ATTACHMENT_EXTRACTION_STATUS_LABELS;
+  protected readonly ChatMessageRole = ChatMessageRole;
+  protected readonly ChatMessageStatus = ChatMessageStatus;
+  protected readonly ChatMessageOutcome = ChatMessageOutcome;
+  protected readonly ChatMessageFeedback = ChatMessageFeedback;
+  protected readonly DocumentAnalysisKind = DocumentAnalysisKind;
+  protected readonly WorkflowActivityStatus = WorkflowActivityStatus;
+  protected readonly WorkflowActivityStepKind = WorkflowActivityStepKind;
+  protected readonly WorkflowJobStatus = WorkflowJobStatus;
+  protected readonly PendingActionDecision = PendingActionDecision;
 
   constructor() {
     effect(() => {
@@ -469,14 +542,14 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected openDraftReview(): void {
     if (this.draft()) {
       this.rightRailExpanded.set(true);
-      this.railTab.set("draft");
+      this.railTab.set(RailTab.DRAFT);
     }
   }
 
   protected openAnalysis(): void {
     if (this.analysis()) {
       this.rightRailExpanded.set(true);
-      this.railTab.set("analysis");
+      this.railTab.set(RailTab.ANALYSIS);
     }
   }
 
@@ -496,7 +569,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     if (analysis.id !== this.loadedAnalysisId) {
       this.loadedAnalysisId = analysis.id;
       this.rightRailExpanded.set(true);
-      this.railTab.set("analysis");
+      this.railTab.set(RailTab.ANALYSIS);
     }
     this.analysis.set(analysis);
   }
@@ -504,7 +577,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   protected openMatterLink(): void {
     if (this.matterAvailable()) {
       this.rightRailExpanded.set(true);
-      this.railTab.set("matter");
+      this.railTab.set(RailTab.MATTER);
     }
   }
 
@@ -596,7 +669,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
             if (firstSession) this.selectSession(firstSession.id);
           }
         },
-        error: () => this.error.set("Unable to load chats."),
+        error: () => this.showError("assistant.error.loadChats"),
       });
   }
 
@@ -641,7 +714,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   protected toggleSessionArchive(session: ChatSessionSummary): void {
-    const archived = session.status !== "ARCHIVED";
+    const archived = session.status !== ChatSessionStatus.ARCHIVED;
     this.updateSessionFromSidebar(
       session,
       { archived },
@@ -742,7 +815,10 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       storedGroup = null;
     }
     this.conversationGroupMode.set(
-      group ?? (storedGroup === "matter" ? "matter" : "date"),
+      group ??
+        (isConversationGroupMode(storedGroup)
+          ? storedGroup
+          : ConversationGroupMode.DATE),
     );
   }
 
@@ -775,7 +851,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.selectSession(session.id);
           this.focusDraftTextarea();
         },
-        error: () => this.error.set("Unable to create a conversation."),
+        error: () => this.showError("assistant.error.createConversation"),
       });
   }
 
@@ -823,7 +899,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.scheduleMessagesScroll(true);
           this.applySessionDetail(detail, sessionChanged);
         },
-        error: () => this.error.set("Unable to load this conversation."),
+        error: () => this.showError("assistant.error.loadConversation"),
       });
   }
 
@@ -841,7 +917,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     const id = draft?.id ?? null;
     if (id && id !== this.loadedDraftId) {
       this.rightRailExpanded.set(true);
-      this.railTab.set("draft");
+      this.railTab.set(RailTab.DRAFT);
     }
     if (!id && !this.latestBriefId() && !this.analysis()) {
       this.rightRailExpanded.set(false);
@@ -849,7 +925,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.loadedDraftId = id;
     this.draft.set(draft);
     this.draftText.set(draft?.finalDocumentText ?? draft?.documentText ?? "");
-    this.draftScript.set("latin");
+    this.draftScript.set(DocumentScript.LATIN);
     this.draftReviewNote.set("");
   }
 
@@ -883,13 +959,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.draftText.set(
       latestDraft?.finalDocumentText ?? latestDraft?.documentText ?? "",
     );
-    this.draftScript.set("latin");
+    this.draftScript.set(DocumentScript.LATIN);
     this.draftReviewNote.set("");
 
     if (forceOpen) {
-      if (latestDraft) this.railTab.set("draft");
-      else if (briefId) this.railTab.set("matter");
-      else if (latestAnalysis) this.railTab.set("analysis");
+      if (latestDraft) this.railTab.set(RailTab.DRAFT);
+      else if (briefId) this.railTab.set(RailTab.MATTER);
+      else if (latestAnalysis) this.railTab.set(RailTab.ANALYSIS);
       this.rightRailExpanded.set(
         Boolean(latestDraft || briefId || latestAnalysis),
       );
@@ -897,13 +973,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     }
     if (briefChanged) {
       this.rightRailExpanded.set(true);
-      this.railTab.set("matter");
+      this.railTab.set(RailTab.MATTER);
     } else if (draftChanged) {
       this.rightRailExpanded.set(true);
-      this.railTab.set("draft");
+      this.railTab.set(RailTab.DRAFT);
     } else if (analysisChanged) {
       this.rightRailExpanded.set(true);
-      this.railTab.set("analysis");
+      this.railTab.set(RailTab.ANALYSIS);
     }
   }
 
@@ -921,7 +997,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.draftText.set(draft.documentText);
           this.draftScript.set(script);
         },
-        error: () => this.error.set("Unable to change document script."),
+        error: () => this.showError("assistant.error.changeScript"),
       });
   }
 
@@ -956,7 +1032,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           this.draft.set(draft);
           this.draftText.set(draft.finalDocumentText ?? draft.documentText);
         },
-        error: () => this.error.set("Unable to update this draft."),
+        error: () => this.showError("assistant.error.updateDraft"),
       });
   }
 
@@ -975,7 +1051,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
-        error: () => this.error.set("Unable to approve this draft."),
+        error: () => this.showError("assistant.error.approveDraft"),
       });
   }
 
@@ -998,7 +1074,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         ),
         confirmText: this.localization.translate(confirmKey),
         cancelText: this.localization.translate("settings.cancel"),
-        variant: "warning",
+        variant: ConfirmDialogVariant.WARNING,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((confirmed) => {
@@ -1016,7 +1092,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
-        error: () => this.error.set("Unable to reject this draft."),
+        error: () => this.showError("assistant.error.rejectDraft"),
       });
   }
 
@@ -1030,7 +1106,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (draft) => this.draft.set(draft),
-        error: () => this.error.set("Unable to request changes."),
+        error: () => this.showError("assistant.error.requestChanges"),
       });
   }
 
@@ -1045,7 +1121,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         next: (job) => {
           this.retryingJobId.set(null);
           this.handleEvent({
-            type: "job.queued",
+            type: ChatEventType.JOB_QUEUED,
             workspaceId,
             sessionId: job.sessionId,
             correlationId: job.correlationId,
@@ -1112,13 +1188,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
   protected decidePendingAction(
     action: PendingActionSummary,
-    decision: "approve" | "decline",
+    decision: PendingActionDecision,
   ): void {
     const workspaceId = this.workspaceId();
     if (!workspaceId || this.decidingActionId()) return;
     this.decidingActionId.set(action.id);
     const request =
-      decision === "approve"
+      decision === PendingActionDecision.APPROVE
         ? this.chat.approvePendingAction(workspaceId, action.id)
         : this.chat.declinePendingAction(workspaceId, action.id);
     request
@@ -1253,7 +1329,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .subscribe({
         error: () =>
           this.toast.error(
-            this.localization.translate("assistant.pendingAction.openResultError"),
+            this.localization.translate(
+              "assistant.pendingAction.openResultError",
+            ),
           ),
       });
   }
@@ -1285,7 +1363,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         return forkJoin([
           this.workApi.getDeadline(id),
           from(
-            import("../work-management/deadline-dialog/deadline-dialog.service"),
+            import(
+              "../work-management/deadline-dialog/deadline-dialog.service"
+            ),
           ),
         ]).pipe(
           switchMap(([deadline, { DeadlineDialogService }]) =>
@@ -1354,7 +1434,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         next: (job) => {
           this.regeneratingMessageId.set(null);
           this.handleEvent({
-            type: "job.queued",
+            type: ChatEventType.JOB_QUEUED,
             workspaceId,
             sessionId: job.sessionId,
             correlationId: job.correlationId,
@@ -1382,7 +1462,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
           "assistant.deleteConversationAction",
         ),
         cancelText: this.localization.translate("settings.cancel"),
-        variant: "danger",
+        variant: ConfirmDialogVariant.DANGER,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((confirmed) => {
@@ -1412,7 +1492,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
                 this.loadedAnalysisId = null;
                 this.latestBriefId.set(null);
                 this.rightRailExpanded.set(false);
-                this.railTab.set("draft");
+                this.railTab.set(RailTab.DRAFT);
                 this.workflowState.set({});
                 this.source?.close();
                 this.source = null;
@@ -1475,13 +1555,22 @@ export class AssistantComponent implements OnInit, AfterViewInit {
 
     for (const file of files) {
       if (file.size > MAX_UPLOAD_BYTES) {
-        rejected.push(`File exceeds the 25 MB limit: ${file.name}`);
+        rejected.push(
+          this.localization.translate("assistant.error.fileTooLarge", {
+            name: file.name,
+            limit: MAX_UPLOAD_MB,
+          }),
+        );
         continue;
       }
 
       const mimeType = this.resolveMimeType(file);
       if (!this.isAllowedMimeType(mimeType)) {
-        rejected.push(`Unsupported file type: ${file.name}`);
+        rejected.push(
+          this.localization.translate("assistant.error.unsupportedFile", {
+            name: file.name,
+          }),
+        );
         continue;
       }
 
@@ -1502,14 +1591,14 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         .subscribe({
           next: (created) =>
             this.withDraftPermissionMode(created).subscribe((session) => {
-            this.sessions.update((items) => [session, ...items]);
-            this.selectedSessionId.set(session.id);
-            this.pendingFiles.set(accepted);
-            this.error.set("");
-            this.loadSessions();
-          }),
+              this.sessions.update((items) => [session, ...items]);
+              this.selectedSessionId.set(session.id);
+              this.pendingFiles.set(accepted);
+              this.error.set("");
+              this.loadSessions();
+            }),
           error: () => {
-            this.error.set("Unable to create a conversation.");
+            this.showError("assistant.error.createConversation");
           },
         });
       return;
@@ -1612,9 +1701,9 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => {
         if (!result || this.sending()) return;
-        if (result === "attach") {
+        if (result === STARTER_PICKER_ATTACH) {
           this.runStarterPrompt(
-            { ...prompt, mode: "compose" },
+            { ...prompt, mode: StarterPromptMode.COMPOSE },
             starterPromptKey(prompt, "attachPrompt"),
           );
           return;
@@ -1633,7 +1722,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   ): void {
     const text = this.localization.translate(key, params);
     this.composerForm.controls.draft.setValue(text);
-    if (prompt.mode === "send") {
+    if (prompt.mode === StarterPromptMode.SEND) {
       this.send();
       return;
     }
@@ -1675,7 +1764,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
             this.sendMessage(session.id);
           }),
         error: () => {
-          this.error.set("Unable to create a conversation.");
+          this.showError("assistant.error.createConversation");
         },
       });
   }
@@ -1706,9 +1795,13 @@ export class AssistantComponent implements OnInit, AfterViewInit {
         },
         error: () => {
           this.sending.set(false);
-          this.error.set("Unable to send that message.");
+          this.showError("assistant.error.sendMessage");
         },
       });
+  }
+
+  private showError(key: string): void {
+    this.error.set(this.localization.translate(key));
   }
 
   private listenWorkspace(): void {
@@ -1724,7 +1817,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
       try {
         this.handleWorkspaceEvent(JSON.parse(event.data) as ChatStreamEvent);
       } catch {
-        this.error.set("Received an unreadable chat event.");
+        this.showError("assistant.error.unreadableEvent");
       }
     };
     this.source.onerror = () => {
@@ -1734,7 +1827,7 @@ export class AssistantComponent implements OnInit, AfterViewInit {
   }
 
   private handleWorkspaceEvent(event: ChatStreamEvent): void {
-    if (event.type === "session.deleted") {
+    if (event.type === ChatEventType.SESSION_DELETED) {
       this.sessions.update((items) =>
         items.filter((session) => session.id !== event.sessionId),
       );
@@ -1744,43 +1837,36 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     } else {
       this.handleBackgroundEvent(event);
     }
-    if (
-      event.type === "job.queued" ||
-      event.type === "job.updated" ||
-      event.type === "draft.updated" ||
-      event.type === "analysis.updated" ||
-      event.type === "session.title.updated" ||
-      event.type === "session.deleted"
-    ) {
+    if (SESSION_LIST_EVENTS.includes(event.type)) {
       this.scheduleSessionRefresh();
     }
   }
 
   private handleBackgroundEvent(event: ChatStreamEvent): void {
-    if (event.type === "session.title.updated") {
+    if (event.type === ChatEventType.SESSION_TITLE_UPDATED) {
       this.upsertSessionTitle(event.sessionId, event.title ?? null);
     }
-    if (event.type === "draft.updated") {
+    if (event.type === ChatEventType.DRAFT_UPDATED) {
       this.toast.success(
         this.localization.translate("assistant.backgroundDraftReady"),
       );
-    } else if (event.type === "analysis.updated") {
+    } else if (event.type === ChatEventType.ANALYSIS_UPDATED) {
       this.toast.success(
         this.localization.translate(
-          event.analysis?.kind === "CASE_TIMELINE"
+          event.analysis?.kind === DocumentAnalysisKind.CASE_TIMELINE
             ? "assistant.backgroundTimelineReady"
             : "assistant.backgroundReviewReady",
         ),
       );
     } else if (
-      event.type === "message.updated" &&
-      event.message?.role === "ASSISTANT" &&
-      event.message.status === "COMPLETED"
+      event.type === ChatEventType.MESSAGE_UPDATED &&
+      event.message?.role === ChatMessageRole.ASSISTANT &&
+      event.message.status === ChatMessageStatus.COMPLETED
     ) {
       this.toast.success(
         this.localization.translate("assistant.backgroundAnswerReady"),
       );
-    } else if (event.type === "error") {
+    } else if (event.type === ChatEventType.ERROR) {
       this.toast.error(
         event.error ??
           this.localization.translate("assistant.backgroundProcessingError"),
@@ -1844,73 +1930,61 @@ export class AssistantComponent implements OnInit, AfterViewInit {
     this.workflowState.update((state) =>
       reduceWorkflowActivityEvent(state, event),
     );
-    if (
-      (event.type === "confirmation.required" ||
-        event.type === "confirmation.updated") &&
-      event.pendingAction
-    ) {
+    if (CONFIRMATION_EVENTS.includes(event.type) && event.pendingAction) {
       this.upsertPendingAction(event.pendingAction);
     }
-    if (
-      (event.type === "message.created" ||
-        event.type === "message.started" ||
-        event.type === "message.updated") &&
-      event.message
-    ) {
+    if (MESSAGE_EVENTS.includes(event.type) && event.message) {
       this.upsertMessage(event.message);
     }
-    if (event.type === "message.delta" && event.messageId && event.delta) {
+    if (
+      event.type === ChatEventType.MESSAGE_DELTA &&
+      event.messageId &&
+      event.delta
+    ) {
       this.appendMessageDelta(event.messageId, event.delta);
     }
-    if (event.type === "attachment.updated" && event.attachment) {
+    if (event.type === ChatEventType.ATTACHMENT_UPDATED && event.attachment) {
       this.updateAttachment(event.attachment);
     }
     if (
-      event.type === "document.content.updated" &&
+      event.type === ChatEventType.DOCUMENT_CONTENT_UPDATED &&
       event.attachmentIds &&
       event.status
     ) {
       this.updateAttachmentAiStatus(event.attachmentIds, event.status);
     }
-    if (event.type === "draft.updated" && event.draft) {
+    if (event.type === ChatEventType.DRAFT_UPDATED && event.draft) {
       this.applyDraft(event.draft);
     }
-    if (event.type === "analysis.updated" && event.analysis) {
+    if (event.type === ChatEventType.ANALYSIS_UPDATED && event.analysis) {
       this.applyAnalysis(event.analysis);
     }
     if (
-      event.type === "job.updated" &&
-      event.job?.workflowName === "brief-extraction" &&
-      event.job.status === "COMPLETED" &&
-      event.job.briefResultId
+      event.type === ChatEventType.JOB_UPDATED &&
+      event.job &&
+      isCompletedBriefExtraction(event.job)
     ) {
       const briefId = event.job.briefResultId;
       this.latestBriefId.set(briefId);
       if (briefId !== this.loadedBriefId) {
         this.loadedBriefId = briefId;
         this.rightRailExpanded.set(true);
-        this.railTab.set("matter");
+        this.railTab.set(RailTab.MATTER);
       }
     }
-    if (event.type === "session.title.updated") {
+    if (event.type === ChatEventType.SESSION_TITLE_UPDATED) {
       this.upsertSessionTitle(event.sessionId, event.title ?? null);
     }
-    if (event.type === "error") {
+    if (event.type === ChatEventType.ERROR) {
       this.error.set(
-        event.error ?? "The assistant could not process this message.",
+        event.error ??
+          this.localization.translate("assistant.error.processing"),
       );
     }
   }
 
   private briefIdFromDetail(detail: ChatSessionDetail): string | null {
-    const fromJob = [...detail.jobs]
-      .reverse()
-      .find(
-        (job): job is WorkflowJobResponse & { briefResultId: string } =>
-          job.workflowName === "brief-extraction" &&
-          job.status === "COMPLETED" &&
-          Boolean(job.briefResultId),
-      );
+    const fromJob = [...detail.jobs].reverse().find(isCompletedBriefExtraction);
     return fromJob?.briefResultId ?? detail.latestBriefId;
   }
 
@@ -2071,5 +2145,15 @@ function indexPendingActions(
 ): Record<string, PendingActionSummary> {
   return Object.fromEntries(
     (actions ?? []).map((action) => [action.id, action]),
+  );
+}
+
+function isCompletedBriefExtraction(
+  job: WorkflowJobResponse,
+): job is WorkflowJobResponse & { briefResultId: string } {
+  return (
+    job.workflowName === ChatWorkflowName.BRIEF_EXTRACTION &&
+    job.status === WorkflowJobStatus.COMPLETED &&
+    Boolean(job.briefResultId)
   );
 }

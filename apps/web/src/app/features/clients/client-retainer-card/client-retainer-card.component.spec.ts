@@ -16,6 +16,16 @@ import { ClientRateDialogService } from "./client-rate-dialog.service";
 import { ClientRetainerCardComponent } from "./client-retainer-card.component";
 import { RetainerAgreementDialogService } from "./retainer-agreement-dialog.service";
 
+const TEXT: Record<string, string> = {
+  "clients.retainer.hoursOf": "{covered} / {included} h",
+  "clients.retainer.hours": "{hours} h",
+};
+
+const translate = (key: string, params: Record<string, unknown> = {}) =>
+  (TEXT[key] ?? key).replace(/\{(\w+)\}/g, (_, name: string) =>
+    String(params[name]),
+  );
+
 const agreement: RetainerAgreement = {
   id: "agreement-1",
   clientId: "client-1",
@@ -95,7 +105,7 @@ describe("ClientRetainerCardComponent", () => {
         { provide: ClientRateDialogService, useValue: rateDialog },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: { translate, language: () => "SR" },
         },
       ],
     });

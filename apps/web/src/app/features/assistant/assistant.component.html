@@ -88,20 +88,18 @@
         >
           <ng-icon
             [name]="
-              activeRailTab() === 'matter'
+              activeRailTab() === RailTab.MATTER
                 ? 'lucideBriefcase'
-                : activeRailTab() === 'analysis'
+                : activeRailTab() === RailTab.ANALYSIS
                   ? 'lucideFileSearch'
                   : 'lucideFileText'
             "
             aria-hidden="true"
           />
           {{
-            (activeRailTab() === "matter"
-              ? "assistant.rail.matterTab"
-              : activeRailTab() === "analysis"
-                ? "assistant.rail.analysisTab"
-                : "assistant.draftReview"
+            (activeRailTab() === RailTab.DRAFT
+              ? "assistant.draftReview"
+              : railTabLabels[activeRailTab()]
             ) | translate
           }}
         </button>
@@ -129,12 +127,14 @@
                 <div class="message-avatar" aria-hidden="true">
                   <ng-icon
                     [name]="
-                      message.role === 'USER' ? 'lucideUser' : 'lucideBot'
+                      message.role === ChatMessageRole.USER
+                        ? 'lucideUser'
+                        : 'lucideBot'
                     "
                   />
                 </div>
                 <div class="message-content">
-                  @if (message.role === "USER") {
+                  @if (message.role === ChatMessageRole.USER) {
                     <p>{{ message.content }}</p>
                   } @else {
                     <div
@@ -180,7 +180,7 @@
                           @if (file.extractionStatus; as extractionStatus) {
                             <small [attr.data-status]="extractionStatus">
                               {{
-                                "assistant.attachmentStatus." + extractionStatus
+                                extractionStatusLabels[extractionStatus]
                                   | translate
                               }}
                             </small>
@@ -193,8 +193,18 @@
                     <law-pending-action-card
                       [action]="action"
                       [busy]="decidingActionId() === action.id"
-                      (approve)="decidePendingAction(action, 'approve')"
-                      (decline)="decidePendingAction(action, 'decline')"
+                      (approve)="
+                        decidePendingAction(
+                          action,
+                          PendingActionDecision.APPROVE
+                        )
+                      "
+                      (decline)="
+                        decidePendingAction(
+                          action,
+                          PendingActionDecision.DECLINE
+                        )
+                      "
                       (openForm)="openPendingActionForm(action)"
                       (openResult)="openPendingActionResult(action)"
                       (undo)="undoPendingAction(action)"
@@ -223,11 +233,11 @@
                   }
                   <time>{{ message.createdAt | date: "HH:mm" }}</time>
                   @if (
-                    message.role === "ASSISTANT" &&
-                    message.status === "COMPLETED"
+                    message.role === ChatMessageRole.ASSISTANT &&
+                    message.status === ChatMessageStatus.COMPLETED
                   ) {
                     <div class="message-feedback">
-                      @if (message.outcome === "ANSWER") {
+                      @if (message.outcome === ChatMessageOutcome.ANSWER) {
                         <button
                           hlmBtn
                           variant="ghost"
@@ -254,7 +264,7 @@
                           <ng-icon name="lucideRefreshCw" />
                         </button>
                       }
-                      @if (message.outcome === "DRAFT_READY") {
+                      @if (message.outcome === ChatMessageOutcome.DRAFT_READY) {
                         <button
                           hlmBtn
                           variant="outline"
@@ -272,12 +282,21 @@
                         variant="ghost"
                         size="icon"
                         type="button"
-                        [class.is-selected]="message.feedback === 'POSITIVE'"
-                        [attr.aria-pressed]="message.feedback === 'POSITIVE'"
+                        [class.is-selected]="
+                          message.feedback === ChatMessageFeedback.POSITIVE
+                        "
+                        [attr.aria-pressed]="
+                          message.feedback === ChatMessageFeedback.POSITIVE
+                        "
                         [disabled]="feedbackMessageId() === message.id"
                         [hlmTooltip]="'assistant.helpful' | translate"
                         [attr.aria-label]="'assistant.helpful' | translate"
-                        (click)="updateMessageFeedback(message, 'POSITIVE')"
+                        (click)="
+                          updateMessageFeedback(
+                            message,
+                            ChatMessageFeedback.POSITIVE
+                          )
+                        "
                       >
                         <ng-icon name="lucideThumbsUp" />
                       </button>
@@ -286,12 +305,21 @@
                         variant="ghost"
                         size="icon"
                         type="button"
-                        [class.is-selected]="message.feedback === 'NEGATIVE'"
-                        [attr.aria-pressed]="message.feedback === 'NEGATIVE'"
+                        [class.is-selected]="
+                          message.feedback === ChatMessageFeedback.NEGATIVE
+                        "
+                        [attr.aria-pressed]="
+                          message.feedback === ChatMessageFeedback.NEGATIVE
+                        "
                         [disabled]="feedbackMessageId() === message.id"
                         [hlmTooltip]="'assistant.notHelpful' | translate"
                         [attr.aria-label]="'assistant.notHelpful' | translate"
-                        (click)="updateMessageFeedback(message, 'NEGATIVE')"
+                        (click)="
+                          updateMessageFeedback(
+                            message,
+                            ChatMessageFeedback.NEGATIVE
+                          )
+                        "
                       >
                         <ng-icon name="lucideThumbsDown" />
                       </button>
@@ -300,7 +328,8 @@
                 </div>
               </article>
               @if (
-                message.role === "USER" && activityFor(message.correlationId);
+                message.role === ChatMessageRole.USER &&
+                  activityFor(message.correlationId);
                 as activity
               ) {
                 <div class="workflow-activity-list">
@@ -334,11 +363,11 @@
                 <span class="workflow-activity-icon" aria-hidden="true">
                   <ng-icon
                     [name]="
-                      activity.status === 'active'
+                      activity.status === WorkflowActivityStatus.ACTIVE
                         ? 'lucideLoaderCircle'
-                        : activity.status === 'waiting'
+                        : activity.status === WorkflowActivityStatus.WAITING
                           ? 'lucideShieldQuestion'
-                          : activity.status === 'failed'
+                          : activity.status === WorkflowActivityStatus.FAILED
                             ? 'lucideCircleAlert'
                             : 'lucideCheckCircle2'
                     "
@@ -347,14 +376,20 @@
                 <span class="workflow-activity-copy">
                   <strong>{{ activity.titleKey | translate }}</strong>
                   <small>{{ activity.agentKey | translate }}</small>
-                  @if (activity.status === "active") {
+                  @if (activity.status === WorkflowActivityStatus.ACTIVE) {
                     <small class="workflow-elapsed" aria-hidden="true">
-                      {{ "assistant.workflow.workingFor" | translate }}
-                      {{ elapsedSeconds(activity.startedAt) }}s
+                      {{
+                        "assistant.workflow.workingForSeconds"
+                          | translate
+                            : { seconds: elapsedSeconds(activity.startedAt) }
+                      }}
                     </small>
                   }
                 </span>
-                @if (activity.status === "failed" && activity.retryJobId) {
+                @if (
+                  activity.status === WorkflowActivityStatus.FAILED &&
+                  activity.retryJobId
+                ) {
                   <button
                     hlmBtn
                     variant="outline"
@@ -367,7 +402,8 @@
                     {{ "assistant.workflow.retry" | translate }}
                   </button>
                 } @else if (
-                  activity.status === "completed" && activity.steps.length
+                  activity.status === WorkflowActivityStatus.COMPLETED &&
+                  activity.steps.length
                 ) {
                   <button
                     hlmBtn
@@ -406,10 +442,10 @@
                       <li [attr.data-status]="step.status">
                         <ng-icon
                           [name]="
-                            step.status === 'FAILED'
+                            step.status === WorkflowJobStatus.FAILED
                               ? 'lucideCircleAlert'
-                              : step.status === 'QUEUED' ||
-                                  step.status === 'RUNNING'
+                              : step.status === WorkflowJobStatus.QUEUED ||
+                                  step.status === WorkflowJobStatus.RUNNING
                                 ? 'lucideLoaderCircle'
                                 : 'lucideCheckCircle2'
                           "
@@ -417,7 +453,7 @@
                         />
                         <span>
                           <strong>{{ step.titleKey | translate }}</strong>
-                          @if (step.kind === "tool") {
+                          @if (step.kind === WorkflowActivityStepKind.TOOL) {
                             @if (step.detail) {
                               <small>„{{ step.detail }}“</small>
                             }
@@ -541,7 +577,9 @@
                 <hlm-select-trigger
                   buttonId="assistant-permission-mode"
                   class="w-full min-w-0 max-w-full"
-                  [attr.aria-label]="'assistant.permissionMode.label' | translate"
+                  [attr.aria-label]="
+                    'assistant.permissionMode.label' | translate
+                  "
                 >
                   <hlm-select-value class="min-w-0 truncate" />
                 </hlm-select-trigger>
@@ -553,10 +591,19 @@
                     @for (option of permissionModeOptions; track option.value) {
                       <hlm-select-item [value]="option.value">
                         <!-- A div: the item centres a span child as one row. -->
-                        <div class="flex w-64 flex-col items-start gap-0.5 pe-6 text-left">
-                          <span class="font-medium">{{ option.label | translate }}</span>
-                          <span class="text-xs font-normal leading-snug text-muted-foreground">
-                            {{ option.label + "Description" | translate }}
+                        <div
+                          class="flex w-64 flex-col items-start gap-0.5 pe-6 text-left"
+                        >
+                          <span class="font-medium">
+                            {{ option.label | translate }}
+                          </span>
+                          <span
+                            class="text-xs font-normal leading-snug text-muted-foreground"
+                          >
+                            {{
+                              permissionModeDescriptions[option.value]
+                                | translate
+                            }}
                           </span>
                         </div>
                       </hlm-select-item>
@@ -598,7 +645,7 @@
                   [attr.aria-selected]="activeRailTab() === tab"
                   (click)="railTab.set(tab)"
                 >
-                  {{ "assistant.rail." + tab + "Tab" | translate }}
+                  {{ railTabLabels[tab] | translate }}
                 </button>
               }
             </div>
@@ -607,7 +654,7 @@
           @if (draft(); as draftItem) {
             <div
               class="assistant-rail-pane"
-              [class.is-active]="activeRailTab() === 'draft'"
+              [class.is-active]="activeRailTab() === RailTab.DRAFT"
             >
               <law-draft-review-panel
                 [draft]="draftItem"
@@ -633,9 +680,9 @@
               @if (latestBriefId(); as briefId) {
                 <div
                   class="assistant-rail-pane"
-                  [class.is-active]="activeRailTab() === 'matter'"
+                  [class.is-active]="activeRailTab() === RailTab.MATTER"
                 >
-                  <app-assistant-matter-link
+                  <law-assistant-matter-link
                     [workspaceId]="workspace"
                     [session]="session"
                     [briefId]="briefId"
@@ -651,9 +698,9 @@
           @if (analysis(); as analysisItem) {
             <div
               class="assistant-rail-pane"
-              [class.is-active]="activeRailTab() === 'analysis'"
+              [class.is-active]="activeRailTab() === RailTab.ANALYSIS"
             >
-              @if (analysisItem.kind === "CASE_TIMELINE") {
+              @if (analysisItem.kind === DocumentAnalysisKind.CASE_TIMELINE) {
                 <law-case-timeline-panel
                   [analysis]="analysisItem"
                   [expanded]="rightRailExpanded()"

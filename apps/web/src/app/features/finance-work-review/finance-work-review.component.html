@@ -196,9 +196,9 @@
             {{ "work.filters.noResults" | translate }}
           </hlm-combobox-empty>
           <div hlmComboboxList>
-            @for (treatment of treatmentOptions; track treatment) {
-              <hlm-combobox-item [value]="treatment">
-                {{ treatmentLabelKeys[treatment] | translate }}
+            @for (option of treatmentOptions; track option.value) {
+              <hlm-combobox-item [value]="option.value">
+                {{ option.label | translate }}
               </hlm-combobox-item>
             }
           </div>
@@ -243,7 +243,7 @@
       <p class="text-destructive text-sm">
         {{ "finance.loadError" | translate }}
       </p>
-      <button hlmBtn type="button" variant="outline" (click)="retry()">
+      <button hlmBtn type="button" variant="outline" (click)="list.reset()">
         {{ "finance.retry" | translate }}
       </button>
     </div>
@@ -382,7 +382,11 @@
     </p>
   }
 
-  @if (hasMore() && !loading()) {
-    <div class="h-px" aria-hidden="true" (lawInfiniteScroll)="loadMore()"></div>
+  @if (list.hasMore() && !loading()) {
+    <div
+      class="h-px"
+      aria-hidden="true"
+      (lawInfiniteScroll)="list.loadMore()"
+    ></div>
   }
 </section>

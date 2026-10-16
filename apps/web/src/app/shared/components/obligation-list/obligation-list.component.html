@@ -9,7 +9,7 @@
         <span class="min-w-0">
           <span class="block truncate font-medium">{{ item.title }}</span>
           <span class="text-muted-foreground">
-            {{ "work.recordType." + item.sourceType.toLowerCase() | translate }}
+            {{ recordTypeLabels[item.sourceType] | translate }}
             · {{ when(item) }}
             @if (item.overdue) {
               ·

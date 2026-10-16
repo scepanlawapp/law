@@ -17,23 +17,27 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTooltip } from "@spartan-ng/helm/tooltip";
 import { DocumentAiStatus } from "@law/api-interfaces";
 import { LocalizationService } from "../../../core/localization/localization.service";
+import {
+  DOCUMENT_AI_IN_PROGRESS_STATUSES,
+  DOCUMENT_AI_STATUS_LABELS,
+} from "../../models";
 
-const STATUS_ICONS: Record<DocumentAiStatus, string> = {
-  OFF: "lucideEyeOff",
-  QUEUED: "lucideClock",
-  PROCESSING: "lucideClock",
-  READY: "lucideSparkles",
-  FAILED: "lucideTriangleAlert",
-  UNSUPPORTED: "lucideBan",
+const STATUS_ICONS: Readonly<Record<DocumentAiStatus, string>> = {
+  [DocumentAiStatus.OFF]: "lucideEyeOff",
+  [DocumentAiStatus.QUEUED]: "lucideClock",
+  [DocumentAiStatus.PROCESSING]: "lucideClock",
+  [DocumentAiStatus.READY]: "lucideSparkles",
+  [DocumentAiStatus.FAILED]: "lucideTriangleAlert",
+  [DocumentAiStatus.UNSUPPORTED]: "lucideBan",
 };
 
-const STATUS_COLORS: Record<DocumentAiStatus, string> = {
-  OFF: "text-muted-foreground",
-  QUEUED: "text-muted-foreground",
-  PROCESSING: "text-primary",
-  READY: "text-primary",
-  FAILED: "text-destructive",
-  UNSUPPORTED: "text-muted-foreground",
+const STATUS_COLORS: Readonly<Record<DocumentAiStatus, string>> = {
+  [DocumentAiStatus.OFF]: "text-muted-foreground",
+  [DocumentAiStatus.QUEUED]: "text-muted-foreground",
+  [DocumentAiStatus.PROCESSING]: "text-primary",
+  [DocumentAiStatus.READY]: "text-primary",
+  [DocumentAiStatus.FAILED]: "text-destructive",
+  [DocumentAiStatus.UNSUPPORTED]: "text-muted-foreground",
 };
 
 /** Compact AI-processing indicator. The focusable host carries the tooltip. */
@@ -75,10 +79,10 @@ export class DocumentAiStatusComponent {
 
   readonly icon = computed(() => STATUS_ICONS[this.status()]);
   readonly color = computed(() => STATUS_COLORS[this.status()]);
-  readonly inProgress = computed(
-    () => this.status() === "QUEUED" || this.status() === "PROCESSING",
+  readonly inProgress = computed(() =>
+    DOCUMENT_AI_IN_PROGRESS_STATUSES.includes(this.status()),
   );
   readonly label = computed(() =>
-    this.localization.translate(`documents.ai.status.${this.status()}`),
+    this.localization.translate(DOCUMENT_AI_STATUS_LABELS[this.status()]),
   );
 }

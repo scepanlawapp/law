@@ -15,12 +15,15 @@ import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Router } from "@angular/router";
 import {
   CalendarApiClient,
-  CalendarQuery,
   EventsApiClient,
   ReferencesApiClient,
   WorkManagementApiClient,
 } from "@law/api-clients";
-import { CalendarItem, CalendarSourceType } from "@law/api-interfaces";
+import {
+  CalendarItem,
+  CalendarSourceType,
+  CalendarQuery,
+} from "@law/api-interfaces";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideChevronDown, lucideChevronUp } from "@ng-icons/lucide";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -44,16 +47,53 @@ import { switchMap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
-import {
-  createSelectItemToString,
-  type SelectOption,
-} from "../../shared/utils";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { EventDialogService } from "./event-dialog/event-dialog.service";
 import { CalendarEventsListComponent } from "./calendar-events-list/calendar-events-list.component";
 import { TaskDialogService } from "../work-management/task-dialog/task-dialog.service";
+import {
+  ALL_OPTION_VALUE,
+  AllOptionValue,
+  CALENDAR_ITEM_STATUS_LABELS,
+  CALENDAR_SOURCE_TYPE_LABELS,
+  CLOSED_CALENDAR_ITEM_STATUSES,
+  CalendarItemStatus,
+  OFFICE_TIME_ZONE,
+  createSelectItemToString,
+  filterOptionsFrom,
+  labelOf,
+} from "../../shared/models";
+import { DEFAULT_PAGE_SIZE } from "../../shared/pagination/paginated-list";
 
-type CalendarView = "month" | "week" | "list" | "board";
+const CalendarView = {
+  MONTH: "month",
+  WEEK: "week",
+  LIST: "list",
+  BOARD: "board",
+} as const;
+type CalendarView = (typeof CalendarView)[keyof typeof CalendarView];
+
+const CALENDAR_VIEWS: readonly string[] = Object.values(CalendarView);
+
+/** Deadlines are not shown on the calendar. */
+const CALENDAR_SOURCE_TYPES: CalendarSourceType[] = [
+  CalendarSourceType.EVENT,
+  CalendarSourceType.TASK,
+];
+
+/** Monday-first weekday headers. */
+const WEEKDAY_LABELS: readonly string[] = [
+  "calendar.mon",
+  "calendar.tue",
+  "calendar.wed",
+  "calendar.thu",
+  "calendar.fri",
+  "calendar.sat",
+  "calendar.sun",
+];
+
+/** ISO-like `YYYY-MM-DD` parts; not a display locale. */
+const DATE_KEY_LOCALE = "en-CA";
 
 interface CalendarDay {
   date: string;
@@ -74,13 +114,12 @@ interface WeekEventSegment {
   height: number;
 }
 
-const BELGRADE_TIME_ZONE = "Europe/Belgrade";
 const CALENDAR_HOUR_HEIGHT = 64;
 const CALENDAR_MINUTES_PER_DAY = 24 * 60;
 
 function dateKey(date: Date): string {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: BELGRADE_TIME_ZONE,
+  const parts = new Intl.DateTimeFormat(DATE_KEY_LOCALE, {
+    timeZone: OFFICE_TIME_ZONE,
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -146,20 +185,25 @@ export class CalendarComponent {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly search = new FormControl("", { nonNullable: true });
-  readonly sourceControl = new FormControl<CalendarSourceType | "">("", {
-    nonNullable: true,
-  });
+  readonly sourceControl = new FormControl<CalendarSourceType | AllOptionValue>(
+    ALL_OPTION_VALUE,
+    { nonNullable: true },
+  );
+  readonly CalendarView = CalendarView;
+  readonly officeTimeZone = OFFICE_TIME_ZONE;
+  readonly weekdayLabels = WEEKDAY_LABELS;
   readonly anchor = signal(this.initialDate());
   readonly view = signal<CalendarView>(this.initialView());
-  readonly source = signal<CalendarSourceType | "">("");
+  readonly source = signal<CalendarSourceType | AllOptionValue>(
+    ALL_OPTION_VALUE,
+  );
   readonly lawyerIds = signal(this.initialLawyerIds());
   readonly lawyers = signal<Array<{ id: string; name: string }>>([]);
-  readonly sourceOptions: ReadonlyArray<SelectOption<CalendarSourceType | "">> =
-    [
-      { value: "", label: "calendar.allSources" },
-      { value: "EVENT", label: "calendar.source.event" },
-      { value: "TASK", label: "calendar.source.task" },
-    ];
+  readonly sourceOptions = filterOptionsFrom(
+    CALENDAR_SOURCE_TYPE_LABELS,
+    "calendar.allSources",
+    CALENDAR_SOURCE_TYPES,
+  );
   readonly sourceItemToString = createSelectItemToString(
     this.sourceOptions,
     (key) => this.localization.translate(key),
@@ -221,7 +265,7 @@ export class CalendarComponent {
   }
 
   readonly weekEventSegments = computed<WeekEventSegment[]>(() => {
-    if (this.view() !== "week") return [];
+    if (this.view() !== CalendarView.WEEK) return [];
 
     const dayMap = new Map(this.weekDays().map((day) => [day.date, day]));
     const segmentsByDay = new Map<string, WeekEventSegment[]>();
@@ -230,7 +274,11 @@ export class CalendarComponent {
     }
 
     for (const item of this.filteredItems()) {
-      if (item.sourceType !== "EVENT" || !item.startsAt || !item.endsAt) {
+      if (
+        item.sourceType !== CalendarSourceType.EVENT ||
+        !item.startsAt ||
+        !item.endsAt
+      ) {
         continue;
       }
       const start = new Date(item.startsAt);
@@ -347,27 +395,30 @@ export class CalendarComponent {
         left.day.localeCompare(right.day) || left.start - right.start,
     );
   });
+  private readonly monthLikeView = computed(
+    () => this.view() !== CalendarView.WEEK,
+  );
   readonly visibleFrom = computed(() =>
-    this.view() === "month" || this.view() === "list" || this.view() === "board"
+    this.monthLikeView()
       ? (this.monthDays()[0]?.date ?? dateKey(this.anchor()))
       : dateKey(this.viewStart(this.anchor())),
   );
   readonly visibleTo = computed(() =>
-    this.view() === "month" || this.view() === "list" || this.view() === "board"
+    this.monthLikeView()
       ? (this.monthDays()[this.monthDays().length - 1]?.date ??
         dateKey(this.anchor()))
       : dateKey(this.viewEnd(this.anchor())),
   );
   readonly rangeLabel = computed(() =>
-    this.view() === "week"
+    this.view() === CalendarView.WEEK
       ? `${this.weekDays()[0]?.date} - ${this.weekDays()[6]?.date}`
-      : new Intl.DateTimeFormat(undefined, {
+      : new Intl.DateTimeFormat(this.localization.locale(), {
           month: "long",
           year: "numeric",
         }).format(this.anchor()),
   );
   readonly miniMonthLabel = computed(() =>
-    new Intl.DateTimeFormat(undefined, {
+    new Intl.DateTimeFormat(this.localization.locale(), {
       month: "long",
       year: "numeric",
     }).format(this.miniAnchor()),
@@ -387,7 +438,9 @@ export class CalendarComponent {
       }
       if (
         !this.includeClosed() &&
-        ["COMPLETED", "DONE", "CANCELLED", "SATISFIED"].includes(item.status)
+        CLOSED_CALENDAR_ITEM_STATUSES.includes(
+          item.status as CalendarItemStatus,
+        )
       )
         return false;
       return !query || item.title.toLocaleLowerCase().includes(query);
@@ -414,7 +467,7 @@ export class CalendarComponent {
     });
     this.sourceControl.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe((value) => this.setSource(value ?? ""));
+      .subscribe((value) => this.setSource(value ?? ALL_OPTION_VALUE));
     this.search.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.persistUrl());
@@ -436,7 +489,7 @@ export class CalendarComponent {
 
   previous(): void {
     const date = new Date(this.anchor());
-    if (this.view() === "week") date.setDate(date.getDate() - 7);
+    if (this.view() === CalendarView.WEEK) date.setDate(date.getDate() - 7);
     else date.setMonth(date.getMonth() - 1);
     this.anchor.set(date);
     this.selectedDay.set(dateKey(date));
@@ -445,7 +498,7 @@ export class CalendarComponent {
 
   next(): void {
     const date = new Date(this.anchor());
-    if (this.view() === "week") date.setDate(date.getDate() + 7);
+    if (this.view() === CalendarView.WEEK) date.setDate(date.getDate() + 7);
     else date.setMonth(date.getMonth() + 1);
     this.anchor.set(date);
     this.selectedDay.set(dateKey(date));
@@ -487,27 +540,18 @@ export class CalendarComponent {
   obligationItemsForDay(day: string): CalendarItem[] {
     return this.filteredItems()
       .filter(
-        (item) => item.sourceType !== "EVENT" && this.itemDate(item) === day,
+        (item) =>
+          item.sourceType !== CalendarSourceType.EVENT &&
+          this.itemDate(item) === day,
       )
       .sort((a, b) => this.sortItems(a, b));
   }
 
   eventLabel(item: CalendarItem): string {
     if (!item.startsAt) return item.title;
-    const start = new Intl.DateTimeFormat(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: BELGRADE_TIME_ZONE,
-    }).format(new Date(item.startsAt));
+    const start = this.formatTime(item.startsAt);
     if (!item.endsAt) return `${start} ${item.title}`;
-    const end = new Intl.DateTimeFormat(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: BELGRADE_TIME_ZONE,
-    }).format(new Date(item.endsAt));
-    return `${start}–${end} ${item.title}`;
+    return `${start}–${this.formatTime(item.endsAt)} ${item.title}`;
   }
 
   weekDayDoubleClick(event: MouseEvent, day: string): void {
@@ -525,7 +569,7 @@ export class CalendarComponent {
   editEvent(event: MouseEvent, item: CalendarItem): void {
     event.preventDefault();
     event.stopPropagation();
-    if (item.sourceType === "EVENT") {
+    if (item.sourceType === CalendarSourceType.EVENT) {
       this.eventDialog
         .open({ item })
         .pipe(takeUntilDestroyed(this.destroyRef))
@@ -534,7 +578,7 @@ export class CalendarComponent {
             if (updated) this.loadRange(false);
           },
         });
-    } else if (item.sourceType === "TASK") {
+    } else if (item.sourceType === CalendarSourceType.TASK) {
       this.workApi
         .getTask(item.sourceId)
         .pipe(
@@ -554,7 +598,7 @@ export class CalendarComponent {
   }
 
   setSource(value: string): void {
-    this.source.set(value as CalendarSourceType | "");
+    this.source.set(value as CalendarSourceType | AllOptionValue);
     this.persistUrl();
   }
 
@@ -578,9 +622,9 @@ export class CalendarComponent {
     const isMonthChanged =
       clicked.getFullYear() !== this.anchor().getFullYear() ||
       clicked.getMonth() !== this.anchor().getMonth();
-    if (this.view() !== "month") {
+    if (this.view() !== CalendarView.MONTH) {
       this.anchor.set(clicked);
-      this.view.set("week");
+      this.view.set(CalendarView.WEEK);
     } else if (isMonthChanged) {
       this.anchor.set(clicked);
     }
@@ -633,7 +677,7 @@ export class CalendarComponent {
   openEventMenu(event: MouseEvent, item: CalendarItem): void {
     event.preventDefault();
     event.stopPropagation();
-    if (item.sourceType !== "EVENT") return;
+    if (item.sourceType !== CalendarSourceType.EVENT) return;
     this.eventMenuItem.set(item);
     this.selectItem(event, item);
   }
@@ -685,7 +729,7 @@ export class CalendarComponent {
 
   clearFilters(): void {
     this.search.setValue("");
-    this.source.set("");
+    this.source.set(ALL_OPTION_VALUE);
     this.includeClosed.set(false);
     this.persistUrl();
   }
@@ -698,7 +742,8 @@ export class CalendarComponent {
 
   itemsForHour(date: string, hour: number): CalendarItem[] {
     return this.filteredItems().filter((item) => {
-      if (item.sourceType !== "EVENT" || !item.startsAt) return false;
+      if (item.sourceType !== CalendarSourceType.EVENT || !item.startsAt)
+        return false;
       const startsAt = new Date(item.startsAt);
       return dateKey(startsAt) === date && startsAt.getHours() === hour;
     });
@@ -715,24 +760,32 @@ export class CalendarComponent {
 
   itemTime(item: CalendarItem): string {
     if (item.date || !item.startsAt) return "";
-    return new Intl.DateTimeFormat(undefined, {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-      timeZone: BELGRADE_TIME_ZONE,
-    }).format(new Date(item.startsAt));
+    return this.formatTime(item.startsAt);
   }
 
   sourceLabel(item: CalendarItem): string {
-    return `calendar.source.${item.sourceType.toLowerCase()}`;
+    return labelOf(CALENDAR_SOURCE_TYPE_LABELS, item.sourceType, (key) =>
+      this.localization.translate(key),
+    );
   }
 
   statusLabel(status: string): string {
-    return `calendar.status.${status.toLowerCase()}`;
+    return labelOf(CALENDAR_ITEM_STATUS_LABELS, status, (key) =>
+      this.localization.translate(key),
+    );
   }
 
   trackItem(_: number, item: CalendarItem): string {
     return item.calendarId;
+  }
+
+  private formatTime(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: OFFICE_TIME_ZONE,
+    }).format(new Date(value));
   }
 
   private addDayKey(value: string, offset: number): string {
@@ -743,8 +796,8 @@ export class CalendarComponent {
   }
 
   private belgradeMinutesFromMidnight(date: Date): number {
-    const parts = new Intl.DateTimeFormat("en-CA", {
-      timeZone: BELGRADE_TIME_ZONE,
+    const parts = new Intl.DateTimeFormat(DATE_KEY_LOCALE, {
+      timeZone: OFFICE_TIME_ZONE,
       hour: "2-digit",
       minute: "2-digit",
       second: "2-digit",
@@ -772,8 +825,8 @@ export class CalendarComponent {
     const query: CalendarQuery = {
       from: `${this.visibleFrom()}T00:00:00.000Z`,
       to: `${this.nextDate(this.visibleTo())}T00:00:00.000Z`,
-      limit: 100,
-      sourceTypes: ["EVENT", "TASK"],
+      limit: DEFAULT_PAGE_SIZE,
+      sourceTypes: CALENDAR_SOURCE_TYPES,
       ...(this.lawyerIds().length && { userIds: this.lawyerIds() }),
     };
     this.api
@@ -814,7 +867,8 @@ export class CalendarComponent {
         lawyer: this.lawyerIds().length ? this.lawyerIds() : null,
         closed: this.includeClosed() ? "1" : null,
         presentation:
-          this.view() === "list" || this.view() === "board"
+          this.view() === CalendarView.LIST ||
+          this.view() === CalendarView.BOARD
             ? this.view()
             : null,
       },
@@ -839,14 +893,9 @@ export class CalendarComponent {
 
   private initialView(): CalendarView {
     const value = this.route.snapshot.queryParamMap.get("view");
-    if (
-      value === "month" ||
-      value === "week" ||
-      value === "list" ||
-      value === "board"
-    )
-      return value;
-    return "week";
+    return value && CALENDAR_VIEWS.includes(value)
+      ? (value as CalendarView)
+      : CalendarView.WEEK;
   }
 
   private buildMonthDays(anchor: Date): CalendarDay[] {
@@ -886,7 +935,7 @@ export class CalendarComponent {
 
   private viewEnd(anchor: Date): Date {
     const date = this.viewStart(anchor);
-    date.setDate(date.getDate() + (this.view() === "week" ? 6 : 0));
+    date.setDate(date.getDate() + (this.view() === CalendarView.WEEK ? 6 : 0));
     return date;
   }
 
@@ -907,11 +956,12 @@ export class CalendarComponent {
   }
 
   private scrollToCurrentHour(): void {
-    if (this.view() !== "week") return;
+    if (this.view() !== CalendarView.WEEK) return;
     requestAnimationFrame(() => {
       const viewport = this.scheduleViewport?.nativeElement;
       if (!viewport) return;
-      viewport.scrollTop = Math.max(new Date().getHours() - 1, 0) * 64;
+      viewport.scrollTop =
+        Math.max(new Date().getHours() - 1, 0) * CALENDAR_HOUR_HEIGHT;
     });
   }
 }

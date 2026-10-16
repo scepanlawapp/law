@@ -9,9 +9,37 @@ import {
 } from "@angular/core";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmTableImports } from "@spartan-ng/helm/table";
+import { SortDirection } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { ReportMember, ReportRow } from "./report-model";
-import { ReportFormat } from "./report-ui";
+import { ReportFormat, ariaSortOf, sortIndicator } from "./report-ui";
+import {
+  REPORT_ALLOCATION_CATEGORY_LABELS,
+  REPORT_COLLECTION_STATUS_LABELS,
+  REPORT_SHARING_LABELS,
+  REPORT_WORK_SORT_FIELDS,
+  REPORT_WORK_STATUS_LABELS,
+  ReportWorkSortField,
+} from "../../../shared/models";
+import { ReportCollectionStatus, ReportSharing } from "../../../shared/models";
+
+type AmountColumn = Exclude<ReportWorkSortField, "caseName" | "workDate">;
+
+const DETAIL_AMOUNT_COLUMNS: AmountColumn[] = [
+  "invoiced",
+  "collected",
+  "shareCollected",
+  "potential",
+];
+const OUTSTANDING_AMOUNT_COLUMNS: AmountColumn[] = [
+  "estimated",
+  "invoiced",
+  "collected",
+  "balance",
+  "potential",
+];
+/** Amounts that need a sharing rule to be known. */
+const SHARE_COLUMNS: readonly AmountColumn[] = ["potential", "shareCollected"];
 @Component({
   selector: "law-report-work-table",
   standalone: true,
@@ -68,7 +96,8 @@ import { ReportFormat } from "./report-ui";
                   size="sm"
                   (click)="sortBy(column)"
                 >
-                  {{ "report." + column | translate }} {{ indicator(column) }}
+                  {{ sortFields[column].label | translate }}
+                  {{ indicator(column) }}
                 </button>
               </th>
             }
@@ -98,12 +127,13 @@ import { ReportFormat } from "./report-ui";
               <td hlmTd>
                 {{ row.titleKey | translate }}
                 <span class="mt-1 block text-muted-foreground">
-                  {{ "report.enum." + row.workStatus | translate }}
+                  {{ workStatusLabels[row.workStatus] | translate }}
                 </span>
                 <span class="mt-1 block text-muted-foreground">
                   {{
                     row.invoice?.reference ??
-                      ("report.enum.NotInvoiced" | translate)
+                      (statusLabels[ReportCollectionStatus.NOT_INVOICED]
+                        | translate)
                   }}
                 </span>
               </td>
@@ -116,8 +146,8 @@ import { ReportFormat } from "./report-ui";
               @for (column of amountColumns(); track column) {
                 <td hlmTd class="whitespace-nowrap text-right tabular-nums">
                   @if (
-                    row.sharing === "missing" &&
-                    (column === "potential" || column === "shareCollected")
+                    row.sharing === ReportSharing.MISSING &&
+                    shareColumns.includes(column)
                   ) {
                     {{ "report.unavailable" | translate }}
                   } @else {
@@ -132,12 +162,12 @@ import { ReportFormat } from "./report-ui";
                     track allocation.category + allocation.memberId
                   ) {
                     <span class="block whitespace-nowrap">
-                      {{ "report.category." + allocation.category | translate }}
+                      {{ categoryLabels[allocation.category] | translate }}
                       · {{ format.percent(allocation.rate / 10000) }}
                     </span>
                   }
                   @if (!row.earnings.length) {
-                    <span>{{ "report.enum." + row.sharing | translate }}</span>
+                    <span>{{ sharingLabels[row.sharing] | translate }}</span>
                   }
                 </td>
               }
@@ -145,10 +175,10 @@ import { ReportFormat } from "./report-ui";
                 <span
                   class="inline-flex rounded-full border border-border px-2 py-1 text-sm"
                   [class.text-destructive]="
-                    row.status === 'RequiresConfiguration'
+                    row.status === ReportCollectionStatus.REQUIRES_CONFIGURATION
                   "
                 >
-                  {{ "report.enum." + row.status | translate }}
+                  {{ statusLabels[row.status] | translate }}
                 </span>
               </td>
               <td hlmTd>
@@ -193,50 +223,49 @@ export class ReportWorkTableComponent {
   readonly personal = input(false);
   readonly selected = output<ReportRow>();
   readonly format = inject(ReportFormat);
-  readonly sort = signal("caseName");
-  readonly descending = signal(false);
-  readonly amountColumns = computed<
-    (
-      | "estimated"
-      | "invoiced"
-      | "collected"
-      | "balance"
-      | "potential"
-      | "shareCollected"
-    )[]
-  >(() =>
-    this.detail()
-      ? ["invoiced", "collected", "shareCollected", "potential"]
-      : ["estimated", "invoiced", "collected", "balance", "potential"],
+  readonly ReportCollectionStatus = ReportCollectionStatus;
+  readonly ReportSharing = ReportSharing;
+  readonly sortFields = REPORT_WORK_SORT_FIELDS;
+  readonly statusLabels = REPORT_COLLECTION_STATUS_LABELS;
+  readonly sharingLabels = REPORT_SHARING_LABELS;
+  readonly workStatusLabels = REPORT_WORK_STATUS_LABELS;
+  readonly categoryLabels = REPORT_ALLOCATION_CATEGORY_LABELS;
+  readonly shareColumns = SHARE_COLUMNS;
+  readonly sortField = signal<ReportWorkSortField>("caseName");
+  readonly sortDirection = signal<SortDirection>(SortDirection.ASC);
+  readonly amountColumns = computed(() =>
+    this.detail() ? DETAIL_AMOUNT_COLUMNS : OUTSTANDING_AMOUNT_COLUMNS,
   );
-  readonly sorted = computed(() =>
-    [...this.rows()].sort((a, b) => {
-      const key = this.sort() as keyof ReportRow;
+  readonly sorted = computed(() => {
+    const key = this.sortField();
+    const factor = this.sortDirection() === SortDirection.DESC ? -1 : 1;
+    return [...this.rows()].sort((a, b) => {
       const first = a[key];
       const second = b[key];
       const comparison =
         typeof first === "number" && typeof second === "number"
           ? first - second
           : String(first).localeCompare(String(second));
-      return comparison * (this.descending() ? -1 : 1);
-    }),
-  );
-  sortBy(key: string) {
-    if (this.sort() === key) this.descending.update((v) => !v);
+      return comparison * factor;
+    });
+  });
+  sortBy(key: ReportWorkSortField) {
+    if (this.sortField() === key)
+      this.sortDirection.update((direction) =>
+        direction === SortDirection.ASC
+          ? SortDirection.DESC
+          : SortDirection.ASC,
+      );
     else {
-      this.sort.set(key);
-      this.descending.set(false);
+      this.sortField.set(key);
+      this.sortDirection.set(SortDirection.ASC);
     }
   }
-  ariaSort(key: string) {
-    return this.sort() === key
-      ? this.descending()
-        ? "descending"
-        : "ascending"
-      : "none";
+  ariaSort(key: ReportWorkSortField) {
+    return ariaSortOf(this.sortField() === key, this.sortDirection());
   }
-  indicator(key: string) {
-    return this.sort() === key ? (this.descending() ? "↓" : "↑") : "";
+  indicator(key: ReportWorkSortField) {
+    return sortIndicator(this.sortField() === key, this.sortDirection());
   }
   memberName(id: string) {
     return (

@@ -14,6 +14,14 @@ import {
   Validators,
 } from "@angular/forms";
 import { OrganizationSettingsApiClient } from "@law/api-clients";
+import {
+  BankAccount,
+  ExchangeRateSource,
+  InvoiceNumberResetPolicy,
+  PaymentMethodPreference,
+  PaymentQrStandard,
+  SefEnvironment,
+} from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import {
   HlmField,
@@ -33,10 +41,35 @@ import {
   CurrencyCode,
   createCurrencyItemToString,
 } from "../../shared/currency";
-import { SelectOption, createSelectItemToString } from "../../shared/utils";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { OrganizationSettingsStore } from "./organization-settings.store";
 import { normalizeSerbianPaymentAccount } from "../finance-invoices/invoice-payment-qr.service";
+import {
+  createSelectItemToString,
+  EXCHANGE_RATE_SOURCE_LABELS,
+  INVOICE_NUMBER_RESET_POLICY_LABELS,
+  LabelMap,
+  optionsFrom,
+  PAYMENT_METHOD_PREFERENCE_LABELS,
+  PAYMENT_QR_STANDARD_LABELS,
+  SEF_ENVIRONMENT_LABELS,
+  DEFAULT_INVOICE_LANGUAGE,
+} from "../../shared/models";
+import { HOME_CURRENCY } from "./settings.constants";
+
+const PaymentReferenceModel = {
+  NONE: "",
+  MODEL_00: "00",
+  MODEL_97: "97",
+} as const;
+type PaymentReferenceModel =
+  (typeof PaymentReferenceModel)[keyof typeof PaymentReferenceModel];
+
+const PAYMENT_REFERENCE_MODEL_LABELS: LabelMap<PaymentReferenceModel> = {
+  [PaymentReferenceModel.NONE]: "settings.organization.paymentQr.noReference",
+  [PaymentReferenceModel.MODEL_00]: "settings.organization.paymentQr.model00",
+  [PaymentReferenceModel.MODEL_97]: "settings.organization.paymentQr.model97",
+};
 
 const baseImports = [
   ReactiveFormsModule,
@@ -495,15 +528,11 @@ const NUMBER_PATTERN_TOKENS = [
                 formControlName="resetPolicy"
                 class="h-10 rounded-md border border-input bg-background px-3 text-sm"
               >
-                <option value="NEVER">
-                  {{ "settings.organization.numbering.never" | translate }}
-                </option>
-                <option value="YEARLY">
-                  {{ "settings.organization.numbering.yearly" | translate }}
-                </option>
-                <option value="MONTHLY">
-                  {{ "settings.organization.numbering.monthly" | translate }}
-                </option>
+                @for (policy of resetPolicies; track policy.value) {
+                  <option [value]="policy.value">
+                    {{ policy.label | translate }}
+                  </option>
+                }
               </select>
             </div>
             <div></div>
@@ -560,6 +589,7 @@ const NUMBER_PATTERN_TOKENS = [
 })
 export class InvoiceNumberingSettingsComponent extends SectionBase {
   readonly tokens = NUMBER_PATTERN_TOKENS;
+  readonly resetPolicies = optionsFrom(INVOICE_NUMBER_RESET_POLICY_LABELS);
   readonly revision = signal(0);
   readonly form = new FormGroup({
     pattern: new FormControl("{YYYY}-{SEQ:6}", {
@@ -574,9 +604,10 @@ export class InvoiceNumberingSettingsComponent extends SectionBase {
       nonNullable: true,
       validators: Validators.min(1),
     }),
-    resetPolicy: new FormControl<"NEVER" | "YEARLY" | "MONTHLY">("YEARLY", {
-      nonNullable: true,
-    }),
+    resetPolicy: new FormControl<InvoiceNumberResetPolicy>(
+      InvoiceNumberResetPolicy.YEARLY,
+      { nonNullable: true },
+    ),
     allowManualOverride: new FormControl(true, { nonNullable: true }),
   });
   readonly preview = computed(() => {
@@ -670,8 +701,11 @@ export function renderInvoiceNumberPreview(
               formControlName="environment"
               class="h-10 rounded-md border border-input bg-background px-3 text-sm"
             >
-              <option value="DEMO">Demo</option>
-              <option value="PRODUCTION">Production</option>
+              @for (environment of environments; track environment.value) {
+                <option [value]="environment.value">
+                  {{ environment.label | translate }}
+                </option>
+              }
             </select>
           </div>
           <div class="flex justify-end">
@@ -807,9 +841,10 @@ export function renderInvoiceNumberPreview(
 })
 export class SefSettingsComponent extends SectionBase {
   readonly hasApiKey = signal(false);
+  readonly environments = optionsFrom(SEF_ENVIRONMENT_LABELS);
   readonly form = new FormGroup({
     enabled: new FormControl(false, { nonNullable: true }),
-    environment: new FormControl<"DEMO" | "PRODUCTION">("DEMO", {
+    environment: new FormControl<SefEnvironment>(SefEnvironment.DEMO, {
       nonNullable: true,
     }),
   });
@@ -944,11 +979,9 @@ export class SefSettingsComponent extends SectionBase {
                 formControlName="defaultPaymentMethod"
                 class="h-10 rounded-md border border-input bg-background px-3 text-sm"
               >
-                @for (m of methods; track m) {
-                  <option [value]="m">
-                    {{
-                      "settings.organization.payment.methods." + m | translate
-                    }}
+                @for (method of methods; track method.value) {
+                  <option [value]="method.value">
+                    {{ method.label | translate }}
                   </option>
                 }
               </select>
@@ -1049,11 +1082,15 @@ export class SefSettingsComponent extends SectionBase {
             />
           </div>
           <div hlmField>
-            <label hlmFieldLabel for="iban">IBAN</label>
+            <label hlmFieldLabel for="iban">
+              {{ "settings.organization.payment.iban" | translate }}
+            </label>
             <input hlmInput id="iban" formControlName="iban" />
           </div>
           <div hlmField>
-            <label hlmFieldLabel for="swift">SWIFT/BIC</label>
+            <label hlmFieldLabel for="swift">
+              {{ "settings.organization.payment.swiftBic" | translate }}
+            </label>
             <input hlmInput id="swift" formControlName="swiftBic" />
           </div>
           <div hlmField>
@@ -1102,7 +1139,7 @@ export class SefSettingsComponent extends SectionBase {
   `,
 })
 export class PaymentSettingsComponent extends SectionBase {
-  readonly methods = ["BANK_TRANSFER", "CASH", "CARD", "OTHER"] as const;
+  readonly methods = optionsFrom(PAYMENT_METHOD_PREFERENCE_LABELS);
   readonly accounts = computed(() => this.store.settings()?.bankAccounts ?? []);
   readonly editingAccountId = signal<string | null>(null);
   readonly form = new FormGroup({
@@ -1110,8 +1147,8 @@ export class PaymentSettingsComponent extends SectionBase {
       nonNullable: true,
       validators: Validators.min(0),
     }),
-    defaultPaymentMethod: new FormControl<(typeof this.methods)[number]>(
-      "BANK_TRANSFER",
+    defaultPaymentMethod: new FormControl<PaymentMethodPreference>(
+      PaymentMethodPreference.BANK_TRANSFER,
       { nonNullable: true },
     ),
     defaultPaymentModel: new FormControl("", { nonNullable: true }),
@@ -1126,7 +1163,7 @@ export class PaymentSettingsComponent extends SectionBase {
     accountNumber: new FormControl("", { nonNullable: true }),
     iban: new FormControl("", { nonNullable: true }),
     swiftBic: new FormControl("", { nonNullable: true }),
-    currencyCode: new FormControl("RSD", {
+    currencyCode: new FormControl<string>(HOME_CURRENCY, {
       nonNullable: true,
       validators: [Validators.required, Validators.pattern(/^[A-Z]{3}$/)],
     }),
@@ -1191,16 +1228,7 @@ export class PaymentSettingsComponent extends SectionBase {
           ),
       });
   }
-  editAccount(account: {
-    id: string;
-    name: string;
-    bankName: string | null;
-    accountNumber: string | null;
-    iban: string | null;
-    swiftBic: string | null;
-    currencyCode: string;
-    isDefault: boolean;
-  }) {
+  editAccount(account: BankAccount) {
     this.editingAccountId.set(account.id);
     this.accountForm.patchValue({
       ...account,
@@ -1218,7 +1246,7 @@ export class PaymentSettingsComponent extends SectionBase {
       accountNumber: "",
       iban: "",
       swiftBic: "",
-      currencyCode: "RSD",
+      currencyCode: HOME_CURRENCY,
       isDefault: false,
     });
   }
@@ -1404,40 +1432,21 @@ export class CurrencySettingsComponent extends SectionBase {
   readonly currencyItemToString = createCurrencyItemToString((key) =>
     this.localization.translate(key),
   );
-  readonly sources = [
-    {
-      value: "NBS_MIDDLE",
-      label: "settings.organization.currency.sources.NBS_MIDDLE",
-    },
-    {
-      value: "NBS_BUY",
-      label: "settings.organization.currency.sources.NBS_BUY",
-    },
-    {
-      value: "NBS_SELL",
-      label: "settings.organization.currency.sources.NBS_SELL",
-    },
-    {
-      value: "MANUAL",
-      label: "settings.organization.currency.sources.MANUAL",
-    },
-  ] as const satisfies ReadonlyArray<
-    SelectOption<"NBS_MIDDLE" | "NBS_BUY" | "NBS_SELL" | "MANUAL">
-  >;
+  readonly sources = optionsFrom(EXCHANGE_RATE_SOURCE_LABELS);
   readonly sourceItemToString = createSelectItemToString(this.sources, (key) =>
     this.localization.translate(key),
   );
   readonly form = new FormGroup({
-    defaultCurrencyCode: new FormControl<CurrencyCode>("RSD", {
+    defaultCurrencyCode: new FormControl<CurrencyCode>(HOME_CURRENCY, {
       nonNullable: true,
       validators: Validators.required,
     }),
-    allowedCurrencyCodes: new FormControl<CurrencyCode[]>(["RSD"], {
+    allowedCurrencyCodes: new FormControl<CurrencyCode[]>([HOME_CURRENCY], {
       nonNullable: true,
       validators: Validators.required,
     }),
-    exchangeRateSource: new FormControl<(typeof this.sources)[number]["value"]>(
-      "NBS_MIDDLE",
+    exchangeRateSource: new FormControl<ExchangeRateSource>(
+      ExchangeRateSource.NBS_MIDDLE,
       { nonNullable: true },
     ),
     allowManualExchangeRate: new FormControl(true, { nonNullable: true }),
@@ -1461,9 +1470,11 @@ export class CurrencySettingsComponent extends SectionBase {
           ...v,
           defaultCurrencyCode: isCurrencyCode(v.defaultCurrencyCode)
             ? v.defaultCurrencyCode
-            : "RSD",
+            : HOME_CURRENCY,
           allowedCurrencyCodes:
-            allowedCurrencyCodes.length > 0 ? allowedCurrencyCodes : ["RSD"],
+            allowedCurrencyCodes.length > 0
+              ? allowedCurrencyCodes
+              : [HOME_CURRENCY],
         });
       }
     });
@@ -1691,21 +1702,12 @@ export class InvoicePaymentQrSettingsComponent extends SectionBase {
   );
   readonly templateVariables =
     "{{invoiceNumber}}, {{customerName}}, {{amount}}, {{currency}}, {{dueDate}}";
-  readonly standards = [
-    {
-      value: "NBS_IPS",
-      label: "settings.organization.paymentQr.standards.NBS_IPS",
-    },
-  ] as const satisfies ReadonlyArray<SelectOption<"NBS_IPS">>;
+  readonly standards = optionsFrom(PAYMENT_QR_STANDARD_LABELS);
   readonly standardItemToString = createSelectItemToString(
     this.standards,
     (key) => this.localization.translate(key),
   );
-  readonly referenceModels = [
-    { value: "", label: "settings.organization.paymentQr.noReference" },
-    { value: "00", label: "settings.organization.paymentQr.model00" },
-    { value: "97", label: "settings.organization.paymentQr.model97" },
-  ] as const satisfies ReadonlyArray<SelectOption<"" | "00" | "97">>;
+  readonly referenceModels = optionsFrom(PAYMENT_REFERENCE_MODEL_LABELS);
   readonly referenceModelItemToString = createSelectItemToString(
     this.referenceModels,
     (key) => this.localization.translate(key),
@@ -1718,9 +1720,10 @@ export class InvoicePaymentQrSettingsComponent extends SectionBase {
   };
   readonly form = new FormGroup({
     enabled: new FormControl(false, { nonNullable: true }),
-    paymentStandard: new FormControl<"NBS_IPS">("NBS_IPS", {
-      nonNullable: true,
-    }),
+    paymentStandard: new FormControl<PaymentQrStandard>(
+      PaymentQrStandard.NBS_IPS,
+      { nonNullable: true },
+    ),
     paymentAccountId: new FormControl("", { nonNullable: true }),
     paymentPurposeTemplate: new FormControl(
       "Plaćanje po fakturi {{invoiceNumber}}",
@@ -1729,9 +1732,10 @@ export class InvoicePaymentQrSettingsComponent extends SectionBase {
         validators: [Validators.required, Validators.maxLength(200)],
       },
     ),
-    referenceModel: new FormControl<"" | "00" | "97">("", {
-      nonNullable: true,
-    }),
+    referenceModel: new FormControl<PaymentReferenceModel>(
+      PaymentReferenceModel.NONE,
+      { nonNullable: true },
+    ),
     referenceTemplate: new FormControl("", {
       nonNullable: true,
       validators: Validators.maxLength(200),
@@ -1751,7 +1755,7 @@ export class InvoicePaymentQrSettingsComponent extends SectionBase {
     if (!account || !account.active)
       errors.push("settings.organization.paymentQr.errors.account");
     else {
-      if (account.currencyCode !== "RSD")
+      if (account.currencyCode !== HOME_CURRENCY)
         errors.push("settings.organization.paymentQr.errors.currency");
       if (!normalizeSerbianPaymentAccount(account.accountNumber))
         errors.push("settings.organization.paymentQr.errors.accountNumber");
@@ -1776,7 +1780,7 @@ export class InvoicePaymentQrSettingsComponent extends SectionBase {
         this.form.patchValue({
           ...value,
           paymentAccountId: value.paymentAccountId ?? "",
-          referenceModel: value.referenceModel ?? "",
+          referenceModel: value.referenceModel ?? PaymentReferenceModel.NONE,
           referenceTemplate: value.referenceTemplate ?? "",
         });
     });
@@ -1894,7 +1898,7 @@ export class InvoicePaymentQrSettingsComponent extends SectionBase {
 export class InvoiceDefaultsSettingsComponent extends SectionBase {
   readonly form = new FormGroup({
     defaultIssuePlace: new FormControl("", { nonNullable: true }),
-    defaultLanguage: new FormControl("sr-Latn", {
+    defaultLanguage: new FormControl<string>(DEFAULT_INVOICE_LANGUAGE, {
       nonNullable: true,
       validators: Validators.required,
     }),

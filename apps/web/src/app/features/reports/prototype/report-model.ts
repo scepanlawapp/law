@@ -1,12 +1,14 @@
+import {
+  ReportAllocationCategory,
+  ReportAllocationReason,
+  ReportCollectionStatus,
+  ReportDateBasis,
+  ReportGroup,
+  ReportSharing,
+  ReportWorkStatus,
+} from "../../../shared/models";
+
 /** UI-only contracts. Amounts are integer RSD minor units, rates are basis points. */
-export type DateBasis = "work" | "invoice" | "collection";
-export type ReportStatus =
-  | "NotInvoiced"
-  | "PartiallyCollected"
-  | "Uncollected"
-  | "FullyCollected"
-  | "RequiresConfiguration";
-export type AllocationCategory = "workShare" | "origination" | "contractual";
 export interface ReportMember {
   id: string;
   name: string;
@@ -14,9 +16,9 @@ export interface ReportMember {
 }
 export interface ReportAllocation {
   memberId: string;
-  category: AllocationCategory;
+  category: ReportAllocationCategory;
   rate: number;
-  reason?: "ownClient" | "otherClient" | "origination" | "contractual";
+  reason?: ReportAllocationReason;
 }
 export interface ReportRecord {
   id: string;
@@ -27,11 +29,11 @@ export interface ReportRecord {
   caseName: string;
   titleKey: string;
   workDate: string;
-  workStatus: "completed" | "planned";
+  workStatus: ReportWorkStatus;
   estimated: number;
   invoice: { reference: string; date: string; amount: number } | null;
   payments: { date: string; amount: number }[];
-  sharing: "configured" | "excluded" | "missing";
+  sharing: ReportSharing;
   allocations: ReportAllocation[];
 }
 export interface ReportDataset {
@@ -41,7 +43,7 @@ export interface ReportDataset {
 export interface ReportFilters {
   from: string;
   to: string;
-  basis: DateBasis;
+  basis: ReportDateBasis;
   member: string;
   client: string;
   caseId: string;
@@ -49,7 +51,7 @@ export interface ReportFilters {
   sharing: string;
   workStatus: string;
   search: string;
-  group: "day" | "week" | "month";
+  group: ReportGroup;
 }
 export interface ReportRow extends ReportRecord {
   date: string;
@@ -63,7 +65,7 @@ export interface ReportRow extends ReportRecord {
   origination: number;
   eligibleCollected: number;
   retained: number;
-  status: ReportStatus;
+  status: ReportCollectionStatus;
   earnings: (ReportAllocation & {
     invoiced: number;
     collected: number;

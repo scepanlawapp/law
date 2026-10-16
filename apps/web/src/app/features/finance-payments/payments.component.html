@@ -1,32 +1,31 @@
 <div class="space-y-4 p-4 md:p-6">
   <header class="flex flex-wrap items-center justify-between gap-3">
     <div>
-      <h1 class="text-2xl font-semibold">Uplate</h1>
+      <h1 class="text-2xl font-semibold">{{ "payments.title" | translate }}</h1>
       <p class="text-muted-foreground">
-        Pregled i evidencija primljenih uplata klijenata.
+        {{ "payments.description" | translate }}
       </p>
     </div>
     <div class="flex flex-wrap items-center gap-2">
-      <span title="Uvoz bankovnih izvoda biće dostupan uskoro.">
+      <span [title]="'payments.importStatementSoon' | translate">
         <button hlmBtn variant="outline" disabled>
-          Uvezi bankovni izvod · Uskoro
+          {{ "payments.importStatement" | translate }}
         </button>
       </span>
-      <button hlmBtn type="button" (click)="create()">Nova uplata</button>
+      <button hlmBtn type="button" (click)="create()">
+        {{ "payments.new" | translate }}
+      </button>
     </div>
   </header>
-  <div class="flex flex-wrap gap-2" aria-label="Brzi filteri">
-    <button hlmBtn variant="outline" (click)="quick('ALL')">Sve uplate</button>
-    <button hlmBtn variant="outline" (click)="quick('UNALLOCATED')">
-      Neraspoređene
-    </button>
-    <button hlmBtn variant="outline" (click)="quick('PARTIAL')">
-      Delimično raspoređene
-    </button>
-    <button hlmBtn variant="outline" (click)="quick('ADVANCE')">Avansi</button>
-    <button hlmBtn variant="outline" (click)="quick('VOIDED')">
-      Poništene
-    </button>
+  <div
+    class="flex flex-wrap gap-2"
+    [attr.aria-label]="'payments.quickFilters' | translate"
+  >
+    @for (filter of quickFilters; track filter.label) {
+      <button hlmBtn variant="outline" (click)="quick(filter)">
+        {{ filter.label | translate }}
+      </button>
+    }
     <button
       hlmBtn
       type="button"
@@ -36,32 +35,36 @@
       aria-controls="payment-summary"
       (click)="toggleSummary()"
     >
-      {{ summaryExpanded() ? "Sakrij sažetak" : "Prikaži sažetak" }}
+      {{
+        (summaryExpanded() ? "payments.summary.hide" : "payments.summary.show")
+          | translate
+      }}
     </button>
   </div>
   @if (summaryExpanded()) {
-    <section id="payment-summary" class="space-y-3" aria-label="Sažetak uplata">
+    <section
+      id="payment-summary"
+      class="space-y-3"
+      [attr.aria-label]="'payments.summary.label' | translate"
+    >
       <div class="flex flex-wrap items-end justify-between gap-3">
         <p class="max-w-3xl text-sm text-muted-foreground">
-          Period:
           {{
-            filters.controls.from.value
-              ? date(filters.controls.from.value)
-              : "bez početnog datuma"
+            "payments.summary.period"
+              | translate
+                : {
+                    from: filters.controls.from.value
+                      ? date(filters.controls.from.value)
+                      : ("payments.summary.noStart" | translate),
+                    to: filters.controls.to.value
+                      ? date(filters.controls.to.value)
+                      : ("payments.summary.noEnd" | translate),
+                  }
           }}
-          –
-          {{
-            filters.controls.to.value
-              ? date(filters.controls.to.value)
-              : "bez krajnjeg datuma"
-          }}. Uplate i avansi prema datumu prijema; dug prema datumu izdavanja
-          fakture. Prikazani su trenutni preostali iznosi tih zapisa. Sažetak
-          prati period i klijenta, uz valute izabrane ovde; ostali filteri važe
-          za tabelu.
         </p>
         <div class="w-72 max-w-full">
           <label for="summary-currencies" class="mb-1 block text-sm">
-            Valute sažetka
+            {{ "payments.summary.currencies" | translate }}
           </label>
           <div
             hlmComboboxMultiple
@@ -74,15 +77,20 @@
               class="w-full min-w-0"
             >
               <span class="truncate">
-                {{ summaryCurrencies().join(", ") || "Izaberite valute" }}
+                {{
+                  summaryCurrencies().join(", ") ||
+                    ("payments.summary.selectCurrencies" | translate)
+                }}
               </span>
             </hlm-combobox-trigger>
             <hlm-combobox-content *hlmComboboxPortal width="content">
               <hlm-combobox-input
-                placeholder="Pretraži valute"
+                [placeholder]="'payments.summary.searchCurrencies' | translate"
                 [showTrigger]="false"
               />
-              <hlm-combobox-empty>Nema rezultata.</hlm-combobox-empty>
+              <hlm-combobox-empty>
+                {{ "common.noResults" | translate }}
+              </hlm-combobox-empty>
               <div hlmComboboxList>
                 @for (option of currencyOptions; track option.value) {
                   <hlm-combobox-item [value]="option.value">
@@ -98,21 +106,26 @@
         @for (t of visibleTotals(); track t.currency) {
           <section
             class="grid grid-cols-2 gap-2 lg:grid-cols-6"
-            [attr.aria-label]="'Sažetak ' + t.currency"
+            [attr.aria-label]="
+              'payments.summary.currencyLabel'
+                | translate: { currency: t.currency }
+            "
           >
             @for (
               card of [
-                { label: "Ukupno primljeno", value: t.received },
-                { label: "Ukupno raspoređeno", value: t.allocated },
-                { label: "Neraspoređena sredstva", value: t.unallocated },
-                { label: "Neraspoređeni avansi", value: t.advances },
-                { label: "Preostali dug", value: t.outstanding },
-                { label: "Dospeo dug", value: t.overdue },
+                { label: "payments.summary.received", value: t.received },
+                { label: "payments.summary.allocated", value: t.allocated },
+                { label: "payments.summary.unallocated", value: t.unallocated },
+                { label: "payments.summary.advances", value: t.advances },
+                { label: "payments.summary.outstanding", value: t.outstanding },
+                { label: "payments.summary.overdue", value: t.overdue },
               ];
               track card.label
             ) {
               <div class="app-section-surface p-3">
-                <p class="text-sm text-muted-foreground">{{ card.label }}</p>
+                <p class="text-sm text-muted-foreground">
+                  {{ card.label | translate }}
+                </p>
                 <strong>{{ money(card.value, t.currency) }}</strong>
               </div>
             }
@@ -121,7 +134,7 @@
       }
       @if (!summaryCurrencies().length) {
         <p class="text-sm text-muted-foreground">
-          Izaberite najmanje jednu valutu za prikaz sažetka.
+          {{ "payments.summary.noCurrency" | translate }}
         </p>
       }
     </section>
@@ -133,12 +146,12 @@
   >
     <div class="grid items-end gap-3 md:grid-cols-4">
       <label>
-        Pretraga
+        {{ "payments.filter.search" | translate }}
         <input
           hlmInput
           class="w-full"
           formControlName="search"
-          placeholder="Klijent, uplatilac, referenca, napomena"
+          [placeholder]="'payments.filter.searchPlaceholder' | translate"
         />
       </label>
       <law-payment-client-picker
@@ -147,11 +160,11 @@
         (valueChange)="filters.controls.clientId.setValue($event)"
       />
       <label>
-        Od datuma
+        {{ "payments.filter.from" | translate }}
         <input hlmInput type="date" class="w-full" formControlName="from" />
       </label>
       <label>
-        Do datuma
+        {{ "payments.filter.to" | translate }}
         <input hlmInput type="date" class="w-full" formControlName="to" />
       </label>
     </div>
@@ -163,48 +176,48 @@
         [attr.aria-expanded]="advanced()"
         (click)="advanced.set(!advanced())"
       >
-        Dodatni filteri
+        {{ "payments.filter.more" | translate }}
       </button>
       <button hlmBtn type="button" variant="ghost" (click)="reset()">
-        Obriši filtere
+        {{ "payments.filter.clear" | translate }}
       </button>
     </div>
     @if (advanced()) {
       <div class="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <law-payment-select
           controlId="filter-method"
-          label="Način plaćanja"
+          label="payments.field.method"
           [control]="filters.controls.paymentMethod"
           [options]="methodOptions"
         />
         <law-payment-select
           controlId="filter-purpose"
-          label="Svrha"
+          label="payments.field.purpose"
           [control]="filters.controls.purpose"
           [options]="purposeOptions"
         />
         <law-payment-select
           controlId="filter-state"
-          label="Status raspodele"
+          label="payments.field.allocationState"
           [control]="filters.controls.allocationState"
           [options]="stateOptions"
         />
         <law-payment-select
           controlId="filter-status"
-          label="Status uplate"
+          label="payments.field.status"
           [control]="filters.controls.status"
           [options]="statusOptions"
         />
         <law-payment-select
           controlId="filter-currency"
           width="content"
-          label="Valuta"
+          label="payments.field.currency"
           [control]="filters.controls.currency"
           [options]="currencies()"
         />
         <law-payment-select
           controlId="filter-bank"
-          label="Bankovni račun"
+          label="payments.field.bankAccount"
           [control]="filters.controls.bankAccountId"
           [options]="banks()"
         />
@@ -212,87 +225,59 @@
     }
   </form>
   @if (loading()) {
-    <hlm-spinner aria-label="Učitavanje uplata" />
+    <hlm-spinner [attr.aria-label]="'payments.loading' | translate" />
   }
   @if (error()) {
     <div role="alert" class="rounded-lg border border-destructive p-4">
-      Uplate nisu učitane.
-      <button hlmBtn variant="outline" (click)="load()">Pokušaj ponovo</button>
+      {{ "payments.loadError" | translate }}
+      <button hlmBtn variant="outline" (click)="list.load()">
+        {{ "payments.retry" | translate }}
+      </button>
     </div>
   } @else {
     <div hlmTableContainer class="app-section-surface">
       <table hlmTable>
         <thead hlmTHead>
           <tr hlmTr>
-            <th
-              hlmTh
-              [attr.aria-sort]="
-                sort() === 'receivedAt'
-                  ? direction() === 'asc'
-                    ? 'ascending'
-                    : 'descending'
-                  : 'none'
-              "
-            >
-              <button (click)="order('receivedAt')">Datum uplate ↕</button>
+            <th hlmTh [attr.aria-sort]="ariaSort('receivedAt')">
+              <button (click)="order('receivedAt')">
+                {{ sortFields.receivedAt.label | translate }} ↕
+              </button>
             </th>
-            <th
-              hlmTh
-              [attr.aria-sort]="
-                sort() === 'clientName'
-                  ? direction() === 'asc'
-                    ? 'ascending'
-                    : 'descending'
-                  : 'none'
-              "
-            >
+            <th hlmTh [attr.aria-sort]="ariaSort('clientName')">
               <button (click)="order('clientName')">
-                Klijent / Uplatilac ↕
+                {{ sortFields.clientName.label | translate }} ↕
               </button>
             </th>
-            <th hlmTh>Način / Referenca</th>
-            <th
-              hlmTh
-              [attr.aria-sort]="
-                sort() === 'amount'
-                  ? direction() === 'asc'
-                    ? 'ascending'
-                    : 'descending'
-                  : 'none'
-              "
-            >
-              <button (click)="order('amount')">Iznos ↕</button>
+            <th hlmTh>{{ "payments.column.methodReference" | translate }}</th>
+            <th hlmTh [attr.aria-sort]="ariaSort('amount')">
+              <button (click)="order('amount')">
+                {{ sortFields.amount.label | translate }} ↕
+              </button>
             </th>
-            <th hlmTh>Raspoređeno</th>
-            <th
-              hlmTh
-              [attr.aria-sort]="
-                sort() === 'unallocatedAmount'
-                  ? direction() === 'asc'
-                    ? 'ascending'
-                    : 'descending'
-                  : 'none'
-              "
-            >
+            <th hlmTh>{{ "payments.column.allocated" | translate }}</th>
+            <th hlmTh [attr.aria-sort]="ariaSort('unallocatedAmount')">
               <button (click)="order('unallocatedAmount')">
-                Neraspoređeno ↕
+                {{ sortFields.unallocatedAmount.label | translate }} ↕
               </button>
             </th>
-            <th hlmTh>Status</th>
-            <th hlmTh>Radnje</th>
+            <th hlmTh>{{ "payments.column.status" | translate }}</th>
+            <th hlmTh>{{ "payments.column.actions" | translate }}</th>
           </tr>
         </thead>
         <tbody hlmTBody>
-          @for (p of result().items; track p.id) {
+          @for (p of list.items(); track p.id) {
             <tr
               hlmTr
               class="cursor-pointer focus-visible:outline-2 focus-visible:outline-ring"
               tabindex="0"
               [attr.aria-label]="
-                'Pregled uplate: ' +
-                (p.clientName ?? p.payerName ?? '') +
-                ', ' +
-                money(p.amount, p.currency)
+                'payments.rowLabel'
+                  | translate
+                    : {
+                        client: p.clientName ?? p.payerName ?? '',
+                        amount: money(p.amount, p.currency),
+                      }
               "
               (click)="view(p.id)"
               (keydown.enter)="openFromKeyboard($event, p.id)"
@@ -300,7 +285,9 @@
             >
               <td hlmTd>{{ date(p.receivedAt) }}</td>
               <td hlmTd>
-                {{ p.clientName ?? "Neidentifikovan klijent" }}
+                {{
+                  p.clientName ?? ("payments.unidentifiedClient" | translate)
+                }}
                 <p class="text-sm text-muted-foreground">{{ p.payerName }}</p>
               </td>
               <td hlmTd>
@@ -315,25 +302,25 @@
               <td hlmTd>
                 <span class="rounded-md border px-2 py-1 text-sm">
                   {{
-                    p.status === "VOIDED"
-                      ? "Poništena"
+                    p.status === PaymentStatus.VOIDED
+                      ? ("payments.voided" | translate)
                       : stateLabel(p.allocationState)
                   }}
                 </span>
-                @if (p.purpose === "ADVANCE") {
+                @if (p.purpose === PaymentPurpose.ADVANCE) {
                   <span class="rounded-md bg-secondary px-2 py-1 text-sm">
-                    Avans
+                    {{ "payments.advance" | translate }}
                   </span>
                 }
               </td>
               <td hlmTd>
-                @if (p.status === "ACTIVE") {
+                @if (p.status === PaymentStatus.ACTIVE) {
                   <button
                     hlmBtn
                     type="button"
                     (click)="$event.stopPropagation(); edit(p.id)"
                   >
-                    Izmeni / Rasporedi
+                    {{ "payments.editAllocate" | translate }}
                   </button>
                 }
               </td>
@@ -341,9 +328,9 @@
           } @empty {
             <tr hlmTr>
               <td hlmTd colspan="8">
-                <p class="py-6">Nema uplata za izabrane filtere.</p>
+                <p class="py-6">{{ "payments.empty" | translate }}</p>
                 <button hlmBtn type="button" (click)="create()">
-                  Dodaj uplatu
+                  {{ "payments.add" | translate }}
                 </button>
               </td>
             </tr>
@@ -351,13 +338,6 @@
         </tbody>
       </table>
     </div>
-    <law-pagination
-      [currentPage]="page()"
-      (currentPageChange)="changePage($event)"
-      [itemsPerPage]="pageSize()"
-      (itemsPerPageChange)="changeSize($event)"
-      [totalItems]="result().meta.totalItems"
-      [disabled]="loading()"
-    />
+    <law-pagination [paginator]="list" />
   }
 </div>

@@ -96,7 +96,12 @@
                     <td hlmTd class="whitespace-nowrap">
                       {{ workDateLabel(entry.workDate) }}
                     </td>
-                    <td hlmTd>{{ entry.user?.displayName ?? ("time.capture.unassigned" | translate) }}</td>
+                    <td hlmTd>
+                      {{
+                        entry.user?.displayName ??
+                          ("time.capture.unassigned" | translate)
+                      }}
+                    </td>
                     <td hlmTd class="max-w-xs">
                       <span class="line-clamp-2">{{ entry.title }}</span>
                       @if (entry.description) {
@@ -126,7 +131,7 @@
                       {{ treatmentLabelKeys[entry.treatment] | translate }}
                     </td>
                     <td hlmTd class="text-end whitespace-nowrap">
-                      @if (entry.status === "PROPOSED") {
+                      @if (entry.status === WorkEntryStatus.PROPOSED) {
                         <button
                           hlmBtn
                           type="button"
@@ -215,7 +220,7 @@
             <thead hlmTHead>
               <tr hlmTr>
                 <th hlmTh>{{ "finance.client" | translate }}</th>
-                <th hlmTh>{{ "finance.monthEnd.invoice" | translate }}</th>
+                <th hlmTh>{{ "finance.monthEnd.statement" | translate }}</th>
                 <th hlmTh>{{ "finance.currency" | translate }}</th>
                 <th hlmTh>{{ "finance.monthEnd.outcome" | translate }}</th>
                 <th hlmTh class="text-end">

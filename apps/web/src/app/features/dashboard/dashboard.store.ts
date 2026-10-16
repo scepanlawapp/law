@@ -9,24 +9,34 @@ import {
   WorkManagementApiClient,
 } from "@law/api-clients";
 import { AuthState } from "@law/security";
+import {
+  CalendarSourceType,
+  CaseStatus,
+  DeadlineStatus,
+  DocumentArchivedFilter,
+  EventStatus,
+  EventType,
+  SortDirection,
+} from "@law/api-interfaces";
 import { forkJoin, of } from "rxjs";
 import { catchError } from "rxjs/operators";
 import {
   ActivityFeedItem,
   CasePreviewRow,
+  OPEN_TASK_STATUSES,
   ObligationItem,
+  UNFINISHED_STATUSES,
   activityLogToFeedItem,
   calendarItemToObligation,
   caseSummaryToPreviewRow,
 } from "./dashboard.models";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
+import { CaseSortField, sortValue } from "../../shared/models";
 
 const UPCOMING_WINDOW_DAYS = 7;
-const UNFINISHED_EVENT_TASK_DEADLINE_STATUSES = [
-  "SCHEDULED",
-  "TODO",
-  "IN_PROGRESS",
-  "OPEN",
-];
+const OBLIGATIONS_LIMIT = 4;
+const ACTIVITY_PREVIEW_LIMIT = 4;
+const CASES_PREVIEW_LIMIT = 5;
 
 /**
  * Dashboard-scoped facade: owns all dashboard requests, per-section loading/error
@@ -112,14 +122,14 @@ export class DashboardStore {
 
     forkJoin({
       activeCases: this.casesApi.list({
-        status: "ACTIVE",
+        status: CaseStatus.ACTIVE,
         assignedUserId: userId,
         page: 1,
         pageSize: 1,
       }),
       hearings: this.eventsApi.list({
-        type: "HEARING",
-        status: "SCHEDULED",
+        type: EventType.HEARING,
+        status: EventStatus.SCHEDULED,
         userIds: [userId],
         from: now.toISOString(),
         to: windowEnd.toISOString(),
@@ -128,26 +138,26 @@ export class DashboardStore {
       }),
       pendingTasks: this.workApi.listTasks({
         assigneeUserIds: [userId],
-        statuses: ["TODO", "IN_PROGRESS"],
+        statuses: OPEN_TASK_STATUSES,
         page: 1,
         pageSize: 1,
       }),
       documents: this.documentsApi.list({
-        archived: "all",
+        archived: DocumentArchivedFilter.ALL,
         createdByUserId: userId,
         page: 1,
         pageSize: 1,
       }),
       overdueTasks: this.workApi.listTasks({
         assigneeUserIds: [userId],
-        statuses: ["TODO", "IN_PROGRESS"],
+        statuses: OPEN_TASK_STATUSES,
         to: now.toISOString(),
         page: 1,
         pageSize: 1,
       }),
       overdueDeadlines: this.workApi.listDeadlines({
         responsibleUserIds: [userId],
-        statuses: ["OPEN"],
+        statuses: [DeadlineStatus.OPEN],
         to: now.toISOString(),
         page: 1,
         pageSize: 1,
@@ -188,9 +198,13 @@ export class DashboardStore {
         from: now.toISOString(),
         to: windowEnd.toISOString(),
         userIds: [userId],
-        sourceTypes: ["EVENT", "TASK", "DEADLINE"],
-        statuses: UNFINISHED_EVENT_TASK_DEADLINE_STATUSES,
-        limit: 4,
+        sourceTypes: [
+          CalendarSourceType.EVENT,
+          CalendarSourceType.TASK,
+          CalendarSourceType.DEADLINE,
+        ],
+        statuses: UNFINISHED_STATUSES,
+        limit: OBLIGATIONS_LIMIT,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
@@ -214,8 +228,7 @@ export class DashboardStore {
     forkJoin({
       activity: this.workApi.listActivity({
         actorUserId: userId,
-        page: 1,
-        pageSize: 4,
+        ...FIRST_PAGE,
       }),
       users: this.referencesApi.users().pipe(catchError(() => of([]))),
     })
@@ -231,14 +244,16 @@ export class DashboardStore {
             ]),
           );
           this.activityItems.set(
-            activity.items.map((entry) =>
-              activityLogToFeedItem(
-                entry,
-                entry.actorUserId
-                  ? (nameByUserId.get(entry.actorUserId) ?? null)
-                  : null,
+            activity.items
+              .slice(0, ACTIVITY_PREVIEW_LIMIT)
+              .map((entry) =>
+                activityLogToFeedItem(
+                  entry,
+                  entry.actorUserId
+                    ? (nameByUserId.get(entry.actorUserId) ?? null)
+                    : null,
+                ),
               ),
-            ),
           );
           this.activityLoading.set(false);
         },
@@ -258,14 +273,17 @@ export class DashboardStore {
     this.casesApi
       .list({
         assignedUserId: userId,
-        sort: "updatedAt:desc",
-        page: 1,
-        pageSize: 5,
+        sort: sortValue<CaseSortField>("updatedAt", SortDirection.DESC),
+        ...FIRST_PAGE,
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (cases) => {
-          this.casesPreview.set(cases.items.map(caseSummaryToPreviewRow));
+          this.casesPreview.set(
+            cases.items
+              .slice(0, CASES_PREVIEW_LIMIT)
+              .map(caseSummaryToPreviewRow),
+          );
           this.casesLoading.set(false);
         },
         error: () => {

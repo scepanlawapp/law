@@ -6,6 +6,7 @@ import {
 import { inject } from "@angular/core";
 import { catchError, throwError } from "rxjs";
 import { ToastService } from "../../shared/ui/toast/toast.service";
+import { LocalizationService } from "../localization/localization.service";
 
 export const SKIP_GLOBAL_ERROR_TOAST = new HttpContextToken<boolean>(
   () => false,
@@ -14,8 +15,20 @@ export const SKIP_GLOBAL_ERROR_TOAST = new HttpContextToken<boolean>(
 const UNSAFE_MESSAGE_PATTERN =
   /\b(sql|query|database|stack trace|stacktrace|exception|errno|node_modules|select\s+.+\s+from)\b/i;
 
+/** Fallback message per HTTP status; 400 and 409 prefer a safe server message. */
+const HTTP_ERROR_LABELS: Readonly<Record<number, string>> = {
+  0: "errors.http.unreachable",
+  400: "errors.http.badRequest",
+  403: "errors.http.forbidden",
+  404: "errors.http.notFound",
+  409: "errors.http.conflict",
+  500: "errors.http.server",
+};
+const SERVER_MESSAGE_STATUSES: ReadonlySet<number> = new Set([400, 409]);
+
 export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
   const toast = inject(ToastService);
+  const localization = inject(LocalizationService);
 
   return next(request).pipe(
     catchError((error: HttpErrorResponse) => {
@@ -27,7 +40,9 @@ export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
         return throwError(() => error);
       }
 
-      const message = getFriendlyErrorMessage(error);
+      const message = getFriendlyErrorMessage(error, (key) =>
+        localization.translate(key),
+      );
       if (message) {
         toast.error(message);
       }
@@ -37,29 +52,16 @@ export const apiErrorInterceptor: HttpInterceptorFn = (request, next) => {
   );
 };
 
-function getFriendlyErrorMessage(error: HttpErrorResponse): string | null {
-  switch (error.status) {
-    case 0:
-      return "The server cannot be reached right now. Please try again.";
-    case 400:
-      return (
-        getSafeServerMessage(error) ??
-        "Please check the information and try again."
-      );
-    case 403:
-      return "You do not have permission to perform this action.";
-    case 404:
-      return "The requested resource was not found.";
-    case 409:
-      return (
-        getSafeServerMessage(error) ??
-        "This action conflicts with the current state. Please try again."
-      );
-    case 500:
-      return "Something went wrong on the server. Please try again.";
-    default:
-      return null;
-  }
+function getFriendlyErrorMessage(
+  error: HttpErrorResponse,
+  translate: (key: string) => string,
+): string | null {
+  const key = HTTP_ERROR_LABELS[error.status];
+  if (!key) return null;
+  const serverMessage = SERVER_MESSAGE_STATUSES.has(error.status)
+    ? getSafeServerMessage(error)
+    : null;
+  return serverMessage ?? translate(key);
 }
 
 function getSafeServerMessage(error: HttpErrorResponse): string | null {

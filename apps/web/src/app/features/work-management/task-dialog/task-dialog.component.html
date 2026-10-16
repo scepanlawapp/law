@@ -159,18 +159,16 @@
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
-                @for (priority of priorities; track priority) {
-                  <hlm-select-item [value]="priority">
+                @for (option of priorityOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
                     <span
                       [class]="
                         statusBadgeBaseClasses +
                         ' ' +
-                        priorityBadgeClass(priority)
+                        priorityBadgeClass(option.value)
                       "
                     >
-                      {{
-                        "work.priority." + priority.toLowerCase() | translate
-                      }}
+                      {{ option.label | translate }}
                     </span>
                   </hlm-select-item>
                 }
@@ -202,16 +200,16 @@
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
-                @for (status of statuses; track status) {
-                  <hlm-select-item [value]="status">
+                @for (option of statusOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
                     <span
                       [class]="
-                        statusBadgeBaseClasses + ' ' + statusBadgeClass(status)
+                        statusBadgeBaseClasses +
+                        ' ' +
+                        statusBadgeClass(option.value)
                       "
                     >
-                      {{
-                        "work.taskStatus." + status.toLowerCase() | translate
-                      }}
+                      {{ option.label | translate }}
                     </span>
                   </hlm-select-item>
                 }
@@ -232,16 +230,16 @@
             </hlm-select-trigger>
             <hlm-select-content *hlmSelectPortal width="content">
               <hlm-select-group>
-                @for (mode of dueModes; track mode) {
-                  <hlm-select-item [value]="mode">
-                    {{ "work.dueMode." + mode.toLowerCase() | translate }}
+                @for (option of dueModeOptions; track option.value) {
+                  <hlm-select-item [value]="option.value">
+                    {{ option.label | translate }}
                   </hlm-select-item>
                 }
               </hlm-select-group>
             </hlm-select-content>
           </hlm-select>
         </div>
-        @if (form.controls.dueMode.value === "DATE") {
+        @if (form.controls.dueMode.value === DueTargetMode.DATE) {
           <div hlmField>
             <label hlmFieldLabel for="task-due-date">
               {{ "work.dueDate" | translate }}
@@ -254,7 +252,7 @@
             />
           </div>
         }
-        @if (form.controls.dueMode.value === "DATE_TIME") {
+        @if (form.controls.dueMode.value === DueTargetMode.DATE_TIME) {
           <div hlmField>
             <label hlmFieldLabel for="task-due-at">
               {{ "work.dueAt" | translate }}

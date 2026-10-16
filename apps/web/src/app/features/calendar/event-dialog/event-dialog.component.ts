@@ -7,11 +7,17 @@ import {
   Validators,
 } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { CaseSummary, ClientSummary, EventDetail } from "@law/api-interfaces";
+import {
+  CalendarSourceType,
+  CaseSummary,
+  ClientSummary,
+  EventDetail,
+  EventType,
+  EventRequest,
+} from "@law/api-interfaces";
 import {
   CasesApiClient,
   ClientsApiClient,
-  EventRequest,
   EventsApiClient,
   ReferencesApiClient,
 } from "@law/api-clients";
@@ -45,6 +51,12 @@ import { ComboboxSelectAllComponent } from "../../../shared/ui/combobox-select-a
 import { EventWorkEntriesComponent } from "./event-work-entries.component";
 import { EventDialogContext } from "./event-dialog.models";
 import { compatibleCaseId, withCaseClient } from "./event-dialog.utils";
+import {
+  EVENT_TYPE_LABELS,
+  OFFICE_TIME_ZONE,
+  optionsFrom,
+} from "../../../shared/models";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
 
 function localDateTime(value: string): string {
   const date = new Date(value);
@@ -97,9 +109,10 @@ export class EventDialogComponent {
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly cases = signal<CaseSummary[]>([]);
   readonly clients = signal<ClientSummary[]>([]);
+  readonly typeOptions = optionsFrom(EVENT_TYPE_LABELS);
   readonly eventId =
     this.context.event?.id ??
-    (this.context.item?.sourceType === "EVENT"
+    (this.context.item?.sourceType === CalendarSourceType.EVENT
       ? this.context.item.sourceId
       : undefined);
   readonly userItemToString = (value: string | null | undefined): string =>
@@ -121,7 +134,7 @@ export class EventDialogComponent {
       .filter(Boolean)
       .join(", ");
   readonly form = new FormGroup({
-    type: new FormControl<"MEETING" | "HEARING" | "CALL" | "OTHER">("MEETING", {
+    type: new FormControl<EventType>(EventType.MEETING, {
       nonNullable: true,
       validators: [Validators.required],
     }),
@@ -138,7 +151,7 @@ export class EventDialogComponent {
       nonNullable: true,
       validators: [Validators.required],
     }),
-    timeZone: new FormControl("Europe/Belgrade", {
+    timeZone: new FormControl<string>(OFFICE_TIME_ZONE, {
       nonNullable: true,
       validators: [Validators.required],
     }),
@@ -188,7 +201,7 @@ export class EventDialogComponent {
           endsAt: localDateTime(this.context.initial.endsAt),
         });
       }
-    } else if (item?.sourceType === "EVENT") {
+    } else if (item?.sourceType === CalendarSourceType.EVENT) {
       this.form.patchValue({
         title: item.title,
         startsAt: item.startsAt ? localDateTime(item.startsAt) : "",
@@ -263,7 +276,7 @@ export class EventDialogComponent {
         );
       });
     this.casesApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => {
         this.cases.set(response.items);
@@ -277,7 +290,7 @@ export class EventDialogComponent {
         );
       });
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => this.clients.set(response.items));
   }

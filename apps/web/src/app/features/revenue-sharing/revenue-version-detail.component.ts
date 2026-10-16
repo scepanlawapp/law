@@ -13,14 +13,18 @@ import { catchError, forkJoin, of, switchMap } from "rxjs";
 import { RevenueSharingApiClient } from "@law/api-clients";
 import {
   RevenueHistoryEntry,
+  RevenueOrigin,
   RevenueReferences,
   RevenueSpecialRule,
   REVENUE_ORIGINS,
+  RevenueScope,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
+import { REVENUE_ENUM_LABELS, labelOf } from "../../shared/models";
+import { RevenueSelfOrigination } from "../../shared/models";
 
 @Component({
   selector: "law-revenue-version-detail",
@@ -99,6 +103,11 @@ export class RevenueVersionDetailComponent {
   private t(key: string) {
     return this.localization.translate("revenue." + key);
   }
+  private enumLabel(value: string) {
+    return labelOf(REVENUE_ENUM_LABELS, value, (key) =>
+      this.localization.translate(key),
+    );
+  }
   private member(id: string) {
     return (
       this.references().members.find((m) => m.id === id)?.name ??
@@ -114,41 +123,40 @@ export class RevenueVersionDetailComponent {
       if (key === "id") return [];
       const label =
         (prefix ? prefix + " · " : "") +
-        this.t(
-          (REVENUE_ORIGINS as readonly string[]).includes(key)
-            ? "enum." + key
-            : key,
-        );
+        (REVENUE_ORIGINS.includes(key as RevenueOrigin)
+          ? this.enumLabel(key)
+          : this.t(key));
       if (field !== null && typeof field === "object")
         return this.rows(field, label, rule);
       let text: string;
       if (field === null || field === "") text = this.t("none");
       else if (typeof field === "boolean")
-        text = this.t("enum." + (field ? "YES" : "NO"));
+        text = this.enumLabel(
+          field ? RevenueSelfOrigination.YES : RevenueSelfOrigination.NO,
+        );
       else if (key === "memberId") text = this.member(String(field));
       else if (key === "scopeId" && rule) {
         const refs =
-          rule.scopeType === "CLIENT"
+          rule.scopeType === RevenueScope.CLIENT
             ? this.references().clients
-            : rule.scopeType === "CASE"
+            : rule.scopeType === RevenueScope.CASE
               ? this.references().cases
-              : rule.scopeType === "WORK_EVENT"
+              : rule.scopeType === RevenueScope.WORK_EVENT
                 ? this.references().events
                 : this.references().members;
         text =
           refs.find((ref) => ref.id === field)?.name ?? this.t("unavailable");
       } else if (key === "percentage")
-        text = new Intl.NumberFormat(
-          this.localization.language() === "EN" ? "en-GB" : "sr-Latn-RS",
-          { style: "percent", maximumFractionDigits: 2 },
-        ).format(Number(field) / 100);
+        text = new Intl.NumberFormat(this.localization.locale(), {
+          style: "percent",
+          maximumFractionDigits: 2,
+        }).format(Number(field) / 100);
       else if (/Date$|^effective/.test(key))
-        text = new Intl.DateTimeFormat(
-          this.localization.language() === "EN" ? "en-GB" : "sr-Latn-RS",
-          { timeZone: "UTC" },
-        ).format(new Date(String(field)));
+        text = new Intl.DateTimeFormat(this.localization.locale(), {
+          timeZone: "UTC",
+        }).format(new Date(String(field)));
       else if (key === "description" || key === "poolId") text = String(field);
-      else text = this.t("enum." + field);
+      else text = this.enumLabel(String(field));
       return [{ label, value: text }];
     });
   }

@@ -6,9 +6,18 @@ import {
   ChatSessionSummary,
   DocumentAnalysisKind,
 } from "@law/api-interfaces";
+import {
+  CHAT_SESSION_STATE_FILTER_LABELS,
+  ConversationTokenKind,
+  DOCUMENT_ANALYSIS_KIND_LABELS,
+} from "../../../../shared/models";
 
-export type ConversationGroupMode = "date" | "matter";
-export type ConversationTokenKind = "client" | "case" | "author" | "kind";
+export const ConversationGroupMode = {
+  DATE: "date",
+  MATTER: "matter",
+} as const;
+export type ConversationGroupMode =
+  (typeof ConversationGroupMode)[keyof typeof ConversationGroupMode];
 
 /** A typed search token shown as a removable chip; `key` is `kind:id`. */
 export interface ConversationToken {
@@ -43,26 +52,24 @@ export interface ConversationSections {
 }
 
 export const DEFAULT_CONVERSATION_FILTERS: ConversationFilters = {
-  scope: "mine",
+  scope: ChatSessionScope.MINE,
   states: [],
   archived: false,
   tokens: [],
   text: "",
 };
 
-export const ANALYSIS_TOKEN_KINDS: DocumentAnalysisKind[] = [
-  "CONTRACT_REVIEW",
-  "CASE_TIMELINE",
-];
+export const ANALYSIS_TOKEN_KINDS = Object.keys(
+  DOCUMENT_ANALYSIS_KIND_LABELS,
+) as DocumentAnalysisKind[];
 
-const STATE_VALUES: ChatSessionStateFilter[] = ["pending", "draft", "analysis"];
-const TOKEN_PARAMS: Record<ConversationTokenKind, string> = {
-  client: "client",
-  case: "case",
-  author: "author",
-  kind: "kind",
-};
+const STATE_VALUES = Object.keys(
+  CHAT_SESSION_STATE_FILTER_LABELS,
+) as ChatSessionStateFilter[];
+/** Each token kind is also the URL param that carries its ids. */
+const TOKEN_KINDS = Object.values(ConversationTokenKind);
 const UNLINKED_GROUP_KEY = "matter:none";
+const ARCHIVED_PARAM_VALUE = "1";
 
 export function tokenKey(kind: ConversationTokenKind, id: string): string {
   return `${kind}:${id}`;
@@ -73,7 +80,7 @@ export function parseTokenKey(key: string): ConversationToken | null {
   if (separator < 1) return null;
   const kind = key.slice(0, separator) as ConversationTokenKind;
   const id = key.slice(separator + 1);
-  if (!(kind in TOKEN_PARAMS) || !id) return null;
+  if (!TOKEN_KINDS.includes(kind) || !id) return null;
   return { key, kind, id };
 }
 
@@ -99,10 +106,12 @@ export function toListQuery(
     ...(filters.archived ? { archived: true } : {}),
     ...(filters.states.length ? { states: filters.states } : {}),
   };
-  const caseIds = idsOf("case");
-  const clientIds = idsOf("client");
-  const authorIds = idsOf("author");
-  const analysisKinds = idsOf("kind") as DocumentAnalysisKind[];
+  const caseIds = idsOf(ConversationTokenKind.CASE);
+  const clientIds = idsOf(ConversationTokenKind.CLIENT);
+  const authorIds = idsOf(ConversationTokenKind.AUTHOR);
+  const analysisKinds = idsOf(
+    ConversationTokenKind.KIND,
+  ) as DocumentAnalysisKind[];
   if (caseIds.length) query.caseIds = caseIds;
   if (clientIds.length) query.clientIds = clientIds;
   if (authorIds.length) query.authorIds = authorIds;
@@ -116,17 +125,21 @@ export function filtersToQueryParams(
   group: ConversationGroupMode,
 ): Params {
   const params: Params = {
-    scope: filters.scope === "team" ? "team" : null,
+    scope:
+      filters.scope === ChatSessionScope.TEAM ? ChatSessionScope.TEAM : null,
     state: filters.states.length ? filters.states.join(",") : null,
-    archived: filters.archived ? "1" : null,
+    archived: filters.archived ? ARCHIVED_PARAM_VALUE : null,
     q: filters.text.trim() || null,
-    group: group === "matter" ? "matter" : null,
+    group:
+      group === ConversationGroupMode.MATTER
+        ? ConversationGroupMode.MATTER
+        : null,
   };
-  for (const [kind, param] of Object.entries(TOKEN_PARAMS)) {
+  for (const kind of TOKEN_KINDS) {
     const ids = filters.tokens
       .filter((token) => token.kind === kind)
       .map((token) => token.id);
-    params[param] = ids.length ? ids.join(",") : null;
+    params[kind] = ids.length ? ids.join(",") : null;
   }
   return params;
 }
@@ -140,12 +153,12 @@ export function filtersFromQueryParams(params: {
       .map((item) => item.trim())
       .filter(Boolean);
   const tokens: ConversationToken[] = [];
-  for (const [kind, param] of Object.entries(TOKEN_PARAMS) as [
-    ConversationTokenKind,
-    string,
-  ][]) {
-    for (const id of list(param)) {
-      if (kind === "kind" && !ANALYSIS_TOKEN_KINDS.includes(id as never)) {
+  for (const kind of TOKEN_KINDS) {
+    for (const id of list(kind)) {
+      if (
+        kind === ConversationTokenKind.KIND &&
+        !ANALYSIS_TOKEN_KINDS.includes(id as DocumentAnalysisKind)
+      ) {
         continue;
       }
       tokens.push({ key: tokenKey(kind, id), kind, id });
@@ -154,16 +167,27 @@ export function filtersFromQueryParams(params: {
   const group = params.get("group");
   return {
     filters: {
-      scope: params.get("scope") === "team" ? "team" : "mine",
+      scope:
+        params.get("scope") === ChatSessionScope.TEAM
+          ? ChatSessionScope.TEAM
+          : ChatSessionScope.MINE,
       states: list("state").filter((state): state is ChatSessionStateFilter =>
         STATE_VALUES.includes(state as ChatSessionStateFilter),
       ),
-      archived: params.get("archived") === "1",
+      archived: params.get("archived") === ARCHIVED_PARAM_VALUE,
       tokens,
       text: params.get("q") ?? "",
     },
-    group: group === "matter" || group === "date" ? group : null,
+    group: isConversationGroupMode(group) ? group : null,
   };
+}
+
+export function isConversationGroupMode(
+  value: string | null,
+): value is ConversationGroupMode {
+  return (Object.values(ConversationGroupMode) as (string | null)[]).includes(
+    value,
+  );
 }
 
 /** Pinned conversations first, then date or matter groups in list order. */
@@ -176,7 +200,10 @@ export function groupConversations(
   const rest = sessions.filter((session) => !session.pinnedAt);
   return {
     pinned,
-    groups: mode === "matter" ? groupByMatter(rest) : groupByDate(rest, now),
+    groups:
+      mode === ConversationGroupMode.MATTER
+        ? groupByMatter(rest)
+        : groupByDate(rest, now),
   };
 }
 

@@ -17,7 +17,7 @@
     <div class="flex flex-wrap items-center gap-2">
       @if (effectiveVersion(); as effective) {
         <span class="rounded-full bg-muted px-3 py-2 text-sm font-medium">
-          {{ "revenue.versionStatus.CURRENT" | translate }} ·
+          {{ versionStatusLabels[RevenueVersionStatus.CURRENT] | translate }} ·
           {{ "revenue.version" | translate }} {{ effective.version }}
         </span>
       }
@@ -25,7 +25,7 @@
         hlmBtn
         type="button"
         variant="outline"
-        (click)="tab.set('history')"
+        (click)="tab.set(RevenueTab.HISTORY)"
       >
         {{ "revenue.tab.history" | translate }}
       </button>
@@ -87,13 +87,13 @@
             class="max-w-full overflow-x-auto justify-start"
             [attr.aria-label]="'revenue.sections' | translate"
           >
-            @for (section of tabs; track section) {
-              <button type="button" [hlmTabsTrigger]="section">
-                {{ "revenue.tab." + section | translate }}
+            @for (section of tabOptions; track section.value) {
+              <button type="button" [hlmTabsTrigger]="section.value">
+                {{ section.label | translate }}
               </button>
             }
           </hlm-tabs-list>
-          <div hlmTabsContent="overview" class="space-y-5">
+          <div [hlmTabsContent]="RevenueTab.OVERVIEW" class="space-y-5">
             <section class="rounded-lg border bg-card p-5">
               <div
                 class="mb-4 flex flex-wrap items-start justify-between gap-3"
@@ -110,7 +110,7 @@
                   hlmBtn
                   variant="outline"
                   type="button"
-                  (click)="tab.set('models')"
+                  (click)="tab.set(RevenueTab.MODELS)"
                 >
                   {{ "revenue.editSharedModel" | translate }}
                 </button>
@@ -127,13 +127,13 @@
                       [attr.aria-label]="
                         ('revenue.editRoleModel' | translate) +
                         ': ' +
-                        ('revenue.enum.' + role | translate)
+                        enumLabel(role)
                       "
                       aria-haspopup="dialog"
                       (click)="openRoleModel(role)"
                     >
                       <span class="text-base font-semibold text-foreground">
-                        {{ "revenue.enum." + role | translate }}
+                        {{ enumLabel(role) }}
                       </span>
                       <span
                         class="mt-2 whitespace-normal text-sm font-normal text-muted-foreground"
@@ -172,7 +172,7 @@
                   hlmBtn
                   variant="outline"
                   type="button"
-                  (click)="tab.set('team')"
+                  (click)="tab.set(RevenueTab.TEAM)"
                 >
                   {{ "revenue.manageAgreements" | translate }}
                 </button>
@@ -184,9 +184,7 @@
                   <div>
                     <p class="font-medium">
                       {{ memberName(agreement.memberId) }} ·
-                      {{
-                        "revenue.enum." + agreement.agreementType | translate
-                      }}
+                      {{ enumLabel(agreement.agreementType) }}
                     </p>
                     <p class="text-sm text-muted-foreground">
                       {{ agreementSummary(agreement) }}
@@ -232,7 +230,7 @@
                   hlmBtn
                   variant="outline"
                   type="button"
-                  (click)="tab.set('special')"
+                  (click)="tab.set(RevenueTab.SPECIAL)"
                 >
                   {{ "revenue.manageRules" | translate }}
                 </button>
@@ -243,10 +241,7 @@
                     {{ "revenue.primaryRevenueBasis" | translate }}
                   </p>
                   <p class="font-medium">
-                    {{
-                      "revenue.enum." + form.controls.primaryRevenueBasis.value
-                        | translate
-                    }}
+                    {{ enumLabel(form.controls.primaryRevenueBasis.value) }}
                   </p>
                 </div>
                 <div>
@@ -254,9 +249,7 @@
                     {{ "revenue.vatBasis" | translate }}
                   </p>
                   <p class="font-medium">
-                    {{
-                      "revenue.enum." + form.controls.vatBasis.value | translate
-                    }}
+                    {{ enumLabel(form.controls.vatBasis.value) }}
                   </p>
                 </div>
               </div>
@@ -315,7 +308,7 @@
             </details>
           </div>
           <div
-            hlmTabsContent="models"
+            [hlmTabsContent]="RevenueTab.MODELS"
             class="rounded-lg border bg-card p-4 space-y-6"
           >
             <div>
@@ -338,13 +331,13 @@
                     [attr.aria-label]="
                       ('revenue.editRoleModel' | translate) +
                       ': ' +
-                      ('revenue.enum.' + role | translate)
+                      enumLabel(role)
                     "
                     aria-haspopup="dialog"
                     (click)="openRoleModel(role)"
                   >
                     <span class="text-base font-semibold text-foreground">
-                      {{ "revenue.enum." + role | translate }}
+                      {{ enumLabel(role) }}
                     </span>
                     <span
                       class="mt-2 whitespace-normal text-sm font-normal text-muted-foreground"
@@ -377,7 +370,7 @@
             @for (origin of origins; track origin) {
               <law-revenue-rate
                 [id]="'default-' + origin"
-                [label]="'revenue.enum.' + origin"
+                [label]="originLabels[origin]"
                 [form]="form.controls.rates.controls[origin]"
               />
             }
@@ -428,7 +421,7 @@
               </p>
             }
           </div>
-          <div hlmTabsContent="team" class="space-y-5">
+          <div [hlmTabsContent]="RevenueTab.TEAM" class="space-y-5">
             @if (!individualMode()) {
               <p class="border rounded-lg p-4">
                 {{ "revenue.personalInactive" | translate }}
@@ -459,7 +452,7 @@
                     <tr hlmTr>
                       <td hlmTd>{{ member.name }}</td>
                       <td hlmTd>
-                        {{ "revenue.enum." + member.role | translate }}
+                        {{ enumLabel(member.role) }}
                       </td>
                       <td hlmTd>
                         <div class="space-y-2">
@@ -519,7 +512,7 @@
               </table>
             </div>
           </div>
-          <div hlmTabsContent="special" class="space-y-5">
+          <div [hlmTabsContent]="RevenueTab.SPECIAL" class="space-y-5">
             @if (!advancedMode()) {
               <p class="rounded-md border bg-card p-4 text-muted-foreground">
                 {{ "revenue.specialInactive" | translate }}
@@ -566,19 +559,21 @@
                   <div class="min-w-0">
                     <p class="font-medium">
                       {{ memberName(r.memberId) }} ·
-                      {{ "revenue.enum." + r.earningType | translate }} ·
+                      {{ enumLabel(r.earningType) }} ·
                       {{ percent(r.percentage) }}
                     </p>
                     <p class="text-sm text-muted-foreground">
-                      {{ "revenue.enum." + r.scopeType | translate }} ·
-                      {{ scopeName(r) }} ·
-                      {{ "revenue.enum." + r.combinationMode | translate }}
+                      {{ enumLabel(r.scopeType) }} · {{ scopeName(r) }} ·
+                      {{ enumLabel(r.combinationMode) }}
                     </p>
                     <p class="text-sm text-muted-foreground">
                       {{ date(r.effectiveFrom) }} – {{ date(r.effectiveTo) }} ·
                       {{
-                        "revenue.enum." + (r.active ? "ACTIVE" : "INACTIVE")
-                          | translate
+                        enumLabel(
+                          r.active
+                            ? RevenueRuleActivity.ACTIVE
+                            : RevenueRuleActivity.INACTIVE
+                        )
                       }}
                     </p>
                   </div>
@@ -615,14 +610,12 @@
               </p>
             </section>
           </div>
-          <div hlmTabsContent="history" class="space-y-4">
+          <div [hlmTabsContent]="RevenueTab.HISTORY" class="space-y-4">
             @for (entry of history(); track entry.id) {
               <details class="border bg-card rounded-lg p-4">
                 <summary class="cursor-pointer">
                   {{ "revenue.version" | translate }} {{ entry.version }} ·
-                  {{
-                    "revenue.versionStatus." + versionStatus(entry) | translate
-                  }}
+                  {{ versionStatusLabels[versionStatus(entry)] | translate }}
                   · {{ date(entry.createdAt) }} · {{ entry.changedBy }} ·
                   {{ "revenue.effectiveFrom" | translate }}
                   {{ date(entry.effectiveFrom) }}
@@ -869,7 +862,7 @@
                     </div>
                     @for (explanation of result.explanations; track $index) {
                       <p class="text-sm text-sidebar-foreground/80">
-                        {{ "revenue.enum." + explanation | translate }}
+                        {{ enumLabel(explanation) }}
                       </p>
                     }
                   }

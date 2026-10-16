@@ -3,7 +3,13 @@ import { HlmDialogService } from "@spartan-ng/helm/dialog";
 import { Observable, map } from "rxjs";
 import { ConfirmDialogComponent } from "./confirm-dialog.component";
 
-export type ConfirmDialogVariant = "default" | "warning" | "danger";
+export const ConfirmDialogVariant = {
+  DEFAULT: "default",
+  WARNING: "warning",
+  DANGER: "danger",
+} as const;
+export type ConfirmDialogVariant =
+  (typeof ConfirmDialogVariant)[keyof typeof ConfirmDialogVariant];
 
 export interface ConfirmDialogOptions {
   title: string;
@@ -35,7 +41,7 @@ export class ConfirmDialogService {
           message: options.message,
           confirmText: options.confirmText ?? "common.confirm",
           cancelText: options.cancelText ?? "common.cancel",
-          variant: options.variant ?? "default",
+          variant: options.variant ?? ConfirmDialogVariant.DEFAULT,
         },
         disableClose: options.disableClose ?? false,
       },

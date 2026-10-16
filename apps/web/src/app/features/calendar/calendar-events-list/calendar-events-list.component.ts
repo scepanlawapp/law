@@ -6,15 +6,31 @@ import {
   input,
   output,
 } from "@angular/core";
-import { CalendarItem, CalendarSourceType } from "@law/api-interfaces";
+import {
+  CalendarItem,
+  CalendarSourceType,
+  EventStatus,
+  TaskStatus,
+} from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideCalendar, lucideClock, lucidePencil } from "@ng-icons/lucide";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { LocalizationService } from "../../../core/localization/localization.service";
+import {
+  CALENDAR_ITEM_STATUS_LABELS,
+  CALENDAR_SOURCE_TYPE_LABELS,
+  CLOSED_CALENDAR_ITEM_STATUSES,
+  CalendarItemStatus,
+  OFFICE_TIME_ZONE,
+  labelOf,
+} from "../../../shared/models";
 
-const BELGRADE_TIME_ZONE = "Europe/Belgrade";
+const MUTED_BADGE = "bg-muted text-muted-foreground border-border";
+const DESTRUCTIVE_BADGE =
+  "bg-destructive/10 text-destructive border-destructive/20";
+const PRIMARY_BADGE = "bg-primary/10 text-primary border-primary/20";
 
 @Component({
   selector: "law-calendar-events-list",
@@ -29,6 +45,7 @@ const BELGRADE_TIME_ZONE = "Europe/Belgrade";
 })
 export class CalendarEventsListComponent {
   private readonly localization = inject(LocalizationService);
+  readonly CalendarSourceType = CalendarSourceType;
 
   readonly items = input<CalendarItem[]>([]);
   readonly loading = input<boolean>(false);
@@ -68,59 +85,53 @@ export class CalendarEventsListComponent {
     if (item.date || !item.startsAt) {
       return this.localization.translate("calendar.allDay");
     }
-    const start = new Date(item.startsAt);
-    const startStr = new Intl.DateTimeFormat(undefined, {
+    const startStr = this.formatClock(item.startsAt);
+    return item.endsAt
+      ? `${startStr} – ${this.formatClock(item.endsAt)}`
+      : startStr;
+  }
+
+  private formatClock(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
-      timeZone: BELGRADE_TIME_ZONE,
-    }).format(start);
-
-    if (item.endsAt) {
-      const end = new Date(item.endsAt);
-      const endStr = new Intl.DateTimeFormat(undefined, {
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-        timeZone: BELGRADE_TIME_ZONE,
-      }).format(end);
-      return `${startStr} – ${endStr}`;
-    }
-    return startStr;
+      timeZone: OFFICE_TIME_ZONE,
+    }).format(new Date(value));
   }
 
   sourceLabel(item: CalendarItem): string {
-    return `calendar.source.${item.sourceType.toLowerCase()}`;
+    return labelOf(CALENDAR_SOURCE_TYPE_LABELS, item.sourceType, (key) =>
+      this.localization.translate(key),
+    );
   }
 
   statusLabel(status: string): string {
-    return `calendar.status.${status.toLowerCase()}`;
+    return labelOf(CALENDAR_ITEM_STATUS_LABELS, status, (key) =>
+      this.localization.translate(key),
+    );
   }
 
   sourceBadgeClass(sourceType: CalendarSourceType): string {
     switch (sourceType) {
-      case "EVENT":
-        return "bg-primary/10 text-primary border-primary/20";
-      case "DEADLINE":
-        return "bg-destructive/10 text-destructive border-destructive/20";
-      case "TASK":
+      case CalendarSourceType.EVENT:
+        return PRIMARY_BADGE;
+      case CalendarSourceType.DEADLINE:
+        return DESTRUCTIVE_BADGE;
+      case CalendarSourceType.TASK:
       default:
         return "bg-secondary text-secondary-foreground border-border";
     }
   }
 
   statusBadgeClass(status: string): string {
-    const s = status.toUpperCase();
-    if (["COMPLETED", "DONE", "SATISFIED"].includes(s)) {
-      return "bg-muted text-muted-foreground border-border";
-    }
-    if (s === "CANCELLED") {
-      return "bg-destructive/10 text-destructive border-destructive/20";
-    }
-    if (s === "IN_PROGRESS") {
+    const value = status.toUpperCase() as CalendarItemStatus;
+    if (value === EventStatus.CANCELLED) return DESTRUCTIVE_BADGE;
+    if (CLOSED_CALENDAR_ITEM_STATUSES.includes(value)) return MUTED_BADGE;
+    if (value === TaskStatus.IN_PROGRESS) {
       return "bg-accent text-accent-foreground border-border";
     }
-    return "bg-primary/10 text-primary border-primary/20";
+    return PRIMARY_BADGE;
   }
 
   onItemClick(event: Event, item: CalendarItem): void {
@@ -128,7 +139,7 @@ export class CalendarEventsListComponent {
   }
 
   onItemDblClick(event: MouseEvent, item: CalendarItem): void {
-    if (item.sourceType === "EVENT") {
+    if (item.sourceType === CalendarSourceType.EVENT) {
       this.itemEdit.emit({ event, item });
     } else {
       this.itemSelect.emit({ event, item });

@@ -30,15 +30,15 @@ describe("CaseDetailComponent activity duration", () => {
 
   beforeEach(() => {
     createActivity.mockReset().mockReturnValue(of({}));
-    const emptyPage = {
+    const fullPage = {
       items: [],
-      meta: { page: 1, totalItems: 0, totalPages: 0 },
+      meta: { page: 1, totalItems: 200, totalPages: 4 },
     };
-    listActivities.mockReset().mockReturnValue(of(emptyPage));
-    listResponsibilities.mockReset().mockReturnValue(of(emptyPage));
+    listActivities.mockReset().mockReturnValue(of(fullPage));
+    listResponsibilities.mockReset().mockReturnValue(of(fullPage));
     caseLinks
       .mockReset()
-      .mockReturnValue(of({ sessions: emptyPage, drafts: emptyPage }));
+      .mockReturnValue(of({ sessions: fullPage, drafts: fullPage }));
     TestBed.configureTestingModule({
       providers: [
         {
@@ -131,40 +131,40 @@ describe("CaseDetailComponent activity duration", () => {
     expect(createActivity).not.toHaveBeenCalled();
   });
 
-  it("defaults every page-button case collection to 50 and resets on size changes", () => {
+  it("defaults every page-button case collection to 100 and resets on size changes", () => {
     component.loadActivities(true);
     component.loadResponsibilities(true);
     component.loadAssistantLinks();
     expect(listActivities).toHaveBeenLastCalledWith(
       "case-1",
-      expect.objectContaining({ page: 1, pageSize: 50 }),
+      expect.objectContaining({ page: 1, pageSize: 100 }),
     );
     expect(listResponsibilities).toHaveBeenLastCalledWith("case-1", {
       page: 1,
-      pageSize: 50,
+      pageSize: 100,
     });
     expect(caseLinks).toHaveBeenLastCalledWith("workspace-1", "case-1", {
       page: 1,
       draftPage: 1,
-      pageSize: 50,
+      pageSize: 100,
     });
-    component.activitiesPage.set(3);
-    component.changeActivitiesPageSize(20);
+    component.activityList.page.set(3);
+    component.activityList.changePageSize(20);
     expect(listActivities).toHaveBeenCalledTimes(2);
     expect(listActivities).toHaveBeenLastCalledWith(
       "case-1",
       expect.objectContaining({ page: 1, pageSize: 20 }),
     );
-    component.responsibilitiesPage.set(3);
-    component.changeResponsibilitiesPageSize(100);
+    component.responsibilityList.page.set(3);
+    component.responsibilityList.changePageSize(50);
     expect(listResponsibilities).toHaveBeenCalledTimes(2);
     expect(listResponsibilities).toHaveBeenLastCalledWith("case-1", {
       page: 1,
-      pageSize: 100,
+      pageSize: 50,
     });
-    component.assistantSessionsPage.set(3);
-    component.assistantDraftsPage.set(2);
-    component.changeAssistantPageSize(20);
+    component.assistantSessions.page.set(3);
+    component.assistantDrafts.page.set(2);
+    component.assistantDrafts.changePageSize(20);
     expect(caseLinks).toHaveBeenCalledTimes(2);
     expect(caseLinks).toHaveBeenLastCalledWith("workspace-1", "case-1", {
       page: 1,
@@ -183,16 +183,16 @@ describe("CaseDetailComponent activity duration", () => {
       meta: { page: 3, totalItems: 150, totalPages: 3 },
     });
     expect(component.activities()).toEqual([]);
-    expect(component.activitiesPage()).toBe(1);
+    expect(component.activityList.page()).toBe(1);
     listActivities.mockReturnValueOnce(
       of({ items: [], meta: { page: 3, totalItems: 2, totalPages: 1 } }),
     );
-    component.activitiesPage.set(3);
+    component.activityList.page.set(3);
     component.loadActivities(true);
     expect(listActivities).toHaveBeenLastCalledWith(
       "case-1",
-      expect.objectContaining({ page: 1, pageSize: 50 }),
+      expect.objectContaining({ page: 1, pageSize: 100 }),
     );
-    expect(component.activitiesPage()).toBe(1);
+    expect(component.activityList.page()).toBe(1);
   });
 });

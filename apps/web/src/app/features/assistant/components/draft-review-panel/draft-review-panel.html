@@ -20,16 +20,10 @@
       </span>
       <div>
         <strong id="draft-review-title">
-          {{ "assistant.draftReview" | translate }}
-          @if (draft.documentType) {
-          ·
-          {{ "assistant.documentType." + draft.documentType | translate }}
-          }
+          {{ "assistant.draftReview" | translate }} @if (draft.documentType) { ·
+          {{ documentTypeLabels[draft.documentType] | translate }} }
         </strong>
-        <span
-          class="draft-status"
-          [attr.data-status]="draft.approvalStatus || 'READY_FOR_SIGNOFF'"
-        >
+        <span class="draft-status" [attr.data-status]="status">
           {{ statusKey() | translate }}
         </span>
       </div>
@@ -74,10 +68,8 @@
               <span>{{ item.label }}</span>
               @if (item.occurrences.length > 1) {
               <span class="draft-todo-count">
-                {{
-                  "assistant.occurrences"
-                    | translate: { count: item.occurrences.length }
-                }}
+                {{ "assistant.occurrences" | translate: { count:
+                item.occurrences.length } }}
               </span>
               }
               <button
@@ -138,9 +130,7 @@
         }
       </ul>
     </law-collapsible-section>
-    }
-
-    @if (draft.citations.length) {
+    } @if (draft.citations.length) {
     <law-collapsible-section
       class="draft-sources"
       [title]="'assistant.sources' | translate"
@@ -158,15 +148,14 @@
         role="group"
         [attr.aria-label]="'assistant.script' | translate"
       >
-        @for (scriptOption of scripts; track scriptOption) {
+        @for (scriptOption of scripts; track scriptOption.value) {
         <button
           type="button"
-          [class.selected]="script === scriptOption"
-          [attr.aria-pressed]="script === scriptOption"
-          (click)="scriptChange.emit(scriptOption)"
+          [class.selected]="script === scriptOption.value"
+          [attr.aria-pressed]="script === scriptOption.value"
+          (click)="scriptChange.emit(scriptOption.value)"
         >
-          {{ (scriptOption === "latin" ? "assistant.latin" :
-          "assistant.cyrillic" ) | translate }}
+          {{ scriptOption.label | translate }}
         </button>
         }
       </div>

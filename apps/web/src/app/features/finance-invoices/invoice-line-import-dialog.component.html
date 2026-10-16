@@ -47,28 +47,19 @@
     <legend class="mb-1 font-medium">
       {{ "finance.importMode" | translate }}
     </legend>
-    <label class="flex items-center gap-2">
-      <input
-        type="radio"
-        name="invoice-import-mode"
-        value="SEPARATE"
-        class="h-4 w-4 accent-primary"
-        [checked]="mode() === 'SEPARATE'"
-        (change)="mode.set('SEPARATE')"
-      />
-      {{ "finance.importSeparate" | translate }}
-    </label>
-    <label class="flex items-center gap-2">
-      <input
-        type="radio"
-        name="invoice-import-mode"
-        value="GROUPED"
-        class="h-4 w-4 accent-primary"
-        [checked]="mode() === 'GROUPED'"
-        (change)="mode.set('GROUPED')"
-      />
-      {{ "finance.importGrouped" | translate }}
-    </label>
+    @for (option of modeOptions; track option.value) {
+      <label class="flex items-center gap-2">
+        <input
+          type="radio"
+          name="invoice-import-mode"
+          [value]="option.value"
+          class="h-4 w-4 accent-primary"
+          [checked]="mode() === option.value"
+          (change)="mode.set(option.value)"
+        />
+        {{ option.label | translate }}
+      </label>
+    }
   </fieldset>
 
   <div class="min-h-0 flex-1 overflow-y-auto">
@@ -83,7 +74,7 @@
         class="flex items-center justify-between gap-3 rounded-lg border border-destructive p-3"
       >
         <p>{{ "finance.loadError" | translate }}</p>
-        <button hlmBtn type="button" variant="outline" (click)="load()">
+        <button hlmBtn type="button" variant="outline" (click)="list.load()">
           {{ "finance.retry" | translate }}
         </button>
       </div>
@@ -229,14 +220,7 @@
     }
   </div>
 
-  <law-pagination
-    [currentPage]="page()"
-    [itemsPerPage]="pageSize()"
-    [totalItems]="totalItems()"
-    [disabled]="loading()"
-    (currentPageChange)="changePage($event)"
-    (itemsPerPageChange)="changePageSize($event)"
-  />
+  <law-pagination [paginator]="list" />
   <hlm-dialog-footer class="items-center sm:justify-end">
     <div class="flex gap-2">
       <button

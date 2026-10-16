@@ -95,6 +95,7 @@ describe("SecuritySettingsComponent", () => {
             translate: (key: string, params?: Record<string, unknown>) =>
               params ? `${key} ${JSON.stringify(params)}` : key,
             language: () => "SR",
+            locale: () => "sr-Latn-RS",
           },
         },
       ],

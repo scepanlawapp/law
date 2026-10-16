@@ -12,11 +12,11 @@ import {
   ClientSummary,
   DeadlineDetail,
   DeadlineType,
+  DeadlineRequest,
 } from "@law/api-interfaces";
 import {
   CasesApiClient,
   ClientsApiClient,
-  DeadlineRequest,
   ReferencesApiClient,
   WorkManagementApiClient,
 } from "@law/api-clients";
@@ -53,8 +53,17 @@ import {
   todayDateInputValue,
 } from "../work-management-utils";
 import { DeadlineDialogContext } from "./deadline-dialog.models";
-
-type DeadlineDueMode = "DATE" | "DATE_TIME";
+import {
+  DEADLINE_DUE_TARGET_MODES,
+  DEADLINE_TYPE_LABELS,
+  DUE_TARGET_MODE_LABELS,
+  DeadlineDueTargetMode,
+  OFFICE_TIME_ZONE,
+  createSelectItemToString,
+  optionsFrom,
+} from "../../../shared/models";
+import { DueTargetMode } from "../../../shared/models";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
 
 @Component({
   selector: "law-deadline-dialog",
@@ -100,24 +109,20 @@ export class DeadlineDialogComponent {
   readonly clients = signal<ClientSummary[]>([]);
   readonly saving = signal(false);
   readonly editing = Boolean(this.context.deadline);
-  readonly types: DeadlineType[] = [
-    "COURT",
-    "STATUTORY",
-    "CONTRACTUAL",
-    "INTERNAL",
-    "OTHER",
-  ];
-  readonly dueModes: DeadlineDueMode[] = ["DATE", "DATE_TIME"];
-  readonly deadlineTypeItemToString = (
-    value: string | null | undefined,
-  ): string =>
-    value
-      ? this.localization.translate(`work.deadlineType.${value.toLowerCase()}`)
-      : "";
-  readonly dueModeItemToString = (value: string | null | undefined): string =>
-    value
-      ? this.localization.translate(`work.dueMode.${value.toLowerCase()}`)
-      : "";
+  readonly DueTargetMode = DueTargetMode;
+  readonly typeOptions = optionsFrom(DEADLINE_TYPE_LABELS);
+  readonly dueModeOptions = optionsFrom(
+    DUE_TARGET_MODE_LABELS,
+    DEADLINE_DUE_TARGET_MODES,
+  );
+  readonly deadlineTypeItemToString = createSelectItemToString(
+    this.typeOptions,
+    (key) => this.localization.translate(key),
+  );
+  readonly dueModeItemToString = createSelectItemToString(
+    this.dueModeOptions,
+    (key) => this.localization.translate(key),
+  );
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().find((user) => user.id === value)?.name ?? "";
   readonly clientItemToString = (value: string | null | undefined): string => {
@@ -140,10 +145,10 @@ export class DeadlineDialogComponent {
       nonNullable: true,
     }),
     type: new FormControl<DeadlineType>(
-      this.context.deadline?.type ?? "INTERNAL",
+      this.context.deadline?.type ?? DeadlineType.INTERNAL,
       { nonNullable: true },
     ),
-    dueMode: new FormControl<DeadlineDueMode>(
+    dueMode: new FormControl<DeadlineDueTargetMode>(
       deadlineDueMode(this.context.deadline),
       { nonNullable: true },
     ),
@@ -186,7 +191,7 @@ export class DeadlineDialogComponent {
         title: initial.title,
         description: initial.description ?? "",
         type: initial.type,
-        dueMode: initial.dueAt ? "DATE_TIME" : "DATE",
+        dueMode: deadlineDueMode(initial),
         dueDate: dateInputValue(initial.dueDate),
         dueAt: dateTimeInputValue(initial.dueAt),
         responsibleUserId: initial.responsibleUserId,
@@ -197,8 +202,10 @@ export class DeadlineDialogComponent {
     this.form.controls.dueMode.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((mode) => {
-        if (mode !== "DATE") this.form.controls.dueDate.setValue("");
-        if (mode !== "DATE_TIME") this.form.controls.dueAt.setValue("");
+        if (mode !== DueTargetMode.DATE)
+          this.form.controls.dueDate.setValue("");
+        if (mode !== DueTargetMode.DATE_TIME)
+          this.form.controls.dueAt.setValue("");
       });
     this.form.controls.caseId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -235,7 +242,7 @@ export class DeadlineDialogComponent {
         );
       });
     this.casesApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => {
         this.cases.set(response.items);
@@ -249,7 +256,7 @@ export class DeadlineDialogComponent {
         }
       });
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => this.clients.set(response.items));
   }
@@ -264,22 +271,22 @@ export class DeadlineDialogComponent {
       title: value.title,
       description: value.description || undefined,
       type: value.type,
-      timeZone: "Europe/Belgrade",
+      timeZone: OFFICE_TIME_ZONE,
       responsibleUserId: value.responsibleUserId,
       sourceDescription: value.sourceDescription || undefined,
       caseId: value.caseId || undefined,
       clientId: value.clientId || undefined,
-      dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
+      dueDate: value.dueMode === DueTargetMode.DATE ? value.dueDate : undefined,
       dueAt:
-        value.dueMode === "DATE_TIME"
+        value.dueMode === DueTargetMode.DATE_TIME
           ? this.toIsoDateTime(value.dueAt)
           : undefined,
     };
-    if (value.dueMode === "DATE" && !request.dueDate) {
+    if (value.dueMode === DueTargetMode.DATE && !request.dueDate) {
       this.form.controls.dueDate.setErrors({ required: true });
       return;
     }
-    if (value.dueMode === "DATE_TIME" && !value.dueAt) {
+    if (value.dueMode === DueTargetMode.DATE_TIME && !value.dueAt) {
       this.form.controls.dueAt.setErrors({ required: true });
       return;
     }

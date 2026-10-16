@@ -8,15 +8,20 @@ import {
   Validators,
 } from "@angular/forms";
 import { ActivatedRoute, RouterLink } from "@angular/router";
-import { CaseDetail, DocumentSummary } from "@law/api-interfaces";
-import { AuthState } from "@law/security";
 import {
+  ActivityType,
+  CaseDetail,
+  CaseStatus,
+  DocumentSummary,
   CaseResponsibility,
   CaseLinksResponse,
+  DomainActivity,
+} from "@law/api-interfaces";
+import { AuthState } from "@law/security";
+import {
   CasesApiClient,
   ChatApiClient,
   DocumentsApiClient,
-  DomainActivity,
   ReferencesApiClient,
 } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -33,6 +38,11 @@ import {
 import { HlmField, HlmFieldLabel } from "@spartan-ng/helm/field";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
+import {
+  FIRST_PAGE,
+  PageState,
+  injectPaginatedList,
+} from "../../shared/pagination/paginated-list";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import {
@@ -55,8 +65,17 @@ import {
   priorityBadgeClass as sharedPriorityBadgeClass,
   statusBadgeClass as sharedStatusBadgeClass,
 } from "../../shared/status-badge";
-
-const CASE_DETAIL_PAGE_SIZE = 10;
+import {
+  ACTIVITY_SOURCE_LABELS,
+  ACTIVITY_TYPE_LABELS,
+  CASE_PRIORITY_LABELS,
+  CASE_STATUS_LABELS,
+  DOCUMENT_CATEGORY_LABELS,
+  DRAFT_APPROVAL_STATUS_LABELS,
+  DRAFT_DOCUMENT_TYPE_LABELS,
+  TIMED_ACTIVITY_TYPES,
+  labelOf,
+} from "../../shared/models";
 
 type CaseTab =
   | "overview"
@@ -100,6 +119,12 @@ type CaseTab =
   ],
 })
 export class CaseDetailComponent {
+  protected readonly CaseStatus = CaseStatus;
+  readonly statusLabels = CASE_STATUS_LABELS;
+  readonly priorityLabels = CASE_PRIORITY_LABELS;
+  readonly activitySourceLabels = ACTIVITY_SOURCE_LABELS;
+  readonly draftDocumentTypeLabels = DRAFT_DOCUMENT_TYPE_LABELS;
+  readonly draftApprovalStatusLabels = DRAFT_APPROVAL_STATUS_LABELS;
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   private readonly api = inject(CasesApiClient);
   private readonly documentsApi = inject(DocumentsApiClient);
@@ -116,22 +141,27 @@ export class CaseDetailComponent {
   readonly item = signal<CaseDetail | null>(null);
   readonly loading = signal(true);
   readonly selectedTab = signal<CaseTab>("overview");
-  readonly activities = signal<DomainActivity[]>([]);
-  readonly activitiesLoading = signal(false);
-  readonly activitiesLoaded = signal(false);
-  readonly activitiesPage = signal(1);
-  readonly activitiesPageSize = signal(50);
-  readonly activitiesPageCount = signal(1);
-  readonly activitiesTotal = signal(0);
-  readonly activityTypes = signal<DomainActivity["type"][]>([]);
   readonly activitySearch = new FormControl("", { nonNullable: true });
-  readonly responsibilities = signal<CaseResponsibility[]>([]);
-  readonly responsibilitiesLoading = signal(false);
-  readonly responsibilitiesLoaded = signal(false);
-  readonly responsibilitiesPage = signal(1);
-  readonly responsibilitiesPageSize = signal(50);
-  readonly responsibilitiesPageCount = signal(1);
-  readonly responsibilitiesTotal = signal(0);
+  readonly activityTypes = signal<ActivityType[]>([]);
+  readonly activityList = injectPaginatedList<DomainActivity>({
+    fetch: (request) =>
+      this.api.listActivities(this.id, {
+        search: this.activitySearch.value.trim() || undefined,
+        types: this.activityTypes().length ? this.activityTypes() : undefined,
+        ...request,
+      }),
+    onError: () => this.toast.error(this.local.translate("cases.loadError")),
+  });
+  readonly activities = this.activityList.items;
+  readonly activitiesLoading = this.activityList.loading;
+  readonly activitiesTotal = this.activityList.totalItems;
+  readonly responsibilityList = injectPaginatedList<CaseResponsibility>({
+    fetch: (request) => this.api.listResponsibilities(this.id, request),
+    onError: () => this.toast.error(this.local.translate("cases.loadError")),
+  });
+  readonly responsibilities = this.responsibilityList.items;
+  readonly responsibilitiesLoading = this.responsibilityList.loading;
+  readonly responsibilitiesTotal = this.responsibilityList.totalItems;
   readonly documents = signal<DocumentSummary[]>([]);
   readonly documentsLoading = signal(false);
   readonly documentsLoaded = signal(false);
@@ -143,31 +173,24 @@ export class CaseDetailComponent {
   readonly showCloseForm = signal(false);
   readonly showActivityForm = signal(false);
   readonly assistantLinks = signal<CaseLinksResponse | null>(null);
-  readonly assistantPageSize = signal(50);
-  private activitiesRequest = 0;
-  private responsibilitiesRequest = 0;
   private assistantRequest = 0;
   readonly assistantLoading = signal(false);
-  readonly assistantSessionsPage = signal(1);
-  readonly assistantSessionsPageCount = signal(1);
-  readonly assistantDraftsPage = signal(1);
-  readonly assistantDraftsPageCount = signal(1);
+  readonly assistantSessions: PageState = new PageState({
+    loading: this.assistantLoading,
+    onChange: () =>
+      this.changeAssistantPage(this.assistantSessions, this.assistantDrafts),
+  });
+  readonly assistantDrafts: PageState = new PageState({
+    loading: this.assistantLoading,
+    onChange: () =>
+      this.changeAssistantPage(this.assistantDrafts, this.assistantSessions),
+  });
 
-  readonly activityTypeOptions: ReadonlyArray<DomainActivity["type"]> = [
-    "NOTE",
-    "PHONE_CALL",
-    "MEETING",
-    "EMAIL",
-    "OTHER",
-  ];
+  readonly activityTypeOptions = Object.values(ActivityType);
   readonly activityTypeItemToString = (
-    value: DomainActivity["type"] | string | null | undefined,
+    value: ActivityType | string | null | undefined,
   ): string =>
-    value
-      ? this.local.translate(
-          `cases.activity.type.${value as DomainActivity["type"]}`,
-        )
-      : "";
+    labelOf(ACTIVITY_TYPE_LABELS, value, (key) => this.local.translate(key));
   readonly selectedActivityTypesLabel = computed(() =>
     this.activityTypes().map(this.activityTypeItemToString).join(", "),
   );
@@ -215,7 +238,7 @@ export class CaseDetailComponent {
     }),
   });
   readonly activityForm = new FormGroup({
-    type: new FormControl<DomainActivity["type"]>("NOTE", {
+    type: new FormControl<ActivityType>(ActivityType.NOTE, {
       nonNullable: true,
     }),
     title: new FormControl("", {
@@ -241,14 +264,14 @@ export class CaseDetailComponent {
   );
   /** Only calls, meetings and emails take a duration. */
   readonly activityTakesDuration = computed(() =>
-    ["PHONE_CALL", "MEETING", "EMAIL"].includes(this.selectedActivityType()),
+    TIMED_ACTIVITY_TYPES.includes(this.selectedActivityType()),
   );
   private readonly syncActivityDuration =
     this.activityForm.controls.type.valueChanges
       .pipe(takeUntilDestroyed())
       .subscribe((type) => {
         const control = this.activityForm.controls.durationMinutes;
-        if (["PHONE_CALL", "MEETING", "EMAIL"].includes(type)) {
+        if (TIMED_ACTIVITY_TYPES.includes(type)) {
           control.enable();
         } else {
           // A hidden, stale value must neither block submit nor be sent.
@@ -272,10 +295,7 @@ export class CaseDetailComponent {
         distinctUntilChanged(),
         takeUntilDestroyed(this.destroyRef),
       )
-      .subscribe(() => {
-        this.activitiesPage.set(1);
-        this.loadActivities(true);
-      });
+      .subscribe(() => this.activityList.reset());
     this.refs
       .users()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -334,22 +354,29 @@ export class CaseDetailComponent {
 
   formatDate(value: string | null | undefined): string {
     if (!value) return this.local.translate("common.notProvided");
-    return new Intl.DateTimeFormat(
-      this.local.language() === "EN" ? "en" : "sr-Latn",
-      { dateStyle: "medium" },
-    ).format(new Date(value));
+    return new Intl.DateTimeFormat(this.local.locale(), {
+      dateStyle: "medium",
+    }).format(new Date(value));
   }
 
   formatDateTime(value: string | null | undefined): string {
     if (!value) return this.local.translate("common.notProvided");
-    return new Intl.DateTimeFormat(
-      this.local.language() === "EN" ? "en" : "sr-Latn",
-      { dateStyle: "medium", timeStyle: "short" },
-    ).format(new Date(value));
+    return new Intl.DateTimeFormat(this.local.locale(), {
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
   }
 
-  activityTypeLabel(type: DomainActivity["type"]): string {
-    return this.local.translate(`cases.activity.type.${type}`);
+  activityTypeLabel(type: ActivityType): string {
+    return this.activityTypeItemToString(type);
+  }
+
+  documentCategoryLabel(document: DocumentSummary): string {
+    return (
+      labelOf(DOCUMENT_CATEGORY_LABELS, document.category, (key) =>
+        this.local.translate(key),
+      ) || this.local.translate("common.notProvided")
+    );
   }
 
   statusBadgeClass(status: string): string {
@@ -389,40 +416,27 @@ export class CaseDetailComponent {
     this.assistantLoading.set(true);
     this.chat
       .caseLinks(workspaceId, this.id, {
-        page: this.assistantSessionsPage(),
-        draftPage: this.assistantDraftsPage(),
-        pageSize: this.assistantPageSize(),
+        page: this.assistantSessions.page(),
+        draftPage: this.assistantDrafts.page(),
+        pageSize: this.assistantSessions.pageSize(),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (links) => {
           if (sequence !== this.assistantRequest) return;
-          const sessionPage = Math.min(
+          const sessionsClamped = this.assistantSessions.applyPage(
             links.sessions.meta.page,
-            Math.max(1, links.sessions.meta.totalPages),
+            links.sessions.meta,
           );
-          const draftPage = Math.min(
+          const draftsClamped = this.assistantDrafts.applyPage(
             links.drafts.meta.page,
-            Math.max(1, links.drafts.meta.totalPages),
+            links.drafts.meta,
           );
-          if (
-            sessionPage !== links.sessions.meta.page ||
-            draftPage !== links.drafts.meta.page
-          ) {
-            this.assistantSessionsPage.set(sessionPage);
-            this.assistantDraftsPage.set(draftPage);
+          if (sessionsClamped !== null || draftsClamped !== null) {
             this.loadAssistantLinks();
             return;
           }
           this.assistantLinks.set(links);
-          this.assistantSessionsPage.set(links.sessions.meta.page);
-          this.assistantSessionsPageCount.set(
-            Math.max(1, links.sessions.meta.totalPages),
-          );
-          this.assistantDraftsPage.set(links.drafts.meta.page);
-          this.assistantDraftsPageCount.set(
-            Math.max(1, links.drafts.meta.totalPages),
-          );
           this.assistantLoading.set(false);
         },
         error: () => {
@@ -434,86 +448,19 @@ export class CaseDetailComponent {
   }
 
   loadActivities(force = false): void {
-    if (this.activitiesLoaded() && !force) return;
-    const sequence = ++this.activitiesRequest;
-    this.activitiesLoading.set(true);
-    this.api
-      .listActivities(this.id, {
-        search: this.activitySearch.value.trim() || undefined,
-        types: this.activityTypes().length ? this.activityTypes() : undefined,
-        page: this.activitiesPage(),
-        pageSize: this.activitiesPageSize(),
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          if (sequence !== this.activitiesRequest) return;
-          const lastPage = Math.max(1, response.meta.totalPages);
-          if (response.meta.page > lastPage) {
-            this.activitiesPage.set(lastPage);
-            this.loadActivities(true);
-            return;
-          }
-          this.activities.set(response.items);
-          this.activitiesPage.set(response.meta.page);
-          this.activitiesPageCount.set(Math.max(1, response.meta.totalPages));
-          this.activitiesTotal.set(response.meta.totalItems);
-          this.activitiesLoaded.set(true);
-          this.activitiesLoading.set(false);
-        },
-        error: () => {
-          if (sequence !== this.activitiesRequest) return;
-          this.activitiesLoading.set(false);
-          this.toast.error(this.local.translate("cases.loadError"));
-        },
-      });
+    if (!this.activityList.loaded() || force) this.activityList.load();
   }
 
   loadResponsibilities(force = false): void {
-    if (this.responsibilitiesLoaded() && !force) return;
-    const sequence = ++this.responsibilitiesRequest;
-    this.responsibilitiesLoading.set(true);
-    this.api
-      .listResponsibilities(this.id, {
-        page: this.responsibilitiesPage(),
-        pageSize: this.responsibilitiesPageSize(),
-      })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          if (sequence !== this.responsibilitiesRequest) return;
-          const lastPage = Math.max(1, response.meta.totalPages);
-          if (response.meta.page > lastPage) {
-            this.responsibilitiesPage.set(lastPage);
-            this.loadResponsibilities(true);
-            return;
-          }
-          this.responsibilities.set(response.items);
-          this.responsibilitiesPage.set(response.meta.page);
-          this.responsibilitiesPageCount.set(
-            Math.max(1, response.meta.totalPages),
-          );
-          this.responsibilitiesTotal.set(response.meta.totalItems);
-          this.responsibilitiesLoaded.set(true);
-          this.responsibilitiesLoading.set(false);
-        },
-        error: () => {
-          if (sequence !== this.responsibilitiesRequest) return;
-          this.responsibilitiesLoading.set(false);
-          this.toast.error(this.local.translate("cases.loadError"));
-        },
-      });
+    if (!this.responsibilityList.loaded() || force)
+      this.responsibilityList.load();
   }
 
   loadDocuments(force = false): void {
     if (this.documentsLoaded() && !force) return;
     this.documentsLoading.set(true);
     this.documentsApi
-      .list({
-        caseId: this.id,
-        page: 1,
-        pageSize: CASE_DETAIL_PAGE_SIZE,
-      })
+      .list({ ...FIRST_PAGE, caseId: this.id })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -529,81 +476,17 @@ export class CaseDetailComponent {
       });
   }
 
-  setActivityTypes(types: DomainActivity["type"][]): void {
+  setActivityTypes(types: ActivityType[]): void {
     this.activityTypes.set(types);
-    this.activitiesPage.set(1);
-    this.loadActivities(true);
+    this.activityList.reset();
   }
 
-  changeActivitiesPage(page: number): void {
-    if (
-      page < 1 ||
-      page > this.activitiesPageCount() ||
-      this.activitiesLoading()
-    )
-      return;
-    this.activitiesPage.set(page);
-    this.loadActivities(true);
-  }
-
-  changeResponsibilitiesPage(page: number): void {
-    if (
-      page < 1 ||
-      page > this.responsibilitiesPageCount() ||
-      this.responsibilitiesLoading()
-    )
-      return;
-    this.responsibilitiesPage.set(page);
-    this.loadResponsibilities(true);
-  }
-
-  changeAssistantSessionsPage(page: number): void {
-    if (
-      page < 1 ||
-      page > this.assistantSessionsPageCount() ||
-      this.assistantLoading()
-    )
-      return;
-    this.assistantSessionsPage.set(page);
-    this.loadAssistantLinks();
-  }
-
-  changeAssistantDraftsPage(page: number): void {
-    if (
-      page < 1 ||
-      page > this.assistantDraftsPageCount() ||
-      this.assistantLoading()
-    )
-      return;
-    this.assistantDraftsPage.set(page);
-    this.loadAssistantLinks();
-  }
-
-  changeActivitiesPageSize(pageSize: number): void {
-    if (this.activitiesLoading() || pageSize === this.activitiesPageSize())
-      return;
-    this.activitiesPageSize.set(pageSize);
-    this.activitiesPage.set(1);
-    this.loadActivities(true);
-  }
-
-  changeResponsibilitiesPageSize(pageSize: number): void {
-    if (
-      this.responsibilitiesLoading() ||
-      pageSize === this.responsibilitiesPageSize()
-    )
-      return;
-    this.responsibilitiesPageSize.set(pageSize);
-    this.responsibilitiesPage.set(1);
-    this.loadResponsibilities(true);
-  }
-
-  changeAssistantPageSize(pageSize: number): void {
-    if (this.assistantLoading() || pageSize === this.assistantPageSize())
-      return;
-    this.assistantPageSize.set(pageSize);
-    this.assistantSessionsPage.set(1);
-    this.assistantDraftsPage.set(1);
+  /** Sessions and drafts share one request and one page size. */
+  private changeAssistantPage(changed: PageState, other: PageState): void {
+    if (other.pageSize() !== changed.pageSize()) {
+      other.pageSize.set(changed.pageSize());
+      other.page.set(1);
+    }
     this.loadAssistantLinks();
   }
 
@@ -685,15 +568,14 @@ export class CaseDetailComponent {
         next: () => {
           this.showActivityForm.set(false);
           this.activityForm.reset({
-            type: "NOTE",
+            type: ActivityType.NOTE,
             title: "",
             description: "",
             activityDate: "",
             durationMinutes: null,
           });
           this.toast.success(this.local.translate("cases.saved"));
-          this.activitiesPage.set(1);
-          this.loadActivities(true);
+          this.activityList.reset();
         },
         error: () => this.toast.error(this.local.translate("cases.saveError")),
       });
@@ -721,8 +603,7 @@ export class CaseDetailComponent {
             isPrimary: false,
           });
           this.toast.success(this.local.translate("cases.saved"));
-          this.responsibilitiesPage.set(1);
-          this.loadResponsibilities(true);
+          this.responsibilityList.reset();
           this.reload();
         },
         error: () => this.toast.error(this.local.translate("cases.saveError")),

@@ -46,7 +46,7 @@
                   class="inline-flex items-center rounded-xs border px-1.5 py-0.5 font-medium"
                   [class]="sourceBadgeClass(item.sourceType)"
                 >
-                  {{ sourceLabel(item) | translate }}
+                  {{ sourceLabel(item) }}
                 </span>
                 <span>·</span>
                 <span class="inline-flex items-center gap-1">
@@ -80,10 +80,10 @@
                 class="inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-medium"
                 [class]="statusBadgeClass(item.status)"
               >
-                {{ statusLabel(item.status) | translate }}
+                {{ statusLabel(item.status) }}
               </span>
 
-              @if (item.sourceType === "EVENT") {
+              @if (item.sourceType === CalendarSourceType.EVENT) {
                 <button
                   hlmBtn
                   type="button"

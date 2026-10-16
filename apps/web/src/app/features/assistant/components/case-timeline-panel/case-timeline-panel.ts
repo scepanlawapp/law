@@ -20,15 +20,24 @@ import {
   CaseTimelineSourceStatus,
 } from "@law/api-interfaces";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
+import {
+  CASE_TIMELINE_EVENT_KIND_LABELS,
+  CASE_TIMELINE_SOURCE_STATUS_LABELS,
+} from "../../../../shared/models";
 import { STATUS_BADGE_BASE_CLASSES } from "../../../../shared/status-badge";
 import { CollapsibleSectionComponent } from "../../../../shared/ui/collapsible-section/collapsible-section.component";
 
-const SOURCE_BADGE: Record<CaseTimelineSourceStatus, string> = {
-  READ: "border-success/40 bg-success/10 text-success",
-  TRUNCATED: "border-warning/40 bg-warning/10 text-warning",
-  NO_TEXT: "border-border bg-muted text-muted-foreground",
-  FAILED: "border-destructive/40 bg-destructive/10 text-destructive",
-  SKIPPED: "border-border bg-muted text-muted-foreground",
+const SOURCE_BADGE: Readonly<Record<CaseTimelineSourceStatus, string>> = {
+  [CaseTimelineSourceStatus.READ]:
+    "border-success/40 bg-success/10 text-success",
+  [CaseTimelineSourceStatus.TRUNCATED]:
+    "border-warning/40 bg-warning/10 text-warning",
+  [CaseTimelineSourceStatus.NO_TEXT]:
+    "border-border bg-muted text-muted-foreground",
+  [CaseTimelineSourceStatus.FAILED]:
+    "border-destructive/40 bg-destructive/10 text-destructive",
+  [CaseTimelineSourceStatus.SKIPPED]:
+    "border-border bg-muted text-muted-foreground",
 };
 
 /** Formats YYYY-MM-DD / YYYY-MM / YYYY as Serbian dates (15.03.2026.). */
@@ -67,6 +76,8 @@ export class CaseTimelinePanelComponent {
   protected readonly notesExpanded = signal(false);
   protected readonly badgeBase = STATUS_BADGE_BASE_CLASSES;
   protected readonly formatDate = formatTimelineDate;
+  protected readonly kindLabels = CASE_TIMELINE_EVENT_KIND_LABELS;
+  protected readonly sourceStatusLabels = CASE_TIMELINE_SOURCE_STATUS_LABELS;
 
   /** Events grouped by year; undated events form the last group (year null). */
   protected readonly groups = computed(() => {

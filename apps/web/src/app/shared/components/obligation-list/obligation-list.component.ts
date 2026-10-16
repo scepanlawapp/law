@@ -2,6 +2,7 @@ import { Component, inject, input, output } from "@angular/core";
 import { ObligationItem } from "../../../features/dashboard/dashboard.models";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
+import { WORK_RECORD_TYPE_LABELS } from "../../models";
 
 /**
  * Compact, presentation-only preview of Task/Deadline/Event obligations.
@@ -18,9 +19,10 @@ export class ObligationListComponent {
 
   readonly items = input.required<ObligationItem[]>();
   readonly itemSelected = output<ObligationItem>();
+  readonly recordTypeLabels = WORK_RECORD_TYPE_LABELS;
 
   when(item: ObligationItem): string {
-    const locale = this.localization.language() === "EN" ? "en-US" : "sr-RS";
+    const locale = this.localization.locale();
     if (item.startsAt) {
       return new Intl.DateTimeFormat(locale, {
         dateStyle: "medium",

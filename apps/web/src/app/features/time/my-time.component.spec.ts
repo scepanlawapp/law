@@ -131,7 +131,11 @@ describe("MyTimeComponent", () => {
         },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key, language: () => "SR" },
+          useValue: {
+            translate: (key: string) => key,
+            language: () => "SR",
+            locale: () => "sr-Latn-RS",
+          },
         },
       ],
     });

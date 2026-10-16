@@ -56,12 +56,12 @@
           >
             {{ "cases.client" | translate }}
           </a>
-          @if (caseItem.status === "DRAFT") {
+          @if (caseItem.status === CaseStatus.DRAFT) {
             <button hlmBtn type="button" (click)="lifecycle('activate')">
               {{ "cases.activate" | translate }}
             </button>
           }
-          @if (caseItem.status === "ACTIVE") {
+          @if (caseItem.status === CaseStatus.ACTIVE) {
             <button
               hlmBtn
               type="button"
@@ -74,7 +74,7 @@
               {{ "cases.close" | translate }}
             </button>
           }
-          @if (caseItem.status === "ON_HOLD") {
+          @if (caseItem.status === CaseStatus.ON_HOLD) {
             <button
               hlmBtn
               type="button"
@@ -87,7 +87,7 @@
               {{ "cases.close" | translate }}
             </button>
           }
-          @if (caseItem.status === "CLOSED") {
+          @if (caseItem.status === CaseStatus.CLOSED) {
             <button
               hlmBtn
               type="button"
@@ -109,14 +109,14 @@
             statusBadgeBaseClasses + ' ' + statusBadgeClass(caseItem.status)
           "
         >
-          {{ "cases.status." + caseItem.status | translate }}
+          {{ statusLabels[caseItem.status] | translate }}
         </span>
         <span
           [class]="
             statusBadgeBaseClasses + ' ' + priorityBadgeClass(caseItem.priority)
           "
         >
-          {{ "cases.priority." + caseItem.priority | translate }}
+          {{ priorityLabels[caseItem.priority] | translate }}
         </span>
       </div>
     </header>
@@ -369,10 +369,7 @@
                       <div>
                         <p class="font-medium">{{ document.title }}</p>
                         <p class="text-xs text-muted-foreground">
-                          {{
-                            document.category ||
-                              ("common.notProvided" | translate)
-                          }}
+                          {{ documentCategoryLabel(document) }}
                         </p>
                       </div>
                       <span class="text-xs text-muted-foreground">
@@ -508,7 +505,7 @@
                         statusBadgeClass(caseItem.status)
                       "
                     >
-                      {{ "cases.status." + caseItem.status | translate }}
+                      {{ statusLabels[caseItem.status] | translate }}
                     </span>
                   </dd>
                 </div>
@@ -524,7 +521,7 @@
                         priorityBadgeClass(caseItem.priority)
                       "
                     >
-                      {{ "cases.priority." + caseItem.priority | translate }}
+                      {{ priorityLabels[caseItem.priority] | translate }}
                     </span>
                   </dd>
                 </div>
@@ -667,15 +664,15 @@
                             >
                               <p class="font-medium">
                                 {{
-                                  "assistant.documentType." + draft.documentType
+                                  draftDocumentTypeLabels[draft.documentType]
                                     | translate
                                 }}
                               </p>
                               <p class="text-xs text-muted-foreground">
                                 {{
-                                  "assistant.draftStatus." +
-                                    (draft.approvalStatus ||
-                                      "READY_FOR_SIGNOFF") | translate
+                                  draftApprovalStatusLabels[
+                                    draft.approvalStatus
+                                  ] | translate
                                 }}
                                 · {{ formatDate(draft.createdAt) }}
                               </p>
@@ -949,7 +946,7 @@
                     </p>
                   }
                   <p class="mt-3 text-xs text-muted-foreground">
-                    {{ activity.source }}
+                    {{ activitySourceLabels[activity.source] | translate }}
                   </p>
                 </li>
               }
@@ -962,14 +959,7 @@
             </div>
           }
           @if (activitiesTotal() > 0) {
-            <law-pagination
-              [currentPage]="activitiesPage()"
-              [itemsPerPage]="activitiesPageSize()"
-              [totalItems]="activitiesTotal()"
-              [disabled]="activitiesLoading()"
-              (currentPageChange)="changeActivitiesPage($event)"
-              (itemsPerPageChange)="changeActivitiesPageSize($event)"
-            />
+            <law-pagination [paginator]="activityList" />
           }
         </div>
       </section>
@@ -1074,12 +1064,7 @@
                   </ul>
                   <law-pagination
                     class="mt-4 block"
-                    [currentPage]="assistantSessionsPage()"
-                    [itemsPerPage]="assistantPageSize()"
-                    [totalItems]="links.sessions.meta.totalItems"
-                    [disabled]="assistantLoading()"
-                    (currentPageChange)="changeAssistantSessionsPage($event)"
-                    (itemsPerPageChange)="changeAssistantPageSize($event)"
+                    [paginator]="assistantSessions"
                   />
                 } @else {
                   <p class="text-muted-foreground">
@@ -1104,14 +1089,13 @@
                         >
                           <p class="font-medium">
                             {{
-                              "assistant.documentType." + draft.documentType
+                              draftDocumentTypeLabels[draft.documentType]
                                 | translate
                             }}
                           </p>
                           <p class="text-xs text-muted-foreground">
                             {{
-                              "assistant.draftStatus." +
-                                (draft.approvalStatus || "READY_FOR_SIGNOFF")
+                              draftApprovalStatusLabels[draft.approvalStatus]
                                 | translate
                             }}
                             · {{ formatDate(draft.createdAt) }}
@@ -1122,12 +1106,7 @@
                   </ul>
                   <law-pagination
                     class="mt-4 block"
-                    [currentPage]="assistantDraftsPage()"
-                    [itemsPerPage]="assistantPageSize()"
-                    [totalItems]="links.drafts.meta.totalItems"
-                    [disabled]="assistantLoading()"
-                    (currentPageChange)="changeAssistantDraftsPage($event)"
-                    (itemsPerPageChange)="changeAssistantPageSize($event)"
+                    [paginator]="assistantDrafts"
                   />
                 } @else {
                   <p class="text-muted-foreground">
@@ -1277,14 +1256,7 @@
             </div>
           }
           @if (responsibilitiesTotal() > 0) {
-            <law-pagination
-              [currentPage]="responsibilitiesPage()"
-              [itemsPerPage]="responsibilitiesPageSize()"
-              [totalItems]="responsibilitiesTotal()"
-              [disabled]="responsibilitiesLoading()"
-              (currentPageChange)="changeResponsibilitiesPage($event)"
-              (itemsPerPageChange)="changeResponsibilitiesPageSize($event)"
-            />
+            <law-pagination [paginator]="responsibilityList" />
           }
         </div>
       </section>

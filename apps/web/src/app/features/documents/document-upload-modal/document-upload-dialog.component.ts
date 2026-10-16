@@ -32,7 +32,7 @@ import {
 } from "rxjs";
 import { comboboxContainsFilter } from "@spartan-ng/brain/combobox";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { DOCUMENT_CATEGORIES, DocumentDetail } from "@law/api-interfaces";
+import { DocumentCategory, DocumentDetail } from "@law/api-interfaces";
 import {
   CasesApiClient,
   ClientsApiClient,
@@ -87,14 +87,25 @@ import {
   DocumentUploadDialogResult,
 } from "./document-upload-dialog.models";
 import {
-  DOCUMENT_CATEGORY_LABEL_KEYS,
+  ACTIVE_UPLOAD_STATUSES,
   DOCUMENT_FILE_ACCEPT,
   DOCUMENT_UPLOAD_MAX_BYTES,
-  DocumentUploadAssociation,
+  DOCUMENT_UPLOAD_STATUS_LABELS,
+  DocumentUploadMode,
   DocumentUploadRow,
+  DocumentUploadRowStatus,
+  FINISHED_UPLOAD_STATUSES,
+  PENDING_UPLOAD_STATUSES,
 } from "./document-upload.models";
 import { DocumentUploadQueue } from "./document-upload.queue";
 import { formatFileSize } from "./document-upload.utils";
+import { DocumentAssociationOption } from "../document-associations/document-associations-dialog.models";
+import {
+  DOCUMENT_CATEGORY_LABELS,
+  labelOf,
+  OFFICE_TIME_ZONE,
+} from "../../../shared/models";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
 
 @Component({
   selector: "law-document-upload-dialog",
@@ -163,10 +174,11 @@ export class DocumentUploadDialogComponent {
   private readonly confirm = inject(ConfirmDialogService);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly Status = DocumentUploadRowStatus;
   readonly accept = DOCUMENT_FILE_ACCEPT;
   readonly maxBytes = DOCUMENT_UPLOAD_MAX_BYTES;
-  readonly mode = this.context.mode ?? "create";
-  readonly versionMode = this.mode === "version";
+  readonly mode = this.context.mode ?? DocumentUploadMode.CREATE;
+  readonly versionMode = this.mode === DocumentUploadMode.VERSION;
   readonly lockedCase = this.context.lockCase
     ? { id: this.context.caseId ?? "", label: this.context.caseLabel ?? "" }
     : null;
@@ -176,19 +188,21 @@ export class DocumentUploadDialogComponent {
         label: this.context.clientLabel ?? "",
       }
     : null;
-  readonly allowClientPicker = this.mode === "create" && !this.lockedClient;
-  readonly allowCasePicker = this.mode === "create" && !this.lockedCase;
-  readonly categoryCodes = DOCUMENT_CATEGORIES;
+  readonly allowClientPicker =
+    this.mode === DocumentUploadMode.CREATE && !this.lockedClient;
+  readonly allowCasePicker =
+    this.mode === DocumentUploadMode.CREATE && !this.lockedCase;
+  readonly categoryCodes = Object.values(DocumentCategory);
   readonly categoryFilter = comboboxContainsFilter;
 
-  readonly showAiAccess = this.mode === "create";
+  readonly showAiAccess = this.mode === DocumentUploadMode.CREATE;
   readonly tableColumns = this.showAiAccess ? 7 : 6;
   readonly aiAccessAll = signal(false);
   readonly dragging = signal(false);
   readonly preparing = signal(false);
   readonly importError = signal<string | null>(null);
-  readonly caseOptions = signal<DocumentUploadAssociation[]>([]);
-  readonly clientOptions = signal<DocumentUploadAssociation[]>([]);
+  readonly caseOptions = signal<DocumentAssociationOption[]>([]);
+  readonly clientOptions = signal<DocumentAssociationOption[]>([]);
   readonly caseOptionsLoading = signal(false);
   readonly caseOptionsError = signal(false);
   readonly clientOptionsLoading = signal(false);
@@ -217,32 +231,24 @@ export class DocumentUploadDialogComponent {
     () => this.rows.set([...this.queue.rows]),
   );
 
-  readonly readyCount = computed(
-    () => this.rows().filter((row) => row.status === "ready").length,
-  );
-  readonly invalidCount = computed(
-    () => this.rows().filter((row) => row.status === "invalid").length,
-  );
-  readonly failedCount = computed(
-    () => this.rows().filter((row) => row.status === "failed").length,
-  );
-  readonly succeededCount = computed(
-    () => this.rows().filter((row) => row.status === "succeeded").length,
+  readonly readyCount = computed(() => this.countRows(this.Status.READY));
+  readonly invalidCount = computed(() => this.countRows(this.Status.INVALID));
+  readonly failedCount = computed(() => this.countRows(this.Status.FAILED));
+  readonly succeededCount = computed(() =>
+    this.countRows(this.Status.SUCCEEDED),
   );
   readonly selectedBytes = computed(() =>
     this.rows()
-      .filter((row) => row.status === "ready" || row.status === "invalid")
+      .filter((row) => PENDING_UPLOAD_STATUSES.includes(row.status))
       .reduce((sum, row) => sum + row.file.size, 0),
   );
   readonly busy = computed(
     () =>
       this.preparing() ||
-      this.rows().some((row) =>
-        ["queued", "uploading", "processing"].includes(row.status),
-      ),
+      this.rows().some((row) => ACTIVE_UPLOAD_STATUSES.includes(row.status)),
   );
-  readonly hasUnknown = computed(() =>
-    this.rows().some((row) => row.status === "outcome_unknown"),
+  readonly hasUnknown = computed(
+    () => this.countRows(this.Status.OUTCOME_UNKNOWN) > 0,
   );
   readonly associationsLocked = computed(
     () =>
@@ -251,7 +257,7 @@ export class DocumentUploadDialogComponent {
         (row) =>
           !!row.frozenCreate ||
           !!row.frozenVersion ||
-          ["queued", "uploading", "processing"].includes(row.status),
+          ACTIVE_UPLOAD_STATUSES.includes(row.status),
       ),
   );
   readonly compactDropzone = computed(() => this.rows().length > 0);
@@ -264,12 +270,15 @@ export class DocumentUploadDialogComponent {
   readonly allDone = computed(() => {
     const rows = this.rows();
     const finished = rows.filter((row) =>
-      ["succeeded", "failed", "outcome_unknown"].includes(row.status),
+      FINISHED_UPLOAD_STATUSES.includes(row.status),
     );
     return (
       finished.length > 0 &&
       !this.busy() &&
-      !rows.some((row) => row.status === "ready" || row.status === "queued")
+      !rows.some(
+        (row) =>
+          row.status === this.Status.READY || row.status === this.Status.QUEUED,
+      )
     );
   });
 
@@ -309,7 +318,16 @@ export class DocumentUploadDialogComponent {
     }
   }
 
-  formatSize = formatFileSize;
+  formatSize = (bytes: number): string =>
+    formatFileSize(bytes, this.localization.locale());
+
+  dateTimeLabel(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      timeZone: OFFICE_TIME_ZONE,
+      dateStyle: "medium",
+      timeStyle: "short",
+    }).format(new Date(value));
+  }
 
   onCaseSearch(event: Event): void {
     this.caseSearch.next((event.target as HTMLInputElement).value);
@@ -339,7 +357,7 @@ export class DocumentUploadDialogComponent {
     if (ids.length) this.searchCases(this.lastCaseSearch);
   }
 
-  setCategory(id: string, category: string | null): void {
+  setCategory(id: string, category: DocumentCategory | null): void {
     this.queue.setCategory(id, category);
   }
 
@@ -362,11 +380,9 @@ export class DocumentUploadDialogComponent {
 
   categoryItemToString = (value: string | null | undefined): string => {
     if (!value) return this.t("documents.upload.categoryUnclassified");
-    const key =
-      DOCUMENT_CATEGORY_LABEL_KEYS[
-        value as keyof typeof DOCUMENT_CATEGORY_LABEL_KEYS
-      ];
-    return key ? this.t(key) : this.t("documents.upload.categoryUnknown");
+    return value in DOCUMENT_CATEGORY_LABELS
+      ? labelOf(DOCUMENT_CATEGORY_LABELS, value, (key) => this.t(key))
+      : this.t("documents.upload.categoryUnknown");
   };
 
   onFileInput(event: Event): void {
@@ -426,8 +442,8 @@ export class DocumentUploadDialogComponent {
   canEditTitle(row: DocumentUploadRow): boolean {
     return (
       !this.preparing() &&
-      this.mode === "create" &&
-      (row.status === "ready" || row.status === "invalid") &&
+      this.mode === DocumentUploadMode.CREATE &&
+      PENDING_UPLOAD_STATUSES.includes(row.status) &&
       !row.frozenCreate
     );
   }
@@ -446,7 +462,8 @@ export class DocumentUploadDialogComponent {
           ...new Set(
             this.rows()
               .filter(
-                (row) => row.status === "ready" && row.relativeDirectoryPath,
+                (row) =>
+                  row.status === this.Status.READY && row.relativeDirectoryPath,
               )
               .map((row) => row.relativeDirectoryPath),
           ),
@@ -486,28 +503,11 @@ export class DocumentUploadDialogComponent {
   }
 
   statusLabel(row: DocumentUploadRow): string {
-    switch (row.status) {
-      case "ready":
-        return this.t("documents.upload.statusReady");
-      case "invalid":
-        return this.t("documents.upload.statusInvalid");
-      case "queued":
-        return this.t("documents.upload.statusQueued");
-      case "uploading":
-        return row.percent != null
-          ? this.t("documents.upload.statusUploadingPercent", {
-              percent: row.percent,
-            })
-          : this.t("documents.upload.statusUploading");
-      case "processing":
-        return this.t("documents.upload.statusProcessing");
-      case "succeeded":
-        return this.t("documents.upload.statusUploaded");
-      case "failed":
-        return this.t("documents.upload.statusFailed");
-      case "outcome_unknown":
-        return this.t("documents.upload.statusUnknown");
-    }
+    if (row.status === this.Status.UPLOADING && row.percent != null)
+      return this.t("documents.upload.statusUploadingPercent", {
+        percent: row.percent,
+      });
+    return this.t(DOCUMENT_UPLOAD_STATUS_LABELS[row.status]);
   }
 
   errorLabel(row: DocumentUploadRow): string {
@@ -520,8 +520,8 @@ export class DocumentUploadDialogComponent {
 
   async requestClose(): Promise<void> {
     if (this.busy() || this.hasUnknown()) return;
-    const unsent = this.rows().some(
-      (row) => row.status === "ready" || row.status === "invalid",
+    const unsent = this.rows().some((row) =>
+      PENDING_UPLOAD_STATUSES.includes(row.status),
     );
     if (unsent) {
       const confirmed = await firstValueFrom(
@@ -560,9 +560,8 @@ export class DocumentUploadDialogComponent {
     this.caseOptionsError.set(false);
     this.casesApi
       .list({
+        ...FIRST_PAGE,
         search: term || undefined,
-        pageSize: 20,
-        page: 1,
         clientIds,
       })
       .pipe(
@@ -590,7 +589,7 @@ export class DocumentUploadDialogComponent {
     this.clientOptionsLoading.set(true);
     this.clientOptionsError.set(false);
     this.clientsApi
-      .list({ search: term || undefined, pageSize: 50, page: 1 })
+      .list({ ...FIRST_PAGE, search: term || undefined })
       .pipe(
         catchError(() => {
           this.clientOptionsError.set(true);
@@ -628,6 +627,10 @@ export class DocumentUploadDialogComponent {
     return this.documentsApi.addVersion(documentId, body, idempotencyKey, {
       context: new HttpContext().set(SKIP_GLOBAL_ERROR_TOAST, true),
     });
+  }
+
+  private countRows(status: DocumentUploadRowStatus): number {
+    return this.rows().filter((row) => row.status === status).length;
   }
 
   private t(key: string, params?: Record<string, string | number>): string {

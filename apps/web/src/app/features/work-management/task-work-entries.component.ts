@@ -17,15 +17,13 @@ import {
   statusBadgeClass,
 } from "../../shared/status-badge";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
-import { Subscription } from "rxjs";
+import { injectPaginatedList } from "../../shared/pagination/paginated-list";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-import {
-  formatMinutes,
-  formatWorkDate,
-  STATUS_LABEL_KEYS,
-} from "../time/time-utils";
+import { formatMinutes } from "../time/time-utils";
+import { formatDate } from "../../shared/billing";
 import { TaskCompletionService } from "./task-completion.service";
+import { WORK_ENTRY_STATUS_LABELS } from "../../shared/models";
 
 @Component({
   selector: "law-task-work-entries",
@@ -83,7 +81,11 @@ import { TaskCompletionService } from "./task-completion.service";
                 {{ entry.title }}
               </span>
               <span class="text-sm text-muted-foreground">
-                {{ dateLabel(entry.workDate) }} · {{ entry.user?.displayName ?? ("time.capture.unassigned" | translate) }}
+                {{ dateLabel(entry.workDate) }} ·
+                {{
+                  entry.user?.displayName ??
+                    ("time.capture.unassigned" | translate)
+                }}
               </span>
               <span class="flex flex-wrap items-center gap-2 text-sm">
                 <span>
@@ -131,59 +133,38 @@ export class TaskWorkEntriesComponent {
   readonly statusBadgeClass = statusBadgeClass;
   readonly task = input.required<TaskDetail>();
   readonly disabled = input(false);
-  readonly entries = signal<WorkEntry[]>([]);
-  readonly loading = signal(false);
-  readonly error = signal(false);
-  readonly hasMore = signal(false);
+  private readonly api = inject(WorkEntriesApiClient);
+  readonly list = injectPaginatedList<WorkEntry>({
+    fetch: (request) => this.api.list({ taskId: this.task().id, ...request }),
+  });
+  readonly entries = this.list.items;
+  readonly loading = this.list.loading;
+  readonly error = this.list.error;
+  readonly hasMore = this.list.hasMore;
   readonly opening = signal(false);
   readonly formatMinutes = formatMinutes;
-  readonly statusLabels = STATUS_LABEL_KEYS;
-  private readonly api = inject(WorkEntriesApiClient);
+  readonly statusLabels = WORK_ENTRY_STATUS_LABELS;
   private readonly capture = inject(TaskCompletionService);
   private readonly localization = inject(LocalizationService);
   private readonly destroyRef = inject(DestroyRef);
-  private request?: Subscription;
-  private page = 0;
 
   constructor() {
     effect((onCleanup) => {
       this.task();
       this.capture.workRevision();
       untracked(() => this.load(true));
-      onCleanup(() => this.request?.unsubscribe());
+      onCleanup(() => this.list.cancel());
     });
   }
 
   dateLabel(date: string): string {
-    return formatWorkDate(date, this.localization.language());
+    return formatDate(date, this.localization.language());
   }
 
   load(reset: boolean): void {
-    if (!reset && this.loading()) return;
-    this.request?.unsubscribe();
-    if (reset) {
-      this.entries.set([]);
-      this.page = 0;
-      this.hasMore.set(false);
-    }
-    this.loading.set(true);
-    this.error.set(false);
-    const page = this.page + 1;
-    this.request = this.api
-      .list({ taskId: this.task().id, page, pageSize: 50 })
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          this.entries.update((entries) => [...entries, ...response.items]);
-          this.page = page;
-          this.hasMore.set(this.entries().length < response.meta.totalItems);
-          this.loading.set(false);
-        },
-        error: () => {
-          this.error.set(true);
-          this.loading.set(false);
-        },
-      });
+    if (!reset) return this.list.loadMore();
+    this.list.clear();
+    this.list.reset();
   }
 
   openWorkEntry(entry: WorkEntry): void {

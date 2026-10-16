@@ -415,10 +415,9 @@ describe("AssistantComponent review state", () => {
       ),
     ];
 
-    expect(choiceButtons().map((button) => button.textContent?.trim())).toEqual([
-      "Borko Ilić (kolega)",
-      "Borko Petrović (klijent K-0012)",
-    ]);
+    expect(choiceButtons().map((button) => button.textContent?.trim())).toEqual(
+      ["Borko Ilić (kolega)", "Borko Petrović (klijent K-0012)"],
+    );
     choiceButtons()[1].click();
     expect(chat.sendMessage).toHaveBeenCalledWith(
       "workspace-1",
@@ -429,7 +428,13 @@ describe("AssistantComponent review state", () => {
 
     component["messages"].set([
       answer,
-      { ...answer, id: "message-user", role: "USER", content: "Borko", choices: undefined },
+      {
+        ...answer,
+        id: "message-user",
+        role: "USER",
+        content: "Borko",
+        choices: undefined,
+      },
     ]);
     fixture.detectChanges();
     expect(choiceButtons()).toHaveLength(0);
@@ -713,13 +718,13 @@ describe("AssistantComponent review state", () => {
     fixture.detectChanges();
 
     const matterPane = fixture.nativeElement.querySelector(
-      ".assistant-rail-pane.is-active app-assistant-matter-link",
+      ".assistant-rail-pane.is-active law-assistant-matter-link",
     ) as HTMLElement;
     expect(matterPane).not.toBeNull();
     expect(matterPane.textContent).toContain("assistant.matter.confirmCase");
     expect(
       fixture.nativeElement.querySelector(
-        ".message-stream app-assistant-matter-link",
+        ".message-stream law-assistant-matter-link",
       ),
     ).toBeNull();
   });
@@ -759,7 +764,7 @@ describe("AssistantComponent review state", () => {
 
     expect(
       fixture.nativeElement.querySelector(
-        ".assistant-rail-pane.is-active app-assistant-matter-link",
+        ".assistant-rail-pane.is-active law-assistant-matter-link",
       ),
     ).not.toBeNull();
     expect(

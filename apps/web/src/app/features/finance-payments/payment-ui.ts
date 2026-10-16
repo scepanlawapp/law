@@ -1,28 +1,10 @@
-import { PaymentMethod } from "@law/api-interfaces";
-export const paymentMethodLabel = (value: PaymentMethod) =>
-  ({
-    BANK_TRANSFER: "Bankovni prenos",
-    CASH: "Gotovina",
-    CARD: "Kartica",
-    OTHER: "Ostalo",
-  })[value];
-export const allocationLabel = (value: string) =>
-  ({
-    UNALLOCATED: "Neraspoređeno",
-    PARTIAL: "Delimično raspoređeno",
-    FULL: "Potpuno raspoređeno",
-  })[value] ?? value;
-export const collectionLabel = (value: string) =>
-  ({
-    UNPAID: "Nije plaćeno",
-    PARTIALLY_PAID: "Delimično plaćeno",
-    PAID: "Plaćeno",
-  })[value] ?? value;
-export const money = (value: string, currency: string) => {
+import { OFFICE_TIME_ZONE } from "../../shared/models";
+
+export const money = (value: string, currency: string, locale: string) => {
   if (!/^-?\d+(\.\d{0,2})?$/.test(value)) return "—";
   const [whole, fraction = ""] = value.split(".");
   const integer = BigInt(whole);
-  const parts = new Intl.NumberFormat("sr-Latn", {
+  const parts = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     minimumFractionDigits: 2,
@@ -33,10 +15,10 @@ export const money = (value: string, currency: string) => {
     .join("");
   return value.startsWith("-") && integer === 0n ? "-" + formatted : formatted;
 };
-export const date = (value: string) =>
-  new Intl.DateTimeFormat("sr-Latn", {
+export const date = (value: string, locale: string) =>
+  new Intl.DateTimeFormat(locale, {
     dateStyle: "medium",
-    timeZone: "Europe/Belgrade",
+    timeZone: OFFICE_TIME_ZONE,
   }).format(new Date(value));
 export const minor = (value: string): bigint =>
   /^\d{1,16}(\.\d{0,2})?$/.test(value)
@@ -45,12 +27,16 @@ export const minor = (value: string): bigint =>
     : 0n;
 export const decimal = (value: bigint): string =>
   `${value < 0n ? "-" : ""}${(value < 0n ? -value : value) / 100n}.${String((value < 0n ? -value : value) % 100n).padStart(2, "0")}`;
-export const paymentError = (error: unknown): string => {
+/** The API's validation message, or the translated generic save error. */
+export const paymentError = (
+  error: unknown,
+  translate: (key: string) => string,
+): string => {
   const body = (error as { error?: { message?: string | string[] } })?.error
     ?.message;
   return typeof body === "string"
     ? body
     : Array.isArray(body)
       ? body.join(" ")
-      : "Podaci nisu sačuvani. Proverite vezu i pokušajte ponovo.";
+      : translate("payments.error.notSaved");
 };

@@ -52,7 +52,10 @@ describe("DocumentUploadDialogComponent AI access", () => {
         { provide: ConfirmDialogService, useValue: { confirm: jest.fn() } },
         {
           provide: LocalizationService,
-          useValue: { translate: (key: string) => key },
+          useValue: {
+            translate: (key: string) => key,
+            locale: () => "sr-Latn-RS",
+          },
         },
       ],
     });

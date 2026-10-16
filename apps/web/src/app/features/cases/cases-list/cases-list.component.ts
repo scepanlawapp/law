@@ -9,7 +9,7 @@ import {
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { FormControl, ReactiveFormsModule } from "@angular/forms";
 import { ActivatedRoute, Params, Router, RouterLink } from "@angular/router";
-import { CaseStatus, CaseSummary } from "@law/api-interfaces";
+import { CaseStatus, CaseSummary, SortDirection } from "@law/api-interfaces";
 import {
   CaseListQuery,
   CasesApiClient,
@@ -48,26 +48,40 @@ import {
   HlmTHead,
   HlmTr,
 } from "@spartan-ng/helm/table";
-import { debounceTime, distinctUntilChanged, finalize, forkJoin } from "rxjs";
+import { debounceTime, distinctUntilChanged, forkJoin } from "rxjs";
+import {
+  DEFAULT_PAGE_SIZE,
+  FIRST_PAGE,
+  PAGE_SIZE_OPTIONS,
+  injectPaginatedList,
+} from "../../../shared/pagination/paginated-list";
 import { LocalizationService } from "../../../core/localization/localization.service";
 import { TranslatePipe } from "../../../core/localization/translate.pipe";
-import {
-  createSelectItemToString,
-  type SelectOption,
-} from "../../../shared/utils";
 import {
   STATUS_BADGE_BASE_CLASSES,
   priorityBadgeClass,
   statusBadgeClass,
 } from "../../../shared/status-badge";
+import {
+  ALL_OPTION_VALUE,
+  AllOptionValue,
+  CASE_PRIORITY_LABELS,
+  CASE_SORT_FIELDS,
+  CASE_STATUS_LABELS,
+  CaseSortField,
+  SortValue,
+  createSelectItemToString,
+  createSortItemToString,
+  filterOptionsFrom,
+  isSortValue,
+  sortOptions,
+  sortValue,
+} from "../../../shared/models";
 
-type CaseSort =
-  | "updatedAt:desc"
-  | "updatedAt:asc"
-  | "caseNumber:asc"
-  | "caseNumber:desc"
-  | "name:asc"
-  | "name:desc";
+const DEFAULT_CASE_SORT = sortValue<CaseSortField>(
+  "updatedAt",
+  SortDirection.DESC,
+);
 
 @Component({
   selector: "law-cases-list",
@@ -118,62 +132,58 @@ export class CasesListComponent implements OnInit {
   readonly clientId = input<string>();
   readonly showHeading = input(true);
   readonly search = new FormControl("", { nonNullable: true });
-  readonly status = new FormControl<CaseStatus | "">("", {
-    nonNullable: true,
-  });
+  readonly status = new FormControl<CaseStatus | AllOptionValue>(
+    ALL_OPTION_VALUE,
+    { nonNullable: true },
+  );
   readonly responsibleUserId = new FormControl("", { nonNullable: true });
-  readonly sort = new FormControl<CaseSort>("updatedAt:desc", {
+  readonly sort = new FormControl<SortValue<CaseSortField>>(DEFAULT_CASE_SORT, {
     nonNullable: true,
   });
-  readonly items = signal<CaseSummary[]>([]);
-  readonly page = signal(1);
-  readonly pageSize = signal(50);
-  readonly pageCount = signal(1);
-  readonly totalItems = signal(0);
-  readonly loading = signal(false);
-  readonly error = signal(false);
-  readonly loaded = signal(false);
+  readonly list = injectPaginatedList<CaseSummary>({
+    fetch: (request) =>
+      this.api.list({
+        clientId: this.clientId(),
+        search: this.search.value || undefined,
+        status: this.status.value || undefined,
+        responsibleUserId: this.responsibleUserId.value || undefined,
+        sort: this.sort.value,
+        ...request,
+      } satisfies CaseListQuery),
+    navigate: ({ page, pageSize }) =>
+      this.updateQuery({ casePage: page, casePageSize: pageSize }),
+  });
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
   readonly priorityBadgeClass = priorityBadgeClass;
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly clients = signal(new Map<string, string>());
-  readonly statusOptions: ReadonlyArray<SelectOption<CaseStatus | "">> = [
-    { value: "", label: "cases.allStatuses" },
-    { value: "DRAFT", label: "cases.status.DRAFT" },
-    { value: "ACTIVE", label: "cases.status.ACTIVE" },
-    { value: "ON_HOLD", label: "cases.status.ON_HOLD" },
-    { value: "CLOSED", label: "cases.status.CLOSED" },
-    { value: "ARCHIVED", label: "cases.status.ARCHIVED" },
-  ];
-  readonly sortOptions: ReadonlyArray<SelectOption<CaseSort>> = [
-    { value: "updatedAt:desc", label: "cases.sort.updatedNewest" },
-    { value: "updatedAt:asc", label: "cases.sort.updatedOldest" },
-    { value: "caseNumber:asc", label: "cases.sort.numberAsc" },
-    { value: "caseNumber:desc", label: "cases.sort.numberDesc" },
-    { value: "name:asc", label: "cases.sort.nameAsc" },
-    { value: "name:desc", label: "cases.sort.nameDesc" },
-  ];
+  readonly statusLabels = CASE_STATUS_LABELS;
+  readonly priorityLabels = CASE_PRIORITY_LABELS;
+  readonly statusOptions = filterOptionsFrom(
+    CASE_STATUS_LABELS,
+    "cases.allStatuses",
+  );
+  readonly sortOptions = sortOptions(CASE_SORT_FIELDS);
   readonly statusItemToString = createSelectItemToString(
     this.statusOptions,
     (key) => this.localization.translate(key),
   );
-  readonly sortItemToString = createSelectItemToString(
-    this.sortOptions,
-    (key) => this.localization.translate(key),
+  readonly sortItemToString = createSortItemToString(
+    CASE_SORT_FIELDS,
+    (key, params) => this.localization.translate(key, params),
   );
   readonly userItemToString = (value: string | null | undefined): string =>
     value
       ? (this.users().find((user) => user.id === value)?.name ?? value)
       : this.localization.translate("cases.allResponsibleUsers");
 
-  private requestSequence = 0;
   private applyingUrlState = false;
 
   constructor() {
     forkJoin({
       users: this.references.users(),
-      clients: this.clientsApi.list({ page: 1, pageSize: 100 }),
+      clients: this.clientsApi.list(FIRST_PAGE),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(({ users, clients }) => {
@@ -224,11 +234,12 @@ export class CasesListComponent implements OnInit {
         this.sort.setValue(this.caseSort(params.get("caseSort")), {
           emitEvent: false,
         });
-        this.page.set(this.positiveInteger(params.get("casePage")));
         const pageSize = Number(params.get("casePageSize"));
-        this.pageSize.set([10, 20, 50, 100].includes(pageSize) ? pageSize : 50);
+        this.list.pageSize.set(
+          PAGE_SIZE_OPTIONS.includes(pageSize) ? pageSize : DEFAULT_PAGE_SIZE,
+        );
         this.applyingUrlState = false;
-        this.load();
+        this.list.load(this.positiveInteger(params.get("casePage")));
       });
 
     this.search.valueChanges
@@ -255,60 +266,9 @@ export class CasesListComponent implements OnInit {
     this.responsibleUserId.markAsTouched();
   }
 
-  load(): void {
-    const sequence = ++this.requestSequence;
-    const query: CaseListQuery = {
-      clientId: this.clientId(),
-      search: this.search.value || undefined,
-      status: this.status.value || undefined,
-      responsibleUserId: this.responsibleUserId.value || undefined,
-      sort: this.sort.value,
-      page: this.page(),
-      pageSize: this.pageSize(),
-    };
-    this.loading.set(true);
-    this.error.set(false);
-    this.api
-      .list(query)
-      .pipe(
-        finalize(() => {
-          if (sequence === this.requestSequence) this.loading.set(false);
-        }),
-        takeUntilDestroyed(this.destroyRef),
-      )
-      .subscribe({
-        next: (response) => {
-          if (sequence !== this.requestSequence) return;
-          const lastPage = Math.max(1, response.meta.totalPages);
-          if (response.meta.page > lastPage) {
-            this.updateQuery({ casePage: lastPage });
-            return;
-          }
-          this.items.set(response.items);
-          this.page.set(response.meta.page);
-          this.pageCount.set(lastPage);
-          this.totalItems.set(response.meta.totalItems);
-          this.loaded.set(true);
-        },
-        error: () => {
-          if (sequence === this.requestSequence) this.error.set(true);
-        },
-      });
-  }
-
-  changePage(page: number): void {
-    if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.updateQuery({ casePage: page });
-  }
-
-  changePageSize(pageSize: number): void {
-    if (this.loading() || pageSize === this.pageSize()) return;
-    this.updateQuery({ casePage: 1, casePageSize: pageSize });
-  }
-
   clearFilters(): void {
     this.search.setValue("", { emitEvent: false });
-    this.status.setValue("", { emitEvent: false });
+    this.status.setValue(ALL_OPTION_VALUE, { emitEvent: false });
     this.responsibleUserId.setValue("", { emitEvent: false });
     this.updateQuery({ casePage: 1 });
   }
@@ -323,10 +283,9 @@ export class CasesListComponent implements OnInit {
 
   formatDate(value: string | null): string {
     if (!value) return this.localization.translate("common.notProvided");
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { dateStyle: "medium" },
-    ).format(new Date(value));
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      dateStyle: "medium",
+    }).format(new Date(value));
   }
 
   emptyMessageKey(): string {
@@ -360,7 +319,8 @@ export class CasesListComponent implements OnInit {
         caseSearch: this.search.value || null,
         caseStatus: this.status.value || null,
         caseResponsibleUserId: this.responsibleUserId.value || null,
-        caseSort: this.sort.value === "updatedAt:desc" ? null : this.sort.value,
+        caseSort:
+          this.sort.value === DEFAULT_CASE_SORT ? null : this.sort.value,
         ...extra,
       },
       queryParamsHandling: "merge",
@@ -372,15 +332,13 @@ export class CasesListComponent implements OnInit {
     return Number.isInteger(parsed) && parsed > 0 ? parsed : 1;
   }
 
-  private caseStatus(value: string | null): CaseStatus | "" {
+  private caseStatus(value: string | null): CaseStatus | AllOptionValue {
     return this.statusOptions.some((option) => option.value === value)
-      ? (value as CaseStatus | "")
-      : "";
+      ? (value as CaseStatus | AllOptionValue)
+      : ALL_OPTION_VALUE;
   }
 
-  private caseSort(value: string | null): CaseSort {
-    return this.sortOptions.some((option) => option.value === value)
-      ? (value as CaseSort)
-      : "updatedAt:desc";
+  private caseSort(value: string | null): SortValue<CaseSortField> {
+    return isSortValue(CASE_SORT_FIELDS, value) ? value : DEFAULT_CASE_SORT;
   }
 }

@@ -44,29 +44,31 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
 import { InfiniteScrollDirective } from "../../shared/infinite-scroll.directive";
-import { ToastService } from "../../shared/ui/toast/toast.service";
 import {
-  TREATMENT_LABEL_KEYS,
-  STATUS_LABEL_KEYS,
-  formatWorkDate,
-  isIsoDate,
-} from "../time/time-utils";
+  FIRST_PAGE,
+  PageRequest,
+  injectPaginatedList,
+} from "../../shared/pagination/paginated-list";
+import { ToastService } from "../../shared/ui/toast/toast.service";
+import { formatWorkValue, isIsoDate } from "../time/time-utils";
+import { formatDate } from "../../shared/billing";
 import { WriteOffDialogService } from "../time/write-off-dialog/write-off-dialog.service";
 
 import { QuickCaptureDialogService } from "../time/quick-capture/quick-capture-dialog.service";
-import { createSelectItemToString } from "../../shared/utils";
 
 import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
 } from "../../shared/status-badge";
-
-const PAGE_SIZE = 25;
-const OPTION_PAGE_SIZE = 100;
-
-const TREATMENT_VALUES = Object.keys(
-  TREATMENT_LABEL_KEYS,
-) as WorkEntryTreatment[];
+import {
+  AllOptionValue,
+  createSelectItemToString,
+  filterOptionsFrom,
+  labelOf,
+  optionsFrom,
+  WORK_ENTRY_STATUS_LABELS,
+  WORK_ENTRY_TREATMENT_LABELS,
+} from "../../shared/models";
 
 /** Work review defaults to confirmed, unbilled work and can inspect every status. */
 @Component({
@@ -107,41 +109,40 @@ export class FinanceWorkReviewComponent {
   private readonly toast = inject(ToastService);
   private readonly localization = inject(LocalizationService);
   private readonly writeOffDialog = inject(WriteOffDialogService);
-  private requestId = 0;
 
-  readonly status = signal<WorkEntryStatus | "">("CONFIRMED");
-  readonly statusLabelKeys = STATUS_LABEL_KEYS;
+  readonly status = signal<WorkEntryStatus | AllOptionValue>(
+    WorkEntryStatus.CONFIRMED,
+  );
+  readonly statusLabelKeys = WORK_ENTRY_STATUS_LABELS;
   readonly statusBadgeBase = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
-  readonly statusOptions = [
-    { value: "", label: "time.team.allStatuses" },
-    ...Object.entries(STATUS_LABEL_KEYS).map(([value, label]) => ({
-      value: value as WorkEntryStatus,
-      label,
-    })),
-  ];
+  readonly statusOptions = filterOptionsFrom(
+    WORK_ENTRY_STATUS_LABELS,
+    "time.team.allStatuses",
+  );
   readonly statusItemToString = createSelectItemToString(
     this.statusOptions,
     (key) => this.localization.translate(key),
   );
   setStatus(status: string): void {
-    if (status && !(status in STATUS_LABEL_KEYS)) return;
-    this.status.set(status as WorkEntryStatus | "");
+    if (status && !(status in WORK_ENTRY_STATUS_LABELS)) return;
+    this.status.set(status as WorkEntryStatus | AllOptionValue);
     this.reload();
   }
   canInvoice(entry: WorkEntry): boolean {
     return (
       !!entry.client &&
-      entry.status === "CONFIRMED" &&
+      entry.status === WorkEntryStatus.CONFIRMED &&
       !entry.invoiceId &&
-      entry.treatment !== "NON_BILLABLE"
+      entry.treatment !== WorkEntryTreatment.NON_BILLABLE
     );
   }
   view(entry: WorkEntry): void {
     this.capture
       .open({
         mode:
-          entry.status === "BILLED" || entry.status === "RUNNING"
+          entry.status === WorkEntryStatus.BILLED ||
+          entry.status === WorkEntryStatus.RUNNING
             ? "view"
             : "edit",
         entryId: entry.id,
@@ -152,8 +153,8 @@ export class FinanceWorkReviewComponent {
       });
   }
 
-  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
-  readonly treatmentOptions = TREATMENT_VALUES;
+  readonly treatmentLabelKeys = WORK_ENTRY_TREATMENT_LABELS;
+  readonly treatmentOptions = optionsFrom(WORK_ENTRY_TREATMENT_LABELS);
 
   readonly users = signal<Array<{ id: string; name: string }>>([]);
   readonly clients = signal<ClientSummary[]>([]);
@@ -166,12 +167,13 @@ export class FinanceWorkReviewComponent {
   readonly from = new FormControl("", { nonNullable: true });
   readonly to = new FormControl("", { nonNullable: true });
 
-  readonly entries = signal<WorkEntry[]>([]);
+  readonly list = injectPaginatedList<WorkEntry>({
+    fetch: (request) => this.api.list(this.query(request)),
+  });
+  readonly entries = this.list.items;
   readonly selected = signal(new Map<string, WorkEntry>());
-  readonly page = signal(0);
-  readonly hasMore = signal(false);
-  readonly loading = signal(false);
-  readonly error = signal(false);
+  readonly loading = this.list.loading;
+  readonly error = this.list.error;
   readonly busyEntryId = signal<string | null>(null);
 
   readonly selectedCount = computed(() => this.selected().size);
@@ -193,7 +195,9 @@ export class FinanceWorkReviewComponent {
   readonly treatmentItemToString = (
     value: WorkEntryTreatment | null | undefined,
   ): string =>
-    value ? this.localization.translate(TREATMENT_LABEL_KEYS[value]) : "";
+    labelOf(WORK_ENTRY_TREATMENT_LABELS, value, (key) =>
+      this.localization.translate(key),
+    );
 
   readonly selectedPeopleLabel = computed(() =>
     this.peopleIds().map(this.userItemToString).join(", "),
@@ -223,14 +227,14 @@ export class FinanceWorkReviewComponent {
         error: () => undefined,
       });
     this.clientsApi
-      .list({ page: 1, pageSize: OPTION_PAGE_SIZE })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => this.clients.set(response.items),
         error: () => undefined,
       });
     this.casesApi
-      .list({ page: 1, pageSize: OPTION_PAGE_SIZE })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => this.cases.set(response.items),
@@ -244,7 +248,7 @@ export class FinanceWorkReviewComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.reload());
 
-    this.load(true);
+    this.list.load();
   }
 
   setPeopleIds(values: string[]): void {
@@ -270,15 +274,7 @@ export class FinanceWorkReviewComponent {
   /** A new filter starts a new list; the previous selection no longer applies. */
   reload(): void {
     this.selected.set(new Map());
-    this.load(true);
-  }
-
-  retry(): void {
-    this.load(true);
-  }
-
-  loadMore(): void {
-    if (this.hasMore() && !this.loading()) this.load(false);
+    this.list.reset();
   }
 
   isSelected(entry: WorkEntry): boolean {
@@ -357,7 +353,8 @@ export class FinanceWorkReviewComponent {
   }
 
   writeOff(entry: WorkEntry): void {
-    if (entry.status !== "CONFIRMED" || this.busyEntryId()) return;
+    if (entry.status !== WorkEntryStatus.CONFIRMED || this.busyEntryId())
+      return;
     this.writeOffDialog
       .open()
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -386,13 +383,17 @@ export class FinanceWorkReviewComponent {
   }
 
   workDateLabel(date: string): string {
-    return formatWorkDate(date, this.localization.language());
+    return formatDate(date, this.localization.language());
   }
 
   priceLabel(entry: WorkEntry): string {
     if (entry.value == null)
       return this.localization.translate("time.capture.noWorkValue");
-    return `${new Intl.NumberFormat(this.localization.language() === "EN" ? "en-US" : "sr-Latn-RS", { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(Number(entry.value))} ${entry.currency ?? ""}`;
+    return formatWorkValue(
+      entry.value,
+      entry.currency,
+      this.localization.locale(),
+    );
   }
 
   private navigateToStatement(entries: WorkEntry[]): void {
@@ -413,14 +414,14 @@ export class FinanceWorkReviewComponent {
     });
   }
 
-  private query(page: number): Partial<WorkEntryQuery> {
+  private query(request: PageRequest): Partial<WorkEntryQuery> {
     const from = this.from.value;
     const to = this.to.value;
     return {
-      page,
-      pageSize: PAGE_SIZE,
+      ...request,
       statuses: this.status() ? [this.status() as WorkEntryStatus] : undefined,
-      unbilledOnly: this.status() === "CONFIRMED" ? true : undefined,
+      unbilledOnly:
+        this.status() === WorkEntryStatus.CONFIRMED ? true : undefined,
       userIds: this.peopleIds().length ? this.peopleIds() : undefined,
       clientIds: this.clientIds().length ? this.clientIds() : undefined,
       caseId: this.caseId() || undefined,
@@ -428,33 +429,5 @@ export class FinanceWorkReviewComponent {
       from: isIsoDate(from) ? from : undefined,
       to: isIsoDate(to) ? to : undefined,
     };
-  }
-
-  private load(reset: boolean): void {
-    const page = reset ? 1 : this.page() + 1;
-    const requestId = ++this.requestId;
-    this.loading.set(true);
-    this.error.set(false);
-    this.api
-      .list(this.query(page))
-      .pipe(takeUntilDestroyed(this.destroyRef))
-      .subscribe({
-        next: (response) => {
-          if (requestId !== this.requestId) return;
-          this.entries.update((items) =>
-            reset ? response.items : [...items, ...response.items],
-          );
-          this.page.set(page);
-          this.hasMore.set(page < response.meta.totalPages);
-          this.loading.set(false);
-        },
-        error: () => {
-          if (requestId !== this.requestId) return;
-          if (reset) this.entries.set([]);
-          this.hasMore.set(false);
-          this.error.set(true);
-          this.loading.set(false);
-        },
-      });
   }
 }

@@ -16,13 +16,13 @@
         {{ "nav.reports" | translate }}
       </p>
       <h1 class="text-2xl font-semibold tracking-tight md:text-3xl">
-        {{ titles[view()] | translate }}
-        @if (view() === "detail") {
+        {{ viewLabels[view()] | translate }}
+        @if (view() === ReportView.DETAIL) {
           · {{ selectedMember()?.name ?? ("report.unavailable" | translate) }}
         }
       </h1>
       <p class="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
-        {{ titles[view()] + ".description" | translate }}
+        {{ viewDescriptionLabels[view()] | translate }}
       </p>
       @if (selectedMember()?.former) {
         <p class="mt-2 text-sm text-muted-foreground">
@@ -30,7 +30,7 @@
         </p>
       }
     </div>
-    @if (view() === "detail") {
+    @if (view() === ReportView.DETAIL) {
       <a
         hlmBtn
         variant="outline"
@@ -63,10 +63,10 @@
     [value]="filters()"
     [data]="data()"
     [personal]="detail()"
-    [grouping]="view() === 'overview' || detail()"
+    [grouping]="view() === ReportView.OVERVIEW || detail()"
     (changed)="updateFilters($event)"
   />
-  @if (view() === "detail" && !selectedMember()) {
+  @if (view() === ReportView.DETAIL && !selectedMember()) {
     <p role="alert" class="rounded-xl border border-border bg-card p-6">
       {{ "report.memberMissing" | translate }}
     </p>
@@ -84,7 +84,7 @@
       />
     }
   </div>
-  @if (view() === "earnings") {
+  @if (view() === ReportView.EARNINGS) {
     <p class="text-sm text-muted-foreground">
       {{ "report.potential" | translate }}:
       <span class="font-medium text-foreground">
@@ -99,7 +99,7 @@
       {{ "report.missingHelp" | translate }} · {{ format.number(missing()) }}
     </p>
   }
-  @if (view() === "overview") {
+  @if (view() === ReportView.OVERVIEW) {
     <div class="grid gap-5 xl:grid-cols-2">
       <law-report-chart
         title="report.revenueComparison"
@@ -117,7 +117,7 @@
       [data]="ranking()"
       [query]="detailQuery()"
     />
-  } @else if (view() === "earnings") {
+  } @else if (view() === ReportView.EARNINGS) {
     <div class="grid gap-5 xl:grid-cols-2">
       <law-report-chart
         title="report.earningsComparison"
@@ -132,7 +132,7 @@
         [query]="detailQuery()"
       />
     </div>
-  } @else if (view() === "outstanding") {
+  } @else if (view() === ReportView.OUTSTANDING) {
     <div class="grid gap-5 xl:grid-cols-2">
       <law-report-chart
         title="report.aging"
@@ -165,7 +165,7 @@
           {{
             (detail()
               ? "report.detailTable"
-              : view() === "outstanding"
+              : view() === ReportView.OUTSTANDING
                 ? "report.outstandingTable"
                 : "report.earningsTable"
             ) | translate
@@ -173,13 +173,13 @@
         </h2>
         <p class="mt-1 text-sm text-muted-foreground">
           {{ format.date(filters().from) }} — {{ format.date(filters().to) }} ·
-          {{ "report.basis." + filters().basis | translate }}
+          {{ basisLabels[filters().basis] | translate }}
         </p>
       </div>
       <div class="w-full sm:w-72">
         <label hlmLabel for="report-search">
           {{
-            (detail() || view() === "outstanding"
+            (detail() || view() === ReportView.OUTSTANDING
               ? "report.searchWork"
               : "report.searchAttorney"
             ) | translate
@@ -195,7 +195,7 @@
         />
       </div>
     </div>
-    @if (detail() || view() === "outstanding") {
+    @if (detail() || view() === ReportView.OUTSTANDING) {
       <law-report-work-table
         [rows]="workRows()"
         [members]="data().members"
@@ -234,7 +234,8 @@
                     size="sm"
                     (click)="sortMembers(column)"
                   >
-                    {{ "report." + column | translate }} {{ sortLabel(column) }}
+                    {{ earningsSortFields[column].label | translate }}
+                    {{ sortLabel(column) }}
                   </button>
                 </th>
               }
@@ -311,7 +312,8 @@
             {{ row.titleKey | translate }} · {{ row.caseName }} ·
             {{ row.client }} ·
             {{
-              row.invoice?.reference ?? ("report.enum.NotInvoiced" | translate)
+              row.invoice?.reference ??
+                (statusLabels[ReportCollectionStatus.NOT_INVOICED] | translate)
             }}
           </p>
         </div>
@@ -363,13 +365,12 @@
             @if (!detail()) {
               {{ allocationMemberName(allocation.memberId) }} ·
             }
-            {{ "report.category." + allocation.category | translate }} ·
+            {{ categoryLabels[allocation.category] | translate }} ·
             {{ format.percent(allocation.rate / 10000) }}
           </p>
           <p class="mt-2 text-muted-foreground">
             {{
-              "report.reason." + (allocation.reason ?? allocation.category)
-                | translate
+              reasonLabels[allocation.reason ?? allocation.category] | translate
             }}
           </p>
           <dl class="mt-3 grid gap-3 sm:grid-cols-3">
@@ -403,7 +404,7 @@
         </div>
       } @empty {
         <p class="mt-3 text-sm">
-          {{ "report.enum." + row.sharing | translate }}
+          {{ sharingLabels[row.sharing] | translate }}
         </p>
       }
       <h3 class="mb-2 mt-5 text-sm font-semibold">

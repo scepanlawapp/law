@@ -8,10 +8,9 @@ import {
 } from "@angular/forms";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
 import { HlmDialogService } from "@spartan-ng/helm/dialog";
-import { CasePriority, CaseStatus } from "@law/api-interfaces";
+import { CasePriority, CaseStatus, CaseRequest } from "@law/api-interfaces";
 import { AuthState } from "@law/security";
 import {
-  CaseRequest,
   CasesApiClient,
   ClientsApiClient,
   ReferencesApiClient,
@@ -38,11 +37,21 @@ import { ToastService } from "../../shared/ui/toast/toast.service";
 import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
 import { ReferenceDataService } from "../../shared/reference-data.service";
 import { ReferenceCreateDialogComponent } from "../../shared/ui/reference-create-dialog/reference-create-dialog.component";
-import {
-  createSelectItemToString,
-  type SelectOption,
-} from "../../shared/utils";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
+import {
+  CASE_PRIORITY_LABELS,
+  CASE_STATUS_LABELS,
+  createSelectItemToString,
+  optionsFrom,
+} from "../../shared/models";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
+
+const EDITABLE_CASE_STATUSES: readonly CaseStatus[] = [
+  CaseStatus.DRAFT,
+  CaseStatus.ACTIVE,
+  CaseStatus.ON_HOLD,
+  CaseStatus.ARCHIVED,
+];
 
 function todayDateInputValue(): string {
   return new Date().toISOString().slice(0, 10);
@@ -137,8 +146,12 @@ export class CaseFormComponent {
     }),
     caseTypeId: new FormControl(""),
     practiceAreaId: new FormControl(""),
-    status: new FormControl<CaseStatus>("ACTIVE", { nonNullable: true }),
-    priority: new FormControl<CasePriority>("NORMAL", { nonNullable: true }),
+    status: new FormControl<CaseStatus>(CaseStatus.ACTIVE, {
+      nonNullable: true,
+    }),
+    priority: new FormControl<CasePriority>(CasePriority.NORMAL, {
+      nonNullable: true,
+    }),
     openedDate: new FormControl(this.caseId ? "" : todayDateInputValue()),
     externalReference: new FormControl("", {
       validators: [Validators.maxLength(320)],
@@ -151,28 +164,19 @@ export class CaseFormComponent {
   readonly descriptionLength = computed(
     () => (this.form.controls.description.value ?? "").length,
   );
-  readonly priorityOptions: ReadonlyArray<SelectOption<CasePriority>> = [
-    { value: "LOW", label: "cases.priority.LOW" },
-    { value: "NORMAL", label: "cases.priority.NORMAL" },
-    { value: "HIGH", label: "cases.priority.HIGH" },
-    { value: "URGENT", label: "cases.priority.URGENT" },
-  ];
-  readonly statusOptions: ReadonlyArray<SelectOption<CaseStatus>> = [
-    { value: "DRAFT", label: "cases.status.DRAFT" },
-    { value: "ACTIVE", label: "cases.status.ACTIVE" },
-    { value: "ON_HOLD", label: "cases.status.ON_HOLD" },
-    { value: "ARCHIVED", label: "cases.status.ARCHIVED" },
-  ];
-  readonly editStatusOptions = computed(() => {
-    const current = this.form.controls.status.value;
-    const list = this.statusOptions.filter(
-      (option) => option.value !== "CLOSED",
-    );
-    if (current === "CLOSED") {
-      return [{ value: "CLOSED", label: "cases.status.CLOSED" }, ...list];
-    }
-    return list;
-  });
+  readonly priorityOptions = optionsFrom(CASE_PRIORITY_LABELS);
+  readonly statusOptions = optionsFrom(
+    CASE_STATUS_LABELS,
+    EDITABLE_CASE_STATUSES,
+  );
+  readonly editStatusOptions = computed(() =>
+    this.form.controls.status.value === CaseStatus.CLOSED
+      ? optionsFrom(CASE_STATUS_LABELS, [
+          CaseStatus.CLOSED,
+          ...EDITABLE_CASE_STATUSES,
+        ])
+      : this.statusOptions,
+  );
   readonly filteredTags = computed(() => {
     const query = this.tagSearch().trim().toLowerCase();
     return this.tags().filter(
@@ -194,7 +198,7 @@ export class CaseFormComponent {
     (key) => this.local.translate(key),
   );
   readonly statusItemToString = createSelectItemToString(
-    this.editStatusOptions(),
+    optionsFrom(CASE_STATUS_LABELS),
     (key) => this.local.translate(key),
   );
   readonly caseTypeItemToString = (value: string | null | undefined): string =>
@@ -205,7 +209,7 @@ export class CaseFormComponent {
 
   constructor() {
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) =>
@@ -267,7 +271,7 @@ export class CaseFormComponent {
             this.caseClosedDate.set(item.closedDate ?? null);
             this.form.controls.clientId.disable();
             this.form.controls.responsibleUserId.disable();
-            if (item.status === "CLOSED") {
+            if (item.status === CaseStatus.CLOSED) {
               this.form.controls.status.disable();
             }
             this.loading.set(false);
@@ -283,7 +287,7 @@ export class CaseFormComponent {
   readonly isCreateMode = computed(() => !this.caseId);
   readonly isEditMode = computed(() => !!this.caseId);
   readonly unsupportedStatus = computed(
-    () => this.form.controls.status.value === "CLOSED",
+    () => this.form.controls.status.value === CaseStatus.CLOSED,
   );
 
   showError(controlName: string, validatorName?: string): boolean {
@@ -485,7 +489,7 @@ export class CaseFormComponent {
       description: raw.description?.trim() || undefined,
       caseTypeId: raw.caseTypeId || undefined,
       practiceAreaId: raw.practiceAreaId || undefined,
-      status: isDraft ? "DRAFT" : (raw.status ?? "ACTIVE"),
+      status: isDraft ? CaseStatus.DRAFT : (raw.status ?? CaseStatus.ACTIVE),
       priority: raw.priority,
       openedDate: raw.openedDate || undefined,
       externalReference: raw.externalReference?.trim() || undefined,

@@ -32,23 +32,23 @@ const LEGAL_QUOTE_KEYS = Array.from(
   (_, index) => `header.quote${String(index + 1).padStart(2, "0")}`,
 );
 
-const notificationIcon: Record<NotificationType, string> = {
-  DEADLINE_ASSIGNED: "lucideClock3",
-  DEADLINE_DUE_SOON: "lucideTriangleAlert",
-  DEADLINE_DUE_TODAY: "lucideTriangleAlert",
-  DEADLINE_OVERDUE: "lucideTriangleAlert",
-  DEADLINE_CHANGED: "lucideClock3",
-  TASK_ASSIGNED: "lucideCheckCheck",
-  TASK_DUE_SOON: "lucideCheckCheck",
-  TASK_DUE_TODAY: "lucideCheckCheck",
-  TASK_OVERDUE: "lucideTriangleAlert",
-  EVENT_UPCOMING: "lucideCalendar",
-  EVENT_CHANGED: "lucideCalendar",
-  EVENT_CANCELLED: "lucideCalendar",
-  TIMER_RUNNING_LONG: "lucideClock3",
-  TIME_REVIEW_REMINDER: "lucideCheckCheck",
-  RETAINER_USAGE_80: "lucideTriangleAlert",
-  RETAINER_USAGE_100: "lucideTriangleAlert",
+const NOTIFICATION_ICONS: Readonly<Record<NotificationType, string>> = {
+  [NotificationType.DEADLINE_ASSIGNED]: "lucideClock3",
+  [NotificationType.DEADLINE_DUE_SOON]: "lucideTriangleAlert",
+  [NotificationType.DEADLINE_DUE_TODAY]: "lucideTriangleAlert",
+  [NotificationType.DEADLINE_OVERDUE]: "lucideTriangleAlert",
+  [NotificationType.DEADLINE_CHANGED]: "lucideClock3",
+  [NotificationType.TASK_ASSIGNED]: "lucideCheckCheck",
+  [NotificationType.TASK_DUE_SOON]: "lucideCheckCheck",
+  [NotificationType.TASK_DUE_TODAY]: "lucideCheckCheck",
+  [NotificationType.TASK_OVERDUE]: "lucideTriangleAlert",
+  [NotificationType.EVENT_UPCOMING]: "lucideCalendar",
+  [NotificationType.EVENT_CHANGED]: "lucideCalendar",
+  [NotificationType.EVENT_CANCELLED]: "lucideCalendar",
+  [NotificationType.TIMER_RUNNING_LONG]: "lucideClock3",
+  [NotificationType.TIME_REVIEW_REMINDER]: "lucideCheckCheck",
+  [NotificationType.RETAINER_USAGE_80]: "lucideTriangleAlert",
+  [NotificationType.RETAINER_USAGE_100]: "lucideTriangleAlert",
 };
 
 @Component({
@@ -116,7 +116,7 @@ export class HeaderComponent {
   }
 
   iconFor(type: NotificationType): string {
-    return notificationIcon[type];
+    return NOTIFICATION_ICONS[type];
   }
 
   contextLabel(item: NotificationDto): string {
@@ -125,10 +125,9 @@ export class HeaderComponent {
 
   relativeTime(value: string): string {
     const seconds = Math.round((new Date(value).getTime() - Date.now()) / 1000);
-    const formatter = new Intl.RelativeTimeFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { numeric: "auto" },
-    );
+    const formatter = new Intl.RelativeTimeFormat(this.localization.locale(), {
+      numeric: "auto",
+    });
     const ranges: Array<[Intl.RelativeTimeFormatUnit, number]> = [
       ["year", 31_536_000],
       ["month", 2_592_000],

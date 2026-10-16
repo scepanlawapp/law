@@ -28,6 +28,7 @@ import {
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
 import {
   AssistantStarterPrompt,
+  STARTER_PROMPT_GROUP_LABELS,
   STARTER_PROMPT_GROUPS,
   StarterPromptGroup,
   starterPromptKey,
@@ -73,6 +74,7 @@ export class StarterPromptsComponent {
   readonly selected = output<AssistantStarterPrompt>();
 
   protected readonly key = starterPromptKey;
+  protected readonly groupLabels = STARTER_PROMPT_GROUP_LABELS;
   /** Grouped cards get a heading per group; ungrouped cards form one section. */
   protected readonly sections = computed<StarterPromptSection[]>(() => {
     const prompts = this.prompts();

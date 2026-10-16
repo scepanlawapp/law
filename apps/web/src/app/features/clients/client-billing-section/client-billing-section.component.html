@@ -97,7 +97,7 @@
                 <a
                   hlmBtn
                   routerLink="/finance/price-sources"
-                  [queryParams]="createQuery('CLIENT_AGREEMENT')"
+                  [queryParams]="createQuery(PriceSourceScope.CLIENT_AGREEMENT)"
                   data-testid="create-client-prices"
                 >
                   <ng-icon name="lucidePlus" aria-hidden="true" />
@@ -134,7 +134,7 @@
                     {{ "clients.pricing.create" | translate }}
                   </a>
                 </div>
-                @if (group.scope === "CASE_OVERRIDE") {
+                @if (group.scope === PriceSourceScope.CASE_OVERRIDE) {
                   <p class="text-muted-foreground">
                     {{ "clients.pricing.caseHint" | translate }}
                   </p>

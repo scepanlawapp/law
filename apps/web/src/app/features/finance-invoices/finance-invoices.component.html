@@ -210,7 +210,7 @@
               <th hlmTh>{{ "finance.invoiceDates" | translate }}</th>
               <th hlmTh>{{ "finance.currency" | translate }}</th>
               <th hlmTh>{{ "finance.status" | translate }}</th>
-              <th hlmTh>Naplata</th>
+              <th hlmTh>{{ "finance.collection" | translate }}</th>
               <th hlmTh class="text-right">
                 {{ "finance.total" | translate }}
               </th>
@@ -248,28 +248,28 @@
                 </td>
                 <td hlmTd>
                   @if (invoice.collection; as collection) {
-                    @if (invoice.status === "SENT") {
+                    @if (invoice.status === InvoiceStatus.SENT) {
                       <span class="rounded-md border px-2 py-1 text-sm">
-                        {{
-                          collection.collectionStatus === "PAID"
-                            ? "Plaćeno"
-                            : collection.collectionStatus === "PARTIALLY_PAID"
-                              ? "Delimično plaćeno"
-                              : "Nije plaćeno"
-                        }}
+                        {{ collectionLabel(collection.collectionStatus) }}
                       </span>
                       <p class="mt-1 text-sm text-muted-foreground">
-                        Preostalo:
                         {{
-                          formatCurrency(
-                            collection.remainingAmount,
-                            invoice.currency
-                          )
+                          "finance.collectionRemaining"
+                            | translate
+                              : {
+                                  amount: formatCurrency(
+                                    collection.remainingAmount,
+                                    invoice.currency
+                                  ),
+                                }
                         }}
                       </p>
                       @if (collection.overdue) {
                         <p class="text-sm text-destructive">
-                          Dospeo dug · {{ collection.daysOverdue }} dana
+                          {{
+                            "finance.collectionOverdue"
+                              | translate: { days: collection.daysOverdue }
+                          }}
                         </p>
                       }
                     } @else {
@@ -283,7 +283,7 @@
                   {{ formatCurrency(invoice.total, invoice.currency) }}
                 </td>
                 <td hlmTd>
-                  @if (invoice.status === "DRAFT") {
+                  @if (invoice.status === InvoiceStatus.DRAFT) {
                     <div class="flex items-center justify-end gap-1">
                       <a
                         hlmBtn
@@ -331,14 +331,7 @@
           </tbody>
         </table>
       </div>
-      <law-pagination
-        [currentPage]="page()"
-        [itemsPerPage]="pageSize()"
-        [totalItems]="filteredInvoices().length"
-        [disabled]="loading()"
-        (currentPageChange)="changePage($event)"
-        (itemsPerPageChange)="changePageSize($event)"
-      />
+      <law-pagination [paginator]="pagination" />
     }
   </section>
 </div>

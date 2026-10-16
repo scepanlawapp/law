@@ -1,4 +1,10 @@
 import { ReportAllocation, ReportDataset, ReportRecord } from "./report-model";
+import {
+  ReportAllocationCategory,
+  ReportAllocationReason,
+  ReportSharing,
+  ReportWorkStatus,
+} from "../../../shared/models";
 /** Entirely fictional. The dedicated self slot is bound to the authenticated user only at the mock boundary. */
 export function demoDataset(viewerId: string): ReportDataset {
   const members = [
@@ -50,17 +56,19 @@ export function demoDataset(viewerId: string): ReportDataset {
           : [
               {
                 memberId,
-                category: "workShare",
+                category: ReportAllocationCategory.WORK_SHARE,
                 rate: workRate,
-                reason: ownClient ? "ownClient" : "otherClient",
+                reason: ownClient
+                  ? ReportAllocationReason.OWN_CLIENT
+                  : ReportAllocationReason.OTHER_CLIENT,
               },
             ];
       // Ana receives an origination allocation for work performed by Marko (including origination-only records).
       if (!missing && !excluded && !ownClient)
         allocations.push({
           memberId: performer === 0 ? "demo-marko" : viewerId,
-          category: "origination",
-          reason: "origination",
+          category: ReportAllocationCategory.ORIGINATION,
+          reason: ReportAllocationReason.ORIGINATION,
           rate: 1000,
         });
       records.push({
@@ -72,7 +80,10 @@ export function demoDataset(viewerId: string): ReportDataset {
         caseName: `P ${120 + clientIndex}/2026`,
         titleKey: `report.event.${scenario % 4}`,
         workDate: date,
-        workStatus: scenario === 6 ? "planned" : "completed",
+        workStatus:
+          scenario === 6
+            ? ReportWorkStatus.PLANNED
+            : ReportWorkStatus.COMPLETED,
         estimated: amount,
         invoice: uninvoiced
           ? null
@@ -88,7 +99,11 @@ export function demoDataset(viewerId: string): ReportDataset {
             : partial
               ? [{ date: later(15), amount: amount / 2 }]
               : [],
-        sharing: missing ? "missing" : excluded ? "excluded" : "configured",
+        sharing: missing
+          ? ReportSharing.MISSING
+          : excluded
+            ? ReportSharing.EXCLUDED
+            : ReportSharing.CONFIGURED,
         allocations,
       });
     }

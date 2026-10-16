@@ -19,7 +19,31 @@ import { officeMonth } from "../../../shared/billing";
 import { ReportDataset, ReportFilters } from "./report-model";
 import { monthRange, shiftMonth, validRange } from "./report-selectors";
 import { ReportSelectComponent } from "./report-select.component";
+import {
+  ALL_OPTION_VALUE,
+  REPORT_COLLECTION_STATUS_LABELS,
+  REPORT_DATE_BASIS_HELP_LABELS,
+  REPORT_DATE_BASIS_LABELS,
+  REPORT_GROUP_LABELS,
+  REPORT_PERIOD_PRESET_LABELS,
+  REPORT_SHARING_LABELS,
+  REPORT_WORK_STATUS_LABELS,
+  SelectOption,
+  filterOptionsFrom,
+  optionsFrom,
+} from "../../../shared/models";
+import {
+  ReportDateBasis,
+  ReportGroup,
+  ReportPeriodPreset,
+} from "../../../shared/models";
+
+const ALL_LABEL = "report.all";
 const control = (value = "") => new FormControl(value, { nonNullable: true });
+const allOption = (): SelectOption => ({
+  value: ALL_OPTION_VALUE,
+  label: ALL_LABEL,
+});
 @Component({
   selector: "law-report-filters",
   standalone: true,
@@ -100,42 +124,17 @@ const control = (value = "") => new FormControl(value, { nonNullable: true });
             />
           </div>
           <div class="flex flex-wrap gap-1">
-            <button
-              hlmBtn
-              type="button"
-              size="sm"
-              variant="outline"
-              (click)="preset('current')"
-            >
-              {{ "report.current" | translate }}
-            </button>
-            <button
-              hlmBtn
-              type="button"
-              size="sm"
-              variant="ghost"
-              (click)="preset('last')"
-            >
-              {{ "report.last" | translate }}
-            </button>
-            <button
-              hlmBtn
-              type="button"
-              size="sm"
-              variant="ghost"
-              (click)="preset('three')"
-            >
-              {{ "report.three" | translate }}
-            </button>
-            <button
-              hlmBtn
-              type="button"
-              size="sm"
-              variant="ghost"
-              (click)="preset('year')"
-            >
-              {{ "report.year" | translate }}
-            </button>
+            @for (preset of presetOptions; track preset.value) {
+              <button
+                hlmBtn
+                type="button"
+                size="sm"
+                [variant]="$first ? 'outline' : 'ghost'"
+                (click)="applyPreset(preset.value)"
+              >
+                {{ preset.label | translate }}
+              </button>
+            }
           </div>
         </div>
         @if (!validRange(value().from, value().to)) {
@@ -198,7 +197,7 @@ const control = (value = "") => new FormControl(value, { nonNullable: true });
           }
         </div>
         <p class="text-sm leading-relaxed text-muted-foreground">
-          {{ "report.basisHelp." + value().basis | translate }}
+          {{ basisHelpLabels[value().basis] | translate }}
         </p>
         @if (value().member) {
           <p class="text-sm text-muted-foreground">
@@ -222,7 +221,7 @@ export class ReportFiltersComponent {
   readonly form = new FormGroup({
     from: control(),
     to: control(),
-    basis: control("work"),
+    basis: control(ReportDateBasis.WORK),
     member: control(),
     client: control(),
     caseId: control(),
@@ -230,31 +229,27 @@ export class ReportFiltersComponent {
     sharing: control(),
     workStatus: control(),
     search: control(),
-    group: control("week"),
+    group: control(ReportGroup.WEEK),
   });
-  readonly basisOptions = ["work", "invoice", "collection"].map((value) => ({
-    value,
-    label: `report.basis.${value}`,
-  }));
-  readonly groupOptions = ["day", "week", "month"].map((value) => ({
-    value,
-    label: `report.group.${value}`,
-  }));
-  readonly statusOptions = this.options([
-    "NotInvoiced",
-    "PartiallyCollected",
-    "Uncollected",
-    "FullyCollected",
-    "RequiresConfiguration",
-  ]);
-  readonly sharingOptions = this.options(["configured", "excluded", "missing"]);
-  readonly workOptions = this.options(["completed", "planned"]);
+  readonly basisHelpLabels = REPORT_DATE_BASIS_HELP_LABELS;
+  readonly presetOptions = optionsFrom(REPORT_PERIOD_PRESET_LABELS);
+  readonly basisOptions = optionsFrom(REPORT_DATE_BASIS_LABELS);
+  readonly groupOptions = optionsFrom(REPORT_GROUP_LABELS);
+  readonly statusOptions = filterOptionsFrom(
+    REPORT_COLLECTION_STATUS_LABELS,
+    ALL_LABEL,
+  );
+  readonly sharingOptions = filterOptionsFrom(REPORT_SHARING_LABELS, ALL_LABEL);
+  readonly workOptions = filterOptionsFrom(
+    REPORT_WORK_STATUS_LABELS,
+    ALL_LABEL,
+  );
   readonly members = computed(() => [
-    { value: "all", label: "report.all" },
+    allOption(),
     ...this.data().members.map((m) => ({ value: m.id, label: m.name })),
   ]);
   readonly clients = computed(() => [
-    { value: "all", label: "report.all" },
+    allOption(),
     ...[
       ...new Map(
         this.data().records.map((r) => [r.clientId, r.client]),
@@ -262,7 +257,7 @@ export class ReportFiltersComponent {
     ].map(([value, label]) => ({ value, label })),
   ]);
   readonly cases = computed(() => [
-    { value: "all", label: "report.all" },
+    allOption(),
     ...[
       ...new Map(
         this.data().records.map((r) => [r.caseId, r.caseName]),
@@ -271,42 +266,13 @@ export class ReportFiltersComponent {
   ]);
   constructor() {
     effect(() => {
-      const value = this.value();
-      this.form.setValue(
-        {
-          ...value,
-          ...Object.fromEntries(
-            [
-              "member",
-              "client",
-              "caseId",
-              "status",
-              "sharing",
-              "workStatus",
-            ].map((key) => [key, value[key as keyof ReportFilters] || "all"]),
-          ),
-        },
-        { emitEvent: false },
-      );
+      this.form.setValue(this.value(), { emitEvent: false });
     });
     this.form.valueChanges
       .pipe(takeUntilDestroyed(inject(DestroyRef)))
       .subscribe(() =>
-        this.changed.emit(
-          Object.fromEntries(
-            Object.entries(this.form.getRawValue()).map(([key, value]) => [
-              key,
-              value === "all" ? "" : value,
-            ]),
-          ) as unknown as ReportFilters,
-        ),
+        this.changed.emit(this.form.getRawValue() as ReportFilters),
       );
-  }
-  options(values: string[]) {
-    return [
-      { value: "all", label: "report.all" },
-      ...values.map((value) => ({ value, label: `report.enum.${value}` })),
-    ];
   }
   chooseMonth(month: string) {
     if (/^\d{4}-(0[1-9]|1[0-2])$/.test(month))
@@ -316,19 +282,19 @@ export class ReportFiltersComponent {
     if (validRange(this.value().from, this.value().to))
       this.chooseMonth(shiftMonth(this.value().from.slice(0, 7), offset));
   }
-  preset(kind: string) {
+  applyPreset(preset: ReportPeriodPreset) {
     const current = officeMonth();
     const end = monthRange(current);
     this.form.patchValue(
-      kind === "last"
+      preset === ReportPeriodPreset.LAST
         ? monthRange(shiftMonth(current, -1))
         : {
             ...end,
-            to: kind === "year" ? officeToday() : end.to,
+            to: preset === ReportPeriodPreset.YEAR ? officeToday() : end.to,
             from:
-              kind === "year"
+              preset === ReportPeriodPreset.YEAR
                 ? current.slice(0, 4) + "-01-01"
-                : kind === "three"
+                : preset === ReportPeriodPreset.THREE
                   ? monthRange(shiftMonth(current, -2)).from
                   : end.from,
           },

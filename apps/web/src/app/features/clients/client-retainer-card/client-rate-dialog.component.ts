@@ -35,6 +35,7 @@ import {
 } from "../../../shared/billing";
 import {
   CURRENCY_OPTIONS,
+  DEFAULT_CURRENCY,
   createCurrencyItemToString,
 } from "../../../shared/currency";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
@@ -171,10 +172,10 @@ export class ClientRateDialogComponent {
         positiveMoneyValidator,
       ],
     }),
-    currency: new FormControl(this.context.profile?.currency ?? "RSD", {
-      nonNullable: true,
-      validators: [Validators.required],
-    }),
+    currency: new FormControl<string>(
+      this.context.profile?.currency ?? DEFAULT_CURRENCY,
+      { nonNullable: true, validators: [Validators.required] },
+    ),
   });
 
   submit(): void {

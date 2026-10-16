@@ -32,26 +32,36 @@ import { ClientRetainerCardComponent } from "../client-retainer-card/client-reta
 
 const SOURCE_GROUPS = [
   {
-    scope: "WORKSPACE_PUBLIC_REFERENCE",
+    scope: PriceSourceScope.WORKSPACE_PUBLIC_REFERENCE,
     label: "clients.pricing.public",
     icon: "lucideScale",
   },
   {
-    scope: "COMPANY_CATALOG",
+    scope: PriceSourceScope.COMPANY_CATALOG,
     label: "clients.pricing.office",
     icon: "lucideBuilding2",
   },
   {
-    scope: "CLIENT_AGREEMENT",
+    scope: PriceSourceScope.CLIENT_AGREEMENT,
     label: "clients.pricing.client",
     icon: "lucideUserRound",
   },
   {
-    scope: "CASE_OVERRIDE",
+    scope: PriceSourceScope.CASE_OVERRIDE,
     label: "clients.pricing.cases",
     icon: "lucideBriefcaseBusiness",
   },
 ] as const;
+
+const GENERAL_REFERENCE_SCOPES: readonly PriceSourceScope[] = [
+  PriceSourceScope.CLIENT_AGREEMENT,
+  PriceSourceScope.COMPANY_CATALOG,
+  PriceSourceScope.WORKSPACE_PUBLIC_REFERENCE,
+];
+const CASE_SOURCE_SCOPES: readonly PriceSourceScope[] = [
+  PriceSourceScope.CASE_OVERRIDE,
+  PriceSourceScope.CLIENT_AGREEMENT,
+];
 
 @Component({
   selector: "law-client-billing-section",
@@ -80,6 +90,7 @@ const SOURCE_GROUPS = [
   templateUrl: "./client-billing-section.component.html",
 })
 export class ClientBillingSectionComponent {
+  protected readonly PriceSourceScope = PriceSourceScope;
   private readonly catalogDialog = inject(PriceCatalogDialogService);
   private readonly api = inject(FinancialsApiClient);
   private readonly auth = inject(AuthState);
@@ -99,17 +110,17 @@ export class ClientBillingSectionComponent {
     SOURCE_GROUPS.map((group) => ({
       ...group,
       sources: this.sources().filter((source) => {
-        if (group.scope === "CLIENT_AGREEMENT")
+        if (group.scope === PriceSourceScope.CLIENT_AGREEMENT)
           return (
             source.scope === group.scope &&
             source.clientId === this.clientId() &&
             !source.caseId
           );
-        if (group.scope === "CASE_OVERRIDE")
+        if (group.scope === PriceSourceScope.CASE_OVERRIDE)
           return (
             source.clientId === this.clientId() &&
             !!source.caseId &&
-            ["CASE_OVERRIDE", "CLIENT_AGREEMENT"].includes(source.scope)
+            CASE_SOURCE_SCOPES.includes(source.scope)
           );
         return source.scope === group.scope;
       }),
@@ -118,13 +129,15 @@ export class ClientBillingSectionComponent {
   /** Availability only: applying a source still depends on date, case and retainer coverage. */
   readonly generalReference = computed(
     () =>
-      ["CLIENT_AGREEMENT", "COMPANY_CATALOG", "WORKSPACE_PUBLIC_REFERENCE"]
-        .map((scope) => this.groups().find((group) => group.scope === scope))
-        .find((group) => !!group?.sources.length) ?? null,
+      GENERAL_REFERENCE_SCOPES.map((scope) =>
+        this.groups().find((group) => group.scope === scope),
+      ).find((group) => !!group?.sources.length) ?? null,
   );
   readonly hasClientSources = computed(() =>
     this.groups().some(
-      (group) => group.scope === "CLIENT_AGREEMENT" && group.sources.length > 0,
+      (group) =>
+        group.scope === PriceSourceScope.CLIENT_AGREEMENT &&
+        group.sources.length > 0,
     ),
   );
 
@@ -185,6 +198,6 @@ export class ClientBillingSectionComponent {
     const reference = this.generalReference();
     return reference?.sources.length === 1
       ? this.sourceQuery(reference.sources[0])
-      : this.createQuery(reference?.scope ?? "CLIENT_AGREEMENT");
+      : this.createQuery(reference?.scope ?? PriceSourceScope.CLIENT_AGREEMENT);
   }
 }

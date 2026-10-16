@@ -447,7 +447,8 @@
                   <div class="min-w-0 space-y-1">
                     <p>{{ statusLabel(row) }}</p>
                     @if (
-                      row.status === "uploading" || row.status === "processing"
+                      row.status === Status.UPLOADING ||
+                      row.status === Status.PROCESSING
                     ) {
                       <hlm-progress
                         [value]="row.percent"
@@ -456,13 +457,16 @@
                         <hlm-progress-indicator />
                       </hlm-progress>
                     }
-                    @if (row.status === "invalid" || row.status === "failed") {
+                    @if (
+                      row.status === Status.INVALID ||
+                      row.status === Status.FAILED
+                    ) {
                       <p class="text-destructive">{{ errorLabel(row) }}</p>
                     }
                   </div>
                 </td>
                 <td hlmTd>
-                  @if (row.status === "succeeded") {
+                  @if (row.status === Status.SUCCEEDED) {
                     <ng-icon
                       name="lucideCheck"
                       [attr.aria-label]="
@@ -535,16 +539,18 @@
                             <dt class="inline font-medium text-foreground">
                               {{ "documents.upload.createdAt" | translate }}:
                             </dt>
-                            <dd class="inline">{{ version.createdAt }}</dd>
+                            <dd class="inline">
+                              {{ dateTimeLabel(version.createdAt) }}
+                            </dd>
                           </div>
                         }
                       }
                       @if (
-                        row.status === "failed" ||
-                        row.status === "outcome_unknown"
+                        row.status === Status.FAILED ||
+                        row.status === Status.OUTCOME_UNKNOWN
                       ) {
                         <p class="text-destructive">{{ errorLabel(row) }}</p>
-                        @if (row.status === "failed") {
+                        @if (row.status === Status.FAILED) {
                           <button
                             hlmBtn
                             type="button"

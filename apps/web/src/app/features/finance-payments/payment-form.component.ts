@@ -1,7 +1,7 @@
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
 import { HlmDialogImports } from "@spartan-ng/helm/dialog";
 import { PaymentFormContext } from "./payment-dialog.models";
-import { CURRENCY_OPTIONS } from "../../shared/currency";
+import { CURRENCY_OPTIONS, DEFAULT_CURRENCY } from "../../shared/currency";
 import { NgIcon, provideIcons } from "@ng-icons/core";
 import { lucideWandSparkles, lucideSplit, lucideCheck } from "@ng-icons/lucide";
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
@@ -19,7 +19,10 @@ import {
   InvoiceCollection,
   PaymentAllocationMode,
   PaymentDetail,
+  PaymentMethod,
   PaymentOptions,
+  PaymentPurpose,
+  PaymentStatus,
   SavePaymentRequest,
 } from "@law/api-interfaces";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -32,7 +35,15 @@ import { firstValueFrom, startWith } from "rxjs";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { PaymentSelectComponent } from "./payment-select.component";
 import { PaymentClientPickerComponent } from "./payment-client-picker.component";
-import { methods, purposes } from "./payment-options";
+import { LocalizationService } from "../../core/localization/localization.service";
+import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  ALL_OPTION_VALUE,
+  PAYMENT_METHOD_LABELS,
+  PAYMENT_PURPOSE_LABELS,
+  SelectOption,
+  optionsFrom,
+} from "../../shared/models";
 import { date, decimal, minor, money, paymentError } from "./payment-ui";
 const control = (value = "") => new FormControl(value, { nonNullable: true });
 @Component({
@@ -51,6 +62,7 @@ const control = (value = "") => new FormControl(value, { nonNullable: true });
     HlmTextarea,
     PaymentSelectComponent,
     PaymentClientPickerComponent,
+    TranslatePipe,
   ],
   providers: [provideIcons({ lucideWandSparkles, lucideSplit, lucideCheck })],
   templateUrl: "./payment-form.component.html",
@@ -61,6 +73,7 @@ export class PaymentFormComponent {
   private readonly context = injectBrnDialogContext<PaymentFormContext>();
   private allowClose = false;
   private readonly confirm = inject(ConfirmDialogService);
+  private readonly localization = inject(LocalizationService);
   private readonly destroy = inject(DestroyRef);
   readonly id = this.context.id ?? null;
   readonly loading = signal(true);
@@ -77,7 +90,9 @@ export class PaymentFormComponent {
   readonly previewWarning = signal("");
   readonly newAdvance = computed(() => {
     this.values();
-    return !this.id && this.form.controls.purpose.value === "ADVANCE";
+    return (
+      !this.id && this.form.controls.purpose.value === PaymentPurpose.ADVANCE
+    );
   });
   readonly allSelected = computed(
     () =>
@@ -89,10 +104,16 @@ export class PaymentFormComponent {
       !this.allSelected() &&
       this.invoices().some((i) => this.selected().has(i.id)),
   );
-  readonly methods = methods;
-  readonly purposes = purposes;
-  readonly money = money;
-  readonly date = date;
+  readonly methods = optionsFrom(PAYMENT_METHOD_LABELS);
+  readonly purposes = optionsFrom(PAYMENT_PURPOSE_LABELS);
+  readonly PaymentAllocationMode = PaymentAllocationMode;
+  private readonly translate = (
+    key: string,
+    params?: Record<string, string | number>,
+  ) => this.localization.translate(key, params);
+  readonly money = (value: string, currency: string) =>
+    money(value, currency, this.localization.locale());
+  readonly date = (value: string) => date(value, this.localization.locale());
   readonly form = new FormGroup({
     clientId: control(),
     payerName: control(),
@@ -104,9 +125,9 @@ export class PaymentFormComponent {
         Validators.pattern(/^\d{1,16}(\.\d{1,2})?$/),
       ],
     }),
-    currency: control("RSD"),
-    paymentMethod: control("BANK_TRANSFER"),
-    purpose: control("REGULAR"),
+    currency: control(DEFAULT_CURRENCY),
+    paymentMethod: control(PaymentMethod.BANK_TRANSFER),
+    purpose: control(PaymentPurpose.REGULAR),
     bankAccountId: control(),
     bankStatementNumber: control(),
     reference: control(),
@@ -138,8 +159,8 @@ export class PaymentFormComponent {
   });
   readonly remainingText = computed(() => decimal(this.remaining()));
   readonly currencies = () => CURRENCY_OPTIONS;
-  readonly banks = computed(() => [
-    { value: "", label: "payments.none" },
+  readonly banks = computed<SelectOption[]>(() => [
+    { value: ALL_OPTION_VALUE, label: "payments.none" },
     ...(this.options()?.bankAccounts.map((b) => ({
       value: b.id,
       label: b.name + " · " + b.currencyCode,
@@ -168,7 +189,7 @@ export class PaymentFormComponent {
     this.form.controls.purpose.valueChanges
       .pipe(takeUntilDestroyed(this.destroy))
       .subscribe((value) => {
-        if (!this.id && value === "ADVANCE") this.clearProposal();
+        if (!this.id && value === PaymentPurpose.ADVANCE) this.clearProposal();
       });
     this.form.valueChanges
       .pipe(takeUntilDestroyed(this.destroy))
@@ -190,8 +211,8 @@ export class PaymentFormComponent {
       ]);
       this.options.set(options);
       this.original.set(payment);
-      if (payment?.status === "VOIDED") {
-        this.error.set("Poništena uplata ne može da se menja.");
+      if (payment?.status === PaymentStatus.VOIDED) {
+        this.error.set(this.translate("payments.error.voidedReadOnly"));
         this.allowClose = true;
         this.dialog.close();
         return;
@@ -231,7 +252,7 @@ export class PaymentFormComponent {
       }
       this.form.markAsPristine();
     } catch (e) {
-      this.error.set(paymentError(e));
+      this.error.set(paymentError(e, this.translate));
     } finally {
       this.loading.set(false);
     }
@@ -258,7 +279,7 @@ export class PaymentFormComponent {
     } catch (e) {
       if (request === this.sequence) {
         this.invoices.set([]);
-        this.eligibleError.set(paymentError(e));
+        this.eligibleError.set(paymentError(e, this.translate));
       }
     } finally {
       if (request === this.sequence) this.eligibleLoading.set(false);
@@ -375,11 +396,11 @@ export class PaymentFormComponent {
       this.form.controls.amount.invalid ||
       minor(value.amount) <= 0n
     ) {
-      this.error.set("Izaberite klijenta i unesite pozitivan iznos uplate.");
+      this.error.set(this.translate("payments.error.clientAndAmount"));
       return;
     }
-    if (mode !== "AUTOMATIC" && !this.selected().size) {
-      this.error.set("Izaberite najmanje jednu fakturu.");
+    if (mode !== PaymentAllocationMode.AUTOMATIC && !this.selected().size) {
+      this.error.set(this.translate("payments.error.selectInvoice"));
       return;
     }
     this.previewing.set(true);
@@ -393,11 +414,10 @@ export class PaymentFormComponent {
         ) &&
         !(await firstValueFrom(
           this.confirm.confirm({
-            title: "Zameni postojeću raspodelu?",
-            message:
-              "Predlog će zameniti trenutne iznose raspodele. Promene se čuvaju tek kada sačuvate uplatu.",
-            confirmText: "Zameni raspodelu",
-            cancelText: "Odustani",
+            title: this.translate("payments.replace.confirmTitle"),
+            message: this.translate("payments.replace.confirmMessage"),
+            confirmText: this.translate("payments.replace.action"),
+            cancelText: this.translate("payments.dismiss"),
           }),
         ))
       )
@@ -408,37 +428,40 @@ export class PaymentFormComponent {
           clientId: value.clientId,
           currency: value.currency,
           amount: value.amount,
-          purpose: value.purpose as "REGULAR" | "ADVANCE",
+          purpose: value.purpose as PaymentPurpose,
           reference: value.reference,
           paymentId: this.id ?? undefined,
           mode,
-          invoiceIds: mode === "AUTOMATIC" ? undefined : [...this.selected()],
+          invoiceIds:
+            mode === PaymentAllocationMode.AUTOMATIC
+              ? undefined
+              : [...this.selected()],
         }),
       );
       if (snapshot !== JSON.stringify(this.form.getRawValue())) {
-        this.error.set(
-          "Podaci su izmenjeni tokom računanja. Ponovite raspodelu.",
-        );
+        this.error.set(this.translate("payments.error.changedDuringPreview"));
         return;
       }
       if (result.allocations.some((a) => !this.allocation(a.invoiceId))) {
-        this.error.set(
-          "Lista faktura je izmenjena. Osvežite fakture i ponovite raspodelu.",
-        );
+        this.error.set(this.translate("payments.error.invoicesChanged"));
         return;
       }
       this.clearProposal();
       for (const a of result.allocations) {
         const row = this.allocation(a.invoiceId);
-        if (!row) throw new Error("Faktura nije dostupna. Osvežite listu.");
+        if (!row)
+          throw new Error(this.translate("payments.error.invoiceUnavailable"));
         row.controls.amount.setValue(a.amount);
       }
       this.previewWarning.set(result.warning ?? "");
       this.feedback.set(
-        `Predlog raspodele na ${result.allocations.length} faktura. Preostali iznos ${money(result.unallocatedAmount, value.currency)} možete rasporediti naknadno. Promene još nisu sačuvane.`,
+        this.translate("payments.preview.feedback", {
+          count: result.allocations.length,
+          amount: this.money(result.unallocatedAmount, value.currency),
+        }),
       );
     } catch (e) {
-      this.error.set(paymentError(e));
+      this.error.set(paymentError(e, this.translate));
     } finally {
       this.previewing.set(false);
     }
@@ -449,10 +472,10 @@ export class PaymentFormComponent {
       this.form.dirty &&
       !(await firstValueFrom(
         this.confirm.confirm({
-          title: "Odbaci izmene?",
-          message: "Nesačuvane izmene uplate biće odbačene.",
-          confirmText: "Odbaci",
-          cancelText: "Nastavi unos",
+          title: this.translate("payments.discard.confirmTitle"),
+          message: this.translate("payments.discard.confirmMessage"),
+          confirmText: this.translate("payments.discard.action"),
+          cancelText: this.translate("payments.discard.continue"),
         }),
       ))
     )
@@ -467,7 +490,7 @@ export class PaymentFormComponent {
     const value = this.form.getRawValue();
     value.allocations = value.allocations.filter((a) => minor(a.amount) > 0n);
     if (this.newAdvance() && value.allocations.length) {
-      this.error.set("Avans se kreira bez raspodele.");
+      this.error.set(this.translate("payments.error.advanceWithAllocations"));
       return;
     }
     if (
@@ -477,9 +500,7 @@ export class PaymentFormComponent {
       this.remaining() < 0n ||
       !value.receivedAt
     ) {
-      this.error.set(
-        "Proverite datum i iznose. Iznosi moraju biti pozitivni, sa najviše dve decimale; raspodela ne sme premašiti uplatu.",
-      );
+      this.error.set(this.translate("payments.error.invalidAmounts"));
       return;
     }
     if (
@@ -488,15 +509,13 @@ export class PaymentFormComponent {
         return !i || minor(a.amount) > minor(i.remainingAmount);
       })
     ) {
-      this.error.set(
-        "Raspodele moraju odgovarati izabranom klijentu, valuti i preostalom dugu. Uklonite ili ispravite označene raspodele.",
-      );
+      this.error.set(this.translate("payments.error.allocationMismatch"));
       return;
     }
     const body: SavePaymentRequest = {
       ...value,
-      paymentMethod: value.paymentMethod as SavePaymentRequest["paymentMethod"],
-      purpose: value.purpose as SavePaymentRequest["purpose"],
+      paymentMethod: value.paymentMethod as PaymentMethod,
+      purpose: value.purpose as PaymentPurpose,
       clientId: value.clientId || null,
       bankAccountId: value.bankAccountId || null,
       bankStatementNumber: value.bankAccountId
@@ -519,11 +538,10 @@ export class PaymentFormComponent {
         JSON.stringify(old) !== JSON.stringify(value.allocations) &&
         !(await firstValueFrom(
           this.confirm.confirm({
-            title: "Sačuvaj promenu raspodele?",
-            message:
-              "Promena će odmah izmeniti stanje naplate povezanih računa. Prethodna raspodela ostaje u istoriji.",
-            confirmText: "Sačuvaj",
-            cancelText: "Odustani",
+            title: this.translate("payments.saveAllocation.confirmTitle"),
+            message: this.translate("payments.saveAllocation.confirmMessage"),
+            confirmText: this.translate("common.save"),
+            cancelText: this.translate("payments.dismiss"),
           }),
         ))
       )
@@ -535,7 +553,7 @@ export class PaymentFormComponent {
       this.allowClose = true;
       this.dialog.close(result);
     } catch (e) {
-      this.error.set(paymentError(e));
+      this.error.set(paymentError(e, this.translate));
     } finally {
       this.saving.set(false);
     }

@@ -44,39 +44,23 @@ export function validateSize(
   return null;
 }
 
-export function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`;
-  const kb = bytes / 1024;
-  if (kb < 1024) return `${kb < 10 ? kb.toFixed(1) : Math.round(kb)} KB`;
-  const mb = kb / 1024;
-  return `${mb < 10 ? mb.toFixed(1) : Math.round(mb)} MB`;
+export function formatFileSize(bytes: number, locale: string): string {
+  const [value, unit] =
+    bytes < 1024
+      ? [bytes, "byte"]
+      : bytes < 1024 * 1024
+        ? [bytes / 1024, "kilobyte"]
+        : [bytes / (1024 * 1024), "megabyte"];
+  return new Intl.NumberFormat(locale, {
+    style: "unit",
+    unit,
+    maximumFractionDigits: value < 10 ? 1 : 0,
+  }).format(value);
 }
 
 export function clampPercent(loaded: number, total: number): number {
   if (total <= 0) return 0;
   return Math.max(0, Math.min(100, Math.round((loaded / total) * 100)));
-}
-
-export function buildDocumentCreateFormData(input: {
-  title: string;
-  category?: string | null;
-  caseIds: string[];
-  clientIds: string[];
-  file: File;
-}): FormData {
-  const body = new FormData();
-  body.append("title", input.title);
-  if (input.category) body.append("category", input.category);
-  for (const id of input.caseIds) body.append("caseIds", id);
-  for (const id of input.clientIds) body.append("clientIds", id);
-  body.append("file", input.file, input.file.name);
-  return body;
-}
-
-export function buildDocumentVersionFormData(file: File): FormData {
-  const body = new FormData();
-  body.append("file", file, file.name);
-  return body;
 }
 
 export function httpErrorText(error: unknown): string {

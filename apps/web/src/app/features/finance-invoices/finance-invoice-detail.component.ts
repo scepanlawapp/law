@@ -6,6 +6,9 @@ import {
   Invoice,
   InvoiceLineSummary,
   InvoiceSefStateResponse,
+  InvoiceStatus,
+  SefEnvironment,
+  SefSubmissionState,
   SefValidationResult,
 } from "@law/api-interfaces";
 import { FinancialsApiClient } from "@law/api-clients";
@@ -24,6 +27,7 @@ import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
 } from "../../shared/status-badge";
+import { SEF_SUBMISSION_STATE_LABELS, labelOf } from "../../shared/models";
 
 @Component({
   selector: "law-finance-invoice-detail",
@@ -42,6 +46,9 @@ import {
 export class FinanceInvoiceDetailComponent {
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
+  readonly InvoiceStatus = InvoiceStatus;
+  readonly SefEnvironment = SefEnvironment;
+  readonly SefSubmissionState = SefSubmissionState;
   private readonly api = inject(FinancialsApiClient);
   private readonly route = inject(ActivatedRoute);
   private readonly destroyRef = inject(DestroyRef);
@@ -89,7 +96,7 @@ export class FinanceInvoiceDetailComponent {
       !state ||
       !state.enabled ||
       !state.configured ||
-      state.environment !== "DEMO" ||
+      state.environment !== SefEnvironment.DEMO ||
       state.immutable ||
       this.sefAction() !== null
     );
@@ -213,7 +220,7 @@ export class FinanceInvoiceDetailComponent {
           .pipe(takeUntilDestroyed(this.destroyRef))
           .subscribe({
             next: (submission) => {
-              if (submission.state === "FAILED")
+              if (submission.state === SefSubmissionState.FAILED)
                 sessionStorage.removeItem(storageKey);
               this.sefAction.set(null);
               this.loadSefState();
@@ -250,14 +257,18 @@ export class FinanceInvoiceDetailComponent {
       });
   }
 
-  sefStateKey(state: string): string {
-    return `finance.sef.state.${state}`;
+  sefStateLabel(state: SefSubmissionState): string {
+    return labelOf(SEF_SUBMISSION_STATE_LABELS, state, (key) =>
+      this.localization.translate(key),
+    );
   }
 
   sefFieldLabel(fieldPath: string): string {
     const line = /^invoice\.lines\.(\d+)/.exec(fieldPath);
     if (line)
-      return `${this.localization.translate("finance.sef.fieldLine")} ${Number(line[1]) + 1}`;
+      return this.localization.translate("finance.sef.fieldLineNumber", {
+        number: Number(line[1]) + 1,
+      });
     const key = fieldPath.startsWith("supplier")
       ? "finance.sef.fieldIssuer"
       : fieldPath.startsWith("customer")
@@ -272,7 +283,12 @@ export class FinanceInvoiceDetailComponent {
 
   send(): void {
     const invoice = this.invoice();
-    if (!invoice || invoice.status !== "DRAFT" || this.sendBlocked()) return;
+    if (
+      !invoice ||
+      invoice.status !== InvoiceStatus.DRAFT ||
+      this.sendBlocked()
+    )
+      return;
     this.confirmDialog
       .confirm({
         title: "finance.sendInvoiceTitle",
@@ -329,23 +345,22 @@ export class FinanceInvoiceDetailComponent {
   }
 
   formatDate(value: string): string {
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { dateStyle: "medium" },
-    ).format(new Date(value));
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      dateStyle: "medium",
+    }).format(new Date(value));
   }
 
   formatAmount(value: string): string {
-    return new Intl.NumberFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { minimumFractionDigits: 2, maximumFractionDigits: 2 },
-    ).format(Number(value));
+    return new Intl.NumberFormat(this.localization.locale(), {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(Number(value));
   }
 
   formatCurrency(value: string, currency: string): string {
-    return new Intl.NumberFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { style: "currency", currency },
-    ).format(Number(value));
+    return new Intl.NumberFormat(this.localization.locale(), {
+      style: "currency",
+      currency,
+    }).format(Number(value));
   }
 }

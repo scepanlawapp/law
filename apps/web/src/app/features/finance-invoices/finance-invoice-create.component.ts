@@ -10,11 +10,14 @@ import {
 import {
   Invoice,
   ClientSummary,
+  InvoiceStatus,
   InvoiceWorkEntrySummary,
   OrganizationSettings,
   WorkEntry,
+  WorkEntryStatus,
   WorkEntryTreatment,
 } from "@law/api-interfaces";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
 import {
   BillingSetupApiClient,
   ClientsApiClient,
@@ -61,6 +64,7 @@ import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { LocalizationService } from "../../core/localization/localization.service";
 import {
   CURRENCY_OPTIONS,
+  DEFAULT_CURRENCY,
   createCurrencyItemToString,
 } from "../../shared/currency";
 import {
@@ -80,10 +84,16 @@ import {
   toInvoiceLineInput,
 } from "./invoice-form";
 import { InvoiceLineImportDialogService } from "./invoice-line-import-dialog.service";
-import { InvoiceLineImportMode } from "./invoice-line-import-dialog.models";
+import {
+  INVOICE_IMPORTABLE_TREATMENTS,
+  InvoiceLineImportMode,
+} from "./invoice-line-import-dialog.models";
 import { ClientFormDialogService } from "../clients/client-create-edit-modal/client-form-dialog.service";
-import { createSelectItemToString } from "../../shared/utils";
-import { formatMinutes, TREATMENT_LABEL_KEYS } from "../time/time-utils";
+import { formatMinutes } from "../time/time-utils";
+import {
+  createSelectItemToString,
+  WORK_ENTRY_TREATMENT_LABELS,
+} from "../../shared/models";
 
 interface LinkedWorkEntryDetail {
   id: string;
@@ -186,7 +196,7 @@ export class FinanceInvoiceCreateComponent {
   readonly workEntryDetails = signal(new Map<string, LinkedWorkEntryDetail>());
   readonly expandedInvoiceLines = signal(new Set<InvoiceLineForm>());
   readonly linkedWorkExpanded = signal(false);
-  readonly treatmentLabelKeys = TREATMENT_LABEL_KEYS;
+  readonly treatmentLabelKeys = WORK_ENTRY_TREATMENT_LABELS;
   readonly formatMinutes = formatMinutes;
 
   readonly form = new FormGroup({
@@ -232,7 +242,7 @@ export class FinanceInvoiceCreateComponent {
       nonNullable: true,
       validators: Validators.maxLength(255),
     }),
-    currency: new FormControl("RSD", {
+    currency: new FormControl<string>(DEFAULT_CURRENCY, {
       nonNullable: true,
       validators: Validators.required,
     }),
@@ -430,7 +440,7 @@ export class FinanceInvoiceCreateComponent {
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (invoice) => {
-          if (invoice.status !== "DRAFT") {
+          if (invoice.status !== InvoiceStatus.DRAFT) {
             this.invoiceLoading.set(false);
             this.invoiceLoadError.set("finance.invoiceNotEditable");
             return;
@@ -449,7 +459,7 @@ export class FinanceInvoiceCreateComponent {
     this.clientsLoading.set(true);
     this.clientsError.set(false);
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {
@@ -485,7 +495,7 @@ export class FinanceInvoiceCreateComponent {
   addManualLine(): void {
     const line = createInvoiceLineForm(
       undefined,
-      normalizeCurrency(this.form.controls.currency.value) || "RSD",
+      normalizeCurrency(this.form.controls.currency.value) || DEFAULT_CURRENCY,
       this.invoiceLineDefaultVatRate(),
     );
     this.form.controls.lines.push(line);
@@ -600,10 +610,10 @@ export class FinanceInvoiceCreateComponent {
   }
 
   formatCurrency(value: number, currency: string): string {
-    return new Intl.NumberFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { style: "currency", currency },
-    ).format(value);
+    return new Intl.NumberFormat(this.localization.locale(), {
+      style: "currency",
+      currency,
+    }).format(value);
   }
 
   submit(): void {
@@ -772,11 +782,9 @@ export class FinanceInvoiceCreateComponent {
             (entry): entry is WorkEntry =>
               entry !== null &&
               entry.client?.id === clientId &&
-              entry.status === "CONFIRMED" &&
+              entry.status === WorkEntryStatus.CONFIRMED &&
               entry.invoiceId === null &&
-              ["RETAINER", "HOURLY", "AT", "UNDECIDED"].includes(
-                entry.treatment,
-              ),
+              INVOICE_IMPORTABLE_TREATMENTS.includes(entry.treatment),
           );
           this.appendEntries(usable, rate);
           if (usable.length !== this.requestedWorkEntryIds.length) {
@@ -801,7 +809,7 @@ export class FinanceInvoiceCreateComponent {
   private appendEntries(
     entries: readonly WorkEntry[],
     rate: ClientRate | null,
-    mode: InvoiceLineImportMode = "SEPARATE",
+    mode: InvoiceLineImportMode = InvoiceLineImportMode.SEPARATE,
   ): void {
     const firstNewIndex = this.form.controls.lines.length;
     const existingIds = new Set(
@@ -812,9 +820,9 @@ export class FinanceInvoiceCreateComponent {
     for (const entry of entries) details.set(entry.id, workEntryDetail(entry));
     this.workEntryDetails.set(details);
     const currency =
-      normalizeCurrency(this.form.controls.currency.value) || "RSD";
+      normalizeCurrency(this.form.controls.currency.value) || DEFAULT_CURRENCY;
     const added =
-      mode === "GROUPED"
+      mode === InvoiceLineImportMode.GROUPED
         ? appendGroupedWorkEntries(
             this.form.controls.lines,
             newEntries,

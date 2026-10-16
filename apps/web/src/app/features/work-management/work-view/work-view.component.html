@@ -17,7 +17,7 @@
             />
           </div>
 
-          @if (!fixedUserId() && viewMode() !== "my") {
+          @if (!fixedUserId() && viewMode() !== WorkViewMode.MY) {
             <div class="flex w-56 max-w-full flex-col gap-1">
               <label class="text-sm font-medium" for="work-view-people">
                 {{ "work.filters.people" | translate }}
@@ -150,20 +150,24 @@
               <button
                 hlmBtn
                 type="button"
-                [variant]="presentation() === 'board' ? 'default' : 'outline'"
+                [variant]="
+                  presentation() === WorkPresentation.BOARD
+                    ? 'default'
+                    : 'outline'
+                "
                 [hlmTooltip]="'work.view.showBoard' | translate"
                 [attr.aria-label]="'work.view.showBoard' | translate"
-                (click)="setPresentation('board')"
+                (click)="setPresentation(WorkPresentation.BOARD)"
               >
                 <ng-icon name="lucideKanban" />
               </button>
               <button
                 hlmBtn
                 type="button"
-                [variant]="presentation() === 'table' ? 'default' : 'outline'"
+                [variant]="isTable() ? 'default' : 'outline'"
                 [hlmTooltip]="'work.view.showTable' | translate"
                 [attr.aria-label]="'work.view.showTable' | translate"
-                (click)="setPresentation('table')"
+                (click)="setPresentation(WorkPresentation.TABLE)"
               >
                 <ng-icon name="lucideTable2" />
               </button>
@@ -177,7 +181,7 @@
       </div>
     </div>
 
-    @if (presentation() === "board" && hasTableOnlyStatuses()) {
+    @if (!isTable() && hasTableOnlyStatuses()) {
       <div
         role="status"
         class="flex flex-wrap items-center justify-between gap-3 border-s-2 border-primary bg-muted p-3 text-sm"
@@ -187,7 +191,7 @@
           hlmBtn
           type="button"
           variant="outline"
-          (click)="setPresentation('table')"
+          (click)="setPresentation(WorkPresentation.TABLE)"
         >
           <ng-icon name="lucideTable2" />
           {{ "work.view.showTable" | translate }}
@@ -195,13 +199,11 @@
       </div>
     }
 
-    @if (presentation() === "table" && loading() && workItems().length === 0) {
+    @if (isTable() && loading() && workItems().length === 0) {
       <div class="flex justify-center py-8">
         <hlm-spinner />
       </div>
-    } @else if (
-      presentation() === "table" && tasksError() && workItems().length === 0
-    ) {
+    } @else if (isTable() && tasksError() && workItems().length === 0) {
       <div
         role="alert"
         class="flex items-center justify-center gap-3 py-8 text-sm"
@@ -211,11 +213,11 @@
           {{ "work.retry" | translate }}
         </button>
       </div>
-    } @else if (presentation() === "table" && workItems().length === 0) {
+    } @else if (isTable() && workItems().length === 0) {
       <p class="py-8 text-center text-sm text-muted-foreground">
         {{ "work.empty" | translate }}
       </p>
-    } @else if (presentation() === "table") {
+    } @else if (isTable()) {
       <div
         class="flex min-h-0 min-w-0 flex-1 flex-col overflow-auto overscroll-contain"
       >
@@ -303,9 +305,7 @@
                         priorityBadgeClass(priority)
                       "
                     >
-                      {{
-                        "work.priority." + priority.toLowerCase() | translate
-                      }}
+                      {{ priorityLabels[priority] | translate }}
                     </span>
                   }
                 </td>
@@ -354,7 +354,7 @@
                       <ng-icon name="lucidePlus" />
                       {{ "work.addWork" | translate }}
                     </button>
-                    @if (item.presentationStatus !== "ARCHIVED") {
+                    @if (item.presentationStatus !== TaskStatus.ARCHIVED) {
                       <button
                         hlmBtn
                         type="button"
@@ -403,7 +403,7 @@
               class="flex min-h-0 flex-col gap-2 rounded-xl border border-border-subtle bg-surface-section p-2"
             >
               <h3 class="px-1 text-sm font-semibold">
-                {{ "work.board." + column.toLowerCase() | translate }}
+                {{ boardColumnLabels[column] | translate }}
               </h3>
               <div class="flex min-h-24 flex-1 flex-col gap-2 pe-1">
                 @for (
@@ -459,10 +459,7 @@
                               priorityBadgeClass(priority)
                             "
                           >
-                            {{
-                              "work.priority." + priority.toLowerCase()
-                                | translate
-                            }}
+                            {{ priorityLabels[priority] | translate }}
                           </span>
                         }
                       </div>
@@ -542,16 +539,8 @@
         </div>
       </div>
     }
-    @if (presentation() === "table" && tasksTotalItems() > 0) {
-      <law-pagination
-        class="shrink-0"
-        [currentPage]="tasksPage()"
-        [itemsPerPage]="tasksPageSize()"
-        [totalItems]="tasksTotalItems()"
-        [disabled]="tasksLoading()"
-        (currentPageChange)="changeTaskPage($event)"
-        (itemsPerPageChange)="changeTaskPageSize($event)"
-      />
+    @if (isTable() && taskPages.totalItems() > 0) {
+      <law-pagination class="shrink-0" [paginator]="taskPages" />
     }
   </div>
 

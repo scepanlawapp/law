@@ -24,7 +24,10 @@ import {
   BriefPartyOption,
   BriefTaskPreview,
   BriefTaskProposal,
+  CasePriority,
+  CaseSummary,
   ChatSessionSummary,
+  DraftDocumentFamily,
 } from "@law/api-interfaces";
 import { ChatApiClient, CasesApiClient } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
@@ -35,12 +38,24 @@ import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTooltipImports } from "@spartan-ng/helm/tooltip";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
+import {
+  DRAFT_DOCUMENT_FAMILY_EVIDENCE_LABELS,
+  DRAFT_DOCUMENT_TYPE_LABELS,
+} from "../../shared/models";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
 import { briefFieldLabel } from "./brief-field-label";
 
 type TaskGroupSource = BriefTaskProposal["source"];
 
+/** Task groups in display order: missing data first, then evidence. */
+const TASK_GROUP_SOURCES: readonly TaskGroupSource[] = ["missing", "evidence"];
+const URGENT_PRIORITIES: readonly CasePriority[] = [
+  CasePriority.HIGH,
+  CasePriority.URGENT,
+];
+
 @Component({
-  selector: "app-assistant-matter-link",
+  selector: "law-assistant-matter-link",
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
@@ -83,7 +98,7 @@ export class AssistantMatterLinkComponent {
   readonly error = signal("");
   readonly search = signal("");
   readonly caseOptions = signal<
-    Array<{ id: string; caseNumber: string; name: string }>
+    Pick<CaseSummary, "id" | "caseNumber" | "name">[]
   >([]);
   readonly preview = signal<BriefApplyPreview | null>(null);
   readonly taskPreview = signal<BriefTaskPreview | null>(null);
@@ -95,24 +110,21 @@ export class AssistantMatterLinkComponent {
     const preview = this.taskPreview();
     const proposals = preview?.proposals ?? [];
     // Litigation asks for evidence; other families for attachments or documents.
-    const family = preview?.documentFamily ?? "LITIGATION";
     const evidenceKey =
-      family === "LITIGATION"
-        ? "assistant.matter.evidenceGroup"
-        : `assistant.matter.evidenceGroup.${family}`;
-    return (["missing", "evidence"] as const)
-      .map((source) => ({
-        source,
-        titleKey:
-          source === "missing" ? "assistant.matter.missingData" : evidenceKey,
-        tasks: proposals.filter((task) => task.source === source),
-      }))
-      .filter((group) => group.tasks.length);
+      DRAFT_DOCUMENT_FAMILY_EVIDENCE_LABELS[
+        preview?.documentFamily ?? DraftDocumentFamily.LITIGATION
+      ];
+    return TASK_GROUP_SOURCES.map((source) => ({
+      source,
+      titleKey:
+        source === "missing" ? "assistant.matter.missingData" : evidenceKey,
+      tasks: proposals.filter((task) => task.source === source),
+    })).filter((group) => group.tasks.length);
   });
   readonly canConfirm = computed(() => !this.saving());
   readonly documentTypeLabel = computed(() => {
     const type = this.preview()?.documentType;
-    return type ? `assistant.documentType.${type}` : null;
+    return type ? DRAFT_DOCUMENT_TYPE_LABELS[type] : null;
   });
   // Which brief party is the office's client; changing it reloads the preview.
   readonly clientRole = new FormControl<string | null>(null);
@@ -188,7 +200,7 @@ export class AssistantMatterLinkComponent {
       this.caseOptions.set([]);
       return;
     }
-    this.cases.list({ search: value.trim(), page: 1, pageSize: 5 }).subscribe({
+    this.cases.list({ ...FIRST_PAGE, search: value.trim() }).subscribe({
       next: (response) => this.caseOptions.set(response.items),
       error: () => this.error.set("assistant.matter.previewError"),
     });
@@ -234,6 +246,10 @@ export class AssistantMatterLinkComponent {
 
   missingFieldLabels(fields: BriefMissingField[]): string {
     return fields.map((field) => this.fieldLabel(field)).join(", ");
+  }
+
+  isUrgent(task: BriefTaskProposal): boolean {
+    return URGENT_PRIORITIES.includes(task.priority);
   }
 
   dueDateOf(task: BriefTaskProposal): string {

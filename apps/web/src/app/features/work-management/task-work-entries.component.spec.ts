@@ -61,7 +61,7 @@ describe("TaskWorkEntriesComponent", () => {
     expect(api.list).toHaveBeenCalledWith({
       taskId: task.id,
       page: 1,
-      pageSize: 50,
+      pageSize: 100,
     });
     const text = fixture.nativeElement.textContent;
     expect(text).toContain("Work 1");
@@ -71,11 +71,11 @@ describe("TaskWorkEntriesComponent", () => {
   });
   it("loads more entries and refreshes when capture saves work", () => {
     api.list.mockReturnValueOnce(
-      of({ items: [entry("1")], meta: { totalItems: 2 } }),
+      of({ items: [entry("1")], meta: { totalItems: 101, totalPages: 2 } }),
     );
     const fixture = render();
     api.list.mockReturnValueOnce(
-      of({ items: [entry("2")], meta: { totalItems: 2 } }),
+      of({ items: [entry("2")], meta: { totalItems: 101, totalPages: 2 } }),
     );
     fixture.componentInstance.load(false);
     expect(fixture.componentInstance.entries().map((item) => item.id)).toEqual([

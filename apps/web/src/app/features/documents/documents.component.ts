@@ -1,5 +1,9 @@
 import { formatFileSize } from "./document-upload-modal/document-upload.utils";
 import {
+  DOCUMENT_TITLE_MAX,
+  DocumentUploadMode,
+} from "./document-upload-modal/document-upload.models";
+import {
   catchError,
   concatMap,
   forkJoin,
@@ -83,6 +87,7 @@ import {
 import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmLabel } from "@spartan-ng/helm/label";
 import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
+import { PageState, FIRST_PAGE } from "../../shared/pagination/paginated-list";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmSwitch } from "@spartan-ng/helm/switch";
@@ -101,32 +106,84 @@ import {
   DocumentsApiClient,
 } from "@law/api-clients";
 import {
-  DOCUMENT_CATEGORIES,
   DocumentAiStatus,
+  DocumentArchivedFilter,
   DocumentCategory,
   DocumentDetail,
+  DocumentListView,
   DocumentSummary,
   DocumentFolderSummary,
   DocumentStatistics,
   DocumentListQuery,
   DocumentVersionSummary,
+  isDocumentCategory,
 } from "@law/api-interfaces";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ComboboxSelectAllComponent } from "../../shared/ui/combobox-select-all/combobox-select-all.component";
-import {
-  createSelectItemToString,
-  type SelectOption,
-} from "../../shared/utils";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { DocumentUploadDialogService } from "./document-upload-modal/document-upload-dialog.service";
 import { DocumentAssociationsDialogService } from "./document-associations/document-associations-dialog.service";
 import { DocumentAiStatusComponent } from "../../shared/components/document-ai-status/document-ai-status.component";
+import {
+  ALL_OPTION_VALUE,
+  AllOptionValue,
+  createSelectItemToString,
+  DOCUMENT_AI_IN_PROGRESS_STATUSES,
+  DOCUMENT_AI_STATUS_LABELS,
+  DOCUMENT_CATEGORY_LABELS,
+  DOCUMENT_KIND_LABELS,
+  filterOptionsFrom,
+  LabelMap,
+  labelOf,
+  OFFICE_TIME_ZONE,
+  optionsFrom,
+} from "../../shared/models";
 
-export type DocumentsViewMode = "list" | "grid";
-export type DocumentsTab = "all" | "recent" | "needs-linking" | "archived";
-export type DocumentSelection = { id: string; kind: "file" | "folder" };
+export const DocumentsViewMode = {
+  LIST: "list",
+  GRID: "grid",
+} as const;
+export type DocumentsViewMode =
+  (typeof DocumentsViewMode)[keyof typeof DocumentsViewMode];
+
+export const DocumentsTab = {
+  ALL: "all",
+  RECENT: "recent",
+  NEEDS_LINKING: "needs-linking",
+  ARCHIVED: "archived",
+} as const;
+export type DocumentsTab = (typeof DocumentsTab)[keyof typeof DocumentsTab];
+
+export const DocumentSelectionKind = {
+  FILE: "file",
+  FOLDER: "folder",
+} as const;
+export type DocumentSelectionKind =
+  (typeof DocumentSelectionKind)[keyof typeof DocumentSelectionKind];
+
+export interface DocumentSelection {
+  id: string;
+  kind: DocumentSelectionKind;
+}
+
+const DOCUMENTS_TAB_LABELS: LabelMap<DocumentsTab> = {
+  [DocumentsTab.ALL]: "documents.tabs.all",
+  [DocumentsTab.RECENT]: "documents.tabs.recent",
+  [DocumentsTab.NEEDS_LINKING]: "documents.tabs.needsLinking",
+  [DocumentsTab.ARCHIVED]: "documents.tabs.archived",
+};
+
+/** List `view` sent for each tab; tabs without one list every document. */
+const TAB_VIEWS: Partial<Record<DocumentsTab, DocumentListQuery["view"]>> = {
+  [DocumentsTab.RECENT]: DocumentListView.RECENT,
+  [DocumentsTab.NEEDS_LINKING]: DocumentListView.NEEDS_LINKING,
+};
+
+/** `folderId` value that lists only files directly in the root. */
+const ROOT_FOLDER_ID = "root";
+const FOLDER_NAME_MAX = 255;
 
 const AI_POLL_INTERVAL_MS = 5000;
 /**
@@ -137,7 +194,7 @@ const AI_POLL_INTERVAL_MS = 5000;
 const AI_POLL_MAX_IDLE = 120;
 
 const isAiInProgress = (status: DocumentAiStatus | undefined): boolean =>
-  status === "QUEUED" || status === "PROCESSING";
+  !!status && DOCUMENT_AI_IN_PROGRESS_STATUSES.includes(status);
 
 /** In progress and not yet offered a manual retry: worth watching. */
 const isAiWatched = (
@@ -233,16 +290,23 @@ export class DocumentsComponent implements OnInit {
   private readonly injector = inject(Injector);
   readonly renameInput = viewChild<ElementRef<HTMLInputElement>>("renameInput");
 
+  readonly Tab = DocumentsTab;
+  readonly ViewMode = DocumentsViewMode;
+  readonly Kind = DocumentSelectionKind;
+  readonly aiStatusLabels = DOCUMENT_AI_STATUS_LABELS;
+  readonly documentKindLabels = DOCUMENT_KIND_LABELS;
   readonly embedded = input(false);
   readonly fixedCaseId = input<string>();
   readonly fixedClientId = input<string>();
   readonly documentsChanged = output<void>();
   readonly searchControl = new FormControl("", { nonNullable: true });
-  readonly selectedTab = signal<DocumentsTab>("all");
-  readonly viewMode = signal<DocumentsViewMode>("list");
+  readonly selectedTab = signal<DocumentsTab>(DocumentsTab.ALL);
+  readonly viewMode = signal<DocumentsViewMode>(DocumentsViewMode.LIST);
   readonly selectedCaseIds = signal<string[]>([]);
   readonly selectedClientId = new FormControl("", { nonNullable: true });
-  readonly selectedCategory = new FormControl("", { nonNullable: true });
+  readonly selectedCategory = new FormControl<
+    DocumentCategory | AllOptionValue
+  >(ALL_OPTION_VALUE, { nonNullable: true });
   readonly currentFolderId = signal<string | null>(null);
   readonly folders = signal<DocumentFolderSummary[]>([]);
   readonly selection = signal<DocumentSelection[]>([]);
@@ -268,10 +332,10 @@ export class DocumentsComponent implements OnInit {
   readonly documents = signal<DocumentSummary[]>([]);
   readonly loading = signal(false);
   readonly error = signal(false);
-  readonly page = signal(1);
-  readonly pageSize = signal(50);
-  readonly pageCount = signal(1);
-  readonly totalItems = signal(0);
+  readonly pagination = new PageState({
+    loading: this.loading,
+    onChange: () => this.load(),
+  });
   readonly caseOptions = signal<Array<{ id: string; label: string }>>([]);
   readonly clientOptions = signal<Array<{ id: string; label: string }>>([]);
   readonly detailDocument = signal<DocumentDetail | null>(null);
@@ -289,30 +353,24 @@ export class DocumentsComponent implements OnInit {
   );
   readonly detailForm = new FormGroup({
     title: new FormControl("", { nonNullable: true }),
-    category: new FormControl("", { nonNullable: true }),
+    category: new FormControl<DocumentCategory | AllOptionValue>(
+      ALL_OPTION_VALUE,
+      { nonNullable: true },
+    ),
     caseIds: new FormControl<string[]>([], { nonNullable: true }),
     clientIds: new FormControl<string[]>([], { nonNullable: true }),
   });
 
-  readonly tabOptions: ReadonlyArray<{ value: DocumentsTab; label: string }> = [
-    { value: "all", label: "documents.tabs.all" },
-    { value: "recent", label: "documents.tabs.recent" },
-    { value: "needs-linking", label: "documents.tabs.needsLinking" },
-    { value: "archived", label: "documents.tabs.archived" },
-  ];
+  readonly tabOptions = optionsFrom(DOCUMENTS_TAB_LABELS);
 
   readonly tabItemToString = createSelectItemToString(this.tabOptions, (key) =>
     this.localization.translate(key),
   );
 
-  readonly categoryOptions: ReadonlyArray<SelectOption<DocumentCategory | "">> =
-    [
-      { value: "", label: "documents.filters.allCategories" },
-      ...DOCUMENT_CATEGORIES.map((category) => ({
-        value: category,
-        label: `documents.category.${category}`,
-      })),
-    ];
+  readonly categoryOptions = filterOptionsFrom(
+    DOCUMENT_CATEGORY_LABELS,
+    "documents.filters.allCategories",
+  );
 
   readonly categoryItemToString = createSelectItemToString(
     this.categoryOptions,
@@ -369,20 +427,6 @@ export class DocumentsComponent implements OnInit {
 
   isNeedsLinking(document: DocumentSummary): boolean {
     return !document.cases.length && !document.clients.length;
-  }
-
-  isAddedThisMonth(document: DocumentSummary): boolean {
-    const date = new Date(document.createdAt);
-    const now = new Date();
-    return (
-      date.getFullYear() === now.getFullYear() &&
-      date.getMonth() === now.getMonth()
-    );
-  }
-
-  tabLabel(tab: DocumentsTab): string {
-    const option = this.tabOptions.find((item) => item.value === tab);
-    return option?.label ?? "documents.tabs.all";
   }
 
   showCaseFilter(): boolean {
@@ -442,14 +486,20 @@ export class DocumentsComponent implements OnInit {
 
   openFolder(id: string | null): void {
     this.currentFolderId.set(id);
-    this.page.set(1);
+    this.pagination.page.set(1);
     this.load();
   }
 
   visibleItems(): DocumentSelection[] {
     return [
-      ...this.folders().map(({ id }) => ({ id, kind: "folder" as const })),
-      ...this.documents().map(({ id }) => ({ id, kind: "file" as const })),
+      ...this.folders().map(({ id }) => ({
+        id,
+        kind: DocumentSelectionKind.FOLDER,
+      })),
+      ...this.documents().map(({ id }) => ({
+        id,
+        kind: DocumentSelectionKind.FILE,
+      })),
     ];
   }
 
@@ -494,7 +544,7 @@ export class DocumentsComponent implements OnInit {
     }
   }
 
-  selectionCount(kind: DocumentSelection["kind"]): number {
+  selectionCount(kind: DocumentSelectionKind): number {
     return this.selection().filter((item) => item.kind === kind).length;
   }
 
@@ -529,7 +579,7 @@ export class DocumentsComponent implements OnInit {
 
   openItem(item: DocumentSelection): void {
     if (this.bulkPending() || this.renamePending()) return;
-    if (item.kind === "folder") this.openFolder(item.id);
+    if (item.kind === DocumentSelectionKind.FOLDER) this.openFolder(item.id);
     else {
       const document = this.documents().find(({ id }) => id === item.id);
       if (document) this.openDocumentDetail(document);
@@ -537,7 +587,7 @@ export class DocumentsComponent implements OnInit {
   }
 
   itemNameText(item: DocumentSelection): string {
-    return item.kind === "folder"
+    return item.kind === DocumentSelectionKind.FOLDER
       ? (this.folders().find(({ id }) => id === item.id)?.name ?? "")
       : (this.documents().find(({ id }) => id === item.id)?.title ?? "");
   }
@@ -546,7 +596,7 @@ export class DocumentsComponent implements OnInit {
     if (
       this.bulkPending() ||
       this.renamePending() ||
-      this.selectedTab() === "archived"
+      this.selectedTab() === DocumentsTab.ARCHIVED
     )
       return;
     this.renaming.set(item);
@@ -572,16 +622,19 @@ export class DocumentsComponent implements OnInit {
     const item = this.renaming();
     const name = this.renameControl.value.trim();
     if (!item || this.renamePending()) return;
-    if (!name || name.length > (item.kind === "folder" ? 255 : 320)) {
+    const isFolder = item.kind === DocumentSelectionKind.FOLDER;
+    if (
+      !name ||
+      name.length > (isFolder ? FOLDER_NAME_MAX : DOCUMENT_TITLE_MAX)
+    ) {
       this.renameError.set(true);
       return;
     }
     this.renamePending.set(true);
     this.renameError.set(false);
-    const request: Observable<DocumentFolderSummary | DocumentDetail> =
-      item.kind === "folder"
-        ? this.documentsApi.updateFolder(item.id, { name })
-        : this.documentsApi.update(item.id, { title: name });
+    const request: Observable<DocumentFolderSummary | DocumentDetail> = isFolder
+      ? this.documentsApi.updateFolder(item.id, { name })
+      : this.documentsApi.update(item.id, { title: name });
     request.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (saved) => {
         if ("name" in saved)
@@ -617,7 +670,7 @@ export class DocumentsComponent implements OnInit {
         {
           context: {
             excludedFolderIds: this.selection()
-              .filter(({ kind }) => kind === "folder")
+              .filter(({ kind }) => kind === DocumentSelectionKind.FOLDER)
               .map(({ id }) => id),
             sourceFolderId: this.currentFolderId(),
           },
@@ -629,7 +682,7 @@ export class DocumentsComponent implements OnInit {
       .subscribe((result) => {
         if (result)
           this.runBulk((item) =>
-            item.kind === "folder"
+            item.kind === DocumentSelectionKind.FOLDER
               ? this.documentsApi.updateFolder(item.id, {
                   parentId: result.folderId,
                 })
@@ -648,8 +701,8 @@ export class DocumentsComponent implements OnInit {
       .confirm({
         title: this.localization.translate("documents.archiveTitle"),
         message: this.localization.translate("documents.bulk.archiveMessage", {
-          files: this.selectionCount("file"),
-          folders: this.selectionCount("folder"),
+          files: this.selectionCount(DocumentSelectionKind.FILE),
+          folders: this.selectionCount(DocumentSelectionKind.FOLDER),
         }),
         confirmText: this.localization.translate("documents.archiveConfirm"),
         cancelText: this.localization.translate("common.cancel"),
@@ -660,7 +713,7 @@ export class DocumentsComponent implements OnInit {
         this.bulkPending.set(false);
         if (confirmed)
           this.runBulk((item) =>
-            item.kind === "folder"
+            item.kind === DocumentSelectionKind.FOLDER
               ? this.documentsApi.archiveFolder(item.id)
               : this.documentsApi.archive(item.id),
           );
@@ -669,7 +722,7 @@ export class DocumentsComponent implements OnInit {
 
   restoreSelected(): void {
     this.runBulk((item) =>
-      item.kind === "folder"
+      item.kind === DocumentSelectionKind.FOLDER
         ? this.documentsApi.restoreFolder(item.id)
         : this.documentsApi.restore(item.id),
     );
@@ -716,7 +769,7 @@ export class DocumentsComponent implements OnInit {
 
   private selectedFileIds(): string[] {
     return this.selection()
-      .filter(({ kind }) => kind === "file")
+      .filter(({ kind }) => kind === DocumentSelectionKind.FILE)
       .map(({ id }) => id);
   }
 
@@ -900,9 +953,7 @@ export class DocumentsComponent implements OnInit {
     )
       return;
     const generation = this.aiMutationGeneration;
-    const query = this.buildListQuery(
-      this.selectedTab() === "archived" ? "true" : "false",
-    );
+    const query = this.buildListQuery(this.archivedFilter());
     const detailId = this.detailOpen() ? this.detailDocument()?.id : undefined;
     this.pollInFlight = true;
     this.pollSubscription = forkJoin({
@@ -920,12 +971,11 @@ export class DocumentsComponent implements OnInit {
           if (generation !== this.aiMutationGeneration) return;
           this.trackAiPoll(response.items, detail);
           if (
-            response.meta.page === this.page() &&
-            query.pageSize === this.pageSize()
+            response.meta.page === this.pagination.page() &&
+            query.pageSize === this.pagination.pageSize()
           ) {
             this.documents.set(response.items);
-            this.pageCount.set(response.meta.totalPages || 1);
-            this.totalItems.set(response.meta.totalItems);
+            this.pagination.applyPage(response.meta.page, response.meta);
           }
           if (detail) this.applyPolledDetail(detail);
         },
@@ -937,17 +987,14 @@ export class DocumentsComponent implements OnInit {
   downloadSelected(): void {
     if (this.bulkPending()) return;
     for (const item of this.selection()) {
-      if (item.kind === "folder") {
+      if (item.kind === DocumentSelectionKind.FOLDER) {
         const link = window.document.createElement("a");
         link.href = this.documentsApi.folderDownloadUrl(item.id);
         link.download = "";
         link.click();
         continue;
       }
-      const document =
-        item.kind === "file"
-          ? this.documents().find(({ id }) => id === item.id)
-          : undefined;
+      const document = this.documents().find(({ id }) => id === item.id);
       if (document?.currentVersion) this.downloadDocument(document);
     }
   }
@@ -955,7 +1002,7 @@ export class DocumentsComponent implements OnInit {
   canDownloadSelection(): boolean {
     return this.selection().some(
       (item) =>
-        item.kind === "folder" ||
+        item.kind === DocumentSelectionKind.FOLDER ||
         this.documents().some(
           (document) => document.id === item.id && document.currentVersion,
         ),
@@ -990,7 +1037,7 @@ export class DocumentsComponent implements OnInit {
 
   selectTab(tab: DocumentsTab): void {
     this.selectedTab.set(tab);
-    this.page.set(1);
+    this.pagination.page.set(1);
     this.load();
   }
 
@@ -998,24 +1045,12 @@ export class DocumentsComponent implements OnInit {
     this.viewMode.set(mode);
   }
 
-  changePage(page: number): void {
-    if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.page.set(page);
-    this.load();
-  }
-
-  changePageSize(pageSize: number): void {
-    if (this.loading() || pageSize === this.pageSize()) return;
-    this.pageSize.set(pageSize);
-    this.resetPageAndLoad();
-  }
-
   clearFilters(): void {
     this.searchControl.setValue("", { emitEvent: false });
     this.selectedCaseIds.set([]);
     this.selectedClientId.setValue("", { emitEvent: false });
     this.selectedCategory.setValue("", { emitEvent: false });
-    this.page.set(1);
+    this.pagination.page.set(1);
     this.load();
   }
 
@@ -1058,8 +1093,8 @@ export class DocumentsComponent implements OnInit {
 
   formatDate(value: string | null | undefined): string {
     if (!value) return this.localization.translate("common.notProvided");
-    const locale = this.localization.language() === "EN" ? "en" : "sr-Latn";
-    return new Intl.DateTimeFormat(locale, {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      timeZone: OFFICE_TIME_ZONE,
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(value));
@@ -1067,8 +1102,8 @@ export class DocumentsComponent implements OnInit {
 
   formatDateOnly(value: string | null | undefined): string {
     if (!value) return this.localization.translate("common.notProvided");
-    const locale = this.localization.language() === "EN" ? "en" : "sr-Latn";
-    return new Intl.DateTimeFormat(locale, {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      timeZone: OFFICE_TIME_ZONE,
       dateStyle: "medium",
     }).format(new Date(value));
   }
@@ -1076,21 +1111,16 @@ export class DocumentsComponent implements OnInit {
   categoryLabel(category: string | null): string {
     if (!category)
       return this.localization.translate("documents.category.unclassified");
-    return this.localization.translate(`documents.category.${category}`);
-  }
-
-  documentTypeName(document: DocumentSummary): string {
-    const mime = document.currentVersion?.mimeType ?? "";
-    if (mime.includes("pdf")) return "PDF";
-    if (mime.includes("word")) return "DOCX";
-    if (mime.includes("sheet") || mime.includes("excel")) return "XLSX";
-    if (mime.includes("image")) return "IMG";
-    return "FILE";
+    return labelOf(DOCUMENT_CATEGORY_LABELS, category, (key) =>
+      this.localization.translate(key),
+    );
   }
 
   fileSize(document: DocumentSummary): string {
     const bytes = document.currentVersion?.sizeBytes;
-    return bytes == null ? "" : formatFileSize(bytes);
+    return bytes == null
+      ? ""
+      : formatFileSize(bytes, this.localization.locale());
   }
 
   documentTitle(document: DocumentSummary): string {
@@ -1143,7 +1173,10 @@ export class DocumentsComponent implements OnInit {
     this.aiAccessControl.setValue(detail.aiAccess, { emitEvent: false });
     this.detailForm.setValue({
       title: detail.title,
-      category: detail.category ?? "",
+      category:
+        detail.category && isDocumentCategory(detail.category)
+          ? detail.category
+          : ALL_OPTION_VALUE,
       caseIds: detail.cases.map((item) => item.id),
       clientIds: detail.clients.map((item) => item.id),
     });
@@ -1151,7 +1184,7 @@ export class DocumentsComponent implements OnInit {
 
   loadVersions(documentId: string): void {
     this.documentsApi
-      .listVersions(documentId, { page: 1, pageSize: 50 })
+      .listVersions(documentId, FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => this.detailVersions.set(response.items),
@@ -1162,13 +1195,10 @@ export class DocumentsComponent implements OnInit {
     const document = this.detailDocument();
     if (!document) return;
     const value = this.detailForm.getRawValue();
-    const category = value.category
-      ? (value.category as DocumentCategory)
-      : null;
     this.documentsApi
       .update(document.id, {
         title: value.title || undefined,
-        category,
+        category: value.category || null,
         caseIds: value.caseIds,
         clientIds: value.clientIds,
       })
@@ -1206,7 +1236,7 @@ export class DocumentsComponent implements OnInit {
 
   openVersionUpload(document: DocumentSummary): void {
     this.uploadDialog
-      .open({ mode: "version", documentId: document.id })
+      .open({ mode: DocumentUploadMode.VERSION, documentId: document.id })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((result) => {
         this.load();
@@ -1272,7 +1302,7 @@ export class DocumentsComponent implements OnInit {
   }
 
   private resetPageAndLoad(): void {
-    this.page.set(1);
+    this.pagination.page.set(1);
     this.load();
   }
 
@@ -1283,8 +1313,7 @@ export class DocumentsComponent implements OnInit {
       this.bulkError.set(false);
     }
     if (!this.renamePending()) this.cancelRename();
-    const arch: "true" | "false" | "all" =
-      this.selectedTab() === "archived" ? "true" : "false";
+    const arch = this.archivedFilter();
 
     const query = this.buildListQuery(arch);
 
@@ -1299,16 +1328,17 @@ export class DocumentsComponent implements OnInit {
       navigation: this.documentsApi.browseFolders(
         this.currentFolderId(),
         query.search,
-        arch === "true" ? "true" : "false",
+        arch,
       ),
       stats: this.documentsApi.statistics(),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ documents: response, navigation, stats }) => {
-          const lastPage = response.meta.totalPages || 1;
-          if (response.meta.page > lastPage) {
-            this.page.set(lastPage);
+          if (
+            this.pagination.applyPage(response.meta.page, response.meta) !==
+            null
+          ) {
             this.load(preserveSelection);
             return;
           }
@@ -1321,9 +1351,6 @@ export class DocumentsComponent implements OnInit {
               this.visibleItems().some(({ id }) => id === item.id),
             ),
           );
-          this.page.set(response.meta.page);
-          this.pageCount.set(response.meta.totalPages || 1);
-          this.totalItems.set(response.meta.totalItems);
           this.loading.set(false);
         },
         error: () => {
@@ -1333,16 +1360,19 @@ export class DocumentsComponent implements OnInit {
       });
   }
 
-  buildListQuery(archived: "true" | "false" | "all"): DocumentListQuery {
+  private archivedFilter():
+    | typeof DocumentArchivedFilter.ARCHIVED
+    | typeof DocumentArchivedFilter.ACTIVE {
+    return this.selectedTab() === DocumentsTab.ARCHIVED
+      ? DocumentArchivedFilter.ARCHIVED
+      : DocumentArchivedFilter.ACTIVE;
+  }
+
+  buildListQuery(archived: DocumentArchivedFilter): DocumentListQuery {
     const fixedCaseId = this.fixedCaseId();
     return {
-      folderId: this.currentFolderId() ?? "root",
-      view:
-        this.selectedTab() === "recent"
-          ? "recent"
-          : this.selectedTab() === "needs-linking"
-            ? "needs-linking"
-            : undefined,
+      folderId: this.currentFolderId() ?? ROOT_FOLDER_ID,
+      view: TAB_VIEWS[this.selectedTab()],
       archived,
       caseIds: fixedCaseId
         ? [fixedCaseId]
@@ -1351,12 +1381,9 @@ export class DocumentsComponent implements OnInit {
           : undefined,
       clientId:
         this.fixedClientId() || this.selectedClientId.value || undefined,
-      category: (this.selectedCategory.value || undefined) as
-        | DocumentCategory
-        | undefined,
+      category: this.selectedCategory.value || undefined,
       search: this.searchControl.value.trim() || undefined,
-      page: this.page(),
-      pageSize: this.pageSize(),
+      ...this.pagination.request,
     };
   }
 
@@ -1364,8 +1391,7 @@ export class DocumentsComponent implements OnInit {
     const fixedClientId = this.fixedClientId();
     this.casesApi
       .list({
-        page: 1,
-        pageSize: 100,
+        ...FIRST_PAGE,
         ...(fixedClientId ? { clientId: fixedClientId } : {}),
       })
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -1381,7 +1407,7 @@ export class DocumentsComponent implements OnInit {
       });
 
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (response) => {

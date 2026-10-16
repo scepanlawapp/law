@@ -1,18 +1,24 @@
 import { Injectable } from "@angular/core";
 import { toast } from "@spartan-ng/brain/sonner";
 
-export type ToastType = "success" | "error" | "warning" | "info";
+export const ToastType = {
+  SUCCESS: "success",
+  ERROR: "error",
+  WARNING: "warning",
+  INFO: "info",
+} as const;
+export type ToastType = (typeof ToastType)[keyof typeof ToastType];
 
 export interface ToastOptions {
   action?: string;
   duration?: number;
 }
 
-const TOAST_DEFAULTS: Record<ToastType, { duration: number }> = {
-  success: { duration: 4000 },
-  error: { duration: 8000 },
-  warning: { duration: 5000 },
-  info: { duration: 4000 },
+const TOAST_DEFAULTS: Readonly<Record<ToastType, { duration: number }>> = {
+  [ToastType.SUCCESS]: { duration: 4000 },
+  [ToastType.ERROR]: { duration: 8000 },
+  [ToastType.WARNING]: { duration: 5000 },
+  [ToastType.INFO]: { duration: 4000 },
 };
 
 @Injectable({ providedIn: "root" })
@@ -20,19 +26,19 @@ export class ToastService {
   private readonly activeToasts = new Map<string, string | number>();
 
   success(message: string, options?: ToastOptions): string | number {
-    return this.open("success", message, options);
+    return this.open(ToastType.SUCCESS, message, options);
   }
 
   error(message: string, options?: ToastOptions): string | number {
-    return this.open("error", message, options);
+    return this.open(ToastType.ERROR, message, options);
   }
 
   warning(message: string, options?: ToastOptions): string | number {
-    return this.open("warning", message, options);
+    return this.open(ToastType.WARNING, message, options);
   }
 
   info(message: string, options?: ToastOptions): string | number {
-    return this.open("info", message, options);
+    return this.open(ToastType.INFO, message, options);
   }
 
   private open(

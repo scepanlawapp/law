@@ -19,6 +19,7 @@ import {
 } from "@spartan-ng/helm/pagination";
 import { BehaviorSubject, Subject, of } from "rxjs";
 import { LocalizationService } from "../../../core/localization/localization.service";
+import { DEFAULT_PAGE_SIZE, PageState } from "../../pagination/paginated-list";
 import { CasesListComponent } from "../../../features/cases/cases-list/cases-list.component";
 import { ClientsComponent } from "../../../features/clients/clients.component";
 import { ClientFormDialogService } from "../../../features/clients/client-create-edit-modal/client-form-dialog.service";
@@ -47,19 +48,20 @@ describe("PaginationComponent", () => {
   });
 
   function render(queryParams = false) {
+    const onChange = jest.fn();
+    const state = new PageState({ onChange });
+    state.applyPage(1, { totalItems: 1101, totalPages: 12 });
     const fixture = TestBed.createComponent(PaginationComponent);
-    fixture.componentRef.setInput("currentPage", 1);
-    fixture.componentRef.setInput("itemsPerPage", 50);
-    fixture.componentRef.setInput("totalItems", 551);
+    fixture.componentRef.setInput("paginator", state);
     fixture.componentRef.setInput("queryParams", queryParams);
     fixture.detectChanges();
-    return fixture;
+    return { fixture, state, onChange };
   }
 
   it("renders totals, numbers, ellipsis and keyboard-focusable local controls", () => {
-    const fixture = render();
+    const { fixture, state, onChange } = render();
     const element = fixture.nativeElement as HTMLElement;
-    expect(element.textContent).toContain("551");
+    expect(element.textContent).toContain("1101");
     expect(element.textContent).toContain("12");
     expect(element.querySelector("hlm-pagination-ellipsis")).not.toBeNull();
     const next = element.querySelector(
@@ -68,7 +70,11 @@ describe("PaginationComponent", () => {
     expect(next.tagName).toBe("BUTTON");
     next.click();
     fixture.detectChanges();
-    expect(fixture.componentInstance.currentPage()).toBe(2);
+    expect(state.page()).toBe(2);
+    expect(onChange).toHaveBeenLastCalledWith({
+      page: 2,
+      pageSize: DEFAULT_PAGE_SIZE,
+    });
     expect(
       element.querySelector('[aria-current="page"]')?.textContent?.trim(),
     ).toBe("2");
@@ -76,7 +82,8 @@ describe("PaginationComponent", () => {
       By.directive(HlmNumberedPagination),
     ).componentInstance as HlmNumberedPagination;
     control.itemsPerPage.set(20);
-    expect(fixture.componentInstance.itemsPerPage()).toBe(20);
+    expect(state.pageSize()).toBe(20);
+    expect(state.page()).toBe(1);
     language.set("EN");
     fixture.detectChanges();
     expect(element.textContent).toContain("EN:pagination.totalItems");
@@ -88,7 +95,7 @@ describe("PaginationComponent", () => {
     await router.navigate([], {
       queryParams: { tab: "cases", casePageSize: 50 },
     });
-    const fixture = render(true);
+    const { fixture } = render(true);
     fixture.componentRef.setInput("pageParam", "casePage");
     fixture.detectChanges();
     const link = (fixture.nativeElement as HTMLElement).querySelector(
@@ -97,7 +104,10 @@ describe("PaginationComponent", () => {
     expect(link.getAttribute("href")).toContain("casePage=2");
     expect(link.getAttribute("href")).toContain("tab=cases");
     expect(link.getAttribute("href")).toContain("casePageSize=50");
-    fixture.componentRef.setInput("disabled", true);
+    const loading = signal(true);
+    const busy = new PageState({ loading });
+    busy.applyPage(1, { totalItems: 1101, totalPages: 12 });
+    fixture.componentRef.setInput("paginator", busy);
     fixture.detectChanges();
     expect(
       fixture.nativeElement
@@ -107,27 +117,25 @@ describe("PaginationComponent", () => {
   });
 
   it("does not emit page changes while computing links from stale or empty totals", () => {
-    const fixture = render();
-    fixture.componentRef.setInput("currentPage", 12);
-    const change = jest.fn();
-    fixture.componentInstance.currentPage.subscribe(change);
-    fixture.componentRef.setInput("totalItems", 0);
+    const { fixture, state, onChange } = render();
+    state.page.set(12);
+    state.applyPage(12, { totalItems: 0, totalPages: 0 });
     fixture.detectChanges();
-    expect(change).not.toHaveBeenCalled();
+    expect(onChange).not.toHaveBeenCalled();
     expect(outOfBoundCorrection(0, 50, 12)).toBe(1);
     expect(createPageArray(6, 50, 1000, 5)).toEqual([1, "...", 6, "...", 20]);
   });
 });
 
 describe("page-button list requests", () => {
-  const meta = (page = 1, pageSize = 50, totalItems = 151) => ({
+  const meta = (page = 1, pageSize = DEFAULT_PAGE_SIZE, totalItems = 251) => ({
     page,
     pageSize,
     totalItems,
     totalPages: Math.ceil(totalItems / pageSize),
   });
 
-  it("clients defaults to 50 and resets size with one request", () => {
+  it("clients uses the shared page size and resets size with one request", () => {
     jest.useFakeTimers();
     try {
       const api = {
@@ -150,14 +158,14 @@ describe("page-button list requests", () => {
       expect(api.list).toHaveBeenLastCalledWith({
         search: "",
         page: 1,
-        pageSize: 50,
+        pageSize: DEFAULT_PAGE_SIZE,
       });
-      component.changePage(3);
-      component.changePageSize(20);
+      component.list.changePage(3);
+      component.list.changePageSize(20);
       expect(api.list).toHaveBeenCalledTimes(3);
-      expect(component.page()).toBe(1);
-      expect(component.pageSize()).toBe(20);
-      expect(component.totalItems()).toBe(151);
+      expect(component.list.page()).toBe(1);
+      expect(component.list.pageSize()).toBe(20);
+      expect(component.list.totalItems()).toBe(251);
       component.search.setValue("Ana");
       jest.advanceTimersByTime(300);
       expect(api.list).toHaveBeenLastCalledWith({
@@ -204,10 +212,10 @@ describe("page-button list requests", () => {
     second.next({ items: [], meta: meta(1, 20, 55) });
     second.complete();
     first.next({ items: [{ id: "stale" }], meta: meta(2) });
-    expect(component.items()).toEqual([]);
-    expect(component.page()).toBe(1);
-    expect(component.totalItems()).toBe(55);
-    component.changePageSize(100);
+    expect(component.list.items()).toEqual([]);
+    expect(component.list.page()).toBe(1);
+    expect(component.list.totalItems()).toBe(55);
+    component.list.changePageSize(100);
     expect(navigate).toHaveBeenLastCalledWith(
       [],
       expect.objectContaining({

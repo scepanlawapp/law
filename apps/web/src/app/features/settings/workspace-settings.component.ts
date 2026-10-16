@@ -13,11 +13,14 @@ import { LocalizationService } from "../../core/localization/localization.servic
 import { TranslatePipe } from "../../core/localization/translate.pipe";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import { UserSettingsStore } from "../../core/user-settings/user-settings.store";
+import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
   createSelectItemToString,
-  type SelectOption,
-} from "../../shared/utils";
-import { HlmSpinner } from "@spartan-ng/helm/spinner";
+  DATE_TIME_FORMAT_LABELS,
+  OFFICE_TIME_ZONE,
+  optionsFrom,
+  TIME_ZONE_LABELS,
+} from "../../shared/models";
 
 @Component({
   selector: "law-workspace-settings",
@@ -46,17 +49,8 @@ export class WorkspaceSettingsComponent {
   readonly preferences = this.settingsStore.preferences;
   readonly loading = this.settingsStore.loading;
   readonly saving = signal(false);
-  readonly dateTimeFormatOptions: ReadonlyArray<
-    SelectOption<UserSettingsDateTimeFormat>
-  > = [
-    { value: "TWENTY_FOUR_HOUR", label: "settings.twentyFourHour" },
-    { value: "TWELVE_HOUR", label: "settings.twelveHour" },
-  ];
-  readonly timeZoneOptions: ReadonlyArray<SelectOption<string>> = [
-    { value: "Europe/Belgrade", label: "settings.belgrade" },
-    { value: "Europe/London", label: "settings.london" },
-    { value: "America/New_York", label: "settings.newYork" },
-  ];
+  readonly dateTimeFormatOptions = optionsFrom(DATE_TIME_FORMAT_LABELS);
+  readonly timeZoneOptions = optionsFrom(TIME_ZONE_LABELS);
   readonly notificationGroups: ReadonlyArray<{
     title: string;
     items: ReadonlyArray<{
@@ -154,10 +148,10 @@ export class WorkspaceSettingsComponent {
       retainerUsage: new FormControl(true, { nonNullable: true }),
     }),
     dateTimeFormat: new FormControl<UserSettingsDateTimeFormat>(
-      "TWENTY_FOUR_HOUR",
+      UserSettingsDateTimeFormat.TWENTY_FOUR_HOUR,
       { nonNullable: true },
     ),
-    timeZone: new FormControl("Europe/Belgrade", { nonNullable: true }),
+    timeZone: new FormControl<string>(OFFICE_TIME_ZONE, { nonNullable: true }),
   });
   constructor() {
     effect(() => {

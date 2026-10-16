@@ -24,14 +24,11 @@
         formControlName="type"
         class="h-10 rounded-md border border-input bg-background px-3 text-sm"
       >
-        <option value="MEETING">
-          {{ "calendar.type.meeting" | translate }}
-        </option>
-        <option value="HEARING">
-          {{ "calendar.type.hearing" | translate }}
-        </option>
-        <option value="CALL">{{ "calendar.type.call" | translate }}</option>
-        <option value="OTHER">{{ "calendar.type.other" | translate }}</option>
+        @for (option of typeOptions; track option.value) {
+          <option [value]="option.value">
+            {{ option.label | translate }}
+          </option>
+        }
       </select>
     </div>
     <div hlmField>

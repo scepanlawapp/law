@@ -114,7 +114,7 @@ describe("DashboardStore", () => {
       assignedUserId: "user-1",
       sort: "updatedAt:desc",
       page: 1,
-      pageSize: 5,
+      pageSize: 100,
     });
     expect(clientsApi.list).not.toHaveBeenCalled();
     expect(store.casesError()).toBe(false);
@@ -127,7 +127,7 @@ describe("DashboardStore", () => {
     expect(workApi.listActivity).toHaveBeenCalledWith({
       actorUserId: "user-1",
       page: 1,
-      pageSize: 4,
+      pageSize: 100,
     });
   });
 

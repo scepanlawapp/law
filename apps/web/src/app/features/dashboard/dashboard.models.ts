@@ -3,6 +3,9 @@ import {
   CalendarItem,
   CalendarSourceType,
   CaseSummary,
+  DeadlineStatus,
+  EventStatus,
+  TaskStatus,
 } from "@law/api-interfaces";
 import { actionLabel } from "../work-management/work-management-utils";
 
@@ -39,12 +42,17 @@ export interface CasePreviewRow {
   responsibleUserName: string;
 }
 
-const UNFINISHED_STATUSES = new Set([
-  "SCHEDULED",
-  "TODO",
-  "IN_PROGRESS",
-  "OPEN",
-]);
+export const OPEN_TASK_STATUSES: TaskStatus[] = [
+  TaskStatus.TODO,
+  TaskStatus.IN_PROGRESS,
+];
+
+/** Event, task and deadline statuses that still need attention. */
+export const UNFINISHED_STATUSES: string[] = [
+  EventStatus.SCHEDULED,
+  ...OPEN_TASK_STATUSES,
+  DeadlineStatus.OPEN,
+];
 
 /** Calendar items are already deduplicated per record by the aggregation endpoint. */
 export function calendarItemToObligation(item: CalendarItem): ObligationItem {
@@ -61,7 +69,7 @@ export function calendarItemToObligation(item: CalendarItem): ObligationItem {
     caseId: item.case?.id ?? null,
     clientId: item.client?.id ?? null,
     overdue:
-      UNFINISHED_STATUSES.has(item.status) &&
+      UNFINISHED_STATUSES.includes(item.status) &&
       !!target &&
       new Date(target).getTime() < Date.now(),
   };

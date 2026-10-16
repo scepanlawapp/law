@@ -4,7 +4,6 @@ import { ActivatedRoute } from "@angular/router";
 import { EMPTY, catchError, expand, of, reduce, switchMap, tap } from "rxjs";
 import { LocalizationService } from "../../core/localization/localization.service";
 import { Component, DestroyRef, computed, inject, signal } from "@angular/core";
-import { DatePipe } from "@angular/common";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import {
   FormControl,
@@ -39,18 +38,18 @@ import { HlmInput } from "@spartan-ng/helm/input";
 import { HlmTextarea } from "@spartan-ng/helm/textarea";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { TranslatePipe } from "../../core/localization/translate.pipe";
-
-type SourceTab =
-  | "CLIENT_AGREEMENT"
-  | "WORKSPACE_PUBLIC_REFERENCE"
-  | "COMPANY_CATALOG";
+import {
+  PRICE_SOURCE_TAB_LABELS,
+  PriceSourceTab,
+  optionsFrom,
+} from "../../shared/models";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
 
 @Component({
   selector: "law-finance-price-sources",
   standalone: true,
   templateUrl: "./finance-price-sources.component.html",
   imports: [
-    DatePipe,
     ReactiveFormsModule,
     HlmButton,
     HlmCombobox,
@@ -103,7 +102,9 @@ export class FinancePriceSourcesComponent {
   readonly casesError = signal(false);
   private readonly clientsApi = inject(ClientsApiClient);
   private readonly destroyRef = inject(DestroyRef);
-  readonly tab = signal<SourceTab>("CLIENT_AGREEMENT");
+  readonly tab = signal<PriceSourceTab>(PriceSourceScope.CLIENT_AGREEMENT);
+  readonly tabOptions = optionsFrom(PRICE_SOURCE_TAB_LABELS);
+  readonly PriceSourceScope = PriceSourceScope;
   readonly sources = signal<PriceSourceSummary[]>([]);
   readonly selectedSource = signal<PriceSourceSummary | null>(null);
   readonly clients = signal<ClientSummary[]>([]);
@@ -139,14 +140,14 @@ export class FinancePriceSourcesComponent {
           this.casesLoading.set(true);
 
           return this.casesApi
-            .list({ clientId: clientId || undefined, page: 1, pageSize: 100 })
+            .list({ ...FIRST_PAGE, clientId: clientId || undefined })
             .pipe(
               expand((response) =>
                 response.meta.hasNextPage
                   ? this.casesApi.list({
+                      ...FIRST_PAGE,
                       clientId: clientId || undefined,
                       page: response.meta.page + 1,
-                      pageSize: 100,
                     })
                   : EMPTY,
               ),
@@ -167,13 +168,13 @@ export class FinancePriceSourcesComponent {
         this.casesLoading.set(false);
       });
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(
         expand((response) =>
           response.meta?.hasNextPage
             ? this.clientsApi.list({
+                ...FIRST_PAGE,
                 page: response.meta.page + 1,
-                pageSize: 100,
               })
             : EMPTY,
         ),
@@ -207,11 +208,14 @@ export class FinancePriceSourcesComponent {
         error: () => this.message.set("finance.loadError"),
       });
     const scope = this.route?.snapshot.queryParamMap.get("scope");
-    if (scope === "COMPANY_CATALOG" || scope === "WORKSPACE_PUBLIC_REFERENCE")
+    if (
+      scope === PriceSourceScope.COMPANY_CATALOG ||
+      scope === PriceSourceScope.WORKSPACE_PUBLIC_REFERENCE
+    )
       this.selectTab(scope);
     else {
-      this.selectTab("CLIENT_AGREEMENT");
-      if (scope === "CASE_OVERRIDE") {
+      this.selectTab(PriceSourceScope.CLIENT_AGREEMENT);
+      if (scope === PriceSourceScope.CASE_OVERRIDE) {
         this.caseRequired.set(true);
         this.form.controls.caseId.addValidators(Validators.required);
         this.form.controls.caseId.updateValueAndValidity();
@@ -224,7 +228,8 @@ export class FinancePriceSourcesComponent {
   create(): void {
     if (this.saving()) return;
     this.selectTab(this.tab());
-    if (this.tab() === "CLIENT_AGREEMENT") this.setCaseId(this.filterCaseId());
+    if (this.tab() === PriceSourceScope.CLIENT_AGREEMENT)
+      this.setCaseId(this.filterCaseId());
     this.message.set("");
   }
   view(source: PriceSourceSummary): void {
@@ -272,8 +277,8 @@ export class FinancePriceSourcesComponent {
           if (linkedSource) {
             this.openedLinkedSource = true;
             this.selectTab(
-              linkedSource.scope === "CASE_OVERRIDE"
-                ? "CLIENT_AGREEMENT"
+              linkedSource.scope === PriceSourceScope.CASE_OVERRIDE
+                ? PriceSourceScope.CLIENT_AGREEMENT
                 : linkedSource.scope,
             );
             this.selectSource(linkedSource);
@@ -287,13 +292,13 @@ export class FinancePriceSourcesComponent {
         },
       });
   }
-  selectTab(tab: SourceTab): void {
+  selectTab(tab: PriceSourceTab): void {
     this.tab.set(tab);
     this.caseRequired.set(false);
     this.form.controls.caseId.clearValidators();
     this.form.controls.caseId.updateValueAndValidity();
     this.selectedSource.set(null);
-    if (tab === "CLIENT_AGREEMENT") {
+    if (tab === PriceSourceScope.CLIENT_AGREEMENT) {
       this.form.controls.clientId.addValidators(Validators.required);
     } else {
       this.form.controls.clientId.clearValidators();
@@ -301,7 +306,8 @@ export class FinancePriceSourcesComponent {
     this.form.controls.clientId.updateValueAndValidity();
     this.form.reset({
       title: "",
-      clientId: tab === "CLIENT_AGREEMENT" ? this.filterClientId() : "",
+      clientId:
+        tab === PriceSourceScope.CLIENT_AGREEMENT ? this.filterClientId() : "",
       caseId: "",
       rawText: "",
       sourceUrl: "",
@@ -334,11 +340,13 @@ export class FinancePriceSourcesComponent {
   }
   visibleSources(): PriceSourceSummary[] {
     const scope: PriceSourceScope = this.tab();
+    const clientAgreements = scope === PriceSourceScope.CLIENT_AGREEMENT;
     return this.sources().filter(
       (source) =>
         (source.scope === scope ||
-          (scope === "CLIENT_AGREEMENT" && source.scope === "CASE_OVERRIDE")) &&
-        (scope !== "CLIENT_AGREEMENT" ||
+          (clientAgreements &&
+            source.scope === PriceSourceScope.CASE_OVERRIDE)) &&
+        (!clientAgreements ||
           ((!this.filterClientId() ||
             source.clientId === this.filterClientId()) &&
             (!this.filterCaseId() || source.caseId === this.filterCaseId()))),
@@ -352,6 +360,12 @@ export class FinancePriceSourcesComponent {
   }
   readonly clientItemToString = (value: string | null | undefined): string =>
     value ? this.clientName(value) : "";
+
+  formatDate(value: string): string {
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      dateStyle: "medium",
+    }).format(new Date(value));
+  }
 
   readonly caseItemToString = (value: string | null | undefined): string => {
     if (!value) return this.localization.translate("finance.allCases");
@@ -373,13 +387,13 @@ export class FinancePriceSourcesComponent {
     this.directoryLoading.set(true);
     this.directoryError.set(false);
     this.casesApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(
         expand((response) =>
           response.meta.hasNextPage
             ? this.casesApi.list({
+                ...FIRST_PAGE,
                 page: response.meta.page + 1,
-                pageSize: 100,
               })
             : EMPTY,
         ),
@@ -432,13 +446,14 @@ export class FinancePriceSourcesComponent {
     }
   }
   private matchCatalog(): void {
-    if (this.tab() !== "CLIENT_AGREEMENT") return;
+    if (this.tab() !== PriceSourceScope.CLIENT_AGREEMENT) return;
     const { clientId, caseId } = this.form.getRawValue();
     if (this.caseRequired() && !caseId) return;
     const match = this.sources()
       .filter(
         (source) =>
-          ["CLIENT_AGREEMENT", "CASE_OVERRIDE"].includes(source.scope) &&
+          (source.scope === PriceSourceScope.CLIENT_AGREEMENT ||
+            source.scope === PriceSourceScope.CASE_OVERRIDE) &&
           source.clientId === clientId &&
           (source.caseId ?? "") === caseId,
       )
@@ -473,7 +488,7 @@ export class FinancePriceSourcesComponent {
       (this.casesError() && !this.selectedSource())
     )
       return;
-    if (this.tab() !== "CLIENT_AGREEMENT") {
+    if (this.tab() !== PriceSourceScope.CLIENT_AGREEMENT) {
       this.form.controls.clientId.setValue("");
     }
     this.form.markAllAsTouched();
@@ -483,37 +498,36 @@ export class FinancePriceSourcesComponent {
     }
     this.saving.set(true);
     const value = this.form.getRawValue();
+    const clientAgreement = this.tab() === PriceSourceScope.CLIENT_AGREEMENT;
     const selectedSource = this.selectedSource();
     const operation = selectedSource
       ? this.api.appendPriceSourceVersion(selectedSource.id, value.rawText)
       : this.api.createPriceSource({
           scope:
-            this.tab() === "CLIENT_AGREEMENT" && value.caseId
-              ? "CASE_OVERRIDE"
+            clientAgreement && value.caseId
+              ? PriceSourceScope.CASE_OVERRIDE
               : this.tab(),
           title: value.title,
           rawText: value.rawText,
           clientId: value.clientId || undefined,
-          caseId:
-            this.tab() === "CLIENT_AGREEMENT"
-              ? value.caseId || undefined
-              : undefined,
+          caseId: clientAgreement ? value.caseId || undefined : undefined,
           sourceUrl: value.sourceUrl || undefined,
         });
     operation.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: () => {
         this.saving.set(false);
         this.message.set("finance.saved");
-        if (this.tab() === "CLIENT_AGREEMENT") {
+        const onClientAgreements =
+          this.tab() === PriceSourceScope.CLIENT_AGREEMENT;
+        if (onClientAgreements) {
           this.filterClientId.set(value.clientId);
           this.filterCaseId.set(value.caseId);
         }
         this.selectedSource.set(null);
         this.form.reset({
           title: "",
-          clientId:
-            this.tab() === "CLIENT_AGREEMENT" ? this.filterClientId() : "",
-          caseId: this.tab() === "CLIENT_AGREEMENT" ? value.caseId : "",
+          clientId: onClientAgreements ? this.filterClientId() : "",
+          caseId: onClientAgreements ? value.caseId : "",
           rawText: "",
           sourceUrl: "",
         });

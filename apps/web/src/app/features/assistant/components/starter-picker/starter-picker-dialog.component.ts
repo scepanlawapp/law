@@ -35,14 +35,16 @@ import {
   tap,
 } from "rxjs";
 import { TranslatePipe } from "../../../../core/localization/translate.pipe";
+import { FIRST_PAGE } from "../../../../shared/pagination/paginated-list";
 import {
+  STARTER_PICKER_ATTACH,
+  STARTER_PICKER_LABELS,
   StarterPick,
   StarterPickerResult,
   StarterPickKind,
 } from "../../assistant-starter-prompts";
 import type { StarterPickerContext } from "./starter-picker.service";
 
-const PAGE_SIZE = 20;
 const SEARCH_DEBOUNCE_MS = 250;
 
 /** Case-, script-, and diacritic-insensitive text for local filtering. */
@@ -81,6 +83,8 @@ export class StarterPickerDialogComponent {
   private people$?: Observable<StarterPick[]>;
 
   protected readonly kind: StarterPickKind = this.context.kind;
+  protected readonly copy = STARTER_PICKER_LABELS[this.kind];
+  protected readonly StarterPickKind = StarterPickKind;
   protected readonly options = signal<StarterPick[]>([]);
   protected readonly loading = signal(true);
   protected readonly failed = signal(false);
@@ -123,7 +127,7 @@ export class StarterPickerDialogComponent {
   }
 
   protected attachInstead(): void {
-    this.dialogRef.close("attach");
+    this.dialogRef.close(STARTER_PICKER_ATTACH);
   }
 
   protected cancel(): void {
@@ -133,21 +137,19 @@ export class StarterPickerDialogComponent {
   private search(term: string): Observable<StarterPick[]> {
     const search = term || undefined;
     switch (this.kind) {
-      case "client":
-        return this.clients
-          .list({ search, page: 1, pageSize: PAGE_SIZE })
-          .pipe(
-            map((response) =>
-              response.items.map((client) => ({
-                id: client.id,
-                label: client.displayName,
-                detail: client.clientNumber,
-                reference: `„${client.displayName}“ (${client.clientNumber})`,
-              })),
-            ),
-          );
-      case "case":
-        return this.cases.list({ search, page: 1, pageSize: PAGE_SIZE }).pipe(
+      case StarterPickKind.CLIENT:
+        return this.clients.list({ ...FIRST_PAGE, search }).pipe(
+          map((response) =>
+            response.items.map((client) => ({
+              id: client.id,
+              label: client.displayName,
+              detail: client.clientNumber,
+              reference: `„${client.displayName}“ (${client.clientNumber})`,
+            })),
+          ),
+        );
+      case StarterPickKind.CASE:
+        return this.cases.list({ ...FIRST_PAGE, search }).pipe(
           map((response) =>
             response.items.map((item) => ({
               id: item.id,
@@ -157,9 +159,9 @@ export class StarterPickerDialogComponent {
             })),
           ),
         );
-      case "document":
+      case StarterPickKind.DOCUMENT:
         return this.documents
-          .list({ search, archived: "false", page: 1, pageSize: PAGE_SIZE })
+          .list({ ...FIRST_PAGE, search, archived: "false" })
           .pipe(
             map((response) =>
               response.items
@@ -172,7 +174,7 @@ export class StarterPickerDialogComponent {
                 })),
             ),
           );
-      case "person":
+      case StarterPickKind.PERSON:
         return this.searchPeople(term);
     }
   }

@@ -9,15 +9,15 @@ import {
 } from "@angular/core";
 import { takeUntilDestroyed } from "@angular/core/rxjs-interop";
 import { ActivatedRoute, Router, RouterLink } from "@angular/router";
-import { ClientDetail } from "@law/api-interfaces";
 import {
+  ClientDetail,
+  ClientType,
   ClientAddress,
   ClientAddressRequest,
   ClientContact,
   ClientIdentificationDocument,
-  ClientsApiClient,
-  ReferencesApiClient,
-} from "@law/api-clients";
+} from "@law/api-interfaces";
+import { ClientsApiClient, ReferencesApiClient } from "@law/api-clients";
 import { HlmButton } from "@spartan-ng/helm/button";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import {
@@ -59,6 +59,13 @@ import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
 } from "../../shared/status-badge";
+import {
+  CLIENT_ADDRESS_TYPE_LABELS,
+  CLIENT_STATUS_LABELS,
+  CLIENT_TYPE_LABELS,
+  labelOf,
+} from "../../shared/models";
+import { ClientAddressType, ClientContactStatus } from "@law/api-interfaces";
 
 type ClientTab =
   | "overview"
@@ -109,6 +116,11 @@ type ClientTab =
   ],
 })
 export class ClientDetailComponent {
+  protected readonly ClientType = ClientType;
+  protected readonly ClientAddressType = ClientAddressType;
+  protected readonly ClientContactStatus = ClientContactStatus;
+  readonly typeLabels = CLIENT_TYPE_LABELS;
+  readonly statusLabels = CLIENT_STATUS_LABELS;
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
   private readonly api = inject(ClientsApiClient);
@@ -132,15 +144,7 @@ export class ClientDetailComponent {
   readonly pending = signal<string | null>(null);
   readonly confirming = signal(false);
   readonly mutationError = signal(false);
-  readonly addressTypes = [
-    "HEADQUARTERS",
-    "HOME",
-    "REGISTERED",
-    "DELIVERY",
-    "BILLING",
-    "OFFICE",
-    "POSTAL",
-  ] as const;
+  readonly addressTypes = Object.values(ClientAddressType);
   readonly selectedTab = signal<ClientTab>(
     this.toTab(this.route.snapshot.queryParamMap.get("tab")),
   );
@@ -152,7 +156,7 @@ export class ClientDetailComponent {
   );
   readonly sortedContacts = computed(() =>
     this.contacts()
-      .filter((contact) => contact.status !== "INACTIVE")
+      .filter((contact) => contact.status !== ClientContactStatus.INACTIVE)
       .sort(
         (first, second) => Number(second.isPrimary) - Number(first.isPrimary),
       ),
@@ -160,7 +164,7 @@ export class ClientDetailComponent {
   readonly title = computed(() => {
     const client = this.client();
     if (!client) return "";
-    return client.type === "ORGANIZATION"
+    return client.type === ClientType.ORGANIZATION
       ? client.organizationName || client.displayName
       : [client.firstName, client.lastName].filter(Boolean).join(" ") ||
           client.displayName;
@@ -281,7 +285,7 @@ export class ClientDetailComponent {
     if (
       !contact ||
       contact.isPrimary ||
-      contact.status !== "ACTIVE" ||
+      contact.status !== ClientContactStatus.ACTIVE ||
       this.pending() ||
       this.confirming()
     )
@@ -325,7 +329,9 @@ export class ClientDetailComponent {
       kind === "address"
         ? this.addresses().find((item) => item.id === recordId)
         : this.contacts().find(
-            (item) => item.id === recordId && item.status === "ACTIVE",
+            (item) =>
+              item.id === recordId &&
+              item.status === ClientContactStatus.ACTIVE,
           );
     return !!record && !record.isPrimary;
   }
@@ -367,10 +373,15 @@ export class ClientDetailComponent {
 
   formatDate(value: string | null): string {
     if (!value) return this.localization.translate("common.notProvided");
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { dateStyle: "medium" },
-    ).format(new Date(value));
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      dateStyle: "medium",
+    }).format(new Date(value));
+  }
+
+  addressTypeLabel(type: string): string {
+    return labelOf(CLIENT_ADDRESS_TYPE_LABELS, type, (key) =>
+      this.localization.translate(key),
+    );
   }
 
   displayValue(value: string | null | undefined): string {

@@ -50,7 +50,7 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import {
   dateInputValue,
   dateTimeInputValue,
-  DueTargetMode,
+  dueMode,
   taskDueMode,
 } from "../work-management-utils";
 import { TaskWorkEntriesComponent } from "../task-work-entries.component";
@@ -61,6 +61,15 @@ import {
   priorityBadgeClass,
   statusBadgeClass,
 } from "../../../shared/status-badge";
+import {
+  DUE_TARGET_MODE_LABELS,
+  TASK_PRIORITY_LABELS,
+  TASK_STATUS_LABELS,
+  createSelectItemToString,
+  optionsFrom,
+} from "../../../shared/models";
+import { DueTargetMode } from "../../../shared/models";
+import { FIRST_PAGE } from "../../../shared/pagination/paginated-list";
 
 @Component({
   selector: "law-task-dialog",
@@ -112,29 +121,24 @@ export class TaskDialogComponent {
   readonly saving = signal(false);
   readonly task = this.context.task;
   readonly editing = Boolean(this.context.task);
-  readonly priorities: CasePriority[] = ["LOW", "NORMAL", "HIGH", "URGENT"];
-  readonly statuses: TaskStatus[] = [
-    "TODO",
-    "IN_PROGRESS",
-    "DONE",
-    "CANCELLED",
-    "ARCHIVED",
-  ];
-  readonly dueModes: DueTargetMode[] = ["NONE", "DATE", "DATE_TIME"];
-  readonly taskStatusItemToString = (
-    value: string | null | undefined,
-  ): string =>
-    value
-      ? this.localization.translate(`work.taskStatus.${value.toLowerCase()}`)
-      : "";
-  readonly priorityItemToString = (value: string | null | undefined): string =>
-    value
-      ? this.localization.translate(`work.priority.${value.toLowerCase()}`)
-      : "";
-  readonly dueModeItemToString = (value: string | null | undefined): string =>
-    value
-      ? this.localization.translate(`work.dueMode.${value.toLowerCase()}`)
-      : "";
+  readonly DueTargetMode = DueTargetMode;
+  readonly priorityOptions = optionsFrom(TASK_PRIORITY_LABELS);
+  readonly statusOptions = optionsFrom(TASK_STATUS_LABELS);
+  readonly dueModeOptions = optionsFrom(DUE_TARGET_MODE_LABELS);
+  private readonly translate = (key: string) =>
+    this.localization.translate(key);
+  readonly taskStatusItemToString = createSelectItemToString(
+    this.statusOptions,
+    this.translate,
+  );
+  readonly priorityItemToString = createSelectItemToString(
+    this.priorityOptions,
+    this.translate,
+  );
+  readonly dueModeItemToString = createSelectItemToString(
+    this.dueModeOptions,
+    this.translate,
+  );
   readonly userItemToString = (value: string | null | undefined): string =>
     this.users().find((user) => user.id === value)?.name ?? "";
   readonly clientItemToString = (value: string | null | undefined): string => {
@@ -156,11 +160,12 @@ export class TaskDialogComponent {
     description: new FormControl(this.context.task?.description ?? "", {
       nonNullable: true,
     }),
-    status: new FormControl<TaskStatus>(this.context.task?.status ?? "TODO", {
-      nonNullable: true,
-    }),
+    status: new FormControl<TaskStatus>(
+      this.context.task?.status ?? TaskStatus.TODO,
+      { nonNullable: true },
+    ),
     priority: new FormControl<CasePriority>(
-      this.context.task?.priority ?? "NORMAL",
+      this.context.task?.priority ?? CasePriority.NORMAL,
       { nonNullable: true },
     ),
     assigneeUserId: new FormControl(
@@ -192,15 +197,11 @@ export class TaskDialogComponent {
       this.form.patchValue({
         title: initial.title,
         description: initial.description ?? "",
-        priority: initial.priority ?? "NORMAL",
+        priority: initial.priority ?? CasePriority.NORMAL,
         assigneeUserId: initial.assigneeUserId,
         caseId: initial.caseId ?? "",
         clientId: initial.clientId ?? "",
-        dueMode: initial.dueAt
-          ? "DATE_TIME"
-          : initial.dueDate
-            ? "DATE"
-            : "NONE",
+        dueMode: dueMode(initial.dueDate, initial.dueAt),
         dueDate: dateInputValue(initial.dueDate),
         dueAt: dateTimeInputValue(initial.dueAt),
       });
@@ -208,8 +209,10 @@ export class TaskDialogComponent {
     this.form.controls.dueMode.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((mode) => {
-        if (mode !== "DATE") this.form.controls.dueDate.setValue("");
-        if (mode !== "DATE_TIME") this.form.controls.dueAt.setValue("");
+        if (mode !== DueTargetMode.DATE)
+          this.form.controls.dueDate.setValue("");
+        if (mode !== DueTargetMode.DATE_TIME)
+          this.form.controls.dueAt.setValue("");
       });
     this.form.controls.caseId.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
@@ -246,7 +249,7 @@ export class TaskDialogComponent {
         );
       });
     this.casesApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => {
         this.cases.set(response.items);
@@ -260,7 +263,7 @@ export class TaskDialogComponent {
         }
       });
     this.clientsApi
-      .list({ page: 1, pageSize: 100 })
+      .list(FIRST_PAGE)
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe((response) => this.clients.set(response.items));
   }
@@ -282,17 +285,17 @@ export class TaskDialogComponent {
       clientId: value.clientId || undefined,
       deadlineId:
         this.context.deadlineId ?? this.context.task?.deadlineId ?? undefined,
-      dueDate: value.dueMode === "DATE" ? value.dueDate : undefined,
+      dueDate: value.dueMode === DueTargetMode.DATE ? value.dueDate : undefined,
       dueAt:
-        value.dueMode === "DATE_TIME"
+        value.dueMode === DueTargetMode.DATE_TIME
           ? this.toIsoDateTime(value.dueAt)
           : undefined,
     };
-    if (value.dueMode === "DATE" && !request.dueDate) {
+    if (value.dueMode === DueTargetMode.DATE && !request.dueDate) {
       this.form.controls.dueDate.setErrors({ required: true });
       return;
     }
-    if (value.dueMode === "DATE_TIME" && !value.dueAt) {
+    if (value.dueMode === DueTargetMode.DATE_TIME && !value.dueAt) {
       this.form.controls.dueAt.setErrors({ required: true });
       return;
     }
@@ -308,7 +311,8 @@ export class TaskDialogComponent {
       return;
     }
     const completing =
-      value.status === "DONE" && this.context.task?.status !== "DONE";
+      value.status === TaskStatus.DONE &&
+      this.context.task?.status !== TaskStatus.DONE;
     const operation = completing
       ? this.taskCompletion.complete(request, this.context.task?.id)
       : this.context.task
@@ -320,7 +324,7 @@ export class TaskDialogComponent {
         if (task) this.dialogRef.close(task);
         else
           this.form.controls.status.setValue(
-            this.context.task?.status ?? "TODO",
+            this.context.task?.status ?? TaskStatus.TODO,
           );
       },
       error: () => this.saving.set(false),

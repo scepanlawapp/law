@@ -14,16 +14,20 @@ import {
   Validators,
 } from "@angular/forms";
 import { BrnDialogRef, injectBrnDialogContext } from "@spartan-ng/brain/dialog";
-import { ClientDetail, ClientStatus, ClientType } from "@law/api-interfaces";
 import {
-  AuthApiClient,
-  ClientRequest,
+  ClientDetail,
+  ClientStatus,
+  ClientType,
   ClientAddress,
   ClientAddressRequest,
   ClientContact,
   ClientContactRequest,
   ClientIdentificationDocument,
   ClientIdentificationDocumentRequest,
+} from "@law/api-interfaces";
+import {
+  AuthApiClient,
+  ClientRequest,
   ClientsApiClient,
   ReferencesApiClient,
 } from "@law/api-clients";
@@ -78,17 +82,15 @@ import { TranslatePipe } from "../../../core/localization/translate.pipe";
 import { CollapsibleSectionComponent } from "../../../shared/ui/collapsible-section/collapsible-section.component";
 import { CountrySelectComponent } from "../../../shared/ui/country-select/country-select.component";
 import { ToastService } from "../../../shared/ui/toast/toast.service";
-import { SelectOption, createSelectItemToString } from "../../../shared/utils";
 import { HlmDialogImports } from "@spartan-ng/helm/dialog";
-
-type ClientAddressType =
-  | "HEADQUARTERS"
-  | "HOME"
-  | "REGISTERED"
-  | "DELIVERY"
-  | "BILLING"
-  | "OFFICE"
-  | "POSTAL";
+import {
+  CLIENT_ADDRESS_TYPE_LABELS,
+  CLIENT_STATUS_LABELS,
+  CLIENT_TYPE_LABELS,
+  createSelectItemToString,
+  optionsFrom,
+} from "../../../shared/models";
+import { ClientAddressType, ClientContactStatus } from "@law/api-interfaces";
 
 const DEFAULT_COUNTRY_CODE = "RS";
 
@@ -158,25 +160,13 @@ export class ClientFormComponent {
   readonly loading = signal(!!this.clientId);
   readonly users = signal<Array<{ userId: string; label: string }>>([]);
   readonly tags = signal<Array<{ id: string; name: string }>>([]);
-  readonly clientTypeOptions: ReadonlyArray<SelectOption<ClientType>> = [
-    { value: "INDIVIDUAL", label: "clients.individual" },
-    { value: "ORGANIZATION", label: "clients.organization" },
-  ];
-  readonly statusOptions: ReadonlyArray<SelectOption<ClientStatus>> = [
-    { value: "PROSPECT", label: "clients.status.PROSPECT" },
-    { value: "ACTIVE", label: "clients.status.ACTIVE" },
-    { value: "INACTIVE", label: "clients.status.INACTIVE" },
-  ];
-  readonly addressTypeOptions: ReadonlyArray<SelectOption<ClientAddressType>> =
-    [
-      { value: "HEADQUARTERS", label: "clients.addressType.HEADQUARTERS" },
-      { value: "HOME", label: "clients.addressType.HOME" },
-      { value: "REGISTERED", label: "clients.addressType.REGISTERED" },
-      { value: "DELIVERY", label: "clients.addressType.DELIVERY" },
-      { value: "BILLING", label: "clients.addressType.BILLING" },
-      { value: "OFFICE", label: "clients.addressType.OFFICE" },
-      { value: "POSTAL", label: "clients.addressType.POSTAL" },
-    ];
+  readonly clientTypeOptions = optionsFrom(CLIENT_TYPE_LABELS);
+  readonly statusOptions = optionsFrom(CLIENT_STATUS_LABELS, [
+    ClientStatus.PROSPECT,
+    ClientStatus.ACTIVE,
+    ClientStatus.INACTIVE,
+  ]);
+  readonly addressTypeOptions = optionsFrom(CLIENT_ADDRESS_TYPE_LABELS);
   readonly statusItemToString = createSelectItemToString(
     this.statusOptions,
     (key) => this.localization.translate(key),
@@ -241,8 +231,12 @@ export class ClientFormComponent {
     boolean
   >();
   readonly form = new FormGroup({
-    type: new FormControl<ClientType>("INDIVIDUAL", { nonNullable: true }),
-    status: new FormControl<ClientStatus>("ACTIVE", { nonNullable: true }),
+    type: new FormControl<ClientType>(ClientType.INDIVIDUAL, {
+      nonNullable: true,
+    }),
+    status: new FormControl<ClientStatus>(ClientStatus.ACTIVE, {
+      nonNullable: true,
+    }),
     firstName: new FormControl(""),
     lastName: new FormControl(""),
     displayName: new FormControl("", {
@@ -334,7 +328,7 @@ export class ClientFormComponent {
               () => this.createIdentificationDocumentForm(),
             );
             const activeContacts = contacts.filter(
-              (contact) => contact.status !== "INACTIVE",
+              (contact) => contact.status !== ClientContactStatus.INACTIVE,
             );
             this.replaceForms(
               this.contacts,
@@ -455,7 +449,7 @@ export class ClientFormComponent {
   ): ClientAddressType {
     return this.addressTypeOptions.some((option) => option.value === value)
       ? (value as ClientAddressType)
-      : "REGISTERED";
+      : ClientAddressType.REGISTERED;
   }
 
   private replaceForms<T>(
@@ -521,7 +515,7 @@ export class ClientFormComponent {
     else if (wasPrimary) this.selectPrimaryContact(0);
   }
   isOrganization(): boolean {
-    return this.form.controls.type.value === "ORGANIZATION";
+    return this.form.controls.type.value === ClientType.ORGANIZATION;
   }
 
   selectPrimaryAddress(index: number): void {
@@ -582,7 +576,7 @@ export class ClientFormComponent {
   }
 
   private applyTypeValidators(type: ClientType): void {
-    if (type === "ORGANIZATION") {
+    if (type === ClientType.ORGANIZATION) {
       this.form.controls.organizationName.setValidators([Validators.required]);
       this.form.controls.firstName.clearValidators();
       this.form.controls.lastName.clearValidators();
@@ -689,7 +683,9 @@ export class ClientFormComponent {
           this.api.listContacts(client.id).pipe(
             tap((contacts) => {
               const primary = contacts.find(
-                (contact) => contact.isPrimary && contact.status !== "INACTIVE",
+                (contact) =>
+                  contact.isPrimary &&
+                  contact.status !== ClientContactStatus.INACTIVE,
               );
               if (primary)
                 this.primaryContact().controls.id.setValue(primary.id);
@@ -765,7 +761,7 @@ export class ClientFormComponent {
         streetAdditional: row.streetAdditional?.trim() || undefined,
         stateOrRegion: row.stateOrRegion?.trim() || undefined,
         note: row.note?.trim() || undefined,
-        addressType: row.addressType.trim(),
+        addressType: row.addressType,
         street: row.street.trim(),
         city: row.city.trim(),
         postalCode: row.postalCode.trim(),

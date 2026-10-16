@@ -1,18 +1,49 @@
 import {
+  AgentToolCallStatus,
   AgentToolCallSummary,
+  ChatEventType,
   ChatMessageStatus,
   ChatSessionDetail,
   ChatStreamEvent,
+  ChatWorkflowName,
   WorkflowJobResponse,
+  WorkflowJobStatus,
   WorkflowProgressStage,
 } from "@law/api-interfaces";
+import {
+  CHAT_WORKFLOW_AGENT_LABELS,
+  WORKFLOW_PROGRESS_STAGE_LABELS,
+} from "../../shared/models";
 
+export const WorkflowActivityStatus = {
+  ACTIVE: "active",
+  WAITING: "waiting",
+  COMPLETED: "completed",
+  FAILED: "failed",
+} as const;
 export type WorkflowActivityStatus =
-  | "active"
-  | "waiting"
-  | "completed"
-  | "failed";
-export type WorkflowActivityKind = "answer" | "draft" | "other";
+  (typeof WorkflowActivityStatus)[keyof typeof WorkflowActivityStatus];
+
+export const WorkflowActivityKind = {
+  ANSWER: "answer",
+  DRAFT: "draft",
+  OTHER: "other",
+} as const;
+export type WorkflowActivityKind =
+  (typeof WorkflowActivityKind)[keyof typeof WorkflowActivityKind];
+
+export const WorkflowActivityStepKind = {
+  JOB: "job",
+  TOOL: "tool",
+} as const;
+export type WorkflowActivityStepKind =
+  (typeof WorkflowActivityStepKind)[keyof typeof WorkflowActivityStepKind];
+
+const ANSWER_WORKFLOWS: readonly ChatWorkflowName[] = [
+  ChatWorkflowName.ANSWERING,
+  ChatWorkflowName.AGENT_TURN,
+  ChatWorkflowName.AGENT_RESUME,
+];
 
 export interface WorkflowActivity {
   correlationId: string;
@@ -42,7 +73,7 @@ export interface WorkflowActivityViewModel {
 
 export interface WorkflowActivityStep {
   id: string;
-  kind: "job" | "tool";
+  kind: WorkflowActivityStepKind;
   titleKey: string;
   /** Agent label key for job steps; null for tool steps. */
   agentKey: string | null;
@@ -72,7 +103,11 @@ export function buildWorkflowActivityState(
   for (const draft of detail.drafts) {
     const job = detail.jobs.find((item) => item.id === draft.jobId);
     if (!job) continue;
-    state = markDraft(state, job.correlationId, draft.updatedAt ?? draft.createdAt);
+    state = markDraft(
+      state,
+      job.correlationId,
+      draft.updatedAt ?? draft.createdAt,
+    );
   }
   return state;
 }
@@ -88,22 +123,32 @@ export function reduceWorkflowActivityEvent(
     null;
   if (!correlationId) return state;
 
-  if ((event.type === "job.queued" || event.type === "job.updated") && event.job) {
+  if (
+    (event.type === ChatEventType.JOB_QUEUED ||
+      event.type === ChatEventType.JOB_UPDATED) &&
+    event.job
+  ) {
     return mergeJob(state, event.job);
   }
   if (
-    (event.type === "tool.started" || event.type === "tool.finished") &&
+    (event.type === ChatEventType.TOOL_STARTED ||
+      event.type === ChatEventType.TOOL_FINISHED) &&
     event.toolCall
   ) {
     return mergeToolCall(state, event.toolCall);
   }
-  if (event.type === "draft.updated") {
+  if (event.type === ChatEventType.DRAFT_UPDATED) {
     return markDraft(state, correlationId, event.createdAt);
   }
-  if (event.type === "message.started") {
-    return mergeMessageStatus(state, correlationId, "PENDING", event.createdAt);
+  if (event.type === ChatEventType.MESSAGE_STARTED) {
+    return mergeMessageStatus(
+      state,
+      correlationId,
+      ChatMessageStatus.PENDING,
+      event.createdAt,
+    );
   }
-  if (event.type === "message.updated" && event.message) {
+  if (event.type === ChatEventType.MESSAGE_UPDATED && event.message) {
     return mergeMessageStatus(
       state,
       correlationId,
@@ -148,7 +193,11 @@ function mergeToolCall(
   const current = state[toolCall.correlationId];
   const previous = current?.toolCallsById[toolCall.id];
   // A late "started" event must not reopen a finished call.
-  if (previous && previous.status !== "RUNNING" && toolCall.status === "RUNNING") {
+  if (
+    previous &&
+    previous.status !== AgentToolCallStatus.RUNNING &&
+    toolCall.status === AgentToolCallStatus.RUNNING
+  ) {
     return state;
   }
   const activity =
@@ -159,7 +208,8 @@ function mergeToolCall(
     [toolCall.correlationId]: {
       ...activity,
       toolCallsById: { ...activity.toolCallsById, [toolCall.id]: toolCall },
-      updatedAt: activity.updatedAt > updatedAt ? activity.updatedAt : updatedAt,
+      updatedAt:
+        activity.updatedAt > updatedAt ? activity.updatedAt : updatedAt,
     },
   };
 }
@@ -177,7 +227,8 @@ function mergeMessageStatus(
     [correlationId]: {
       ...activity,
       messageStatus,
-      updatedAt: activity.updatedAt > updatedAt ? activity.updatedAt : updatedAt,
+      updatedAt:
+        activity.updatedAt > updatedAt ? activity.updatedAt : updatedAt,
     },
   };
 }
@@ -194,7 +245,8 @@ function markDraft(
     [correlationId]: {
       ...activity,
       hasDraft: true,
-      updatedAt: activity.updatedAt > updatedAt ? activity.updatedAt : updatedAt,
+      updatedAt:
+        activity.updatedAt > updatedAt ? activity.updatedAt : updatedAt,
     },
   };
 }
@@ -217,32 +269,42 @@ function createActivity(
 function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
   const jobs = Object.values(activity.jobsById);
   const activeJobs = jobs.filter(
-    (job) => job.status === "QUEUED" || job.status === "RUNNING",
+    (job) =>
+      job.status === WorkflowJobStatus.QUEUED ||
+      job.status === WorkflowJobStatus.RUNNING,
   );
-  const latestJob = [...(activeJobs.length ? activeJobs : jobs)].sort((left, right) =>
-    right.updatedAt.localeCompare(left.updatedAt),
+  const latestJob = [...(activeJobs.length ? activeJobs : jobs)].sort(
+    (left, right) => right.updatedAt.localeCompare(left.updatedAt),
   )[0];
-  const failed = !activeJobs.length && jobs.some((job) => job.status === "FAILED");
-  const waiting = jobs.some((job) => job.status === "WAITING_CONFIRMATION");
+  const failed =
+    !activeJobs.length &&
+    jobs.some((job) => job.status === WorkflowJobStatus.FAILED);
+  const waiting = jobs.some(
+    (job) => job.status === WorkflowJobStatus.WAITING_CONFIRMATION,
+  );
   const status: WorkflowActivityStatus = activeJobs.length
-    ? "active"
+    ? WorkflowActivityStatus.ACTIVE
     : waiting
-      ? "waiting"
-      : failed || activity.messageStatus === "FAILED"
-        ? "failed"
-        : "completed";
-  const kind: WorkflowActivityKind = activity.hasDraft || jobs.some((job) => job.workflowName === "drafting")
-    ? "draft"
-    : jobs.some((job) => isAnswerWorkflow(job.workflowName))
-      ? "answer"
-      : "other";
+      ? WorkflowActivityStatus.WAITING
+      : failed || activity.messageStatus === ChatMessageStatus.FAILED
+        ? WorkflowActivityStatus.FAILED
+        : WorkflowActivityStatus.COMPLETED;
+  const kind: WorkflowActivityKind =
+    activity.hasDraft ||
+    jobs.some((job) => job.workflowName === ChatWorkflowName.DRAFTING)
+      ? WorkflowActivityKind.DRAFT
+      : jobs.some((job) => ANSWER_WORKFLOWS.includes(job.workflowName))
+        ? WorkflowActivityKind.ANSWER
+        : WorkflowActivityKind.OTHER;
   const stage = latestJob?.progressStage ?? fallbackStage(latestJob);
   const toolCalls = Object.values(activity.toolCallsById).sort((left, right) =>
     left.startedAt.localeCompare(right.startedAt),
   );
   const runningTools =
-    status === "active"
-      ? toolCalls.filter((toolCall) => toolCall.status === "RUNNING")
+    status === WorkflowActivityStatus.ACTIVE
+      ? toolCalls.filter(
+          (toolCall) => toolCall.status === AgentToolCallStatus.RUNNING,
+        )
       : [];
   const runningTool = runningTools[runningTools.length - 1];
 
@@ -253,36 +315,43 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
     stage,
     titleKey: runningTool
       ? `assistant.workflow.toolActive.${runningTool.toolName}`
-      : status === "waiting"
+      : status === WorkflowActivityStatus.WAITING
         ? "assistant.workflow.waitingConfirmation"
-        : status === "active"
-        ? `assistant.workflow.stage.${stage}`
-        : status === "failed"
-          ? "assistant.workflow.failed"
-          : kind === "draft"
-            ? "assistant.workflow.draftReady"
-            : kind === "answer"
-              ? "assistant.workflow.answerReady"
-              : "assistant.workflow.completed",
-    agentKey: `assistant.workflow.agent.${latestJob?.workflowName ?? "triage"}`,
+        : status === WorkflowActivityStatus.ACTIVE
+          ? WORKFLOW_PROGRESS_STAGE_LABELS[stage]
+          : status === WorkflowActivityStatus.FAILED
+            ? "assistant.workflow.failed"
+            : kind === WorkflowActivityKind.DRAFT
+              ? "assistant.workflow.draftReady"
+              : kind === WorkflowActivityKind.ANSWER
+                ? "assistant.workflow.answerReady"
+                : "assistant.workflow.completed",
+    agentKey:
+      CHAT_WORKFLOW_AGENT_LABELS[
+        latestJob?.workflowName ?? ChatWorkflowName.TRIAGE
+      ],
     startedAt: activity.startedAt,
     updatedAt: activity.updatedAt,
     hasDraft: activity.hasDraft,
     retryJobId:
-      status === "failed"
+      status === WorkflowActivityStatus.FAILED
         ? ([...jobs]
-            .filter((job) => job.status === "FAILED")
-            .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))[0]
-            ?.id ?? null)
+            .filter((job) => job.status === WorkflowJobStatus.FAILED)
+            .sort((left, right) =>
+              right.updatedAt.localeCompare(left.updatedAt),
+            )[0]?.id ?? null)
         : null,
     steps: [...jobs]
       .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
       .flatMap((job): WorkflowActivityStep[] => [
         {
           id: job.id,
-          kind: "job",
-          titleKey: `assistant.workflow.stage.${job.progressStage ?? fallbackStage(job)}`,
-          agentKey: `assistant.workflow.agent.${job.workflowName}`,
+          kind: WorkflowActivityStepKind.JOB,
+          titleKey:
+            WORKFLOW_PROGRESS_STAGE_LABELS[
+              job.progressStage ?? fallbackStage(job)
+            ],
+          agentKey: CHAT_WORKFLOW_AGENT_LABELS[job.workflowName],
           status: job.status,
           detail: null,
           resultCount: null,
@@ -292,7 +361,7 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
           .map(
             (toolCall): WorkflowActivityStep => ({
               id: toolCall.id,
-              kind: "tool",
+              kind: WorkflowActivityStepKind.TOOL,
               titleKey: `assistant.workflow.tool.${toolCall.toolName}`,
               agentKey: null,
               status: toolCall.status,
@@ -304,23 +373,17 @@ function toViewModel(activity: WorkflowActivity): WorkflowActivityViewModel {
   };
 }
 
-function isAnswerWorkflow(name: WorkflowJobResponse["workflowName"]): boolean {
-  return (
-    name === "answering" || name === "agent-turn" || name === "agent-resume"
-  );
-}
-
 function fallbackStage(job?: WorkflowJobResponse): WorkflowProgressStage {
   switch (job?.workflowName) {
-    case "answering":
-    case "agent-turn":
-    case "agent-resume":
-      return "PREPARING_ANSWER";
-    case "brief-extraction":
-      return "EXTRACTING_FACTS";
-    case "drafting":
-      return "PREPARING_DRAFT";
+    case ChatWorkflowName.ANSWERING:
+    case ChatWorkflowName.AGENT_TURN:
+    case ChatWorkflowName.AGENT_RESUME:
+      return WorkflowProgressStage.PREPARING_ANSWER;
+    case ChatWorkflowName.BRIEF_EXTRACTION:
+      return WorkflowProgressStage.EXTRACTING_FACTS;
+    case ChatWorkflowName.DRAFTING:
+      return WorkflowProgressStage.PREPARING_DRAFT;
     default:
-      return "UNDERSTANDING_REQUEST";
+      return WorkflowProgressStage.UNDERSTANDING_REQUEST;
   }
 }

@@ -3,8 +3,8 @@ import {
   AssistantEventRequest,
   CalendarItem,
   EventDetail,
+  EventRequest,
 } from "@law/api-interfaces";
-import { EventRequest } from "@law/api-clients";
 
 export interface EventDialogContext {
   date?: string;

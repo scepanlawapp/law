@@ -137,8 +137,11 @@
               {{ "retainers.card.overage" | translate }}
             </dt>
             <dd class="text-muted-foreground">
-              {{ "retainers.rule." + item.overageRule | translate }}
-              @if (item.overageRule === "HOURLY" && item.overageHourlyRate) {
+              {{ ruleLabels[item.overageRule] | translate }}
+              @if (
+                item.overageRule === RetainerRule.HOURLY &&
+                item.overageHourlyRate
+              ) {
                 ({{ money(item.overageHourlyRate, item.currency) }})
               }
             </dd>
@@ -148,9 +151,10 @@
               {{ "retainers.card.outOfScope" | translate }}
             </dt>
             <dd class="text-muted-foreground">
-              {{ "retainers.rule." + item.outOfScopeRule | translate }}
+              {{ ruleLabels[item.outOfScopeRule] | translate }}
               @if (
-                item.outOfScopeRule === "HOURLY" && item.outOfScopeHourlyRate
+                item.outOfScopeRule === RetainerRule.HOURLY &&
+                item.outOfScopeHourlyRate
               ) {
                 ({{ money(item.outOfScopeHourlyRate, item.currency) }})
               }
@@ -259,7 +263,7 @@
           <span class="font-medium">
             {{ "retainers.clientRate.label" | translate }}:
           </span>
-          {{ money(hourlyRate, profile()?.currency ?? "RSD") }}
+          {{ money(hourlyRate, profile()?.currency ?? DEFAULT_CURRENCY) }}
         </p>
       }
     }

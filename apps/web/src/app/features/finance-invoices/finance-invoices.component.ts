@@ -24,6 +24,7 @@ import {
 import { HlmEmptyImports } from "@spartan-ng/helm/empty";
 import { HlmInput } from "@spartan-ng/helm/input";
 import { PaginationComponent } from "../../shared/ui/pagination/pagination.component";
+import { LocalPagination } from "../../shared/pagination/paginated-list";
 import { HlmSelectImports } from "@spartan-ng/helm/select";
 import { HlmSpinner } from "@spartan-ng/helm/spinner";
 import { HlmTableImports } from "@spartan-ng/helm/table";
@@ -35,13 +36,21 @@ import {
   CURRENCY_FILTER_OPTIONS,
   createCurrencyItemToString,
 } from "../../shared/currency";
-import { createSelectItemToString, SelectOption } from "../../shared/utils";
 import { ConfirmDialogService } from "../../shared/ui/confirm-dialog/confirm-dialog.service";
 import { ToastService } from "../../shared/ui/toast/toast.service";
 import {
   STATUS_BADGE_BASE_CLASSES,
   statusBadgeClass,
 } from "../../shared/status-badge";
+import {
+  AllOptionValue,
+  INVOICE_COLLECTION_STATUS_LABELS,
+  INVOICE_STATUS_LABELS,
+  createSelectItemToString,
+  filterOptionsFrom,
+  labelOf,
+} from "../../shared/models";
+import { FIRST_PAGE } from "../../shared/pagination/paginated-list";
 
 @Component({
   selector: "law-finance-invoices",
@@ -81,7 +90,7 @@ export class FinanceInvoicesComponent {
 
   readonly search = new FormControl("", { nonNullable: true });
   readonly clientIds = signal<string[]>([]);
-  readonly status = new FormControl<InvoiceStatus | "">("", {
+  readonly status = new FormControl<InvoiceStatus | AllOptionValue>("", {
     nonNullable: true,
   });
   readonly currency = new FormControl("", { nonNullable: true });
@@ -92,20 +101,17 @@ export class FinanceInvoicesComponent {
   readonly loading = signal(false);
   readonly error = signal(false);
   readonly loaded = signal(false);
-  readonly page = signal(1);
-  readonly pageSize = signal(50);
   readonly filterRevision = signal(0);
   readonly advancedFiltersOpen = signal(false);
   readonly deletingInvoiceId = signal<string | null>(null);
   readonly statusBadgeBaseClasses = STATUS_BADGE_BASE_CLASSES;
   readonly statusBadgeClass = statusBadgeClass;
+  readonly InvoiceStatus = InvoiceStatus;
 
-  readonly statusOptions: ReadonlyArray<SelectOption<InvoiceStatus | "">> = [
-    { value: "", label: "finance.all" },
-    { value: "DRAFT", label: "finance.draft" },
-    { value: "SENT", label: "finance.sent" },
-    { value: "VOIDED", label: "finance.voided" },
-  ];
+  readonly statusOptions = filterOptionsFrom(
+    INVOICE_STATUS_LABELS,
+    "finance.all",
+  );
   readonly statusItemToString = createSelectItemToString(
     this.statusOptions,
     (key) => this.localization.translate(key),
@@ -146,13 +152,10 @@ export class FinanceInvoicesComponent {
       return true;
     });
   });
-  readonly pageCount = computed(() =>
-    Math.max(1, Math.ceil(this.filteredInvoices().length / this.pageSize())),
-  );
-  readonly visibleInvoices = computed(() => {
-    const start = (this.page() - 1) * this.pageSize();
-    return this.filteredInvoices().slice(start, start + this.pageSize());
+  readonly pagination = new LocalPagination(this.filteredInvoices, {
+    loading: this.loading,
   });
+  readonly visibleInvoices = this.pagination.items;
 
   constructor() {
     const clientId =
@@ -173,7 +176,7 @@ export class FinanceInvoicesComponent {
           takeUntilDestroyed(this.destroyRef),
         )
         .subscribe(() => {
-          this.page.set(1);
+          this.pagination.reset();
           this.filterRevision.update((value) => value + 1);
         });
     }
@@ -185,13 +188,13 @@ export class FinanceInvoicesComponent {
     this.error.set(false);
     forkJoin({
       invoices: this.api.invoices(),
-      clients: this.clientsApi.list({ page: 1, pageSize: 100 }),
+      clients: this.clientsApi.list(FIRST_PAGE),
     })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: ({ invoices, clients }) => {
           this.invoices.set(invoices);
-          this.page.set(Math.min(this.page(), this.pageCount()));
+          this.pagination.clamp();
           this.clients.set(clients.items);
           this.loaded.set(true);
           this.loading.set(false);
@@ -204,20 +207,10 @@ export class FinanceInvoicesComponent {
       });
   }
 
-  changePage(page: number): void {
-    if (page < 1 || page > this.pageCount() || this.loading()) return;
-    this.page.set(page);
-  }
-
-  changePageSize(pageSize: number): void {
-    if (this.loading() || pageSize === this.pageSize()) return;
-    this.pageSize.set(pageSize);
-    this.page.set(1);
-  }
-
   deleteInvoice(invoice: InvoiceSummary, event: Event): void {
     event.stopPropagation();
-    if (invoice.status !== "DRAFT" || this.deletingInvoiceId()) return;
+    if (invoice.status !== InvoiceStatus.DRAFT || this.deletingInvoiceId())
+      return;
     this.confirmDialog
       .confirm({
         title: this.localization.translate("finance.deleteInvoiceTitle"),
@@ -240,7 +233,7 @@ export class FinanceInvoicesComponent {
               this.invoices.update((items) =>
                 items.filter((item) => item.id !== invoice.id),
               );
-              this.page.set(Math.min(this.page(), this.pageCount()));
+              this.pagination.clamp();
               this.deletingInvoiceId.set(null);
               this.toast.success(
                 this.localization.translate("finance.invoiceDeleted"),
@@ -267,7 +260,7 @@ export class FinanceInvoicesComponent {
     this.currency.setValue("", { emitEvent: false });
     this.from.setValue("", { emitEvent: false });
     this.to.setValue("", { emitEvent: false });
-    this.page.set(1);
+    this.pagination.reset();
     this.advancedFiltersOpen.set(false);
     this.filterRevision.update((value) => value + 1);
   }
@@ -285,31 +278,31 @@ export class FinanceInvoicesComponent {
 
   setClientIds(value: string[]): void {
     this.clientIds.set([...new Set(value)]);
-    this.page.set(1);
+    this.pagination.reset();
     this.filterRevision.update((revision) => revision + 1);
   }
 
   statusLabel(status: InvoiceStatus): string {
-    return this.localization.translate(
-      status === "DRAFT"
-        ? "finance.draft"
-        : status === "SENT"
-          ? "finance.sent"
-          : "finance.voided",
-    );
+    return labelOf(INVOICE_STATUS_LABELS, status, this.translate);
+  }
+
+  collectionLabel(status: string): string {
+    return labelOf(INVOICE_COLLECTION_STATUS_LABELS, status, this.translate);
   }
 
   formatDate(value: string): string {
-    return new Intl.DateTimeFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { dateStyle: "medium" },
-    ).format(new Date(value));
+    return new Intl.DateTimeFormat(this.localization.locale(), {
+      dateStyle: "medium",
+    }).format(new Date(value));
   }
 
   formatCurrency(value: string, currency: string): string {
-    return new Intl.NumberFormat(
-      this.localization.language() === "EN" ? "en" : "sr-Latn",
-      { style: "currency", currency },
-    ).format(Number(value));
+    return new Intl.NumberFormat(this.localization.locale(), {
+      style: "currency",
+      currency,
+    }).format(Number(value));
   }
+
+  private readonly translate = (key: string) =>
+    this.localization.translate(key);
 }

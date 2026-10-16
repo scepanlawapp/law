@@ -1,37 +1,55 @@
+import type { EventType } from "./api-interfaces";
 import type {
   CaseReference,
   ClientReference,
   UserReference,
 } from "./api-interfaces";
 
+export const WorkEntryStatus = {
+  RUNNING: "RUNNING",
+  PROPOSED: "PROPOSED",
+  CONFIRMED: "CONFIRMED",
+  BILLED: "BILLED",
+  WRITTEN_OFF: "WRITTEN_OFF",
+} as const;
 export type WorkEntryStatus =
-  | "RUNNING"
-  | "PROPOSED"
-  | "CONFIRMED"
-  | "BILLED"
-  | "WRITTEN_OFF";
+  (typeof WorkEntryStatus)[keyof typeof WorkEntryStatus];
+export const WorkEntryTreatment = {
+  RETAINER: "RETAINER",
+  AT: "AT",
+  HOURLY: "HOURLY",
+  NON_BILLABLE: "NON_BILLABLE",
+  UNDECIDED: "UNDECIDED",
+} as const;
 export type WorkEntryTreatment =
-  | "RETAINER"
-  | "AT"
-  | "HOURLY"
-  | "NON_BILLABLE"
-  | "UNDECIDED";
+  (typeof WorkEntryTreatment)[keyof typeof WorkEntryTreatment];
+export const WorkEntrySource = {
+  MANUAL: "MANUAL",
+  TIMER: "TIMER",
+  QUICK_CAPTURE: "QUICK_CAPTURE",
+  TASK: "TASK",
+  EVENT: "EVENT",
+  DEADLINE: "DEADLINE",
+  ACTIVITY: "ACTIVITY",
+  EMAIL: "EMAIL",
+} as const;
 export type WorkEntrySource =
-  | "MANUAL"
-  | "TIMER"
-  | "QUICK_CAPTURE"
-  | "TASK"
-  | "EVENT"
-  | "DEADLINE"
-  | "ACTIVITY"
-  | "EMAIL";
+  (typeof WorkEntrySource)[keyof typeof WorkEntrySource];
+export const WorkEntrySourceType = {
+  TASK: "TASK",
+  EVENT: "EVENT",
+  DEADLINE: "DEADLINE",
+  CLIENT_ACTIVITY: "CLIENT_ACTIVITY",
+  CASE_ACTIVITY: "CASE_ACTIVITY",
+} as const;
 export type WorkEntrySourceType =
-  | "TASK"
-  | "EVENT"
-  | "DEADLINE"
-  | "CLIENT_ACTIVITY"
-  | "CASE_ACTIVITY";
-export type RetainerRule = "HOURLY" | "AT" | "ABSORBED";
+  (typeof WorkEntrySourceType)[keyof typeof WorkEntrySourceType];
+export const RetainerRule = {
+  HOURLY: "HOURLY",
+  AT: "AT",
+  ABSORBED: "ABSORBED",
+} as const;
+export type RetainerRule = (typeof RetainerRule)[keyof typeof RetainerRule];
 export const SUPPORTED_WORK_ENTRY_CURRENCIES = [
   "RSD",
   "EUR",
@@ -99,7 +117,7 @@ export interface WorkEntry {
 export interface WorkEntryActions {
   canEdit: boolean;
   canDelete: boolean;
-  deleteBlockedReason: "LAST_TASK_ENTRY" | "BILLED" | "NOT_ALLOWED" | null;
+  deleteBlockedReason: WorkEntryDeleteBlockedReason | null;
 }
 
 export interface CreateWorkEntryRequest {
@@ -204,7 +222,7 @@ export interface TimeReviewResponse {
   }[];
   untouchedClients: {
     client: ClientReference;
-    reasons: ("ACTIVITY" | "DOCUMENT" | "CHAT")[];
+    reasons: TimeReviewReason[];
   }[];
 }
 
@@ -337,7 +355,7 @@ export interface PastWorkEvent {
   id: string;
   title: string;
   description: string | null;
-  type: "MEETING" | "HEARING" | "CALL" | "OTHER";
+  type: EventType;
   startsAt: string;
   endsAt: string;
   isAllDay: boolean;
@@ -346,3 +364,19 @@ export interface PastWorkEvent {
   writeOffReason: string | null;
   workEntry: { id: string; status: WorkEntryStatus; canManage: boolean } | null;
 }
+
+export const WorkEntryDeleteBlockedReason = {
+  LAST_TASK_ENTRY: "LAST_TASK_ENTRY",
+  BILLED: "BILLED",
+  NOT_ALLOWED: "NOT_ALLOWED",
+} as const;
+export type WorkEntryDeleteBlockedReason =
+  (typeof WorkEntryDeleteBlockedReason)[keyof typeof WorkEntryDeleteBlockedReason];
+
+export const TimeReviewReason = {
+  ACTIVITY: "ACTIVITY",
+  DOCUMENT: "DOCUMENT",
+  CHAT: "CHAT",
+} as const;
+export type TimeReviewReason =
+  (typeof TimeReviewReason)[keyof typeof TimeReviewReason];
