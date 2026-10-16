@@ -25,6 +25,18 @@ function createService() {
   return { service, prisma, queue };
 }
 
+describe("AUTH_MAIL_JOB_OPTIONS", () => {
+  it("has the agreed retry and retention values", () => {
+    expect(AUTH_MAIL_JOB_OPTIONS.attempts).toBe(5);
+    expect(AUTH_MAIL_JOB_OPTIONS.backoff).toEqual({
+      type: "exponential",
+      delay: 5000,
+    });
+    expect(AUTH_MAIL_JOB_OPTIONS.removeOnComplete).toBe(true);
+    expect(AUTH_MAIL_JOB_OPTIONS.removeOnFail).toEqual({ age: 3600 });
+  });
+});
+
 describe("AuthMailService", () => {
   afterEach(() => jest.restoreAllMocks());
 
@@ -169,6 +181,24 @@ describe("AuthMailProcessor", () => {
         metadata: { template: "passwordReset" },
       },
     });
+  });
+
+  it("final-failure warning omits recipient and error message", async () => {
+    const { processor } = createProcessor();
+    const warn = jest.spyOn(Logger.prototype, "warn").mockImplementation();
+
+    await processor.onFailed(
+      { data: jobData, attemptsMade: 5, opts: { attempts: 5 } } as never,
+      new Error("550 rejected ana@example.com"),
+    );
+
+    expect(warn).toHaveBeenCalled();
+    const logged = warn.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("passwordReset");
+    expect(logged).toContain("user-1");
+    expect(logged).not.toContain("ana@example.com");
+    expect(logged).not.toContain("550 rejected");
+    warn.mockRestore();
   });
 
   it("does not audit while retries remain", async () => {

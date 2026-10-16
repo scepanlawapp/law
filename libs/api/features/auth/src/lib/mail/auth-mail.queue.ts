@@ -16,5 +16,5 @@ export const AUTH_MAIL_JOB_OPTIONS = {
   attempts: 5,
   backoff: { type: "exponential", delay: 5000 },
   removeOnComplete: true,
-  removeOnFail: 100,
+  removeOnFail: { age: 3600 },
 } as const;

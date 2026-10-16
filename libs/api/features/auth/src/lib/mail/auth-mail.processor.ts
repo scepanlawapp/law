@@ -53,7 +53,7 @@ export class AuthMailProcessor extends WorkerHost {
 
     const { template } = job.data.message;
     this.logger.warn(
-      `Auth email (template ${template}) failed after ${attemptsMade} attempts: ${error?.message ?? "unknown error"}`,
+      `Auth email (template ${template}, user ${job.data.userId ?? "none"}) failed after ${attemptsMade} attempts: ${error?.name ?? "unknown error"}`,
     );
     try {
       await this.prisma.auditEvent.create({
