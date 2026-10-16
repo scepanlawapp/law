@@ -586,6 +586,35 @@ describe("MfaEnrollmentService.disable", () => {
     expect(JSON.stringify(data)).not.toContain(user.email);
   });
 
+  it("consumes the user's open login challenges and email codes inside its transaction", async () => {
+    const { service, prisma, cipher } = createHarness();
+    prisma.userMfa.findUnique.mockResolvedValue({
+      ...pendingMfa(cipher, generateTotpSecret()),
+      enabledAt,
+    });
+    const tx = {
+      mfaRecoveryCode: { deleteMany: jest.fn().mockResolvedValue({}) },
+      userMfa: { deleteMany: jest.fn().mockResolvedValue({}) },
+      trustedDevice: { updateMany: jest.fn().mockResolvedValue({}) },
+      authToken: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    };
+    prisma.$transaction.mockImplementation(
+      async (fn: (client: unknown) => unknown) => fn(tx),
+    );
+
+    await service.disable(user.id, PASSWORD);
+
+    expect(tx.authToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        userId: user.id,
+        purpose: { in: ["MFA_CHALLENGE", "MFA_EMAIL_CODE"] },
+        consumedAt: null,
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
+    expect(prisma.authToken.updateMany).not.toHaveBeenCalled();
+  });
+
   it("is 409 while the office policy requires 2FA", async () => {
     const { service, prisma, cipher, mail } = createHarness();
     prisma.userMfa.findUnique.mockResolvedValue({

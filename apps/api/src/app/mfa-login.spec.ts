@@ -91,7 +91,10 @@ function createHarness(
       updateMany: jest.fn().mockResolvedValue({ count: 1 }),
     },
     workspaceMember: { updateMany: jest.fn((arg: unknown) => arg) },
-    $transaction: jest.fn(async (ops: unknown[]) => ops),
+    $transaction: jest.fn(
+      async (arg: unknown): Promise<unknown> =>
+        typeof arg === "function" ? arg(prisma) : arg,
+    ),
     authSession: { create: jest.fn().mockResolvedValue({}) },
     auditEvent: { create: jest.fn().mockResolvedValue({}) },
     trustedDevice: {
@@ -386,11 +389,87 @@ describe("AuthService.acceptInvitation honours the 2FA policy", () => {
       }),
     });
     // The invitation itself is still accepted and consumed.
-    expect(prisma.authToken.update).toHaveBeenCalledWith({
-      where: { id: "invite-1" },
+    expect(prisma.authToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "invite-1",
+        purpose: "INVITATION",
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+      },
       data: { consumedAt: expect.any(Date) },
     });
     expect(prisma.workspaceMember.updateMany).toHaveBeenCalled();
+  });
+
+  it("sets the password, claims the invitation, activates the membership and revokes trusted devices in one transaction", async () => {
+    const { authService, prisma } = createHarness();
+    prisma.authToken.findFirst.mockResolvedValue(invitation);
+    const tx = {
+      user: {
+        update: jest
+          .fn()
+          .mockResolvedValue({ id: user.id, passwordChangedAt: new Date() }),
+      },
+      authToken: { updateMany: jest.fn().mockResolvedValue({ count: 1 }) },
+      workspaceMember: {
+        updateMany: jest.fn().mockResolvedValue({ count: 1 }),
+      },
+      trustedDevice: { updateMany: jest.fn().mockResolvedValue({ count: 2 }) },
+    };
+    prisma.$transaction.mockImplementation(async (arg: unknown) => {
+      expect(typeof arg).toBe("function");
+      return (arg as (client: unknown) => unknown)(tx);
+    });
+
+    const result = await authService.acceptInvitation(
+      "raw-invitation",
+      PASSWORD,
+    );
+
+    expect(result.result.status).toBe("AUTHENTICATED");
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.workspaceMember.updateMany).not.toHaveBeenCalled();
+    expect(tx.authToken.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: "invite-1",
+        purpose: "INVITATION",
+        consumedAt: null,
+        expiresAt: { gt: expect.any(Date) },
+      },
+      data: { consumedAt: expect.any(Date) },
+    });
+    expect(tx.user.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: user.id },
+        data: {
+          passwordHash: expect.stringMatching(/^[0-9a-f]+:[0-9a-f]+$/),
+          passwordChangedAt: expect.any(Date),
+          status: "ACTIVE",
+        },
+      }),
+    );
+    expect(tx.workspaceMember.updateMany).toHaveBeenCalledWith({
+      where: { userId: user.id, status: "INVITED" },
+      data: { status: "ACTIVE" },
+    });
+    expect(tx.trustedDevice.updateMany).toHaveBeenCalledWith({
+      where: { userId: user.id, revokedAt: null },
+      data: { revokedAt: expect.any(Date) },
+    });
+  });
+
+  it("an invitation claimed by a concurrent request → 401 and nothing else written", async () => {
+    const { authService, prisma } = createHarness();
+    prisma.authToken.findFirst.mockResolvedValue(invitation);
+    prisma.authToken.updateMany.mockResolvedValue({ count: 0 });
+
+    await expect(
+      authService.acceptInvitation("raw-invitation", PASSWORD),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+    expect(prisma.user.update).not.toHaveBeenCalled();
+    expect(prisma.workspaceMember.updateMany).not.toHaveBeenCalled();
+    expect(prisma.authSession.create).not.toHaveBeenCalled();
   });
 });
 

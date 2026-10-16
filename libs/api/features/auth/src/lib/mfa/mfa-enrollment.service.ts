@@ -208,6 +208,16 @@ export class MfaEnrollmentService {
       await tx.userMfa.deleteMany({ where: { userId } });
       // Without 2FA there is nothing to remember; re-enabling starts clean.
       await this.trustedDevices.revokeAll(userId, tx);
+      // Open login challenges and email codes must not outlive the factor
+      // (same as the admin reset).
+      await tx.authToken.updateMany({
+        where: {
+          userId,
+          purpose: { in: ["MFA_CHALLENGE", "MFA_EMAIL_CODE"] },
+          consumedAt: null,
+        },
+        data: { consumedAt: new Date() },
+      });
     });
     await this.audit("MFA_DISABLED", userId);
     await this.mail.sendMfaDisabled(

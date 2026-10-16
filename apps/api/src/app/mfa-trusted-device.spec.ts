@@ -610,6 +610,7 @@ describe("MfaEnrollmentService trusted devices", () => {
     const tx = {
       mfaRecoveryCode: { deleteMany: jest.fn().mockResolvedValue({}) },
       userMfa: { deleteMany: jest.fn().mockResolvedValue({}) },
+      authToken: { updateMany: jest.fn().mockResolvedValue({ count: 0 }) },
       trustedDevice: table,
     };
     const prisma = {

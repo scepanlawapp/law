@@ -238,32 +238,42 @@ export class AuthService {
         consumedAt: null,
         expiresAt: { gt: new Date() },
       },
-      include: {
-        user: { include: { memberships: { include: { workspace: true } } } },
-      },
+      include: { user: { select: { status: true } } },
     });
     if (!invitation || invitation.user.status === "DISABLED")
       throw new UnauthorizedException("Invalid invitation");
 
-    const user = await this.prisma.user.update({
-      where: { id: invitation.userId },
-      data: {
-        passwordHash: await hashPassword(password),
-        passwordChangedAt: new Date(),
-        status: "ACTIVE",
-      },
-      include: { memberships: { include: { workspace: true } } },
-    });
-    await this.prisma.$transaction([
-      this.prisma.authToken.update({
-        where: { id: invitation.id },
-        data: { consumedAt: new Date() },
-      }),
-      this.prisma.workspaceMember.updateMany({
-        where: { userId: user.id, status: "INVITED" },
+    const changedAt = new Date();
+    const passwordHash = await hashPassword(password);
+    const user = await this.prisma.$transaction(async (tx) => {
+      // Claim the invitation first so two concurrent acceptances cannot both
+      // set a password.
+      const claimed = await tx.authToken.updateMany({
+        where: {
+          id: invitation.id,
+          purpose: "INVITATION",
+          consumedAt: null,
+          expiresAt: { gt: changedAt },
+        },
+        data: { consumedAt: changedAt },
+      });
+      if (claimed.count === 0) {
+        throw new UnauthorizedException("Invalid invitation");
+      }
+      const updated = await tx.user.update({
+        where: { id: invitation.userId },
+        data: { passwordHash, passwordChangedAt: changedAt, status: "ACTIVE" },
+        select: { id: true, passwordChangedAt: true },
+      });
+      await tx.workspaceMember.updateMany({
+        where: { userId: updated.id, status: "INVITED" },
         data: { status: "ACTIVE" },
-      }),
-    ]);
+      });
+      // A new password from an emailed link: no device remembered under the
+      // previous one stays trusted.
+      await this.trustedDevices.revokeAll(updated.id, tx);
+      return updated;
+    });
     const step = await this.secondFactorStep(
       user.id,
       "INVITATION_ACCEPTED",
